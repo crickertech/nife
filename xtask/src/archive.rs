@@ -3,8 +3,15 @@
 //! One packer per ISA, over the same program list, plus the check that every program the
 //! tree loads by name is declared in a manifest the packer reads.
 
+use crate::disk::{mkfs_elf, redoxfs_server_elf};
+use crate::farm::{ripgrep_elf, std_exerciser_elf};
+use crate::host::{bin_elf, run, workspace_root};
+use crate::inspect::read_stripped;
+use crate::measure::{boot_programs, measurement_table, write_measure_manifest};
+use crate::{RISCV_TARGET, TARGET, X86_TARGET, cargo_profiled, profile_dir};
+
 /// Where the packed initrd archive is written.
-fn initrd_path() -> String {
+pub(crate) fn initrd_path() -> String {
     workspace_root()
         .join("target/initrd.img")
         .display()
@@ -13,7 +20,7 @@ fn initrd_path() -> String {
 
 /// Where the RISC-V initrd archive is written (milestone 20). Separate from the aarch64 one because
 /// it holds riscv64 ELFs, not aarch64 ones.
-fn riscv_initrd_path() -> String {
+pub(crate) fn riscv_initrd_path() -> String {
     workspace_root()
         .join("target/initrd-riscv.img")
         .display()
@@ -210,7 +217,7 @@ fn check_declared_programs(names: &[String]) -> Result<(), String> {
 /// cargo xtask initrd-riscv
 /// NIFE_INITRD=target/initrd-riscv.img cargo run -p kernel --target riscv64imac-unknown-none-elf
 /// ```
-fn initrd_riscv() -> bool {
+pub(crate) fn initrd_riscv() -> bool {
     // **Builds the whole package rather than naming binaries** (fixed 2026-08-27; see
     // [`initrd_x86`]'s doc comment, which used to describe this as the one structural
     // difference between the two). The `--bin` list this used to carry predated every program
@@ -310,7 +317,7 @@ fn initrd_riscv() -> bool {
 /// reason they are separate from each other: it holds `x86_64` ELFs, and the kernel's loader refuses
 /// anything whose `e_machine` is not its own (`crates/elf`'s `EXPECTED_MACHINE`, which was itself
 /// wrong for this architecture until item 4 found it).
-fn x86_initrd_path() -> String {
+pub(crate) fn x86_initrd_path() -> String {
     workspace_root()
         .join("target/initrd-x86_64.img")
         .display()
@@ -367,7 +374,7 @@ fn x86_initrd_path() -> String {
 /// one rename, where making all three agree on fully-spelled ISA names, e.g. `initrd_riscv64` /
 /// `initrd_x86_64`, would also rename two already-typed, already-documented subcommand names for a
 /// smaller win). Confirm or redirect.
-fn initrd_x86() -> bool {
+pub(crate) fn initrd_x86() -> bool {
     if !cargo_profiled(&[
         "build",
         "-p",
@@ -469,7 +476,7 @@ fn initrd_x86() -> bool {
 /// boots the aarch64 kernel) exactly as `mkinitrd` was; the new subcommand is additive, so nothing
 /// that already called this function changed. **Name and subcommand provisional**, per this
 /// repo's naming convention: calef's call to confirm or redirect.
-fn initrd_aarch64() -> bool {
+pub(crate) fn initrd_aarch64() -> bool {
     // **No table** since milestone 150: every `[[bin]]` in `components/` and `fixtures/`, the
     // same list the other two archives pack ([`declared_programs`]). This function carried its own
     // hand-written table before that, and an older three-way copy of it before milestone 130; the
@@ -541,6 +548,8 @@ fn initrd_aarch64() -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+
     use super::*;
 
     /// The `[[bin]]` reader against the shape both packages write, and the two it must refuse

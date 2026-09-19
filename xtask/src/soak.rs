@@ -4,6 +4,18 @@
 //! Both return their own exit codes rather than a bool, because a rehearsal that cannot say
 //! *how* it failed is not a rehearsal.
 
+use std::path::PathBuf;
+use std::process::{Command, ExitCode};
+use std::sync::atomic::Ordering;
+
+use crate::archive::{initrd_path, initrd_riscv, initrd_x86, riscv_initrd_path, x86_initrd_path};
+use crate::board::{Tee, parse_duration};
+use crate::disk::mkdisk;
+use crate::host::workspace_root;
+use crate::{
+    RELEASE, RISCV_TARGET, TARGET, X86_TARGET, cargo_profiled, maybe_hvf, profile_dir, user,
+};
+
 /// **The QEMU rehearsal of milestone 168's multi-tasking workload sweep.** Boot a
 /// `--features job_mix` kernel, echo its lines, stop when it says it is done, and kill it.
 ///
@@ -16,7 +28,7 @@
 /// The marker loop is `run_bench`'s, for `run_bench`'s reason: the kernel parks in `wfi` rather
 /// than exiting, so the host side owns the process and tears it down when it sees the done line.
 /// See `script/job-mix`.
-fn job_mix_sweep() -> ExitCode {
+pub(crate) fn job_mix_sweep() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(2).collect();
     let mut arch = "aarch64".to_string();
     let mut smp: Option<String> = None;
@@ -215,7 +227,7 @@ fn job_mix_sweep() -> ExitCode {
 /// Named for the command rather than for the workload (milestone 297): this function *is*
 /// `script/soak-test`, where `BootProgress::soak` one crate over reports on the workload, which is
 /// still a soak and keeps that spelling.
-fn soak_test() -> ExitCode {
+pub(crate) fn soak_test() -> ExitCode {
     use std::io::Write;
     use std::time::Duration;
 

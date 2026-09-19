@@ -22,8 +22,7 @@
 //! `.cargo/config.toml`. That script is the single source of truth for how the kernel
 //! gets booted, so there is exactly one place to get the QEMU flags wrong.
 
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 mod archive;
@@ -45,6 +44,21 @@ mod soak;
 mod stick;
 mod suite;
 mod uefi;
+
+use crate::archive::{initrd_aarch64, initrd_riscv, initrd_x86};
+use crate::bench::bench;
+use crate::board::{board_console, board_script};
+use crate::boot_check::boot_check;
+use crate::disk::{mkdisk, mkredoxfs, redoxfs_server_build};
+use crate::farm::{std_aborts, std_exerciser, std_inputs_stamp, std_src};
+use crate::host::cargo;
+use crate::icount::icount;
+use crate::inspect::{gdb, image, objdump};
+use crate::manual::{manual_store, tree_apropos};
+use crate::shell_check::shell_check;
+use crate::soak::{job_mix_sweep, soak_test};
+use crate::suite::{test, undefined_behavior_check};
+use crate::uefi::{uefi_boot, uefi_image, uefi_test};
 
 const TARGET: &str = "aarch64-unknown-none-softfloat";
 const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";

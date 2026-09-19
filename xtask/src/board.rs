@@ -4,6 +4,9 @@
 //! The recogniser that says how far a boot got lives in `board_console`; this keeps the
 //! argument parsing, the log, and the report. See notes/visionfive2.md.
 
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode};
+
 // ---------------------------------------------------------------------------
 // board-console (milestone 216)
 // ---------------------------------------------------------------------------
@@ -47,7 +50,7 @@ fn board_console_tally(path: &std::path::Path) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn board_console() -> ExitCode {
+pub(crate) fn board_console() -> ExitCode {
     use std::io::Write;
 
     use board_console::watch::{Policy, watch};
@@ -356,9 +359,9 @@ fn board_console() -> ExitCode {
 ///
 /// Both, not either. The file is the artifact a later reader needs and the terminal is what makes
 /// a person at the bench willing to use the tool at all.
-struct Tee {
-    file: std::fs::File,
-    terminal: std::io::Stdout,
+pub(crate) struct Tee {
+    pub(crate) file: std::fs::File,
+    pub(crate) terminal: std::io::Stdout,
 }
 
 impl std::io::Write for Tee {
@@ -377,7 +380,7 @@ impl std::io::Write for Tee {
 }
 
 /// `90`, `90s`, `30m`, `2h`. Bare digits are seconds.
-fn parse_duration(text: &str) -> Option<std::time::Duration> {
+pub(crate) fn parse_duration(text: &str) -> Option<std::time::Duration> {
     let (digits, scale) = match text.strip_suffix(['s', 'm', 'h']) {
         Some(rest) => (
             rest,
@@ -751,7 +754,7 @@ fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
 ///
 /// The default is the card and stays the card. A network-booting script is a promise about a
 /// machine that has to be running, so it is asked for rather than arrived at.
-fn board_script() -> bool {
+pub(crate) fn board_script() -> bool {
     let mut tftp = false;
     let mut server: Option<String> = None;
     let mut args = std::env::args().skip(2);

@@ -5,6 +5,11 @@
 //! rust-src into a linked `nife-dev` toolchain; `std-exerciser` builds the `std_exerciser` program for the
 //! custom targets with -Zbuild-std against it. See notes/std.md.
 
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::host::{capture, run, workspace_root};
+
 /// The custom-target triples the std demo builds for, one per supported ISA. The name is the
 /// JSON spec's file stem, which is also cargo's target-dir subdirectory.
 const STD_TARGETS: [&str; 3] = [
@@ -35,7 +40,7 @@ fn farm_std_src() -> PathBuf {
 
 /// The `std_exerciser` ELF for a given custom-target triple. `std_exerciser` is its own workspace, so its
 /// artifacts land under `std_exerciser/target/<triple>/release/`.
-fn std_exerciser_elf(triple: &str) -> PathBuf {
+pub(crate) fn std_exerciser_elf(triple: &str) -> PathBuf {
     workspace_root().join(format!(
         "std_exerciser/target/{triple}/release/std_exerciser"
     ))
@@ -48,7 +53,7 @@ fn std_exerciser_elf(triple: &str) -> PathBuf {
 /// DECISIONS §46 makes calef's decision rather than a gate's. So the initrd carries it when it is
 /// on disk and does not when it is not, exactly as `std_exerciser` rides along, and
 /// `kernel/src/user/ripgrep_tests.rs` skips rather than fails when the archive has no `rg`.
-fn ripgrep_elf(triple: &str) -> PathBuf {
+pub(crate) fn ripgrep_elf(triple: &str) -> PathBuf {
     workspace_root().join(format!("target/ripgrep/{triple}/rg"))
 }
 
@@ -65,7 +70,7 @@ fn fnv(mut h: u64, bytes: &[u8]) -> u64 {
 /// Hash everything that determines the farm's contents: the toolchain version, the patch-logic
 /// version, the ABI/heap crates copied in verbatim, the target specs, and every overlay file.
 /// A mismatch means the linked toolchain is stale and std must be rebuilt from patched source.
-fn std_inputs_stamp() -> u64 {
+pub(crate) fn std_inputs_stamp() -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     h = fnv(h, &STD_SRC_PATCH_VERSION.to_le_bytes());
     if let Some(v) = capture("rustc", &["-vV"]) {
@@ -194,7 +199,7 @@ fn relink_farm_if_stolen() -> bool {
 ///
 /// Idempotent: a stamp of all inputs guards the rebuild, so a warm farm (and its build-std cache)
 /// survives across runs and only a PAL change forces std to recompile.
-fn std_src() -> bool {
+pub(crate) fn std_src() -> bool {
     let stamp = std_inputs_stamp();
     let stamp_file = farm_dir().join(".nife-stamp");
     if farm_std_src().is_dir()
@@ -610,7 +615,7 @@ fn std_patch_dispatch() -> bool {
 /// `RUSTUP_TOOLCHAIN` is set explicitly rather than via `+nife-dev`, because the cargo proxy
 /// that launched this xtask already exports `RUSTUP_TOOLCHAIN=nightly`, which would override a
 /// `+` selector and silently build std from the *unpatched* sysroot.
-fn std_exerciser() -> bool {
+pub(crate) fn std_exerciser() -> bool {
     if !std_src() {
         return false;
     }
@@ -673,7 +678,7 @@ fn std_exerciser() -> bool {
 /// entry carries the reason it is allowed. A new one fails the build and has to be answered:
 /// either bind it in the PAL, or add it with its reason. That is the whole mechanism, and it is
 /// rung two of AGENTS.md's ladder where the milestone had rung four.
-fn std_aborts() -> bool {
+pub(crate) fn std_aborts() -> bool {
     let compiled = compiled_std_sources();
     if compiled.is_empty() {
         eprintln!(

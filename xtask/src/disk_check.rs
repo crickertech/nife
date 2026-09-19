@@ -3,6 +3,9 @@
 //! A guest can only report what it believes it did. These open the same disks from outside,
 //! with the same parsers, and say what is actually on them.
 
+use crate::disk::{blank_disk_path, crash_disk_path, redoxfs_disk_path};
+use crate::host::capture;
+
 /// After a test run, read the blank disk back **from the host** and check what the guest put on it:
 /// the partition table with `crates/globally_unique_identifier_partition_table`, and the filesystem
 /// inside the data partition with the pinned engine through `tools/redoxfs_host`.
@@ -18,7 +21,7 @@
 /// where a person can use it. The partition is named by **type GUID**, not by slot number, for the
 /// same reason the guest's `mkfs` finds it that way: the type is what the partition is, and the slot
 /// is a fact about this table's current order.
-fn blank_check_after_run() -> bool {
+pub(crate) fn blank_check_after_run() -> bool {
     use filesystem_protocol::fixture::blank;
     use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 
@@ -136,7 +139,7 @@ fn blank_check_after_run() -> bool {
 /// server that had just mounted the damaged disk; this is a different process, on the host, with the
 /// pinned engine, opening the image the run left behind. It also proves the image is still a
 /// consistent RedoxFS at all, because `cat` cannot succeed on one that is not.
-fn redoxfs_crash_check_after_run() -> bool {
+pub(crate) fn redoxfs_crash_check_after_run() -> bool {
     let out = capture(
         "cargo",
         &[
@@ -186,7 +189,7 @@ fn redoxfs_crash_check_after_run() -> bool {
 /// fake: the guest read its own write back through the same FS server, but this reopens the image
 /// with a different process and the pinned engine. It is also what closes the write blocker
 /// notes/fs-server.md used to record, so it belongs in the gate, not in a comment.
-fn redoxfs_check_after_run() -> bool {
+pub(crate) fn redoxfs_check_after_run() -> bool {
     redoxfs_reads_back(
         filesystem_protocol::fixture::MOTD_NAME,
         filesystem_protocol::fixture::MOTD,

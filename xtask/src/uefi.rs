@@ -3,6 +3,17 @@
 //! Staged at `target/esp` for a QEMU/OVMF boot or for a FAT32 stick, and booted under OVMF
 //! by `uefi-boot` and `uefi-test`. See notes/x86-uefi-boot.md.
 
+use std::path::Path;
+use std::process::Command;
+use std::sync::atomic::Ordering;
+
+use crate::archive::{initrd_x86, x86_initrd_path};
+use crate::disk::{disk_path, mkdisk, mknvmedisk, nvme_disk_path};
+use crate::host::workspace_root;
+use crate::scanout::screendump;
+use crate::suite::kernel_test_elf;
+use crate::{RELEASE, X86_TARGET, cargo_profiled, profile_dir};
+
 /// The `x86_64-unknown-uefi` target (milestone 87): PE/COFF rather than ELF, entered by real
 /// firmware in long mode. Only `uefi_loader`'s binary half is ever built for it.
 const UEFI_TARGET: &str = "x86_64-unknown-uefi";
@@ -13,7 +24,7 @@ const UEFI_TARGET: &str = "x86_64-unknown-uefi";
 /// vvfat driver synthesises one from a directory (`scripts/qemu-uefi-x86_64.sh`), and a USB stick
 /// is formatted by the person holding it. That is the same fact from both ends, and it is why this
 /// milestone needed no new host tooling at all.
-fn esp_dir() -> std::path::PathBuf {
+pub(crate) fn esp_dir() -> std::path::PathBuf {
     workspace_root().join("target/esp")
 }
 
@@ -39,7 +50,7 @@ fn esp_dir() -> std::path::PathBuf {
 ///   what OVMF finds with no configuration. Installing to the machine's own ESP with a boot entry
 ///   of its own (`efibootmgr`'s job on Linux) is not done here, and is what a machine that boots
 ///   nife by default would need.
-fn uefi_image() -> bool {
+pub(crate) fn uefi_image() -> bool {
     // **The archive FIRST, then the kernel, and the order is load-bearing.** Packing the archive
     // regenerates `target/init-measure-x86_64.txt`, the manifest `kernel/build.rs` compiles in as
     // the measured-boot trust root. Kernel-first builds a kernel vouching for the PREVIOUS archive,
@@ -183,7 +194,7 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
 ///
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
 /// the three rather than by hanging the gate. It is stopped as soon as the screen has answered.
-fn uefi_boot() -> bool {
+pub(crate) fn uefi_boot() -> bool {
     if !uefi_image() {
         return false;
     }
@@ -494,7 +505,7 @@ fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -
 ///   tour build, because the tour build is what `uefi-image` stages for the USB stick and what
 ///   calef carries to the bench; a regression that only the shipping image has would otherwise be
 ///   gated by nothing.
-fn uefi_test() -> bool {
+pub(crate) fn uefi_test() -> bool {
     if !initrd_x86() || !mkdisk() || !mknvmedisk() {
         return false;
     }

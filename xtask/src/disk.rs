@@ -4,8 +4,11 @@
 //! Every one is remade per boot, so a run meets a fresh fixture rather than whatever the last
 //! one wrote.
 
+use crate::host::{run, workspace_root};
+use crate::manual::doc_store;
+
 /// Where the nifefs disk image is written.
-fn disk_path() -> String {
+pub(crate) fn disk_path() -> String {
     workspace_root()
         .join("target/nifefs.img")
         .display()
@@ -34,7 +37,7 @@ fn disk_pci_path() -> String {
 /// block and reads it back, so nothing else on the disk is ever a write target. Regenerating the
 /// images here is also what makes test runs independent: whatever a previous run wrote to
 /// scratch is rebuilt to zeros.
-fn mkdisk() -> bool {
+pub(crate) fn mkdisk() -> bool {
     let files: [(&str, &[u8]); 3] = [
         (
             "motd",
@@ -73,7 +76,7 @@ fn mkdisk() -> bool {
 
 /// Build the FS-server ELF for `triple`. Its own workspace, so it takes `--manifest-path` and its
 /// artifacts land under `redoxfs_server/target/`.
-fn redoxfs_server_build(triple: &str) -> bool {
+pub(crate) fn redoxfs_server_build(triple: &str) -> bool {
     run(
         "cargo",
         &[
@@ -97,7 +100,7 @@ fn redoxfs_server_build(triple: &str) -> bool {
 }
 
 /// The FS-server ELF path for a target triple (always the release profile; see `redoxfs_server_build`).
-fn redoxfs_server_elf(triple: &str) -> String {
+pub(crate) fn redoxfs_server_elf(triple: &str) -> String {
     workspace_root()
         .join(format!(
             "redoxfs_server/target/{triple}/release/redoxfs_server"
@@ -107,7 +110,7 @@ fn redoxfs_server_elf(triple: &str) -> String {
 }
 
 /// The `mkfs` ELF path for a target triple. Same package, same profile, same build.
-fn mkfs_elf(triple: &str) -> String {
+pub(crate) fn mkfs_elf(triple: &str) -> String {
     workspace_root()
         .join(format!("redoxfs_server/target/{triple}/release/mkfs"))
         .display()
@@ -116,7 +119,7 @@ fn mkfs_elf(triple: &str) -> String {
 
 /// Where the RedoxFS test image is written. The runners derive exactly this name from
 /// `NIFE_DISK` (`${NIFE_DISK%.img}-redoxfs.img`), so the two stay in lockstep.
-fn redoxfs_disk_path() -> String {
+pub(crate) fn redoxfs_disk_path() -> String {
     workspace_root()
         .join("target/nifefs-redoxfs.img")
         .display()
@@ -142,7 +145,7 @@ fn redoxfs_host(args: &[&str]) -> bool {
 /// reach). Made host-side with the pinned engine, so an image the server opens is proven against
 /// exactly the code that opens it. Arch-neutral (the on-disk format does not depend on the CPU), so
 /// one image serves both ISA test legs.
-fn mkredoxfs() -> bool {
+pub(crate) fn mkredoxfs() -> bool {
     let img = redoxfs_disk_path();
     // **`NIFE_KEEP_REDOXFS=1` keeps an existing image instead of rebuilding it.** This is the
     // deliberate way to run the second-boot case: run the suite once normally, then again with this
@@ -251,7 +254,7 @@ fn stage_subtree() -> Option<String> {
 
 /// Where the **crash test's** RedoxFS image is written (milestone 37). The runners derive exactly
 /// this name from `NIFE_DISK`, the way they derive the shared one.
-fn crash_disk_path() -> String {
+pub(crate) fn crash_disk_path() -> String {
     workspace_root()
         .join("target/nifefs-redoxfs-crash.img")
         .display()
@@ -267,7 +270,7 @@ fn crash_disk_path() -> String {
 /// each run's starting state a function of the last one's damage. Both are the order-coupled fixture
 /// DECISIONS §27 spent a day on, so `NIFE_KEEP_REDOXFS` deliberately does **not** apply here: the
 /// cross-boot case is interesting for the shared disk and is nothing but noise for this one.
-fn mkredoxfs_crash() -> bool {
+pub(crate) fn mkredoxfs_crash() -> bool {
     let img = crash_disk_path();
     let initial = workspace_root().join("target/redoxfs-crash-initial.tmp");
     if std::fs::write(&initial, filesystem_protocol::fixture::crash::INITIAL).is_err() {
@@ -308,7 +311,7 @@ fn gpt_disk_path() -> String {
 /// table and the backup table with the 64 MiB of nothing between them left out. Reconstituting it is
 /// therefore the head, a run of zeros, and the tail. Nothing is put in the partitions: what is under
 /// test is finding them.
-fn mkgptdisk() -> bool {
+pub(crate) fn mkgptdisk() -> bool {
     const BLOCK: usize = 512;
     const BLOCKS: usize = 131_072; // 64 MiB
     let dir =
@@ -344,7 +347,7 @@ fn mkgptdisk() -> bool {
 
 /// Where the blank test disk is written. The runners derive exactly this name from `NIFE_DISK`
 /// (`${NIFE_DISK%.img}-blank.img`), so the two stay in lockstep.
-fn blank_disk_path() -> String {
+pub(crate) fn blank_disk_path() -> String {
     workspace_root()
         .join("target/nifefs-blank.img")
         .display()
@@ -353,7 +356,7 @@ fn blank_disk_path() -> String {
 
 /// Where the NVMe test image is written; the runners take the full path in `NIFE_NVME` rather
 /// than deriving it, because unlike the mmio disks it does not ride beside `NIFE_DISK`.
-fn nvme_disk_path() -> String {
+pub(crate) fn nvme_disk_path() -> String {
     workspace_root()
         .join("target/nife-nvme.img")
         .display()
@@ -368,7 +371,7 @@ fn nvme_disk_path() -> String {
 /// take, which is what lets the same test run against xenon's 256 GB Micron. Zeros and 8 MiB
 /// because a zero file is cheap to make and small is fast to attach. Regenerated per leg like the blank disk, and for the same reason: the
 /// test writes it, and a leg starting from the previous leg's damage is not reproducible alone.
-fn mknvmedisk() -> bool {
+pub(crate) fn mknvmedisk() -> bool {
     let path = nvme_disk_path();
     if let Err(e) = std::fs::write(&path, std::vec![0u8; 8 * 1024 * 1024]) {
         eprintln!("mknvmedisk: could not write {path}: {e}");
@@ -384,7 +387,7 @@ fn mknvmedisk() -> bool {
 /// test that partitions a disk cannot be pointed at an image another test reads, and a test whose
 /// starting state is last run's damage is not reproducible on its own. `NIFE_KEEP_REDOXFS` does
 /// not apply here for the same reason it does not apply to the crash image.
-fn mkblankdisk() -> bool {
+pub(crate) fn mkblankdisk() -> bool {
     let path = blank_disk_path();
     let bytes = std::vec![0u8; (filesystem_protocol::fixture::blank::DISK_BLOCKS * filesystem_protocol::fixture::blank::LBA) as usize];
     if let Err(e) = std::fs::write(&path, &bytes) {

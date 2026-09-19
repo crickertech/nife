@@ -1,6 +1,13 @@
 //! The instruction-count instrument (milestone 78): the two timing claims a wall clock cannot
 //! make, on both ISAs. See script/icount.
 
+use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::host::{cargo, flag_value};
+use crate::suite::ArchLegs;
+use crate::{RISCV_TARGET, RUNNER, TARGET};
+
 /// **The instruction-count instrument** (milestone 78;
 /// design/roadmap/78-load-sensitive-assertions.md), on both ISAs because parity is a gate (§19).
 ///
@@ -19,7 +26,7 @@
 /// The verdict arrives the bench boot's way rather than through semihosting: the guest prints
 /// `icount: done` and parks in `wfi`, this owns the child and kills it. A panic (a violated claim)
 /// prints `[PANIC]` and is a failure; so is reaching end of output with neither.
-fn icount() -> bool {
+pub(crate) fn icount() -> bool {
     let legs = match flag_value("--arch").as_deref() {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,

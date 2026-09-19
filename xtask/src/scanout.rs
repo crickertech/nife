@@ -15,10 +15,16 @@
 //! running, or the confinement test's device reset moves after it and wipes the surface, no dump
 //! matches and this reports it. Nothing here can make a broken scanout look fine.
 
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::host::workspace_root;
+use crate::inbound::InboundProber;
+
 /// The unix socket the QEMU monitor listens on for `arch`. **In /tmp on purpose**: a unix socket path
 /// must fit in 104 bytes, and a worktree checkout plus `target/` gets close enough to that limit to
 /// break on someone else's machine. The PPM it dumps goes under `target/`, where path length is free.
-fn gpu_mon_socket(arch: &str) -> String {
+pub(crate) fn gpu_mon_socket(arch: &str) -> String {
     format!("/tmp/nife-gpu-{arch}-{}.sock", std::process::id())
 }
 
@@ -245,7 +251,7 @@ fn decode_cell(w: u32, pixels: &[u8], col: u32, row: u32, alphabet: &[u8]) -> Op
 /// against `alphabet` and leaving `b'?'` where nothing in it matches. One string per row, so a
 /// caller can search for a substring without caring which row it landed on (the boot banner's exact
 /// scroll position is exactly what this leg does not want to have to predict).
-fn scanout_rows(ppm: &[u8], alphabet: &[u8]) -> Result<Vec<String>, String> {
+pub(crate) fn scanout_rows(ppm: &[u8], alphabet: &[u8]) -> Result<Vec<String>, String> {
     let (w, h, pixels) = parse_ppm(ppm)?;
     if (w, h) != (graphics_protocol::WIDTH, graphics_protocol::HEIGHT) {
         return Err(format!(
@@ -275,7 +281,7 @@ fn scanout_rows(ppm: &[u8], alphabet: &[u8]) -> Result<Vec<String>, String> {
 /// because QEMU **drops key events until a driver sets `DRIVER_OK`**, so keys pressed before the
 /// keyboard driver exists go nowhere, and once it exists the next one lands. `video_terminal::script::HOST_KEY`
 /// is the one definition of which key, shared with the kernel test that asserts the byte.
-fn sendkey(sock: &str, key: &str) {
+pub(crate) fn sendkey(sock: &str, key: &str) {
     use std::io::Write;
     use std::os::unix::net::UnixStream;
 
@@ -288,7 +294,7 @@ fn sendkey(sock: &str, key: &str) {
 
 /// Ask the QEMU monitor on `sock` for a screendump into `out`. Returns false while the socket is not
 /// there yet (QEMU still starting, or already gone), which the caller treats as "try again".
-fn screendump(sock: &str, out: &Path) -> bool {
+pub(crate) fn screendump(sock: &str, out: &Path) -> bool {
     use std::io::Write;
     use std::os::unix::net::UnixStream;
 
@@ -339,7 +345,7 @@ fn screendump(sock: &str, out: &Path) -> bool {
 /// five seconds, which is free next to QEMU, but it is a subprocess: on a host where `uptime` is
 /// missing or prints an unfamiliar shape, every field stays `None` and the report says "unavailable"
 /// rather than guessing.
-struct HostLoad {
+pub(crate) struct HostLoad {
     min: f64,
     max: f64,
     total: f64,
@@ -355,7 +361,7 @@ impl HostLoad {
 
     /// Start sampling, taking the first reading now so a leg that fails in its first second still
     /// reports something.
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut load = Self {
             min: f64::INFINITY,
             max: 0.0,
@@ -376,7 +382,7 @@ impl HostLoad {
 
     /// Take a reading if the interval has elapsed. Cheap enough to call from a 100 ms poll loop or
     /// from a line-at-a-time transcript reader, which is what the two legs do.
-    fn sample(&mut self) {
+    pub(crate) fn sample(&mut self) {
         if self.last.elapsed() < Self::EVERY {
             return;
         }
@@ -392,7 +398,7 @@ impl HostLoad {
 
     /// Say what the host was doing, but only when the leg went red. On a green leg this is noise,
     /// and a diagnostic that prints on every run is a diagnostic readers learn to skip.
-    fn report_if_failed(&self, ok: bool, arch: &str) {
+    pub(crate) fn report_if_failed(&self, ok: bool, arch: &str) {
         if ok {
             return;
         }
@@ -480,7 +486,7 @@ fn parse_load_average(uptime_output: &str) -> Option<f64> {
 /// picture until it finds it and only then starts looking for the next. So a reordering of the suite,
 /// or a component that never got its picture to the device, fails loudly instead of being waved
 /// through. The child inherits stdio, so the suite's output streams exactly as before.
-fn cargo_test_with_scanout_check(arch: &str, test_args: &[&str]) -> bool {
+pub(crate) fn cargo_test_with_scanout_check(arch: &str, test_args: &[&str]) -> bool {
     let mut referee = ScanoutReferee::new(arch);
     // The other host-side actor (milestone 107): a process that connects INTO the guest, which is
     // the one thing no in-guest test can stage. Constructed before the child for the same reason
@@ -554,7 +560,7 @@ fn cargo_test_with_scanout_check(arch: &str, test_args: &[&str]) -> bool {
 /// "poll until the child is gone". Under HVF nothing exits (QEMU does not answer the semihosting
 /// trap), so the verdict comes from reading the transcript, which blocks, and the referee has to be
 /// driven from a second thread beside it. Same state machine, same messages, two drivers.
-struct ScanoutReferee {
+pub(crate) struct ScanoutReferee {
     arch: String,
     sock: String,
     shot: PathBuf,
@@ -570,7 +576,7 @@ struct ScanoutReferee {
 
 impl ScanoutReferee {
     /// Clear last run's evidence and tell the runner where to put the monitor socket.
-    fn new(arch: &str) -> Self {
+    pub(crate) fn new(arch: &str) -> Self {
         let sock = gpu_mon_socket(arch);
         let shot = gpu_shot_path(arch);
         let composed_shot = gpu_compose_path(arch);
@@ -614,7 +620,7 @@ impl ScanoutReferee {
     /// the cadence unchanged rather than widening it preemptively, since nothing is currently
     /// slow enough to measure a real problem against; revisit if a future resolution increase
     /// (or a slower CI runner) actually makes this cadence cost something observable.
-    fn poll(&mut self) {
+    pub(crate) fn poll(&mut self) {
         // Press a key every poll. Harmless before the keyboard driver exists (QEMU drops the event)
         // and harmless after its test has passed (the driver ends up parked in a `CALL` nobody
         // answers), so there is nothing to time.
@@ -651,7 +657,7 @@ impl ScanoutReferee {
     }
 
     /// Say what reached the device's scanout and what did not, and return whether all three did.
-    fn report(self) -> bool {
+    pub(crate) fn report(self) -> bool {
         let _ = std::fs::remove_file(&self.sock);
         let arch = &self.arch;
         let (composed, text, matched) = (&self.composed, &self.text, &self.matched);

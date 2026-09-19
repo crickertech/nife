@@ -1,6 +1,24 @@
 //! The `cargo xtask test` command: the host tests in milliseconds, then each architecture's
 //! kernel under QEMU, and the Miri run beside them.
 
+use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::archive::{initrd_path, initrd_riscv, initrd_x86, riscv_initrd_path, x86_initrd_path};
+use crate::disk::{
+    disk_path, mkblankdisk, mkdisk, mkgptdisk, mknvmedisk, mkredoxfs, mkredoxfs_crash,
+    nvme_disk_path, redoxfs_server_build,
+};
+use crate::disk_check::{
+    blank_check_after_run, redoxfs_check_after_run, redoxfs_crash_check_after_run,
+};
+use crate::farm::std_exerciser;
+use crate::host::{cargo, flag_value, run};
+use crate::inbound::InboundProber;
+use crate::scanout::{HostLoad, ScanoutReferee, cargo_test_with_scanout_check};
+use crate::uefi::{uefi_boot, uefi_test};
+use crate::{RELEASE, RISCV_TARGET, RUNNER, TARGET, X86_TARGET, user};
+
 /// The architecture legs `test` should run: both by default, one when `--arch` names it.
 ///
 /// **`--arch` did not exist before milestone 59**, and this is the correction worth stating: the
@@ -16,7 +34,7 @@
 /// leg the moment there is a third. That shape is the same default-arm trap `crates/elf`'s
 /// `EXPECTED_MACHINE` fell into on the same day, so both are now explicit `matches!`.
 #[derive(Clone, Copy, PartialEq)]
-enum ArchLegs {
+pub(crate) enum ArchLegs {
     All,
     Aarch64,
     Riscv64,
@@ -24,13 +42,13 @@ enum ArchLegs {
 }
 
 impl ArchLegs {
-    fn aarch64(self) -> bool {
+    pub(crate) fn aarch64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::Aarch64)
     }
-    fn riscv64(self) -> bool {
+    pub(crate) fn riscv64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::Riscv64)
     }
-    fn x86_64(self) -> bool {
+    pub(crate) fn x86_64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::X86_64)
     }
 }
@@ -71,7 +89,7 @@ impl ArchLegs {
 ///
 /// `script/cpu_matrix` is the caller that needs the first two (notes/cpu-models.md); `script/ci-build`
 /// is the caller that needs the third.
-fn test() -> bool {
+pub(crate) fn test() -> bool {
     // Milestone 81. Read before `--arch`, because it constrains it: Hypervisor.framework runs the
     // host's own ISA and this host is aarch64, so there is no riscv64 leg to accelerate and asking
     // for one is a mistake worth naming rather than ignoring.
@@ -764,7 +782,7 @@ fn hvf_kernel_leg() -> bool {
 /// dependency and taking one for a single field would be the wrong trade (DECISIONS §46): the
 /// field is a filesystem path emitted by cargo, so it contains no escapes, and the only artifact
 /// line `cargo test --no-run -p kernel` emits with a non-null `executable` is the one we want.
-fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
+pub(crate) fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
     let mut args = std::vec![
         "test",
         "-p",
@@ -861,7 +879,7 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// code lands in the vendor pin, not in a crate this tree can fix (vendor/README.md). Extra args
 /// are forwarded to `cargo miri test`, so `cargo xtask undefined-behavior-check -p
 /// globally_unique_identifier_partition_table` narrows the run.
-fn undefined_behavior_check() -> bool {
+pub(crate) fn undefined_behavior_check() -> bool {
     eprintln!("--- host tests under Miri (aliasing, provenance, uninitialized reads) ---");
     let mut args = vec![
         "miri",

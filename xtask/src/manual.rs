@@ -3,6 +3,8 @@
 //! `manual` builds the index the guest reads and prints what it costs; `apropos` points the
 //! same index and the same reader at this repository instead of at what the image installs.
 
+use crate::host::workspace_root;
+
 // ---- the documentation store (milestone 40) -------------------------------------------------
 
 /// **What each package's documentation is.**
@@ -48,7 +50,7 @@ fn doc_store_path() -> std::path::PathBuf {
 }
 
 /// What one bundle cost, so the numbers in notes/documentation.md are measured rather than estimated.
-struct Shard {
+pub(crate) struct Shard {
     bundle: &'static str,
     pages: usize,
     terms: usize,
@@ -64,7 +66,7 @@ struct Shard {
 /// Returns one [`Shard`] per bundle. `None` means a listed page is missing, which is a build
 /// failure rather than a warning: a store that quietly ships without a page is a manual with a
 /// missing chapter and nothing to say so.
-fn doc_store() -> Option<Vec<Shard>> {
+pub(crate) fn doc_store() -> Option<Vec<Shard>> {
     let root = doc_store_path();
     let _ = std::fs::remove_dir_all(&root);
     if std::fs::create_dir_all(&root).is_err() {
@@ -150,7 +152,7 @@ fn doc_store() -> Option<Vec<Shard>> {
 /// The query at the end is not a demo. It is the only thing that proves the reader and the writer
 /// agree, and it runs the **same** `no_std` lookup the guest runs, over the same bytes, through the
 /// same one-page-at-a-time [`documentation::index::Pages`] interface. Only the IO differs.
-fn manual_store(term: Option<String>) -> bool {
+pub(crate) fn manual_store(term: Option<String>) -> bool {
     let Some(shards) = doc_store() else {
         return false;
     };
@@ -262,7 +264,7 @@ fn manual_store(term: Option<String>) -> bool {
 /// with a checkout opens.
 ///
 /// See notes/documentation.md.
-fn tree_apropos(term: Option<String>) -> bool {
+pub(crate) fn tree_apropos(term: Option<String>) -> bool {
     let Some(term) = term else {
         eprintln!("usage: script/apropos <word>");
         eprintln!("       searches every markdown page in this repository, and every crate's and");

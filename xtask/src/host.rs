@@ -3,6 +3,12 @@
 //! The few helpers every command needs: `cargo`, a bare `run`, a captured `run`, the LLVM
 //! tools out of the toolchain's sysroot, and the paths to the workspace and its binaries.
 
+use std::process::Command;
+
+use crate::archive::initrd_path;
+use crate::disk::disk_path;
+use crate::{TARGET, profile_dir};
+
 /// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `least_authority_demo`,
 /// `console`, and so on. `initrd_aarch64` packs each into the archive under that same name (milestone
 /// 266 retired the one exception, which packed `hello` under the entry `init` on aarch64).
@@ -17,7 +23,7 @@
 /// alone, and was `bin_elf("hello")` in every respect but the comment. Milestone 130 folded it in
 /// when `initrd_aarch64` stopped needing a special case for `init`; the warning belongs here, where
 /// every caller reads it, rather than on the one caller that happened to earn it.
-fn bin_elf(name: &str) -> String {
+pub(crate) fn bin_elf(name: &str) -> String {
     workspace_root()
         .join(format!("target/{TARGET}/{}/{name}", profile_dir()))
         .display()
@@ -26,7 +32,7 @@ fn bin_elf(name: &str) -> String {
 
 /// The repo root, from the *compile-time* location of this crate, so it does not depend on
 /// whatever directory cargo happens to hand us.
-fn workspace_root() -> std::path::PathBuf {
+pub(crate) fn workspace_root() -> std::path::PathBuf {
     // Runtime, not env!: the compile-time form bakes the absolute path into the binary, and a
     // cached xtask built before the checkout moved (the 2026-08-15 cricker-os -> nife rename)
     // then aims every path it computes, the farm, the initrds, the images, at a directory that
@@ -47,7 +53,7 @@ fn workspace_root() -> std::path::PathBuf {
 /// that this particular tool only accepts one of them. Returns `None` when the flag is absent and
 /// when it is present with nothing after it, which the callers treat as "not given"; a flag whose
 /// value went missing is a typo, and defaulting is friendlier than a panic in a build tool.
-fn flag_value(name: &str) -> Option<String> {
+pub(crate) fn flag_value(name: &str) -> Option<String> {
     let mut args = std::env::args();
     let eq = format!("{name}=");
     while let Some(a) = args.next() {
@@ -61,7 +67,7 @@ fn flag_value(name: &str) -> Option<String> {
     None
 }
 
-fn llvm_tool(name: &str) -> Option<String> {
+pub(crate) fn llvm_tool(name: &str) -> Option<String> {
     let sysroot = capture("rustc", &["--print", "sysroot"])?;
     let verbose = capture("rustc", &["-vV"])?;
     let host = verbose
@@ -79,16 +85,16 @@ fn llvm_tool(name: &str) -> Option<String> {
     }
 }
 
-fn capture(program: &str, args: &[&str]) -> Option<String> {
+pub(crate) fn capture(program: &str, args: &[&str]) -> Option<String> {
     let out = Command::new(program).args(args).output().ok()?;
     String::from_utf8(out.stdout).ok()
 }
 
-fn kernel_elf() -> String {
+pub(crate) fn kernel_elf() -> String {
     format!("target/{TARGET}/{}/kernel", profile_dir())
 }
 
-fn cargo(args: &[&str]) -> bool {
+pub(crate) fn cargo(args: &[&str]) -> bool {
     // The runner needs to know where the initrd is. Set it for every cargo invocation; the
     // script ignores it when the file is not there (which is any build before `user` exists).
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
@@ -112,7 +118,7 @@ fn cargo(args: &[&str]) -> bool {
     run("cargo", args)
 }
 
-fn run(program: &str, args: &[&str]) -> bool {
+pub(crate) fn run(program: &str, args: &[&str]) -> bool {
     Command::new(program)
         .args(args)
         .status()

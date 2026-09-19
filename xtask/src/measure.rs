@@ -7,6 +7,10 @@
 //! already had it: userspace -> archive -> manifest -> kernel. See kernel/build.rs (which consumes
 //! the manifest) and notes/trusted-init.md.
 
+use std::path::PathBuf;
+
+use crate::host::workspace_root;
+
 /// The archive entries the kernel itself may enter as the boot program. Everything else in the
 /// archive is loaded by the progenitor, in userspace, so it is not part of the kernel's trust root.
 ///
@@ -34,7 +38,7 @@
 /// an `arch` and still writes one manifest per architecture; if a board's list ever needs to differ
 /// again, the parameter comes back at that point with a reason attached. The absent-name path below
 /// it is the one that was already written for lists that differ, and it is kept.
-fn boot_programs() -> &'static [&'static str] {
+pub(crate) fn boot_programs() -> &'static [&'static str] {
     &["progenitor", "hello"]
 }
 
@@ -64,7 +68,7 @@ fn measure_manifest_path(arch: &str) -> PathBuf {
 /// second build" invariant holding up the whole chain. Packing the table beside the programs and
 /// letting the kernel's trust root name it buys the same guarantee with a one-pass build: the
 /// kernel vouches for the table exactly as it vouches for the progenitor.
-fn measurement_table(files: &[(&str, &[u8])]) -> String {
+pub(crate) fn measurement_table(files: &[(&str, &[u8])]) -> String {
     let mut lines: Vec<String> = files
         .iter()
         .filter(|(name, _)| *name != measured_boot::PROGRAM_MEASUREMENTS)
@@ -91,7 +95,7 @@ fn measurement_table(files: &[(&str, &[u8])]) -> String {
 /// what must be measured is the bytes **the kernel will read out of the archive**, not the bytes we
 /// meant to put in. If packing ever mangled an entry, this measures the mangling and the boot fails,
 /// which is the correct direction to be wrong in.
-fn write_measure_manifest(arch: &str, image: &[u8]) -> bool {
+pub(crate) fn write_measure_manifest(arch: &str, image: &[u8]) -> bool {
     let fs = match nifefs::Fs::parse(image) {
         Ok(fs) => fs,
         Err(e) => {

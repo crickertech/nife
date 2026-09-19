@@ -1,5 +1,10 @@
 //! Looking at what was built: `gdb`, `objdump`, and the flat `image` with its header dumped.
 
+use std::process::Command;
+
+use crate::host::{kernel_elf, llvm_tool, run, workspace_root};
+use crate::{RISCV_TARGET, RUNNER, X86_TARGET, build};
+
 /// Boot the kernel with QEMU frozen and a GDB stub listening.
 ///
 /// `-s` opens the stub on :1234, `-S` holds the CPU before the first instruction.
@@ -9,7 +14,7 @@
 ///
 /// This is the tool that will save you at milestone 4, when the MMU comes on and
 /// `println!` stops being an option.
-fn gdb() -> bool {
+pub(crate) fn gdb() -> bool {
     if !build() {
         return false;
     }
@@ -33,7 +38,7 @@ fn gdb() -> bool {
     run(RUNNER, &[&elf, "-s", "-S"])
 }
 
-fn objdump() -> bool {
+pub(crate) fn objdump() -> bool {
     if !build() {
         return false;
     }
@@ -57,7 +62,7 @@ fn objdump() -> bool {
 /// Useful when the header is wrong, which is a failure mode with no diagnostics at
 /// all: QEMU simply falls back to treating the file as an anonymous blob, boots it,
 /// and hands you a zero in x0. See notes/boot-protocol.md.
-fn image() -> bool {
+pub(crate) fn image() -> bool {
     if !build() {
         return false;
     }
@@ -131,7 +136,7 @@ fn image() -> bool {
 /// because the measured-boot digest (§26's phase B.1) is taken over what this returns: a build that
 /// quietly packed different bytes depending on which tools were installed would be a build whose
 /// trust root means something different on each machine.
-fn read_stripped(path: &str) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_stripped(path: &str) -> std::io::Result<Vec<u8>> {
     let objcopy = llvm_tool("llvm-objcopy").ok_or_else(|| {
         std::io::Error::other("llvm-objcopy not found; the llvm-tools rustup component provides it")
     })?;

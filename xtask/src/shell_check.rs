@@ -4,6 +4,16 @@
 //! The script is a table of (command, expected substrings), so adding a line to the check is
 //! adding a row rather than writing a test.
 
+use std::process::Command;
+
+use crate::archive::{initrd_path, initrd_riscv, riscv_initrd_path};
+use crate::disk::{disk_path, mkdisk, mkredoxfs, redoxfs_server_build};
+use crate::host::{flag_value, run, workspace_root};
+use crate::scanout::{gpu_mon_socket, scanout_rows, screendump, sendkey};
+use crate::suite::ArchLegs;
+use crate::uefi::{esp_dir, uefi_image};
+use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
+
 /// **Boot the `--features shell` system and type at it** (milestone 50, notes/pipes.md).
 ///
 /// # Why this exists
@@ -41,7 +51,7 @@
 /// One line would meet the BUGS entry that asked for this. Five is still seconds, and it walks the
 /// whole endowment: a spawn through the real progenitor, the FS service the real progenitor narrowed into the
 /// shell, and both redirection operators.
-fn shell_check() -> bool {
+pub(crate) fn shell_check() -> bool {
     let legs = match flag_value("--arch").as_deref() {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,

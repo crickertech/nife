@@ -1,5 +1,10 @@
 //! The boot ladder's gate (milestone 268, item 6).
 
+use std::process::Command;
+
+use crate::host::{flag_value, run};
+use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir};
+
 /// **Boot every architecture's default kernel and fail if its self-test verdict is not green.**
 ///
 /// This is the mechanism milestone 268's block calls "the whole mechanism and the piece most
@@ -44,7 +49,7 @@
 ///   same way, which is a virtue and also inherits that name's recorded problem: `script/lint`
 ///   runs `shellcheck`, and this family of `-check` entry points is one hyphen away from several
 ///   unrelated things. calef has not ruled.
-fn boot_check() -> bool {
+pub(crate) fn boot_check() -> bool {
     let legs = match flag_value("--arch").as_deref() {
         None => [true, true, true],
         Some("aarch64") => [true, false, false],

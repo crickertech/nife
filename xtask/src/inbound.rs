@@ -81,7 +81,7 @@ fn free_loopback_port() -> Option<u16> {
 /// knows when that test starts. A connection that arrives while some other net test holds the NIC
 /// finds no listener and is reset by smoltcp, which costs nothing and is indistinguishable from any
 /// other closed port. It stops the moment both rounds have completed.
-struct InboundProber {
+pub(crate) struct InboundProber {
     arch: String,
     port: Option<u16>,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -91,7 +91,7 @@ struct InboundProber {
 impl InboundProber {
     /// Pick the port, tell the runner about it, and start poking. Call this **before** the child is
     /// spawned: the runner reads `NIFE_HOSTFWD_PORT` from the environment it inherits.
-    fn new(arch: &str) -> Self {
+    pub(crate) fn new(arch: &str) -> Self {
         let Some(port) = free_loopback_port() else {
             eprintln!("inbound prober ({arch}): could not get a free loopback port");
             return Self {
@@ -120,7 +120,7 @@ impl InboundProber {
     /// Stop poking, and say whether the guest answered. Fails the leg when it did not: the guest's
     /// own assertion covers "somebody connected", and this covers the other half, that what came
     /// back was the answer the guest meant to send.
-    fn report(mut self) -> bool {
+    pub(crate) fn report(mut self) -> bool {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
         let arch = &self.arch;
         let Some(thread) = self.thread.take() else {
@@ -329,14 +329,14 @@ struct InboundTrace {
 }
 
 impl InboundTrace {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             started: Some(std::time::Instant::now()),
             ..Default::default()
         }
     }
 
-    fn note(&mut self, outcome: &'static str, opened: std::time::Instant, bytes: usize) {
+    pub(crate) fn note(&mut self, outcome: &'static str, opened: std::time::Instant, bytes: usize) {
         self.attempts += 1;
         *self.counts.entry(outcome).or_insert(0) += 1;
         let held = opened.elapsed().as_millis();
@@ -352,7 +352,7 @@ impl InboundTrace {
         }
     }
 
-    fn summary(&self) -> String {
+    pub(crate) fn summary(&self) -> String {
         let mut out = String::new();
         for (k, v) in &self.counts {
             if !out.is_empty() {

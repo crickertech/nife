@@ -1,6 +1,14 @@
 //! The `cargo xtask bench` command: the cross-OS measurements, and the check that compares a
 //! run against the recorded baselines.
 
+use std::process::Command;
+use std::sync::atomic::Ordering;
+
+use crate::archive::{initrd_path, initrd_riscv, riscv_initrd_path};
+use crate::disk::{disk_path, mkdisk, mkredoxfs, redoxfs_server_build};
+use crate::host::{flag_value, kernel_elf, run, workspace_root};
+use crate::{RELEASE, RISCV_TARGET, RUNNER, TARGET, X86_TARGET, cargo_profiled, user};
+
 /// The microbenchmarks (milestone 21; design/roadmap/21-benchmarks.md).
 ///
 /// Two instruments:
@@ -14,7 +22,7 @@
 /// The bench kernel never exits on its own (semihosting does not work under HVF; see `test`).
 /// We own the QEMU child, watch its output for `bench: done`, and kill it: one exit mechanism
 /// for both accelerators.
-fn bench() -> bool {
+pub(crate) fn bench() -> bool {
     let check = std::env::args().any(|a| a == "--check");
     let save = std::env::args().any(|a| a == "--save");
     // `--release` builds an optimized kernel and userspace, for a fair cross-OS comparison (the debug
