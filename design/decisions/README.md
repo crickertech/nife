@@ -217,6 +217,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 156 | DECIDED | [What the package manager waits on: a decision, not milestone 23 and not the repository split](156-the-package-manager-waits-on-a-decision-not-milestone-23.md) |
 | 157 | DECIDED | [A trivial install is a web page, a USB drive, and packages over the internet](157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md) |
 | 158 | DECIDED | [A program is declared once: the archives read `Cargo.toml`, and the shell's table is one macro](158-a-program-is-declared-once.md) |
+| 159 | DECIDED | [Lab machines upgrade like user machines, and only a new kernel needs a reboot](159-upgrades-without-a-reimage.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
