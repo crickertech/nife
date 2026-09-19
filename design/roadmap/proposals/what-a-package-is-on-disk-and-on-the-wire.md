@@ -1,0 +1,125 @@
+# What a package is, on disk and between the host that builds it and the target that runs it
+
+**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
+(`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
+integrator to mint.
+
+**Gate: DECISION.** A package format is something two programs agree on (the host tool that writes
+it and the target code that reads it), so it is in AGENTS.md's irreversible category. **This
+proposal gives options and no winner**, per "recommend on reversible forks; give options only on
+irreversible ones." Blocked until it is answered: any package that leaves the machine that built it.
+Not blocked: the first slice in `what-trivial-install-means.md`, which composes whole images on the
+host and conveys no package separately.
+
+## What is being decided
+
+Three things, which are separable and should be ruled separately if calef prefers:
+
+1. **The container.** What bytes a package is: members inside an archive the target already
+   parses, one new archive file, or a content-addressed set of blobs named by digest.
+2. **Where a program's manifest lives.** Beside the binary as its own member, or inside the ELF.
+   `notes/component-manifest.md`'s `BUGS` already records this as an open wire-format question and
+   declined to decide it "until a second supervisor or an out-of-tree component actually exists".
+   A package is that trigger.
+3. **What the metadata must carry.** Derived below from what the tree already needs, not invented.
+
+## The constraint every option is checked against
+
+**nife cannot build software.** A package is produced on a host (macOS or Linux) by a Rust
+cross-toolchain and consumed by a target with no compiler, no allocator in the loader, and a
+Kani-proven parser policy for bytes it did not write (`crates/elf`, `crates/nifefs`, the GPT and
+device-tree parsers, all fuzzed by `script/fuzz`). So:
+
+- **Per-architecture output is the normal case.** Three triples, three binaries. Genode keeps
+  `bin/<arch>/<name>/<version>/` beside architecture-independent `raw` archives; Nix gives a
+  cross-built output its own store path. Both read, cited below.
+- **The target-side reader is hostile-input code on the boot or install path**, so every option's
+  reader cost is a new fuzz target and, by this tree's habit, Kani harnesses.
+- **Anything borrowed from a self-hosting system has to survive having no builder on the target.**
+  Haiku's packages are routinely built on Haiku; its cross-building exists for bootstrap only
+  (read: haiku-os.org, `docs/develop/packages/Bootstrapping.html`). Fuchsia builds everything on the
+  host and ships assembled bundles (read: `fuchsia.dev/.../software_assembly/overview`), which makes
+  it the closest match on this axis as well as on capabilities.
+
+## What the metadata must carry, from what the tree already asks for
+
+| Field | Who needs it today | Source |
+|---|---|---|
+| Name, at most 32 bytes | `nifefs::NAME_LEN` is 32; the longest archive entry today is 25 (`os_primitives_benchmarker`), measured from `target/initrd-riscv.img` | `crates/nifefs` |
+| Architecture | Three triples; one ELF per triple | DECISIONS §19 |
+| SHA-256 of each member | The progenitor refuses anything the measurement table does not vouch for | milestone 104, `measured_boot::verdict` |
+| The program manifest (`grant_plan::Manifest`) or component requirements (`component_plan::Requirements`) | What a grant is checked against before spawn; today compiled in, keyed off the closed `Prog` enum | milestone 31, milestone 23, milestone 47's `PATH` section |
+| `Requirements::pages` | "a property of the build, not of the contract", and "the strongest single argument for the wire format" | `notes/component-manifest.md` `BUGS` |
+| Licence | "Each packaged program's licence is recorded where a reader meets the program" | DECISIONS §135, requirement 2 |
+| Documentation bundle and index shard | "installed by the package that owns it"; the index is "a merge of shards, one per installed package" | milestone 40 |
+| Version | Only when a package built at one commit meets a system built at another; see the sibling gate proposal | `design/what-a-distribution-packages.md` |
+| Contract versions it speaks | Same trigger; the `fs_proto` first word is full, so this is a connect-time handshake and a separate protocol decision | same note |
+
+The last two rows are the ones a whole-image first slice does not need, and the ones a format
+chosen now must leave room for.
+
+## Options
+
+### Container
+
+| | Shape | Target-side cost | Prior art (read) | Lost or kept because |
+|---|---|---|---|---|
+| **C1. Members of the boot archive** | A package is a set of named members (`rg`, `rg.manifest`, `rg.licence`) packed into the `nifefs` image beside everything else; the measurement table gets a line per member | **None new.** `nifefs` is already a flat name-to-bytes store, and `measured_boot`'s table is already generic over names | Milestone 47's `PATH` lane found this first ("`nifefs` needs no format change at all") | Kept as an option. Measured headroom: the archive holds **89 of `MAX_FILES` = 127** entries today (riscv64; aarch64 71, x86_64 87), and a `.manifest` suffix fits every current spawnable name but not the four longest fixture names (25 + 9 > 32). It cannot travel alone: a member exists only inside an image |
+| **C2. One archive file per package** | Header, table of contents, members, attributes: the `.hpkg` or `.apk` shape | A new parser for hostile input, a fuzz target, and a place to store the file on the target | Haiku `.hpkg`: header, 64 KiB zlib-chunked heap, TOC, attributes (name, version, architecture, licences, dependencies), addressed by name and version, **no signature in the package**; SHA-256 only in the repository index (read: `haiku-os.org/docs/develop/packages/FileFormat.html`). apk v2: three concatenated gzip streams, signature, control, data (read: hydrogen18.com; the Alpine wiki returned 403, so the signature detail is unverified) | Kept. The familiar shape; one file on the wire; identity is a name and a version, so two builds of `rg 14.1.1` are indistinguishable by name |
+| **C3. Content-addressed** | A small metadata document listing each member's digest; members stored and fetched as blobs named by digest; the package's identity is the metadata's digest | A blob store on the target (a RedoxFS directory of hex-named files is enough to start) and a metadata parser | Fuchsia: `meta.far` lists paths to Merkle roots; identity is the Merkle root of `meta.far`; blobfs is write-once and verified on read (read: `fuchsia.dev/.../concepts/packages/package`, `.../filesystems/blobfs`). Nix: store path digest over the object graph; NAR is deterministic, three node types, no timestamps (read: `nix.dev/manual/nix/latest/store/store-path`, `.../protocols/nix-archive/`) | Kept. **The closest to what the tree already does**: `program_measurements` is literally a name-to-SHA-256 table, which is a C3 metadata document without the name for it |
+
+**What the tree does in the analogous case, which is the likeliest decider.** Programs reach the
+target today as C1: the host packs ELFs into `nifefs`, writes `program_measurements`, and the kernel
+vouches for that table (`kernel/src/trust.rs`, DECISIONS §26's milestone 22 phase B record). The
+only foreign program that has ever run here, `ripgrep`, reached it the same way:
+`scripts/build-ripgrep.sh` fetches the crate, cross-builds three triples, and `xtask` packs the ELF
+if it is on disk. And the documentation store is a host-built directory written into the RedoxFS
+image (`cargo xtask manual`, `doc/<bundle>/`), which is C1's shape one filesystem over. **So C1 is
+not a new format, it is the absence of one, and C3 is what the measurement table becomes if it is
+allowed to travel.** C2 is the one with no analogue here.
+
+### Where the manifest lives
+
+| | Shape | Cost | Lost or kept because |
+|---|---|---|---|
+| **M1. A sibling member** | `rg.manifest` beside `rg`, measured like any member | A small encoding crate both sides share (rule 7; milestone 47 proposed `manifest_proto`, provisional) | Kept. Separable: a spawner can be handed a binary with somebody else's manifest, which is why the member must be measured, and why C3 (identity covers both) answers this better than C1 or C2 |
+| **M2. An ELF note or section** | The manifest travels inside the binary | Extends `crates/elf`, which "parses program headers only and is a Kani-proven, hostile-input-hardened parser on the boot path" | Kept, reluctantly. One artifact, cannot be separated, and it is Fuchsia's opposite (`.cm` ships under `meta/`, read: `fuchsia.dev/.../component_manifests`) |
+
+### The digest
+
+SHA-256 is already hand-written in `crates/measured_boot`, tested against FIPS 180-4 vectors, and
+in the kernel's trust root. Fuchsia's Merkle root is SHA-256 over 8 KiB blocks (read from a search
+excerpt of `fuchsia.dev/.../merkleroot`; the page itself was not fetched). A Merkle tree buys
+verification of part of a file without reading all of it, which matters for a 10.7 MB `rg` ELF paged
+in on demand and not for one read whole into memory, which is what the loader does now. Whether to
+take a plain digest or a Merkle root is part of this ruling.
+
+## Costs, measured
+
+- `nifefs` headroom: 38 entries and 7 name bytes beyond the longest spawnable name, from the
+  archives in the main checkout's `target/` on 2026-09-19.
+- The largest member a package would carry today: `rg`, 4.7 MB (aarch64) and 10.7 MB (riscv64), per
+  `notes/ripgrep-on-nife.md`.
+- A new parser's standing cost, by the tree's own precedent: `crates/nifefs` is 746 lines with a
+  fuzz target (`fuzz/fuzz_targets/nifefs_roundtrip`) that found a bug "in under a minute".
+
+## Reversibility, and who has acted on it
+
+Nobody outside this repository has a nife package, so today every option is reversible. **The day
+one package is fetched by somebody else, the format is fixed for everything that can read it.**
+C1 is the exception: it never leaves an image, so it can change with the image, which is exactly why
+it cannot be the format a third party ships.
+
+## The §92 test
+
+C1 is the cheapest by a wide margin, and it is cheap for a reason that is also its limit: it is not
+a format anyone else can produce. **If C1 is chosen as the answer rather than as the first slice's
+stopgap, that choice is about effort** and should be recorded as such. Between C2 and C3, cost is
+similar (one parser each, C3 adds a blob store); the difference is identity by name versus identity
+by content, which is a judgement, not an effort question.
+
+## If calef says no to all three
+
+The first slice still builds, because it needs no format: it composes whole images from source on
+the host, which is C1 by default. Nothing can be installed onto a running system, and nothing leaves
+the tree as a package.
