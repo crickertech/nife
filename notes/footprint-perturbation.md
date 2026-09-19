@@ -422,7 +422,7 @@ whether the U74 counts what M6 wants is unverified. Until then E3 remains what i
 be: an inference from a perturbation, not an observation of a cache.
 
 Wiring the PMU into these rows is a separate piece of work and it is not in this lane; see
-`design/roadmap/proposals/cycles-per-ipc-on-the-bench-card.md`.
+`design/roadmap/374-cycles-per-ipc-on-the-bench-card.md`.
 
 ## EXAMPLES
 
@@ -499,7 +499,7 @@ read `ipc_thread_scaling skipped` twenty minutes later.
   `single_hart` and `fastpath_pad` are built when a person runs `script/board-image`, minutes before
   walking to the bench. A refactor that breaks a card build leaves the tree green until then, and
   the error arrives at the worst possible moment. Six release builds of one crate would close it:
-  `design/roadmap/proposals/board-only-features-nothing-compiles.md`.
+  `design/roadmap/373-board-only-features-nothing-compiles.md`.
 - **The bench card measures fewer things than an ordinary one.** `smp_throughput`, `fs_read` and
   `fs_throughput` self-skip under `single_hart`. A session that wants a multi-core number from
   radon builds a second card without the flag, and that card cannot produce E1 or E4.

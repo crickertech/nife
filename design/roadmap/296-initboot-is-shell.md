@@ -189,7 +189,7 @@ One line fixes it. Nothing found it, because `script/lint`'s loop does not carry
 `script/job-mix`'s own `BUGS` says nothing else builds it either.
 
 It was **not** added to the loop here. That is two more clippy builds on every pull request, and the
-shape of the real answer is `design/roadmap/proposals/board-only-features-nothing-compiles.md`,
+shape of the real answer is `design/roadmap/373-board-only-features-nothing-compiles.md`,
 which covers `reboot_soak` and `single_hart` as well. What this milestone did instead is write the
 finding where a reader meets the feature, in `script/job-mix`'s `BUGS` and beside the `cfg_attr`
 itself.
@@ -225,7 +225,7 @@ they were written.
   reach on its own**, which is the whole shape of this milestone. It was `git rm`d by this lane
   rather than promoted, since one milestone cannot be two files, and the bullets in milestones 266
   and 267 that cited it now cite this block.
-- **Proposed.** `design/roadmap/proposals/board-only-features-nothing-compiles.md`: `job_mix`,
+- **Milestone 373.** `design/roadmap/373-board-only-features-nothing-compiles.md`: `job_mix`,
   `reboot_soak` and `single_hart` are still built by nobody, and this lane demonstrated what that
   costs by finding one of them red. Not done here because the fix is a change to CI's shape.
 - **Milestone 324.**: the

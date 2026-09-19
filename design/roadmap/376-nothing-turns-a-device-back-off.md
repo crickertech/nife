@@ -1,7 +1,13 @@
-# Nothing turns a device back off
+# 376. Nothing turns a device back off
 
-**Status: PROPOSED 2026-09-04.** Named by milestone 220's lane, which added the first code in this
-tree that turns a device *on* and deliberately did not add its inverse.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 220 lane, which wrote
+the first code in this tree that turns a device on and deliberately did not write its inverse;
+promoted by milestone 433 on 2026-09-19. Checked against the tree that day and nothing has moved:
+`crates/jh7110_clock_and_reset` exposes `discover`, the offset and mask arithmetic, and the two
+read-back predicates (`clocks_running`, `was_already_up`), with no path that gates a clock or
+asserts a reset, and `kernel/src/drivers/jh7110_clock_and_reset.rs` still offers no teardown. The
+decision the gate names is unanswered: nothing in `design/decisions/` takes up who may turn a device
+off.
 
 **Gate: DECISION.** The mechanism is small; who is allowed to hold it is calef's, because the
 answer decides whether a capability variant appears on the syscall surface (§10, §16).
@@ -43,3 +49,19 @@ entry.
 **Related.** DECISIONS §86 (whether an NVMe driver can leave the kernel, and what capability would
 let it) is the argument milestone 220 reused and the one this would extend. §40's subtree death is
 the reclamation mechanism question 2 points at.
+
+## Index row
+
+`crates/jh7110_clock_and_reset` can enable a clock and release a reset and cannot do either in
+reverse, so a driver process that exits, faults or is revoked leaves its device clocked and running
+forever with nothing able to reclaim it. On a board with one TRNG that costs nothing measurable; on
+the same SoC's USB, PCIe and DMA blocks it is the whole of device power management. The lane
+refused to just add the inverse, for a reason in the hardware: the JH7110's TRNG reset is documented
+as shared, the same line resets the PL080 DMA engine, so "turn my device off" is "reset a block my
+neighbour is using", and the refcounting Linux gets from its clock framework does not exist here.
+Three questions make it calef's. Who may gate a clock, since a teardown a driver can ask for is a
+different question from a controller a driver can hold and the first may need no new syscall
+surface. What the unit of reclamation is, per-device with a refcount or per-job off §40's subtree
+death. And whether it is worth anything before somebody measures what an ungated STG domain costs
+radon, because a milestone justified by tidiness rather than a number is the tenet about
+implementation convenience running backwards.

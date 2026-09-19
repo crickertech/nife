@@ -1,7 +1,13 @@
-# Nothing in QEMU can hand the entropy service a bufferful of zeros
+# 372. Nothing in QEMU can hand the entropy service a bufferful of zeros
 
-**Status: PROPOSED 2026-09-04.** Written by the `maintainer/ready-on-a-dead-device` lane, which
-fixed the defect that needed exactly this test and could not write it.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the
+`maintainer/ready-on-a-dead-device` lane; promoted by milestone 433 on 2026-09-19. Checked against
+the tree that day and unchanged in both directions. `entropy_protocol::readiness` still refuses
+`READY` on an all-zero first bufferful and still has that decision tested only on the host
+(`an_all_zero_first_bufferful_is_never_ready`), and no QEMU runner attaches an `rng-random` backend
+of any kind: the aarch64 runner's only mention of one is a comment saying QEMU defaults to the
+host's `/dev/urandom`. The two consumers of the readiness word, `components/src/entropy.rs` and
+`components/src/jh7110_entropy.rs`, still have no machine that can make either of them fail.
 
 **Gate: NONE.** QEMU already has the device (`-object rng-random,filename=/dev/zero`), the service
 already has the check, and the only new thinking is how a wiring names *which* virtio-rng it wants.
@@ -27,3 +33,17 @@ device, and it is larger than the defect it would have covered.
 
 **What it would also unlock.** The same lever tests the *dry* device path (`filename=/dev/null`, or a
 `rng-random` that never answers), which is likewise only ever exercised by a device nobody has.
+
+## Index row
+
+`entropy_protocol::readiness` refuses `READY` when the first bufferful is all zeros, which is the
+check that caught radon's gated-clock TRNG, and no machine this repository boots can produce a
+device that answers that way, so the drivers' three calls to it are tested nowhere. QEMU can make
+one with `-object rng-random,filename=/dev/zero` behind a second `virtio-rng-device`. What is
+missing is a way for a test to reach that device rather than the real one, because the scan takes
+the first virtio-rng on the transport, so this is a runner line plus a way for a wiring to name
+which device it wants. The lane that wanted it refused to bolt it on: a permanently dead entropy
+device sitting on a bus every other entropy test scans is a way to make those tests flaky for
+reasons unrelated to what they assert, and it lands in the test-wiring hotspot. The same lever tests
+the dry-device path (`filename=/dev/null`), which is likewise only ever exercised by a device
+nobody has.
