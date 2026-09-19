@@ -327,16 +327,16 @@ pub fn hand_over(
     // and writing the aperture underneath it would race the firmware's own scrolling. The aperture
     // survives that call, which is milestone 243's founding observation: what ends is the
     // firmware's *console*, not the *display*.
-    if let Some(found) = screen
-        && let Some(span) = found.span()
+    if let Some(screen) = found.screen
+        && let Some(span) = screen.span()
     {
-        // SAFETY: `found` came from this firmware's own `EFI_GRAPHICS_OUTPUT_PROTOCOL` and
+        // SAFETY: `screen` came from this firmware's own `EFI_GRAPHICS_OUTPUT_PROTOCOL` and
         // `find_screen` checked its span against the aperture size the firmware reported. Boot
         // services are gone, so no firmware code is drawing there any more, and the kernel has not
         // started, so nothing else is either: this loader is the only writer in this instant. The
         // loader runs identity-mapped, so the physical base is the address.
-        let pixels = unsafe { core::slice::from_raw_parts_mut(found.base as *mut u8, span) };
-        let _ = crate::screen::paint_handoff(found, pixels);
+        let pixels = unsafe { core::slice::from_raw_parts_mut(screen.base as *mut u8, span) };
+        let _ = uefi_loader::screen::paint_handoff(screen, pixels);
     }
 
     // The trampoline was copied to an executable page below 4 GiB and its GDT pointer patched;
