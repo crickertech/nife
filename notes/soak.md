@@ -812,6 +812,26 @@ commands `script/board-image` prints still work from there.
 
    Then power-cycle to start the series for real, and type nothing at it after this.
 
+   **Milestone 324 makes this step a command rather than a keystroke**, and the check it performs
+   is the same one:
+
+   ```
+   script/board-console --stop
+   ```
+
+   It sends the byte itself, on the board's own arming announcement, prints it into the log in hex,
+   and waits fifteen seconds for the `DISARMED` line. Exit `0` is this step passing; exit `3` with
+   *sent the escape and the board did not acknowledge it* is this step failing, which is the stop
+   that matters. It is worth preferring to a keystroke for one reason beyond convenience: a key
+   pressed at a terminal leaves nothing in the capture, and this leaves both halves of the
+   exchange in the artifact the run is judged from. **No byte of it has yet reached a board**; see
+   notes/board-console.md.
+
+   A whole series can be ended the same way in place of step 3's deadline:
+   `script/board-console --stop-after 50` watches, counts draws, and sends the escape on the
+   fiftieth, which is a series with exactly the sample it was asked for rather than one cut off by
+   a clock. That has not been run on a board either.
+
 5. **Watch the first two draws before you walk away.** The whole cycle should read:
 
    ```
@@ -852,8 +872,9 @@ Read this against the log, in this order; the first row that matches is the one 
 
 | What the console shows | What it means | What to do |
 |---|---|---|
-| `soak-test-reboot: DISARMED` on boot 1 after you press a key | The escape works. This is step 4 passing. | Power-cycle and start the series. |
-| No `DISARMED` after pressing keys for a beat or two | The receive path is dead, and the escape does not exist on this cable | **Stop.** Power off. Check the adapter's TX into the board's RX and the ground; nothing else here is safe until this works. |
+| `soak-test-reboot: DISARMED` on boot 1 after you press a key, or after `script/board-console --stop` reports exit 0 | The escape works. This is step 4 passing. | Power-cycle and start the series. |
+| No `DISARMED` after pressing keys for a beat or two, or `--stop` exiting 3 having sent the byte | The receive path is dead, and the escape does not exist on this cable | **Stop.** Power off. Check the adapter's TX into the board's RX and the ground; nothing else here is safe until this works. |
+| `--stop` exiting 3 having sent **nothing** | No armed reboot loop announced itself: the card may not carry a `--reboot` build, or the watch ended before a draw came round | Check `target/board/boot.cmd` and the build flags, and give `--for` longer. Nothing was written to the board. |
 | `soak-test-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
 | `rebooting now`, then `U-Boot SPL` a few seconds later | **The mechanism works.** SRST reset type 1 is implemented and the loop is running. | Nothing. This is the series. |
 | `rebooting now`, then U-Boot SPL's `i2c read` retries and `cannot read pmic power register` | **What radon actually does** (2026-09-04). The reset happens and the firmware cannot re-init the PMIC on the way back. Not a refusal and not silence: a third outcome. | Power-cycle to recover. The route is closed on this board; milestone 224 is the alternative. |
@@ -1132,9 +1153,13 @@ hour count inherited from a tool's default.
 - **The rebooting soak's escape is a poll of one bit, and nothing verifies the bit can ever be set**
   (milestone 249). A receive path that is miswired or held by something else reads "nobody typed"
   forever, which is indistinguishable from nobody typing, and a UART cannot receive a byte it sends.
-  What closes it is step 4 of the procedure above, which is a person pressing a key, and that is
-  rung four of AGENTS.md's ladder wearing a procedure's clothes. It is the lowest rung in this
-  design and it is named rather than hidden.
+  What closes it is step 4 of the procedure above, and **milestone 324 moved that step up a rung**:
+  it was a person pressing a key, which is rung four wearing a procedure's clothes, and it is now
+  `script/board-console --stop`, which sends the byte and reads the board's `DISARMED` line back as
+  an exit status. The kernel still cannot verify its own receive path, and nothing here changes
+  that; what changed is that the host at the far end of the cable can, and now does it without
+  anyone remembering to. **No `--stop` has yet run against a board**, so until one does, the
+  verification is a tested decision attached to an untested wire.
 - **Nothing about the reboot has run on radon**, including whether that OpenSBI implements SRST
   reset type 1 at all. The whole of milestone 249's mechanism is code that builds and host tests
   that pass. The tally is judged against one real capture with a census in it
