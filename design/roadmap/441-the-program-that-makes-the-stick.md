@@ -1,11 +1,11 @@
 # 441. The program that makes the stick: one download per host, a boot for every architecture
 
 **Status: BUILT.** 2026-09-19, on `milestone/the-program-that-makes-the-stick`. *(Number provisional
-until the merge queue lands it.)* Promoted from the proposal
-`design/roadmap/proposals/a-program-that-makes-the-stick.md`, which this block replaces and which was
-deleted in the same change. **Built and proved under QEMU and on file-backed disks; no physical stick
-has been written and no board has booted one.** Those are the bench's, and the steps are in
-notes/boot-stick.md.
+until the merge queue lands it.)* Promoted from the proposal *A program that makes the stick*, which
+this block replaces and which was deleted in the same change; DECISIONS §157 cites that path,
+which is milestone 436's class and is left to it. **Built and proved under QEMU and on file-backed
+disks; no physical stick has been written and no board has booted one.** Those are the bench's, and
+the steps are in notes/boot-stick.md.
 
 ## What calef decided, and what this built
 
@@ -90,6 +90,9 @@ much as for this. radon's RAM does contain the riscv64 kernel's `0x8020_0000`.
   `notes/boot-stick.md`.
 - **Recorded.** The flash-stick fixture is synthesized and says so:
   `crates/stick_maker/tests/fixtures/macos/usb-flash-stick-info.plist`.
+- **Milestone 436.** Deleting the proposal leaves DECISIONS §157 citing a path that resolves to
+  nothing, which is exactly the class that milestone collects and fixes; a lane may not edit
+  `design/decisions/` in any case.
 - **Decision.** Which profile the download is built in (41.6 MB debug, 20.0 MB release, both proved
   on all three firmwares), signing, and the web page are rung 4 of
   `design/decisions/157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md`, calef's.
