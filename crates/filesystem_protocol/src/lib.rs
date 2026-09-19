@@ -3567,7 +3567,10 @@ mod tests {
         let mut tiny = [0u8; statfs::LEN - 1];
         assert_eq!(statfs::encode(&mut tiny, 4096, 1, 1), None);
         let mut exact = [0u8; statfs::LEN];
-        assert_eq!(statfs::encode(&mut exact, 4096, 16384, 9001), Some(statfs::LEN));
+        assert_eq!(
+            statfs::encode(&mut exact, 4096, 16384, 9001),
+            Some(statfs::LEN)
+        );
         assert_eq!(statfs::decode(&exact), Some((4096, 16384, 9001)));
 
         // The length is the version: a longer reply is a later version, and this version reads its
@@ -4312,7 +4315,10 @@ mod tests {
         ];
         let mut seen = 0u64;
         for b in bits {
-            assert_ne!(b, 0, "zero is the empty report; it cannot also be an outcome");
+            assert_ne!(
+                b, 0,
+                "zero is the empty report; it cannot also be an outcome"
+            );
             assert_eq!(seen & b, 0, "two two-grant outcomes share a bit");
             seen |= b;
         }
@@ -4345,10 +4351,9 @@ mod tests {
         assert_eq!(name(u64::MAX), None);
     }
 
-    #[test]
-    /// The navigating shell's bits, for the reason above, and one more that is specific to them:
-    /// the headline test reads a property off **two** reports, so a bit that meant two things would
-    /// let one shell's success stand in for the other's failure.
+    /// The navigating shell's bits, for the same reason every witness set here has such a test, and
+    /// one more that is specific to them: the headline test reads a property off **two** reports, so
+    /// a bit that meant two things would let one shell's success stand in for the other's failure.
     #[test]
     fn the_navigation_bits_are_distinct() {
         use fixture::navscape::*;

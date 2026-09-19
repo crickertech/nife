@@ -1453,12 +1453,21 @@ mod tests {
     #[test]
     fn a_three_digit_match_count_still_lines_its_title_up() {
         let mut r = documentation::index::Ranked::new();
-        r.offer(b"swish", b"notes/pipes.md", b"Pipes and redirection", 512, 100);
+        r.offer(
+            b"swish",
+            b"notes/pipes.md",
+            b"Pipes and redirection",
+            512,
+            100,
+        );
         let s = shown(|o| write_apropos(b"capability", &r, o));
 
         assert!(s.contains("512"), "{s}");
         let col = s.lines().next().unwrap().find("Pipes").expect("the title");
-        assert_eq!(col, 38, "a wider count must not push the title off its column: {s}");
+        assert_eq!(
+            col, 38,
+            "a wider count must not push the title off its column: {s}"
+        );
     }
 
     #[test]
