@@ -47,6 +47,11 @@ SIE = "SIE"
 # 16550 UART registers: Transmitter Holding Register, and its Empty flag.
 THR = "THR"
 THRE = "THRE"
+# ELF's relocation-with-addend record (`Elf64_Rela`) and its dynamic tags `DT_RELA`, `DT_RELASZ`,
+# which `crates/portable_executable` reads to convert the riscv64 loader to PE/COFF.
+rela = "rela"
+Rela = "Rela"
+RELA = "RELA"
 # The aarch64 page-descriptor field, spelled `AttrIndx` in the ARM ARM.
 Indx = "Indx"
 # Virtual Address Space, abbreviated in code and comments throughout the paging notes.

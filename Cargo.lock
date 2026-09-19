@@ -694,6 +694,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable_executable"
+version = "0.1.0"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -998,8 +1002,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uefi_loader"
 version = "0.1.0"
 dependencies = [
+ "device_tree_blob",
  "elf",
  "machine_discovery",
+ "measured_boot",
+ "nifefs",
 ]
 
 [[package]]
@@ -1095,6 +1102,7 @@ dependencies = [
  "graphics_protocol",
  "measured_boot",
  "nifefs",
+ "portable_executable",
  "video_terminal",
 ]
 
