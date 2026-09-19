@@ -61,12 +61,17 @@
 //! code at all: std's generic implementation is written in terms of `read_dir` and `remove_file`
 //! on paths it composes itself, so it started working the moment those paths resolved.
 //!
+//! **And since milestone 64's last pass:** `Metadata::modified` (`GETMTIME`) and
+//! `std::fs::set_times`/`set_times_nofollow` (`SETMTIME_AT`), on the verbs milestone 47's `touch`
+//! added (DECISIONS §112). This header said "no verb" for both until 2026-09-19, three weeks after
+//! the verbs landed, which is the fifth refusal in this module found to have outlived its reason.
+//! Both verbs take a **name under a directory handle**, not an open file, and that decides the
+//! shape of the binding: a path's metadata carries an mtime, and an open `File`'s does not. See
+//! [`Mtime`] for why the PAL refuses rather than re-resolving a name it no longer holds.
+//!
 //! Still Unsupported, each because no verb in the contract backs it: symlinks and hard links,
-//! `canonicalize`, permissions, file times, locks, and `duplicate` (a handle is a
-//! token the server minted; there is no dup verb). `modified`/`accessed`/`created` are the ones to
-//! watch: the server keeps an mtime and §43 gave us a clock to read it against, so the only missing
-//! piece is a **wire-format change** to `FSTAT`'s reply, which is the expensive kind of decision
-//! (two programs have to agree) and is not a lane's to make.
+//! `canonicalize`, permissions, access and creation times, setting a time through an open `File`,
+//! locks, and `duplicate` (a handle is a token the server minted; there is no dup verb).
 //!
 //! See notes/std.md for the full list with reasons.
 
@@ -78,17 +83,18 @@ use crate::path::{Component, Path, PathBuf};
 use crate::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use crate::sys::pal::nife::fsproto::{self, fs as proto};
 use crate::sys::pal::nife::rt;
-use crate::sys::time::SystemTime;
+use crate::sys::time::{SystemTime, UNIX_EPOCH};
 use crate::sys::{unsupported, unsupported_err};
 
 // The pieces of the phase-one backend that stay exactly as honest as they were: nothing in the
-// contract links, canonicalizes or copies, so those keep the `unsupported` implementations rather
-// than gaining a nife-shaped copy of the same refusal. `FileTimes` comes from there too (the
-// server keeps an mtime but the contract does not carry one).
+// contract links or canonicalizes, so those keep the `unsupported` implementations rather than
+// gaining a nife-shaped copy of the same refusal. `FileTimes` used to come from there too, and its
+// setters discarded what they were given; it is this module's own now, because `set_times` has a
+// verb to carry a modification time to.
 #[expect(dead_code)]
 #[path = "unsupported.rs"]
 mod unsupported_fs;
-pub use unsupported_fs::{FileTimes, canonicalize, link, readlink, symlink};
+pub use unsupported_fs::{canonicalize, link, readlink, symlink};
 
 /// **`remove_dir_all` needed no code** (milestone 122), and that is the whole finding.
 ///
@@ -243,6 +249,13 @@ impl Page {
 /// negated errno ([`fsproto::reply_errno`]).
 fn request(w0: u64, w1: u64) -> io::Result<u64> {
     let (r0, _) = rt::call(FS, w0, w1);
+    reply(r0)
+}
+
+/// A reply word as a result: [`request`]'s mapping, split out so a reply can be kept and turned into
+/// an `io::Error` later. [`FileAttr`] needs that, because `Metadata` is a value std hands back
+/// whole and `modified()` is where a refused `GETMTIME` has to surface, not `metadata()`.
+fn reply(r0: u64) -> io::Result<u64> {
     match fsproto::reply_errno(r0 as i64) {
         None => Ok(r0),
         // The kernel refusing the invoke (a revoked or missing endpoint) is the same answer a
@@ -563,9 +576,9 @@ pub struct File {
     append: bool,
 }
 
-/// A file's metadata, as much of it as the contract carries: the size, and whether the name was a
-/// directory. Everything else std asks for either does not exist on this service or is not on the
-/// wire.
+/// A file's metadata, as much of it as the contract carries: the size, whether the name was a
+/// directory, and (when it was reached by name) the modification time. Everything else std asks for
+/// either does not exist on this service or is not on the wire.
 ///
 /// **A directory's `size` is 0 and that is a placeholder, not a measurement.** `FSTAT` reports one
 /// number and the only handles that reach it are files; the directory case is reached from a
@@ -574,6 +587,42 @@ pub struct File {
 pub struct FileAttr {
     size: u64,
     dir: bool,
+    mtime: Mtime,
+}
+
+/// **What the contract said about a modification time**, kept until `modified()` asks.
+///
+/// `GETMTIME` (milestone 47, DECISIONS §112) resolves a **name under a directory handle**; it never
+/// takes an open file. So whether a `Metadata` can carry an mtime depends on how it was reached:
+///
+/// - `std::fs::metadata(path)` and `DirEntry::metadata` walk to the directory holding the name, so
+///   they ask, and keep the answer: [`Mtime::Seconds`], or [`Mtime::Refused`] with the reply word.
+/// - `File::metadata` and `Dir::metadata` hold a handle and **no name**, so there is nothing to ask
+///   by: [`Mtime::Unnamed`].
+///
+/// **Why not remember the name the `File` was opened by and ask with that?** Because the answer
+/// would be about whatever holds that name *now*. A file renamed or unlinked since it was opened
+/// would report another file's time, or a `NotFound` for a file the caller is holding open, and
+/// `set_times` through the same trick would stamp the wrong file. Unix's `fstat` and `futimens`
+/// act on the inode, not the name, and a binding that quietly acted on a name instead would be the
+/// silent-degradation shape DECISIONS §42 forbids. The honest fix is a handle-taking form on the
+/// contract, which two programs agree on and is therefore calef's; it is proposed in
+/// design/roadmap/proposals/an-mtime-for-an-open-file.md.
+///
+/// A refused `GETMTIME` does **not** fail `metadata()`: the size and the kind are still true, and
+/// a `metadata()` that failed because one field could not be read would break every caller that
+/// only wanted `is_dir()`. The refusal is kept and reported by `modified()`, which is the call that
+/// asked for the fact.
+#[derive(Clone, Copy)]
+enum Mtime {
+    /// Unix seconds, as the server reported them. See `modified()` for what the number means on an
+    /// image this system wrote, which is not always a wall-clock time.
+    Seconds(u64),
+    /// The server (or a caretaker in front of it) refused `GETMTIME`; the reply word, so the error
+    /// can be rebuilt with [`reply`] when it is asked for.
+    Refused(u64),
+    /// Reached through a handle rather than a name, so there was nothing to ask by.
+    Unnamed,
 }
 
 /// A directory listing, **read whole at `read_dir` time** rather than streamed.
@@ -611,6 +660,27 @@ pub struct OpenOptions {
     create_new: bool,
 }
 
+/// **The times a `set_times` call asks for** (milestone 64, rank 28). Its own type now rather than
+/// the unsupported backend's, whose setters threw the value away, because `SETMTIME_AT` has
+/// somewhere to carry a modification time. The access time is kept too, and kept only so
+/// [`set_times`] can refuse it loudly: no verb sets one, and dropping it would report success for
+/// half of what the caller asked.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct FileTimes {
+    accessed: Option<SystemTime>,
+    modified: Option<SystemTime>,
+}
+
+impl FileTimes {
+    pub fn set_accessed(&mut self, t: SystemTime) {
+        self.accessed = Some(t);
+    }
+
+    pub fn set_modified(&mut self, t: SystemTime) {
+        self.modified = Some(t);
+    }
+}
+
 /// Permissions do not exist on this service. `readonly` is honestly false (a granted directory
 /// endpoint carries WRITE or it does not, and that is a capability, not a mode bit).
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -641,17 +711,62 @@ impl FileAttr {
         FileType { dir: self.dir }
     }
 
+    /// **`Metadata::modified`** (milestone 64, rank 19), from the `GETMTIME` [`stat`] issued.
+    ///
+    /// The value is the contract's, Unix seconds, and it is only as true as the server that stamped
+    /// it. **A file written on this system carries the FS server's logical clock, not a wall-clock
+    /// time**: `redoxfs_server` has no clock grant, so every mutation stamps a counter that starts
+    /// at 1 on each mount (notes/touch.md's `BUGS`). Such a file reads as a moment in early 1970,
+    /// orders correctly against other writes in the same boot, and orders wrongly against a file
+    /// the host tool made. That is recorded where a reader of this PAL meets it (notes/std.md) and
+    /// proposed as its own piece of work; it is not something this function can detect, because
+    /// `SETMTIME_AT` may legitimately assert a small number too.
     pub fn modified(&self) -> io::Result<SystemTime> {
-        // The server keeps an mtime (it advances one on write), but no contract verb reports it.
-        // There IS a wall clock to interpret one against since milestone 51 (DECISIONS §43), so the
-        // missing piece is now the verb and nothing else. See notes/std.md.
-        unsupported()
+        match self.mtime {
+            Mtime::Seconds(s) => {
+                UNIX_EPOCH.checked_add_duration(&crate::time::Duration::from_secs(s)).ok_or_else(
+                    || {
+                        io::const_error!(
+                            io::ErrorKind::InvalidData,
+                            "the FS server reported an mtime past what SystemTime can hold"
+                        )
+                    },
+                )
+            }
+            // `ENOTDIR` is the one refusal that is about the grant's *shape*: a per-file caretaker
+            // answers it for all three mtime verbs because it has no directory to resolve a name
+            // under (`filesystem_protocol::grant::POLICY`). Reported as what it is rather than as
+            // `NotADirectory`, which would read as a statement about the file.
+            Mtime::Refused(r0) if fsproto::reply_errno(r0 as i64) == Some(20) => {
+                Err(io::const_error!(
+                    io::ErrorKind::Unsupported,
+                    "this process holds a single-file grant, and the contract reads an mtime by \
+                     name under a directory"
+                ))
+            }
+            Mtime::Refused(r0) => match reply(r0) {
+                Err(e) => Err(e),
+                // Unreachable by construction (`stat` keeps only negative replies here), and answered
+                // as an error rather than a time so a future mistake cannot become a fabricated one.
+                Ok(_) => Err(io::const_error!(
+                    io::ErrorKind::InvalidData,
+                    "an mtime refusal was recorded for a reply that was not a refusal"
+                )),
+            },
+            Mtime::Unnamed => Err(io::const_error!(
+                io::ErrorKind::Unsupported,
+                "the contract reads an mtime by name, and this metadata came from a handle: use \
+                 std::fs::metadata(path)"
+            )),
+        }
     }
 
+    /// No verb reports an access time.
     pub fn accessed(&self) -> io::Result<SystemTime> {
         unsupported()
     }
 
+    /// RedoxFS keeps a creation time, but no verb carries it across the contract.
     pub fn created(&self) -> io::Result<SystemTime> {
         unsupported()
     }
@@ -747,14 +862,14 @@ impl DirEntry {
         self.name.clone()
     }
 
-    /// **From the listing when it can be, from the file when it must be.** `READDIR` said whether
-    /// the entry is a directory, so `file_type` is free; a size is not on the listing, so a file's
-    /// metadata costs an open, an `FSTAT` and a close. A directory's does not, because there is no
-    /// verb that would answer it (see [`FileAttr`]).
+    /// **From the listing when it can be, from the name when it must be.** `READDIR` said whether
+    /// the entry is a directory, so `file_type` is free and costs no message. Metadata is not on the
+    /// listing, so it is [`stat`] of the entry's path, for a directory as for a file: a
+    /// directory's size is still the placeholder [`FileAttr`] describes, but its mtime is real, and
+    /// `GETMTIME` answers for a directory exactly as for a file. That made a directory entry's
+    /// metadata cost a walk where it used to cost nothing, which is the price of a `modified()`
+    /// that answers; a caller that only wants the kind should ask `file_type`, as it would anywhere.
     pub fn metadata(&self) -> io::Result<FileAttr> {
-        if self.dir {
-            return Ok(FileAttr { size: 0, dir: true });
-        }
         stat(&self.path())
     }
 
@@ -854,8 +969,9 @@ impl File {
     pub fn file_attr(&self) -> io::Result<FileAttr> {
         let size = request(proto::req(proto::FSTAT, self.handle, 0), 0)?;
         // Anything that got as far as a handle came through `OPEN`, which refuses a directory
-        // (`EISDIR`), so this is a file by construction.
-        Ok(FileAttr { size, dir: false })
+        // (`EISDIR`), so this is a file by construction. No mtime: `GETMTIME` takes a name and a
+        // handle has none ([`Mtime`] says why the PAL does not re-resolve the one it was opened by).
+        Ok(FileAttr { size, dir: false, mtime: Mtime::Unnamed })
     }
 
     pub fn fsync(&self) -> io::Result<()> {
@@ -1001,10 +1117,19 @@ impl File {
         unsupported()
     }
 
-    // No verb in `filesystem_protocol` sets an mtime, the same gap `Metadata::modified` (read) has: a wire
-    // format addition (§64, rank 28), not a PAL trick. See notes/crates-io-on-nife.md.
+    /// **Refused, and the reason changed on 2026-09-19.** It used to be "no verb sets an mtime",
+    /// which stopped being true when milestone 47's `touch` added `SETMTIME_AT`. What is true now is
+    /// narrower: that verb takes a **name under a directory**, and an open file has a handle and no
+    /// name. Stamping whatever holds the name this file was opened by would set the wrong file's
+    /// time after a rename, which is a silent wrong answer rather than a refusal ([`Mtime`] has the
+    /// whole argument). `std::fs::set_times(path, ..)` is bound and is what a caller can use; a
+    /// handle-taking verb is proposed in design/roadmap/proposals/an-mtime-for-an-open-file.md.
     pub fn set_times(&self, _times: FileTimes) -> io::Result<()> {
-        unsupported()
+        Err(io::const_error!(
+            io::ErrorKind::Unsupported,
+            "the contract sets an mtime by name, and an open file carries none: use \
+             std::fs::set_times(path, ..)"
+        ))
     }
 }
 
@@ -1185,9 +1310,11 @@ impl Dir {
 
     /// What there is to know about a directory over this contract, which is that it is one. The
     /// size is the placeholder [`FileAttr`] describes: no verb reports a directory's size, and
-    /// inventing one would be a fact the contract does not carry.
+    /// inventing one would be a fact the contract does not carry. `modified()` refuses for
+    /// [`Mtime`]'s reason: a held directory is a handle, and `GETMTIME` asks by name. Its parent can
+    /// answer for it (`std::fs::metadata` of the path it was opened by).
     pub fn metadata(&self) -> io::Result<FileAttr> {
-        Ok(FileAttr { size: 0, dir: true })
+        Ok(FileAttr { size: 0, dir: true, mtime: Mtime::Unnamed })
     }
 
     /// `UNLINK` a name under this directory. A directory is refused (`IsADirectory`), the same line
@@ -1292,36 +1419,62 @@ impl Drop for File {
 
 // --- Path-level operations --------------------------------------------------------------------
 
-/// A name's metadata: open, `FSTAT`, close. Three messages instead of one, because the contract has
-/// no stat-by-name verb; the effect is the same and the authority is identical (the name still
-/// resolves only under the granted directory).
+/// A name's metadata: open, `FSTAT`, close, then `GETMTIME`. Four messages instead of one, because
+/// the contract has no stat-by-name verb; the effect is the same and the authority is identical (the
+/// name still resolves only under the granted directory, and every one of the four needs the same
+/// `dir::READ` the walk asks for).
 ///
-/// **A directory answers too, and it costs no extra message** (milestone 64). `OPEN` refuses a
-/// directory with `EISDIR`, and that refusal *is* the answer to "what kind of thing is this name",
-/// so it is read as one rather than propagated. Without this, `Path::is_dir()` was false for every
-/// directory, and `std::fs::create_dir_all` was not idempotent: it recovers from `AlreadyExists`
-/// by asking whether the name is already a directory, and got told no.
+/// **A directory answers too** (milestone 64). `OPEN` refuses a directory with `EISDIR`, and that
+/// refusal *is* the answer to "what kind of thing is this name", so it is read as one rather than
+/// propagated. Without this, `Path::is_dir()` was false for every directory, and
+/// `std::fs::create_dir_all` was not idempotent: it recovers from `AlreadyExists` by asking whether
+/// the name is already a directory, and got told no.
 ///
-/// The size it reports is 0 and that is a placeholder rather than a measurement, for the reason
-/// [`FileAttr`] gives. `modified`/`accessed`/`created` still refuse, so nothing here invents a fact
-/// the contract does not carry.
+/// **The mtime is asked for by name, after the kind is known** (milestone 64's last pass). The walk
+/// has already reached the directory holding the name, so `GETMTIME` against that handle is one
+/// more message and needs no right the walk did not already ask for. It is issued after `OPEN`
+/// rather than before so that every *error* this function returns is the one it returned before
+/// the mtime existed: a refused `GETMTIME` is kept in the [`FileAttr`] and surfaces from
+/// `modified()`, never from here (see [`Mtime`]). The four messages are not atomic, so a name
+/// replaced between `OPEN` and `GETMTIME` reports the new node's time with the old node's size,
+/// which is the same window a Unix program that calls `stat` twice has.
+///
+/// The size it reports for a directory is 0 and that is a placeholder rather than a measurement,
+/// for the reason [`FileAttr`] gives. `accessed`/`created` still refuse, so nothing here invents a
+/// fact the contract does not carry.
 pub fn stat(path: &Path) -> io::Result<FileAttr> {
     if !reachable() {
         return Err(unsupported_err());
     }
-    // `.` and `` name the granted directory, which no `OPEN` can reach: it is the directory the
-    // endpoint is bound to rather than a name inside it. Holding the capability at all is the
-    // whole of what there is to know about it.
-    if path.components().all(|c| matches!(c, Component::CurDir)) {
-        return Ok(FileAttr { size: 0, dir: true });
+    // ``, `.` and `/` name the granted directory, which no `OPEN` can reach: it is the directory
+    // the endpoint is bound to rather than a name inside it. Holding the capability at all is the
+    // whole of what there is to know about it, and it has no name to ask an mtime by. (`/` used
+    // to fall through to the walk and come back `InvalidFilename`, a leftover from before a
+    // leading slash named this process's root; `count_names` is the same test `readdir` uses.)
+    if count_names(path)? == 0 {
+        return Ok(FileAttr { size: 0, dir: true, mtime: Mtime::Unnamed });
     }
-    let mut opts = OpenOptions::new();
-    opts.read(true);
-    match File::open(path, &opts) {
-        Ok(file) => file.file_attr(),
-        Err(e) if e.kind() == io::ErrorKind::IsADirectory => Ok(FileAttr { size: 0, dir: true }),
-        Err(e) => Err(e),
-    }
+    let mut p = page();
+    let (at, name) = walk(&mut p, proto::ROOT, path, fsproto::dir::READ)?;
+    p.put(name.as_bytes());
+    let (size, dir) = match request(proto::req(proto::OPEN, at.0, name.len() as u64), 0) {
+        Ok(handle) => {
+            let size = request(proto::req(proto::FSTAT, handle, 0), 0);
+            // Closed before `size?` can return, so an `FSTAT` failure does not leak the handle.
+            let _ = request(proto::req(proto::CLOSE, handle, 0), 0);
+            (size?, false)
+        }
+        Err(e) if e.kind() == io::ErrorKind::IsADirectory => (0, true),
+        Err(e) => return Err(e),
+    };
+    // The name again: nothing promises `OPEN`'s reply left the page as it found it.
+    p.put(name.as_bytes());
+    let (r0, _) = rt::call(FS, proto::req(proto::GETMTIME, at.0, name.len() as u64), 0);
+    let mtime = match fsproto::reply_errno(r0 as i64) {
+        None => Mtime::Seconds(r0),
+        Some(_) => Mtime::Refused(r0),
+    };
+    Ok(FileAttr { size, dir, mtime })
 }
 
 /// No symlinks cross this contract, so following one and not following one are the same thing.
@@ -1540,10 +1693,76 @@ pub fn set_perm_nofollow(_p: &Path, _perm: FilePermissions) -> io::Result<()> {
     unsupported()
 }
 
-pub fn set_times(_p: &Path, _times: FileTimes) -> io::Result<()> {
-    unsupported()
+/// **`std::fs::set_times`** (milestone 64, rank 28): `SETMTIME_AT`, the caller's time, by name.
+///
+/// **Always `SETMTIME_AT`, never `SETMTIME`, and the rights follow from that.** std hands this
+/// function a `SystemTime` the caller chose, which is an assertion about history even when the
+/// caller computed it from `SystemTime::now()`; DECISIONS §112 put exactly that authority behind
+/// `dir::SETTIME`, separate from `dir::WRITE`. So the walk asks for `WRITE | SETTIME` and a grant
+/// without `SETTIME` answers `ReadOnlyFilesystem`. Falling back to `SETMTIME` there would write the
+/// server's own "now" in place of the time the caller asked for and report success, which is the
+/// one thing this function must not do; and the server's "now" is a logical counter, not a time
+/// (see `FileAttr::modified`).
+///
+/// Three things are refused before any message is sent, so a refusal never leaves half a change
+/// behind:
+///
+/// - **An access time.** No verb sets one. Refusing the whole call is the honest answer to a
+///   request this contract can only half carry; setting the mtime and dropping the atime would
+///   report success for something that did not happen.
+/// - **A time past `i64::MAX` seconds.** The contract's reply word is signed, so `GETMTIME` could
+///   never report such a value back; it would read as an error. The server accepts it (§112 does
+///   not referee plausibility), and this PAL declines to write a time it cannot read.
+/// - **The granted directory itself** (``, `.`, `/`), which has no name to ask by.
+///
+/// **Whole seconds.** The wire carries seconds and the server stores a zero nanosecond part, so a
+/// sub-second part is truncated. That is the same answer a second-granularity filesystem gives on
+/// Unix, and std documents timestamp precision as platform-dependent; it is recorded in
+/// notes/std.md's caveats rather than refused, because refusing every `SystemTime::now()` would make
+/// the call unusable for its commonest caller.
+///
+/// A `FileTimes` with nothing set changes nothing, and still resolves the name, so a missing file
+/// is `NotFound` as it is on Unix rather than a vacuous success.
+pub fn set_times(p: &Path, times: FileTimes) -> io::Result<()> {
+    if !reachable() {
+        return Err(unsupported_err());
+    }
+    if times.accessed.is_some() {
+        return Err(io::const_error!(
+            io::ErrorKind::Unsupported,
+            "no verb in the file contract sets an access time; nothing was changed"
+        ));
+    }
+    let Some(modified) = times.modified else {
+        return stat(p).map(|_| ());
+    };
+    if count_names(p)? == 0 {
+        return Err(io::const_error!(
+            io::ErrorKind::Unsupported,
+            "the granted directory has no name to set its mtime by"
+        ));
+    }
+    // `SystemTime` on this target is a `Duration` since the epoch, so this cannot fail; a time
+    // before 1970 is not representable here at all, which is the time PAL's own limit.
+    let since = modified.sub_time(&UNIX_EPOCH).map_err(|_| {
+        io::const_error!(io::ErrorKind::InvalidInput, "an mtime before 1970 cannot cross this contract")
+    })?;
+    let secs = since.as_secs();
+    if secs > i64::MAX as u64 {
+        return Err(io::const_error!(
+            io::ErrorKind::InvalidInput,
+            "an mtime this far out could be written but never read back over this contract"
+        ));
+    }
+    let mut page = page();
+    let (at, name) =
+        walk(&mut page, proto::ROOT, p, fsproto::dir::WRITE | fsproto::dir::SETTIME)?;
+    page.put(name.as_bytes());
+    request(proto::req(proto::SETMTIME_AT, at.0, name.len() as u64), secs)?;
+    Ok(())
 }
 
-pub fn set_times_nofollow(_p: &Path, _times: FileTimes) -> io::Result<()> {
-    unsupported()
+/// No symlinks cross this contract, so not following one is [`set_times`] itself.
+pub fn set_times_nofollow(p: &Path, times: FileTimes) -> io::Result<()> {
+    set_times(p, times)
 }

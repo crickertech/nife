@@ -89,6 +89,16 @@ checked for unique commits before deleting. By then half of it was stale (it sai
 unbuilt, and riscv64 had been run), which is why it was rewritten here rather than merged. AGENTS.md
 already names the failure: *nobody reads branches.*
 
+**2026-09-19: milestone 64 (enough `std` to run somebody else's crate) turned BUILT, and it moves
+this risk very little.** Its last pass bound file times by path (`Metadata::modified` on `GETMTIME`,
+`std::fs::set_times` on `SETMTIME_AT`), which was the one item its block still called outstanding.
+Nothing above depended on it: `ripgrep` stops at the missing argument vector (milestone 205), not at
+`std::fs`. What it adds is one more std surface that answers rather than refuses, with a caveat a
+stranger's program can trip over: a file written on nife reports an mtime in early 1970, because the
+FS server stamps a per-mount counter (notes/std.md; proposed as
+design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
+lane, which does not normally edit this file; the status check requires the entry to know.
+
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach
 
 **The claim:** the verification half of DECISIONS §14 is real but narrow, and narrow in the direction

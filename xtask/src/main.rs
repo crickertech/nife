@@ -3105,8 +3105,13 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
 ///   base came from a table read at a high physical address) is what makes the whole chain a gate
 ///   rather than the three separate facts it is made of.
 ///
+/// - **the shell on the screen, answering a serial keystroke** (the shell on the firmware screen,
+///   milestone 198's rung 1b). The screen is read three times: the kernel's tour (milestone 243),
+///   the prompt once the userspace terminal has taken the screen over, and the answer to a command
+///   typed on COM1. See [`screen_watch`].
+///
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
-/// the three rather than by hanging the gate.
+/// the three rather than by hanging the gate. It is stopped as soon as the screen has answered.
 fn uefi_boot() -> bool {
     if !uefi_image() {
         return false;
@@ -3121,6 +3126,12 @@ fn uefi_boot() -> bool {
     // surviving `mmu::init`, and the glyphs. The serial transcript below would be identical if the
     // screen were black.
     //
+    // **And then the shell on it** (the shell on the firmware screen, milestone 198's rung 1b): the
+    // same poller keeps reading until the prompt is on the screen, types one command on the SERIAL
+    // line, and reads its answer back off the SCREEN. That is the whole rung in one exchange: the
+    // console server writes both surfaces, the keystrokes still arrive over COM1, and what reaches
+    // the monitor is the shell and not the kernel. So it needs the runner's stdin, which is COM1.
+    //
     // In /tmp rather than under target/, because a unix socket path is capped at 104 bytes by the
     // OS and a worktree checkout plus `target/` gets close. Same reason `gpu_shot` does it.
     let sock = format!("/tmp/nife-uefi-screen-{}.sock", std::process::id());
@@ -3128,13 +3139,8 @@ fn uefi_boot() -> bool {
         std::path::PathBuf::from(format!("/tmp/nife-uefi-screen-{}.ppm", std::process::id()));
     let _ = std::fs::remove_file(&sock);
     let _ = std::fs::remove_file(&shot);
-    let seen = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
-    let watcher = {
-        let (sock, shot, seen) = (sock.clone(), shot.clone(), std::sync::Arc::clone(&seen));
-        std::thread::spawn(move || screen_watch(&sock, &shot, &seen))
-    };
 
-    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+    let mut child = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
         .env("NIFE_SCREEN_MON", &sock)
@@ -3157,16 +3163,43 @@ fn uefi_boot() -> bool {
         // The suite below is where the devices belong.
         .env_remove("NIFE_DISK")
         .env_remove("NIFE_NVME")
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
     {
-        Ok(o) => o,
+        Ok(c) => c,
         Err(e) => {
             eprintln!("uefi-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
             return false;
         }
     };
-    let transcript = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
+    // Both streams collected on threads of their own, because the watcher below decides when the
+    // boot has said enough and a blocking read here would decide it instead.
+    let collect = |mut from: Box<dyn std::io::Read + Send>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = from.read_to_end(&mut bytes);
+            String::from_utf8_lossy(&bytes).into_owned()
+        })
+    };
+    let stdout = collect(Box::new(child.stdout.take().expect("piped stdout")));
+    let stderr = collect(Box::new(child.stderr.take().expect("piped stderr")));
+    let serial = child.stdin.take().expect("piped stdin");
+    let watcher = {
+        let (sock, shot) = (sock.clone(), shot.clone());
+        std::thread::spawn(move || screen_watch(&sock, &shot, serial))
+    };
+    let screen = watcher.join().unwrap_or_default();
+    // **Stop the machine once the screen has answered**, rather than waiting out the runner's
+    // bound: the kernel never exits, and everything asserted below has been printed by the time the
+    // prompt answered a command. SIGTERM to the wrapper, which is the signal `qemu-bounded.sh`
+    // forwards to QEMU; its own killer is the backstop if this is lost.
+    let _ = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status();
+    let _ = child.wait();
+    let transcript = stdout.join().unwrap_or_default() + &stderr.join().unwrap_or_default();
     print!("{transcript}");
 
     let mut ok = true;
@@ -3184,6 +3217,10 @@ fn uefi_boot() -> bool {
         "smp: 2 core(s) online",
         // And a device interrupt still landing on the boot core with two local APICs present.
         "device irq  : pit irq 0 -> gsi 2",
+        // The kernel handed the screen to a userspace terminal and both halves came up (the shell
+        // on the firmware screen). Said on the UART because the screen has been handed away by
+        // the time it is printed.
+        "served by framebuffer_driver, a 132x43 terminal on it",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -3205,15 +3242,13 @@ fn uefi_boot() -> bool {
         ok = false;
     }
 
-    // --- What was on the SCREEN, which is the whole of milestone 243 ---
-    let _ = watcher.join();
+    // --- What was on the SCREEN: milestone 243's tour, then the shell ---
     let _ = std::fs::remove_file(&sock);
-    let screen = seen.lock().ok().and_then(|s| s.clone());
-    match screen {
+    match &screen.tour {
         Some(text) => {
             let rows = text.lines().filter(|l| !l.is_empty()).count();
             eprintln!(
-                "uefi-boot: read {rows} non-blank row(s) of text back off the framebuffer, ending"
+                "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer, ending"
             );
             let tail: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
             for line in tail.iter().rev().take(3).rev() {
@@ -3222,10 +3257,41 @@ fn uefi_boot() -> bool {
         }
         None => {
             eprintln!(
-                "uefi-boot: nothing readable was ever on the screen. The serial transcript above \
+                "uefi-boot: the tour was never readable on the screen. The serial transcript above \
                  says whether the kernel ran at all; if it did, the framebuffer path is what broke \
                  (the loader's LocateProtocol, the pixel order, the stride, or the mapping \
                  surviving mmu::init). Last dump: {}",
+                shot.display()
+            );
+            ok = false;
+        }
+    }
+    match (&screen.prompt, &screen.answer) {
+        (Some(_), Some(text)) => {
+            eprintln!(
+                "uefi-boot: the shell is on the screen, and `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line answered there:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+        }
+        (Some(text), None) => {
+            eprintln!(
+                "uefi-boot: the prompt reached the screen, but `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line never answered there. Last screen read:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+            ok = false;
+        }
+        (None, _) => {
+            eprintln!(
+                "uefi-boot: the shell's prompt never reached the screen. If the transcript has the \
+                 prompt, the console server is not writing to the screen terminal; if it has the \
+                 `served by framebuffer_driver` line, the terminal came up and drew nothing \
+                 readable. Last dump: {}",
                 shot.display()
             );
             ok = false;
@@ -3249,45 +3315,90 @@ fn uefi_boot() -> bool {
 /// whatever it hands over to next; it sits a few dozen rows above the bottom, well inside the 100.
 const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
 
-/// **Poll the QEMU monitor until the tour's last line is on the screen** (milestone 243).
+/// The command `uefi-boot` types on the serial line once the prompt is on the screen, and
+/// [`UEFI_SCREEN_ANSWER`] the line it must print there. Words that appear nowhere in the boot, so
+/// finding the answer cannot be finding something the tour said.
+const UEFI_SCREEN_COMMAND: &str = "echo typed on the wire";
+/// What [`UEFI_SCREEN_COMMAND`] prints, as a whole screen row.
+const UEFI_SCREEN_ANSWER: &str = "typed on the wire";
+
+/// What the screen showed, stage by stage. Each is the decoded screen at the moment that stage was
+/// seen, or `None` when it never was.
+#[derive(Default)]
+struct ScreenReadings {
+    /// The kernel's tour, with [`UEFI_SCREEN_MARKER`] on it (milestone 243).
+    tour: Option<String>,
+    /// The shell's prompt, a row that starts `$ `.
+    prompt: Option<String>,
+    /// [`UEFI_SCREEN_ANSWER`] as a whole row, after [`UEFI_SCREEN_COMMAND`] was typed.
+    answer: Option<String>,
+}
+
+/// **Poll the QEMU monitor through three stages of what the screen shows** (milestone 243, then
+/// the shell on the firmware screen).
 ///
-/// Runs on its own thread beside the boot, because the kernel halts rather than exiting and the
-/// runner therefore does not return until its own timeout fires: by then QEMU is gone and there is
-/// nothing left to photograph. Stops on three conditions, and each is a different answer.
+/// Runs on its own thread beside the boot, because the kernel never exits and the runner therefore
+/// does not return until its own timeout fires: by then QEMU is gone and there is nothing left to
+/// photograph. The stages, in the order they must happen:
 ///
-/// - The marker decoded: success, and the text is left in `seen`.
-/// - The monitor stopped answering after having answered once: QEMU is gone, and no later dump can
-///   be better than the last one.
-/// - The deadline: something is wrong that this loop cannot name.
+/// 1. **The tour's marker.** The kernel paints the boot tour until it hands the screen to the
+///    userspace terminal, which clears it. So this stage has a window (from the self-test verdict
+///    to the handover, a couple of seconds under TCG) and is polled faster than the others;
+///    missing it is a failure, because it is milestone 243's claim.
+/// 2. **The prompt.** A row starting `$ `, which the kernel's tour never prints.
+/// 3. **The answer.** [`UEFI_SCREEN_COMMAND`] is written to `serial` (COM1), and a row equal to
+///    [`UEFI_SCREEN_ANSWER`] must appear. The command's own echo is `$ echo ...`, a different row,
+///    so this row is only there if the shell ran the command and its output reached the screen.
 ///
-/// A dump that fails to decode is never fatal here. `screendump` writes the file asynchronously, so
-/// a read that lands mid-write is short and ordinary; the retry is the answer, not a diagnosis.
-fn screen_watch(sock: &str, shot: &Path, seen: &std::sync::Mutex<Option<String>>) {
+/// Stops early when the monitor stops answering after having answered once (QEMU is gone and no
+/// later dump can be better), and at a deadline that bounds the whole watch. A dump that fails to
+/// decode is never fatal: `screendump` writes the file asynchronously, so a read that lands
+/// mid-write is short and ordinary, and the retry is the answer.
+fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -> ScreenReadings {
+    use std::io::Write;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
     let mut answered = false;
+    let mut seen = ScreenReadings::default();
+    let mut typed = false;
     while std::time::Instant::now() < deadline {
         if !screendump(sock, shot) {
             if answered {
-                return;
+                break;
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
             continue;
         }
         answered = true;
-        // A screen that decodes but does not hold the marker is deliberately NOT stored: an
-        // incomplete picture must not read as a pass. The dump file itself is the artefact, and
-        // the caller prints its path on failure.
-        if let Ok(bytes) = std::fs::read(shot)
-            && let Ok(text) = board_console::screen::read(&bytes)
-            && text.contains(UEFI_SCREEN_MARKER)
-        {
-            if let Ok(mut slot) = seen.lock() {
-                *slot = Some(text);
+        // A screen that decodes but does not hold what the stage wants is deliberately NOT stored:
+        // an incomplete picture must not read as a pass. The dump file itself is the artefact,
+        // and the caller prints its path on failure.
+        let text = std::fs::read(shot)
+            .ok()
+            .and_then(|bytes| board_console::screen::read(&bytes).ok());
+        if let Some(text) = text {
+            if seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
+                seen.tour = Some(text.clone());
             }
-            return;
+            if seen.prompt.is_none() && text.lines().any(|l| l.starts_with("$ ")) {
+                seen.prompt = Some(text.clone());
+            }
+            if typed && text.lines().any(|l| l == UEFI_SCREEN_ANSWER) {
+                seen.answer = Some(text);
+                break;
+            }
+            // Typed once, after the prompt is on the screen: the line editor echoes a keystroke
+            // the moment it arrives, so typing earlier would be typing into the boot.
+            if seen.prompt.is_some() && !typed {
+                typed = writeln!(serial, "{UEFI_SCREEN_COMMAND}")
+                    .and_then(|()| serial.flush())
+                    .is_ok();
+            }
         }
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Stage 1 has a window; the others wait on a person-speed shell.
+        let pause = if seen.tour.is_none() { 50 } else { 500 };
+        std::thread::sleep(std::time::Duration::from_millis(pause));
     }
+    seen
 }
 
 /// **Run the kernel suite under real firmware** (milestone 195), rather than the tour
@@ -8193,14 +8304,36 @@ fn tree_apropos(term: Option<String>) -> bool {
             ranked.offered()
         );
     }
-    for p in &long {
+    // **Only a path this search printed can fail it.** Until 2026-09-19 any over-long path anywhere
+    // in the corpus made every search exit 1 with a warning per file, whatever the term: six
+    // roadmap and decision filenames had grown past the record, so the tool a newcomer is pointed
+    // at failed on its own README example. The rule above still holds for a result somebody is
+    // shown (a path they cannot open is worse than no result, so that exits 1 and names it); a path
+    // that never reached the output is a fact about the corpus and gets one line, not a failure.
+    let max = documentation::index::PATH_MAX;
+    let shown: Vec<&String> = long
+        .iter()
+        .filter(|p| {
+            ranked
+                .results()
+                .iter()
+                .any(|f| p.as_bytes().starts_with(f.origin()) && f.origin().len() == max)
+        })
+        .collect();
+    for p in &shown {
         eprintln!(
-            "apropos: {p} is longer than the {} bytes a page record holds, so its result would be \
-             truncated",
-            documentation::index::PATH_MAX
+            "apropos: {p} is longer than the {max} bytes a page record holds, so the result above \
+             that names it is truncated"
         );
     }
-    long.is_empty()
+    if long.len() > shown.len() {
+        eprintln!(
+            "apropos: {} other paths are longer than the {max} bytes a page record holds; none \
+             is in these results",
+            long.len() - shown.len()
+        );
+    }
+    shown.is_empty()
 }
 
 /// One document offered to the tree index: where it lives, what it is called, and its text.

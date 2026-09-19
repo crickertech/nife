@@ -665,6 +665,175 @@ fn set_len_and_copy() {
 
     std::fs::remove_file(ORIGINAL).expect("cleanup of the set_len subject failed");
     std::fs::remove_file(DUPLICATE).expect("cleanup of the copy destination failed");
+
+    file_times();
+}
+
+/// **File times** (milestone 64, ranks 19 and 28): `Metadata::modified` over `GETMTIME` and
+/// `std::fs::set_times` over `SETMTIME_AT`, the verbs milestone 47's `touch` added (DECISIONS §112).
+/// Both were refused in the PAL for three weeks after the verbs landed, with a comment saying no
+/// verb existed.
+///
+/// Four positives, each proving something the one before it could not:
+///
+/// - **The image's own file reads a wall-clock time.** `motd` was put there by the host tool, which
+///   stamps real seconds, so its mtime has to land inside the same window `SystemTime::now()` is
+///   checked against. A binding that returned 0, or a size, or a handle number, fails here.
+/// - **A write moves it forward**, on a file this program made. Forward within this boot is all the
+///   FS server's stamp can promise: it is a counter that restarts at each mount rather than a
+///   wall-clock second, so the file reads as early 1970 (notes/std.md). The engine also only ever
+///   moves an mtime forward, so a write after a `set_times` into the future leaves that time in
+///   place; that is why the write is asserted *before* the set, not after.
+/// - **A time set by name reads back exactly, in whole seconds.** The half-second is deliberate:
+///   the wire carries seconds, and this pins that the sub-second part is truncated rather than
+///   rounded or refused.
+/// - **A directory has one too, and a listing's entry answers it.** `GETMTIME` works on a
+///   directory, and `DirEntry::metadata` now asks by name for a directory as for a file.
+///
+/// And four refusals, each a place where a success would be a lie: metadata through an open handle
+/// (the contract asks by name), setting a time through an open handle (it would stamp whatever holds
+/// the name now), an access time (no verb sets one, and the mtime beside it must not change), and
+/// the granted directory itself (no name to ask by).
+fn file_times() {
+    use std::fs::FileTimes;
+
+    const SUBJECT: &str = "times-subject";
+    const DIR: &str = "times-dir";
+
+    // Cleanup first, for `namespace_transcript`'s reason: `NIFE_KEEP_REDOXFS=1` reuses an image.
+    for (name, is_dir) in [(SUBJECT, false), (DIR, true)] {
+        let r = if is_dir {
+            std::fs::remove_dir(name)
+        } else {
+            std::fs::remove_file(name)
+        };
+        match r {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            other => panic!("cleaning up {name} failed: {other:?}"),
+        }
+    }
+
+    let motd = std::fs::metadata(filesystem_protocol::fixture::MOTD_NAME)
+        .expect("metadata of the motd failed")
+        .modified()
+        .expect("modified() refused for a name reached through the granted directory")
+        .duration_since(UNIX_EPOCH)
+        .expect("the motd's mtime is before 1970");
+    assert!(
+        motd >= NOT_BEFORE && motd < NOT_AFTER,
+        "the motd's mtime is not a wall-clock second the host tool could have stamped: {motd:?}",
+    );
+    println!("mtime from the image ok");
+
+    // A file this system makes is stamped by the FS server's own counter, so its time is small and
+    // only its *order* means anything. What that order has to show is that a write moves it.
+    std::fs::write(SUBJECT, b"stamped").expect("write of the times subject failed");
+    let made = std::fs::metadata(SUBJECT)
+        .expect("metadata of a file this program made failed")
+        .modified()
+        .expect("modified() refused for a file this program made");
+    std::fs::write(SUBJECT, b"written again").expect("the second write failed");
+    let moved = std::fs::metadata(SUBJECT)
+        .expect("metadata after a write failed")
+        .modified()
+        .expect("modified() after a write failed");
+    assert!(
+        moved > made,
+        "a write did not move the mtime forward: {made:?} then {moved:?}"
+    );
+    println!("write moves mtime ok");
+
+    // 2027-01-15, and half a second, which the wire cannot carry.
+    let asserted = UNIX_EPOCH + Duration::from_millis(1_800_000_000_500);
+    std::fs::set_times(SUBJECT, FileTimes::new().set_modified(asserted))
+        .expect("set_times through a full-rights grant failed");
+    let back = std::fs::metadata(SUBJECT)
+        .expect("metadata after set_times failed")
+        .modified()
+        .expect("modified() after set_times failed");
+    assert_eq!(
+        back,
+        UNIX_EPOCH + Duration::from_secs(1_800_000_000),
+        "set_times did not round-trip in whole seconds",
+    );
+    println!("set_times ok");
+
+    std::fs::create_dir(DIR).expect("create_dir for the times directory failed");
+    let dir_time = UNIX_EPOCH + Duration::from_secs(1_900_000_000);
+    std::fs::set_times(DIR, FileTimes::new().set_modified(dir_time))
+        .expect("set_times on a directory failed");
+    assert_eq!(
+        std::fs::metadata(DIR)
+            .expect("metadata of the times directory failed")
+            .modified()
+            .expect("modified() refused for a directory reached by name"),
+        dir_time,
+        "a directory's mtime did not round-trip",
+    );
+    let listed = std::fs::read_dir(".")
+        .expect("read_dir of the granted directory failed")
+        .map(|e| e.expect("a listing entry failed"))
+        .find(|e| e.file_name() == DIR)
+        .expect("the times directory is not in the listing");
+    assert_eq!(
+        listed
+            .metadata()
+            .expect("DirEntry::metadata of a directory failed")
+            .modified()
+            .expect("modified() refused through a listing entry"),
+        dir_time,
+        "a listing entry reported a different time than the name did",
+    );
+    println!("dir mtime ok");
+
+    // Through an open handle: refused, both ways, and the time on disk is untouched.
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .open(SUBJECT)
+        .expect("reopening the times subject failed");
+    match file.metadata().map(|m| m.modified()) {
+        Ok(Err(e)) if e.kind() == ErrorKind::Unsupported => {}
+        other => panic!("modified() through an open handle did not refuse: {other:?}"),
+    }
+    match file.set_modified(asserted) {
+        Err(e) if e.kind() == ErrorKind::Unsupported => {}
+        other => panic!("set_modified through an open handle did not refuse: {other:?}"),
+    }
+    drop(file);
+    println!("handle mtime refused");
+
+    // An access time is refused whole: the mtime asked for beside it must not be written either.
+    match std::fs::set_times(
+        SUBJECT,
+        FileTimes::new()
+            .set_modified(asserted)
+            .set_accessed(asserted),
+    ) {
+        Err(e) if e.kind() == ErrorKind::Unsupported => {}
+        other => panic!("set_times with an access time did not refuse: {other:?}"),
+    }
+    assert_eq!(
+        std::fs::metadata(SUBJECT)
+            .expect("metadata after a refused set_times failed")
+            .modified()
+            .expect("modified() after a refused set_times failed"),
+        back,
+        "a refused set_times changed the mtime anyway",
+    );
+    match std::fs::set_times(".", FileTimes::new().set_modified(asserted)) {
+        Err(e) if e.kind() == ErrorKind::Unsupported => {}
+        other => panic!("set_times on the granted directory did not refuse: {other:?}"),
+    }
+    match std::fs::set_times("times-nobody-made", FileTimes::new()) {
+        Err(e) if e.kind() == ErrorKind::NotFound => {}
+        other => panic!("an empty set_times on a missing name did not say NotFound: {other:?}"),
+    }
+    println!("set_times refusals ok");
+
+    std::fs::remove_file(SUBJECT).expect("cleanup of the times subject failed");
+    std::fs::remove_dir(DIR).expect("cleanup of the times directory failed");
 }
 
 /// **Descent** (milestone 122): a nested path is a chain of `OPENDIR`s, and a directory is a thing a

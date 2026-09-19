@@ -241,6 +241,15 @@ pub(super) fn std_fs_expected(buf: &mut [u8; 768]) -> usize {
         // `fs::copy` (no verb, and none needed). Same shape of finding as the nine lines above, one
         // milestone later: the refusal outlived the reason for it.
         b"set_len ok\ncopy ok\n".as_slice(),
+        // Milestone 64's last pass: file times, on the verbs milestone 47's `touch` added
+        // (DECISIONS §112). The first line is the motd's host-stamped mtime landing in the
+        // wall-clock window; the next three are a write moving a made file's mtime forward, a
+        // set-by-name round trip in whole seconds, and a directory's mtime read both by name and
+        // through a listing entry. The
+        // last two are refusals: through an open handle (the contract asks by name), and an access
+        // time, the granted directory itself and an empty set on a missing name.
+        b"mtime from the image ok\nwrite moves mtime ok\nset_times ok\ndir mtime ok\n".as_slice(),
+        b"handle mtime refused\nset_times refusals ok\n".as_slice(),
         // **Milestone 122: descent.** The first three lines are a nested path resolving, a second
         // descent below it, and the pair that was actually broken: list a subdirectory, then open
         // every file the listing named through the `path()` the listing handed back. That pair is

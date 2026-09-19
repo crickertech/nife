@@ -160,3 +160,18 @@ forever, by design, exactly like real hardware. So every interactive run must be
 ---
 
 *Add to this file as new QEMU concepts come up.*
+
+## BUGS
+
+- **On macOS the pinned version is not available, and building it by hand has a trap.** `.qemu-version`
+  pins the version CI and Linux build (`script/ci-qemu`); Homebrew ships only its current release
+  and `script/ci-qemu` refuses to run on macOS, so a Mac runs whatever Homebrew has and
+  `script/qemu-check` warns. Milestone 117's sixth stranger run built the pinned 11.0.2 by hand and
+  found that `script/ci-qemu`'s configure line does not link on this SDK: `hw/display/apple-gfx.m`
+  needs `--disable-cocoa --disable-pvg`. Nothing in the tree says so, because nothing in the tree has
+  built QEMU on a Mac. And a QEMU installed into `$HOME/.cache/nife-qemu` is honoured by
+  `scripts/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
+  for one clone changes the emulator under every other lane.
+- **A kernel's serial log is binary to `grep`.** The test logs carry the guest's control bytes, so
+  `grep FAILED log` says `Binary file log matches` or nothing, rather than the line. Use `grep -a`.
+

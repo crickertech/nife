@@ -334,6 +334,23 @@ unrecorded = [r for r in records if r["status"] == "unrecorded"]
 provisional = [r for r in records if r["status"] == "provisional"]
 refusals = [(bad, r) for r in records for bad in r["refused"]]
 
+# **The worklist is every name that is not ratified, and it is computed once.** Every line below that
+# says how much still wants calef reads THIS list, because until 2026-09-19 three lines computed it
+# three ways: `--check` printed `recorded + unrecorded` beside a pointer to `--unratified`, which
+# printed `provisional + recorded + unrecorded`, and both census lines dropped `provisional`, so the
+# three numbers a reader was shown did not sum to the total. Milestone 117's fourth stranger found it
+# on 2026-08-18, by adding a program with a provisional name exactly as it had been told to and
+# watching its own name vanish from the gate's count.
+#
+# **`provisional` belongs in it, and the reason is this script's own sort order**: `--unratified`
+# puts provisional names FIRST in every tier, because their author has already said they are wrong
+# and so they are the shortest conversation calef can have (§89). A count that left them out
+# under-reported exactly the part of the worklist worth reading first, and design/naming.md defines
+# the worklist as what `--unratified` prints. So the two-category number was the bug and the
+# three-category one was right.
+worklist = provisional + recorded + unrecorded
+KINDS = ["crate", "program", "package", "script"]
+
 # The worklist's order, and it is exposure rather than alphabet or count, because exposure is what
 # makes a wrong name expensive. A program is what a person types at the prompt, so it is read by
 # everyone who uses the system; a crate is what a newcomer greps before opening anything (the naming
@@ -385,11 +402,10 @@ if mode == "--check":
               file=sys.stderr)
         sys.exit(1)
     print(f"names: {len(records)} names carry provenance "
-          f"({len(by_kind.get('crate', []))} crates, {len(by_kind.get('program', []))} programs, "
-          f"{len(by_kind.get('script', []))} scripts)")
-    print(f"names: {len(ratified)} ratified, {len(recorded)} recorded, {len(unrecorded)} "
-          f"unrecorded, {len(refusals)} refusals recorded beside them")
-    print(f"names: {len(recorded) + len(unrecorded)} still want calef "
+          f"({', '.join(f'{len(by_kind.get(k, []))} {k}s' for k in KINDS)})")
+    print(f"names: {len(ratified)} ratified, {len(provisional)} provisional, {len(recorded)} "
+          f"recorded, {len(unrecorded)} unrecorded, {len(refusals)} refusals recorded beside them")
+    print(f"names: {len(worklist)} still want calef "
           f"(script/names --unratified), which is a worklist and not a failure")
     for bad in contradictions:
         print(f"names: NOTE {bad!r} is recorded as refused and is also a live name", file=sys.stderr)
@@ -422,7 +438,7 @@ if mode == "--unrecorded":
     sys.exit(0)
 
 if mode == "--unratified":
-    todo = sorted(provisional + recorded + unrecorded,
+    todo = sorted(worklist,
                   key=lambda r: (EXPOSURE[r["kind"]], URGENCY[r["status"]], r["name"]))
     if not todo:
         print("every name in the tree is ratified")
@@ -442,7 +458,8 @@ if mode == "--unratified":
             tier = (r["kind"], r["status"])
             print(f"  {r['kind']}s, {r['status']}")
         print(f"    {r['name']:<28} {r['path']}")
-    print(f"\n{len(unrecorded)} unrecorded (research, then a ruling), "
+    print(f"\n{len(provisional)} provisional (the author expects a change), "
+          f"{len(unrecorded)} unrecorded (research, then a ruling), "
           f"{len(recorded)} recorded (a ruling only).")
     print("script/names <name> prints what the history does and does not say about one of them.")
     sys.exit(0)
@@ -466,20 +483,21 @@ if mode:
           f"--check, or a name)", file=sys.stderr)
     sys.exit(2)
 
-for kind in ["crate", "program", "script"]:
+for kind in KINDS:
     group = sorted(by_kind.get(kind, []), key=lambda r: r["name"])
     tally = {s: sum(1 for r in group if r["status"] == s)
-             for s in ("ratified", "recorded", "unrecorded")}
+             for s in ("ratified", "provisional", "recorded", "unrecorded")}
     print(f"\n{kind.upper()}S ({len(group)}: {tally['ratified']} ratified, "
-          f"{tally['recorded']} recorded, {tally['unrecorded']} unrecorded)")
+          f"{tally['provisional']} provisional, {tally['recorded']} recorded, "
+          f"{tally['unrecorded']} unrecorded)")
     for r in group:
         when = r["date"] if r["status"] == "ratified" else r["status"]
         tail = f"  refused {len(r['refused'])}" if r["refused"] else ""
         print(f"  {r['name']:<28} {when:<12}{tail}")
 
-print(f"\ntotal: {len(records)} names, {len(ratified)} ratified, {len(recorded)} recorded, "
-      f"{len(unrecorded)} unrecorded, {len(refusals)} refusals")
-print(f"{len(provisional) + len(recorded) + len(unrecorded)} still want calef: script/names --unratified")
+print(f"\ntotal: {len(records)} names, {len(ratified)} ratified, {len(provisional)} provisional, "
+      f"{len(recorded)} recorded, {len(unrecorded)} unrecorded, {len(refusals)} refusals")
+print(f"{len(worklist)} still want calef: script/names --unratified")
 if contradictions:
     print(f"refused but live: {', '.join(contradictions)}")
 for p in sorted(set(problems)):

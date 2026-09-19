@@ -172,12 +172,13 @@ hvf_leg() {
     else
         # The four conditions above ask whether HVF exists. This one asks whether QEMU will start the
         # machine the runner actually configures, which is a different question and the one that was
-        # being answered by a crash (milestone 222). On QEMU 11.1.1 it will not: HVF refuses GICv2, and
-        # `kernel/src/drivers/gic.rs` speaks GICv2 only, so the leg has no version of the machine it can
-        # run on. Asking the runner rather than testing a QEMU version keeps the machine string in one
-        # place; see the probe in scripts/qemu-runner-aarch64.sh.
+        # being answered by a crash (milestone 222). On QEMU 11.1.1 HVF refuses GICv2; the kernel has
+        # driven GICv3 too since milestone 227 and the runner asks for it under HVF, so today the probe
+        # passes. It stays because the answer is QEMU's to change. Asking the runner rather than
+        # testing a QEMU version keeps the machine string in one place; see the probe in
+        # scripts/qemu-runner-aarch64.sh.
         if ! hvf_refusal="$(NIFE_PROBE=1 NIFE_ACCEL=hvf scripts/qemu-runner-aarch64.sh 2>/dev/null)"; then
-            hvf_missing="QEMU will not start the machine this leg needs. It said: $hvf_refusal. The kernel drives GICv2 only (kernel/src/drivers/gic.rs, and the BUGS section of notes/interrupts.md), so there is no GIC version this QEMU and this kernel both accept"
+            hvf_missing="QEMU will not start the machine this leg needs. It said: $hvf_refusal. The kernel drives GICv2 and GICv3 and the runner asks HVF for a GICv3, so this refusal is about something else; notes/hvf-leg.md has the history"
         fi
     fi
 
@@ -187,7 +188,15 @@ hvf_leg() {
     if [ -n "$hvf_missing" ]; then
         echo "ci-build: SKIPPED the HVF leg ($hvf_missing). NO code in this run executed on a physical core; everything else in this run was TCG emulation."
     else
-        script/test --hvf
+        # A red here is worth one sentence of context, because a leg that fails without saying
+        # whether the failure is yours is the defect milestone 222 removed. Since milestone 227 the
+        # leg runs again, and its first runs found one flaky failure that belongs to HVF's timing rather
+        # than to anybody's change; it is named here until the milestone its BUGS entry proposes
+        # lands, and this sentence should go with it.
+        if ! script/test --hvf; then
+            echo "ci-build: the HVF leg failed. One HVF-only failure is known: kernel::user::tests::a_std_program_serves_a_granted_listening_port hung in two of three full --hvf runs (it passes alone, and under TCG), and the inbound check then reports 2 of 4. If that is the only red above, it is not your change; see the BUGS section of design/roadmap/227-gicv3-driver.md."
+            return 1
+        fi
     fi
 }
 

@@ -17,9 +17,21 @@
 # QEMU *does* honour SIGTERM, so that's what we use: start the child, start a killer in
 # the background, and make sure the killer dies with us.
 #
-# Note the `<&0` on the child: a backgrounded command's stdin is otherwise redirected to
+# Note the stdin plumbing on the child: a backgrounded command's stdin is otherwise redirected to
 # /dev/null by the shell (POSIX), which silently breaks piping input to QEMU's serial port.
 # We found that the hard way trying to drive the milestone-10 shell from a pipe.
+#
+# **It goes through fd 3, because `<&0` only works in bash.** POSIX assigns /dev/null to an
+# asynchronous list's stdin *before* its explicit redirections, so under a literal shell `<&0`
+# duplicates /dev/null onto itself. bash (macOS's /bin/sh) special-cases an explicit stdin
+# redirection and skips the /dev/null; dash (Debian and Ubuntu's /bin/sh, so every CI runner) does
+# not. So on patagonia keystrokes reached QEMU and in CI they never did: `cargo xtask uefi-boot`
+# typed `echo typed on the wire` at a prompt that was on the screen and got no echo, twice in a row
+# on 2026-09-19 (pull request #985), while passing every local run. Checked directly with macOS's
+# own /bin/dash: `printf 'hi\n' | dash -c 'cat <&0 & wait'` prints nothing, and the same through a
+# saved descriptor, `exec 3<&0; cat <&3 3<&- & wait`, prints `hi`. The descriptor is saved before
+# the list is backgrounded, so the /dev/null assignment cannot reach it, and closed in the child so
+# QEMU does not inherit a stray fd.
 #
 # # The bound is not the only way this script's job ends (milestone 226)
 #
@@ -127,8 +139,10 @@ report_lock_holders() {
     done
 }
 
-"$@" <&0 &
+exec 3<&0
+"$@" <&3 3<&- &
 CHILD=$!
+exec 3<&-
 PARENT=$$
 
 # The killer. Detached, so it survives even if the shell is in a pipeline whose reader
