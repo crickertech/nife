@@ -1,8 +1,15 @@
-# A TLS stack, and the fork is not "OpenSSL or not" but what we are trying to prove
+# 387. A TLS stack, and the fork is not "OpenSSL or not" but what we are trying to prove
 
-**Status: PROPOSED 2026-09-05.** Written after calef asked whether a milestone covered OpenSSL. None
-did, and the tree mentions it once, incidentally, in `design/fat-binaries.md` as an example of
-hand-rolled function multiversioning alongside glibc and BLAS.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after calef asked
+whether a milestone covered OpenSSL; numbered 2026-09-19 by milestone 433's drain of the proposal
+pile. **Premise re-read against the tree on 2026-09-19 and still true.** There is still no TLS: no
+`rustls`, no `ring`, no `aws-lc-rs` and no OpenSSL anywhere in `Cargo.lock`, and the crypto surface
+is still `argon2` and `subtle` in `crates/credentialer` plus the `aes` RedoxFS needs. The "no hash"
+claim below wants one correction rather than a retraction: `blake2` and `digest` are in the lock
+file, as argon2's own arithmetic, and nothing exposes a general hash. All four consumers named
+below are still `NOT-STARTED` (66, 99, 174, 198), so the reason this was filed as a proposal rather
+than a milestone, that nothing is blocked on it, is unchanged.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: MILESTONE 66.** That gate covers the server half only; the client half is gated on nothing
 and could start today, which the table below sets out. Neither is urgent, and this is a proposal
@@ -10,7 +17,7 @@ rather than a milestone for one reason: **nothing is blocked on it today.**
 
 ## The principle is already settled, so this is not a write-or-take question
 
-[§46](../../decisions/46-dependency-rule.md) is explicit that crypto goes on the take side, and the
+[§46](../decisions/46-dependency-rule.md) is explicit that crypto goes on the take side, and the
 reason is stated: *"correctness there includes resistance to attacks not yet published and
 side-channel behaviour no specification states, and that is bought by years of exposure and review.
 A proof that our AES matches the spec would not make it safe to use."*
@@ -22,7 +29,7 @@ demonstrate rather than on engineering taste.**
 
 **`rustls` is the engineering answer.** Rust, no C build system, and it uses the entropy this tree
 already has. Milestone 66 already assumes it by name: *"TLS: none. `rustls` needs entropy (have it)
-and a large crypto surface."* [§83](../../decisions/83-rust-over-c-implementations.md) points the
+and a large crypto surface."* [§83](../decisions/83-rust-over-c-implementations.md) points the
 same way, and its reasoning is specifically about hostile bytes: the vulnerability history of
 comparable parsers *"is dominated by heap overflows and out-of-bounds access. That is the class Rust
 removes by construction rather than by care."*
@@ -34,11 +41,11 @@ about the ecosystem.
 
 **And the third is the interesting one: OpenSSL confined is a demonstration rather than a
 dependency.** It is the most security-critical C library in the world and the canonical large C blob
-that everyone is obliged to trust. This tree has [§31](../../decisions/31-foreign-language-seam.md)'s
+that everyone is obliged to trust. This tree has [§31](../decisions/31-foreign-language-seam.md)'s
 seam, `c_shim`, `c_confiner`, `c_swappable`, and milestone 202's 26 enumerated confinement claims
 with replayable falsifications. **Running OpenSSL where a compromise reaches nothing is
-[§14](../../decisions/14-project-direction.md)'s thesis as a concrete object**, and it is
-[§145](../../decisions/145-compartmentalization-at-process-cost.md)'s argument with a name everybody
+[§14](../decisions/14-project-direction.md)'s thesis as a concrete object**, and it is
+[§145](../decisions/145-compartmentalization-at-process-cost.md)'s argument with a name everybody
 recognises.
 
 Milestone 36 already ranks foreign components and would place this: it calls **SQLite** the
@@ -97,7 +104,7 @@ above.
 still verify against all 150 authorities. **In a capability system a trust store is a capability**,
 and a client granted exactly the roots its one peer chains to cannot be induced to trust anything
 else. That is a small, concrete instance of
-[§145](../../decisions/145-compartmentalization-at-process-cost.md)'s argument, and it is the kind of
+[§145](../decisions/145-compartmentalization-at-process-cost.md)'s argument, and it is the kind of
 thing that is cheap to do here and impossible to retrofit into Unix.
 
 Recorded rather than minted, because it has no consumer until this proposal does.
@@ -112,7 +119,7 @@ behind four other things and teach nobody anything.
 **What would turn it into one** is any of: 198 choosing a transport that needs HTTPS, 99 reaching the
 `clone` half, or a decision that the confined-OpenSSL demonstration is worth doing for its own sake
 rather than for a consumer. That last one is the most likely and it is
-[§145](../../decisions/145-compartmentalization-at-process-cost.md)'s to trigger.
+[§145](../decisions/145-compartmentalization-at-process-cost.md)'s to trigger.
 
 ## What the tree has today
 
@@ -132,3 +139,24 @@ piece of the same surface and may deserve its own proposal.
   filesystem locking"*.
 - **This proposal names no first consumer**, which by AGENTS.md's ranking function is a reason to
   rank it below anything that has one.
+
+## Index row
+
+§46 already settles that crypto is taken rather than written, so the question is which stack, and it
+splits on what the choice is meant to demonstrate rather than on engineering taste. `rustls` is the
+engineering answer, Rust and no C build system over entropy this tree already has, and §83 points
+the same way because the vulnerability history of comparable parsers is dominated by the class Rust
+removes by construction. OpenSSL is the ecosystem answer, and it answers fatal risk 1 instead: real
+software links `libssl`, and giving nife TLS is a different claim from giving it the ability to run a
+program that expects OpenSSL. The third answer is the interesting one, since OpenSSL confined is a
+demonstration rather than a dependency: the most security-critical C library in the world, run where
+a compromise reaches nothing, is §14's thesis as a concrete object and §145's argument with a name
+everybody recognises. The useful half nobody had written down is that client-side and server-side
+TLS are different milestones with different consumers: the client half has two (milestone 99's
+`clone`, milestone 174's build service) and is blocked on nothing, while the server half has one
+(milestone 66) and waits on 66's own one-deep accept backlog. Milestone 198 was listed as a consumer
+and removed, because Debian fetches over plain HTTP and verifies a signed `Release` file, so a
+package manager needs signature verification, which it needs anyway, and a trust store it could only
+update through itself. A certificate trust store is recorded rather than minted here, with the
+observation that it should be a capability rather than the ambient `/etc/ssl/certs` every Unix
+process can read.

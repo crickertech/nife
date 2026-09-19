@@ -58,7 +58,7 @@ This is the list to trust, and it is much shorter than the one above it.
   an address**, so nothing here can fetch a URL however much HTTP it has. See
   `design/roadmap/384-a-name-resolver-and-who-holds-it.md`.
 - **No HTTP, and no TLS.** No client, no server, and a crypto surface of `argon2`, `subtle` and
-  `aes`. The TLS fork is `design/roadmap/proposals/a-tls-stack-and-which-one.md`.
+  `aes`. The TLS fork is milestone 387, `design/roadmap/387-a-tls-stack-and-which-one.md`.
 - **No dynamic linking.** Static only, every program a standalone ELF in the archive. This is the
   one row of the old table that survived intact, and it is a real barrier for software that expects
   to `dlopen` a plugin.

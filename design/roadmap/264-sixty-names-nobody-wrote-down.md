@@ -210,11 +210,11 @@ needs a file of its own; what is listed here is where to read it and what happen
   for `swish-check`, naming the program actually driven, with `prompt-check` the alternative if he
   would rather name the surface. Two loose ends the rename carries without closing: the cargo feature
   is spelled `shell`, and `cargo xtask shell-check` is the same string one level along.
-- **Proposed.** `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md`. The 2026-09-05
-  acronym test reaches at least seven of the sixty and this milestone deliberately settled none of
-  them, because design/naming.md already says the sweep is its own milestone and one lane spelling one
-  acronym out would leave a program disagreeing with a crate calef ratified. Each affected block asks
-  the question and records the answer as open.
+- **Milestone 388.** The 2026-09-05 acronym test reaches at least seven of the sixty and this
+  milestone deliberately settled none of them, because design/naming.md already says the sweep is
+  its own milestone and one lane spelling one acronym out would leave a program disagreeing with a
+  crate calef ratified. Each affected block asks the question and records the answer as open.
+  Numbered on 2026-09-19 by milestone 433's drain of the pile.
 - **Milestone 386.** The 21-block sorting bug this milestone found was invisible to every gate,
   because `script/names --check` validates that a block's leading token parses and never that it is
   the right one. A block saying "provisional" or "not yet put to calef" in prose while its token

@@ -48,10 +48,11 @@ the same shape as every other authority in this system:
   today and should keep working.
 
 This is the same observation as the trust-store one in
-`design/roadmap/proposals/a-tls-stack-and-which-one.md`, and the two belong to the same family:
+milestone 387, `design/roadmap/387-a-tls-stack-and-which-one.md`, and the two belong to the same
+family:
 **the ambient parts of a Unix network client are exactly the parts a capability system should make
 explicit.** It is also a small, concrete instance of
-[§145](../../decisions/145-compartmentalization-at-process-cost.md)'s argument, which is otherwise
+[§145](../decisions/145-compartmentalization-at-process-cost.md)'s argument, which is otherwise
 stated at the scale of a whole operating system.
 
 ## What it would take
