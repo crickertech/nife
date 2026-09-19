@@ -160,11 +160,11 @@ once, and by this file's own standard that is an attestation rather than evidenc
 - **Recorded.** `script/fatal-risks`' name is provisional and its `Name:` block carries the
   refusals (`risk-check`, `falsifications-check`, `fatal-risk-drift`). `script/names --unratified`
   is the worklist.
-- **Proposed.** Risk 3's green is from 2026-08-03 and the weekly mutation workflow has published
-  nothing since, so the re-run this gate now makes visible is still nobody's:
-  `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` already holds it, and
-  `.github/workflows/mutation.yml`'s second cause (a runaway mutant exhausting the runner) is what
-  blocks it.
+- **Done.** Risk 3's green was from 2026-08-03 and the weekly mutation workflow had published
+  nothing since, so the re-run this gate made visible was nobody's until milestone 277 bounded the
+  runaway mutant that blocked it. The workflow then completed on 2026-09-14 and calef read the
+  census on 2026-09-19; risk 3 is **MEASURED, AMBER** and the proposal that held the re-read was
+  drained with the ruling.
 - **Milestone 306.** Risk 6's remaining half was one boot of radon against an instrument that now
   exists. The proposal this bullet used to name was promoted and the boot happened on 2026-09-16:
   955,223 bytes/s, and risk 6's third bullet carries it.

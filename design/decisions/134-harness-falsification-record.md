@@ -1,7 +1,10 @@
 # 134. A harness carries a machine-replayable falsification record, or it is not evidence
 
 **Status: AMENDED.** calef, 2026-08-30, in three rulings; the patch path amended 2026-08-31 when
-milestone 194's lane found the ratified spelling could not name eighteen of `paging`'s harnesses.
+milestone 194's lane found the ratified spelling could not name eighteen of `paging`'s harnesses,
+clarified 2026-09-01 to say package rather than crate, and amended twice more from milestone 323's
+review: `Expected to fail:` ratified 2026-09-18 and "harness" widened to cover a kernel `#[test_case]`
+2026-09-19. Both of those late amendments ratified what the tree already did.
 Originally: The direction: *"It sounds like [option C] is
 where we want to land if we want to state that nife is proven."* Then the format, after the options
 were costed: *"Go with the diff, weekly plus per-PR for touched harnesses."* Then the spellings, ratified the
@@ -259,6 +262,14 @@ rather than central so that two lanes touching two packages cannot collide; both
 words. A rule three of whose own instances violate it teaches the next reader to guess whether that
 was sloppiness or intent, so the words now say what the reason always meant.
 
+**And one of those two paths has since moved, which is worth leaving visible rather than
+correcting in place.** Milestone 175 split `user/` into `components/` and `fixtures/` on
+2026-09-13, so 197's patch lives at
+`components/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch` today and
+there is no `user/` package. The clarification above was accurate when it was written; the citation
+went stale twelve days later, which is the ordinary cost of naming an instance to illustrate a rule
+and is cheaper than not illustrating it.
+
 **Amended 2026-08-31, and the first spelling was wrong.** It was
 `falsifications/<harness_fn_name>.patch`, which assumes a harness function name is unique within its
 crate. **In `paging` it is not**: six properties are stated once per ISA across `aarch64.rs`,
@@ -280,6 +291,64 @@ rule calef rejected on 2026-08-01 one domain over. Also refused a subdirectory p
 turns `filesystem_proto`'s three-deep nesting into a tree of near-empty directories, and renaming the
 eighteen harnesses to make a filename work, which would put the ISA in a function name the module
 already states and is a naming decision driven by a path.
+
+## `Expected to fail:`, ratified 2026-09-18
+
+**calef, 2026-09-18**, ratifying a convention rather than minting one, which is why this is four
+paragraphs and not four options.
+
+**A falsification record names the assertion it expects to fail**, on a line beginning
+`Expected to fail:` in the patch's prose head, beside `Falsifies`. `script/falsifications` may then
+compare it against the transcript and fail a record whose red arrived somewhere else.
+
+**The naming question had already been answered by use, and the proposal that raised it did not
+know.** Milestone 323's part 4 was filed as a decision about what to call a new field, on the
+observation that *"four patches in the tree already solve this in prose"*. That was a sample. Counted
+on 2026-09-18: **66 falsification records, all 66 carrying the line, 65 spelling it exactly
+`Expected to fail`** and one `Expected red`
+(`crates/nifefs/falsifications/verification.the_validation_implies_reads_slice_is_in_bounds.patch`,
+corrected in the same change). So the decision was not what to name a field; it was whether to ratify
+the name 65 records already used, or rewrite 65 files to no reader's benefit.
+
+**What it buys, and what it does not.** It closes the wrong-reason red: milestone 202's break of
+[§31](31-foreign-language-seam.md) surfaced as a 234-second watchdog timeout reading *"a livelock, not a lost
+wakeup"*, which is the right answer with a diagnostic containing no word about confinement, and
+milestone 305 hit the same edge and swapped the patch rather than record a red for the wrong reason.
+It buys nothing against an **unreachable** assertion, which is milestone 307's subject and a
+different hole: there the patch's prose and the transcript simply agree on some other line. Saying so
+here is the point, because a gate that looks like it covers both would be worse than one that covers
+one.
+
+## "Harness" covers a kernel test too, widened 2026-09-19
+
+**calef, 2026-09-19**, closing a gap `script/falsifications` named against itself and handed back.
+Its header says, in the paragraph on milestone 305, that the only word which strains is `harness`,
+that it strains in prose rather than in the convention, and that widening the wording is a decisions
+edit rather than that script's. (It is quoted in summary rather than as a block, for the reason the
+naming argument above is: a multi-line quote out of a shell comment carries its own `#` markers into
+`script/citations`' normalized text and will not resolve.)
+
+**Read every "harness" in this section as "a claim the sweep can replay".** Today that is a
+`#[kani::proof]`, replayed with `cargo kani --harness <name> --exact`, or a kernel `#[test_case]`,
+replayed with milestone 210's `cargo xtask test --arch <a> --test <name>`. The `Falsification:`
+block, the three states, the patch path and the cadence are the same for both, and were the same for
+both before this paragraph existed: milestone 305 built the second replay verb on 2026-09-16 without
+needing a word here changed, and milestone 202's patch obeyed the ratified path spelling with no
+special case on 2026-08-31, sixteen days before that. This widens the words to what the convention already does,
+which is the same job the 2026-09-01 clarification did for the path.
+
+**The one deliberate asymmetry is not a wording question and is not widened.** A `#[kani::proof]`
+that carries no block fails `script/falsifications --check`, because the denominator is the point and
+on 2026-09-19 the sweep counted **170 harnesses in 26 packages**. A kernel `#[test_case]` is opt-in,
+because the tree carries **427** of them and almost none is a confinement claim, so requiring a block
+on all of them would buy a wall of `unfalsified` and teach nobody anything; **14 carry one today and
+13 of those are replayable**. A kernel test is counted when it carries a block. The both-directions patch
+check is what keeps that honest: a patch under a package's `falsifications/` must be claimed by a
+proof **or** by a test, and an unclaimed one is reported as rot.
+
+**The title stays as written**, because it is cited by path elsewhere in the tree and the sentence it
+makes is still true. The vocabulary is fixed here rather than by a rename, which is the cheaper of
+two irreversible-looking edits and the one that leaves the citations working.
 
 ## BUGS
 

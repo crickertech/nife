@@ -170,10 +170,10 @@ it."*
 - **Proposed.** Whether `uefi_loader/src/main.rs`'s 790 firmware lines get lifted the way `handoff`
   and `image` were is the residue excluding the file made honest rather than proved, and it is
   already held by `design/roadmap/proposals/the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
-- **Proposed.** The reading calef then does, against a number that now has one fewer hole in it, is
-  `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md`. It still wants the clean full
-  sweep that milestone 277's memory bound is meant to make possible, which this milestone does not
-  supply.
+- **Done.** The reading calef then does. The clean full sweep this bullet wanted arrived on
+  2026-09-14 once milestone 277's memory bound landed, and he read it on 2026-09-19: risk 3 is
+  **MEASURED, AMBER**. This milestone's two crates are why the fall was not real, and they are
+  unrecognisable in the census: `uefi_loader` 100%, `documentation` 95.4%.
 
 ## Index row
 

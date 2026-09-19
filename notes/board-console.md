@@ -300,8 +300,11 @@ $ script/board-console --replay target/board-console-1756744100.log
 **The markers are checked against one board, on one day, in four states.** That is much better than
 where this started, which was documentation only, and it is not the same as proven. Not covered:
 every other way this board can behave, a different vendor firmware build with differently worded
-banners, the two synthetic cases nobody has yet seen at a bench, and the aarch64 and x86_64 boards,
-which have not been looked at at all.
+banners, the two synthetic cases nobody has yet seen at a bench, and argon, which has never printed
+a byte to this tool. **x86_64 is no longer in that list**: xenon was captured on 2026-09-17
+(`bench/xenon-2026-09-17/first-light-095500.log`) and the markers that matched were the portable
+ones, which is a second board's worth of evidence for exactly the half of `Stage` that claims to be
+portable and none at all for the half that is radon's firmware.
 
 **There is no real sample of a hang**, which is the outcome this tool exists for, since a hang is
 what a multicore defect looks like from the far end of a serial cable. The synthetic fixture is a
@@ -311,8 +314,12 @@ missed marker reports a healthy board as having got less far than it did.
 
 **A missed marker fails toward pessimism; a matched one does not.** Matching is `contains`
 anywhere in a line, so a console that echoed `Starting kernel ...` back would be read as having
-handed over. Nothing guards against that, and today the only way it happens is a person typing
-into the same session, because this tool never writes to the port.
+handed over. Nothing guards against that, and today the only way it happens is a person typing into
+the same session. **This bullet used to rest on the tool never writing, and after 2026-09-19's
+ruling it rests on what the writing mode sends instead**: `--stop` sends one byte, which cannot
+spell a marker, and the mode logs what it sent so a reader can rule it out by hand. A future mode
+that typed whole lines would put this hazard back, which is a reason to keep the write surface at
+named commands rather than a keyboard.
 
 **It does not recognise an OpenSBI trap dump**, which the triage ladder lists as a real and
 specific outcome (the kernel started the S7 and vendor firmware died in its own handler). The
@@ -325,12 +332,12 @@ repeating where the tool is: this reports how far a boot got, and deciding a mil
 the strength of a vendor's boot message is a line nobody has agreed to cross. `Reached` is named
 for what was observed rather than for a verdict.
 
-**It reads and never writes, and on this board that is not enough to boot.** The captured failure
-is the proof: the extlinux path from power-on ends at `### ERROR ###`, so reaching nife means
-interrupting autoboot and typing the four `StarFive #` commands. So a console that only reads
-cannot, on its own, get this board into the state the hardware-gated milestones need. Driving
-U-Boot is proven to work and is deliberately absent here, because whether it belongs in this tool
-or a second one is a scope question for calef; see milestone 216's block for the proposal.
+**It reads and never writes, and the reason that was fatal on this board is gone.** The captured
+failure was the proof: the extlinux path from power-on ended at `### ERROR ###`, so reaching nife
+meant interrupting autoboot and typing the four `StarFive #` commands. **Milestone 218 closed that
+on 2026-09-16**, confirmed by a boot whose countdown expired with nobody typing
+(`bench/radon-2026-09-16/tour-083200.log`), so a reader is now enough to get radon from power-on to
+the kernel. What is not gone is the next bullet, which arrived from a different direction.
 
 **Because it never writes, it cannot stop a rebooting soak, and that is now something a board does**
 (milestone 249). `--features reboot_soak_test` makes a board cold-reboot every two minutes, and its
@@ -341,19 +348,29 @@ records a 6% rate change from doing it mid-run). Two things a writing mode would
 whole escape from a script; and `--stop-after <n>`, ending a series with exactly the sample it was
 asked for.
 
-**This is a proposed milestone rather than a change made here**, because it overturns the invariant
-this note's own heading states and that a person reads before pointing this at hardware. Whether it
-is a mode of this tool or a second entry point is a naming and boundary question, which makes it
-calef's. The reason it is worth raising rather than leaving: it is the only host-testable thing that
-would raise milestone 249's escape above rung four.
+**calef decided this on 2026-09-19, and the invariant this note's heading states is superseded**:
+the tool writes, but only what a named mode sends, and every byte it sends is printed into the log.
+It stays a mode of this tool rather than a second entry point. The narrowness is the decision rather
+than caution about it, and the argument is an incident: milestone 249's lane sent the escape byte by
+detaching the console and hit U-Boot's autoboot countdown with it, costing a power cycle. The hazard
+is an open keyboard beside a countdown a stray byte consumes, not writing as such. Milestone 324
+part 4 carries the ruling and part 1 is the `--stop` that falls out of it. **Until that lane lands,
+what this note describes above is still what the tool does.**
 
 **It does not touch power.** The board's Kasa strip was not reachable from either machine when
 this was written, and the roadmap block declines to decide whether this tool should ever drive it.
 A tool that power-cycles is a different and more dangerous object than one that reads.
 
-**One board's vocabulary.** These stages are the VisionFive 2's boot chain. An aarch64 or x86_64
-board wants the same shape with different banners, and whether that is one tool with a board
-profile or three tools is an open question that milestone 216's block names and does not answer.
+**One board's vocabulary, and it is a prologue rather than the whole ladder.** `Stage`'s lower half
+(`Spl`, `OpenSbi`, `UBoot`, `Handoff`) is the VisionFive 2's boot chain. Its upper half (`Banner`,
+`Machine`, `SelfTest`, `Tour`, `Soak`) is the kernel's own and has been reachable on all three
+architectures since milestone 268, which is why this tool captured xenon on 2026-09-17 with nothing
+added: xenon boots through PVH straight into our banner, so the portable half is its entire boot
+(`bench/xenon-2026-09-17/first-light-095500.log`, and `--replay` of it still reports the banner, the
+machine line, the self-test and the measured-boot refusal). **calef decided on 2026-09-19 that this
+is one tool with a board profile**, the profile being the firmware prologue and nothing else, with
+argon deferred behind milestone 127 rather than written from vendor documentation for a board that
+has never printed a byte. Milestone 324 part 3.
 
 **The settle window is two seconds, and two seconds is a guess.** It is long enough for the
 captured measured-boot refusal, which follows the banner within a tour's worth of printing, and
