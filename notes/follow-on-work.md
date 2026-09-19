@@ -1,8 +1,15 @@
 # Follow-on work, and what happened to it
 
 *Name: provisional (milestone 247). It names the thing it tracks, per §75's noun rule, but calef
-names notes as he names everything else in the tree. The six disposition words below are provisional
-in the same way.*
+names notes as he names everything else in the tree. The disposition words below are provisional in
+the same way.*
+
+*Read with one amendment, 2026-09-19: **`Proposed.` is retired**, with the
+`design/roadmap/proposals/` directory it resolved to. Work a block names that nobody has taken is
+now `**Milestone N.**` with the block minted `NOT-STARTED` and N provisional. The sweep's own
+account below is left as it was written, because it is the record of what happened on 2026-09-03;
+the sections marked as amended say what changed. See `design/decisions/140-follow-on-disposition-vocabulary.md`,
+milestone 433 and milestone 434.*
 
 A milestone finishes and, on its way out, names work it is not doing. A hazard it noticed, a design
 fork it could not settle, a second phase somebody should take. **That work is what this project keeps
@@ -29,8 +36,9 @@ written is rung four: a lane report is read once, by one person, on the day it i
 **Every BUILT, REMOVED or PARTIAL milestone block carries a `## Follow-on` section**, checked by
 `script/roadmap --check` and therefore by `script/lint`. (`PARTIAL` is milestone 252's addition,
 below.) The dispositions are tabulated in design/roadmap/README.md, which is where a block author
-meets them. In short: `None.`, `Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`,
-`Proposed.`, and `Outstanding.` for a `PARTIAL` block's own remaining scope.
+meets them. In short: `None.`, `Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`, and
+`Outstanding.` for a `PARTIAL` block's own remaining scope. (`Proposed.` was a seventh until
+2026-09-19; see the amendment at the top.)
 
 **Why it hangs on the status rather than on a marker in prose.** The moment a block turns BUILT is
 the last time anyone reads it on purpose, so it is exactly the moment the work gets buried. It is
@@ -54,7 +62,13 @@ upstream of this check and is not touched by it.
 **An explicit refusal is a success.** The defect this attacks is silence, not the absence of a
 milestone.
 
-## `Proposed.` is the disposition the sweep asked for, and it is the point
+## `Proposed.` was the disposition the sweep asked for, and the asking is the point
+
+*Amended 2026-09-19. The word is retired and the section below is the account of why it existed,
+which outlived it. What a lane writes today is `**Milestone N.**` with the block minted
+`NOT-STARTED` and the number provisional, because calef removed the constraint that made an
+unnumbered file necessary instead of routing around it. The retirement is at the end of this
+section.*
 
 Four of the words were designed before the sweep. `Unclaimed.` and `Done.` were not: **three lanes
 asked for the first and four for the second, independently, on the same afternoon**, having hit the
@@ -71,9 +85,18 @@ different than prioritizing that roadmap."* The collision that barred lanes from
 **number**, never in the authority, and separating the two makes the burial problem much cheaper to
 solve. A mechanism whose cost is "write one file" is one people will use.
 
-So `Unclaimed.` became `Proposed.`, and it now resolves to a file somebody actually wrote rather than
-to a sentence promising that work exists. That is strictly stronger, and it is why the count of
-proposals no longer has to be small: **the third bucket has somewhere to go.**
+So `Unclaimed.` became `Proposed.`, and it resolved to a file somebody actually wrote rather than to
+a sentence promising that work exists. That was strictly stronger, and it is why the count of
+proposals did not have to be small: **the third bucket had somewhere to go.**
+
+**And sixteen days later the same reasoning went one step further.** calef, 2026-09-19:
+*"Shouldn't a proposal become a milestone as NOT-STARTED?"* It should, and the only thing that had
+ever stopped it was the number. The 2026-09-03 remedy gave the word something to point at; the
+2026-09-19 remedy removes the constraint, by letting a lane mint the number provisionally and
+renumber at merge if two collide, exactly as AGENTS.md already lets a lane write a provisional
+`design/decisions/` section number. The measurement that decided it: the directory reached 106 files,
+66 of them startable and none of them visible to `script/roadmap --ready`, which is the command a
+lane picks work from. **The third bucket now goes where a lane is already looking.**
 
 **The economics this changes are the whole reason milestone 247 recurred three times.** Before, a
 lane that found work wrote it in a report, the maintainer read the report, and an item either became
@@ -214,10 +237,11 @@ majority that were fine. There is no such majority. Three of the blocks the lane
 
 Seven dispositions say where work *went*. A `PARTIAL` block's commonest honest answer is that it has
 not gone anywhere and is still that milestone's own scope, and none of the seven can say it without
-lying: `Recorded.` claims a limitation that stays, `Proposed.` claims nobody owns it when this block
-does, and `Milestone N.` cannot name the block it is written in. A lane forced to choose writes the
-comfortable word or leaves the item out, which is 247's own `Done.` and `Proposed.` lesson arriving a
-second time.
+lying: `Recorded.` claims a limitation that stays, `Proposed.` claimed nobody owns it when this
+block does, and `Milestone N.` cannot name the block it is written in. A lane forced to choose writes
+the comfortable word or leaves the item out, which is 247's own `Done.` and `Proposed.` lesson
+arriving a second time. (`Proposed.` is retired; `Outstanding.` outlived it, and the reason it was
+needed is unchanged, since `Milestone N.` still cannot name the block it is written in.)
 
 **What it buys is the date, not the word.** The gate still cannot tell a stale claim from a live one.
 What changed is that somebody wrote "still true, and here is what I checked" beside 82 items.
@@ -246,11 +270,12 @@ mechanical would have caught any of it.
   not milestone 240 is the work the block meant, which is the same blind spot `script/decisions`
   records for `§N` citations and `script/roadmap` records for its own tree-wide citations. Check by
   content after any renumber.
-- **`Proposed.` and `Recorded.` are separated by judgment, not by anything checkable**, and lanes
-  said so. A `BUGS` entry that is a permanent caveat and one that is deferred work read identically
-  in prose, and the same text can defensibly take either word. Expect the backlog to be
-  under-counted rather than over-counted, because `Recorded.` costs a sentence and `Proposed.` costs
-  a file.
+- **`Recorded.` and "this is deferred work" are separated by judgment, not by anything checkable**,
+  and lanes said so on the 2026-09-03 sweep, when the second half was spelled `Proposed.`. A `BUGS`
+  entry that is a permanent caveat and one that is deferred work read identically in prose, and the
+  same text can defensibly take either word. Expect the backlog to be under-counted rather than
+  over-counted, because `Recorded.` costs a sentence and a milestone block costs a file with an
+  `## Index row` in it.
 - **A well-written block generates more unclaimed items than a lazy one.** A block that named its
   follow-on work honestly has something for the sweep to find; one that named nothing looks clean.
   Do not read a block's bullet count as a quality signal, in either direction.
@@ -265,15 +290,17 @@ mechanical would have caught any of it.
   BUILT lands in a block nothing will re-check, because the section already exists and already
   passes. The `BUGS` convention and a `TODO(milestone N)` marker both still work there; this gate
   does not add to them.
-- **Nothing promotes a proposal, and nothing can.** A proposal nobody picks up is the same burial in
-  a new location. A gate on age ("no proposal older than N days") would be routed around by not
-  writing proposals, which costs more than the pile does, so what ships instead is visibility: the
-  status line carries its date, `script/roadmap --check` prints the count and the oldest on every
-  lint run, and `--proposed` lists them oldest first. That is a number somebody has to choose to
-  ignore, which is weaker than a gate and much stronger than a paragraph.
-- **A well-stocked `proposed/` directory can flatter the project.** Forty-two files look like a plan
-  and are not one. They are a list of things nobody is doing, and the honest way to read the count is
-  as debt.
+- **Nothing schedules a `NOT-STARTED` block, and nothing can.** This was written of the proposal
+  pile and it survived the pile, because the problem was never the filing. A gate on age ("nothing
+  `NOT-STARTED` older than N days") would be routed around by not writing the block, which costs
+  more than the backlog does, so what ships instead is visibility: `script/roadmap --ready` lists
+  what a lane could start today. That is a number somebody has to choose to ignore, which is weaker
+  than a gate and much stronger than a paragraph. Prioritising is calef's and always was.
+- **A well-stocked backlog can flatter the project.** A hundred `NOT-STARTED` blocks look like a
+  plan and are not one. They are a list of things nobody is doing, and the honest way to read the
+  count is as debt. The 2026-09-19 retirement made this worse rather than better in one respect,
+  which is worth saying plainly: the pile used to be countable in its own column, and it is now
+  mixed into a status band that also holds work calef scheduled on purpose.
 - **A `Recorded.` bullet cannot quote a path-shaped example.** The path check treats a backticked
   span beginning with a real top-level directory as a citation, so a bullet illustrating
   `script/foo --bar` as a command rather than as a file has to spell it without backticks. That is
