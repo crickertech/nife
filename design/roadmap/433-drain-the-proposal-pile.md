@@ -1,0 +1,214 @@
+# 433. Drain the proposal pile to zero, and keep it there
+
+**Status: IN-PROGRESS** on `maintainer/drain-the-proposal-pile`, with the per-slice lanes branching
+from it. Minted 2026-09-19 by calef, who ruled the pile should not exist:
+*"We should promote them all to milestones and then close them versus leave them as proposals. We
+want to drive proposals to zero."* *(Number provisional until the merge queue lands it.)*
+
+**Gate: NONE.** Everything this needs is a number, and the number is the integrator's to assign. It
+is assigned below, once, for all 106.
+
+## Why the pile should not exist, in calef's own earlier words
+
+`design/roadmap/README.md` records why a lane writes a proposal rather than a milestone, ratified by
+him on 2026-09-03: lanes were barred from minting because concurrent lanes cannot see each other and
+two reaching for the same number collide, and **"the collision is in the number, not in the
+authority"**. So the directory is a number-assignment queue and nothing else.
+
+A queue waiting on one cheap operation should not be 106 deep and sixteen days old. The README asked
+this of itself, under the heading **the graveyard question**, and answered that a proposal nobody
+promotes is the same burial in a new location. That is what happened.
+
+**The measurement that decides it.** Of the 106, **66 carry gate `NONE`**, meaning a lane could start
+them today. `script/roadmap --ready` prints **69** milestones and reads no proposals at all. So
+**roughly half the tree's startable work is invisible to the command a lane picks work from**, which
+is a throughput problem wearing a filing problem's clothes.
+
+**Why promote and then close, rather than close some as proposals.** calef's ruling, and it is the
+better shape: a numbered block marked `REMOVED`, `SUPERSEDED` or `BUILT` is a record a reader can
+find, while a deleted proposal is gone. The maintainer's own recommendation had been to close the
+dead ones in place, which would have destroyed exactly the account a later reader needs.
+
+## The numbering, assigned once, because it cannot be assigned twice
+
+**327 to 432, oldest filed date first, then slug.** A number is never reused in this tree, so this
+mint is irreversible and is written down rather than left to be re-derived from a pile that is about
+to stop existing.
+
+**The filename keeps the slug**: `proposals/<slug>.md` becomes `<N>-<slug>.md`. That is what lets any
+of the **114 citations of a proposal path** in numbered blocks be resolved by a reader with one
+`ls design/roadmap/ | grep <slug>`, with no lookup table to consult and nothing to keep in sync.
+
+```
+327  2026-09-03  a-credential-endpoint-per-resource
+328  2026-09-03  a-grant-on-the-namespace-root
+329  2026-09-03  a-record-level-chosen-at-the-wrong-size
+330  2026-09-03  a-regression-gate-for-the-fault-path
+331  2026-09-03  a-thread-that-departs-before-it-is-dead
+332  2026-09-03  card-pair-verifier
+333  2026-09-03  claims-the-sweep-found-false-outside-the-roadmap
+334  2026-09-03  colour-and-the-pager
+335  2026-09-03  ctx-switch-on-riscv-silicon
+336  2026-09-03  fastpath-footprint-against-main
+337  2026-09-03  frames-a-client-reads-itself
+338  2026-09-03  high-water-gauges-for-fixed-tables
+339  2026-09-03  how-many-programs-can-fault
+340  2026-09-03  image-permissions-required-check
+341  2026-09-03  instruments-nothing-runs
+342  2026-09-03  kernel-console-arbitration
+343  2026-09-03  machine-names-that-lead-in-source
+344  2026-09-03  one-branch-prefix-or-five
+345  2026-09-03  pure-halves-of-the-user-rt-crates
+346  2026-09-03  redoxfs-first-pin-bump
+347  2026-09-03  redoxfs-patches-upstream
+348  2026-09-03  relocatable-x86-64-kernel-image
+349  2026-09-03  sampling-the-compositor-sweeps-under-miri
+350  2026-09-03  stale-comment-ratio-in-agents-md
+351  2026-09-03  std-under-a-narrowed-grant
+352  2026-09-03  the-113-rename-that-stopped-at-the-code
+353  2026-09-03  the-aarch64-half-of-74
+354  2026-09-03  the-mutants-nobody-counts
+355  2026-09-03  the-other-four-loom-surfaces
+356  2026-09-03  the-region-half-of-the-retention-declaration
+357  2026-09-03  the-statuses-the-follow-on-gate-does-not-cover
+358  2026-09-03  the-unsafe-log-page-walk-in-revoke
+359  2026-09-03  three-blind-spots-in-the-proof-scope
+360  2026-09-03  timer-rearm-seam
+361  2026-09-03  unattributed-fastpath-residuals
+362  2026-09-03  virtio-rng-on-the-x86-64-runner
+363  2026-09-03  what-asids-bought
+364  2026-09-03  x86-64-test-fixtures
+365  2026-09-03  xtask-in-modules
+366  2026-09-04  a-block-site-that-writes-blocked-by-hand
+367  2026-09-04  a-boot-banner-that-names-the-build
+368  2026-09-04  a-flat-entry-set-counts-bytes-no-syscall-fetches
+369  2026-09-04  a-gate-that-can-read-a-machine-with-no-serial-port
+370  2026-09-04  a-layout-control-for-the-perturbation-experiments
+371  2026-09-04  a-reply-capability-that-names-a-call
+372  2026-09-04  an-entropy-device-that-answers-with-zeros
+373  2026-09-04  board-only-features-nothing-compiles
+374  2026-09-04  cycles-per-ipc-on-the-bench-card
+375  2026-09-04  e3-on-radon-with-real-cycles
+376  2026-09-04  nothing-turns-a-device-back-off
+377  2026-09-04  one-screendump-decoder-not-two
+378  2026-09-04  read-the-dmar-on-xenon
+379  2026-09-04  select-the-padding-at-boot-not-at-compile-time
+380  2026-09-04  the-ceiling-applies-to-a-number-that-moved
+381  2026-09-04  the-uefi-loaders-firmware-half-is-proved-by-one-boot
+382  2026-09-04  three-aim7-job-categories-the-job-mix-does-not-have
+383  2026-09-05  a-backticked-path-that-does-not-resolve
+384  2026-09-05  a-name-resolver-and-who-holds-it
+385  2026-09-05  a-note-that-cites-a-milestone-that-moved
+386  2026-09-05  a-provenance-token-that-agrees-with-its-own-prose
+387  2026-09-05  a-tls-stack-and-which-one
+388  2026-09-05  an-acronym-sweep-the-tree-can-do-at-once
+389  2026-09-05  nife-hosts-on-a-tailnet
+390  2026-09-05  spawn-can-place-a-capability-at-a-named-slot
+391  2026-09-09  kernel-introspection-over-an-endpoint
+392  2026-09-10  a-legacy-virtio-mmio-slot-panics-the-scan
+393  2026-09-12  the-host-excluded-crate-set-lives-in-four-places
+394  2026-09-13  a-console-server-with-nobody-to-print-for
+395  2026-09-13  a-third-program-directory-for-tools
+396  2026-09-13  an-apt-qemu-that-is-installed-and-then-shadowed
+397  2026-09-13  bootstrap-installs-and-also-judges
+398  2026-09-13  provenance-for-wire-visible-names
+399  2026-09-13  the-six-init-roles-in-hello
+400  2026-09-13  what-no-arguments-means
+401  2026-09-14  a-gate-that-selects-the-set-it-judges
+402  2026-09-14  a-service-report-nobody-is-obliged-to-drain
+403  2026-09-14  an-x86-64-host-in-the-host-pass
+404  2026-09-14  composing-a-process-from-two-capabilities
+405  2026-09-14  nine-init-roles-and-the-entry-the-kernel-picks
+406  2026-09-14  nothing-in-ci-boots-the-riscv-tour
+407  2026-09-14  one-definition-of-the-numbers-a-kernel-test-and-its-program-agree-on
+408  2026-09-14  one-home-for-the-trap-on-false-helper
+409  2026-09-14  one-machine-description-not-two
+410  2026-09-14  six-copies-of-the-shared-frame-accessors
+411  2026-09-14  the-machine-description-should-say-the-screen-geometry
+412  2026-09-14  the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start
+413  2026-09-14  what-a-caretaker-is-when-it-translates
+414  2026-09-14  which-qemu-a-red-post-run-check-was-run-under
+415  2026-09-15  sub-tripwire-drift-accumulates-across-baseline-saves
+416  2026-09-15  the-two-loader-names-the-tree-still-carries
+417  2026-09-16  a-usurper-that-reports-instead-of-hanging
+418  2026-09-16  did-the-mutation-census-already-know-about-row-12
+419  2026-09-16  more-repeats-where-the-job-mix-contends
+420  2026-09-16  the-rest-of-the-x86-64-fixture-set
+421  2026-09-17  a-block-roster-that-can-name-an-nvme-disk
+422  2026-09-17  a-cadence-job-whose-healthy-state-is-red
+423  2026-09-17  a-checked-direct-map-reader-for-the-acpi-walk
+424  2026-09-17  a-ring-0-that-provably-cannot-execute-ring-3-pages
+425  2026-09-17  a-stack-gate-that-fires-only-on-a-filtered-run
+426  2026-09-17  a-sweep-for-specification-fields-that-are-one-less
+427  2026-09-17  the-documentation-sweep-the-worklist-already-ranks
+428  2026-09-17  what-the-weekly-miri-run-should-cost
+429  2026-09-18  a-lane-that-outlives-its-own-merge
+430  2026-09-18  refusals-written-where-the-tool-cannot-read-them
+431  2026-09-18  the-acpi-walk-is-reachable-and-unproved
+432  2026-09-18  the-riscv-iommu-driver-has-no-proof```
+
+## What promoting one actually costs, measured rather than guessed
+
+It is not a `git mv`, and this block exists partly to say so before four lanes discover it.
+
+- **Zero of the 106 carry a `## Index row` section**, which `script/roadmap --check` requires of every
+  non-lettered numbered block. Each needs one written: a paragraph saying what the milestone is, in
+  the generated table's voice.
+- **`Status: PROPOSED` is not in the milestone vocabulary**, so every status line is rewritten. The
+  filed date stays in the prose, because that is what makes the pile's age measurable after the pile
+  is gone.
+- **92 `**Proposed.**` follow-on bullets across 71 blocks** name a proposal path, and the roadmap gate
+  requires that path to exist. Every one becomes `**Milestone N.**` as its file moves. This is the
+  half that makes the pass large, and it is also the half that cannot be missed: the gate fails on
+  each until it is fixed.
+- **The premise has to be re-read, not assumed.** Five proposals were read on 2026-09-18 and
+  2026-09-19 and all five had decayed premises; four were fully answered by the tree before anyone
+  opened them, two by work that landed after filing and before reading. **64 of the 106 were filed in
+  a three-day window**, 2026-09-03 to 09-05, and 32 came from one sweep, so the decay is correlated
+  rather than spread out. A block promoted to `NOT-STARTED` without that check is a false claim in
+  the roadmap, which is the thing this tree objects to hardest.
+
+## The method, per proposal
+
+1. `git mv design/roadmap/proposals/<slug>.md design/roadmap/<N>-<slug>.md`.
+2. Retitle line 1 to `# <N>. <title>`, keeping the title.
+3. Rewrite the status line to a milestone token, **after** checking the premise against the tree:
+   `NOT-STARTED` if the work is still real, `BUILT` if it has already been done elsewhere,
+   `SUPERSEDED` if another block took it, `REMOVED` if it is no longer wanted. Keep the filed date and
+   say what was checked, so a reader can tell a verified `NOT-STARTED` from an assumed one.
+4. Write `## Index row`.
+5. Fix every `**Proposed.**` bullet that named the old path, in whatever block carries it.
+6. Do **not** run `script/roadmap --write`. The generated index is the one file every lane touches,
+   so the integrator regenerates it once at the end. This is the whole collision surface of the pass
+   and removing it is why four lanes can run at all.
+
+## BUGS
+
+- **A promoted block can still be a graveyard, one directory up.** Numbering does not prioritise;
+  calef's 2026-09-03 wording separates the two on purpose (*"anybody should be able to add to the
+  roadmap. That's different than prioritizing that roadmap"*). What promotion buys is visibility to
+  `--ready`, not attention.
+- **`**Proposed.**` survives this pass and should probably not.** A follow-on bullet is a permanent
+  record and the file it names is now, by this block's own rule, ephemeral: it exists only between a
+  lane writing it and the next integrator numbering it. Whether the disposition word should be
+  retired is a vocabulary question and therefore calef's; this block does not answer it.
+- **Nothing here stops the pile refilling**, and a gate that tried would be routed around by not
+  writing proposals, which the README already argues is worse than the pile. The steady state this
+  block assumes is that an integrator drains it at every merge, which is a habit rather than a
+  mechanism, and is rung four.
+- **The numbers are minted before the premises are checked.** A proposal that turns out to have been
+  answered still consumes a number and lands as a `BUILT` or `SUPERSEDED` block. That is the cost of
+  assigning all 106 in one place, and the alternative (assign as each is verified) reintroduces the
+  collision this whole directory exists to avoid.
+
+## Index row
+
+The `design/roadmap/proposals/` directory was a number-assignment queue, ratified 2026-09-03 on the
+argument that the collision is in the number rather than the authority. It reached 106 files and
+sixteen days, with 66 of them startable today and invisible to `script/roadmap --ready`, which is
+roughly half the tree's available work hidden behind a second command. calef ruled on 2026-09-19
+that they are all promoted and then closed where closing is right, because a numbered block marked
+`REMOVED` is a record and a deleted proposal is not. This block assigns 327 to 432 once, since a
+number cannot be minted twice, and records what promotion actually costs: 106 index rows that do not
+exist yet, 92 follow-on bullets across 71 blocks that name a path about to move, and a premise check
+on every one, because five read in two days had all decayed.
