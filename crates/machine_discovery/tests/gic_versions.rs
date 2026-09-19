@@ -154,20 +154,99 @@ fn an_unknown_interrupt_controller_is_refused_by_name() {
     }
 }
 
+/// **A recognised binding with one `reg` block is refused, and says which version it matched**,
+/// for both versions: each needs a distributor and a second block, and a tree that states one is
+/// not a machine this kernel can drive by guessing the other.
+#[test]
+fn a_binding_with_one_register_block_is_refused_for_both_versions() {
+    let v3 = tree_with(b"interrupt-controller@8000000", b"arm,gic-v3\0", 1, None);
+    assert_eq!(
+        gic::discover(&tree(&v3)),
+        Err(Refusal::TooFewRegions {
+            version: 3,
+            found: 1
+        })
+    );
+    let v2 = tree_with(b"interrupt-controller@8000000", b"arm,gic-400\0", 1, None);
+    assert_eq!(
+        gic::discover(&tree(&v2)),
+        Err(Refusal::TooFewRegions {
+            version: 2,
+            found: 1
+        })
+    );
+}
+
+/// **Redistributors split across regions are refused, not half-driven.** The module's BUGS says
+/// why one region is all this kernel reads; a tree stating two must not boot on the first alone.
+/// Stating one explicitly is the same as not stating it.
+#[test]
+fn several_redistributor_regions_are_refused_and_one_stated_is_accepted() {
+    let two = tree_with(b"interrupt-controller@8000000", b"arm,gic-v3\0", 2, Some(2));
+    assert_eq!(
+        gic::discover(&tree(&two)),
+        Err(Refusal::SeveralRedistributorRegions(2))
+    );
+    let one = tree_with(b"interrupt-controller@8000000", b"arm,gic-v3\0", 2, Some(1));
+    assert!(matches!(
+        gic::discover(&tree(&one)),
+        Ok(Some(Gic::V3 { .. }))
+    ));
+}
+
+/// **The accessors report the roles the binding gave the blocks**, on both versions: the second
+/// block is a CPU interface on a GICv2 and the redistributors on a GICv3, and the kernel maps it
+/// by that answer.
+#[test]
+fn the_accessors_name_each_block_by_its_role() {
+    let v2 = gic::discover(&tree(QEMU_GICV2)).unwrap().unwrap();
+    assert_eq!(v2.version(), 2);
+    assert_eq!(v2.distributor(), GICD);
+    assert_eq!(
+        v2.second_region(),
+        Region {
+            start: 0x0801_0000,
+            size: 0x1_0000
+        }
+    );
+    let v3 = gic::discover(&tree(QEMU_GICV3)).unwrap().unwrap();
+    assert_eq!(v3.version(), 3);
+    assert_eq!(v3.distributor(), GICD);
+    assert_eq!(
+        v3.second_region(),
+        Region {
+            start: 0x080a_0000,
+            size: 0xf6_0000
+        }
+    );
+}
+
 /// The smallest flattened device tree with one node carrying `compatible` and a two-block `reg`.
 /// Written out by hand because the crate has no tree writer, and this is the only test that needs
 /// a binding QEMU will not emit.
 fn minimal_tree(node: &[u8], compatible: &[u8]) -> Vec<u8> {
+    tree_with(node, compatible, 2, None)
+}
+
+/// [`minimal_tree`] with the parts the refusals turn on made choosable: how many `reg` blocks the
+/// node carries, and whether it states `#redistributor-regions` (and as what).
+fn tree_with(
+    node: &[u8],
+    compatible: &[u8],
+    blocks: usize,
+    redistributor_regions: Option<u32>,
+) -> Vec<u8> {
     const BEGIN: u32 = 1;
     const END_NODE: u32 = 2;
     const PROP: u32 = 3;
     const END: u32 = 9;
 
-    let strings: &[u8] = b"compatible\0reg\0#address-cells\0#size-cells\0";
+    let strings: &[u8] = b"compatible\0reg\0#address-cells\0#size-cells\0#redistributor-regions\0";
     let off_compatible = 0u32;
     let off_reg = 11u32;
     let off_acells = 15u32;
     let off_scells = 30u32;
+    let off_regions = 42u32;
 
     let mut st = Vec::new();
     let push = |v: &mut Vec<u8>, w: u32| v.extend_from_slice(&w.to_be_bytes());
@@ -195,11 +274,18 @@ fn minimal_tree(node: &[u8], compatible: &[u8]) -> Vec<u8> {
     push(&mut st, off_compatible);
     st.extend_from_slice(compatible);
     pad(&mut st);
+    let reg = [0u32, 0x0800_0000, 0, 0x1_0000, 0, 0x0801_0000, 0, 0x1_0000];
     push(&mut st, PROP);
-    push(&mut st, 32);
+    push(&mut st, (blocks * 16) as u32);
     push(&mut st, off_reg);
-    for w in [0u32, 0x0800_0000, 0, 0x1_0000, 0, 0x0801_0000, 0, 0x1_0000] {
+    for &w in &reg[..blocks * 4] {
         push(&mut st, w);
+    }
+    if let Some(n) = redistributor_regions {
+        push(&mut st, PROP);
+        push(&mut st, 4);
+        push(&mut st, off_regions);
+        push(&mut st, n);
     }
     push(&mut st, END_NODE);
     push(&mut st, END_NODE);
