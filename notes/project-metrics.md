@@ -56,6 +56,11 @@ bars are.
 2026-07-12 in the architect's local time and fall on the Monday in UTC, so the series starts at
 2026W29 and there is no 2026W28.
 
+**The charts show the ten most recent weeks; the CSV keeps every one** (calef, 2026-09-19). So
+2026W29 leaves the charts when 2026W39 arrives, and stays in `weekly.csv`, which is the table view
+the charts rely on for the three colours that sit under 3:1 on a white page. A week is never
+deleted, only no longer drawn.
+
 **A week is spelled `2026W36`, everywhere.** The chart axis, the CSV's `week` column,
 `script/metrics`' own output and the prose on this page all use it, and calef ratified that on
 2026-09-02 after the page carried three spellings at once (`2026-W30` in the narrative, `202636` on
@@ -68,7 +73,7 @@ rather than something derived beside it, so the two cannot drift apart.
 
 ## Milestones by status
 
-![Milestones by status](project-metrics/milestones.svg)
+![Milestones by status, and proposals waiting for a number](project-metrics/milestones.svg)
 
 From `design/roadmap/README.md`'s index table. The two zero weeks are a restatement artifact and
 they are the sharpest one on this page. There really was a roadmap in 2026W30: `design/roadmap.md`
@@ -189,10 +194,17 @@ is a name nobody anywhere argued for, and it is the one this chart has at zero.
 ## Unnumbered proposals
 
 **74 at 2026W36, and zero in every week before it**, which is the `proposals_unnumbered` column in
-the CSV. There is no chart, because there is one bar: `design/roadmap/proposals/` was created on
-2026-09-04 by milestone 247 (follow-on work named by a finished
-milestone goes nowhere, and this is the third time), and a single measurement is a number rather
-than a series. The column exists so that the series accumulates from here.
+the CSV. `design/roadmap/proposals/` was created on 2026-09-04 by milestone 247 (follow-on work named
+by a finished milestone goes nowhere, and this is the third time).
+
+**They are drawn on top of the milestones chart, since 2026-09-19**, as the eighth series. This page
+used to say there was no chart because there was one bar, which was true at 2026W36 and stopped
+being true two weeks later without anybody revisiting it: the column had been collected every week
+and drawn nowhere. **The bar totals on that chart now include them**, so 2026W38 reads 431, which is
+324 numbered milestones and 107 proposals, and the jump at 2026W36 is the pile appearing when the
+directory did rather than a burst of milestones. They sit on top because they are the work that has
+not entered the roadmap yet, and because a new slot is appended so that no existing series changes
+colour.
 
 **Nothing else on this page could count these, and that is the reason for the column.** The
 milestones chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number
