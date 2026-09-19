@@ -1252,3 +1252,37 @@ raises, so 40 of 64 is the standing record whatever order the harness runs thing
   in common: the shift clears the low sixteen bits, and the line above clamps `ceiling` with
   `min(ceiling, u16::MAX as usize)` so it cannot reach the high ones. On disjoint bits `|` and `^`
   are the same function. The clamp is load-bearing for this claim, and it is itself a caught mutant.
+
+### `memory_regions`: 8 survivors, 6 killed, 2 excluded
+
+**Before: 64 caught, 8 missed, 2 unviable (88.9% of viable). After: 70 caught, 0 missed (100.0%).**
+Back to the perfect score the baseline recorded, and the two exclusions are a category rather than
+this crate's business.
+
+**`has_children` had four survivors, one of them the whole function replaced by `false`.** The
+reason is worth keeping because it is a shape rather than an oversight: `claim_for_destroy` reads
+the `children` count through `destroy_outcome` and not through this accessor, so
+`a_parent_refuses_until_its_last_child_returns` proves the *refusal* without ever calling the
+predicate the kernel asks first. The one test that did call it
+(`a_dead_name_is_inert_everywhere`) called it on a dead name, where `get` returns `None` and the
+closure inside is never evaluated, which is why `children > 0` under `==`, under `<` and under `>=`
+all survived beside the constant. Closed by
+`has_children_answers_for_the_living_the_childless_and_the_dead`, which asks it of a fresh root, a
+root with a child, a leaf, and a dead name.
+
+**`retype_object_page`'s arithmetic had two**, `base_page + watermark` under `-` and `watermark += 1`
+under `*=`. Both are also in `retype_page`, where both are caught, and the split is the whole
+explanation: every existing test calls the object retype exactly once, at watermark zero, where the
+two arithmetics agree and a watermark that never advances is invisible. A page handed out twice is
+two kernel objects on one frame. Closed by
+`the_object_retype_walks_the_region_one_page_at_a_time`, which takes two pages from a non-zero base
+and then exhausts the region through the other entry point to show the budget is shared.
+
+**The two remaining are the loom model, and they are excluded as a class.** `Reached::mark` and
+`Reached::assert` are the non-vacuity flags described in this file's own verification section, and
+they sit in `mod interleavings`, which is `#[cfg(all(test, loom))]`: `cargo test` never compiles it,
+so a mutant there always survives. That is exactly what `verification::` and `proofs::` are already
+excluded for, and the entry added to `.cargo/mutants.toml` says so. It covers all five loom models
+in the tree (`clock_protocol`, `memory_corruption_canary_gate`, `memory_regions`,
+`thread_wake_handshake`, `work_steal_slot`), every one behind the same `cfg`. Their checker is
+`script/interleaving-check`; excluding them here does not make them proved.

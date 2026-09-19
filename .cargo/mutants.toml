@@ -84,4 +84,15 @@ exclude_re = [
     # baseline is for. Both names are matched as module paths, which nothing else in the tree uses.
     "verification::",
     "proofs::",
+
+    # The loom models: 5 `mod interleavings` blocks (clock_protocol, memory_corruption_canary_gate,
+    # memory_regions, thread_wake_handshake, work_steal_slot), every one behind
+    # `#[cfg(all(test, loom))]`, so `cargo test` never compiles them and a mutant there always
+    # "survives". Exactly the case above wearing different clothes, and found the same way:
+    # milestone 326's triage of the 2026-09-14 census reported `Reached::mark` and `Reached::assert`
+    # missed in `memory_regions`, which are the non-vacuity flags of a harness the test suite cannot
+    # see. Their checker is `script/interleaving-check`, not `cargo test`, and mutating the model
+    # rather than the code under model measures nothing this baseline is for. Matched as a module
+    # path, which nothing else in the tree uses.
+    "interleavings::",
 ]
