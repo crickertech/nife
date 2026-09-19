@@ -132,17 +132,16 @@ and the crate's other thirty pass unchanged.
   `script/cadence-check` stops reporting it DEAD. What that buys is not the leak: it is every other
   thing Miri checks in this workspace, aliasing and provenance and uninitialized reads, which have
   been unchecked on `main` since 2026-08-11 because one error message hid all of them.
-- **Proposed.** Is a three-hour weekly Miri run worth what it costs? The workflow's header raises it
-  and nobody has answered; the cadence is calef's call, and the measurement, the likely answer and
-  what still has to be measured before it is one are in
-  `design/roadmap/proposals/what-the-weekly-miri-run-should-cost.md`. The short version: the cost is
+- **Milestone 428.** Is a three-hour weekly Miri run worth what it costs? The workflow's header
+  raises it and nobody has answered; the cadence is calef's call, and the measurement, the likely
+  answer and what still has to be measured before it is one are in that block. The short version: the cost is
   concentrated in a few crates whose expensive tests are breadth over in-memory input, which is
   exactly what Miri cannot judge, so the lever is running less of it rather than running it less
   often. Nothing is blocked on the answer, since the job is green and inside its budget.
-- **Proposed.** Nothing here measured which crates dominate, and that is the prerequisite for the
-  bullet above being more than an argument: a per-crate wall clock from one instrumented run.
-  `cargo miri test` prints per-target timings already and nobody has collected them. Step 1 of
-  `design/roadmap/proposals/what-the-weekly-miri-run-should-cost.md`.
+- **Milestone 428.** Nothing here measured which crates dominate, and that is the prerequisite for
+  the bullet above being more than an argument: a per-crate wall clock from one instrumented run.
+  `cargo miri test` prints per-target timings already and nobody has collected them. It is step 1 of
+  that block, which is why the two bullets share a number.
 - **Recorded.** `crates/paging/tests/mapping.rs`'s `TableGuard` is the same opt-in shape this
   milestone removed from `domain.rs`, and it is a `BUGS` section at the guard rather than a fix, for
   the reason stated there: twenty-one call sites in a file that is not failing. `script/lint` cannot

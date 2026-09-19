@@ -197,8 +197,8 @@ could still take.
   `ipc_reply` remains role-shaped and the capability sweep is what holds the property. Written into
   the `BUGS` above and into `strand_reply_caller`'s doc comment, where the next reader of that code
   meets it.
-- **Proposed.** A call identity in the reply capability's payload, which would make the hazard
-  unrepresentable rather than swept: `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
+- **Milestone 371.** A call identity in the reply capability's payload, which would make the hazard
+  unrepresentable rather than swept: `design/roadmap/371-a-reply-capability-that-names-a-call.md`.
 - **Milestone 133.** Reclaiming the hung component's own region, which this does not touch and must
   not be quoted as doing.
 

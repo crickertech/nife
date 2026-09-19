@@ -113,8 +113,8 @@ back. The cost of not failing is in BUGS below, named rather than hidden.
 - **Recorded.** `## Index row` is a provisional name, like every name a lane ships. It sits beside
   `## Follow-on` and `## BUGS` as a section `script/roadmap` reads, and the refusals are in
   `notes/roadmap-index.md`.
-- **Proposed.** `design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`:
-  this lane's first `script/test` failed on `uefi-boot`'s `smp: 2 core(s) online` assertion, from a
+- **Milestone 412.**
+  This lane's first `script/test` failed on `uefi-boot`'s `smp: 2 core(s) online` assertion, from a
   tree whose diff `cargo xtask` does not read, and passed on the next two runs. The tree already
   records that flake and bounds it at `-smp 3` and above, which the tour's own comment reasons from;
   it reaches two.

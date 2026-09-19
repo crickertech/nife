@@ -200,8 +200,9 @@ scroll is a full-surface copy through an uncacheable mapping (BUGS).
 - **Milestone 182.** `script/shell-check` still has no x86_64 leg, and its `--arch` refusal says x86
   has no prompt, which milestone 299 made untrue. That is milestone 182's third leg, already
   tracked there.
-- **Proposed.** Two screendump decoders, `design/roadmap/proposals/one-screendump-decoder-not-two.md`
-  (existing).
+- **Milestone 377.** Two screendump decoders. It was the existing proposal
+  `one-screendump-decoder-not-two` when this block cited it and milestone 433's drain numbered it
+  the same day, in another session.
 
 ## BUGS
 

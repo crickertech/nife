@@ -182,11 +182,14 @@ arriving on a machine whose firmware turns it on.
 - **Recorded.** `kernel/src/arch/x86_64/exceptions.rs`'s `BUGS`: the vector-to-intid inversion is
   still owed. MSI never needs it, because an MSI intid is its vector; it is now owed only for the
   console UART, which is the last candidate.
-- **Proposed.** `design/roadmap/proposals/x86-64-test-fixtures.md`, Attach the rest of the x86_64
+- **Milestone 364.** `design/roadmap/364-x86-64-test-fixtures.md`, attach the rest of the x86_64
   test fixtures now that a function's interrupt works: the RedoxFS image, the GPT and blank disks,
   the NIC, the GPU, the keyboard and the RNG, each a line in `scripts/qemu-runner-x86_64.sh` plus
   its wiring, starting with making the FS server's disk lookup transport-blind. The measure is the
-  36 tests taking a "no RedoxFS disk attached" arm.
+  count of tests taking a "no RedoxFS disk attached" arm, 36 when this was written and 50 on
+  2026-09-19. That block is SUPERSEDED: milestone 303 built the transport-blind lookup and attached
+  the RedoxFS image on 2026-09-16, and its lane restated the remaining devices as a newer numbered
+  block the same day.
 
 ## Index row
 

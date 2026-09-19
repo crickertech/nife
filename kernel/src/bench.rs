@@ -556,7 +556,7 @@ fn map_new() {
 /// - **`aarch64`.** `PMCCNTR_EL0` over ticks of `CNTVCT_EL0`, the generic timer at `CNTFRQ_EL0`
 ///   (62.5 MHz on QEMU `virt`, 19.2 MHz on argon's TX1). **Which exception levels the numerator
 ///   counts is `PMCCFILTR_EL0`'s, and that value is provisional** until calef rules on
-///   design/roadmap/proposals/the-aarch64-half-of-74.md, so the meaning line says so and no aarch64
+///   design/roadmap/353-the-aarch64-half-of-74.md, so the meaning line says so and no aarch64
 ///   figure is a result yet.
 /// - **`x86_64`.** Unhalted core cycles (`IA32_PERF_FIXED_CTR1`) over TSC ticks. **The TSC is
 ///   constant-rate and core cycles are not**, so this ratio moves with frequency scaling and turbo

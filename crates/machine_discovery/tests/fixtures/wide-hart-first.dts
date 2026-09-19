@@ -18,8 +18,8 @@
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/wide-hart-first.dtb \
- *                          crates/isa/tests/fixtures/wide-hart-first.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/wide-hart-first.dtb \
+ *                          crates/machine_discovery/tests/fixtures/wide-hart-first.dts
  */
 
 / {

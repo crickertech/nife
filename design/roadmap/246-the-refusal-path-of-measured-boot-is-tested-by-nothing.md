@@ -81,11 +81,13 @@ Not a test that only takes the accept path, which `script/shell-check` already d
 
 ## Follow-on
 
-- **Proposed.** An unviable mutant is a hole in the measurement that reads as a pass. `cargo mutants`
-  never mutated this milestone's own function: its only operator on a function returning a struct is
-  `Default::default()`, `Verdict` had no `Default`, so the mutant did not compile and scored unviable
-  rather than missed. `measured_boot` had nine such. See
-  `design/roadmap/proposals/the-mutants-nobody-counts.md`.
+- **Milestone 250.** An unviable mutant is a hole in the measurement that reads as a pass. `cargo
+  mutants` never mutated this milestone's own function: its only operator on a function returning a
+  struct is `Default::default()`, `Verdict` had no `Default`, so the mutant did not compile and
+  scored unviable rather than missed. `measured_boot` had nine such. calef minted milestone 250 from
+  this handoff the same day. The proposal file this bullet used to name was promoted by milestone
+  433 as `design/roadmap/354-the-mutants-nobody-counts.md` and superseded by 250 in the same act,
+  because the two are one piece of work.
 - **Recorded.** `components/src/login.rs` spells the same load-or-refuse decision itself and folds all three
   outcomes into `None`, so it cannot distinguish an absent program from a refused one. `verdict`'s
   signature already fits it; it was not switched because that is a boot path this milestone did not

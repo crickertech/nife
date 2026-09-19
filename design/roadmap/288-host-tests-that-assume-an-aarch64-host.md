@@ -205,15 +205,15 @@ cuts both ways here, and the honest statement is that the aarch64 and riscv64 ho
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/which-qemu-a-red-post-run-check-was-run-under.md`: the
+- **Milestone 414.** The
   post-run referees fail different sets under 8.2.2 and 11.0.2 on one machine, and nothing in their
   output says which emulator produced them, so a reader cannot tell an environment failure from a
   regression without re-running. Found by this lane's control table above, which is not what it was
   looking for.
-- **Proposed.** `design/roadmap/proposals/an-x86-64-host-in-the-host-pass.md`: run the host pass on
-  an x86_64 runner, so the class this milestone fixed cannot come back invisibly. It is a CI-shape
-  question (a second job, a matrix leg, or `script/stranger-test` reaching a second host) with a
-  real cost in runner minutes, which is why it is a proposal rather than something done here.
+- **Milestone 403.** Run the host pass on an x86_64 runner, so the class this milestone fixed
+  cannot come back invisibly. It is a CI-shape question (a second job, a matrix leg, or
+  `script/stranger-test` reaching a second host) with a real cost in runner minutes, which is why it
+  was filed rather than done here. Numbered on 2026-09-19 by milestone 433's drain of the pile.
 - **Recorded.** The five limitations above stay limitations in this block's `BUGS`, and the two a
   reader meets away from this file are written where they meet them: `fuzz/seeds/README.md`'s
   `BUGS` carries the dead-weight seeds and the ungated generator.

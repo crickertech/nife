@@ -27,7 +27,7 @@ peaking at a 32 KiB working set which is radon's L1d exactly. **E3 found that it
 footprint from code layout**: the padded build is 1.49% slower on `call_reply` and 3.01% *faster* on
 `ipc_rtt_el0`, and dead code that is never executed has no mechanism for the second. That is a flaw
 in E3's design rather than in the session, it was equally present on 2026-08-22, and the fix is
-`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`.
+`design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`.
 
 
 **Extended the same day, at calef's direction**, and the extension changes what this block is. The

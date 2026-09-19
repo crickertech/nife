@@ -1061,7 +1061,7 @@ Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
   `-redoxfs.img` fixture as a second `virtio-blk-pci` function, and `virtio::find_block_device_n`
   spans virtio-mmio and virtio-pci so a wiring on a machine with no mmio bus can find it. What is
   still missing is the rest of the fixture set (milestone 37's crash disk, milestone 57's GPT and
-  blank disks); see design/roadmap/proposals/the-rest-of-the-x86-64-fixture-set.md.
+  blank disks); see design/roadmap/420-the-rest-of-the-x86-64-fixture-set.md.
 - ~~**No `std`**~~: closed by milestone 184. `x86_64-unknown-nife` and its farm exist, and
   `std_exerciser` passes here. `std::fs` runs since milestone 303 gave the FS service a disk;
   `std::net` is compiled and unexercised for the NIC reason above. See notes/std.md.

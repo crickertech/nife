@@ -151,7 +151,7 @@ three architectures (below). What §19 wants said out loud is the gap:
 
 **aarch64 is ordered behind milestone 74's own aarch64 half and is not in this milestone.**
 `PMCCNTR_EL0` reads zero until `PMCR_EL0.E` and `PMCNTENSET_EL0.C` are written, which this kernel
-never does; `design/roadmap/proposals/the-aarch64-half-of-74.md` covers exactly that and this
+never does; `design/roadmap/353-the-aarch64-half-of-74.md` covers exactly that and this
 milestone would duplicate its first half to reach its own second. So `cycles_per_tick` is two
 architectures of three after this, up from one, and the third has a named owner rather than a
 silence.
@@ -236,8 +236,8 @@ last one is the one to look at hardest, because it is the only one that leaves t
 - **Done.** `bench::cycles_per_tick` is two architectures of three, up from one. Milestone 74's
   measurement half, which `design/roadmap/74-cycle-counters.md` records as a DECISIONS §19 scope
   gap, is that much smaller; the gap itself is not closed and the bullet below says who owns it.
-- **Proposed.** The aarch64 half stays where it already was, in
-  `design/roadmap/proposals/the-aarch64-half-of-74.md`: `PMCCNTR_EL0` reads zero until `PMCR_EL0.E`
+- **Milestone 353.** The aarch64 half, where it already was: `PMCCNTR_EL0` reads zero until
+  `PMCR_EL0.E`
   and `PMCNTENSET_EL0.C` are written, and this milestone would have had to build that proposal's
   first half to reach its own second. Ordered behind it rather than duplicated into it.
 - **Recorded.** That this counter has never been read on silicon is a limitation stated where a

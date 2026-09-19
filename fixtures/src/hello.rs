@@ -77,7 +77,7 @@ use user_mode_runtime::{exit, irq_wait, map_page_frame, recv, send};
 //
 // **The numbers are not reused and the gaps are not tidied.** A role number is the word the kernel
 // puts in `x0`, so it is a value the kernel's test wiring and this file agree on, and
-// `design/roadmap/proposals/one-grant-order-for-the-progenitor.md` records six `spawn_hello`
+// `design/roadmap/301-one-grant-order-for-the-progenitor.md` records six `spawn_hello`
 // tests that name them. Renumbering would be an edit to a wire value bought with nothing.
 const INIT: u64 = 20;
 const CHILD: u64 = 21;

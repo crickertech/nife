@@ -99,7 +99,7 @@
 #     is still the one thing here that only works on two of three.)
 #   - **`syscall_entry` is flat, so an inlining decision can move bytes into it that no syscall
 #     fetches.** Three instances in two days on 2026-09-04, each closed with `#[inline(never)]` on
-#     the folded callee. `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`
+#     the folded callee. `design/roadmap/368-a-flat-entry-set-counts-bytes-no-syscall-fetches.md`
 #     holds them and the options. Milestone 188 phase 2 fixed the largest *structural* instance of
 #     the same shape (aarch64's sixteen-entry vector table, at `ENTRY_SLICE`) but did nothing about
 #     the inlining one, which is a different mechanism with the same symptom.
