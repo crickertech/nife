@@ -49,46 +49,65 @@ and only when that feature is on, say how much of it there is:
   booted. **0 is the ladder's zero**: the guard and a `ret`, so every rung runs the same
   instructions and the guard stops being a difference between conditions.
 - **`NIFE_FASTPATH_SHIFT=<bytes>`** appends that many zero bytes after the sled, under a symbol
-  nothing references. It moves exactly the code the pad moves and adds nothing reachable, which is
-  what makes it a **layout variant**: an un-padded kernel at different addresses.
+  nothing references. It is the **layout variant**: bytes that move code and that the footprint
+  gate does not count.
+
+**The linker script pins the sled first in `.text`**, right after the boot stub, so both numbers do
+the same thing: move the whole kernel text by that many bytes. Measured on the card build, only the
+7 boot symbols keep their address; all 1,038 others move by exactly the bytes asked for and none
+changes size. An ordinary build has no such section, so the default link order is unchanged, which
+was checked by comparing default boot images byte for byte across the change on both ISAs.
+
+**Why that matters more than the knob does.** A pad and a shift of equal displacement produce
+**identical binaries apart from the sled's own bytes**: `PAD=1` and `SHIFT=5088` put all 1,047
+riscv64 text symbols at the same addresses. So the two ladders differ in exactly one thing, whether
+the bytes sit inside the footprint `script/fastpath-footprint` counts, which is the variable E3
+claims to test. Before the pin, where the linker dropped the sled was redrawn every commit: on
+2026-09-04 it landed ahead of the whole trap path, and by 2026-09-19 past all but 5% of the
+fastpath's bytes, so how much of the hot path a pad perturbed was an accident of that day's build.
 
 They are variables rather than a feature per size **because it was built that way first and
 measured**. A feature's name enters cargo's `-C metadata` hash, which renames every symbol and
 reorders codegen units: seven sibling features moved code linked *ahead* of the sled by up to
 11 KB on the card build, and `syscall::dispatch` wandered across 240 of the 256 L1i sets, so each
-image was an uncontrolled layout draw and the size being varied was noise on top of it. With the
-variables, measured on the `board,bench,single_hart,fastpath_pad` build: **every text symbol before
-the sled keeps its address to the byte, all 635 after it move by exactly the bytes asked for, and
-none changes size.**
+image was an uncontrolled layout draw. Editing this module's own source does the same thing for the
+same reason, which is why every image in an evening must come from one commit.
 
 ### The eight images, and why these sizes
 
-| image | `NIFE_FASTPATH_PAD` | `NIFE_FASTPATH_SHIFT` | what moves, riscv64 card build |
-|---|---|---|---|
-| pad 0 | 0 | 0 | the reference for both ladders |
-| pad 1 | 1 (or unset) | 0 | +5,088 bytes, 79.5 L1i sets |
-| pad 2 | 2 | 0 | +10,176, 159 sets |
-| pad 3 | 3 | 0 | +15,264, 238.5 sets |
-| layout A | 0 | 820 | +820, 12.8 sets |
-| layout B | 0 | 1640 | +1,640, 25.6 sets |
-| layout C | 0 | 2460 | +2,460, 38.4 sets |
-| layout D | 0 | 3280 | +3,280, 51.3 sets |
+| image | `NIFE_FASTPATH_PAD` | `NIFE_FASTPATH_SHIFT` | the whole kernel text moves by | what it is for |
+|---|---|---|---|---|
+| pad 0 | 0 | 0 | 0 | the reference for both ladders |
+| pad 1 | 1 (or unset) | 0 | 5,088 (79.5 L1i sets) | the 2026-09-04 sled |
+| pad 2 | 2 | 0 | 10,176 (159 sets) | |
+| pad 3 | 3 | 0 | 15,264 (238.5 sets) | |
+| layout A | 0 | 820 | 820 (12.8 sets) | a small layout draw |
+| layout B | 0 | 2460 | 2,460 (38.4 sets) | another |
+| **match 1** | 0 | 5088 | **the same bytes as pad 1** | pad 1's twin, uncounted |
+| **match 2** | 0 | 10176 | **the same bytes as pad 2** | pad 2's twin, uncounted |
 
-The four layout sizes are **small on purpose**: each moves the trap path by under one 4 KiB page,
-so they vary *where* the hot path lands far more than *how far it is spread*, which is the
-difference E3 is trying to separate. They also differ where the U74 is known to care. Two are 0 and
-two are 4 mod 8, and the manual says the BTB predicts a taken branch or jump with no bubble only
-when the target is 8-byte aligned (`SiFive` U74-MC Core Complex Manual 21G3.02.00, §4.2.6). Their
-64-byte line phases (52, 40, 28, 16) are four values none of the pads takes (32 and 0). And one of
-them leaves `.data` on the same page as pad 0 while three move it by one page, which matters
-because the L1d is 32 KiB 4-way, an 8 KiB way, so an odd page moves every static to a new set
-(§4.4.1).
+**The two matched images are the sharpest comparison available and cost nothing extra.** Each is
+byte-identical to its pad outside the sled, so any difference between a pad and its twin is the
+counted footprint alone, and the physics says there should be none: the sled is never fetched. A
+difference there is the instrument telling you something is wrong with the measurement rather than
+a finding about footprint.
+
+**The four un-padded images are the layout distribution.** Two of them are matched to pads and two
+are small, so the distribution covers both scales the pads reach into.
+
+**The two small images sample layout at a scale the pads do not.** They move the text by under one
+page, and they differ where the U74 is known to care: 820 is 4 mod 8 and 2,460 is 4 mod 8 with
+different 64-byte line phases (52 and 28) from the pads' (32 and 0), and the manual says the BTB
+predicts a taken branch or jump with no bubble only when the target is 8-byte aligned (`SiFive`
+U74-MC Core Complex Manual 21G3.02.00, §4.2.6). One leaves `.data` on the page pad 0 has and the
+other moves it, which matters because the L1d is 32 KiB 4-way, an 8 KiB way, so an odd page moves
+every static to a new set (§4.4.1).
 
 ### Step 0, on patagonia, before anyone walks to the bench
 
 ```sh
 git log -1 --format=%h                     # the commit every image below is built from
-for c in 0:0 1:0 2:0 3:0 0:820 0:1640 0:2460 0:3280; do    # pad:shift
+for c in 0:0 1:0 2:0 3:0 0:820 0:2460 0:5088 0:10176; do   # pad:shift
   NIFE_FASTPATH_PAD=${c%%:*} NIFE_FASTPATH_SHIFT=${c##*:} script/fastpath-footprint \
     --arch riscv64 --features board,bench,single_hart,fastpath_pad --layout
 done
@@ -103,7 +122,12 @@ Two lines out of each run are the check, and they are the reason this step exist
   images execute the same code and differ only in where it sits. A different hash means something
   changed the fastpath itself and the evening is measuring two things again.
 - **`layout: fastpath_pad_body at <addr>, <n> bytes`** must show the sled at the same address in
-  all eight, with the requested length.
+  all eight, with the requested length, and the line under it must read **`the sled precedes 17 of
+  17 hot symbols, 100% of their bytes`**. That is the pin working. Anything less means the section
+  is no longer first in `.text` and the pad is perturbing only part of the path.
+- **The two matched images must place the hot path exactly where their pads do.** Compare the
+  `layout: 0x...` lines of `PAD=1` against `SHIFT=5088`, and `PAD=2` against `SHIFT=10176`: every
+  address should be equal.
 
 Keep the whole readout per image: it carries each hot symbol's address, its L1i set on the U74
 (32 KiB, 2-way, 64-byte lines, virtually indexed, §4.2.2, so 256 sets from address bits 6 to 13),
@@ -118,8 +142,8 @@ NIFE_FASTPATH_PAD=0 NIFE_FASTPATH_SHIFT=0 \
 script/board-console --for 20m --until none --log bench/radon-<date>/bench-e3-pad0-1.log
 ```
 
-- **Eight images, three boots each, interleaved**, in the order pad0, pad1, pad2, pad3, A, B, C, D,
-  then around again twice. Interleaving is this page's own rule (step 5 below) and it is what keeps
+- **Eight images, three boots each, interleaved**, in the order pad0, pad1, pad2, pad3, A, B,
+  match1, match2, then around again twice. Interleaving is this page's own rule (step 5 below) and it is what keeps
   a room warming up out of the comparison. Twenty-four boots at about 75 seconds each is roughly
   half an hour of booting plus a rebuild between images; `--tftp` (milestone 257) makes an image
   change a rebuild and a power cycle rather than a card write.
@@ -135,22 +159,30 @@ script/board-console --for 20m --until none --log bench/radon-<date>/bench-e3-pa
 Three rows matter, as before: `call_reply` (the shape services run, and the one the verdict should
 rest on), `ipc_rtt`, `ipc_rtt_el0`.
 
-1. **Take the layout distribution first.** The four layout images differ from pad 0 in nothing a
-   CPU executes, so whatever spread appears across those five conditions **is** the layout effect,
-   per row. Report it as a range, not a mean.
-2. **Then read the pad ladder against it.** A row that **rises monotonically with pad size and
-   leaves the layout range** is the only footprint result available here. A row that **jumps and
-   comes back**, or that moves no further than the layout images do, is layout. A row that stays
-   inside the boot-to-boot spread is neither.
-3. **Keep every boot's `cycles_per_tick` line**, so the rows convert to cycles (M5) on the
+1. **Read each matched pair first**, pad 1 against `SHIFT=5088` and pad 2 against `SHIFT=10176`.
+   They are the same binary outside a sled nothing fetches, so a difference beyond the
+   boot-to-boot spread means the instrument is measuring something nobody has accounted for, and
+   the rest of the reading is suspect until it is explained.
+2. **Then take the layout distribution.** Pad 0 and the layout images differ in nothing a CPU
+   executes, so whatever spread appears across them **is** the layout effect at these
+   displacements, per row. Report it as a range, not a mean.
+3. **Then read the pad ladder against it.** With the sled pinned, a pad and a shift of equal
+   displacement are the same binary, so the honest question the ladder answers is whether
+   **displacement** costs time and whether more of it costs more. A row that rises monotonically
+   and leaves the layout range says it does; one that jumps and comes back is a particular
+   alignment rather than a trend; one inside the boot-to-boot spread is nothing. **None of those
+   is a footprint result**, which is the paragraph below.
+4. **Keep every boot's `cycles_per_tick` line**, so the rows convert to cycles (M5) on the
    evening's own commit.
 
 | what the capture shows | what it means | where it routes |
 |---|---|---|
-| `call_reply` monotone in pad size and outside the layout range | dispersing the hot path costs measurable time on a 32 KiB L1i | milestone 188 phase 4 has its first real evidence; the magnitude is the payoff to hold a hand-written fastpath to |
-| pad ladder inside the layout range | a doubling and tripling of the *measured* footprint costs no more than moving code a kilobyte does | §95's premise is in serious doubt; route to `design/decisions/95-*`, and 188 phase 4 is a standing verification obligation bought for an effect two boards cannot separate from noise |
-| the layout range is itself large (several percent) | the 2026-09-04 reading was an artifact, as suspected, and **every between-build comparison in `bench/` inherits it** | notes/benchmarks.md, as a caveat on stored baselines |
-| rows disagree (one monotone, one not) | shape-specific, which is a result about *which* path to optimise | 188 phase 4, narrower than sketched |
+| **each pad sits on its matched twin**, and the pads move no further than the layout images do | the counted footprint predicts nothing: doubling and tripling it costs no more than moving the same code the same distance | **§95's premise is in serious doubt.** 188 phase 4 would buy a standing verification obligation for an effect this instrument cannot find; route to `design/decisions/95-*` |
+| **a pad differs from its matched twin**, beyond the boot-to-boot spread | impossible on the physics as understood, since the two binaries differ only in bytes nothing fetches. Something else differs between the images or the measurement is not what it seems | nothing routes until it is explained; it is the instrument's own check failing |
+| **the pad ladder rises monotonically and leaves the layout range**, matched twins tracking their pads | displacement costs time and more displacement costs more, which is the strongest reading available here. It is a layout result stated honestly, not a footprint one | 188 phase 4: the magnitude is what a hand-written fastpath would have to beat, and notes/benchmarks.md gets a caveat on every stored baseline |
+| **the layout range is itself large** (several percent) | the 2026-09-04 reading was an artifact, as suspected, and **every between-build comparison in `bench/` inherits the same exposure** | notes/benchmarks.md, as a caveat on stored baselines; and E3 as built cannot answer §95 at all |
+| **everything inside the boot-to-boot spread** | this kernel's IPC path does not care where it sits, at these displacements, on this core | 188 phase 4 loses its last cheap instrument; M6 is what is left |
+| rows disagree (one moves, another does not) | shape-specific, which is a result about *which* path to optimise | 188 phase 4, narrower than sketched |
 
 **What this cannot decide, and it should be said before the numbers exist.** The padding is never
 executed, so it cannot evict anything on its own; the only way it can reach a clock is by moving

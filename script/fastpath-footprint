@@ -549,6 +549,16 @@ if os.environ.get("LAYOUT"):
     if pad:
         print(f"    layout: fastpath_pad_body at {start[pad[0]]:#x}, {size[pad[0]]} bytes"
               + (f"; fastpath_layout_shift at {start[blk[0]]:#x}" if blk else ""))
+        # **How much of the hot path this pad actually moves, which is not a constant.** Nothing
+        # pins where the linker puts the sled among the kernel's `.text.*` inputs, and it has moved
+        # across commits: on 2026-09-04 the whole trap path was linked after it, and on 2026-09-19
+        # the roots and the trap path were before it while the capability-table insert and the
+        # paging mapper were after. Only the symbols after it move when the pad grows, so this line
+        # is what says whether an E3 image perturbs the path at all.
+        moved = [s for s in hot if start[s] > start[pad[0]]]
+        share = 100 * sum(size[s] for s in moved) / max(1, sum(size[s] for s in hot))
+        print(f"    layout: the sled precedes {len(moved)} of {len(hot)} hot symbols, "
+              f"{share:.0f}% of their bytes; only those move when it grows")
     SETS = {"riscv64": 256}.get(arch)
     listed = [s for s in hot if SHAPES[1][1].search(s) or s in entry_syms]
     for s in sorted(listed, key=lambda x: start[x]):

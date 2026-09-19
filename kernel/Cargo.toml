@@ -322,10 +322,12 @@ cycle_counter_grant = []
 # feature has always linked (unset is 1, the sled the 2026-09-04 session booted),
 # and `NIFE_FASTPATH_SHIFT=<bytes>` appends unreferenced zeros after it, which moves the same code
 # the pad moves and adds nothing reachable. kernel/build.rs reads both, and only when this feature
-# is on, so an ordinary build cannot see them. Not features because a feature's *name* enters
-# cargo's `-C metadata` hash, which reorders codegen units: seven sibling features were built and
-# measured, and each reshuffled up to 11 KB of code ahead of the sled, drowning the shift it was
-# meant to control. notes/footprint-perturbation.md has the procedure.
+# is on, so an ordinary build cannot see them. The linker scripts place the sled's section first in
+# `.text`, so both numbers move the whole kernel text and a pad and a shift of equal displacement
+# produce identical binaries apart from the sled's own bytes. Not features because a feature's
+# *name* enters cargo's `-C metadata` hash, which reorders codegen units: seven sibling features
+# were built and measured, and each reshuffled up to 11 KB of code ahead of the sled, drowning the
+# shift it was meant to control. notes/footprint-perturbation.md has the procedure.
 fastpath_pad = []
 # Milestone 134's per-IPC kernel stack depth (kernel/src/ipc_stack_depth.rs): paints a thread's own
 # kernel stack before each IPC operation and scans it after, so the deepest byte one SEND, RECV,

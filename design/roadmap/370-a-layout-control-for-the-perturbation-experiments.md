@@ -21,14 +21,30 @@ non-zero `SHIFT`: an un-padded kernel at different addresses. E3's evening is ei
 pad sizes and four shifts; notes/footprint-perturbation.md, "The next radon evening", is the
 procedure, the sizes and why each was chosen.
 
+**The linker scripts pin the sled's section first in `.text`**, right after the boot stub, and that
+is what makes the two numbers comparable: each moves the **whole kernel text** by the bytes asked
+for, so a pad and a shift of equal displacement are the same binary apart from the sled's own
+bytes. Checked: `PAD=1` and `SHIFT=5088` place all 1,047 riscv64 text symbols at identical
+addresses. **Two of the four shifts are therefore matched twins of pads**, and they are the
+sharpest comparison the experiment has: any difference between a pad and its twin is the counted
+footprint alone, which the physics says must be zero because the sled is never fetched.
+
+**Pinning it was not tidiness.** Nothing had pinned the section, so where the linker dropped it was
+redrawn every commit: on 2026-09-04 it landed ahead of the entire trap path, and by 2026-09-19 it
+landed past all but **5%** of the fastpath's bytes, which would have made the evening a
+dose-response on a path the doses barely touched. `--layout` now prints that share
+(`the sled precedes N of M hot symbols`), so the check is a line of output rather than a hope. The
+default build has no such section, so the default link order is unchanged, checked by comparing
+default boot images byte for byte on both ISAs across the change.
+
 **The proof each image is what it claims, and it needs no hardware.**
 `script/fastpath-footprint --layout` hashes every instruction of both IPC closures and the entry
 set with address operands normalised away (direct call and branch targets, `auipc`/`adrp` uppers,
 and the low-12 immediates that pair with one; it prints how many of each it touched). **All eight
 images share one hash**, on riscv64, on aarch64 and on the `board,bench,single_hart` card set. Read
-off the built binaries as well: every text symbol ahead of the sled keeps its address to the byte,
-all 635 after it move by exactly the bytes asked for and none changes size; the sled has exactly
-one reference in the whole binary, the guard's skipped branch, and the shift block has none. The
+off the built binaries as well: only the 7 boot symbols ahead of the sled keep their address, all
+1,038 after it move by exactly the bytes asked for and none changes size; the sled has exactly one
+reference in the whole binary, the guard's skipped branch, and the shift block has none. The
 same flag prints where the hot path landed: each symbol's address, its set in the U74's L1i
 (32 KiB, 2-way, 64-byte lines, virtually indexed, so 256 sets from address bits 6 to 13, `SiFive`
 U74-MC Core Complex Manual 21G3.02.00 §4.2.2), its line phase, whether it starts 8-byte aligned
@@ -50,7 +66,9 @@ set without the feature.
    L1i sets. Each image was an uncontrolled layout draw and the variable of interest was noise on
    top of it. Environment variables do not enter that hash. Editing the module's own source has the
    same effect for the same reason, which is why every image in an evening must come from one
-   commit.
+   commit. Nor was the sled's *position* pinned, which had the same shape: an accident of each
+   commit's link order decided how much of the hot path a pad perturbed, and by 2026-09-19 it was
+   5% of it. Both are now properties of the build rather than draws.
 2. **A pad that is never executed can only act through addresses.** It is never fetched, so it
    evicts nothing on its own; what it does is push other code apart. So E3 tests whether
    `script/fastpath-footprint`'s number predicts latency, which is what milestone 188 phase 4 leans
@@ -192,9 +210,10 @@ give a layout distribution: inside it is layout, outside it is footprint. The ch
 `fastpath_pad` taking a value rather than a boolean, because footprint predicts monotonicity where
 layout does not. It decides milestone 188's phase 4, which is holding a hand-written IPC fastpath on
 evidence of a 19 ns effect with a 193 ns artifact sitting on top of it. **BUILT 2026-09-19**:
-`NIFE_FASTPATH_PAD` and `NIFE_FASTPATH_SHIFT` size the sled and add an unreachable shift, eight
-images share one normalised instruction hash that `script/fastpath-footprint --layout` prints, and a
-bench boot names its own image. Building it found that a Cargo feature per size reproduces the
+`NIFE_FASTPATH_PAD` and `NIFE_FASTPATH_SHIFT` size the sled and add an unreachable shift, the
+linker scripts pin that section first in `.text` so both move the whole kernel text and a pad has a
+byte-identical un-padded twin, eight images share one normalised instruction hash that
+`script/fastpath-footprint --layout` prints, and a bench boot names its own image. Building it found that a Cargo feature per size reproduces the
 defect, because a feature name repartitions codegen units and moved 11 KB of unrelated code; and
 that a pad which is never executed can only act through addresses, so E3 tests whether the footprint
 number predicts latency rather than Liedtke's claim about an executed one.
