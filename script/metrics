@@ -318,22 +318,26 @@ def names(tree):
 
 
 def proposals(tree):
-    """Unnumbered roadmap proposals: identified work filed where a script can see it, awaiting a number.
+    """Unnumbered roadmap proposals: a record form that existed for sixteen days and is closed.
 
-    **Nothing else on this dashboard can count these**, which is why the column exists.
+    **The column is a closed series, not a live gauge** (milestone 434, 2026-09-19).
+    `design/roadmap/proposals/` was created on 2026-09-03 and retired on 2026-09-19: a lane that
+    identifies work now writes the numbered block itself, provisionally numbered, so there is no
+    pile to count and every week from 2026W38 on reads zero. The weeks before 2026-09-04 read zero
+    too, because the directory did not exist yet, which is the same restatement artifact as the
+    naming columns above and is rendered rather than backfilled.
+
+    **So the count stays, and that is the whole reason `scripts/roadmap_proposals.py` survives.**
+    Every row here is regenerated from git history by applying today's definitions to old commits,
+    and the two weeks in the middle are 74 and 93. Delete the parse and the next `--backfill` writes
+    zero into both, which is this dashboard lying about a fortnight that happened. The rise and fall
+    of that directory is the measurement `design/decisions/140-follow-on-disposition-vocabulary.md`
+    rests on, and it is the argument for the convention that replaced it.
+
+    **Nothing else on this dashboard can count these**, which is why the column existed at all.
     `milestones()` above matches index rows in `design/roadmap/README.md` and keys on a milestone
-    NUMBER, and a proposal is defined by not having one, so it is invisible to that count by
+    NUMBER, and a proposal was defined by not having one, so it was invisible to that count by
     construction rather than by oversight.
-
-    Counted the way `script/roadmap` counts them, out of the shared parse, so the two cannot
-    disagree about what is in the pile. A file that does not parse as a proposal is not counted;
-    `script/lint` runs `script/roadmap --check`, so in any tree since milestone 247 there are none.
-
-    A promoted proposal is deleted rather than marked (calef, 2026-09-18), so it leaves this count
-    by leaving the directory and no exclusion is needed here.
-
-    The weeks before 2026-09-04 are zero because the directory did not exist, which is the same
-    restatement artifact as the naming columns above and is rendered rather than backfilled.
     """
     count = 0
     for path, text in tree.markdown():
