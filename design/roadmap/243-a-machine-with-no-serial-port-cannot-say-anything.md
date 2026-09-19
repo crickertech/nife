@@ -154,6 +154,16 @@ replacing it is harder than it looks.
   `kernel/src/arch/x86_64/boot.s` writes to no device and cannot, because it is a 32-bit
   instruction stream with no idea where the screen is and no IDT, so a fault in it is a triple
   fault and a reset. What *can* be done is done by the stage before it. See the section below.
+- **Proposed.** `design/roadmap/proposals/the-boards-screen-under-uefi.md`. The boards' screen under
+  UEFI, which milestone 441 made reachable while this lane was running. `uefi_loader` now has aarch64 and riscv64 boot files, so on those architectures
+  there is, for the first time, a firmware stage that has already lit a display and can be asked
+  about it. Two things fall out and neither is built: the loader could paint this block's handoff
+  banner on those architectures too (`find_screen` is under `arch/x86_64/` today), and it could
+  carry the screen to the kernel by synthesising a `simple-framebuffer` node in the device tree it
+  already copies, which is the *same* node milestone 157 will read from U-Boot. That second one is
+  the interesting half: it would give the boards a real firmware framebuffer with no `ramfb` and no
+  `.bss`, and 157's parser would serve both. Not done here because it is a wire format between two
+  boot stages and belongs with 157's own premise check.
 - **Done.** aarch64 and riscv64 have a screen under QEMU, closed 2026-09-19,, through `ramfb`. The
   arch-neutral halves needed no change, which was the claim they were written to make good on.
   Milestone 157 remains the board half. See the section below.
