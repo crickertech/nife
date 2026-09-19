@@ -831,7 +831,7 @@ fn every_walkers_stack_edge_is_ignored_rather_than_indexed() {
         b.end_node();
     }
     let blob = b.finish();
-    let dt = Dtb::from_bytes(&blob).unwrap();
+    let dt = DeviceTreeBlob::from_bytes(&blob).unwrap();
 
     // Each returns rather than panicking, and each says "not found" rather than answering from a
     // depth it stopped tracking.
@@ -868,7 +868,7 @@ fn a_sibling_does_not_answer_with_its_predecessors_property() {
     b.end_node();
     b.end_node();
     let blob = b.finish();
-    let dt = Dtb::from_bytes(&blob).unwrap();
+    let dt = DeviceTreeBlob::from_bytes(&blob).unwrap();
     assert_eq!(
         dt.node_prop_compatible(b"wanted,thing", b"clock-frequency"),
         Ok(None),
@@ -887,7 +887,7 @@ fn a_sibling_does_not_answer_with_its_predecessors_property() {
     b.end_node();
     b.end_node();
     let blob = b.finish();
-    let dt = Dtb::from_bytes(&blob).unwrap();
+    let dt = DeviceTreeBlob::from_bytes(&blob).unwrap();
     assert_eq!(
         dt.phandle_prop(2, b"clock-frequency"),
         Ok(None),
@@ -905,7 +905,7 @@ fn a_sibling_does_not_answer_with_its_predecessors_property() {
     b.end_node();
     b.end_node();
     let blob = b.finish();
-    let dt = Dtb::from_bytes(&blob).unwrap();
+    let dt = DeviceTreeBlob::from_bytes(&blob).unwrap();
     assert_eq!(
         dt.node_prop_inherited(b"second", b"clock-frequency"),
         Ok(None),
@@ -930,7 +930,7 @@ fn an_inherited_property_comes_from_the_named_node_not_the_first_one() {
     b.end_node();
     b.end_node();
     let blob = b.finish();
-    let dt = Dtb::from_bytes(&blob).unwrap();
+    let dt = DeviceTreeBlob::from_bytes(&blob).unwrap();
 
     let v = dt
         .node_prop_inherited(b"soc", b"clock-frequency")

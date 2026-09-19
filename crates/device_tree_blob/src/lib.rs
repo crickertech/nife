@@ -33,12 +33,12 @@
 //!
 //! **Performed 2026-09-19**, with the type (`Dtb` to `DeviceTreeBlob`) and the fuzz target
 //! (`dtb_walk` to `device_tree_blob_walk`, dictionary included) under calef's rulings of that
-//! day. Census of `dtb` as a word, not counting the `.dtb` suffix or `dtc -I dtb`: 327 before, 159
+//! day. Census of `dtb` as a word, not counting the blob files' extension or `dtc -I dtb`: 327 before, 159
 //! after. Of the survivors, 64 name **the blob rather than the crate** and pass the ownership test
 //! the other way: `let dtb`, `kernel_main(dtb)`, `crate::DTB`, `dtb_ptr`, `configure_from_dtb`,
 //! and the test file `crates/pci/tests/qemu_virt_dtb.rs`. 15 are in `design/decisions/`, 2 are this
 //! block's refusal and known cost, and 78 are the old name in an account, a measurement or a
-//! ruling. **The `.dtb` extension did not move**: 86 occurrences and 20 files before and after,
+//! ruling. **The blob files' extension did not move**: 86 occurrences and 20 files before and after,
 //! every filename unchanged, the five fixtures here included (their directory moved, they did not).
 
 #![cfg_attr(not(test), no_std)]
