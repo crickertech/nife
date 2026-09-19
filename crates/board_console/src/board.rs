@@ -334,6 +334,25 @@ pub fn profile(name: &str) -> Option<&'static Profile> {
 mod tests {
     use super::*;
 
+    /// **A rung built at run time reads back what it was given, and compares by depth alone.** The
+    /// profiles build every rung in a `const`, so nothing else runs [`Rung::new`], [`Rung::key`] or
+    /// [`Rung::label`] outside a failing assertion's message; and ordering by depth while ignoring
+    /// label and signs is the module's stated identity rule, which only a comparison can check.
+    #[test]
+    fn a_rung_reads_back_its_fields_and_orders_by_depth_alone() {
+        let first = Rung::new(1, "spl", "U-Boot SPL", &[Sign::Text("U-Boot SPL")]);
+        let second = Rung::new(2, "uboot", "U-Boot", &[Sign::Text("StarFive #")]);
+        assert_eq!(first.key(), "spl");
+        assert_eq!(first.label(), "U-Boot SPL");
+        assert_eq!(first.depth(), 1);
+        assert!(first < second);
+        assert_eq!(first.partial_cmp(&second), Some(Ordering::Less));
+        let relabelled = Rung::new(1, "other", "Other", &[]);
+        assert_eq!(first, relabelled);
+        assert!(first.seen_in("U-Boot SPL 2021.10", true));
+        assert!(!relabelled.seen_in("U-Boot SPL 2021.10", true));
+    }
+
     /// The depths are written by hand beside each rung, so something has to say they are the
     /// positions they claim to be: a duplicate or a gap would make the ratchet compare two rungs
     /// as equal and silently stop moving.
