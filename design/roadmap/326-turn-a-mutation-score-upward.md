@@ -14,6 +14,7 @@ where the reasons live.
 | crate | missed before | missed after | killed | equivalent | recorded gap |
 |---|---|---|---|---|---|
 | `capability` | 8 | 3 | 5 | 3 | 0 |
+| `memory_regions` | 8 | 0 | 6 | 0 | 0 |
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the
