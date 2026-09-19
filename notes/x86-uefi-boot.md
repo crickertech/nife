@@ -806,9 +806,11 @@ is the whole difference between a bring-up and a stare.
 - **Nothing verifies what the loader hands over.** The kernel and the archive are bytes the loader
   was compiled with, so the trust boundary is the build; `measured_boot`'s manifest is not consulted
   and the image is not signed. That is also why Secure Boot has to be off.
-- **A stale `.efi` on a stick is silent.** The loader embeds the kernel, so a stick that was written
-  last week boots last week's kernel with nothing to say so. `cargo xtask uefi-image` rebuilds both
-  every time, which moves the hazard to the copy step rather than removing it.
+- **A stale `.efi` on a stick is silent** when the stick was made by hand. The loader embeds the
+  kernel, so a stick that was written last week boots last week's kernel with nothing to say so.
+  `cargo xtask uefi-image` rebuilds both every time, which moves the hazard to the copy step rather
+  than removing it. A stick written by `stick_maker` carries `NIFE.TXT` with the build and each
+  file's digest (notes/boot-stick.md), which makes it checkable, not fresh.
 - **`uefi-test` can go red after its own suite has passed, and the message around it points at the
   wrong cause.** Milestone 117's sixth stranger run (2026-09-19, on the dev Mac, two other lanes
   gating beside it) saw the kernel suite under OVMF print `test result: ok. 215 passed, 71 skipped`
