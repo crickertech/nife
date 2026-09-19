@@ -90,7 +90,7 @@ use filesystem_protocol::{blk, req};
 use globally_unique_identifier_partition_table::entry::NAME_UNITS;
 use globally_unique_identifier_partition_table::guid::types;
 use globally_unique_identifier_partition_table::span::Span;
-use globally_unique_identifier_partition_table::{Gpt, mbr};
+use globally_unique_identifier_partition_table::{GloballyUniqueIdentifierPartitionTable, mbr};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, send};
 
@@ -281,7 +281,7 @@ fn read_table(block_count: u64, partitions: &mut u64, nife_first_lba: &mut u64) 
     if mbr::validate(&primary[..LBA as usize], block_count).is_ok() {
         flags |= F_MBR;
     }
-    let Ok(table) = Gpt::parse(
+    let Ok(table) = GloballyUniqueIdentifierPartitionTable::parse(
         &primary[LBA as usize..2 * LBA as usize],
         &primary[2 * LBA as usize..],
     ) else {
@@ -290,8 +290,9 @@ fn read_table(block_count: u64, partitions: &mut u64, nife_first_lba: &mut u64) 
     flags |= F_PRIMARY;
 
     // The backup: the entry array plus the header, ending on the last block of the disk. Reading it
-    // is a second I/O on purpose (`Gpt::check_backup` is separate for exactly this reason), and it
-    // is the check that says whether anything has happened to this disk since it was written.
+    // is a second I/O on purpose (`GloballyUniqueIdentifierPartitionTable::check_backup` is
+    // separate for exactly this reason), and it is the check that says whether anything has
+    // happened to this disk since it was written.
     let backup_lba = table.backup_entry_lba();
     let backup_blocks = block_count.saturating_sub(backup_lba);
     let tail_buf = backup();

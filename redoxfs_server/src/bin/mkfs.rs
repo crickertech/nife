@@ -80,7 +80,7 @@ extern crate alloc;
 use entropy_protocol as entropy;
 use filesystem_protocol::fixture::blank;
 use filesystem_protocol::{blk, req};
-use globally_unique_identifier_partition_table::Gpt;
+use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 use globally_unique_identifier_partition_table::guid::types;
 use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
 use redoxfs_server::Server;
@@ -319,7 +319,7 @@ fn data_partition() -> Option<(u64, u64)> {
         }
     }
 
-    let table = Gpt::parse(
+    let table = GloballyUniqueIdentifierPartitionTable::parse(
         &head[LBA as usize..2 * LBA as usize],
         &head[2 * LBA as usize..],
     )

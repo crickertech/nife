@@ -101,9 +101,9 @@ const SURVEY_SLOT_RESUME: u64 = 5;
 /// A measurement rather than a guess, and the same lesson `spawn_fs_client` records: with none the
 /// surveyor overflowed by about 200 bytes, which presented as a data abort on its own `sp` and then
 /// as the 60-second lost-wakeup watchdog, because the test was still waiting for a report from a
-/// process that had died. `Gpt::parse` walks 128 entries and a debug-build `Entry` is 128 bytes by
-/// value; `check_backup` decodes a second header beside the first. Four pages is comfortably over
-/// what it used and still small.
+/// process that had died. `GloballyUniqueIdentifierPartitionTable::parse` walks 128 entries and a
+/// debug-build `Entry` is 128 bytes by value; `check_backup` decodes a second header beside the
+/// first. Four pages is comfortably over what it used and still small.
 const SURVEY_EXTRA_STACK: usize = 4;
 
 /// What the surveyor was wired with, so a test can take its reports.
@@ -368,9 +368,9 @@ impl HolderWiring {
 
 /// Stack pages **below** the single one `run` maps, for the partitioner.
 ///
-/// The same four the surveyor needs and for the same measured reason: `Gpt::parse` walks 128
-/// entries and a debug-build `Entry` is 128 bytes by value. The write path adds a 512-byte block of
-/// scratch on top of that.
+/// The same four the surveyor needs and for the same measured reason:
+/// `GloballyUniqueIdentifierPartitionTable::parse` walks 128 entries and a debug-build `Entry` is
+/// 128 bytes by value. The write path adds a 512-byte block of scratch on top of that.
 const PARTITION_EXTRA_STACK: usize = 4;
 
 // The partitioner's capability table. Must match components/src/disk_partitioner.rs. Slot 2 is the hole the

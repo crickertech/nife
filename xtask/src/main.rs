@@ -4407,6 +4407,7 @@ fn mkblankdisk() -> bool {
 /// is a fact about this table's current order.
 fn blank_check_after_run() -> bool {
     use filesystem_protocol::fixture::blank;
+    use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 
     let path = blank_disk_path();
     let Ok(img) = std::fs::read(&path) else {
@@ -4427,7 +4428,7 @@ fn blank_check_after_run() -> bool {
         eprintln!("BLANK IMAGE CHECK FAILED: the protective MBR the guest wrote is bad: {e:?}");
         return false;
     }
-    let table = match globally_unique_identifier_partition_table::Gpt::parse(
+    let table = match GloballyUniqueIdentifierPartitionTable::parse(
         &img[lba..2 * lba],
         &img[2 * lba..34 * lba],
     ) {
