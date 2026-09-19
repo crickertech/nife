@@ -215,6 +215,18 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 154 | DECIDED | [The acronym test is whether the phrase is spoken, applied recursively](154-the-acronym-test-is-whether-the-phrase-is-spoken.md) |
 | 155 | DECIDED | [The naming conventions move out of the constitution, and the note becomes the rule](155-naming-conventions-move-out-of-the-constitution.md) |
 | 156 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](156-nvme-in-the-block-roster.md) |
+| 157 | PROPOSED | [What a subshell copies, given that a capability set cannot always be copied](157-what-a-subshell-copies.md) |
+| 158 | PROPOSED | [Which subset counts as running Vaultwarden](158-what-counts-as-running-vaultwarden.md) |
+| 159 | PROPOSED | [Whether a holder can give up a mapping, and what gives it up](159-giving-up-a-mapping.md) |
+| 160 | PROPOSED | [Where a confined device's IOMMU fault is delivered](160-where-a-device-fault-is-delivered.md) |
+| 161 | PROPOSED | [Whether the kernel resolves a tid it already sent to the supervisor that received it](161-resolving-a-tid-a-supervisor-holds.md) |
+| 162 | PROPOSED | [Where a stored secret comes from on a boot that is not a test](162-where-a-stored-secret-comes-from.md) |
+| 163 | PROPOSED | [The rasteriser dependency, and whether the glyph atlas ships one face or four](163-the-rasteriser-and-how-many-faces.md) |
+| 164 | PROPOSED | [What a profiling session's grant names](164-what-a-profiling-session-may-name.md) |
+| 165 | PROPOSED | [Where a proof-gated credential rotation verb lives](165-where-a-rotation-verb-lives.md) |
+| 166 | PROPOSED | [Whether a clipboard exists here, and what it is scoped to](166-whether-a-clipboard-exists.md) |
+| 167 | PROPOSED | [How a foreign program is told what to do](167-how-a-foreign-program-is-told-what-to-do.md) |
+| 168 | PROPOSED | [Where a program image starts, and where the stack goes](168-where-a-program-image-starts.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

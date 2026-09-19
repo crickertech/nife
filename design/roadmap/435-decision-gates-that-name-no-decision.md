@@ -16,7 +16,7 @@ from calef* section, which is one rung above a chat message and below where AGEN
 decision:
 
 > **Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
-> only in chat scrollback is in exactly the medium milestone 94 was written to abolish.
+> only in chat scrollback is in exactly the medium milestone 94 was written to abolish
 >
 > -- AGENTS.md
 
