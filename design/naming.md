@@ -1102,7 +1102,8 @@ names review that performed six renames.
 | Carries the name | Moves? | Why |
 |---|---|---|
 | The crate directory, package name, dependency entries | **Yes** | They *are* the name |
-| A **note filename** (`notes/asids.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the crate** (`notes/asids.md`, `notes/gpt.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the concept or for another thing** (`notes/ipc-naming.md`, about inter-process communication; `notes/ipc-tables-lock-inventory.md`, about the `IPC_TABLES` lock §118 named) | **No** | The ownership test below: it keeps its name when our crate is deleted. The earlier wording of the row above said only "a note filename", and read that way it would have renamed both of these |
 | A **roadmap slug** (`design/roadmap/15-asids.md`) | **No** | Exempt, standing rule: roadmap titles and slugs are drafts, and the number is what people cite |
 | A **hardware field or wire name** (`satp.ASID`, `NVMe 1.4 §3.1`) | **Never** | A citation of somebody else's specification |
 | A **public type named for the acronym** (`Gpt`, `Dtb`) | **Yes** | calef, 2026-09-19: a reader meets the type far more often than the crate, so leaving it short leaves most of the acronym in place. `Nvme` had already moved with its family. **`Guid` stays** under its own 2026-09-13 ruling, which is about byte order rather than length |
@@ -1110,7 +1111,7 @@ names review that performed six renames.
 | A **`BUILT` block, a transcript, a dated account** | **Never** | The status table above |
 
 **The note half has a cost the crate half does not: every citation of the old path breaks.**
-`notes/gpt.md` was cited by 18 files when it moved, and `notes/ipc-naming.md` is cited by 24. `script/lint` check 4c verifies that
+`notes/gpt.md` was cited by 18 files when it moved. `script/lint` check 4c verifies that
 a markdown *link* target resolves, so it catches those; it does **not** catch a path written in prose
 outside a link, and both forms exist in this tree. Grep for both.
 
