@@ -34,6 +34,13 @@ manifest; the flashed L4T revision and whether U-Boot comes up without a JetPack
 entry EL and the DTB register from this U-Boot; PSCI visibility to a non-Linux payload on shipped
 firmware; PMCCNTR readable at EL1; what pins the 1.9 GHz clock; sel4bench booting from SD rather
 than the Foundation's rig; the A57 errata sheet negative-check.
+**And whether argon's U-Boot boots a USB stick through UEFI** (added 2026-09-19, from DECISIONS
+§157, whose stick should serve the bench as well as a customer). The tree records nothing about the
+TX1's boot sources yet; recalled, not read, is that it boots from eMMC through NVIDIA's chain and
+that L4T's U-Boot can read USB storage and SD. The same five commands as radon's
+(notes/visionfive2.md, "To measure at the bench", item 10) answer it at argon's U-Boot prompt with a
+FAT32 stick in: `usb start`, `usb storage`, `fatls usb 0:1 /`, `help bootefi`,
+`printenv boot_targets`.
 
 ## Prerequisite 1 (2026-09-02): the EL2 to EL1 entry drop, built and rehearsed on QEMU
 
