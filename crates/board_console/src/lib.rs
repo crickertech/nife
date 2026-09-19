@@ -18,6 +18,11 @@
 //! - [`screen`] turns a screendump of nife's framebuffer console back into the text that was drawn
 //!   into it, so that [`progress`] judges a monitor exactly as it judges a cable.
 //!
+//! And one part that is data rather than code (milestone 324 part 3):
+//!
+//! - [`board`] declares each board's **firmware prologue**, which is the only thing about this tool
+//!   that is a board's rather than the kernel's. calef's ruling of 2026-09-19 is in its header.
+//!
 //! And one part that reads a capture after the fact rather than a board in front of it:
 //!
 //! - [`lottery`] takes a log of *many* boots and reports what the thread-placement lottery drew
@@ -156,9 +161,25 @@
 //! gated at runtime by the speed read-back, which runs on every real session rather than only when
 //! somebody runs the tests.
 //!
-//! **One board's vocabulary.** The stages are the VisionFive 2's boot chain. An aarch64 or `x86_64`
-//! board would want the same shape with different banners, and whether that is one tool with a
-//! profile or three tools is an open design question the roadmap block names and does not answer.
+//! **The board profile is the firmware prologue, and exactly one board has been checked against
+//! one** (milestone 324 part 3). calef ruled on 2026-09-19 that this is one tool with a profile
+//! rather than a tool per board, and [`board`] is that ruling: radon's four firmware rungs, its two
+//! refusals and its relocation note are declared as data, and everything from [`progress::Stage::Banner`]
+//! up is shared by every board and always was. What the profile does not do is add evidence.
+//! radon's rungs are asserted against bytes off the wire; xenon's *absence* of a prologue rests on
+//! one capture on one day; argon has none on purpose, because a boot chain read out of vendor
+//! documentation for a board that has never printed a byte is a guess wearing a measurement's
+//! clothes. [`board`]'s own `BUGS` carries all of it.
+//!
+//! **A job-mix sweep can now be told from a wedged one, and none has been watched on a board**
+//! (milestone 324 part 2). [`progress::Stage::Sweep`] and [`progress::Stage::SweepDone`] read
+//! `crates/job_mix`'s own markers, so `script/job-mix` and `script/board-console` judge with one
+//! recogniser and return the same five statuses. It was proved under QEMU on 2026-09-19 in all four
+//! outcomes a machine can produce (finished, wedged, out of time, and a refusal built from the
+//! shared constant), and radon has never run a sweep this tool watched: that is milestone 168's own
+//! HARDWARE gate. The sweep has **no wall-clock heartbeat**, unlike a soak, so its quiet timer is
+//! sized against the slowest subrun rather than against a deadline; [`progress::Stage::Sweep`] and
+//! `script/job-mix`'s `BUGS` carry the measured number and what it costs a slow board.
 
 //! # Name
 //!
@@ -192,6 +213,7 @@
 //! chosen before that is answered is a name that may be answering it by accident. Not put to
 //! calef.
 
+pub mod board;
 pub mod lottery;
 pub mod port;
 pub mod progress;

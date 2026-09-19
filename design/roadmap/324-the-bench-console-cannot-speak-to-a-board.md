@@ -1,12 +1,14 @@
 # 324. The bench console cannot speak to any of the three boards
 
-**Status: PARTIAL.** Minted 2026-09-18 by calef, promoting a cluster rather than its members: four
-proposals from three lanes, all about the same tool. *(Number provisional until the merge queue
-lands it.)* **Parts 1 and 4 landed 2026-09-19** (`milestone/324-board-console-write-mode`); parts 2
-and 3 are untouched and each is startable on its own.
+**Status: BUILT 2026-09-19.** Minted 2026-09-18 by calef, promoting a cluster rather than its
+members: four proposals from three lanes, all about the same tool. *(Number provisional until the
+merge queue lands it.)* **Parts 1 and 4 landed first** (`milestone/324-board-console-write-mode`),
+**parts 2 and 3 the same day** (`milestone/324-sweep-recogniser-and-board-profile`). All four are
+in. What no part of this milestone could close is stated in each part and again below: **no byte of
+the writing mode has reached a board, and no job-mix sweep has been watched on one.**
 
-**Gate: NONE.** It was `DECISION` on parts 3 and 4 when this block was minted; calef answered both on
-2026-09-19, in the order this block asked for. A lane can take every remaining part today.
+It was `DECISION` on parts 3 and 4 when this block was minted; calef answered both on 2026-09-19, in
+the order this block asked for, and every part was taken the same day.
 
 **Part 4, decided: yes, it writes, under a mode that names its purpose.** The invariant in
 `script/board-console`'s header changes from *"it reads and never writes to the board"* to **it
@@ -66,10 +68,12 @@ those being a bench session and being a job.
    sample it was asked for, which is 249's own wording for what a writing mode buys. See *What
    landed* below, and read its second paragraph before extending this: the obvious trigger is the
    wrong one.
-2. **Outstanding. It cannot tell a finished job-mix sweep from a wedged one.** `crates/board_console` recognises
-   the boot sequence and, since milestone 219, a soak's stages and heartbeat; the job-mix sweep has
-   no recogniser, so its exit status cannot distinguish the two. Found by milestone 168's lane.
-3. **Outstanding. It serves two boards of three, not one, and the third is not ready to be served.** The part was
+2. **BUILT 2026-09-19. It cannot tell a finished job-mix sweep from a wedged one.**
+   `crates/board_console` recognised the boot sequence and, since milestone 219, a soak's stages and
+   heartbeat; the job-mix sweep had no recogniser, so its exit status could not distinguish the two.
+   Found by milestone 168's lane. Two rungs close it, `sweep` and `sweep-done`; see *What landed,
+   parts 2 and 3* below.
+3. **BUILT 2026-09-19. It serves two boards of three, not one, and the third is not ready to be served.** The part was
    filed on 2026-09-03 saying *"it serves radon only"*, and that was true then. On **2026-09-17** it
    captured xenon's boot over `/dev/cu.usbserial-A28FR8LZ`; the capture is in the tree at
    `bench/xenon-2026-09-17/first-light-095500.log` and a `--replay` of it on 2026-09-19 reports the
@@ -77,7 +81,8 @@ those being a bench session and being a job.
    diagnosis. Nothing was added for xenon, because xenon boots through PVH straight into our banner
    and the portable half of `Stage` is its whole boot. So what is left of this part is radon's
    firmware prologue being hard-coded rather than declared, which is refactoring against a working
-   second case rather than a port. Found by milestone 247's sweep, from milestone 216's block.
+   second case rather than a port. Found by milestone 247's sweep, from milestone 216's block. The
+   prologue is now `crates/board_console/src/board.rs`; see below.
 4. **BUILT 2026-09-19. It cannot type at a board, and it should be able to.** Decided above: a
    named mode, its bytes logged, not a keyboard. What a lane builds is `--stop`, `--stop-after <n>`,
    and the rewritten invariant in `script/board-console`'s header. `notes/board-console.md` already
@@ -181,21 +186,113 @@ was falsified by xenon's own capture on 2026-09-17, both after filing and both b
 2026-09-18. See 323's *What the two decisions cost*, which argues that promotion is where a stale
 premise is cheapest to catch; four instances across two clusters is the evidence for it.
 
+## What landed, 2026-09-19: parts 2 and 3
+
+Two changes to one tool, plus the hoist that both of them turned out to need.
+
+**Part 2, the sweep recogniser.** `crates/board_console::progress` gained two rungs, `Stage::Sweep`
+(`job_mix::STARTED`) and `Stage::SweepDone` (`job_mix::DONE`), one failure (`Failure::SweepFailed`,
+carrying the reason the kernel gave) and the sweep's numbers (`SweepPoint`, `SweepSubrun`). So
+`script/board-console --until sweep-done` now answers the question the part named, and it needed no
+new exit status: `0` finished, `1` refused or otherwise announced, `2` spoke and stopped, `3` ran
+out with points still to print.
+
+**`cargo xtask job-mix` now judges with that recogniser instead of its own loop**, which is the move
+`soak_test` already made and the reason milestone 219's block gives: two readers drift the first
+time either changes. What stood there was `starts_with("job-mix")` with **no timeout at all**, so a
+wedged sweep hung the command forever and a bench script could not tell it from a finished one. It
+now tees the whole boot to a log under `target/` that replays through `script/board-console
+--replay`, and returns the same five statuses.
+
+**All four outcomes were exercised on a machine rather than argued**, which is what makes the
+discrimination a fact: `cargo xtask job-mix` exits **0** on a complete sweep, **2** with
+`--quiet-after 1s` (wedged after the third point), **3** with `--for 12s`, and the refusal path is a
+host test built from `job_mix::FAILED` itself because no kernel here has refused one.
+
+**Part 3, the prologue as data.** `crates/board_console/src/board.rs` declares a `Profile`: ordered
+`Rung`s, the firmware's own `Refusal`s, and the relocation discriminator. `Stage`'s four firmware
+variants became one, `Stage::Firmware(&'static Rung)`, ordered below `Banner` because firmware runs
+before the kernel whatever the board. `Failure::BadImageMagic` and `Failure::UBootRefused` became
+one `Failure::FirmwareRefused`, because both were U-Boot's words rather than ours and a board with
+different firmware refuses in its own. `--board radon|xenon` selects; radon is the default, so no
+existing behaviour moved.
+
+**The test that says the split is real reads one capture twice.** radon's own 2026-09-01 boot, read
+through radon's profile, climbs SPL, OpenSBI, U-Boot and the handoff on its way to the tour. The
+same bytes read through xenon's profile reach **the same tour** and report no firmware rung, because
+none of those lines are xenon's to claim. A second test replays
+`bench/xenon-2026-09-17/first-light-095500.log` through the xenon profile and asserts the banner, the
+machine line, the five-of-five verdict and the measured-boot refusal, with an empty prologue. That
+pair is the ruling made mechanical.
+
+**`--until spl` against a board with no SPL is now refused rather than waited out**, which is the
+smallest visible benefit and the one an operator meets: it used to be a two-minute watch ending in
+"the time ran out".
+
+**One hoist, and it was not optional.** The sweep's console markers were three private `const`s in
+`kernel/src/job_mix.rs` **and four string literals in `xtask/src/main.rs`**. Adding a recogniser
+would have made a third copy, which is milestone 268's finding 3 exactly. They are now
+`crates/job_mix`'s (`STARTED`, `DONE`, `FAILED`, `POINT`, `SUBRUN`, `CENSUS`), beside the workload
+definition both halves of the instrument already read, on `crates/boot_ladder`'s argument and with
+its stable-head convention. `board_console` takes `job_mix` as a dependency for the same reason it
+took `boot_ladder`: ours, in this workspace, `no_std`, no dependencies of its own, no `unsafe`.
+**This is the kernel-side half of the limitation `stop.rs`'s `BUGS` recorded for the soak**, done
+for the sweep because a recogniser could not be written without it; the soak's markers are still
+literals in three places and that entry stands.
+
+**What could not be tested, stated plainly: no sweep has been watched on a board.** This lane had no
+board attached to it and neither radon nor xenon was reachable, so every claim here rests on QEMU
+captures and host tests, the same stand-in `notes/board-console.md`'s testing section already uses.
+radon running a sweep is milestone 168's own HARDWARE gate and part 2 could not close it. The board
+profiles carry the same honesty one level down: radon's rungs are asserted against bytes off the
+wire, xenon's *empty* prologue rests on one capture on one day, and argon has no profile at all.
+
+**One thing this lane chose that calef may want to overrule**, recorded where a reader meets it
+rather than only here: **a sweep has no wall-clock heartbeat**, so its quiet timer cannot be three
+missed beats the way a soak's is. It is sized against the slowest subrun instead: 2.6 seconds
+measured (163,224,570 ticks on a 62.5 MHz counter) in the capture now at
+`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log`, and
+`script/job-mix` defaults `--quiet-after` to sixty seconds, twenty times that. A board more than
+twenty times slower than that host reads as wedged when it is merely slow; `--quiet-after 0` is the
+escape and it costs the detection. The alternative is a heartbeat in `kernel/src/job_mix.rs`, which
+is a kernel change and is recorded below rather than taken.
+
 ## Follow-on
 
-- **Outstanding.** Part 2, the job-mix sweep recogniser. Untouched by this lane and unaffected by
-  it: `crates/board_console/src/progress.rs` still has no marker for a sweep, so a finished one and
-  a wedged one still share an exit status. Checked 2026-09-19 by reading `observe`, which matches
-  the boot ladder, the soak's start and beat lines, and nothing of `script/job-mix`'s.
-- **Outstanding.** Part 3, radon's firmware prologue declared rather than hard-coded. Untouched, and
-  the split the profile needs is still exactly where this block says it is: `Stage`'s lower half is
-  the VisionFive 2's chain and its upper half is the kernel's, reachable on all three architectures
-  since milestone 268. This lane added nothing to either half, because a writing mode is a mode
-  rather than a stage. Checked 2026-09-19.
+- **Done.** Part 2, the job-mix sweep recogniser, and part 3, the board profile, both on
+  `milestone/324-sweep-recogniser-and-board-profile` on 2026-09-19. See *What landed, parts 2 and 3*
+  above.
+- **Recorded.** *The job-mix sweep has no wall-clock heartbeat, so its wedge timer is a guess with
+  headroom*, in the `BUGS` of `script/job-mix` and of `notes/board-console.md`, and beside
+  `Stage::Sweep` in `crates/board_console/src/progress.rs`. **This is the one item here that a
+  reader may want minted as a milestone rather than left a limitation**, and the lane that found it
+  says so plainly rather than claiming a number that is the integrator's.
+  `kernel/src/soak.rs` prints every five seconds whatever the workload is doing, which is what lets
+  a watcher call a hang after three missed beats and be right about it. `kernel/src/job_mix.rs`
+  prints only when a subrun ends, so the sweep's wedge timer is twenty times the slowest subrun
+  anybody has measured and a slow board reads as wedged. It is a kernel change (the supervisor
+  would have to print from a timer rather than between subruns) and it is outside parts 2 and 3.
+  Recorded in `script/job-mix`'s and `notes/board-console.md`'s `BUGS` as well, where a reader meets
+  the number that would stop being a guess.
+- **Recorded.** *No job-mix sweep has been watched on a board*, in the `BUGS` of `script/job-mix`,
+  `crates/board_console/src/lib.rs`, `notes/board-console.md` and
+  `crates/board_console/tests/fixtures/README.md`. radon running one is milestone 168's own
+  HARDWARE gate; the first bench sweep closes it and its exit status is the result.
+- **Recorded.** *Only radon's profile has been checked against a machine, xenon's emptiness rests on
+  one capture, and argon has none*, in the `BUGS` of `crates/board_console/src/board.rs` and of
+  `notes/board-console.md`. argon's prologue stays unwritten until a board prints something, which
+  is this block's own ruling rather than a new decision.
+- **Recorded.** *Nothing gates a board profile against the board it claims to describe*, in
+  `crates/board_console/src/board.rs`'s `BUGS`. The same gap `crates/boot_ladder` carries against
+  the kernel, one level out, and the same mechanism: review, plus a capture for every rung anybody
+  asserts on.
 - **Recorded.** *The soak's console markers are string literals agreeing by a reader having checked,
   in three places now rather than two*, in the `BUGS` of `crates/board_console/src/stop.rs`.
   `crates/boot_ladder` is where the boot tour's markers were hoisted for exactly this reason, and
-  the soak's never were. It is a kernel change and outside parts 1 and 4.
+  the soak's never were. It is a kernel change and outside parts 1 and 4. **The sweep's markers were
+  in the same state and are no longer**: parts 2 and 3's lane hoisted them into `crates/job_mix`
+  because a recogniser could not be written without it, which leaves the soak's as the last set
+  still agreeing by a reader having checked.
 - **Recorded.** *No byte of the writing mode has reached a board*, in the `BUGS` of
   `crates/board_console/src/stop.rs` and of notes/board-console.md, and in *What landed* above. The
   first bench run closes it, and its `DISARMED` line is the result rather than a green check.
@@ -213,6 +310,8 @@ premise is cheapest to catch; four instances across two clusters is the evidence
 
 ## Index row
 
+**Built:** 2026-09-19
+
 `script/board-console` watches a board's serial port and could not type at it, hard-codes radon's
 firmware chain, and cannot tell a finished job-mix sweep from a wedged one. Four lanes filed those
 separately between 2026-09-03 and 2026-09-04; read together they say the bench console is a reader.
@@ -221,7 +320,13 @@ That is load-bearing rather than cosmetic, because the remaining fatal-risk expe
 console that can drive one is what turns those from a bench session into a job. calef decided both
 gated parts on 2026-09-19: it writes, under a named mode whose bytes are logged, and the three boards
 share one tool whose board profile is the firmware prologue alone, with argon deferred behind
-milestone 127 rather than guessed from vendor documentation. **Parts 1 and 4 landed the same day**:
+milestone 127 rather than guessed from vendor documentation. **All four parts landed the same day.**
 `--stop` and `--stop-after <n>` end milestone 249's rebooting soak from a script, the byte goes out
 only on the board's own arming announcement and never before it, and every byte sent is printed into
-the log in hex. No `--stop` has yet run against a board. Parts 2 and 3 are untouched.
+the log in hex. `--until sweep-done` tells a finished job-mix sweep from a wedged one, with no new
+exit status and with `cargo xtask job-mix` judging through the same recogniser rather than a second
+copy that had no timeout at all. And the firmware prologue is data: `--board radon|xenon`, with
+radon's four rungs and two refusals declared in `crates/board_console/src/board.rs` and everything
+from the kernel banner up shared, proved by reading one radon capture through both profiles and
+getting the same tour with and without a prologue. **What none of it proves is hardware**: no
+`--stop` has reached a board and no sweep has been watched on one.
