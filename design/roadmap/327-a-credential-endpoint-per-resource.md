@@ -1,6 +1,12 @@
-# A credential endpoint that is the credential for one resource
+# 327. A credential endpoint that is the credential for one resource
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 54's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 54's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `crates/credential_protocol`'s `verify::VERIFY` is still one opcode whose request carries
+the identity in the shared page (`place(&mut page, b"corinne", b"hunter2", verify::VERIFY)`), so a
+holder of a verify endpoint still chooses which record to test. Nothing has narrowed the wire since;
+the only change in that crate was the 2026-08-30 removal of `NTLM_PROOF` with the SMB
+implementation, which reduced the store to one kind of secret and left the addressing alone.
 
 **Gate: DECISION.** It changes `credential_protocol`, a contract two programs agree on, so it is
 calef's the same way every wire decision in this tree is. The request currently carries the identity
@@ -44,3 +50,15 @@ since been renamed `credential_protocol`.)
 a narrower capability: a request that names its resource is the adapter choosing which record to ask
 about, which is one authority more than it needs, and the endpoint should be the credential for one
 resource so the name is implied and unforgeable."*
+
+## Index row
+
+A holder of a `credential_protocol` verify endpoint names the identity it asks about, so the
+confinement claim for a program that verifies credentials is "it only asks about its own" rather than
+"it cannot ask about anything else", and only the second is checkable from outside. This applies
+DECISIONS §27's argument to `credential_protocol`: the endpoint should be the credential for one
+resource, with the name implied by which endpoint you hold and therefore unforgeable. The consumer
+that motivated it is gone, since milestone 54's SMB adapter was deleted on 2026-08-30, so nothing
+today is visibly harmed by the extra authority; what makes it worth doing is the direction of the
+cost, because the next thing that authenticates anything gets written against the current shape and
+fixing a wire with four callers is a morning.

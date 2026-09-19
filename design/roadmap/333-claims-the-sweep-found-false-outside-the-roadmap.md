@@ -1,7 +1,20 @@
-# The same stale claim, in the code and the notes, where no roadmap gate reads it
+# 333. The same stale claim, in the code and the notes, where no roadmap gate reads it
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 252 sweep, which found each of these
-while checking a `PARTIAL` block's claims against the tree.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 252 sweep;
+numbered 2026-09-19 by milestone 433. **Premise re-checked item by item on 2026-09-19: eight of the
+ten still stand, one is closed, and one could not be confirmed.** Still wrong today:
+`crates/capability/src/lib.rs:98` (the `ENUMERATE` rustdoc's "when `pmap` is built", and `crates/pmap`
+and `components/src/pmap.rs` both exist); `notes/crates-io-on-nife.md` rows 19 and 28 (against
+`filesystem_protocol`'s `GETMTIME`, `SETMTIME` and `SETMTIME_AT`, opcodes 20 to 22);
+`design/decisions/102-frame-names-a-run.md` line 7 ("this decision is still unbuilt");
+`notes/live-replacement.md` line 261; `notes/register-of-measures.md` line 253;
+`kernel/src/arch/aarch64/timer.rs:185`; `components/src/session_reviver.rs` (eight surviving mentions
+of the deleted durable-session type); and milestone 142's duplicated paragraphs. **Closed:** the
+`crates/abi` start invocation, whose doc now says `START` spends all three argument registers rather
+than ignoring them. **Unconfirmed:** the display-name item, because milestone 126's block still
+carries it under "Fork: a process display name" with a recommendation rather than a ruling, so
+`notes/process-view.md` may be right and the sweep's reading of 126 may be the error. A lane taking
+this re-reads that one rather than trusting either record.
 
 **Gate: NONE.** Every item is a comment or a note, each one verifiable by reading the file beside
 it.
@@ -55,3 +68,15 @@ roadmap.
   of them is greppable in the way a path citation is.
 - **It is not exhaustive.** The sweep read 22 blocks and the code each one pointed at. A claim in a
   file no `PARTIAL` block happens to cite was never looked at.
+
+## Index row
+
+Milestone 252 swept 22 `PARTIAL` blocks and corrected them, and the blocks were rarely the only
+place the wrong sentence lived: a stale claim copied into a rustdoc, a module header or a note stayed
+wrong after the block was fixed, and nothing in the tree reads those. `script/roadmap --check` reads
+paths cited in a `## Follow-on` bullet and nothing else, so a claim in a rustdoc is invisible to every
+gate this project has, and these are the claims a reader meets first, because a reader in the code
+does not open the roadmap. This is the list, verified again on 2026-09-19, so that fixing the roadmap
+does not leave the tree quietly disagreeing with it. It is a worklist rather than a mechanism, it
+starts rotting the day it is written, and it is not exhaustive: a claim in a file no `PARTIAL` block
+happens to cite was never looked at.

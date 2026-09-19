@@ -90,7 +90,7 @@ legs.
   the death down the fault endpoint works for the fault and breaks the ordinary path, since every
   clean exit would leave a second message behind its answer and every job would leave init's
   supervision domain, which is what `ps` and `pgrep` read.
-- **Proposed.** `design/roadmap/proposals/a-regression-gate-for-the-fault-path.md`, A regression gate
+- **Milestone 330.** A regression gate
   for the fault path. It needs a program that faults on purpose, which is a new name and therefore
   calef's, and milestone 233's no-thread-killed assertion in `script/shell-check` has to learn to
   except it. The scaffold that proved this milestone was a patch to `components/src/least_authority_demo.rs` and was

@@ -1,6 +1,12 @@
-# A grant on the root of the shell's namespace
+# 328. A grant on the root of the shell's namespace
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 31's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 31's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `crates/filesystem_protocol` carries verbs 0 through 22 and none of them means "the
+directory I already hold, with fewer rights": `dir::Rights::attenuate` is a pure client-side
+constructor that `OPENDIR` and `MKDIR` narrow *through*, not an operation on a held handle. Milestone
+31's block still records the refusal in "The two shapes a grant cannot take", and no interactive boot
+roots the shell below the image root.
 
 **Gate: DECISION.** Both permanent answers are calef's, and they are permanent in different ways. A
 narrowing verb is an addition to `filesystem_protocol`, which two programs agree on, so it cannot be
@@ -40,3 +46,16 @@ wire, and it changes what every other command at that prompt means)."*
 `notes/dir-capability.md` carries the sibling limitation beside the feature: a grant more than one
 level down is a chain of caretakers and is also still a refusal. That one has a home in the BUGS
 convention. This one does not, because it is a fork rather than a limitation.
+
+## Index row
+
+Milestone 31's whole claim is that typing a name is the grant, and at the top prompt that claim is
+false: `rm rmtree/rm-solo` works and `rm gate.txt` is a refusal, and the only difference is one level
+of path. A subtree caretaker attenuates by performing one `OPENDIR` into the directory it was
+granted, the root of the shell's namespace has no name to descend into, and `filesystem_protocol` has
+no verb meaning "the directory I already hold, with fewer rights". The two answers are not equal and
+neither is free: a narrowing verb (`Rights::attenuate` on the wire, no name resolution, small in the
+server) is an addition to something two programs agree on and cannot be un-shipped, and an
+interactive boot rooted one component below the image root puts nothing on the wire and changes what
+every other command at that prompt means. It is the first hole a newcomer typing at the prompt will
+hit, because the top of a namespace is where anyone starts.

@@ -1,6 +1,15 @@
-# Nothing stops the lost prompt returning, because the fault path has no regression gate
+# 330. Nothing stops the lost prompt returning, because the fault path has no regression gate
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 235's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 235's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds, with one correction to where the sibling assertion lives.** No program in
+`components/src/` or `fixtures/src/` faults on purpose, and `script/shell-check` spawns none. The
+no-thread-killed assertion milestone 235 named is real but is **not** in `script/shell-check`: it is
+in `xtask/src/main.rs`, reading the kernel's fault-report text out of the transcript through the same
+`KERNEL_WRITER_ANCHORS` milestone 230 introduced. `script/shell-check`'s own `BUGS` still says "a
+killed user thread is not itself a failure here" and calls that assertion "the obvious next
+ratchet", which stopped being true when milestone 233 landed it; that stale sentence is one of the
+class milestone 333 collects.
 
 **Gate: DECISION.** It needs a program that faults on purpose, and a new program is a new name,
 which is calef's. Everything else is a lane's work.
@@ -38,3 +47,16 @@ faults on purpose, which is a new name and therefore calef's, and milestone 233'
 assertion in `script/shell-check` has to learn to except it. The scaffold that proved this milestone
 was a patch to `components/src/least_authority_demo.rs` and was removed afterwards, so nothing stops the lost prompt
 returning."*
+
+## Index row
+
+Milestone 235 fixed a shell that hangs forever when a spawned command traps, and the evidence it
+was fixed was a scaffold: milestone 233's lane patched `components/src/least_authority_demo.rs` to
+trap, watched the prompt hang, and the patch was removed afterwards. So the defect is fixed and the
+proof is gone. A faulting command reaching the prompt is a property of three couplings any one of
+which a future change can break quietly, and the symptom is a hang rather than an error, which under
+a shell test looks like a slow test and is the failure most likely to be waited out and rerun. The
+work is a program whose job is to fault (a new name, so calef's), an entry in the shell test that
+spawns it and asserts the prompt comes back with a fault reported, and a narrow exception in the
+killed-thread assertion this program exists to violate on purpose. It protects the shell's answer to
+every program in the tree that can fault, not one binary.

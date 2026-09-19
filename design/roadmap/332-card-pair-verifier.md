@@ -1,6 +1,12 @@
-# A card written by any means but ours cannot be checked without booting it
+# 332. A card written by any means but ours cannot be checked without booting it
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 217's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 217's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds, with one correction.** No tool in `script/`, `scripts/` or `xtask` reads a mounted card and
+compares the two artifacts; the only way to find a mismatch is still to power the board and read
+`MEASURED BOOT REFUSED`. The `--card` option that writes a matched pair is in `script/board-image`
+rather than in `xtask` as the proposal implies, and it still copies the set as a set rather than
+verifying one somebody else wrote.
 
 **Gate: NONE.** A lane can start today. Both artifacts are files on disk, the expected digest is the
 one the kernel image was built against, and the check runs on a mounted directory without any
@@ -42,3 +48,16 @@ Milestone 217 (the card carries a kernel and an archive from different builds) n
 that reads a mounted card and reports whether its kernel and its archive match. `--card` narrows who
 needs one rather than removing the need: a card written by any other means stays unverifiable
 without booting it, so a mismatch is found after a power cycle at the bench instead of before one."*
+
+## Index row
+
+A card written by `dd`, by a graphical imager, by a colleague, or by an earlier version of this
+tree carries no guarantee that the kernel on it and the archive beside it come from the same build,
+and today the only way to find out is to power the board and read the refusal. The record of that
+cost is what minted milestone 217: the VisionFive 2 booted, reached U-mode, halted with
+`MEASURED BOOT REFUSED` and two sha256 digests, and there was nothing to do about it except walk back
+to the Mac. The runtime refusal is correct and is the last possible moment to learn it, at the point
+where the person is furthest from the tools that can fix it. The work is to read the kernel image and
+the archive from a mounted path, compute the archive's sha256, and make the same comparison
+`measured_boot` makes at boot, reporting both digests the way the board does. Milestone 217's own
+honest limit carries over: nothing in this tree has touched a real microSD card.

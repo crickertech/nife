@@ -1,6 +1,11 @@
-# A thread is published `Dead` while it is still executing on its own kernel stack
+# 331. A thread is published `Dead` while it is still executing on its own kernel stack
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 124's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 124's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `crates/thread_wake_handshake`'s `RunState` has six variants (`Embryo`, `Ready`, `Running`,
+`Blocked`, `Finished`, `Dead`) and none of them is `Departing`; `depart()` in `kernel/src/sched.rs` still publishes `Dead`, and the window is still
+guarded rather than closed, by `region_reap_verdict(state, on_cpu)` refusing while `on_cpu` is set.
+The crate is still the one loom searches.
 
 **Gate: NONE.** No decision is owed and nothing else is missing. It touches the death protocol and
 `RunState` in `crates/wake_handshake`, where loom searches the transitions, so it wants a lane with
@@ -42,3 +47,16 @@ records as a race."*
 
 The same block's `Recorded.` bullet is the companion fact: this tree has no type that cannot name a
 thread still standing on its stack, and `Departing` is the smallest thing that gets close.
+
+## Index row
+
+`depart()` publishes a thread as `Dead` at a moment when the thread is still running on its own
+kernel stack, and the code that would otherwise free that stack refuses inside the window instead of
+the window not existing. Marking the thread `Departing` in `depart()` and promoting it to `Dead` from
+`finish_switch`, which already holds `SCHED` and already runs at the instant the stack goes free,
+closes it: a remover then never observes a thread whose state says the stack is free while the stack
+is in use, and the transient `NotPermitted` milestone 124 records as a race stops existing rather
+than being handled. That is rung one of AGENTS.md's ladder replacing rung two, and milestone 124
+wrote the weakness down about itself: the `on_cpu` guard is a condition in one function, and the next
+out-of-band remover can forget it exactly as the last one did. `RunState` is loom-searched, so adding
+a state is a change loom will check rather than one it will miss.
