@@ -198,7 +198,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 137 | PROPOSED | [A hardware TRNG with no published health-test claim](137-trng-health-tests.md) |
 | 138 | DECIDED | [How a saturated workload is made to hand threads across cores](138-cross-core-handoff-under-load.md) |
 | 139 | DECIDED | [Who may read the cycle counter, and by what authority](139-cycle-counter-authority.md) |
-| 140 | AMENDED | [The words a finished milestone may use to say what happened to the work it named](140-follow-on-disposition-vocabulary.md) |
+| 140 | DECIDED | [The words a finished milestone may use to say what happened to the work it named](140-follow-on-disposition-vocabulary.md) |
 | 141 | DECIDED | [Application is grant: what a command line means in a capability system](141-application-is-grant.md) |
 | 142 | DECIDED | [What a spawner retains over a child after `START`](142-spawn-retention.md) |
 | 143 | DECIDED | [A machine's name is not a hardware fact, and source comments should say the hardware](143-machine-names-in-source.md) |

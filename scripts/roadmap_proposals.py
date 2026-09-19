@@ -1,43 +1,28 @@
-"""Reading an unnumbered roadmap proposal, a record form this tree no longer writes.
+"""Reading an unnumbered roadmap proposal, for the `script/` entry points that count them.
 
-**The form is historical as of 2026-09-19** (milestone 434). `design/roadmap/proposals/` existed
-from 2026-09-03 to 2026-09-19, holding work a lane had identified and could not number, because
-concurrent lanes cannot see each other and two reaching for the same number collide. calef retired
-it by removing the constraint instead of routing around it: a lane now writes the numbered block
-itself, `NOT-STARTED`, with the number provisional, and the integrator renumbers at merge. Milestone
-433 drained all 106 files out of the directory and 434 cut the machinery that read it.
+**What a proposal is** (milestone 247, calef 2026-09-03). Anybody may add to the roadmap;
+prioritising it is a different act. A lane that finds work it is not doing writes
+`design/roadmap/proposals/<slug>.md` with no number in it, because the thing concurrent lanes
+collide over is the NUMBER and not the authority. The integrator promotes one at merge: give it a
+number, `git mv` it up a directory, add the index row.
 
-**So why this module is still here, with one caller.** `script/metrics` counts the pile per week
-(milestone 276), and that dashboard is a RESTATEMENT: `--backfill` rewrites every week's row by
-applying today's definitions to old commits, reading blobs at revisions nobody has checked out. The
-`proposals_unnumbered` column is 74 at 2026W36 and 93 at 2026W38, and both numbers are true about
-the tree at those revisions. Delete this parse and the next backfill writes zero into both, which is
-a dashboard quietly lying about a fortnight that happened. That rise and fall is the measurement
-`design/decisions/140-follow-on-disposition-vocabulary.md` and milestone 433 both rest on, so it is
-the last thing to erase.
-
-It stays a module rather than fifty lines folded into `script/metrics` because this paragraph has to
-be somewhere a reader meets it: the column is permanently zero going forward, and a column that can
-only be zero looks like a bug unless something says why. Milestone 236's rule (a derivation two
-scripts each copy will drift while both look authoritative) is what put it here and no longer
-applies, since `script/roadmap` stopped calling it.
-
-**What went with the directory.** `promoted_from`, which read a numbered block's claim that it had
-been promoted out of the pile, and the ordering check in `script/roadmap` that was its only caller.
-Promotion is not an act anybody performs now.
+**Why this file exists.** `script/roadmap` gates the pile and lists it; `script/metrics` counts it
+per week (milestone 276). Milestone 236's rule is that a derivation two scripts each carry a copy of
+will drift while both keep looking authoritative, and the pile's whole defence against becoming a
+graveyard is that a script can see it, so a second definition that quietly disagreed about what
+counts is the one failure this record cannot afford.
 
 **What is deliberately not here**, the same line `scripts/rust_source.py` and
 `scripts/name_provenance.py` draw: only the derivation over a filename and a file's text. The
-directory LISTING stays at the caller, because `script/metrics` reads blobs at revisions nobody has
-checked out.
+directory LISTING stays at the caller, because `script/roadmap` reads the working tree and
+`script/metrics` reads blobs at revisions nobody has checked out.
 
 Name: provisional, minted by milestone 276's lane on 2026-09-11, and it is a shared python module
 under `scripts/`, which `script/names` puts out of its own scope, so this paragraph is the record
 rather than a `Name:` block. `proposals` alone would not say which proposals (this tree also has
 `**Status: PROPOSED**` decisions in `design/decisions/`, a different record with a different form);
 `roadmap_records` would promise the index rows too, which live in two different parses that this
-does not touch. calef names modules, and has not ratified it. The name is now a claim about a form
-that no longer exists, which is a rename and therefore his too.
+does not touch. calef names modules, and has not ratified it.
 """
 
 import re
@@ -102,3 +87,69 @@ def classify(text):
     if not _GATE.match(gate):
         return None, None, NO_GATE
     return status.group(1), lines[0][2:], None
+
+
+# ---- promotion, which removes the proposal ------------------------------------
+#
+# **A promoted proposal is deleted, and the milestone is where its work lives.** calef ruled this
+# twice in one day and the second ruling is the one that stands: on the morning of 2026-09-18 he
+# allowed a promoted proposal to be retired in place, carrying a `**Promoted:**` line; that evening,
+# looking at what the first cluster promotion actually did to the directory, he reversed it. *"I'd
+# like to drain the proposal files as we promote them versus accumulate another place where we
+# capture work."*
+#
+# **The reversal is right and the evidence that argued against it was weaker than it looked.** The
+# case for keeping was milestone 304's proposal, said to carry three things it got wrong that its
+# block did not. Its block carries all three, in more detail: the prerequisite that was already
+# done, the four `E0133`s, and Kani's bundled rustc running ten months behind this tree's pin. The
+# same was true of milestone 313's. So keeping the files preserved almost nothing and cost a
+# directory that grows for ever, which is a second place work accumulates and the exact shape
+# `design/roadmap/README.md` calls a burial in a new location.
+#
+# So the count this module feeds is the count of files, and a promoted proposal stops being either.
+# What a promotion owes instead is that **anything the proposal carried and the milestone does not
+# gets folded in before the file goes**, which is draining rather than discarding.
+#
+# **What this cannot do**, and the second half is the larger one.
+#
+# Nothing can find a promotion nobody wrote down. `promoted_from` reads a numbered block's own
+# claim, and a spelling it does not know is a silent miss.
+#
+# **And a proposal closed without ever being promoted is invisible here**, which is the half of
+# calef's rule no gate reaches. The ordering IS gated for a proposal a numbered block names in a
+# `**Proposed.**` follow-on bullet, because that disposition must resolve to a file that exists, so
+# deleting one fails the build. The rest are standalone, and deleting one leaves NOTHING in the
+# working tree to notice: this module reads the tree, not the history. A gate that read `git log`
+# could see it and is deliberately not written here, because `script/metrics` reads blobs at
+# revisions nobody has checked out and the two callers would then need different answers to the same
+# question.
+CITATION = 'promoted from the proposal `<slug>`'
+
+_PROMOTED_FROM = re.compile(r"promoted from the proposal `([a-z][a-z0-9-]*)`", re.I)
+
+# The two spellings already in the tree on 2026-09-18, recognised so that this reads the record as
+# it stands rather than only the record as it should have been written. A path (milestones 304, 315)
+# or a parenthesised slug (313).
+#
+# **Both require the promotion verb, and that is the whole difficulty.** The first draft matched any
+# `proposals/<slug>.md` in a status paragraph and reported milestone 259, which says it was minted
+# "as the other half of" a proposal that is still open and still worth a lane. Citing a proposal and
+# being promoted from one are different claims, and only the second one disposes of anything.
+_PROMOTED_FROM_LOOSE = (
+    re.compile(r"promoted from\s+`(?:design/roadmap/)?proposals/([a-z][a-z0-9-]*)\.md`", re.I),
+    re.compile(r"proposal\s*\(`([a-z][a-z0-9-]*)`\)", re.I),
+)
+
+
+def promoted_from(status_paragraph):
+    """The proposal slug a numbered block says it was promoted from, or None.
+
+    None is the common case: most blocks were never proposals. A block that cites a proposal
+    WITHOUT claiming promotion (milestone 259, "the other half of") returns None too, because that
+    proposal is still somebody's to take.
+    """
+    for pattern in (_PROMOTED_FROM,) + _PROMOTED_FROM_LOOSE:
+        m = pattern.search(status_paragraph)
+        if m:
+            return m.group(1)
+    return None

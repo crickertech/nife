@@ -1,8 +1,17 @@
 # 433. Drain the proposal pile to zero, and keep it there
 
-**Status: BUILT** 2026-09-19, in one evening by four lanes. The directory
-`design/roadmap/proposals/` is empty and `script/roadmap` no longer prints a proposal count at all.
-Minted the same day by calef, who ruled the pile should not exist:
+**Status: BUILT** 2026-09-19, in one evening by four lanes. All 106 files are numbered milestones
+and `design/roadmap/proposals/` is empty.
+
+**Empty, not abolished, and the difference took a round trip to establish.** The maintainer read
+this milestone's ruling as a case against the directory and retired it (milestone 434), which calef
+reversed the same evening: *"There will be future proposals. Deleting support for them would be
+short sighted. We just don't want anything to change for future proposals. The mechanism was working
+fine. We just needed to see them into milestones."* So the mechanism below stands unchanged and what
+this milestone bought is the drain, not a rule change. 434 carries the two costs the maintainer
+failed to price.
+
+Minted the same day by calef, who ruled the pile should not accumulate:
 *"We should promote them all to milestones and then close them versus leave them as proposals. We
 want to drive proposals to zero."* *(Number provisional until the merge queue lands it.)*
 

@@ -52,11 +52,6 @@ convention that records a ratification was invented on 2026-08-04, and proposals
 the directory was created on 2026-09-04. Neither is backfilled, and each section says so where its
 bars are.
 
-**And a zero can mean the record has stopped existing, which is the same problem at the other end.**
-`proposals_unnumbered` is zero from 2026W38 on because the directory was retired on 2026-09-19, not
-because nobody identified any work that week: the work moved into the roadmap proper. A closed
-series reads exactly like a dead one, so the section below says which it is.
-
 **Weeks are ISO weeks in UTC**, which is this tree's date convention. The first commits are stamped
 2026-07-12 in the architect's local time and fall on the Monday in UTC, so the series starts at
 2026W29 and there is no 2026W28.
@@ -191,71 +186,58 @@ attention, so a growing queue says the tree is growing faster than one reviewer 
 nothing at all about the names being wrong. **The band worth an alarm is `Unrecorded`**, because that
 is a name nobody anywhere argued for, and it is the one this chart has at zero.
 
-## Unnumbered proposals, a series that opened and closed in sixteen days
+## Unnumbered proposals
 
-**Zero, 74, 93, zero**, which is the whole of the `proposals_unnumbered` column in the CSV. There is
-no chart, because three bars with two of them zero is a sentence rather than a series.
+**74 at 2026W36, and zero in every week before it**, which is the `proposals_unnumbered` column in
+the CSV. There is no chart, because there is one bar: `design/roadmap/proposals/` was created on
+2026-09-04 by milestone 247 (follow-on work named by a finished
+milestone goes nowhere, and this is the third time), and a single measurement is a number rather
+than a series. The column exists so that the series accumulates from here.
 
-`design/roadmap/proposals/` was created on 2026-09-04 by milestone 247 (follow-on work named by a
-finished milestone goes nowhere, and this is the third time), and **retired on 2026-09-19**
-by calef, who asked one question of it: *"Shouldn't a proposal become a milestone as NOT-STARTED?"*
-Milestone 433 drained all 106 files into numbered blocks in one evening and milestone 434 cut the
-machinery. A lane that identifies work now writes the numbered block itself, `NOT-STARTED`, with the
-number provisional, so the work lands in the milestones chart above instead of here.
+**Nothing else on this page could count these, and that is the reason for the column.** The
+milestones chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number
+(that table is generated as of milestone 294, and a week whose row was counted before the index was
+regenerated undercounts by however many milestones landed in between; it self-corrects on the next
+regeneration, and past weeks are read from their own revisions).
+A proposal is *defined* by not having one: a lane that finds work it is not doing writes
+`design/roadmap/proposals/<slug>.md`, because the thing concurrent lanes collide over is the number
+and not the authority, and an integrator assigns the number at promotion. So the pile was invisible
+to every column here by construction, not by oversight.
 
-**The column stays, and the reason is what this page is for.** Every row is a restatement computed
-from the revision it names, so those two middle numbers are true about the tree as it stood, and
-the series is the measurement the retirement rests on: 106 files in sixteen days, 66 of them
-startable and none of them visible to `script/roadmap --ready`, which is the command a lane picks
-work from. Roughly half the tree's available work was behind a second command nobody ran. Deleting
-the parse would make the next backfill write zero into weeks 36 and 38 and take the evidence with
-it.
-
-**Nothing else on this page could count these, which was the reason for the column.** The milestones
-chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number (that table
-is generated as of milestone 294, and a week whose row was counted before the index was regenerated
-undercounts by however many milestones landed in between; it self-corrects on the next regeneration,
-and past weeks are read from their own revisions). A proposal was *defined* by not having a number,
-so the pile was invisible to every column here by construction rather than by oversight. That is now
-an argument for the retirement rather than for the column: work with a number is counted by the
-chart everyone already reads.
-
-### What a rising line meant here, which is not what it means for names
+### What a rising line means here, which is not what it means for names
 
 The naming section above says a rising `Provisional` band is not debt. **Do not carry that reading
-across**, and the reading outlived the column it was written for, because it now applies to the
-`NOT-STARTED` band one chart up. A provisional name costs nothing while it sits, because nothing is
-waiting on it. An identified piece of work that nobody has scheduled is a different object:
-something in this tree was found to be wrong or missing, and the finding is parked. That is closer
-to debt, and it would be dishonest to file it under the same reassurance.
+across.** A provisional name costs nothing while it sits, because nothing is waiting on it. An
+identified piece of work that nobody has scheduled is a different object: something in this tree was
+found to be wrong or missing, and the finding is parked. That is closer to debt, and it would be
+dishonest to file it under the same reassurance.
 
-But a count alone could not tell you whether the pile was stalling, for two reasons that are worth
-keeping, because they are the reasons a count of parked work never answers that question.
+But the count alone cannot tell you whether the pile is stalling, for two reasons that are worth
+stating rather than leaving to a reader's optimism.
 
-**It was a net count, and the flow was gross.** Five proposals left the directory in the ordinary
-way while it was open, so 86 were written and 81 remained at 2026W36. They left in two ways, which
-is the more interesting half: one was promoted to a number (milestone 256, x86_64 places PCI BARs in
-a hardcoded window, and on xenon that window is RAM), and the others were **done**, by a lane that
-picked the file up and fixed the thing, sometimes filing a narrower proposal in its place
-(`the-tcb-capability-that-outlives-start` became a fix plus
-`the-region-half-of-the-retention-declaration`). A flat line on this column was consistent with a
-stalled pile and equally consistent with one draining exactly as fast as it filled, and nothing here
-distinguished them.
+**It is a net count, and the flow is gross.** Five proposals have left the directory since it
+existed, so 86 have been written and 81 remain. They left in two different ways, which is the more
+interesting half: one was promoted to a number the ordinary way (milestone 256, x86_64 places PCI BARs in a
+hardcoded window, and on xenon that window is RAM), and the others were **done**, by a lane that picked the file up and fixed the
+thing, sometimes filing a narrower proposal in its place (`the-tcb-capability-that-outlives-start`
+became a fix plus `the-region-half-of-the-retention-declaration`). A flat line on this column would
+be consistent with a stalled pile and equally consistent with one draining exactly as fast as it
+fills, and nothing here distinguishes them.
 
-**Age was the tell, and age was never in this column.** `script/roadmap` printed the count and the
-date of the oldest on every `script/lint` run instead, because a gate on age ("no proposal older
-than N days") would have been routed around by not writing proposals. **The number to watch was
-never this one going up; it was this one going up while the oldest date stopped moving**, and that
-is what happened: 93 files with an oldest date of 2026-09-03, sixteen days on.
+**Age is the tell, and age is not in this column.** `script/roadmap`'s own header says so: a gate on
+age ("no proposal older than N days") would be routed around by not writing proposals, which is
+worse, so what it does instead is print the count and the date of the oldest on every `script/lint`
+run. Today the oldest is 2026-09-03 and the directory is a week old, so nothing has had time to go
+stale and the count says nothing yet. **The number to watch is not this one going up; it is this one
+going up while the oldest date stops moving.** `script/roadmap --proposed` lists them oldest first
+and is the view that answers it.
 
-**And a rising line was still better than the alternative it replaced, which is why the successor
-kept the visibility and dropped the directory.** The work in this pile used to live in lane reports,
-which are read once, by one person, on the day they are written. `AGENTS.md` records what that cost:
-milestone 90 exists only because calef happened to be at his desk the day a report named it, and
-milestone 94 swept the tree for exactly this category and then left its own inventory in a pull
-request body for twelve days. 93 visible proposals was a worse number than 93 scheduled milestones
-and a far better one than 93 findings nobody can enumerate. What 2026-09-19 changed is that the
-first of those three is now what gets written.
+**And a rising line is still better than the alternative it replaced.** The work in this pile used
+to live in lane reports, which are read once, by one person, on the day they are written.
+`AGENTS.md` records what that cost: milestone 90 exists only because calef happened to be at his
+desk the day a report named it, and milestone 94 swept the tree for exactly this category and then
+left its own inventory in a pull request body for twelve days. 74 visible proposals is a worse
+number than 74 scheduled milestones and a far better one than 74 findings nobody can enumerate.
 
 ## Rust in the tree
 
@@ -440,11 +422,10 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
   types, `scripts/` helpers and directory names are outside `script/names`' surfaces too, and
   design/naming.md's `BUGS` carries what that leaves uncovered.
-- **`proposals_unnumbered` is a closed series that reads like a dead one.** It is zero from 2026W38
-  on because the directory was retired, not because no work was identified, and nothing in the CSV
-  distinguishes the two. While it was live it was a net count that could not see the flow: five
-  proposals left the directory the ordinary way and a flat line would have been consistent with a
-  stalled pile and with one draining as fast as it filled.
+- **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
+  directory and 81 remain; a flat line would be consistent with a stalled pile and with one
+  draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,
+  which `script/roadmap --check` prints on every lint run and this column does not carry.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
 

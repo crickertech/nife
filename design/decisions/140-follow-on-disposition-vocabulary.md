@@ -1,6 +1,6 @@
 # 140. The words a finished milestone may use to say what happened to the work it named
 
-**Status: AMENDED.** Ratified 2026-09-03 by calef, who took the vocabulary as it stands: *"Ratify proposed."* **Amended 2026-09-19: `Proposed.` is retired and the vocabulary is six words**, recorded at the bottom. The seven words are the gate's, and `Proposed.` is the one he was asked about. *(Number provisional. Section numbers are the integrator's at merge, per
+**Status: DECIDED.** Ratified 2026-09-03 by calef, who took the vocabulary as it stands: *"Ratify proposed."* The seven words are the gate's, and `Proposed.` is the one he was asked about. *(Number provisional. Section numbers are the integrator's at merge, per
 AGENTS.md, and this one was written by the milestone 247 lane.)*
 
 ## What is being decided
@@ -85,46 +85,3 @@ them needs a decision to exist. Five are called out in notes/follow-on-work.md a
 first, on a stated bar: a claim this project makes rests on it, or a record in the tree is now known
 to be wrong. Promotion is prioritising, which is calef's, and it wants numbers minted at merge rather
 than an answer here.
-
-## `Proposed.` retired, 2026-09-19, and the vocabulary is six words
-
-**calef, 2026-09-19**, asked one question that dissolved the word: *"Shouldn't a proposal become a
-milestone as NOT-STARTED?"*
-
-**It should, and the only thing that ever stopped it was the number.** This section's own account
-says so: `Proposed.` was first spelled `Unclaimed.` and took only prose *"because a lane could not
-mint a milestone number and so had nothing to point at"*. The 2026-09-03 remedy gave it something to
-point at, an unnumbered file under `design/roadmap/proposals/`. The 2026-09-19 remedy removes the
-constraint instead: **a lane writes the numbered block itself, `NOT-STARTED`, with the number
-provisional**, exactly as AGENTS.md already lets it write a provisional section number here in
-`design/decisions/`. The integrator renumbers at merge if two collide; the newer file moves and the
-older number stands, so a block that has begun collecting citations never renumbers.
-
-**This section's second open question was right, and was right faster than it guessed.** It asked
-whether a proposal should age, said nothing escalated one, and predicted that *"it is the first thing
-that will look wrong in six months."* It looked wrong in **sixteen days**: the directory reached 106
-files, 66 of them startable and none of them visible to `script/roadmap --ready`, which is the
-command a lane picks work from. Milestone 433 drained it in one evening with four lanes.
-
-**And the ageing question turned out to be the wrong question, which is the part worth keeping.**
-This section refused an age gate because it would be *"routed around by not writing proposals"*. True,
-and there is a better reason: 433 measured **when** the decay happened, and most of it was
-**same-day**. Several proposals were answered by the very lane that wrote them, finishing the work
-that evening. No cadence of draining catches that, because the answer arrives before the next merge.
-What catches it is the block being in the roadmap from the moment it is written, where the lane that
-answers it is already looking.
-
-**What a finished block writes now.** Work it named that nobody has taken is `**Milestone N.**` like
-any other successor, with N provisional if the lane minted it. The gate's requirement is unchanged:
-block N exists and is not this one.
-
-**What is lost, stated because it is a real cost.** `Proposed.` carried a distinction the six words
-cannot: *nobody has taken this* as against *this became a milestone*. Under the new rule both read
-`**Milestone N.**`, and a reader has to open block N and read its status to tell them apart. That is
-one hop, the status line says `NOT-STARTED`, and the row in the generated table says it too, which is
-one hop fewer than the directory cost. The distinction was worth a word when the alternative was a
-lane leaving the item out; it is not worth a directory.
-
-**What this does not change.** Prioritising the roadmap is still calef's, and so is every name.
-Anybody may add to it, which is the 2026-09-03 ruling and the reason this one is a simplification
-rather than a reversal.

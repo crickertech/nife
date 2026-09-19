@@ -1,10 +1,31 @@
 # 434. Retire the `Proposed.` disposition and the machinery that read its directory
 
-**Status: BUILT** 2026-09-19, in one lane. Minted the same day by that lane under the convention it
-exists to finish: the ruling of 2026-09-19 says a lane that identifies work writes the numbered
-block itself, with the number **provisional**, so this is that rule's first use. *(Number
-provisional. Milestone numbers are the integrator's at merge; on a collision the newer file moves
-and the older number stands, per `design/roadmap/README.md`.)*
+**Status: REMOVED** 2026-09-19, the same evening it was built. The work was sound and the premise
+was not: the maintainer read calef's *"we want to drive proposals to zero"* as a ruling to abolish
+`design/roadmap/proposals/`, and his follow-up question, *"shouldn't a proposal become a milestone as
+NOT-STARTED?"*, as a ruling that lanes should skip the proposal step. **He meant neither.** He was
+saying that proposals should be promoted into milestones rather than left to accumulate, which is
+what milestone 433 did to all 106 of them.
+
+**calef, 2026-09-19, on reading what had been done:** *"There will be future proposals. Deleting
+support for them would be short sighted. We just don't want anything to change for future proposals.
+The mechanism was working fine. We just needed to see them into milestones."*
+
+So every cut this block made is reverted: `**Proposed.**` is back in the vocabulary,
+`design/roadmap/proposals/` is back, and so are `--proposed`, `--unclaimed`, `PROPOSED_DIR`,
+`script/fatal-risks`' check 6b and the `script/metrics` column. The block is kept rather than deleted
+because the reverted work was careful and its reasoning is worth reading, and because a `REMOVED`
+block is the record a deleted file would not be, which is calef's own argument for promote-then-close.
+
+**Two costs the maintainer failed to price, and they are why he was wrong**, recorded here so the
+next person weighing this fork starts from them. **A number is permanent and never reused**: of the
+106 promoted that evening, 12 landed `BUILT` or `SUPERSEDED`, so twelve numbers are spent forever on
+work that was already done or subsumed, where a deleted proposal costs nothing. And **the
+low-ceremony door matters most to the person who cannot mint**: the 2026-09-03 ruling's headline is
+*"anybody may add to this roadmap"*, and asking an outside contributor for a global permanent number
+is more than asking for a file with a slug.
+
+*(Number provisional until the merge queue lands it.)*
 
 **It carried `Gate: NONE` while it was open**, because the decision was already made and written
 down in two places and what was left was the code that had not caught up. The line is gone because a

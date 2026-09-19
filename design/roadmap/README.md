@@ -160,6 +160,7 @@ one of seven dispositions, six of which any block may use and `Outstanding.` onl
 | `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
+| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
 | `**Outstanding.**` | Still this milestone's own remaining scope, checked against the tree and still true. `PARTIAL` blocks only. | What is left, and how you checked |
 
 **`PARTIAL` was added by milestone 252, and it is the harder half.** A finished block is written
@@ -169,12 +170,12 @@ lane reads when deciding what to pick up, so a stale one does not merely misinfo
 that does not exist. Milestone 16 listed three things as remaining, two of them were finished, and
 the block said otherwise for weeks.
 
-**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other six
+**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other seven
 say where work *went*; a `PARTIAL` block's commonest honest answer is that it has not gone anywhere
-and is still this milestone's own scope. None of the six can say that without lying, and a lane
+and is still this milestone's own scope. None of the seven can say that without lying, and a lane
 forced to choose would write the comfortable word or leave the item out, which is the silence this
 gate exists to stop arriving through the gate. It is refused on a `BUILT` or `REMOVED` block, where
-`Recorded.` and `Milestone N.` already cover the ground and a softer synonym would only
+`Recorded.`, `Proposed.` and `Milestone N.` already cover the ground and a softer synonym would only
 give them somewhere to hide.
 
 **`None.` is refused on a `PARTIAL` block**, which is the one thing this gate can prove rather than
@@ -196,17 +197,13 @@ observation had to resolve to a milestone, would make the honest thing expensive
 the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
 intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
 
-**`Proposed.` carried this milestone's whole subject and was retired on 2026-09-19**, which leaves
-six words. The problem it solved is real and has not gone away: a block that wrote its follow-on work
-down honestly and had nobody pick it up fits none of the other words, since `Recorded.` lies about
-intent and `Refused.` lies about the decision, so a lane forced to choose writes the more comfortable
-one. Three lanes that would not lie left the item out instead, which is the burial arriving through
-the gate. It went through three shapes: `Unclaimed.`, taking only prose because a lane could not mint
-a number and had nothing to point at; then `Proposed.`, resolving to a file under
-`design/roadmap/proposals/`; and now **`Milestone N.` with N provisional**, because the section below
-lets a lane mint the block itself. The word went because its directory did, and the work it names has
-a stronger home than either earlier shape: a row in the table rather than a file behind a second
-command.
+**`Proposed.` is the one that carries this milestone's whole subject**, and it went through two
+shapes in a day. A block that wrote its follow-on work down honestly and had nobody pick it up fits
+none of the other words: `Recorded.` lies about intent and `Refused.` lies about the decision, so a
+lane forced to choose writes the more comfortable one. Three lanes that would not lie left the item
+out instead, which is the burial arriving through the gate. It was first spelled `Unclaimed.` and
+took only prose, because a lane could not mint a milestone number and had nothing to point at. That
+constraint went the same day, and the disposition now resolves to a file somebody wrote.
 
 **`Done.` came from the same afternoon and four lanes**, for work a block named that two ordinary
 commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
@@ -215,56 +212,51 @@ this gate exists to stop, arriving through the gate itself.
 **The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
 these six words are a lane's, offered with the sweep that produced them.
 
-## Anybody may add to this roadmap, and what they add is a milestone
+## Anybody may add to this roadmap: `design/roadmap/proposals/`
 
-Ratified by calef on 2026-09-03 and **simplified by him on 2026-09-19**, when the mechanism the first
-ruling invented turned out to cost more than the problem it solved.
-
-**A lane that identifies work writes the milestone block itself**, as
-`design/roadmap/<N>-<slug>.md`, `**Status: NOT-STARTED.**`, with the number **provisional** and said
-to be provisional in its report. No coordination, no maintainer in the path, no waiting.
+Ratified by calef on 2026-09-03, and it dissolves a rule this tree had been treating as one thing.
+**A lane writes a proposal itself**, as `design/roadmap/proposals/<slug>.md`, with no number in the
+name. No coordination, no maintainer in the path, no waiting.
 
 *"On a human team, anybody should be able to add to the roadmap. That's different than prioritizing
-that roadmap."* That is the ruling that stands. Prioritising the roadmap is still calef's, and so is
-every name.
+that roadmap."* Lanes were barred from minting because concurrent lanes cannot see each other and
+two reaching for the same number collide. **The collision is in the number, not in the authority**,
+and conflating them meant a lane that found work had to route it through a report, through the
+maintainer, into a decision that might be deferred. Every hop is a chance to lose it, and on the day
+this landed the maintainer had buried three items by deferring them into chat messages. Prioritising
+the roadmap is still calef's, and so is every number and every name.
 
-**What changed is only the number.** The 2026-09-03 ruling routed lanes through an unnumbered
-`design/roadmap/proposals/<slug>.md` because concurrent lanes cannot see each other and two reaching
-for the same number collide: *"the collision is in the number, not in the authority."* True, and the
-remedy was heavier than it needed to be. **This tree already tolerates a provisional number one
-directory over**: AGENTS.md says a lane that must write a `design/decisions/` section to pass its own
-gates gives it a provisional number, says so, and expects renumbering. Milestone numbers are the same
-kind of object.
+**Why a slug and not a GUID**, which was considered and rejected. Milestones are cited in prose
+constantly and a GUID cannot be said out loud. This tree already found bare numbers too opaque, which
+is why it cites a milestone by number *and* name; a GUID moves further along the axis that already
+needed correcting. The slug is the readable half of a filename this directory already uses, so
+nothing new has to be learned, and two lanes collide only by choosing the same words, which is
+visible rather than silent. Numbers stay for promoted blocks, where they also carry recency for free.
 
-**A collision is cheap because a new block has no readers.** What makes a number expensive is the
-61 call sites, the reader's head and the vocabulary people argue in; a block minted an hour ago has
-none of them. Two lanes both reaching for 434 land two files whose names begin `434-`, which is
-visible at merge rather than silent, and the merge queue arbitrates as it does for every other global
-name. **The newer file moves and the older number stands**, so a block that has begun collecting
-citations never renumbers.
+**A proposal carries the same status and gate lines a numbered block does**, so promotion changes
+almost nothing:
 
-**What the directory cost, measured rather than argued.** It ran from 2026-09-03 to 2026-09-19 and
-reached 106 files. On the day it was drained, **66 of them carried gate `NONE`**, meaning a lane could
-have started them, and `script/roadmap --ready` printed 69 milestones while reading no proposals at
-all: roughly half the tree's startable work was invisible to the command a lane picks work from.
-Draining it took four lanes an evening, and **46 of the 106 carried something false** by then. The
-graveyard question this section used to ask of itself was answered by the tree: a proposal nobody
-promotes is the same burial in a new location, and that is what happened.
+```markdown
+# <Title, the way a numbered block is titled>
 
-**And the decay is same-day, which is what kills the directory rather than merely embarrassing it.**
-Of the proposals whose disposition changed on promotion, most were answered **within a day of
-filing**, several by the very lane that wrote them and then finished the work that evening. So no
-cadence of draining would have helped: the answer arrived before the next merge. Milestone 433 has
-the numbers.
+**Status: PROPOSED 2026-09-03.** Written by <who or what>, from milestone <N>'s block.
 
-**The one thing a lane writes that it did not before.** Every numbered block carries an
-`## Index row` section, which `script/roadmap --check` requires and **none of the 106 proposals had**.
-It is a paragraph in the generated table's voice. That paragraph is the whole additional cost, and
-it is what puts the work in the table instead of behind a second command.
+**Gate: NONE.** <what stops a lane starting this>
 
-**`**Proposed.**` is gone from the follow-on vocabulary**, which is six words now. A finished block
-that names work nobody has taken writes `**Milestone N.**` with N provisional, the same as any other.
-See `design/decisions/140-follow-on-disposition-vocabulary.md`.
+**In brief.** <what the work is>
+```
+
+**Promotion is the integrator's, at merge**, like every other global name: give the file its number,
+`git mv` it up a directory, and run `script/roadmap --write` so the generated table below picks up
+its row. `script/roadmap --check` validates the rest.
+
+**The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
+the same burial in a new location. Nothing can force a promotion, and a gate that tried ("no proposal
+older than N days") would be routed around by not writing proposals, which is worse than the pile.
+What the gate does instead is make the pile impossible to miss: the status line carries the date it
+was written, `script/roadmap --check` prints the count and the oldest date on every lint run, and
+`--proposed` lists them oldest first. An unread number is still rung two, where a paragraph in a
+finished block was rung four.
 
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and
@@ -810,7 +802,7 @@ byte for byte; all 17 differences were pre-existing drift in the hand-maintained
 | 431 | SUPERSEDED | [The ACPI walk is reachable by the prover for the first time, and proved by nothing](431-the-acpi-walk-is-reachable-and-unproved.md) | Milestone 304 put `kernel/src/arch/x86_64/` in front of the prover for the first time and its strongest target went with it unproved: the ACPI walk, 836 lines reasoning over firmware-supplied lengths, checksums and counts, which is the shape of input a prover is for and the shape a machine will lie about. This block was filed on 2026-09-18 on the premise that the walk's parsing half in `crates/machine_discovery` carried no harnesses and no `script/verify` row, and that premise was one day stale: milestone 319 proved that crate on 2026-09-17 with fifteen harnesses, three of them false as first written. What remains is the volatile half, one bounded read against the direct map, and milestone 423 states it with the narrower framing 319 made possible. Promoted and superseded in one act on 2026-09-19, because a proposal cannot be disposed of in place and two blocks for one accessor would be two places for the work to rot. | |
 | 432 | NOT-STARTED | [The RISC-V IOMMU driver has no counterpart to the SMMU's proofs](432-the-riscv-iommu-driver-has-no-proof.md) | `arch/aarch64/iommu.rs` carries two Kani harnesses over its entry-building arithmetic, both falsified before they were believed, one of them replayable in `kernel/falsifications/`. The RISC-V driver writes its device context in 64-bit stores with no split, so the property those prove does not apply to it, and **nothing was written in its place**: the boot-time confinement test is the whole of the assurance on that side, on exactly one board, and the same note says what that test cannot do, which is prove the kernel wrote the right entry, since a wrong entry that still confines this device on this board is invisible to it. §19 makes architectural parity a gate rather than an aspiration and this is a parity gap in the boundary milestone 35 calls the one isolation boundary we test instead of prove. The work is not porting the aarch64 harnesses, which would prove a hazard RISC-V does not have; finding the right property is most of it, and writing it down is the deliverable even if the harness that follows is short. | |
 | 433 | BUILT | [Drain the proposal pile to zero, and keep it there](433-drain-the-proposal-pile.md) | The `design/roadmap/proposals/` directory was a number-assignment queue, ratified 2026-09-03 on the argument that the collision is in the number rather than the authority. It reached 106 files and sixteen days, with 66 of them startable today and invisible to `script/roadmap --ready`, which is roughly half the tree's available work hidden behind a second command. calef ruled on 2026-09-19 that they are all promoted and then closed where closing is right, because a numbered block marked `REMOVED` is a record and a deleted proposal is not. This block assigns 327 to 432 once, since a number cannot be minted twice, and records what promotion actually costs: 106 index rows that do not exist yet, 92 follow-on bullets across 71 blocks that name a path about to move, and a premise check on every one, because five read in two days had all decayed. | 2026-09-19 |
-| 434 | BUILT | [Retire the `Proposed.` disposition and the machinery that read its directory](434-retire-the-proposed-disposition.md) | The tree contradicted itself for an afternoon. calef retired the `Proposed.` disposition and the `design/roadmap/proposals/` directory on 2026-09-19, milestone 433 drained all 106 files out of it, and the records were rewritten to say so, while `script/roadmap` still accepted the token, still required it to name a file under a directory that no longer existed, still carried `--proposed` and a `--unclaimed` mode that could only print nothing, and still spent sixty lines of header prose on a queue nobody is in. `script/fatal-risks` and `script/metrics` each kept a piece of the same machinery. This block cuts the token, the two modes and the two checks that can no longer fail, keeps the argument for why the word existed beside what superseded it, and turns the file loop's existing "nothing else lives here" check into the guard that the directory cannot come back in silence. `scripts/roadmap_proposals.py` survives on one caller, because `script/metrics --backfill` restates every week from git history and deleting the parse would rewrite two true weeks to zero. It is also the first use of the convention it finishes: this block was minted by the lane that wrote it, with a provisional number. | 2026-09-19 |
+| 434 | REMOVED | [Retire the `Proposed.` disposition and the machinery that read its directory](434-retire-the-proposed-disposition.md) | The tree contradicted itself for an afternoon. calef retired the `Proposed.` disposition and the `design/roadmap/proposals/` directory on 2026-09-19, milestone 433 drained all 106 files out of it, and the records were rewritten to say so, while `script/roadmap` still accepted the token, still required it to name a file under a directory that no longer existed, still carried `--proposed` and a `--unclaimed` mode that could only print nothing, and still spent sixty lines of header prose on a queue nobody is in. `script/fatal-risks` and `script/metrics` each kept a piece of the same machinery. This block cuts the token, the two modes and the two checks that can no longer fail, keeps the argument for why the word existed beside what superseded it, and turns the file loop's existing "nothing else lives here" check into the guard that the directory cannot come back in silence. `scripts/roadmap_proposals.py` survives on one caller, because `script/metrics --backfill` restates every week from git history and deleting the parse would rewrite two true weeks to zero. It is also the first use of the convention it finishes: this block was minted by the lane that wrote it, with a provisional number. | 2026-09-19 |
 | 435 | IN-PROGRESS | [Forty-five milestones are gated on a decision nobody wrote down](435-decision-gates-that-name-no-decision.md) | Fifty-eight milestones carry a `DECISION` gate and forty-five of them name no decision anywhere a reader can open, so the ask exists only as a paragraph inside the block, addressed to one person. AGENTS.md says open decisions live in a file rather than in a conversation, and a roadmap block is rung three rather than the rung four of chat scrollback, which is why this went unnoticed. calef found it by asking whether milestone 421's freshly corrected gate had a decision behind it; it did not, and §156 was minted on the spot. Twenty-four of the forty-five arrived the same evening from milestone 433's drain, which carried each proposal's gate token across unchanged. The work is a reading per block and one of three outcomes: correct a token that is wrong, write up a fork that is genuinely owed, or cite a decision that already exists. | |
 | 436 | NOT-STARTED | [Forty citations of a proposal path that now resolve to nothing](436-proposal-paths-that-resolve-to-nothing.md) | Milestone 433 drained `design/roadmap/proposals/` and kept each proposal's slug on the numbered block that replaced it, so a reader can still resolve one by hand. About forty backticked citations of the old paths survive across twenty-seven files, in milestone blocks, two audit reports, `design/naming.md`, four notes, one kernel source file and one shell script, and nothing in this tree checks a backticked path outside a follow-on bullet. Roughly ten are mechanical, because the slug still names a numbered block; the rest are the ones earlier promotions folded into cluster blocks without a one-to-one successor, and each of those wants a reading of the cluster block, since a citation rewritten to the wrong block is worse than one that dangles. | |
 | 437 | NOT-STARTED | [A witness bit set is held together by a hand-written list, and the list has gone stale twice](437-a-witness-bit-set-has-no-mechanism.md) | The confinement fixtures' witness bit sets are kept honest by six hand-written lists, and milestone 326's mutation triage found the navigation one stale for the second time and `twodir` never having had one at all: five witness bits could each be silently zeroed and no test would notice, two of them the structural finding `notes/dir-capability.md` records. A `witness_bits!` declaration macro would make the list the place the bits come from, which moves the numbering from rung four to rung one, with `verb::TABLE`'s compile-time blocks as the prior art already in this tree. | |
