@@ -1,7 +1,16 @@
-# The board-only kernel features nothing compiles, until somebody is standing at the board
+# 373. The board-only kernel features nothing compiles, until somebody is standing at the board
 
-**Status: PROPOSED 2026-09-04.** Found by the maintainer/e3-on-radon lane, which added the fifth
-one.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane;
+promoted by milestone 433 on 2026-09-19. **The premise was checked that day and half of it has
+stopped being true, which narrows the work rather than closing it.** `script/lint`'s per-feature
+clippy loop now builds `board`, `fastpath_pad` and `soak_test` on both aarch64 and riscv64, and a
+second loop builds `shell`, `soak_test`, `job_mix` and `board` on x86_64, so the individual features
+are no longer uncompiled. Two things are still exactly as this file describes them. **`single_hart`
+and `reboot_soak_test` appear nowhere in `script/lint`**, so nothing but a person's own
+`script/board-image` run has ever compiled either. And **no combination is built**: every one of the
+six feature sets below is a combination, clippy builds each feature alone, and a `board,bench,single_hart`
+card is a configuration nothing in CI has ever seen. Two feature names in the body are pre-297
+spellings: `soak` is `soak_test` and `reboot_soak` is `reboot_soak_test`.
 
 **Gate: NONE.** It is a build matrix, and the expensive question (which of these should also *run*
 somewhere) is deliberately left out of it.
@@ -58,3 +67,17 @@ that file belongs on a card.
 
 notes/footprint-perturbation.md's BUGS, and the observation that `single_hart` shipped into a tree where
 nothing but a person's own `script/board-image` run has ever compiled it.
+
+## Index row
+
+`kernel/Cargo.toml` carries feature flags whose only consumer is a microSD card, and an ordinary
+refactor in `kernel/src/sched.rs` or `kernel/src/smp.rs` can break a card build while the tree stays
+green, because the failure surfaces as a four-minute cargo error at the start of a bench session,
+which is the most expensive place in this project to find a compile error. `script/lint` has since
+closed half of it by clippy-building most of these features individually; `single_hart` and
+`reboot_soak_test` are compiled by nothing, and no combination a card actually uses is built at all.
+Six release builds of one crate would cover the set. It proves compilation and nothing else, which
+is the point: running a soak in CI is not the ask, since these workloads need a board and
+`reboot_soak_test` will not compile off riscv64 by design. The list is hardcoded, which is finding
+11 of notes/architecture-list-sweep.md in new clothes, and deriving it from `[features]` is a second
+decision because not every feature belongs on a card.

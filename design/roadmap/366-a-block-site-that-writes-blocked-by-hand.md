@@ -1,6 +1,13 @@
-# A block site that writes `Blocked` by hand opts out of teardown, silently
+# 366. A block site that writes `Blocked` by hand opts out of teardown, silently
 
-**Status: PROPOSED 2026-09-04.** Written by the milestone 133 lane, from that milestone's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 133 lane, from that
+milestone's block; promoted by milestone 433 on 2026-09-19. Read against the tree that day and
+nothing has moved: `crates/thread_wake_handshake/src/lib.rs` still declares `pub state: RunState`
+and `pub wait_on: Option<W>` as two fields that must agree, `park` is still the only thing that
+writes them together, and `sched::finish_blocked_resident` still opens with the `debug_assert!` that
+pairs `Blocked` with a recorded wait, which is nothing at all on a release board. No `script/lint`
+check names `RunState::Blocked`, and the grep the rung-two option asks for comes back clean today,
+so the check would pass on the tree as it stands.
 
 **Gate: NONE.** No decision is owed. It is a lint or a type change in
 `crates/thread_wake_handshake` plus its callers in `kernel/src/sched.rs`, and it wants a lane rather
@@ -50,3 +57,17 @@ release board.
 Milestone 133's Follow-on, and before that `crates/thread_wake_handshake`'s own BUGS section and
 notes/blocked-thread-teardown.md's, which names it as the failure mode proposals A, B and C all
 inherit.
+
+## Index row
+
+`Handshake::park` writes `state = Blocked` and `wait_on = Some(..)` in one statement, and that pair
+is what every teardown path reads to find the queue a thread is linked on. The fields are public
+because the kernel has legitimate out-of-protocol writers, so a future block site can write
+`Blocked` by hand and leave `wait_on` holding whatever the last wait left there. Since milestone 133
+that is no longer a diagnostic problem: `sched::finish_blocked_resident` acts on the recorded name,
+and a stale one unlinks the thread from the wrong rendezvous and leaves a freed page linked into a
+live wait queue, which the next `recv` follows. The interesting half of the lane is deciding which
+rung it can reach: one field carrying `Blocked(W)` cannot disagree with itself, but `RunState` is
+loom-searched and matched on widely; a lint is cheap and is the shape AGENTS.md prices at a high
+false-positive rate; and promoting the `debug_assert!` to a real refusal is the smallest honest
+change and could ship ahead of either.

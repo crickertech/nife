@@ -1,6 +1,15 @@
-# ASIDs ship with their payoff asserted rather than measured
+# 363. ASIDs ship with their payoff asserted rather than measured
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 15's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+milestone 15's block; promoted by milestone 433 on 2026-09-19. Checked that day: nothing in `bench/`
+or in notes/address-space-identifiers.md carries a switch-cost number with tagging on against
+tagging off, so the payoff is still asserted rather than measured. **The board list in the gate below
+has narrowed to one, and the narrowing was measured rather than argued.** radon's own boot tour
+reports `satp.ASID 0 bits measured` (`bench/radon-2026-09-16/bench-134300.log`), which is precisely
+the case this file warned would measure no change at all, and xenon cannot show it either:
+`kernel/src/arch/x86_64/mmu.rs` records that `CR4.PCIDE` is clear, so an x86_64 address space has
+nowhere to put its tag and `ttbr0_value` drops it. argon is the one machine of the three that can
+answer this.
 
 **Gate: HARDWARE.** Of the second kind: the machines exist. QEMU cannot show this, because it does
 not model TLB refill cost, so a number from patagonia would be noise wearing a decimal point. It
@@ -45,3 +54,16 @@ every hart through SBI RFENCE, so radon's number is about a different mechanism 
 And `notes/address-space-identifiers.md` records that RISC-V permits `satp.ASID` to be zero bits wide, so a RISC-V
 machine that cannot tell tags apart keeps flushing on every switch and would measure no change at
 all. Whichever board is used, the report has to say which of these it was.
+
+## Index row
+
+Address space identifiers landed in July, the context switch stopped flushing the TLB, and no
+machine has measured what that changed. QEMU cannot show it, since it does not model TLB refill
+cost, so the number needs silicon and somebody at a serial console. The gate has narrowed since the
+proposal was written: radon measures `satp.ASID` at zero bits wide and so keeps flushing on every
+switch, and x86_64 runs with `CR4.PCIDE` clear and has nowhere to put a tag, which leaves argon as
+the only board of the three that can answer it. The number could surprise rather than confirm, which
+is what makes it worth a board's time: this kernel bounds concurrent address spaces at 160 and never
+recycles a tag, so its TLB pressure profile is not Linux's, and the win could be larger or smaller
+than the textbook figure. Either outcome is a result, and every comparison this project makes
+against Linux, macOS or seL4 on switch cost currently omits the term.

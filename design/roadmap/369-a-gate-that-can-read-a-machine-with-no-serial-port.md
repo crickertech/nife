@@ -1,7 +1,11 @@
-# A gate can read a serial-less machine's screen only under QEMU, and the fleet is not virtual
+# 369. A gate can read a serial-less machine's screen only under QEMU, and the fleet is not virtual
 
-**Status: PROPOSED 2026-09-04.** Written by milestone 243's lane, from its own block's second
-problem.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 243 lane, from its own
+block's second problem; promoted by milestone 433 on 2026-09-19. Checked that day: the gate it names
+is still QEMU-only, since `xtask`'s screen check reads a `screendump` PPM from QEMU's monitor and
+there is nothing else that can read a serial-less machine, and the milestone this waits on is
+unmoved. Milestone 242 (USB host and HID) is still `NOT-STARTED` with `Gate: NONE`, so the gate line
+below is still true and still points at work nobody has started.
 
 **Gate: MILESTONE 242.** The mechanism this needs is a write to the boot medium, and the boot medium
 on every machine in the fleet is a USB mass-storage device nife cannot yet talk to. Milestone 242 is
@@ -53,3 +57,20 @@ test loop*, and the project's own ranking function is the shortest path to a sys
 A machine that needs a person present to say anything cannot soak, cannot be woken on a schedule,
 and cannot produce the boot-lottery samples milestone 249 wants. It is recorded in
 `notes/serial-less-output.md`'s `BUGS` as well, where a reader meets the feature.
+
+## Index row
+
+Milestone 243 answered the half of its block a human needs: on a UEFI machine with no serial port
+the boot tour is painted into the firmware's linear framebuffer, so a person standing in front of
+the machine can watch nife boot. It did not answer the half a gate needs, because the screen check
+works by asking QEMU's monitor for a screendump and nobody can ask a Dell for one. So six machines
+can be brought up by hand, with a person reading a monitor and taking a photograph, which is
+precisely the state milestone 216 got the VisionFive 2 out of for boards that have a serial port.
+The shape proposed is a postmortem written to the boot medium, which is a FAT32 EFI system
+partition somebody carries back to patagonia anyway, turning "photograph the screen" into "plug the
+stick in and run the gate" with `board_console::progress` judging the result unchanged. Three pieces
+block each other in order: USB mass storage, then a FAT32 writer or a reserved span at a known
+offset, then a transcript buffer in the kernel, which is new state on the diagnostic path and wants
+arguing rather than assuming. Not a network console, which cannot report the failures that happen
+before the stack is up, and not a photograph read by a program, which is optical character
+recognition and a different project.

@@ -1,7 +1,11 @@
-# A layout control, because the perturbation experiments cannot tell footprint from addresses
+# 370. A layout control, because the perturbation experiments cannot tell footprint from addresses
 
-**Status: PROPOSED 2026-09-04.** Found by the E3 session on radon, which separated cleanly in three
-rows and had the wrong sign in one of them. notes/footprint-perturbation.md carries the capture.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 out of the E3 session on radon;
+promoted by milestone 433 on 2026-09-19. Checked against the tree that day: `fastpath_pad` is still
+a boolean Cargo feature with no size knob (`kernel/Cargo.toml`, `kernel/src/fastpath_pad.rs`), so
+the dose-response curve this file calls the cheapest honest version has not been built, and no
+control build of any kind exists. Milestone 134 is still `PARTIAL` and still owns the register of
+measures, so the gate below is unchanged.
 
 **Gate: MILESTONE 134.** E3 and E4 are milestone 134's experiments and that block owns the register
 of measures. This proposes a control for them rather than a new measure.
@@ -90,3 +94,18 @@ write per boot.
 
 The 2026-09-04 radon session. notes/footprint-perturbation.md's own BUGS carries the defect;
 `design/roadmap/188-ipc-fastpath.md` is what it blocks.
+
+## Index row
+
+E3 compares two kernels that differ in one Cargo feature and reads the difference as the cost of the
+footprint that feature adds. The 2026-09-04 radon session proved that inference does not hold: six
+interleaved boots on a `single_hart` card separated cleanly in three rows, and the third said the
+padded build was 3.01% **faster** on a padding that is never executed. What changed is the layout,
+which is *Producing Wrong Data Without Doing Anything Obviously Wrong* (ASPLOS 2009) in one capture,
+so the +1.49% on the row that matters is the sum of a footprint effect and a layout effect and the
+experiment reports the sum. The control is several unpadded kernels differing only in address
+assignment, which by construction add no reachable instruction, read across the same three rows to
+give a layout distribution: inside it is layout, outside it is footprint. The cheapest version is
+`fastpath_pad` taking a value rather than a boolean, because footprint predicts monotonicity where
+layout does not. It decides milestone 188's phase 4, which is holding a hand-written IPC fastpath on
+evidence of a 19 ns effect with a 193 ns artifact sitting on top of it.

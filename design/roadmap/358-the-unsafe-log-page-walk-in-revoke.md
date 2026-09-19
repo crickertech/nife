@@ -1,6 +1,12 @@
-# `revoke.rs`'s log-page walk restates one safety argument in six places
+# 358. `revoke.rs`'s log-page walk restates one safety argument in six places
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 252 sweep, from milestone 139's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 252 sweep, from
+milestone 139's block; promoted by milestone 433 on 2026-09-19. Counted against the tree that day
+and the number is still six: `kernel/src/revoke.rs` calls `log_page` inside `unsafe` blocks at lines
+312, 333, 360, 418, 493 and 670, each with its own `SAFETY:` comment, and four of the six say the
+same two things in four spellings ("pages in the chain are the log's own; SPACES is held", "chain
+pages under the held SPACES lock"). The helper itself is at line 258. Nothing has collapsed them
+since the file was written.
 
 **Gate: NONE.** It is one file, the helper already exists, and the ratchet in `script/lint` is the
 measurement that says whether the change worked.
@@ -36,3 +42,15 @@ sites here are the largest remaining cluster in the kernel outside `arch/` and `
   replaced, the count improves and the kernel does not. The measure is the argument, not the number.
 - **Nothing here has a customer.** It is verification hygiene, so under the ranking function it
   loses to anything on a customer path the day one exists.
+
+## Index row
+
+`kernel/src/revoke.rs` walks its per-space log-page chain inside six separate `unsafe` blocks, each
+restating in a comment what `log_page`'s own safety section already says. Milestone 139's whole
+argument is that an `unsafe` block is a proof obligation and that six copies of one obligation is
+six chances to get it wrong while the ratchet counts it as six facts. This is the largest remaining
+cluster in the kernel outside `arch/` and `sched.rs`, and `sched.rs` is blocked on a typestate
+decision that is calef's while this is blocked on nothing. The honest outcome may be that the
+obligation is genuinely six arguments rather than one, in which case saying so in
+notes/unsafe-obligations.md closes the item: a wrapper whose own safety argument is weaker than the
+six it replaced improves the count and not the kernel.

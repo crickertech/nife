@@ -1,7 +1,11 @@
-# Select E3's padding at boot rather than at compile time, so the experiment is one binary
+# 379. Select E3's padding at boot rather than at compile time, so the experiment is one binary
 
-**Status: PROPOSED 2026-09-04.** Named by calef while planning the first E3 bench session, on
-learning it wanted two cards and he has one.
+**Status: NOT-STARTED.** Named by calef on 2026-09-04 while planning the first E3 bench session, on
+learning it wanted two cards and he has one; promoted by milestone 433 on 2026-09-19. Checked
+against the tree that day: `fastpath_pad` is still a Cargo feature (`kernel/Cargo.toml`) with no
+runtime selector anywhere, so E3's two arms are still two binaries. The session this was written to
+spare went ahead in the expensive shape on 2026-09-04, six card rewrites to interleave six boots,
+which is milestone 375, so the cost this names is now measured rather than predicted.
 
 **Gate: NONE.** The mechanism it would copy shipped the same week.
 
@@ -29,5 +33,21 @@ That is the design question and it is the whole of the work; the plumbing is a t
 **What it would buy beyond this one session.** Every future A/B on the board has the same shape, and
 this tree now has several build-time flags that select an experiment rather than a product:
 `soak`, `job_mix`, `reboot_soak`, `single_hart`, `fastpath_pad`. A proposal already records that
-**nothing in CI compiles any of them** (`board-only-features-nothing-compiles.md`), which is the same
+**nothing in CI compiles any of them**
+(`design/roadmap/373-board-only-features-nothing-compiles.md`, whose own status line records that
+`script/lint` has since closed half of that claim and which half is left), which is the same
 brittleness from the other side.
+
+## Index row
+
+`fastpath_pad` is a Cargo feature, so E3's padded and un-padded arms are two different kernels, and
+the comparison rests on trusting that two builds differ only where intended while the bench session
+pays for it twice: six card rewrites to interleave the boots, and no way for a booted machine to
+say which arm it is running. Selecting the padding from a boot token instead, the way milestone
+243's `screen=` carries framebuffer geometry from `uefi_loader` to the kernel, makes it one card,
+one write, six boots, with both arms provably the same binary. The mechanism shipped the same week
+on both the PVH path and milestone 218's `boot.scr`. The design question is the whole of the work
+and it is not obviously answerable yes: resident dead code selected at runtime is not the same
+experiment as resident dead code linked in, and whoever takes this has to say whether a
+runtime-selected pad perturbs what E3 means to perturb. Every future A/B on the board has the same
+shape.

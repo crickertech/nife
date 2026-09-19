@@ -1,6 +1,10 @@
-# `xtask/src/main.rs` is 6,785 lines with no module structure
+# 365. `xtask/src/main.rs` is 6,785 lines with no module structure
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 130's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+milestone 130's block; promoted by milestone 433 on 2026-09-19. Checked that day: `xtask/src/` still
+holds exactly one file and `xtask/src/main.rs` is now **10,680 lines**, not the 6,785 the title and
+body name. The file grew 57% in the sixteen days this sat in the pile, which is the argument for
+doing it rather than against.
 
 **Gate: NONE.** No decision is owed. What it needs is a scheduled slot rather than a permission:
 `xtask/src/main.rs` is one of the three merge hotspots every lane wires its test into, so a
@@ -40,3 +44,14 @@ The same block refused a related split for a measured reason worth carrying: spl
 park early in `arch::halt()` and one divergent function absorbs the unreachable tail where two do
 not. Nothing like that is expected here, since `xtask` builds for the host and has no early-park
 pattern, but it is the reason to run the split as its own commit rather than beside other work.
+
+## Index row
+
+`xtask/src/main.rs` is one file with no module structure, 6,785 lines when this was filed on
+2026-09-03 and 10,680 on 2026-09-19. The split runs along seams the file already has, which are the
+commands, and the compiler verifies it completely, so the edit is mechanical and fails loudly. What
+it needs is a scheduled slot rather than a permission: this is one of the three merge hotspots every
+lane wires its test into, so a wholesale restructure conflicts with every branch in flight and
+should run when the board is thin. The recurring merge cost is the reason it is more than tidiness,
+and milestone 130's refused `kernel_main` split is the reason to run it as its own commit: that one
+came out byte-identical and still broke the build.

@@ -117,7 +117,7 @@ megabytes, claiming more corrupts something" (`uefi_loader/src/handoff.rs`, with
 unknown-type case). Firmware-owned memory does not become untyped. The console is the port range
 above, and its cross-core behaviour is finding 4. Interrupt remapping is the standing latent claim in
 `notes/confinement-claims.md`'s fifth entry: the firmware note found there is no menu control for
-it, the DMAR has never been read, and `design/roadmap/proposals/read-the-dmar-on-xenon.md` already
+it, the DMAR has never been read, and `design/roadmap/378-read-the-dmar-on-xenon.md` already
 proposes reading it. It stays latent because no component holds a DMA-capable device on xenon.
 
 **xenon passed its self-test on real firmware while this audit was running** (milestone 87, closed

@@ -1,7 +1,14 @@
-# `script/fastpath-footprint`'s entry set is flat, so an inlining flip can move 12% into it
+# 368. `script/fastpath-footprint`'s entry set is flat, so an inlining flip can move 12% into it
 
-**Status: PROPOSED 2026-09-04.** Found by the milestone 133 lane, whose change to region teardown
-failed this gate by 12.1% without touching a timer, a trap path, or a syscall.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 133 lane; promoted by
+milestone 433 on 2026-09-19. Read against `script/fastpath-footprint` that day and every part of the
+premise is intact. The riscv64 entry set is still the flat list `trap_entry`, `trap_return`,
+`riscv_trap_dispatch`, `riscv_trap_body`; the failure message still prints a percentage and two
+sentences of advice and no per-symbol delta, which is the item this file prices as worth doing
+first; and the three `#[inline(never)]` patches are all still in the tree, on
+`arch::riscv64::timer::tick`, `drivers::plic::disable` and `syscall::dispatch`, each with the
+measurement written beside it. Milestone 188's phase 2 changed what aarch64's entry set contains
+(one vector slot and `exception_restore` rather than all sixteen entries) and left it just as flat.
 
 **Gate: NONE.** Nothing is owed. It wants a lane because the fix is a judgement about what the
 number is *for*, and getting that wrong in either direction costs something real: a looser gate
@@ -111,3 +118,18 @@ to name one symbol, and all three would have read it off the failure message.
 ## Where it came from
 
 Milestone 133's Follow-on. `design/roadmap/132-the-fastpath-footprint.md` owns the gate.
+
+## Index row
+
+The `ipc_fastpath` half of `script/fastpath-footprint` is a closure with a `COLD` exclusion; the
+`syscall_entry` half is flat, summing whole symbols with no way to exclude anything, which is fine
+only while those symbols hold nothing but what a syscall fetches. Three times in two days an
+inlining flip moved bytes that no syscall fetches into that number: `timer::tick` folded into
+`riscv_trap_body` under milestone 133's change, +12.1%; `plic::disable` under a one-line toolchain
+bump, +10.4%; and `syscall::dispatch` vanishing into the exception handler under milestone 220's,
+-35.1%, a failure that reads as good news and would have locked in an under-measurement if anyone
+had taken the win. Each was closed with `#[inline(never)]` on the callee, which is a patch on the symptom, and
+each cost a lane a build and a two-disassembly diff to name one symbol. Any perturbation of the
+kernel crate can hand a lane this failure, in either direction, on any of three ISAs. Reporting the
+delta per symbol when the gate fails is the cheapest item and pays every time; measuring the arms
+rather than the symbols is the honest answer and the expensive one.
