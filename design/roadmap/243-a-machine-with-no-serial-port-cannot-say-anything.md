@@ -1,8 +1,16 @@
 # 243. A machine with no serial port has no way to say anything, and no gate can read it
 
-**Status: PARTIAL.** Minted 2026-09-03 by calef, from asking how nife reaches commodity hardware.
-Built 2026-09-04: **the human half is answered on x86_64/UEFI and the gate half is answered only
-under QEMU.** See `notes/serial-less-output.md`, and the `## Follow-on` section for what is left.
+**Status: BUILT** 2026-09-19. Minted 2026-09-03 by calef, from asking how nife reaches commodity
+hardware. Built in two passes: 2026-09-04 put the boot tour on a UEFI machine's framebuffer and
+gave a gate a way to read it under QEMU; 2026-09-19 closed the block's two remaining Outstanding
+items, **early boot** and **the other two architectures**. See `notes/serial-less-output.md`.
+
+**What BUILT means here, stated plainly, because two of the three problems below are answered
+rather than solved.** A kernel that can write its diagnostics somewhere other than a UART now does
+so on all three architectures; the window before the kernel exists is *bounded* rather than
+narrated, and it cannot be narrated (see below); and a gate can read a screen under emulation on
+all three, while reading a *real* serial-less machine is milestone 369 and has always been its own
+block.
 
 **Gate: NONE.** Everything it needs is a design question rather than a dependency.
 
@@ -26,16 +34,20 @@ the aperture is a BAR on the display adapter rather than firmware memory: what e
 assertion is the one the serial transcript could not make: the transcript would be identical if the
 screen were black.
 
-**Three things it does not cover**, and they map onto the block's own three problems:
+**One thing it still does not cover, and two that were closed on 2026-09-19:**
 
-- **Problem 2 on real hardware.** A gate can read a *virtual* machine's screen. Nobody can ask
-  Graeme's laptop for a screendump, so the fleet's record is still a photograph and a person. The
-  answer is postmortem to the boot medium and it is blocked on USB mass storage; see `## Follow-on`.
-- **Problem 3 entirely.** The screen is armed by the first statement of the x86 boot tour, which is
-  as early as a kernel can manage, and everything before `kernel_main` still writes nothing anywhere.
-- **The other two architectures.** This is x86_64/UEFI only. The crate halves were written
-  arch-neutral on purpose: what milestone 157 needs to add on aarch64 is the *discovery*, not the
-  console.
+- **Problem 2 on real hardware, still open and now its own block.** A gate can read a *virtual*
+  machine's screen. Nobody can ask Graeme's laptop for a screendump, so the fleet's record is still
+  a photograph and a person. That is **milestone 369**, and it is blocked on USB mass storage.
+- **Problem 3, early boot: bounded, and it cannot be more than bounded.** `uefi_loader` clears the
+  screen and writes two lines into the framebuffer as its last act, after `ExitBootServices` and
+  before the jump, so "the kernel never reached its first statement" is now a thing a person at a
+  monitor can *see* rather than a black screen it shares with three other failures. See the section
+  below.
+- **The other two architectures: a screen under the emulator, and none on silicon.** `ramfb` closed
+  the QEMU half with no change at all to the arch-neutral console, which is what those halves were
+  written for. The board half is milestone 157's U-Boot handoff and stays there. See the section
+  below.
 
 **In brief.** Every word nife has ever said, it said down a UART.
 
@@ -140,14 +152,13 @@ replacing it is harder than it looks.
   `shell-check` leg carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this
   milestone wrote a second, more general one in `board_console::screen`.
   `design/roadmap/377-one-screendump-decoder-not-two.md`.
-- **Outstanding.** Problem 3, early boot, is untouched: nothing before `kernel_main` can say
-  anything on a machine with no serial port, and a fault there is a black screen. Checked against
-  the tree: `kernel/src/arch/x86_64/boot.s` writes to no device, and the screen cannot be armed
-  before the boot handoff is readable.
-- **Outstanding.** aarch64 and riscv64 have no screen. `machine_discovery::framebuffer` and
-  `screen_console` are arch-neutral and unused there; milestone 157 (the U-Boot framebuffer handoff)
-  is the discovery half. Checked against the tree: `console::attach_screen` has one caller and it is
-  under `arch/x86_64/`.
+- **Closed 2026-09-19.** Problem 3, early boot. The premise was checked and half of it is true:
+  `kernel/src/arch/x86_64/boot.s` writes to no device and cannot, because it is a 32-bit
+  instruction stream with no idea where the screen is and no IDT, so a fault in it is a triple
+  fault and a reset. What *can* be done is done by the stage before it. See the section below.
+- **Closed 2026-09-19.** aarch64 and riscv64 have a screen under QEMU, through `ramfb`. The
+  arch-neutral halves needed no change, which was the claim they were written to make good on.
+  Milestone 157 remains the board half. See the section below.
 - **Recorded.** The aperture is mapped uncacheable and scrolling reads it back, which is slow on real
   silicon and free under QEMU. Write-combining is a PAT entry this kernel does not program at all.
   `crates/screen_console/src/lib.rs`'s `BUGS`, and `notes/serial-less-output.md`'s.
@@ -159,10 +170,89 @@ replacing it is harder than it looks.
   is pixel-aligned with exact glyph matches and no threshold; a camera has none of those properties
   and making it work is optical character recognition, which is a different project.
 
+## Early boot, 2026-09-19: bounded rather than narrated
+
+**The window cannot be made to speak, and that is a finding rather than a concession.** From
+`ExitBootServices` to `console::attach_screen` there is no console at all: the firmware's is gone by
+specification, the kernel's is not up, and everything in between (the loader's mode-switch
+trampoline, `boot.s`'s 32-bit half, the page tables, the long-mode jump) runs 32-bit with no IDT.
+A fault there is a triple fault and a silent reset. No code anybody could write in that window knows
+where the screen is.
+
+**So the window is bounded instead.** `uefi_loader` clears the screen and paints two lines as its
+final act, after `ExitBootServices` and before the jump:
+
+```text
+nife loader: firmware released, entering the kernel.
+If this line is still here, the kernel stopped before its console came up.
+```
+
+The screen is therefore never blank across the handoff, and five outcomes are distinguishable where
+four used to share one appearance: the firmware never started the stick; the loader refused and said
+why over `ConOut`; **the kernel never reached its first statement** (this line, still there); the
+kernel armed its console and died after (black); the boot tour. **The third is the one that did not
+exist**, and it is the whole of what is buyable.
+
+**Proved rather than reasoned.** With a temporary halt in place of the jump, `cargo xtask uefi-boot`'s
+screendump had ink in exactly the top sixteen pixel rows of a 1280x800 screen, reading those two
+lines and nothing else.
+
+**The boards get nothing equivalent and the reason is the boot chain.** Under QEMU they are entered
+from `-kernel` with no stage before the kernel to paint anything, and the kernel's own `ramfb`
+framebuffer is in `.bss`, which `boot.s` has not finished zeroing at the point a banner would have to
+be written. On the VisionFive 2 the stage that could speak is U-Boot, which is milestone 157. Their
+dark window is `boot.s` plus one `fw_cfg` conversation, a few hundred instructions.
+
+## The other two architectures, 2026-09-19: `ramfb`
+
+**`x86_64` gets a screen because the firmware already lit one.** The two `virt` boards are entered
+from `-kernel` with nothing configured, so there was nothing to discover and no amount of
+arch-neutral console code could help. What those boards can present is `ramfb`, which inverts the
+arrangement: **the guest owns the pixels** and tells the emulator their physical address over
+`fw_cfg`, after which QEMU scans them out continuously. Nothing sits between a `println!` and the
+picture.
+
+| Piece | Where |
+|---|---|
+| The `fw_cfg` wire format, host-tested (10 tests) | `crates/firmware_configuration` (**name provisional**) |
+| The register poking, two DMA transactions before `arch::mmu::init` | `kernel/src/drivers/ramfb.rs` |
+| The memory and the wiring | `kernel/src/screen.rs` (**name provisional**), `console::peek_screen` (**provisional**) |
+| Painting text | `crates/screen_console`, **unchanged** |
+| The gate | `cargo xtask screen-boot <arch>` (**name provisional**), `uefi-boot`'s twin, decoding with `board_console::screen` **unchanged** |
+
+**Measured 2026-09-19**, and both legs run inside `script/test`:
+
+```text
+screen-boot: read 33 non-blank row(s) of the aarch64 tour back off a ramfb, ending
+screen-boot:   | nife self-test: 5 of 5 passed
+screen-boot: read 63 non-blank row(s) of the riscv64 tour back off a ramfb, ending
+```
+
+**The surprise worth recording is what the inversion broke.** Milestone 400's handover maps the
+screen's physical range into a userspace driver, which is right for a display adapter's BAR and is a
+hole for a framebuffer that is the kernel's own `.bss`. `user::boot_screen_terminal` now refuses a
+screen inside the kernel image, checked *before* the yield so a refusal leaves the kernel still
+painting rather than a cleared screen nobody owns. It is a range test rather than a flag, so
+milestone 157's U-Boot aperture will pass it with nothing to remember.
+
+**It is a boot of its own rather than a stage of the suite, and that is forced.** `ramfb` adds a QEMU
+console, `screendump` with no device argument writes console 0, and the suite's machine already has a
+virtio-gpu there.
+
 ## BUGS
 
-- **The mechanism is chosen for x86_64/UEFI and nowhere else.** The block used to say it named no
-  mechanism; it names one now, and the scope of that claim is one architecture and one firmware.
+- **The mechanism is one idea and two discoveries.** A linear framebuffer painted by
+  `screen_console` is what every architecture ends at; how one is *found* is per-machine, and there
+  are two answers rather than one (a UEFI aperture, a `ramfb` the guest supplies) with a third owed
+  by milestone 157.
+- **Nothing here has run on real silicon except the UEFI half, and that half shows a grid rather
+  than text on the one machine that has run it** (`screen_console`'s BUGS, xenon, 2026-09-04 and
+  2026-09-17). The `ramfb` half is QEMU-only by construction: no board has the device.
+- **A `ramfb` screen costs 1.9 MB of `.bss` on every board boot**, including the VisionFive 2 boots
+  where the device cannot exist. `kernel/src/screen.rs`'s BUGS has the reason and the exit.
+- **The loader's handoff banner is unobservable in a healthy boot**, so no gate asserts it: the
+  kernel clears within milliseconds. What is gated is that it compiles and that `uefi-boot` stays
+  green; what proves it is the halted-loader experiment above. Rung four, honestly.
 - **It does not cover the interleaving defect** milestone 230 found, where the kernel and the console
   server both drive one UART with nothing arbitrating. That is a live bug on the machines that *do*
   have a serial port and it has its own home.
@@ -171,5 +261,7 @@ replacing it is harder than it looks.
 
 ## Index row
 
-the boot tour is on the screen on any UEFI machine, read back off the framebuffer by a gate under
-OVMF; a gate on real silicon and early boot are both still open
+the boot tour is on the screen on all three architectures, read back off the framebuffer by a gate
+that decodes the glyphs: a UEFI aperture on x86_64 and a `ramfb` the guest supplies on the two
+boards. The window before the kernel exists is bounded by a line the loader paints and cannot be
+narrated further; a gate reading a real serial-less machine is milestone 369
