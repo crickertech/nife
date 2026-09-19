@@ -68,16 +68,49 @@ does not specify one, because nothing here has met a stranger yet, but it names 
 principle 3's test applied to running rather than to building, and today the answer is a
 `cargo xtask` invocation on a development machine, which is not an install.
 
+## Scoped 2026-09-19
+
+A scoping lane (`milestone/198-package-manager-scoping`) built nothing and wrote the forks as
+proposals, one decision each, for calef to rule on separately. The status does not move: nothing is
+built, and the gate line above is left as minted because changing it is the first proposal's ask.
+
+| Fork | Proposal | Shape |
+|---|---|---|
+| The gate | [what-the-package-manager-waits-on.md](proposals/what-the-package-manager-waits-on.md) | **Recommends** `Gate: DECISION` alone. The loop is real (198 waits on 23, whose residual waits on a customer, who waits on 198), and nothing in a first slice needs the split's timing. One real dependency was found, on a downloadable toolchain rather than on the split |
+| Package format | [what-a-package-is-on-disk-and-on-the-wire.md](proposals/what-a-package-is-on-disk-and-on-the-wire.md) | Options, no winner: members of the boot archive, one archive file per package, or content-addressed. The measurement table is already a name-to-digest document |
+| Activation | [installing-a-package-mutates-or-composes.md](proposals/installing-a-package-mutates-or-composes.md) | Options, no winner: mutate, compose a union view, or only widen what may be spawned. The program namespace is sealed at boot, and the spawner gives the file service away, so nothing that builds processes can read an installed program today |
+| Trust (found, not briefed) | [what-vouches-for-a-package-the-image-did-not-carry.md](proposals/what-vouches-for-a-package-the-image-did-not-carry.md) | Options, no winner: the image always, a publisher's signature checked in userspace, or the owner. The measured chain makes every runtime-installed package unvouched by construction |
+| Trivial install | [what-trivial-install-means.md](proposals/what-trivial-install-means.md) | **Recommends** a QEMU run bundle a stranger can use with no Rust toolchain as the first rung, and an x86-64 UEFI PC as the second. Carries the proposed first slice |
+
+**The proposed first slice needs none of the three irreversible rulings**: packages as host-side
+recipes, image composition from a declared set, and a run bundle tested by the stranger harness and
+not published until calef says so. Its details and what it unblocks are in the trivial-install
+proposal.
+
 ## BUGS
 
 - **This block prices nothing.** A package manager is a large piece of work and the estimate is not
   attempted; the sequencing claim is that it gates a customer, not that it is cheap.
-- **It does not decide the format, the activation shape, or the repository split.** Those are
-  milestone 39's and `design/haiku-bfs-and-packages.md`'s, and jumping to them here would be exactly
-  the abstraction-ahead-of-requirement this tree refuses.
-- **"Trivial install" is undefined on purpose and that is a real gap**, not a subtlety. Nobody has
-  written what a stranger's first ten minutes look like, and until somebody does, this milestone's
-  second half cannot be completed or even scoped.
+- **It does not decide the format, the activation shape, or the repository split.** The scoping
+  lane found the split's timing is not needed at all (see the gate proposal); the format,
+  activation and trust forks are proposals awaiting calef, not decisions.
+- ~~**"Trivial install" is undefined on purpose and that is a real gap**, not a subtlety. Nobody has
+  written what a stranger's first ten minutes look like.~~ **Written 2026-09-19** in the
+  trivial-install proposal, from the tree and from commands run that day. What remains undefined is
+  calef's ruling on it.
+- **No real board gives a stranger a prompt today.** x86-64 has no interactive boot (milestone 182)
+  and no USB keyboard (milestone 242); radon's prompt input is unconfirmed on silicon. So the only
+  interactive install this milestone can offer soon is QEMU, and that limit is outside this
+  milestone's reach.
+- **A third party cannot author a package without cloning this repository**, because the `nife-dev`
+  toolchain, the target specifications and the linker script exist only as build steps inside it
+  (`scripts/build-ripgrep.sh` is the one out-of-tree build and it needs them). §151's
+  "third-party programs" needs a downloadable toolchain, which nothing tracks yet.
+- **The cold build time a stranger pays was not measured**, because two other lanes were gating on
+  the machine when this block was scoped. The first slice's stranger-harness run should measure it
+  alongside the bundle.
+- **Packages do not by themselves run `git` or `nano`.** Milestone 205 (no argument vector) and the
+  raw-input primitive of milestones 169 and 170 still stand in front of both.
 - **nife cannot build software**, so a package is a thing produced by a host toolchain and consumed
   by the target. Every packaging idea borrowed from a self-hosting system needs that translation
   checked rather than assumed.
