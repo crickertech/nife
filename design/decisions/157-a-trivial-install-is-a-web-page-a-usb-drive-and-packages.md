@@ -12,6 +12,35 @@ machine, not only run from the stick, and it **grows over the network** afterwar
 proposal follows unchanged as the evidence he ruled on; its "Recommendation" and "proposed first
 slice" are therefore superseded as a definition, though its measurements of today stand.
 
+## Amended 2026-09-19 (17:12 UTC): the stick is made by one program, unsigned for now
+
+calef, the same day, in conversation with the maintainer:
+
+> I'm thinking of making the creation of the flash drive super trivial as in download a program for
+> either mac os, linux, or windows. Running that program formats and creates the image on the flash
+> drive from the contents of the program itself. One file to download and just run it to create the
+> flash drive.
+
+and, on whether to pay for the identities that let a downloaded program open without a warning:
+
+> I'm not going to pay yet. People will need to navigate around those restrictions in MacOS and
+> Windows.
+
+So step 2 below is **one downloaded program per host operating system (macOS, Linux, Windows), with
+the system image embedded in it**, which writes the stick. The whole x86_64 system is already one
+file on a FAT32 stick at the removable-media path `\EFI\BOOT\BOOTX64.EFI` (notes/x86-uefi-boot.md;
+10,158,080 bytes on 2026-09-17), so the program's common case is a file copy onto a stick that is
+already FAT32, which needs no administrator rights, and formatting is the fallback. The design is
+`design/roadmap/proposals/a-program-that-makes-the-stick.md`.
+
+**The program is not signed or notarized, by decision, for now.** macOS Gatekeeper refuses to open
+an unsigned download by default and Windows SmartScreen warns on one; the person running it steps
+past that by hand. The cost is paid by the stranger, so **the web page must say how, per operating
+system, where they meet the warning**, and that is a precondition on rung 4 (the page).
+Reversible: signing can be added to the release process later without changing the program. What
+it would take is an Apple Developer ID with notarization, and a Windows code-signing certificate;
+neither is bought.
+
 ## What the ruling contains, step by step
 
 1. **A web page.** Publishing it is the moment calef's no-third-parties precondition is spent
