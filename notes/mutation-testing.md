@@ -1389,7 +1389,7 @@ there is any way to report a failure. Three of them also had the guard alive und
 which skip the per-node reset for every depth a real tree reaches, so a sibling answers with the
 property of the node that closed before it. Closed by three tests in `tests/hostile.rs`:
 `every_walkers_stack_edge_is_ignored_rather_than_indexed`,
-`a_sibling_does_not_answer_with_the_node_befores_property`, and
+`a_sibling_does_not_answer_with_its_predecessors_property`, and
 `an_inherited_property_comes_from_the_named_node_not_the_first_one`, which also covers
 `node_prop_inherited`'s target guard under `||`: `(A && B) || target_at.is_none()` selects the
 **root**, whose slot then answers for a node the tree does not contain.
