@@ -17,8 +17,14 @@ name: project metrics
 #
 # **Monday rather than daily**, because the row is keyed by ISO week and a daily run would rewrite
 # the same row six times for no reader. Running late in the week would also freeze the row at
-# whatever Thursday looked like; Monday closes the week that just ended and starts the new one from
-# its first commit.
+# whatever Thursday looked like.
+#
+# **Monday does not close the week that just ended**, which this header used to claim. `--update`
+# writes the week HEAD's commit falls in, and on 2026-09-14 nine pull requests merged between 00:40
+# and 05:49 UTC, so HEAD was already in 2026W38 when this fired and 2026W37 was never written. The
+# fix is in `script/metrics`, not in the schedule: `--update` now also writes every week history has
+# and the CSV lacks, and `--check` fails on a gap. No hour would have been safe, because lanes merge
+# around the clock.
 #
 # **Nothing here builds the kernel.** `script/metrics` is ls-tree, cat-file and regular expressions,
 # which is what lets it walk the whole history in seconds, and it is why coverage is the one column
