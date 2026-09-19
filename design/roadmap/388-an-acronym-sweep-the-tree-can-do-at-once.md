@@ -1,7 +1,17 @@
-# An acronym sweep the tree can do at once
+# 388. An acronym sweep the tree can do at once
 
-**Status: PROPOSED 2026-09-05.** Named by milestone 264, which asked the acronym question of sixty
-names and deliberately answered none of them, because answering one at a time is the failure mode.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 264, which asked
+the acronym question of sixty names and deliberately answered none of them; numbered 2026-09-19 by
+milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19.** The
+table below is already history rather than a worklist, and says so: all four rows were ruled by
+calef on 2026-09-13 and performed by milestones 265, 290 and 298. **What is left is the BUGS
+section, and both halves of it are still live.** `kernel/src/user/entropy_service.rs` still exports
+`jh7110_trng_device` (line 300) and `jh7110_crg_window` (line 416), so the file still reads
+`jh7110_entropy::discover` inside a function called `jh7110_trng_device`, and
+`kernel/src/user/entropy_tests.rs` and `kernel/src/main.rs` still call both by those names. Of the
+five names the 2026-09-05 rule deratified, three are still live crates carrying `provisional` and a
+recorded refusal apiece (`dtb`, `gpt`, `ipc`); `dma` and `asid` are no longer names
+`script/names` sees. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** calef names things, and this is a list of names.
 
@@ -89,3 +99,21 @@ rather than an afternoon.
   "abbreviation we receive rather than author" clause in design/naming.md may cover them where it did
   not cover the crate. A lane should not guess: AGENTS.md puts public function names in calef's
   hands, and this list is where a name waits for him.
+
+## Index row
+
+An acronym is spelled out unless its expansion teaches nothing (calef, 2026-09-05), and the rule
+deratified five names in the sentence that set it. It cannot be applied a name at a time for two
+reasons: `ipc` is load-bearing across the tree, and several of these names exist in matched pairs a
+partial sweep would break, since spelling out a program alone leaves it disagreeing with its crate
+and spelling out the crate alone overturns a ratification as a side effect of tidying a program.
+That prediction was tested and held, on the `jh7110_trng` pair, where bare `jh7110_entropy_driver`
+was refused precisely because the crate is not a driver, a refusal visible only while holding both
+halves. The four names milestone 264 surfaced were all ruled by calef on 2026-09-13 and performed by
+milestones 265, 290 and 298, including the nested case, where he drew a line rather than applying
+the rule harder: DNS stays whole because it is the `pci` case one level down. What is left is the
+larger half that was never in the table: the five ratified names the rule deratified by name, three
+of which (`dtb`, `gpt`, `ipc`) are still live crates carrying a recorded refusal apiece, and two
+public kernel function names, `jh7110_trng_device` and `jh7110_crg_window`, which survived the
+2026-09-13 crate renames and are a genuinely harder case, because each names a hardware block whose
+device-tree spelling is the vendor's.

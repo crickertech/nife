@@ -1,7 +1,16 @@
-# A gate that selects the set it judges can pass by checking nothing
+# 401. A gate that selects the set it judges can pass by checking nothing
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 265, which broke one and caught it by hand rather
-than by anything red.
+**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 265, which broke
+one and caught it by hand rather than by anything red; numbered 2026-09-19 by milestone 433's drain
+of the proposal pile. **Premise re-read against the tree on 2026-09-19: the instance is closed and
+the class is not**, which is the distinction this block is about. `script/lint` check 3's glob is
+`crates/*protocol` now, and twelve lines of comment above it record the hazard by name (*"this loop
+selects the crates it then judges, so a glob that matches nothing passes by checking nothing"*).
+That is rung three. What this block proposes is rung two, and nothing of it exists: the loop still
+has no post-loop assertion that it selected anything, no other selector in `script/` has one, and
+nobody has enumerated the selectors, which is this block's own first deliverable and the thing that
+decides whether the rest is an afternoon or a sweep.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** A lane can close this. It is one assertion per selector, no wire format, no syscall
 surface, and no name calef has not already ruled on.
@@ -79,3 +88,23 @@ written by a gate about itself.
   fifteen crates passes the assertion and still covers a fifth of its subject. Nothing proposed here
   catches that, and a check that tried would need to know the right count, which is the hand-kept list
   both `script/verify` and `script/falsifications` moved away from.
+
+## Index row
+
+Several gates pick the things they judge with a pattern and then judge them, so when the pattern
+stops matching the loop body never runs and the gate reports clean. The live instance was
+`script/lint` check 3, which enforced one spelling for contract crates by globbing `crates/*proto`:
+milestone 265 renamed every one of those crates to `_protocol`, the glob matched nothing, and the
+check passed by checking nothing on the one change that was precisely its subject. It was caught by
+hand, in 265's own pull request, because somebody went looking; nothing in CI could have said a
+word. It is a different failure from the stale `--exclude` `design/naming.md` already records, and
+strictly worse, because an exclusion that goes stale still covers everything else where a selector
+that goes stale covers nothing at all. The mechanism is one assertion per selector, that the
+selection is non-empty, and the first deliverable is the enumeration, because nobody has counted
+them: two shell glob loops in `script/`, the `--exclude` lists in `script/lint`, `script/coverage`
+and `xtask` where cargo takes an unknown exclusion silently, `.cargo/mutants.toml`'s globs, and the
+python embedded in four `script/` entry points, where a regex that stops matching is the same defect
+in another syntax. `script/fatal-risks` already guards one case on the stated ground that a check
+which cannot fail is worse than one that is absent, which is this block's argument written by a gate
+about itself. The tell generalises and belongs beside the fix: a gate that passed before your change
+and after it, on a change that is exactly what the gate is about, has probably stopped looking.

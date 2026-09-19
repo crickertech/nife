@@ -283,7 +283,8 @@ retypes an address space, retypes a frame, maps the frame into the space it buil
 kernel enforces break-before-make inside it. It is asserted by
 `kernel::user::tests::a_process_can_build_an_address_space_from_el0` on **both** architectures whose
 test kernel can load a user ELF, under `script/test`, which is more coverage than `builder` ever had
-(nothing on a pull request ever executed `builder`; see `design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`).
+(nothing on a pull request ever executed `builder`; see milestone 406,
+`design/roadmap/406-nothing-in-ci-boots-the-riscv-tour.md`).
 
 **What is proved nowhere is the rest of the sequence.** `address_space_witness` stops where milestone
 19b stopped: it builds a space and maps a frame, and nothing runs in it, because threads were 19c's

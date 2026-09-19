@@ -142,8 +142,8 @@ legacy (VERSION 1) and `virtio.rs`'s scan asserts 2. The whole test suite always
 is why nothing met it. Fixed in both runners by hoisting the global. The latent twin on
 `virtio-net-device` under `NIFE_NET` went with it.
 
-The scan's own behaviour is a separate question and has its own proposal:
-`design/roadmap/proposals/a-legacy-virtio-mmio-slot-panics-the-scan.md`.
+The scan's own behaviour is a separate question and is milestone 392,
+`design/roadmap/392-a-legacy-virtio-mmio-slot-panics-the-scan.md`.
 
 ## Follow-on
 

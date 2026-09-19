@@ -1,7 +1,15 @@
-# Four files each record which crates cannot compile for the host, and one of them derives it
+# 393. Four files each record which crates cannot compile for the host, and one of them derives it
 
-**Status: PROPOSED 2026-09-12.** Written from milestone 278's block, which touches all four and
-would have made it five.
+**Status: NOT-STARTED.** Filed 2026-09-12 as an unnumbered proposal from milestone 278's block,
+which touches all four lists and would have made it five; numbered 2026-09-19 by milestone 433's
+drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true, all
+four still present**: `script/lint` carries `--exclude user_mode_runtime` and its siblings by hand
+in two clippy invocations (lines 41 and 120) *and* derives the same set for its own gate (line 812,
+"the host pass excludes exactly the bare-metal crates"); `xtask/src/main.rs` carries the list twice
+(lines 5133 and 5789); `script/coverage` carries it twice (lines 70 and 100); and
+`.cargo/mutants.toml` still says in its own head comment that its list "deliberately mirrors
+script/coverage's exclusions". One place derives it and the rest restate it, which is the whole
+block. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** `script/lint` already derives the set for its own check, so the hard half exists;
 what is missing is the other three consuming that derivation instead of restating it.
@@ -54,3 +62,22 @@ milestone 278's argument is that the *boundary* is in the wrong place, not that 
   generated file is checked in, which this tree has opinions about) or the exclusions move to the
   `script/mutation` call site and the file stops being the record. Both are defensible and neither
   has been measured.
+
+## Index row
+
+A crate that reaches `crates/user_mode_runtime` cannot compile for the host, because `svc` and
+`ecall` from EL0 on a machine with no nife kernel under it are a fault, and four separate files
+record which crates those are: `script/lint`'s two clippy invocations, `xtask`'s `test`,
+`script/coverage`'s exclusions and `.cargo/mutants.toml`'s. `script/lint` asks cargo; the other
+three carry a list. This has already broken once and the way it broke is the argument: the exclusion
+set went wrong on 2026-08-03 and stayed wrong until 2026-08-14, invisible for eleven days, because
+CI had moved to an aarch64 runner the same day, where the EL0 assembly compiles by accident.
+Milestone 244 then found the repair had covered two consumers rather than four, and that the two it
+missed are the two that publish a number, coverage and mutation, with `.cargo/mutants.toml` asking
+the next person in a comment to keep it in step with `script/coverage`, which is rung four in a file
+whose output is quoted in a fatal risk's verdict. Two ways to close the class and choosing is the
+work: emit the derived set and have the other three consume it, or keep the lists and keep the gate
+widened, which is roughly today's state and only tells you after they have stopped agreeing. The
+first is the higher rung; the awkward half is that `.cargo/mutants.toml` is static TOML, so either
+it is generated or the exclusions move to the `script/mutation` call site and the file stops being
+the record.

@@ -1,10 +1,17 @@
-# A third program directory, for the tools a person invokes
+# 395. A third program directory, for the tools a person invokes
 
-**Status: PROPOSED 2026-09-13.** Found by milestone 175's classification pass, which
-[its own block](../175-user-components-fixtures-split.md) asked for in as many words: *"check
-whether milestone 39's two-way split still fits the tree or whether a third directory (`tools/`, or
-similar, not decided here) is honest about what's actually there, rather than forcing a fit."* This
-is the answer to that question, written down instead of taken.
+**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 175's
+classification pass, which its own block asked for in as many words; numbered 2026-09-19 by
+milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19. The
+argument is unchanged and two of its numbers are not**, both moved by work that landed the same day
+this was filed. `watch` was cut by milestone 281, on calef's *"We can cut `ps` with the `watch` and simplify."*,
+and `doc` was ratified as `mdr` in the same afternoon's worklist. So the list below is
+**fifteen** non-service programs rather than sixteen, and **nine** of them are typeable at the
+prompt rather than ten: `grant_plan::Prog::from_name` resolves `date`, `rm`, `wc`, `mdr`, `ps`,
+`pgrep`, `uptime`, `printenv` and `uuid`. `components/Cargo.toml` now carries 47 `[[bin]]` entries
+and `fixtures/Cargo.toml` 40. Two entries in the table below are stale as written and are left as
+written, because a reader needs to see what was counted; this paragraph is the correction.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** A top-level directory holding a Cargo package is named exactly as the package,
 so this is a name, and names are calef's. It is also the most expensive kind of name in this tree:
@@ -77,3 +84,24 @@ early."* The same sentence applies here one level out.
 Whether `net_transport` gets lifted into a crate (milestone 175's block leaves that open), and
 whether `crates/` gets 39's three-audience split (39 named that as a separate strain and 175
 explicitly refused to fold it in).
+
+## Index row
+
+Milestone 175 split 74 programs into `components/` and `fixtures/` on one question, *would a
+distribution ship this because somebody wants its function*, and asked in its own block whether a
+third directory would be more honest than forcing a fit. This is that answer written down instead of
+taken. Fifteen of the components are not services: four that read one thing and print it (`date`,
+`printenv`, `uptime`, `uuid`), three that look at the running system (`ps`, `pgrep`, `pmap`), four
+that operate on what the command line designates (`wc`, `rm`, `mdr`, `rmle`) and four operator tools
+run once on purpose (`disk_surveyor`, `disk_partitioner`, `identity_provisioner`, `swapper`), and
+nine of them are already typeable at the prompt through `grant_plan::Prog::from_name`, which is the
+closest thing this tree has to a `/bin`. The honest case against is that the two-way split is not a
+forced fit: milestone 39 defines a component as the shippable unit, a binary plus its manifest, and
+`wc` is one, so `components/` holding it is coarse rather than wrong, and a coarse-but-correct
+directory is a much smaller defect than a name taken without the person who owns names. The cost is
+bounded and measured against 175 doing the same work at four times the scale: about an hour, sixteen
+moves, a third four-line `build.rs`, and roughly 150 path citations. The case for doing it soon is
+that a reader meets a directory before they meet anything in it, and that doing it later pays the
+repoint twice. A decision has to settle three things: whether the third category exists at all, the
+name (`tools/` is already spent on `tools/redoxfs_host`, a host build tool, and `bin/` says nothing
+about authority), and where `swish` goes, since the shell is as plausibly the spine as a tool.

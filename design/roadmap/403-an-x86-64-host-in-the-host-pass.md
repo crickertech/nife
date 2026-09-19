@@ -1,7 +1,15 @@
-# An x86_64 host in the host pass
+# 403. An x86_64 host in the host pass
 
-**Status: PROPOSED 2026-09-14.** Left open by milestone 288, which fixed four instances of "a test
-that states a fact about the author's laptop" in `crates/elf` and could not stop a fifth.
+**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal, left open by milestone 288,
+which fixed four instances of "a test that states a fact about the author's laptop" in `crates/elf`
+and could not stop a fifth; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
+**Premise re-read against the tree on 2026-09-19 and still true, with one clarification worth
+having**: every `runs-on:` in `.github/workflows/` is `ubuntu-24.04-arm` except one, and that one is
+`verify.yml`'s `prove-kernel-x86_64`, which runs `script/verify --only kernel` because CBMC needs a
+goto-binary for the host it runs on. So **no host test pass has ever run on x86_64**, which is this
+block's claim, and the x86_64 runner image is already in use for a different job, which prices
+option 1 and option 2 a little lower than the proposal assumed.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** Whether to spend runner minutes on a second host is calef's, because it is a
 standing cost on every pull request rather than a one-off. Everything below is the measurement he
@@ -54,3 +62,24 @@ Option 3 is probably minutes of work and the other two are a CI file edit each. 
 is none of those**: it is whether the project wants to pay runner concurrency on every pull request
 for a class of fault it has met three times in two months. That is a judgement about a standing
 cost, which is why this is a proposal with the numbers attached rather than a lane that picked one.
+
+## Index row
+
+Every machine that has ever run this suite is aarch64: the development machine is Apple Silicon and
+CI is `ubuntu-24.04-arm`. Milestone 288 made the class unrepresentable where it could
+(`FOREIGN_MACHINES` is derived, a never-a-nife-machine number is checked in a `const`) and the
+residue is plain, because a machine literal standing in for a host-relative fact still compiles on
+every host and nothing here would notice. The tree has paid for this three times in three crates,
+each found by a stranger rather than by a gate: `xtask`'s host pass stopped compiling on x86_64 and
+nobody noticed because CI moved to an arm runner the same day; `crates/elf` failed 20 of 25 host
+tests on x86_64 from milestone 161 to milestone 288, with two milestones filing it as a proposal
+before one closed it; and `fuzz/seeds/elf_parse/` seeded an empty corpus on x86_64 silently. Three
+shapes are priced and none is obviously right: a second CI job on `ubuntu-24.04` running only the
+host pass, which is the smallest thing that closes the class and costs a runner slot per pull
+request against a concurrency ceiling AGENTS.md already names; a matrix leg, same cost and a
+symmetric claim rather than a special case; or a periodic run, which is `script/stranger-test`'s
+existing posture and finds the fault a day late, which given three faults that went undetected for
+weeks would still have been an enormous improvement. A lint that greps for machine literals is
+deliberately not proposed. The expensive part is none of the edits: it is whether the project wants
+to pay runner concurrency on every pull request for this class, which is a standing cost and
+therefore calef's.

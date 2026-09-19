@@ -1,7 +1,7 @@
 # 259. Sweep `notes/` for claims that stopped being true, because the gate cannot see them
 
-**Status: BUILT** (2026-09-05). Minted 2026-09-05 by calef, as the other half of
-`design/roadmap/proposals/a-note-that-cites-a-milestone-that-moved.md`, which catches the notes that
+**Status: BUILT** (2026-09-05). Minted 2026-09-05 by calef, as the other half of milestone 385,
+`design/roadmap/385-a-note-that-cites-a-milestone-that-moved.md`, which catches the notes that
 cite a milestone and says plainly that the notes which cite nothing are the worse half.
 *(Number provisional until the merge queue lands it.)*
 
@@ -148,8 +148,8 @@ first paragraph, its last paragraph, and its `notes/README.md` entry.** Three pl
 ## The second finding: 262 of the corrections were a gate nobody had written
 
 More than half of everything found was one mechanical shape, a backticked in-tree path that no
-longer resolves, and it is the half a machine should own. It has a proposal:
-`design/roadmap/proposals/a-backticked-path-that-does-not-resolve.md`.
+longer resolves, and it is the half a machine should own. It is milestone 383,
+`design/roadmap/383-a-backticked-path-that-does-not-resolve.md`.
 
 Its trap is worth carrying here too, because this lane fell into it: **a crate is named three ways**
 (`crates/fs_proto`, `fs_proto::PAGE`, and a bare `` `fs_proto` ``), the first pass matched one of
@@ -169,9 +169,10 @@ not.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-backticked-path-that-does-not-resolve.md`: a gate for an
-  in-tree path in backticks that does not resolve, with the false-positive classes enumerated from
-  this sweep's own four and an allow-list carrying a reason per entry.
+- **Milestone 383.** A gate for an in-tree path in backticks that does not resolve, with the
+  false-positive classes enumerated from this sweep's own four and an allow-list carrying a reason
+  per entry. Written up the same day as an unnumbered proposal and numbered on 2026-09-19 by
+  milestone 433's drain of the pile.
 - **Recorded.** In this block's BUGS: this sweep is a snapshot and will go stale. It read 175 notes
   on one day against one tree.
 - **Recorded.** In this block's BUGS: three notes were not read for staleness because milestone

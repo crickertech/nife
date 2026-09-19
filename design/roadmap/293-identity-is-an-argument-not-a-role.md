@@ -149,7 +149,7 @@ limitations, and the fact that a spawn argument is visible wherever a spawn is r
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/one-definition-of-the-numbers-a-kernel-test-and-its-program-agree-on.md`.
+- **Milestone 407.** Numbered on 2026-09-19 by milestone 433's drain of the pile.
   This milestone was briefed to grep the values rather than the constant names, and the grep found
   the other half of its own file's problem: `kernel/src/user/login_service.rs` and
   `fixtures/src/login_test_client.rs` declare **fifteen** of the same constants twice, held in line

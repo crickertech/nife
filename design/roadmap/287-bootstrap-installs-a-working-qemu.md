@@ -202,7 +202,7 @@ half is fixed and proven, and a different wall is standing behind it.
 
 ## Follow-on
 
-- **Proposed.** Stop installing the QEMU packages apt cannot make useful. On a cold Linux box
+- **Milestone 396.** Stop installing the QEMU packages apt cannot make useful. On a cold Linux box
   `script/bootstrap` installs `qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf` and
   then builds a QEMU that shadows the three emulator packages entirely. **Measured on the built
   prefix**, QEMU's own `make install` ships `efi-virtio.rom`, six `pxe-*.rom` option ROMs and every
@@ -210,9 +210,8 @@ half is fixed and proven, and a different wall is standing behind it.
   `scripts/qemu-uefi-x86_64.sh` already looks first, so the two firmware packages look redundant too.
   **That is where the evidence stops**, and proving it needs the x86_64 UEFI gate and the netboot
   rehearsal run green with those packages absent, which is more than this lane could show. Nothing
-  was removed. Written up as
-  `design/roadmap/proposals/an-apt-qemu-that-is-installed-and-then-shadowed.md`, which names the four
-  runs that would close it and prices the prize honestly: a few hundred megabytes, not correctness.
+  was removed. 396 names the four runs that would close it and prices the prize honestly: a few
+  hundred megabytes, not correctness. Numbered on 2026-09-19 by milestone 433's drain of the pile.
 - **Milestone 288.** `crates/elf`'s host tests assume the host is aarch64, so `script/test` cannot go
   green on an **x86_64 Linux** box: twenty of twenty-five tests fail at the machine check and the
   host pass never reaches the kernel legs. Found here because this is the first machine in the

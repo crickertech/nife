@@ -263,11 +263,11 @@ nothing, which is the Follow-on question below rather than a step in this proof.
 
 ## Follow-on
 
-- **Proposed.** The boot-time console server now comes up with no client at all: `start` is still
-  called on a tour boot and `rustc` reports every field of its `Console` handle as never read. Whether
-  it should keep being started, and what it was infrastructure for, is calef's rather than a lane's,
-  with the three options and their real costs in
-  `design/roadmap/proposals/a-console-server-with-nobody-to-print-for.md`.
+- **Milestone 394.** The boot-time console server now comes up with no client at all: `start` is
+  still called on a tour boot and `rustc` reports every field of its `Console` handle as never read.
+  Whether it should keep being started, and what it was infrastructure for, is calef's rather than a
+  lane's, and 394 carries the three options with their real costs. Numbered on 2026-09-19 by
+  milestone 433's drain of the pile.
 - **Refused.** "A narrative program the shell cannot start" is moot and its proposal file is
   retired. It asked for one of three ways to let `swish` start `narrator`, all of which presupposed
   a narrator; calef deleted the program on 2026-09-13, so the missing half of "a program you can run

@@ -1,7 +1,17 @@
-# `script/bootstrap` installs what is missing, and also judges whether the machine is good enough
+# 397. `script/bootstrap` installs what is missing, and also judges whether the machine is good enough
 
-**Status: PROPOSED 2026-09-13.** Written by milestone 286's lane, out of a failure that milestone
-measured on its own container.
+**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
+a failure that milestone measured on its own container; numbered 2026-09-19 by milestone 433's drain
+of the proposal pile. **`script/bootstrap` was re-read on 2026-09-19. The conflation is unchanged
+and the measurement that argued for it has weakened**, which is worth separating. Still true: the
+header still promises only that the script installs what is missing, and line 174 still runs
+`script/qemu-check`, which judges whether what is present is adequate. Weakened: milestone 287
+landed the same day this was filed and gave the Linux arm a source-build fallback, so a Linux box
+with a too-old packaged QEMU now builds the pinned one and re-checks rather than exiting 1, which is
+the exact container failure the table below was priced against. What is left of the case is the
+shape rather than the instance: macOS has no fallback and still exits 1 from inside a provisioning
+step, and so does any Linux box where `script/ci-qemu` cannot run. *(Number provisional until the
+merge queue lands it.)*
 
 **Gate: DECISION.** Whether the two jobs split, and if so how the caller asks for one without the
 other, is a change to a canonical "Scripts to Rule Them All" entry point that `script/setup`,
@@ -60,3 +70,23 @@ in the caller, and the caller is a table of checks that has no opinion about QEM
 
 Nothing. Milestone 286 shipped, the failure is loud, and the workaround is three commands a
 developer can type. This is a sharpness problem rather than a correctness one.
+
+## Index row
+
+`script/bootstrap`'s own header promises one thing, that it installs only what is missing and is
+cheap to re-run. It does a second thing the header does not mention: after installing it calls
+`script/qemu-check`, which asks whether the QEMU on `PATH` is new enough to boot this kernel and
+exits non-zero when it is not. Installing what is missing and judging whether what is present is
+adequate are different questions that fail in different ways, and milestone 286 made the conflation
+expensive for the first time by putting `bootstrap` at the head of the command a developer runs
+before pushing, so a non-zero exit now ends the whole local tier on a machine where `fmt`, `lint`
+and `image-permissions` would all have passed. Four options, priced: leave it and let the developer
+on a stale machine keep typing three commands by hand; a `--no-verify` flag, which moves the
+judgement into a caller that has no opinion about QEMU versions and is refused unless calef wants
+it; a split, where `bootstrap` provisions and returns zero when it installed everything it could and
+the adequacy check becomes its own row in `script/ci-build`'s table; or distinct exit codes, which
+does not fix the conflation but makes it legible to one caller and should be priced honestly as the
+cheap one. The split is the shape this tree already reaches for, and its own cost is that
+`script/setup` and `script/update` currently get the adequacy verdict for free on a fresh machine,
+which is exactly the reader the check was written for. It is calef's because the exit code of a
+canonical "Scripts to Rule Them All" entry point is read by four callers.

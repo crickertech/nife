@@ -110,10 +110,10 @@ a name had been refused. Read before sweeping.
 
 ## Follow-on
 
-- **Proposed.** Four places record which crates cannot compile for the host and this milestone
-  touches all four, so it would have made a fifth. Deriving that set once, the way `script/lint`
-  already derives it for its own check, closes the class rather than this instance. Not scoped
-  here: `design/roadmap/proposals/the-host-excluded-crate-set-lives-in-four-places.md`.
+- **Milestone 393.** Four places record which crates cannot compile for the host and this
+  milestone touches all four, so it would have made a fifth. Deriving that set once, the way
+  `script/lint` already derives it for its own check, closes the class rather than this instance.
+  Not scoped here; numbered on 2026-09-19 by milestone 433's drain of the pile.
 
 ## Index row
 

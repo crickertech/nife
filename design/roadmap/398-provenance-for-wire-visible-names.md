@@ -1,8 +1,18 @@
-# Provenance for the names two programs agree on
+# 398. Provenance for the names two programs agree on
 
-**Status: PROPOSED 2026-09-13.** Found by milestone 283's gate, which fired on a record nobody knew
-was there: a fourth kind of named thing carrying provenance at the thing, exactly as milestone 115
-asks, on a surface `script/names` has never enumerated.
+**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal, found by milestone 283's gate
+firing on a record nobody knew was there; numbered 2026-09-19 by milestone 433's drain of the
+proposal pile. **Premise re-read against the tree on 2026-09-19 and still true.**
+`crates/measured_boot/src/lib.rs` still carries the record on `PROGRAM_MEASUREMENTS`, saying in its
+own prose that the entry name is provisional and that it "sits outside the four surfaces
+`script/names` enumerates", and `script/names` still enumerates exactly those four. Two figures
+moved: `--unratified` is **72** deep rather than 97, and the program surface is `components/` and
+`fixtures/` rather than `user/src/` since milestone 175. **The cheap half this block asks for first
+has a first answer**: `pub const <NAME>: &str` matches **77** times across `crates/`, `components/`,
+`fixtures/` and `kernel/`, which is the order of magnitude that decides between a list in
+`design/naming.md` and a declared out-of-scope, and it is an upper bound rather than the count,
+since not every one of the 77 is agreed between two binaries.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** What counts as a surface is a scope question, and scope decides how large the
 worklist calef is handed becomes. Whether to widen at all is his call, not a lane's.
@@ -67,3 +77,22 @@ Reworded the `measured_boot` record to say the same things in prose, and to say 
 the `Name:` header spelling. The record is preserved and is one hop from the constant; what it does
 not have is a gate, and this proposal is where that goes rather than into a `BUGS` entry nobody is
 measured against.
+
+## Index row
+
+`script/names` enumerates four kinds of named thing (a crate, a program, a `script/` entry point and
+a Cargo package) and milestone 283's gate fired on a fifth that carries provenance at the thing
+exactly as milestone 115 asks, on a surface nothing has ever listed: `measured_boot`'s
+`PROGRAM_MEASUREMENTS` is an archive entry name, so it is a string two programs agree on, which
+AGENTS.md puts in the expensive, hard-to-reverse category beside a wire format and an opcode number.
+It has a provisional name, its author said so, and `--unratified` has never listed it. This is the
+defect the `package` kind was added to fix, and worse: a package name is read inside this repository
+where a wire string is agreed between two binaries, so the names with the least reversibility are
+the ones with no record, and a registry with a hole answers confidently about the names it happens
+to cover. Three things have to be decided first: whether a wire string is a name for this purpose or
+data, where its block lives (not the file header, which 283 reserved for the file's own one block),
+and how the set is enumerated at all, since the four existing kinds are a directory listing or a
+manifest walk and a `const` in an arbitrary file is neither. The counting is the cheap half and
+comes first: if it is a dozen names the answer is a list in `design/naming.md` and no new machinery,
+and if it is two hundred the answer is probably that wire strings are out of scope and the record
+says so on purpose, the way `unrecorded` is a first-class answer rather than a gap.

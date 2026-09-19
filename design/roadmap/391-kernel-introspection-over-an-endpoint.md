@@ -1,8 +1,13 @@
-# Kernel introspection over an endpoint, rather than one syscall per fact
+# 391. Kernel introspection over an endpoint, rather than one syscall per fact
 
-**Status: PROPOSED 2026-09-09.** Raised by calef in conversation while deciding how `swish` reaches
-a console on x86_64: *"Would it be useful to have the kernel be an IPC service so that it can expose
-things only it knows? ... Or is there a security concern?"*
+**Status: NOT-STARTED.** Filed 2026-09-09 as an unnumbered proposal, raised by calef in conversation
+while deciding how `swish` reaches a console on x86_64; numbered 2026-09-19 by milestone 433's drain
+of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**: nothing has
+answered the fork. `design/decisions/149-kernel-served-console-endpoint.md` still refuses to settle
+it on the console's momentum, and milestone 269, which that refusal named as the consumer to decide
+it against, is still `NOT-STARTED`. So this block keeps the sequencing it was written with: it
+becomes a `design/decisions/` section when 269 is taken, not before.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** This is a design fork about the kernel's shape, not work to schedule.
 
@@ -58,3 +63,21 @@ when that milestone is taken rather than before.
 - **The denial-of-service shape is inherited from §149 and not re-examined here.** A read-only
   service that never blocks inside a handler is a weaker version of the same problem, but "weaker" is
   an assertion until somebody looks.
+
+## Index row
+
+Some facts exist only in the kernel (preemption counts, scheduler state, the machine description
+milestone 268 prints at boot) and no program can ask for any of them today. The obvious route is a
+syscall per fact, which grows the surface DECISIONS §10 and §16 exist to keep narrow; the
+alternative is a kernel thread parked on a rendezvous, answering questions, which needs no new
+object type and no new syscall number, because `ipc::Rendezvous` is generic over `T: Node` and has
+no privilege level in it. The argument that makes it more than tidiness is easy to get backwards: a
+syscall is reachable by every thread in the system, so restricting who may read the scheduler's
+state means a check inside the kernel and a rule about who should call it, where an endpoint is
+reachable only by a program handed the capability and the right can be revoked, which is rung one
+against rung four wearing a syscall's clothes. Against it: the kernel becomes a parser of untrusted
+input inside the trusted computing base, read-only introspection is the cheapest possible violation
+of §14's minimal-core claim, and "only the kernel knows it" is sometimes a sign the data wants a
+userspace owner instead. It is gated on calef deliberately and sequenced deliberately: decision 149
+refused to settle a chosen thing on a forced thing's momentum and said to answer it when a real
+consumer exists, and milestone 269 is that consumer.

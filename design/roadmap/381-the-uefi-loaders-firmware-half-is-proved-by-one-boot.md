@@ -1,6 +1,13 @@
-# The UEFI loader's firmware half is proved by one boot and nothing else
+# 381. The UEFI loader's firmware half is proved by one boot and nothing else
 
-**Status: PROPOSED 2026-09-04.**
+**Status: NOT-STARTED.** Filed 2026-09-04 as an unnumbered proposal by the
+`maintainer/uefi-loader-mutants` lane, from that crate's own mutation score; numbered 2026-09-19 by
+milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and
+still true**: `uefi_loader/src/main.rs` is still 790 lines, `.cargo/mutants.toml` still names it in
+the exclusion list with the `required-features = ["uefi"]` reason beside it, and `load`,
+`say_conflict`, `copy_trampoline`, `find_screen`, `find_rsdp` and the four `say_*` formatters are
+all still in that one file with nothing on the host executing a line of them.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** Lifting pure logic out of a binary into the library beside it is the move this crate
 already made once, so nothing here is owed to calef; what the work owes is a measurement first, and
@@ -63,3 +70,19 @@ It has 28 mutants, its inputs are descriptors, and nothing has ever executed it 
   the formatters, plausibly yes. For `load`, probably not.
 - **The OVMF leg is the only thing that catches a regression in what stays behind**, and it is a
   single boot rather than a suite. Nothing here changes that.
+
+## Index row
+
+`uefi_loader/src/main.rs` is 790 lines and 154 of the crate's 189 mutants, and it sits behind
+`required-features = ["uefi"]`, so no host test compiles a line of it. Excluding it from mutation
+made the published score honest and did nothing for the file: what proves it is one OVMF boot under
+`cargo xtask uefi-boot`, pass or fail, on the code path that runs on xenon before anything else does
+and where a fault has no console and no debugger. The crate has already won this argument once, for
+its library half, which scores 100% of viable mutants because the pure structure work was lifted out
+of the binary. `say_conflict` is the piece worth lifting first whatever the verdict on the rest: it
+is arithmetic over memory-map descriptors, it has 28 mutants, and it is the sentence a person at a
+machine that will not boot reads to find out what is occupying the kernel's physical range, so a
+wrong answer there is a dead boot that lies about why. The work is required to measure the split
+before taking it, with `cargo mutants --list -p uefi_loader` against a candidate seam, and is
+allowed to come back saying no for `load`, which is 66 of the 154 and is genuinely a firmware call
+sequence.

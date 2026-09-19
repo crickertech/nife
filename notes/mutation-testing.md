@@ -885,7 +885,8 @@ what it actually stood for was a measurement bug.
 firmware and leave long mode, and the only thing that proves it is `cargo xtask uefi-boot` under
 OVMF, on `script/test`'s own leg. `load`, `say_conflict` and `find_screen` carry logic (66, 28 and 9
 mutants) that a host test could reach if it were lifted the way `handoff` and `image` were; whether
-that is worth doing is `design/roadmap/proposals/the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
+that is worth doing is
+`design/roadmap/381-the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
 Excluding the file makes the number honest, not the file proved.
 
 ### The two real survivors, and the hole beside them
