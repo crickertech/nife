@@ -17,6 +17,7 @@ where the reasons live.
 | `memory_regions` | 8 | 0 | 6 | 0 | 0 |
 | `elf` | 6 | 0 | 6 | 0 | 0 |
 | `timetable` | 48 | 0 | 12 | 0 | 0 |
+| `dtb` | 14 | 1 | 13 | 1 | 0 |
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the

@@ -1373,3 +1373,41 @@ unexcluded.
   section on `Unbacked` itself, where a reader meets the variants. **Whether `admit` should stop
   pre-consuming the holding is a behaviour change rather than a test**, so it is recorded and not
   made.
+
+### `dtb`: 14 survivors, 13 killed, 1 equivalent; the 29 timeouts are hangs
+
+**Before: 368 caught, 14 missed, 29 timeouts, 19 unviable (96.6% of viable). After: 381 caught, 1
+missed (99.7%)**, which is the baseline's own number.
+
+**Thirteen of the fourteen are one omission repeated across four walkers.** `Dtb` has five walks
+over the structure block that each keep their own 16-entry per-depth array, and
+`a_declaration_at_the_stacks_edge_is_ignored_not_indexed` (milestone 42's fuzzing leg) tests exactly
+one of them, `node_reg`'s. `node_prop_compatible`, `node_prop_inherited`, `phandle_prop` and
+`node_prop` carry the same `depth < MAX_DEPTH` guard and had `<=` alive in every one: at depth
+exactly 16 that is an out-of-bounds index in a parser the kernel runs on firmware bytes, before
+there is any way to report a failure. Three of them also had the guard alive under `==` and `>`,
+which skip the per-node reset for every depth a real tree reaches, so a sibling answers with the
+property of the node that closed before it. Closed by three tests in `tests/hostile.rs`:
+`every_walkers_stack_edge_is_ignored_rather_than_indexed`,
+`a_sibling_does_not_answer_with_the_node_befores_property`, and
+`an_inherited_property_comes_from_the_named_node_not_the_first_one`, which also covers
+`node_prop_inherited`'s target guard under `||`: `(A && B) || target_at.is_none()` selects the
+**root**, whose slot then answers for a node the tree does not contain.
+
+**And the sweep audited the tests, which is worth recording as a method note rather than as an
+anecdote.** The first version of two of those tests passed and killed nothing, because
+`node_prop_compatible` takes `(compat, name)` and they were written `(name, compat)`: a vacuous
+assertion that reads correctly. The re-run is what said so, and it said so in the only way that is
+not an argument. This is the ledger's own rule ("a verdict reached by reading is wrong about ten
+percent of the time; a verdict reached by running is not") applied to the *kill* rather than to the
+equivalence.
+
+**The one equivalent.** `cells`'s `value = (value << 32) | be32(..)` under `^`. The shift clears the
+low thirty-two bits and a `be32` cannot reach the high ones, so the two operands are disjoint and
+`|` and `^` are the same function on them; the identical argument as `capability::note_peak` above.
+
+**The 29 timeouts are hangs, and they are the baseline's `dtb` row grown with the walkers.** All 29
+are `at += 4` under `-=`, `at += align4(..)` under `-=`, or `at = value_at + align4(len)` under `-`,
+spread over the nine walks: every one is the structure-block cursor, and a cursor that stops
+advancing re-reads the same token forever. That is the tests noticing rather than missing, which is
+this file's standing reading of a timeout whose mutant could hang.
