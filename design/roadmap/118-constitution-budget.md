@@ -413,15 +413,17 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1009 lines** <!--count-at-most:agents-md-lines-->, written at the
-tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
-above, is that every line added should replace one removed, or be a considered act that says why the
-growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
-reason (a population small and consequential enough that every addition deserves the stop); here the
-reason is this milestone's own diagnosis, that the file grows in whole deliberate steps rather than
-by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
-sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
-neighbor for the same pattern applied to a different number.
+**`AGENTS.md` carries at most 922 lines** <!--count-at-most:agents-md-lines-->, written at the
+tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
+moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
+for 988 against its own smaller diff, which §155 superseded): the point, per this section's own
+words above, is that every line added should replace one removed, or be a considered act that says
+why the growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a
+different reason (a population small and consequential enough that every addition deserves the
+stop); here the reason is this milestone's own diagnosis, that the file grows in whole deliberate
+steps rather than by diffuse creep, so a lane adding one of those steps is exactly the lane that
+should also write the sentence justifying it. See notes/counted-claims.md for the mechanism and
+notes/rule-violations.md's neighbor for the same pattern applied to a different number.
 
 **Raised 1001 to 1009 on 2026-09-14**, net of a consolidation, and the eleven added lines are a third lane-count ceiling: disk. The considered act: the file already bounds concurrent lanes by collision surface and by memory, and neither of those warns about the third. Five lanes at roughly 3 GB of `target/` each, plus 7.2 GB in the main checkout's own, took the volume to 1.9 GB free and then to a command failing mid-write; the maintainer session met it four times in one night and cleaned up four times without ever writing the limit down, which is rung zero wearing diligence. It earned lines rather than a note for the reason named in the text: disk is the only pressure in this system that destroys work rather than delaying it, and a lane pruned under it loses uncommitted work outright. **Three lines WERE removed to pay part of it**, which is the first time this ledger records a raise partly funded rather than simply taken. calef asked whether the prune rule could be consolidated; it stood in four places, and two of those are role duty lists (the maintainer's and the steward's hygiene clauses) where naming the duty is the point rather than a restatement. The other two were genuine duplicates, each stating one rule with different evidence: eight worktrees with one holding 3.3 GB, and 2026-07-31's zero-bytes-free with 42 worktrees holding 78 GB. They are now one paragraph carrying both measurements and the push-before-removing clause, sited beside the disk ceiling where a reader now meets the subject. **What NOT added**, and the near-miss is worth the sentence: the same session proposed also adding "prune the worktree at merge", which this file already says in four places (323, 367, 496, 615). The rule was not missing and the session had simply not followed it, so a fifth copy would have been milestone 262's own defect, the file growing something it already had.
 

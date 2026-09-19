@@ -338,13 +338,14 @@ directory entries per block, and nothing else now that `Fs` no longer holds an e
 limit pick a name, and do not spend a format change on bytes nothing needs.** 32 clears the longest
 settled name by seven bytes, which is a budget rather than the three bytes that were left before.
 
-## Crates
+## What `crates/` holds
 
 `crates/` holds four audiences under one directory, and **naming does not distinguish them**, which
 is a known gap rather than a decision.
 
-- **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `frames`, `regions`,
-  `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_mode_heap`.
+- **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `page_frames`,
+  `memory_regions`, `generational_table`, `address_space_identifier`, `intrusive_fifo`,
+  `inter_process_communication`, `dma_validator`, `measured_boot`, `user_mode_heap`.
 - **Wire contracts**, spelled `*_protocol` and checked for it by `script/lint`:
   `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
   `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,
@@ -357,7 +358,8 @@ is a known gap rather than a decision.
   to differentiate from prototype."*). `proto` is a truncation rather than an abbreviation, and it
   is equally short for `prototype`, which this tree uses for a real thing. Wherever a dated passage
   below spells a crate `_proto`, that is what it was called then and the passage is left alone.
-- **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
+- **Format and hardware parsers**: `elf`, `device_tree_blob`, `pci`,
+  `globally_unique_identifier_partition_table`, `nifefs`.
 - **Userspace libraries**: `user_mode_runtime`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
   `bitmap_font`, `glob`, `calendar`, `credentialer`, `compositor`, `coremark`, `c_seam`.
 
@@ -368,7 +370,9 @@ composition itself; `line_editor` is a sans-IO editor with a `line_editor::proto
 either to `*_proto` would promise a wire definition and deliver an algorithm, which is exactly the
 kind of claim §39 is about. The `*_proto` check is right to leave them alone.
 
-What the names actually do, over the 39 directories under `crates/`:
+What the names actually do, over the 39 directories under `crates/` **on 2026-08-01**, when this
+census was taken. It has not been re-taken (there were 68 on 2026-09-19), and the names in it are
+the ones those directories had that day:
 
 - **One word where one word will do**, which is 21 of the 39: `abi`, `capability`, `compositor`,
   `elf`, `frames`, `ipc`, `paging`, `regions`, `slots`, `virtio`.
