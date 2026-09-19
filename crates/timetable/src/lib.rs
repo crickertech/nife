@@ -365,6 +365,32 @@ pub const SHIPPED_HELD: Held = Held {
 /// line is exactly right and would run at a prompt, and the fix is to grant the scheduler something
 /// it was not granted. Collapsing the two would tell a person to edit a line that has nothing wrong
 /// with it.
+///
+/// # BUGS
+///
+/// **[`Admission::Unbacked`] never carries [`Unbacked::File`] or [`Unbacked::Directory`]**, so a
+/// designation this scheduler cannot back arrives as an [`Admission::Refused`] carrying
+/// `Refusal::NoSuchCapability` instead. The cause is one line in `admit`: it hands
+/// `grant_plan::plan` the scheduler's own `dir` holding, so a plan that would need a directory the
+/// scheduler lacks is refused during planning and never reaches the check that would have named it
+/// as unbacked. Both variants exist, both have their own sentence, and both are reachable by
+/// calling `unbacked` directly, which
+/// `a_designation_is_backed_by_the_directory_the_scheduler_holds` does.
+///
+/// The visible cost is which of two true sentences a reader meets, not a wrong answer: the refusal
+/// this path produces also says the capability is missing. The cost that is not visible is that the
+/// [`Refusal`]/`Unbacked` split above promises "edit the line" against "grant the scheduler
+/// something", and a `rm -r logs` line in a timetable that holds no directory is the second while
+/// being reported as the first.
+///
+/// **[`Unbacked::File`] has a second reason it cannot arrive**: no shipped program declares a
+/// `FileSpec::Required`, so `Endowment::file` is `None` for every plan this crate can build.
+/// `grant_plan` keeps that branch live with a fixture of its own rather than a program.
+///
+/// Found by milestone 326 on 2026-09-19, from two mutants that deleted the `!` in `unbacked`'s
+/// `!held.dir` tests and survived the whole suite. Whether `admit` should stop pre-consuming the
+/// holding, so the designation arms can be reached, is a behaviour change rather than a test, and
+/// it is left recorded here rather than made.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Unbacked {
     /// The entry designates a file, and this scheduler holds no directory to narrow.
@@ -1300,6 +1326,110 @@ mod tests {
         }
         // Total rather than panicking, for a period `parse` will never produce.
         assert_eq!(next_after(1, 0, 5), u64::MAX);
+    }
+
+    /// **The accessor, as distinct from the variant.**
+    /// `each_error_points_at_the_line_that_is_wrong` above compares whole `Error` values, so the
+    /// line is checked but `Error::line` is never called: a mutation run of 2026-09-19
+    /// (milestone 326) replaced its whole match with a constant `1` and nothing failed. This is
+    /// what a reader is sent to the file with, so an editor sent to the top of the document for a
+    /// fault on line 40 would have been nobody's failing test.
+    #[test]
+    fn error_line_reads_the_number_each_variant_carries() {
+        let errs = [
+            Error::Malformed(2),
+            Error::UnknownSchedule(3),
+            Error::MissingInterval(4),
+            Error::BadInterval(5),
+            Error::ZeroInterval(6),
+            Error::MissingCommand(7),
+            Error::TooManyEntries(8),
+        ];
+        for (i, e) in errs.into_iter().enumerate() {
+            assert_eq!(e.line(), i + 2, "{e:?}");
+        }
+        // And it is the document's line rather than the entry's index: the comment counts.
+        assert_eq!(parse("# heading\nevery\n").unwrap_err().line(), 2);
+        assert_eq!(parse("# heading\nevery 5\n").unwrap_err().line(), 2);
+    }
+
+    /// **What a designation costs when the scheduler holds a directory, and what it costs when it
+    /// does not.** `admit` hands `grant_plan::plan` the scheduler's own `dir` holding, and nothing
+    /// tested that it hands over the real one: the 2026-09-19 mutation run deleted the field from
+    /// the `Holdings` expression, falling back to the default `false`, and no test noticed. A
+    /// timetable that holds a directory and reports every `rm` line as unbackable is a scheduler
+    /// that has forgotten what it was given.
+    ///
+    /// The two `!held.dir` tests in `unbacked` are called here directly, and that is deliberate
+    /// rather than convenient: see this crate's `BUGS`, which records that `admit` cannot reach
+    /// either of them, because the `dir` it passes to `plan` is the same bit `unbacked` then
+    /// re-tests. The mutants that deleted both `!`s survived on exactly that. `e.file` has no route
+    /// in at all, since no shipped program declares a `FileSpec::Required`, so the grant below is
+    /// lifted off a real `wc` plan rather than forged.
+    #[test]
+    fn a_designation_is_backed_by_the_directory_the_scheduler_holds() {
+        let doc = parse("every 5s rm -r logs\nevery 5s wc report.txt\n").unwrap();
+        let with_dir = Held {
+            dir: true,
+            ..Held::default()
+        };
+        let reg = Registry::register(&doc, with_dir);
+
+        let mut e = reg.rows()[0]
+            .endowment()
+            .expect("a scheduler holding a directory can back `rm -r logs`");
+        assert!(e.dir.is_some(), "the plan narrowed the directory it holds");
+        assert_eq!(unbacked(&e, with_dir), None);
+        assert_eq!(unbacked(&e, Held::default()), Some(Unbacked::Directory));
+
+        let wc = reg.rows()[1].endowment().expect("and `wc report.txt`");
+        let grant_plan::line::Source::File(f) = wc.source else {
+            panic!(
+                "`wc report.txt` resolves its operand to a file: {:?}",
+                wc.source
+            );
+        };
+        e.dir = None;
+        e.file = Some(f);
+        assert_eq!(unbacked(&e, with_dir), None);
+        assert_eq!(unbacked(&e, Held::default()), Some(Unbacked::File));
+    }
+
+    /// **The plan's rendering, in the units and the widths a reader meets.** The test below prints
+    /// one plan and asserts substrings of it, which left three families of mutant alive until the
+    /// 2026-09-19 run found them, and the shape is the same in all three: the schedule column is a
+    /// 32-byte space-filled buffer emitted as `buf[..n.max(12)]`, so a wrong length is invisible
+    /// for any schedule that fits in twelve columns, and a branch nothing renders is a branch
+    /// nothing checks.
+    ///
+    /// - **The millisecond branch was never rendered.** Every plan in the tests uses seconds or
+    ///   minutes, so `nanos / (NANOS_PER_SEC / 1000)` could become `%` or either `/` a `*`.
+    /// - **The length arithmetic was never observed**, because `30s` and `1m` are short. A
+    ///   seven-digit interval pushes past the column, where `6 + len` under `-` underflows and
+    ///   `n += unit.len()` under `-=` truncates the text and under `*=` pads it.
+    /// - **`e.mem_pages > 0` and `e.arg != 0` were only ever seen true.** An entry with neither is
+    ///   what proves the lines are omitted rather than always printed.
+    #[test]
+    fn the_plan_prints_milliseconds_long_intervals_and_the_absent_grants() {
+        let doc = parse(
+            "every 1500ms least_authority_demo 7\n\
+             every 1234567ms least_authority_demo 0\n",
+        )
+        .unwrap();
+        let reg = Registry::register(&doc, Held::default());
+        let s = shown(|out| write_plan(&reg, out));
+
+        assert!(s.contains("every 1500ms  least_authority_demo 7"), "{s}");
+        assert!(s.contains("every 1234567ms  least_authority_demo 0"), "{s}");
+        assert!(s.contains("      arg      7\n"), "{s}");
+        assert!(
+            !s.contains("arg      0"),
+            "a zero argument is not a grant: {s}"
+        );
+        assert!(
+            !s.contains("cap 1"),
+            "neither entry asked for memory, so nothing is split: {s}"
+        );
     }
 
     #[test]

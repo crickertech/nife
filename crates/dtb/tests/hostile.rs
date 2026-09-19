@@ -800,3 +800,146 @@ fn initrd_properties_after_chosen_closes_do_not_count() {
     let r = dt.initrd().unwrap().expect("the real range from /chosen");
     assert_eq!((r.start, r.size), (0x4800_0000, 0x2_0000));
 }
+
+/// **Each walker's own per-depth arrays have their own edge, and until 2026-09-19 only
+/// `node_reg`'s was tested.** `a_declaration_at_the_stacks_edge_is_ignored_not_indexed` above
+/// covers the cell stack; the four walkers below keep their own 16-entry arrays with the same
+/// `depth < MAX_DEPTH` guard, and milestone 326's mutation run found `<=` alive in every one of
+/// them. At depth exactly 16 that guard is an out-of-bounds index in a parser the kernel runs on
+/// firmware bytes, before there is any way to report a failure, which is the bug the original test
+/// exists for wearing three more hats.
+///
+/// The tree is nested to exactly the edge and carries the property, the `compatible` and the
+/// `phandle` down there, so each arm of each walker is asked to record something at the depth where
+/// recording it would index past the array.
+#[test]
+fn every_walkers_stack_edge_is_ignored_rather_than_indexed() {
+    let mut b = Blob::new();
+    b.begin_node(b"");
+    for _ in 0..15 {
+        b.begin_node(b"bus");
+    }
+    // Depth 16: the first depth no walker may record for.
+    b.prop(b"clock-frequency", &cell32(0x02FA_F080));
+    b.prop(b"compatible", b"deep,thing\0");
+    b.prop(b"phandle", &cell32(7));
+    for _ in 0..16 {
+        b.end_node();
+    }
+    let blob = b.finish();
+    let dt = Dtb::from_bytes(&blob).unwrap();
+
+    // Each returns rather than panicking, and each says "not found" rather than answering from a
+    // depth it stopped tracking.
+    assert_eq!(
+        dt.node_prop_compatible(b"deep,thing", b"clock-frequency"),
+        Ok(None)
+    );
+    assert_eq!(dt.node_prop_inherited(b"bus", b"clock-frequency"), Ok(None));
+    assert_eq!(dt.phandle_prop(7, b"clock-frequency"), Ok(None));
+    assert_eq!(dt.node_prop(b"bus", b"clock-frequency"), Ok(None));
+}
+
+/// **A node's slot is cleared when the node opens, and a sibling must not inherit what the last
+/// one left there.** Three walkers remember a candidate value per open depth and decide at the
+/// closing token, so the reset in `FDT_BEGIN_NODE` is the only thing standing between a sibling's
+/// answer and this one's. Milestone 326's run found `depth < MAX_DEPTH` alive under `==` and under
+/// `>` in all three, both of which skip the reset for every depth a real tree reaches.
+///
+/// The fixture is the same shape for each: the **first** sibling carries the property but does not
+/// identify, the **second** identifies but carries no property. The honest answer is "that node has
+/// no such property"; a walker that kept the stale slot answers with the first sibling's bytes,
+/// which is a property read off the wrong device.
+#[test]
+fn a_sibling_does_not_answer_with_its_predecessors_property() {
+    // `node_prop_compatible`: matched by `compatible`.
+    let mut b = Blob::new();
+    b.begin_node(b"");
+    b.begin_node(b"first");
+    b.prop(b"clock-frequency", &cell32(0xBADD));
+    b.prop(b"compatible", b"other,thing\0");
+    b.end_node();
+    b.begin_node(b"second");
+    b.prop(b"compatible", b"wanted,thing\0");
+    b.end_node();
+    b.end_node();
+    let blob = b.finish();
+    let dt = Dtb::from_bytes(&blob).unwrap();
+    assert_eq!(
+        dt.node_prop_compatible(b"wanted,thing", b"clock-frequency"),
+        Ok(None),
+        "`second` has no clock-frequency; `first`'s is not an answer for it"
+    );
+
+    // `phandle_prop`: matched by `phandle`.
+    let mut b = Blob::new();
+    b.begin_node(b"");
+    b.begin_node(b"first");
+    b.prop(b"clock-frequency", &cell32(0xBADD));
+    b.prop(b"phandle", &cell32(1));
+    b.end_node();
+    b.begin_node(b"second");
+    b.prop(b"phandle", &cell32(2));
+    b.end_node();
+    b.end_node();
+    let blob = b.finish();
+    let dt = Dtb::from_bytes(&blob).unwrap();
+    assert_eq!(
+        dt.phandle_prop(2, b"clock-frequency"),
+        Ok(None),
+        "phandle 2 has no clock-frequency; phandle 1's is not an answer for it"
+    );
+
+    // `node_prop_inherited`: matched by name prefix, and answering from the nearest open ancestor.
+    // The root carries nothing, so a cleared slot means `Ok(None)` and a stale one means `first`'s.
+    let mut b = Blob::new();
+    b.begin_node(b"");
+    b.begin_node(b"first");
+    b.prop(b"clock-frequency", &cell32(0xBADD));
+    b.end_node();
+    b.begin_node(b"second");
+    b.end_node();
+    b.end_node();
+    let blob = b.finish();
+    let dt = Dtb::from_bytes(&blob).unwrap();
+    assert_eq!(
+        dt.node_prop_inherited(b"second", b"clock-frequency"),
+        Ok(None),
+        "`second` inherits from the root, not from the sibling that closed before it"
+    );
+}
+
+/// **The target is the node whose name matches, not the first node at a trackable depth.**
+/// `node_prop_inherited`'s guard is three conditions joined by `&&`, and milestone 326's run found
+/// the first `&&` alive under `||`: `depth in 2..16` alone would then select the first node the
+/// walk enters, and the answer would come from wherever that node inherits. Every existing fixture
+/// hid it by putting the wanted node first.
+#[test]
+fn an_inherited_property_comes_from_the_named_node_not_the_first_one() {
+    let mut b = Blob::new();
+    b.begin_node(b"");
+    b.prop(b"clock-frequency", &cell32(0x1111));
+    b.begin_node(b"decoy");
+    b.end_node();
+    b.begin_node(b"soc");
+    b.prop(b"clock-frequency", &cell32(0x2222));
+    b.end_node();
+    b.end_node();
+    let blob = b.finish();
+    let dt = Dtb::from_bytes(&blob).unwrap();
+
+    let v = dt
+        .node_prop_inherited(b"soc", b"clock-frequency")
+        .unwrap()
+        .expect("`soc` declares its own");
+    assert_eq!(v, cell32(0x2222), "the decoy would have inherited 0x1111");
+
+    // And a prefix nothing matches is "not found", not "the root's". The second `&&` in that
+    // guard survived under `||` until this line: `(A && B) || target_at.is_none()` selects the
+    // ROOT, whose slot then answers for a node the tree does not contain.
+    assert_eq!(
+        dt.node_prop_inherited(b"absent", b"clock-frequency"),
+        Ok(None),
+        "no node is named `absent`, so nothing inherits anything"
+    );
+}

@@ -1435,7 +1435,39 @@ mod tests {
             .map(|l| l.find("Pipes").or_else(|| l.find("Who")).unwrap_or(0))
             .filter(|&c| c > 0)
             .collect();
-        assert_eq!(cols, [APROPOS_TITLE, APROPOS_TITLE], "{s}");
+        // **38, not `APROPOS_TITLE`.** Comparing the rendering against the constant it is derived
+        // from is an identity: a mutation run of 2026-09-19 (milestone 326) changed every `+` in
+        // that constant's definition and this assertion moved with it, six survivors in one line.
+        // The literal is what a reader at eighty columns actually gets.
+        assert_eq!(cols, [38, 38], "{s}");
+        assert_eq!(APROPOS_TITLE, 38, "the column a title starts in");
+        // Two results offered and two shown is not a truncation, so the honest tail stays off.
+        assert!(!s.contains("strongest first"), "nothing was dropped: {s}");
+    }
+
+    /// **A count wide enough to need the loop that measures it.** `write_found` counts a match
+    /// count's digits so it can right-align it, and every fixture above uses a two-digit count,
+    /// where `count / 10` and `count % 10` happen to agree on the answer. Milestone 326's run
+    /// found the division alive under `%`: at three digits it measures one where there are three,
+    /// and the column the whole list lines up on moves under the widest row.
+    #[test]
+    fn a_three_digit_match_count_still_lines_its_title_up() {
+        let mut r = documentation::index::Ranked::new();
+        r.offer(
+            b"swish",
+            b"notes/pipes.md",
+            b"Pipes and redirection",
+            512,
+            100,
+        );
+        let s = shown(|o| write_apropos(b"capability", &r, o));
+
+        assert!(s.contains("512"), "{s}");
+        let col = s.lines().next().unwrap().find("Pipes").expect("the title");
+        assert_eq!(
+            col, 38,
+            "a wider count must not push the title off its column: {s}"
+        );
     }
 
     #[test]
@@ -2416,6 +2448,41 @@ mod tests {
         // Sub-tick values still render: the counter's resolution is a fact about the input, and a
         // renderer that refused small numbers would be lying about a different thing.
         assert_eq!(shown_ns(7), "0.007 us");
+
+        // **And it is total on every `u64`.** The shell hands this `end - start` off a counter it
+        // does not own, so a clock that went backwards produces a number nobody chose. Rendering
+        // it is the right answer; panicking on the boot path is not.
+        assert_eq!(shown_ns(u64::MAX), "18446744073.709 s");
+    }
+
+    /// **A status crosses an atomic cell as a `u64`**, so the round trip is the contract and not
+    /// the two functions separately. Milestone 326's run replaced `from_code` with
+    /// `Default::default()` and deleted two of its arms, all three alive, because nothing in this
+    /// crate ever read a code back.
+    #[test]
+    fn a_status_survives_the_cell_it_is_carried_in() {
+        for s in [Status::Ran, Status::Failed, Status::Refused] {
+            assert_eq!(Status::from_code(s.code()), s, "{s:?}");
+        }
+        assert_eq!(Status::from_code(0), Status::Ran);
+        assert_eq!(Status::from_code(1), Status::Failed);
+        // Anything else is a refusal rather than a panic: the cell is shared and this side does
+        // not get to assume what wrote it.
+        assert_eq!(Status::from_code(2), Status::Refused);
+        assert_eq!(Status::from_code(u64::MAX), Status::Refused);
+    }
+
+    /// **The per-batch set, which is the grant that batch is handed.** `write_batch` had no caller
+    /// in this crate's tests at all, so replacing its whole body with `()` survived (milestone
+    /// 326): a sweep that printed nothing would have shown a person no set while handing each
+    /// batch a real one, which is the exact property the batching lane exists to make visible.
+    #[test]
+    fn a_batch_prints_the_set_that_batch_is_handed() {
+        let set = listing(&[b"a.txt", b"b.txt"]);
+        assert_eq!(
+            shown(|o| write_batch(2, &set, o)),
+            "  batch 2: a.txt b.txt\n"
+        );
     }
 
     /// **A timing line is one line and says `real`**, and after §72 there is no second line it can

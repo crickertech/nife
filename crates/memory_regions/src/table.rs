@@ -508,6 +508,45 @@ mod tests {
         );
     }
 
+    /// **The claim gate's question, asked directly.** `claim_for_destroy` consults the `children`
+    /// count through `destroy_outcome` rather than through this accessor, so every test above
+    /// exercises the *refusal* without ever calling `has_children`; the only call one made was on a
+    /// dead name, where `get` returns `None` and the predicate inside is never evaluated. A mutation
+    /// run of 2026-09-19 (milestone 326) found all four of its mutants alive on that, including the
+    /// whole function replaced by `false`. The kernel asks this before it offers to destroy, so a
+    /// constant answer is a region reported childless while a child still holds pages inside it.
+    #[test]
+    fn has_children_answers_for_the_living_the_childless_and_the_dead() {
+        let mut t = RegionTable::<4>::new();
+        let root = t.insert_root(0, 16).unwrap();
+        assert!(!t.has_children(root), "a fresh root has split nothing off");
+
+        let child = t.split(root, 4).unwrap();
+        assert!(t.has_children(root));
+        assert!(!t.has_children(child), "a leaf is not its own parent");
+
+        let c = t.claim_for_destroy(child).unwrap();
+        t.return_to_parent(&c);
+        assert!(!t.has_children(root), "the last return empties the count");
+        assert!(!t.has_children(child), "and a dead name has no children");
+    }
+
+    /// **The object retype carves the same run `retype_page` does**, and until 2026-09-19 nothing
+    /// said so: the tests above call it once, at watermark zero, where `base_page + watermark` and
+    /// `base_page - watermark` agree and a watermark that never advances is invisible. Milestone
+    /// 326's run found both. A page handed out twice is two kernel objects on one frame.
+    #[test]
+    fn the_object_retype_walks_the_region_one_page_at_a_time() {
+        let mut t = RegionTable::<4>::new();
+        let r = t.insert_root(0x40, 3).unwrap();
+        assert_eq!(t.retype_object_page(r), Some(0x40));
+        assert_eq!(t.retype_object_page(r), Some(0x41));
+        assert_eq!(t.usage(r), Some((2, 3)));
+        // And it shares one budget with the plain retype rather than keeping its own.
+        assert_eq!(t.retype_page(r), Some(0x42));
+        assert_eq!(t.retype_object_page(r), None, "exhausted, not an error");
+    }
+
     #[test]
     fn a_full_table_refuses_rather_than_overwriting() {
         let mut t = RegionTable::<2>::new();

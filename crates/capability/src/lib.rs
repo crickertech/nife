@@ -1041,6 +1041,50 @@ mod tests {
         assert_eq!(reap_decision(None, 7, true), Reap::NotSupervised);
     }
 
+    /// The scoping half of §32's gate, and the reason it has a `cargo test` companion at all: a
+    /// mutation run of 2026-09-19 (milestone 326) replaced `survey_includes` with a constant `true`
+    /// and again with a constant `false`, and **both survived the whole suite**. Kani proves this
+    /// predicate for every input, but `script/verify` is a different gate on a different cadence,
+    /// so a build that answered "everyone is in your domain" would reach a reviewer with
+    /// `script/test` green. Liveness is deliberately absent: a corpse is still in the domain, which
+    /// is what lets `ps` show a `Dead` child its supervisor has not collected.
+    #[test]
+    fn a_survey_shows_this_rendezvous_children_and_nobody_else() {
+        assert!(survey_includes(Some(7), 7));
+        assert!(survey_includes(Some(0), 0));
+        assert!(!survey_includes(Some(9), 7));
+        assert!(!survey_includes(None, 7));
+    }
+
+    /// **Both halves of the packed high-water word, read exactly rather than as a floor.**
+    ///
+    /// The floor test below cannot pin either half, because `PEAK` is one static shared by every
+    /// `CapabilityTable` in this binary, and a mutation run (milestone 326) showed what that costs:
+    /// `>>` for `<<` in the peak half and `&` for `|` or `^` in the ceiling half all survived,
+    /// since a garbage number is still above a floor of five.
+    ///
+    /// Exactness is available here because `fetch_max` only ever raises: an occupancy and a
+    /// capacity larger than any other test in this module reaches is a record nothing else can
+    /// overwrite, whatever order the harness runs things in. That is also this test's one
+    /// maintenance cost, and it fails loudly rather than silently if a future test outgrows it.
+    #[test]
+    fn the_high_water_word_reports_the_occupancy_and_the_capacity_that_set_it() {
+        let cap = Cap {
+            object: Obj::PageFrame(3),
+            rights: Rights::READ,
+        };
+        let mut cs: CapabilityTable<Obj, 64> = CapabilityTable::new();
+        for _ in 0..40 {
+            cs.insert(cap).expect("sixty-four slots hold forty");
+        }
+
+        assert_eq!(
+            highest_seen(),
+            (40, 64),
+            "no other table in this test binary reaches 40 of 64, so this record is the one standing"
+        );
+    }
+
     #[test]
     fn a_full_table_says_so() {
         let mut cs: CapabilityTable<Obj, 2> = CapabilityTable::new();

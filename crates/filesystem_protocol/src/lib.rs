@@ -3560,9 +3560,18 @@ mod tests {
         );
         assert_eq!(statfs::decode(&page[..statfs::LEN - 1]), None);
         assert_eq!(statfs::decode(&[]), None);
-        // A page too small to hold the record refuses rather than writing a partial one.
+        // A page too small to hold the record refuses rather than writing a partial one, and a
+        // page of exactly the record is not too small. The boundary itself was untested until
+        // milestone 326's mutation run found `out.len() < LEN` alive under `<=`, which refuses the
+        // one buffer size a caller sizing its page from `statfs::LEN` would hand it.
         let mut tiny = [0u8; statfs::LEN - 1];
         assert_eq!(statfs::encode(&mut tiny, 4096, 1, 1), None);
+        let mut exact = [0u8; statfs::LEN];
+        assert_eq!(
+            statfs::encode(&mut exact, 4096, 16384, 9001),
+            Some(statfs::LEN)
+        );
+        assert_eq!(statfs::decode(&exact), Some((4096, 16384, 9001)));
 
         // The length is the version: a longer reply is a later version, and this version reads its
         // own prefix out of it rather than refusing.
@@ -3572,7 +3581,13 @@ mod tests {
         assert_eq!(statfs::decode(&longer), Some((512, 2, 1)));
 
         assert_eq!(statfs::total_bytes(4096, 16384), 64 * 1024 * 1024);
+        // **A non-zero free count, because zero is the one answer a broken `free_bytes` also
+        // gives.** The only assertion on this function used `free_blocks = 0`, so replacing its
+        // whole body with `0` survived (milestone 326), and a volume with room would have reported
+        // itself full to everything that asks before it writes.
         assert_eq!(statfs::free_bytes(4096, 0), 0);
+        assert_eq!(statfs::free_bytes(4096, 9001), 9001 * 4096);
+        assert_eq!(statfs::free_bytes(u64::MAX, 2), u64::MAX);
         // Saturating, because these numbers come off a disk: a corrupt pair must stay obviously
         // wrong instead of wrapping into a small plausible answer.
         assert_eq!(statfs::total_bytes(u64::MAX, 2), u64::MAX);
@@ -4282,9 +4297,63 @@ mod tests {
         assert_eq!(ABS_SECRET, format!("/{SECRET}"));
     }
 
-    /// The navigating shell's bits, for the reason above, and one more that is specific to them:
-    /// the headline test reads a property off **two** reports, so a bit that meant two things would
-    /// let one shell's success stand in for the other's failure.
+    /// **The two-grant fixture's bits**, which had no distinctness test of its own at all.
+    #[test]
+    fn the_two_grant_bits_are_distinct() {
+        use fixture::twodir::*;
+        // The only fixture bit set with no distinctness test of its own, which milestone 326's run
+        // found: five of its six bits could each become zero and nothing in the tree would say so.
+        // Two of them are the structural finding notes/dir-capability.md records (an endpoint is
+        // the boundary), and a witness bit of zero turns that probe into one that always passes.
+        let bits = [
+            OPENED_A,
+            OPENED_B,
+            REACHED_B_VIA_A,
+            REACHED_A_VIA_B,
+            DOT_DOT_CROSSED_MOUNTS,
+            GRANTED_ACCESS_FAILED,
+        ];
+        let mut seen = 0u64;
+        for b in bits {
+            assert_ne!(
+                b, 0,
+                "zero is the empty report; it cannot also be an outcome"
+            );
+            assert_eq!(seen & b, 0, "two two-grant outcomes share a bit");
+            seen |= b;
+        }
+    }
+
+    /// **Every phase tag the bench boot can be handed has its own name**, and a tag it was not
+    /// handed has none. Nothing in this crate called `throughput::name`, so milestone 326's run
+    /// found nine mutants alive in it at once: the whole function as `None`, as `Some("")` and as
+    /// `Some("xyzzy")`, and each of its six arms deleted. The bench boot prints these beside the
+    /// numbers, so two phases sharing a name is two rows a reader cannot tell apart.
+    #[test]
+    fn every_throughput_phase_tag_has_its_own_name() {
+        use fixture::throughput::*;
+        let named = [
+            (SEQ_WRITE, "fs_seq_write"),
+            (SEQ_READ, "fs_seq_read"),
+            (RAND_READ, "fs_rand_read"),
+            (RAND_WRITE, "fs_rand_write"),
+            (RECORD_READ, "fs_record_read"),
+            (PAYLOAD_FILL, "fs_payload_fill"),
+        ];
+        assert_eq!(named.len(), PHASES, "one name per phase the boot waits for");
+        let mut seen: Vec<&str> = Vec::new();
+        for (tag, want) in named {
+            assert_eq!(name(tag), Some(want), "tag {tag}");
+            assert!(!seen.contains(&want), "two phases print as {want}");
+            seen.push(want);
+        }
+        // A tag this table does not know is `None` rather than somebody else's name.
+        assert_eq!(name(u64::MAX), None);
+    }
+
+    /// The navigating shell's bits, for the same reason every witness set here has such a test, and
+    /// one more that is specific to them: the headline test reads a property off **two** reports, so
+    /// a bit that meant two things would let one shell's success stand in for the other's failure.
     #[test]
     fn the_navigation_bits_are_distinct() {
         use fixture::navscape::*;
@@ -4321,6 +4390,16 @@ mod tests {
             TOUCH_AT_ROUND_TRIPPED,
             TOUCH_NOW_NEEDS_ONLY_WRITE,
             TOUCH_AT_REFUSED_WITHOUT_SETTIME,
+            // And three more the same way (bind, 2026-08-30). **This list has now gone stale
+            // twice**, and the second time it was milestone 326's mutation run that said so rather
+            // than a reader: with nothing covering them, `1 << 29`, `1 << 30` and `1 << 31` could
+            // each become `1 >> n`, which is zero, and a witness bit of zero is a probe that
+            // reports nothing while passing. It is rung four of AGENTS.md's ladder and it keeps
+            // failing as rung four does; see this milestone's report for the mechanism that would
+            // replace it.
+            BIND_REACHED_TARGET,
+            BIND_ASCEND_REACHES_REAL_PARENT,
+            BIND_STOPS_AT_TRUE_ROOT,
         ];
         let mut seen = 0u64;
         for b in bits {
