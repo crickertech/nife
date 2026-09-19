@@ -1,11 +1,19 @@
 # 417. A usurper that reports instead of hanging, so row 26 can be falsified
 
-**Status: PROPOSED 2026-09-16.** Found by milestone 305, which wrote the honest defect for
-`notes/confinement-claims.md`'s row 26 and could not use the result.
+**Status: NOT-STARTED.** Promoted from the proposal `a-usurper-that-reports-instead-of-hanging`,
+filed 2026-09-16 by milestone 305, which wrote the honest defect for
+`notes/confinement-claims.md`'s row 26 and could not use the result. *(Number provisional until the
+merge queue lands it.)*
 
 **Gate: DECISION.** It needs a non-blocking or timed receive, which is the syscall surface
 (AGENTS.md: anything two programs agree on, and §10/§16's narrow boundary), so it is calef's before
 it is anyone's.
+
+**Premise re-checked 2026-09-19 and still true.** Row 26 of `notes/confinement-claims.md` still
+answers **no** in the falsified column, and `swap_protocol::try_recv_cap` still invokes `RECV_CAP`
+directly, so the name still promises a try that the syscall does not offer. `fixtures/src/chatty.rs`
+still calls it at one site. Nothing in the syscall surface has gained a non-blocking or timed
+receive.
 
 ## In brief
 
@@ -61,3 +69,15 @@ recommendation there is most of the decision already made.
 
 Row 26 of `notes/confinement-claims.md` stays `unfalsified`, and `design/fatal-risks.md`'s risk 7
 keeps one claim whose test has never been shown able to fail. Nothing else waits on this.
+
+## Index row
+
+Row 26 of `notes/confinement-claims.md` is that a client of a rendezvous cannot become its server,
+and **deleting the three lines of `kernel/src/syscall.rs` that enforce it does not fail the test
+that states it**: measured 2026-09-16, the run came back as a 60-second watchdog reading "a
+lost-wakeup hang" with nothing in it about impersonation. The cause is structural rather than a flaw
+in the patch. `RECV_CAP` blocks, so an attacker the kernel fails to refuse never returns to report
+the escape, and the assertion is reachable only in the world where the kernel does refuse. Making
+the attempt return needs a non-blocking or timed receive, which is the syscall surface and therefore
+calef's; the block deliberately recommends nothing, and names a watchdog thread inside the test as
+the option that buys nothing for the next component with the same question.

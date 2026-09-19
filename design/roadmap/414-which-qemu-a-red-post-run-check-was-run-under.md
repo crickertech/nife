@@ -1,10 +1,18 @@
 # 414. A red post-run check does not say which emulator produced it
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 288 while establishing that a red kernel leg was
-the environment rather than its change, on a box that happens to have two QEMUs installed.
+**Status: NOT-STARTED.** Promoted from the proposal `which-qemu-a-red-post-run-check-was-run-under`,
+filed 2026-09-14 by milestone 288 while establishing that a red kernel leg was the environment
+rather than its change, on a box that happens to have two QEMUs installed. *(Number provisional
+until the merge queue lands it.)*
 
 **Gate: NONE.** A lane can close this. It is a line of output, and the question underneath it is
 where the version is read rather than whether to print it.
+
+**Premise re-checked 2026-09-19 and still true.** Nothing in `xtask/src/main.rs` prints an emulator
+version beside a post-run check or in the per-architecture banner; the only place the tree ties a
+number to a QEMU is `.qemu-version` and `script/qemu-check`, which the icount baselines cite and the
+post-run checks do not. `notes/load-sensitive-assertions.md` still carries no `BUGS` entry saying
+the post-run set is emulator-dependent, so the smaller version of the fix is also still open.
 
 ## What was measured
 
@@ -45,3 +53,15 @@ place, and whether the banner is enough or each failing check should carry it.
 **A smaller version of the same fix, if the banner is judged enough**: say in the `BUGS` of
 notes/load-sensitive-assertions.md that the post-run set is emulator-dependent, so at least a reader
 who goes looking finds the table above rather than deducing it a third time.
+
+## Index row
+
+The post-run checks are this project's only evidence for what a guest cannot witness about itself,
+that pixels reached the device, that a keystroke crossed the monitor socket, that a host process
+could connect into the guest, and a red one does not say which emulator produced it. Measured on one
+tree and one kernel binary with two QEMUs on PATH in turn, the versions fail disjoint sets of those
+checks and neither set is empty, so "the referees fail here because the box is headless" is true and
+identifies nothing. The cost was paid twice in two days: two correct accounts of the same box read
+as contradicting each other, and a lane spends a control run distinguishing an environment failure
+from its own regression. `script/test` already resolves the emulator it runs, so the work is where
+to print the version rather than whether to.

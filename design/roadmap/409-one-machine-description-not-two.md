@@ -1,10 +1,16 @@
 # 409. One machine description, not a description and a narrative saying the same thing
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 268's lane, which caused it: the machine
-description now prints on all three architectures, and on two of them the arm above it had already
-said most of the same things in its own words.
+**Status: NOT-STARTED.** Promoted from the proposal `one-machine-description-not-two`, filed
+2026-09-14 by milestone 268's lane, which caused it: the machine description now prints on all three
+architectures, and on two of them the arm above it had already said most of the same things in its
+own words. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** It reads the tree and moves lines within one function.
+
+**Premise re-checked 2026-09-19 and still true.** `kernel/src/main.rs` calls
+`arch::isa::print_summary()` in both the x86_64 and riscv64 arms and again inside
+`print_machine_description`, which still carries its `#[cfg(not(any(test, feature = "bench")))]`, so
+the duplication and the reason it cannot simply be deleted both stand as written.
 
 ## In brief
 
@@ -48,3 +54,14 @@ Measured, not guessed: a boot transcript per architecture before and after, in t
 Nothing here removes a capability. The question is only whether one fact is printed once or twice,
 and the default answer where it is unclear should be twice: a duplicated line costs a reader a
 second, and a missing one costs a bench session.
+
+## Index row
+
+`kernel/src/main.rs`'s riscv64 and x86_64 arms narrate their own bring-up a line at a time, and
+`print_machine_description` then answers the same eight questions in one block, so a riscv64 boot
+prints its `isa` and `firmware` lines twice. The duplication is the honest cost of getting the
+description onto all three architectures first, and it is not simply deletable: the arms print each
+fact at the moment that piece comes up, so a boot that dies halfway still says how far it got, and
+they are what a `test` or `bench` boot reports at all, since the description is excluded from both.
+The work is to decide, per duplicated line, which of the two instruments it belongs to, say so where
+it sits, and show a boot transcript per architecture before and after.
