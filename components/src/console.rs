@@ -35,6 +35,13 @@
 //! waits for both: a client that is told its bytes went out is told they went out everywhere this
 //! console sends them.
 //!
+//! **BUGS.** That coupling has a cost, recorded rather than hidden: this process has one thread and
+//! one wait point, so a screen terminal that stopped answering would stall the serial console with
+//! it, and every write waits for its pixels to be copied through an uncacheable mapping. The bytes
+//! reach the UART first, so a stalled screen still shows the line that stalled it on the wire. A
+//! console that fed the screen without waiting would need a second thread or a notification object
+//! (milestone 151), neither of which this process has.
+//!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
 //! right.
 

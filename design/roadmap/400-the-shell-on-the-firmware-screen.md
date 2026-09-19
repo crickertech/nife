@@ -36,23 +36,28 @@ half; keystrokes stay on the serial line until it lands.
 | The gate | `cargo xtask uefi-boot`'s `screen_watch` | three stages read off the screen: the tour, the prompt, and the answer to a serial command |
 | Arch-neutral proof of the driver | `display_tests::a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver` | a pretend screen in RAM the OVMF gate cannot produce (21x352: narrower than the surface, taller, padded, rgbx, not page-aligned); runs on all three architectures |
 
-**Measured under OVMF, 2026-09-19** (`cargo xtask uefi-boot`, exit 0):
+**Measured under OVMF, 2026-09-19** (`cargo xtask uefi-boot`, inside `script/test`'s x86_64 leg,
+exit 0; abridged to the lines this block is about):
 
 ```text
   screen    : handed to a userspace terminal; the kernel writes the UART alone
   screen    : 924x344 pixels of it served by framebuffer_driver, a 132x43 terminal on it
-uefi-boot: read 94 non-blank row(s) of the tour back off the framebuffer, ending
-uefi-boot:   |   uart irq  : 4 (machine description)
+uefi-boot: read 97 non-blank row(s) of the tour back off the framebuffer, ending
+uefi-boot:   |   the kernel is fine.
+uefi-boot:   |   userspace   : a process built from untyped ran at cpl 3 and sent 0x1610004 on a granted cap
+uefi-boot:   |                 thread 12884901891 died at pc 0x400005 on addr 0xa5000?
 uefi-boot: the shell is on the screen, and `echo typed on the wire` typed on the serial line answered there:
-uefi-boot:   | nife capability shell. naming a resource in a command IS granting it.
+uefi-boot:   | progenitor: construction budget dropped; retype answers NoSuchSlot
 uefi-boot:   | ...
 uefi-boot:   | $ echo typed on the wire
 uefi-boot:   | typed on the wire
 uefi-boot:   | $ ?
+uefi-boot: booted under OVMF from \EFI\BOOT\BOOTX64.EFI
 ```
 
-The `?` is the cursor block, which matches no glyph and decodes as `?` by `board_console::screen`'s
-own rule.
+`board_console::screen` reads a cell that matches no glyph as `?` rather than refusing the picture,
+so the tour's last row ends in `?` (the screendump caught the kernel mid-line) and so does the last
+prompt (the cursor block).
 
 ## The decisions this made, and what lost
 
@@ -202,6 +207,11 @@ scroll is a full-surface copy through an uncacheable mapping (BUGS).
 
 - **Nothing here has run on real silicon.** It is proved under OVMF and, for the driver's arithmetic,
   on a RAM screen on all three architectures.
+- **The serial console now waits for the screen.** The console server acknowledges a write only
+  after the terminal has drawn it, so a wedged screen terminal would stall the serial console too
+  (the UART gets each write's bytes first, so the wire still shows the line that stalled). Recorded
+  in `components/src/console.rs`; decoupling it needs a second thread or milestone 151's
+  notification objects.
 - **Keystrokes are the serial line's.** A PC with no serial port shows the prompt and cannot type at
   it until milestone 242.
 - **Whether the firmware left the screen in a mode the monitor is showing** is the firmware's choice
