@@ -4,13 +4,13 @@
 mutation census. It is not that milestone's work: 326 fixed the two lists it found broken, which is
 rung four again.
 
+**Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
+
 **It is the last proposal this tree will ever carry, by about four hours.** The lane wrote it under
 `design/roadmap/proposals/` because it branched before calef abolished that directory the same
 evening (milestone 433, decision §140), and could not know. The integrator numbered it at merge,
 which is what the new rule says a lane's provisional number saves everyone from doing by hand.
 *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
 
 ## In brief
 

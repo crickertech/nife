@@ -177,7 +177,7 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
 - **Milestone 250.** `An unviable mutant is a hole that reads as a pass` already owns the other
   half of what this lane kept meeting. `filesystem_protocol` reports 47 unviable and `elf` 21, and
   no rate here counts them.
-- **Proposed.** `design/roadmap/proposals/a-witness-bit-set-has-no-mechanism.md`: the fixture
+- **Milestone 437.**: the fixture
   bit-set distinctness tests are hand-maintained lists, and `filesystem_protocol`'s navigation list
   has now gone stale twice, the second time caught by a mutation run rather than a reader. It is
   rung four of AGENTS.md's ladder in a place that has a rung-one answer.
