@@ -189,15 +189,33 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   walk in `crates/filesystem_protocol/src/lib.rs` has two mutants no `cargo test` can kill, because
   its checker is `rustc`. The same object as the Kani harnesses, without a module path to exclude by.
 
-- **Outstanding.** *`machine_discovery`'s 55 new survivors, found by the census of 2026-09-19 after
-  this lane had finished the eight crates it knew about.* It is part 1's category rather than part
-  3's: a baseline crate that regressed, 22 survivors to 77, at 86.2%. Checked before filing here, so
-  a lane does not re-derive it: its Kani harnesses are inline `mod verification` blocks in `acpi.rs`,
-  `framebuffer.rs`, `riscv64.rs` and `x86_64.rs`, which the `verification::` exclusion does match, so
-  these are real untested code and not the miscount that inflated `timetable`. Milestone 319 proved
-  the crate on 2026-09-17 and the parsing around the proofs did not get tests. **This single crate
-  accounts for the corpus falling** from 91.7% to 91.4% while 208 survivors were being removed
-  elsewhere, which is `design/fatal-risks.md` risk 3's whole amber argument in one row.
+- **Done.** *`machine_discovery`, 2026-09-19: 77 survivors to 19, 86.2% to 95.5% of viable,* on
+  `milestone/326-machine-discovery-truncation`. It was part 1's category rather than part 3's: a
+  crate the August baseline covers, carrying 77 of the 2026-09-19 census's survivors, more than any
+  other. Measured before and after with `script/mutation -p machine_discovery`; the before column
+  reproduces the census row for row. **58 killed by tests, 11 argued equivalent, 8 recorded gaps,
+  and no untriaged survivor is left.** The reasons are in `notes/mutation-testing.md`'s
+  `## 2026-09-19` section, crate by crate, which is where a reader should go to disagree with one.
+
+  **The crate's Kani harnesses were checked before the lane started and are not the miscount that
+  inflated `timetable`**: they are inline `mod verification` blocks in `acpi.rs`, `framebuffer.rs`,
+  `riscv64.rs` and `x86_64.rs`, which the `verification::` exclusion does match. Two mutants are an
+  exception the check did not predict, and the finding is the concurrent census-delta lane's rather
+  than this one's: a `const` inside such a block gets **no module path in its mutant name**, so a
+  module-path regex cannot reach it. `x86_64.rs:314` is the one in this crate, recorded as a gap;
+  that lane measured three tree-wide and filed a proposal for the general fix, whose number is
+  minted at merge like every other.
+
+  **Two things this lane found that the block's framing had wrong**, both worth carrying rather than
+  quietly fixing. The first is the timeline: `machine_discovery` did not regress in two days. The 22
+  it is compared against is `.cargo/mutants-baseline.txt`'s **2026-08-03** number, the crate grew
+  from 212 mutants to 693 over the six weeks since, and the census-delta lane measured PR #927's own
+  contribution at **4**. The second is the hypothesis this lane was briefed on, that 43 of the 77
+  were one truncation defect and one prefix property would take the crate to roughly 96%. The
+  property was written alone and measured alone: **it killed 12 and reached 88.1%.** Forty-one of
+  the 77 are bounds or offset shapes, so the reading of the list was close, but only twelve are
+  guards a prefix of a valid input can reach, and a prefix loop that asserts only "it returns an
+  error" kills half of even those. The note has the argument.
 
 ## Index row
 
