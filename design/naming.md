@@ -676,6 +676,28 @@ one of them would get it wrong. The check reports the contradiction and never fa
 refused word can legitimately survive as ordinary English and a gate that fires on prose is a gate
 people learn to skip.
 
+**Those two captures print the worklist two different ways, and that was a defect, fixed
+2026-09-19.** The `--check` line counted `recorded + unrecorded`, the table's last line and
+`--unratified` counted `provisional` as well, and neither census line listed `provisional` at all,
+so the three numbers shown did not add up to the total. The captures above keep their numbers
+because they are evidence of what the tool printed; at 126 names there happened to be no
+provisional ones, which is why the two lines agree there and why nobody saw it until milestone
+117's fourth stranger added a program with a provisional name and watched it vanish from the
+gate's count. **Every line now prints the one worklist, which is exactly what `--unratified`
+lists**, `provisional` included, because that command sorts provisional names first in every tier
+(their author has already said they are wrong, §89) and a count that dropped them hid the part of
+the worklist worth reading first. The census names all four states and all four kinds, so it sums:
+
+```
+$ script/names --check 2>/dev/null
+names: 222 names carry provenance (68 crates, 89 programs, 10 packages, 55 scripts)
+names: 153 ratified, 41 provisional, 27 recorded, 1 unrecorded, 273 refusals recorded beside them
+names: 69 still want calef (script/names --unratified), which is a worklist and not a failure
+
+$ script/names --unratified | head -1
+UNRATIFIED (69 of 222), in the order worth working through
+```
+
 ### BUGS
 
 - **It checks that a name carries a reason, never that the reason is still true.** A block whose
@@ -1644,21 +1666,6 @@ by mistake.
   first and the vendored file not at all, and the gate caught it. Edit both, in the same commit.
 - **The measured-boot manifest is still `target/init-measure-<arch>.txt`.** It is a build artifact
   name, not a crate reference; `kernel/build.rs` reads it and turns it into `TRUST_ROOT`.
-- **`script/lint`'s naming worklist under-counts by exactly the `provisional` names, and then names
-  the command that prints the other number.** Found 2026-08-18 by milestone 117's fourth stranger,
-  while walking `notes/adding-a-program.md` with a program whose name it had marked provisional
-  because both `AGENTS.md` and that page tell a newcomer to. Two summary lines compute the same
-  quantity differently: the `--check` path prints `len(recorded) + len(unrecorded)` and the default
-  listing prints `len(provisional) + len(recorded) + len(unrecorded)`. So the gate says
-  `names: 82 still want calef (script/names --unratified)` and `script/names --unratified` answers
-  `UNRATIFIED (86 of 162)`. The census line above it drops them too: `76 ratified, 15 recorded, 67
-  unrecorded` sums to 158 of 162, and a reader who adds the three numbers up is told four names do
-  not exist. **`provisional` is the state whose author has already said the name is wrong**, which
-  §89 calls the shortest conversation available, so under-reporting it hides the part of the
-  worklist worth reading first. Recorded rather than fixed because the run that found it was
-  measuring, not repairing, and because which number the gate should print is a decision about what
-  the worklist is for.
-
 - **Note filenames did not move**, and that is the rule rather than an oversight:
   [fs-server.md](../notes/fs-server.md), [shell.md](../notes/shell.md), [shell-navigation.md](../notes/shell-navigation.md) and
   [line-discipline.md](../notes/line-discipline.md) are markdown, so they stay lowercase-hyphenated even
