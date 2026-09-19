@@ -1,0 +1,22 @@
+# The name and the reasons for it are in src/lib.rs's provenance block.
+#
+# **A host program, not a nife program.** It runs on macOS, Linux and Windows and never on nife, so
+# it lives in `crates/` beside the other host tools (`board_console`) rather than in `components/`.
+#
+# **No external dependencies**, deliberately (DECISIONS §46). Finding a stick is `diskutil` on macOS,
+# sysfs on Linux and four `kernel32` calls on Windows; erasing is each host's own tool. A USB or FAT
+# crate would have been a dependency decision this lane has no authority to take, and none was
+# needed. `measured_boot` is ours: it is the tree's one SHA-256, used for the digests in the note
+# the program leaves on the stick.
+
+[package]
+name = "stick_maker"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+measured_boot = { version = "0.1.0", path = "../measured_boot" }

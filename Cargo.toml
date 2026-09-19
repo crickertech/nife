@@ -55,6 +55,7 @@ members = [
     "crates/system_initializer",
     "crates/swap_protocol",
     "crates/soak_page",
+    "crates/stick_maker",
     "crates/socket_protocol",
     "crates/byte_sink_protocol",
     "crates/virtio",
