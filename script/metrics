@@ -558,12 +558,21 @@ def write_csv(rows):
 # invisible, and its gray failed the chroma floor. Three light steps still sit under 3:1 on white,
 # which is legal only with relief, and each chart carries three kinds: the legend, a <title> on
 # every segment, and weekly.csv as the table view. Slots are assigned in this fixed order and never
-# cycled; no chart uses more than seven.
+# cycled. The eighth slot was added on 2026-09-19 for the milestones chart's proposals, appended
+# rather than inserted so that no existing series changed colour, and all eight were validated
+# again in both modes before it shipped. A ninth series is never a new hue; it folds into another.
 
-PALETTE_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7']
-PALETTE_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9']
+PALETTE_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7',
+                 '#e34948']
+PALETTE_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9',
+                '#e66767']
 
 CHART_W, CHART_H = 860, 380
+# The charts show the most recent CHART_WEEKS weeks; weekly.csv keeps every week, and a backfill
+# still restates all of them. calef, 2026-09-19: ten weeks, so W29 leaves the charts when W39
+# arrives. Old weeks are not deleted, only no longer drawn, because the CSV is the table view
+# the charts' relief rule leans on and a table that forgets is not one.
+CHART_WEEKS = 10
 PAD_L, PAD_R, PAD_T, PAD_B = 64, 210, 58, 56
 LEGEND_WRAP = 22   # characters per legend line before a label wraps to a second
 
@@ -756,12 +765,13 @@ def series_of(rows, weeks, columns, scale=1.0):
 
 
 CHARTS = [
-    ('milestones.svg', 'Milestones by status',
-     'design/roadmap/README.md, one bar per ISO week',
+    ('milestones.svg', 'Milestones by status, and proposals waiting for a number',
+     'design/roadmap/README.md; unnumbered proposals from design/roadmap/proposals/ stacked on top',
      [('Built', 'milestones_built'), ('Partial', 'milestones_partial'),
       ('In progress', 'milestones_in_progress'), ('Not started', 'milestones_not_started'),
       ('Optional', 'milestones_optional'), ('Recorded', 'milestones_recorded'),
-      ('Removed', 'milestones_removed')], 1.0, None),
+      ('Removed', 'milestones_removed'),
+      ('Proposal, no number yet', 'proposals_unnumbered')], 1.0, None),
     ('decisions.svg', 'Architecture decisions by status',
      'design/decisions/README.md; before milestone 114 split it, a decision carried no status',
      [('Decided', 'decisions_decided'), ('Amended', 'decisions_amended'),
@@ -798,7 +808,7 @@ CHARTS = [
 
 
 def draw_charts(rows):
-    weeks = sorted(rows)
+    weeks = sorted(rows)[-CHART_WEEKS:]
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     for name, title, subtitle, columns, scale, ceiling in CHARTS:
         series = series_of(rows, weeks, columns, scale)
