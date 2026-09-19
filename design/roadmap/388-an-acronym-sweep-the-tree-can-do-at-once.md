@@ -13,7 +13,28 @@ five names the 2026-09-05 rule deratified, three are still live crates carrying 
 recorded refusal apiece (`dtb`, `gpt`, `ipc`); `dma` and `asid` are no longer names
 `script/names` sees. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** calef names things, and this is a list of names.
+**Gate: DECISION.** calef names things, and this is a list of names. **The rule behind the gate is
+[§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md)**, cited here from
+2026-09-19; the block argued from it throughout and never named it.
+
+**§154 is `DECIDED` and it already answers this block's hard half**, which is why nothing new is
+minted for it. calef ratified it on 2026-09-18: an acronym expands where its expansion is a phrase
+people actually say, and stays whole where nobody says it, asked again of any acronym left inside
+the expansion. Its own table rules four of the five names in this block's first `BUGS` entry by
+name: `dtb` becomes `device_tree_blob`, `ipc` becomes `inter_process_communication`, `asid` becomes
+`address_space_identifier`, `gpt` becomes `globally_unique_identifier_partition_table`, and `dma`
+was already ruled on 2026-09-05. [§113](../decisions/113-kernel-object-plain-names.md)'s amendment
+is the other half, since it ends the external-standard exemption the `jh7110_crg` row leaned on.
+
+**So what stands here is performance and one genuinely open name, not a fork.** Applying §154 to
+those four is a ratified rename per `design/naming.md`'s procedure and a sweep `ipc` makes large,
+which is why this is still a milestone; it is not a question anybody has to answer first. The one
+thing §154 does **not** settle is the second `BUGS` entry, `jh7110_trng_device` and
+`jh7110_crg_window` in `kernel/src/user/entropy_service.rs`, where `design/naming.md`'s
+*"abbreviation we receive rather than author"* clause may cover a name for a hardware block whose
+device-tree spelling is the vendor's (`starfive,jh7110-trng`). That is a ruling per name on
+`script/names`' worklist rather than a `design/decisions/` section, and this block is where it
+waits.
 
 **All four rows are now answered, every one of them by calef on 2026-09-13**, working the
 unratified worklist: `jh7110_crg` is `jh7110_clock_and_reset`, `jh7110_trng` (crate and program) is

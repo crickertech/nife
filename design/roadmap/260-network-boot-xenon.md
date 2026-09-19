@@ -6,8 +6,21 @@ Built 2026-09-05: everything that does not need xenon or the house router, which
 this block predicted. **What remains is one bench session and one router edit**, both calef's, and
 both now written down as procedures rather than as intentions.
 
-**Gate: DECISION.** Two firmware settings are calef's, named below with the photographs that show
-them, and the router edit is his too. Everything else is a lane's, and none of it needed the machine.
+**Gate: HARDWARE.** In the second sense `design/roadmap/README.md` names: xenon is here, the
+router is here, and what remains is a person standing at both. Two firmware settings (tick `Enable
+UEFI Network Stack`, move Integrated NIC to `Enabled w/PXE`), one router edit, one power cycle and
+one photograph. They are calef's because they are his machine and his house network, not because
+anything is unchosen. Everything else is a lane's, and none of it needed the machine.
+
+**The token was `DECISION` from 2026-09-05 to 2026-09-19**, and it is corrected here rather than
+quietly because it named the wrong kind of wait for fifteen days. Nothing in this block asks calef
+to choose between options: the settings are named, the photographs that show them are cited, the
+`dnsmasq` lines are written and a gate (`script/netboot-rehearsal --check`) already parses them. A
+reader asking *what would change this* got "a decision" and the true answer is "an evening at the
+bench", which is exactly the conflation calef corrected on 2026-08-18 when milestones 16 and 53 sat
+on the ready list after the VisionFive 2 arrived. `DECISION` and `HARDWARE` both keep a `PARTIAL`
+block off `script/roadmap --ready`, so nothing was mis-offered; what was wrong is what the gate
+told a reader.
 
 ## Why this is not the same problem radon had, and why the answer just changed
 
