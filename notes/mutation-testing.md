@@ -1411,3 +1411,39 @@ are `at += 4` under `-=`, `at += align4(..)` under `-=`, or `at = value_at + ali
 spread over the nine walks: every one is the structure-block cursor, and a cursor that stops
 advancing re-reads the same token forever. That is the tests noticing rather than missing, which is
 this file's standing reading of a timeout whose mutant could hang.
+
+### `clock_protocol`: 6 survivors, 3 were the loom model, 3 are equivalent and none is a gap
+
+**Before: 54 caught, 6 missed, 7 timeouts, 5 unviable (91.0% of viable). After: 54 caught, 3 missed
+(95.3%).** **Nothing was killed here and no test was written, which is the correct outcome rather
+than a shortfall**: three survivors left with the `interleavings::` exclusion above, and the other
+three cannot differ from the original under `cargo test`. The rate moved because the measurement
+stopped counting a file the suite never compiles, not because the suite got better.
+
+- **`spin_hint` replaced by `()`.** Under `not(loom)` it is `core::hint::spin_loop()`, which is
+  documented as a hint with no effect on program semantics, so removing it cannot change any
+  observable behaviour of a host test. Under `--cfg loom` it is `yield_now()` and it is
+  load-bearing, for liveness rather than correctness: loom's scheduler is cooperative and a spin
+  that never yields starves the writer it waits on. That is `script/interleaving-check`'s property
+  and not this suite's.
+- **`publish`'s `compare_exchange_weak(s, s + 1, ..)` under `*`.** `s * 1` is `s`, so the claim
+  leaves the sequence **even**: the odd marker that tells a reader a write is in flight is never
+  set. Single-threaded that is invisible, because the publish completes before any read begins and
+  the final sequence is `claimed + 2` either way; this is the "single-threaded blindness" pattern
+  named at the top of this file, and it is recorded **equivalent-under-harness** rather than
+  excluded, so it stays visible.
+  **It is killed by the gate that owns it, and that was measured rather than assumed**: with the
+  mutation applied, `script/interleaving-check -p clock_protocol` fails **four** of its harnesses
+  (`a_reader_never_sees_half_a_publish`, `a_racing_reader_sees_an_unrecognised_page_or_a_whole_one`,
+  `the_generation_a_reader_sees_matches_the_pair_it_read`,
+  `two_writers_serialise_rather_than_corrupt_the_page`). A host test cannot carry a concurrency
+  claim; the loom model can, and here it does.
+- **`policy::decide`'s `proposed_nanos > current_nanos` under `>=`.** At equality the two branches
+  compute the same thing: the `if` arm tests `0 > MAX_STEP_FORWARD_NANOS` and the `else` arm tests
+  `0 > MAX_STEP_BACKWARD_NANOS`, both constants are non-zero, and both fall through to
+  `status::ACCEPTED`. Equivalent for every input, not merely untested.
+
+**The 7 timeouts are the seqlock's retry loops**, the same `dtb` cursor family one level up: `s & 1
+!= 0` under `==`, `&` under `|` and `^`, and the reader's sequence comparison, each of which turns
+a bounded retry into one that never exits. The baseline's `clock_protocol` row recorded 7 hangs of 9
+survivors for the same reason.
