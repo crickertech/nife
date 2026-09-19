@@ -1286,3 +1286,31 @@ excluded for, and the entry added to `.cargo/mutants.toml` says so. It covers al
 in the tree (`clock_protocol`, `memory_corruption_canary_gate`, `memory_regions`,
 `thread_wake_handshake`, `work_steal_slot`), every one behind the same `cfg`. Their checker is
 `script/interleaving-check`; excluding them here does not make them proved.
+
+### `elf`: 6 survivors, 6 killed
+
+**Before: 98 caught, 6 missed, 21 unviable (94.2% of viable). After: 104 caught, 0 missed (100.0%).**
+Back to the baseline's perfect score, and all six sat in the machine-check machinery milestone 288
+added on 2026-09-14, which is why the fall is recent.
+
+**All six are the same mistake in two functions: a test that proves a refusal rather than the thing
+being refused.** `a_binary_for_the_other_supported_machine_is_refused` iterates `FOREIGN_MACHINES`
+and expects each entry turned away, which is exactly the shape milestone 288 wrote it into, and it
+is satisfied by *any* wrong number. So replacing the whole derivation with `[0; _]` survived, and so
+did `[1; _]`: an array naming no architecture at all would have gone on passing a symmetry test
+while proving nothing about symmetry. That is the gpt lesson in this file's calibration section
+(rejection is not rejection for the right reason) arriving in a crate nobody expected it in.
+Closed by `foreign_machines_is_every_known_machine_but_this_builds`, which asserts the membership
+rather than the consequence: every known machine is in exactly one of native and foreign.
+
+**`machine_no_nife_build_accepts` had the mirror pair, plus its loop bound.** The function hands
+back the machine number it was given, having proved no nife build accepts it, and it exists because
+a test naming `EM_X86_64` as foreign stopped being true the day `x86_64` became a target
+(milestone 161). Returning a constant instead survived for the same reason as above. Its loop bound
+`i < KNOWN_MACHINES.len()` survived under `==` and under `>`, both of which never enter the loop and
+so never check anything, and no test could see it because **no test ever gave the guard a machine it
+should reject**: a guard is only tested by tripping it. Closed by
+`a_machine_no_build_accepts_is_handed_back_unchanged` for the identity and
+`a_machine_this_tree_runs_on_is_refused_by_the_guard`, a `should_panic` that trips it with
+`NATIVE_MACHINE`. The runtime panic is the same assertion a `const` context turns into a build
+error, which is what the guard is for.

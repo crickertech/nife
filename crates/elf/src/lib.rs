@@ -926,6 +926,47 @@ mod tests {
         }
     }
 
+    /// **`FOREIGN_MACHINES` is every known machine except this build's**, which the test above
+    /// cannot say and does not: it iterates the array and expects each entry refused, and *every*
+    /// wrong number is refused. A mutation run of 2026-09-19 (milestone 326) replaced the whole
+    /// derivation with `[0; _]` and then with `[1; _]`, and neither was noticed, so an array that
+    /// named no architecture at all would have gone on passing a symmetry test that proved nothing
+    /// about symmetry. The membership is the property milestone 288 was after.
+    #[test]
+    fn foreign_machines_is_every_known_machine_but_this_builds() {
+        assert_eq!(FOREIGN_MACHINES.len(), KNOWN_MACHINES.len() - 1);
+        for machine in KNOWN_MACHINES {
+            assert_eq!(
+                machine == NATIVE_MACHINE,
+                !FOREIGN_MACHINES.contains(&machine),
+                "{machine:#x} must be in exactly one of native and foreign"
+            );
+        }
+    }
+
+    /// **The compile-time guard hands back what it was given**, which is the half a caller relies
+    /// on: `const EM_SPARC: u16 = machine_no_nife_build_accepts(2)` is only useful if the 2 comes
+    /// back. Replacing the function with a constant survived the suite (milestone 326), because
+    /// every number it could return is also foreign and the forged header is refused either way.
+    #[test]
+    fn a_machine_no_build_accepts_is_handed_back_unchanged() {
+        const EM_SPARC: u16 = machine_no_nife_build_accepts(2);
+        assert_eq!(EM_SPARC, 2);
+        assert_eq!(machine_no_nife_build_accepts(0x3fff), 0x3fff);
+    }
+
+    /// **And the other half is that it refuses.** The guard exists so that a test naming a machine
+    /// that later becomes a target fails the build rather than quietly stopping testing, which is
+    /// milestone 161's scar. Its loop bound had two live mutants (`i < len` under `==` and under
+    /// `>`), each of which never enters the loop and so never checks anything, and no test could
+    /// see the difference because no test ever gave it a machine it should reject. Asserting the
+    /// rejection at runtime is the same check the `const` context turns into a build error.
+    #[test]
+    #[should_panic(expected = "some build accepts it")]
+    fn a_machine_this_tree_runs_on_is_refused_by_the_guard() {
+        let _ = machine_no_nife_build_accepts(core::hint::black_box(NATIVE_MACHINE));
+    }
+
     /// A PIE expects a dynamic linker to relocate it. We are not one, and loading it as if we
     /// were means jumping to an address that means nothing.
     #[test]
