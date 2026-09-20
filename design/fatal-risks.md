@@ -210,61 +210,59 @@ about.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, 2026-09-19. AMBER**, re-read the same day against a census run on purpose rather
-than against the scheduled one. calef ruled amber on the 2026-09-14 numbers, milestone 326 then
-triaged everything the amber half named, and he asked for a fresh census before deciding whether it
-went green. It did not go green, and the reason is the useful part.
+**Status: MEASURED, 2026-09-19. AMBER, and the ground shifted under it on 2026-09-20.** calef ruled
+amber on the 2026-09-14 numbers, milestone 326 (nobody has been assigned to turn a mutation score
+upward) triaged everything the amber half named, and he asked for a fresh census before deciding
+whether it went green. **The verdict stands and the reason it was given does not**, which is the
+useful part.
 
-**The score fell, with the worklist finished.** Run
-[35421192143](https://github.com/crickertech/nife/actions/runs/35421192143), eight shards, all green,
-dispatched against the branch carrying milestone 326's work.
+**The fall this entry was built on did not happen.** Milestone 518 (the per-crate census nobody
+wrote down) captured both censuses into a committed per-crate record and recomputed them
+consistently. Like-for-like reads **94.7%**, not 92.6%; the whole corpus **93.7%**, not 91.4%. The
+runs themselves are unchanged: run
+[35421192143](https://github.com/crickertech/nife/actions/runs/35421192143), eight shards, all green.
 
 | | crates | viable | killed |
 |---|---|---|---|
 | baseline, 2026-08-03 | 38 | 5,141 | 92.4% |
 | census, 2026-09-14 | 64 | 9,277 | 91.7% |
-| **census, 2026-09-19** | **62** | **8,925** | **91.4%** |
+| **census, 2026-09-19, read the same way** | **62** | **8,925** | **93.7%** |
 | like-for-like, 2026-09-14 | 38 | 6,552 | 93.6% |
-| **like-for-like, 2026-09-19** | **37** | **6,472** | **92.6%** |
+| **like-for-like, 2026-09-19, read the same way** | **38** | **6,604** | **94.7%** |
 
-**Like for like it lost a full point**, 93.6 to 92.6, in five days that included 77 new tests, 49
-argued equivalences and a fix to the instrument that stopped counting `timetable`'s own Kani
-harnesses against it. Survivors across the corpus fell 771 to 563 and the score still went down.
+**Two joins, each worth about a point.** The published rows disagree about what a timeout is: the
+baseline and the 2026-09-14 figures follow `notes/mutation-testing.md`'s rule that a timeout is a
+kill, while the 2026-09-19 figures scored that run's 205 timeouts as survivors. And `cred` was
+renamed to `credentialer`, so the join dropped it: 103 viable mutants at 100%. Reproducing the
+published 37 crates and 6,472 viable requires resolving two crates by hand and missing that one.
 
-**The condition this entry set for going green was the wrong test, and that is worth recording
-because it was the maintainer's wording, not calef's.** It read *"when 326's first two parts carry no
-untriaged survivor"*. Those parts are done: `timetable` is 146 caught and zero survivors,
-`memory_regions`, `elf`, `nifefs`, `dma_validator` and `bitmap_font` are all at zero. Taking that
-condition literally would have turned this entry green on a tree whose score had just fallen. **A
-finished worklist is not the same claim as a suite that catches bugs**, and this entry exists to tell
-those apart.
+**The direction reverses under either definition read consistently**, timeouts-as-survivors giving
+89.5% then 91.4%, and survivors across the corpus fell 771 to 563.
 
-**The fall is real and its cause is not attributed, which is a weaker claim than this entry first
-made.** The maintainer wrote that one crate accounted for it, `machine_discovery` going from 22
-survivors to 77 in the two days since milestone 319 proved it. **That was wrong, and the error is
-worth keeping because the trap behind it will catch the next reader.** `script/mutation --report`'s
-`(baseline missed)` column is `.cargo/mutants-baseline.txt`, whose own header reads *"Run of
-2026-08-03"*. It is not the previous census. So "22 to 77" was six weeks of growth, not two days of
-regression, and the same applies to every delta read out of that column (`paging` +5,
-`filesystem_protocol` +3).
+**Verified rather than taken on a lane's word.** The maintainer recomputed the corpus and
+like-for-like rates from 518's committed record on 2026-09-20 and reproduces the reversal and both
+causes; the 94.7% figure is 518's, since reproducing it needs that milestone's rename mapping, and an
+unresolved intersection lands just under it at 94.2%. The published 92.6% is reproducible **exactly**
+as a survivor-basis number, against a 93.6% that is kill-basis, which is the mixing stated above seen
+from the other side.
 
-**Milestone 438 measured it against historical trees and the arithmetic closes exactly.** Replaying
-`cargo mutants --in-diff` against milestone 319's own pull request reports **4** survivors, and
-`machine_discovery` carried **73** on the commit immediately before it merged. 73 + 4 = 77, the
-census's number to the unit. 319 did not introduce them; they accumulated while the crate grew from
-212 mutants at the August baseline to 693 today.
+**It stays amber, on the standard this entry actually holds.** 563 survivors are untriaged against
+milestone 85 (mutation testing: does the suite notice when the code is wrong)'s rule that every
+survivor becomes a test, an exclusion carrying its reason, or a recorded gap. **That was the honest
+ground all along.** The fall was never needed to reach amber, and leaning on it meant this entry
+asserted a cause it could not attribute, which its own next paragraph admitted in the same breath.
 
-**What is actually known, stated at the strength the evidence supports.** Two whole-corpus runs of
-the same instrument, five days apart, put the like-for-like rate at 93.6% and then 92.6%, and the fix
-that landed between them (no longer counting `timetable`'s own Kani harnesses against it) should have
-pushed the rate *up*. So the fall is real. **Which crates caused it is unknown**, because the
-2026-09-14 census's per-crate numbers were never written into the tree: the only per-crate record
-here is the August baseline, which is why the mistake above was available to make at all. That gap is
-the first thing to close, and it is a worklist entry rather than a verdict.
+**What this cost, recorded because it is the second time.** Milestone 512 (the census blamed one pull
+request for 55 survivors it did not write) holds the first: a delta read from `script/mutation
+--report`'s `(baseline missed)` column, which diffs against `.cargo/mutants-baseline.txt` from
+2026-08-03 rather than against the previous census, so six weeks of growth read as two days of
+regression. Both errors are one shape, **a comparison across two records that were never made
+comparable**, and both were available because the per-crate numbers were never written down. They are
+now, which is what made this correction possible at all.
 
-**It stays amber on the fall alone.** A rate that drops a point between two censuses, with a
-correction in it that should have raised it, is not a tree whose suite is demonstrably keeping up.
-What this entry can no longer say is *why*, and it should not pretend otherwise.
+**One convention is now load-bearing and unchecked.** Whether a timeout counts as a kill moves this
+entry by about two points, and the rule rests on a hand-check of the baseline's 96 timeouts six weeks
+ago. There are 205 today and none of them has been checked.
 
 **The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
 that score.** `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with
@@ -281,7 +279,7 @@ strongest counterfactual, which makes it the single survivor set most worth a pe
 
 **Why amber rather than green, which is the part worth arguing with.** 91.7% over a full census is a
 good number and a green verdict would be defensible on it. It is refused because this file's job is
-to be the place a green number cannot hide in: milestone 85's own rule is that **every survivor is
+to be the place a green number cannot hide in: milestone 85 (mutation testing over the host crates)'s own rule is that **every survivor is
 triaged into a test, an exclusion with a reason, or a recorded gap**, and that was done for the
 baseline's 391 survivors and has not been done for the census's **771**. A verdict of green would
 claim the discipline held when what held was the instrument.
