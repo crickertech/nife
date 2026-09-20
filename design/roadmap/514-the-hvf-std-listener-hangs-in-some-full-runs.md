@@ -1,7 +1,11 @@
-# The HVF leg's std listener test hangs in some full runs and passes alone
+# 514. The HVF leg's std listener test hangs in some full runs and passes alone
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 227's lane (a GICv3 driver), on the first two
-full `script/test --hvf` runs this machine could make since milestone 222.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `the-hvf-std-listener-hangs-in-some-full-runs`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Found by milestone 227 (a GICv3 driver, because GICv2 boots and)'s lane (a GICv3 driver), on the first two full `script/test --hvf` runs
+this machine could make since milestone 222 (the one command a person runs before).
 
 **Gate: NONE.** It needs patagonia, or any Apple Silicon Mac with HVF, and nothing else.
 
@@ -62,3 +66,9 @@ Capture the std program's panic message (its stderr reaches no transcript today)
 prober's connection opens against the guest's listen and accept times on one clock. If the reading
 above holds, the fix is on the host side of the prober or in the listener's retry, not in the
 kernel.
+
+## Index row
+
+`kernel::user::tests::a_std_program_serves_a_granted_listening_port` hung in two of the three full
+`script/test --hvf` runs that reached it (the third was green end to end), and passes when run alone
+under HVF (`cargo xtask test --hvf...

@@ -56,11 +56,11 @@ stake is how much weight a flat curve can carry.
 - **Milestone 168.** Where the work landed: *"The second hole"* and *"What changed on 2026-09-19"*
   in that block, with the refusals this one recorded answered there. The map job did not need a new
   capability, and the spawn job's allocator share is now printed.
-- **Proposed.** The **disk-file category**, which is the one of the three that did not land and is
+- **Milestone 493.** The **disk-file category**, which is the one of the three that did not land and is
   not simply deferred. A 2026-09-13 correction to `crates/job_mix`'s `BUGS` established that
   **Warton's own AIM7 run had the filesystem jobs disabled** (section 5.4, the ramdisk was too
   small), so the gap is not a gap against the number this crate exists to chase. Its own proposal is
-  `design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`, which names the
+  milestone 493 (a disk-file job mix needs a disk), `design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`, which names the
   harder half: a disk radon can actually drive.
 - **Recorded.** *No seven-job sweep has run on silicon.* Every claim about the new instrument is a
   resampling of the old one's data, and the map and spawn jobs may change `tasks=4`'s distribution.

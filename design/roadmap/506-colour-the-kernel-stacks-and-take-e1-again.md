@@ -1,7 +1,11 @@
-# Colour the kernel stacks and take E1 again, to find out what E1's knee is made of
+# 506. Colour the kernel stacks and take E1 again, to find out what E1's knee is made of
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 134's per-IPC stack-depth lane, from the
-measurement that retired E1's estimated input (notes/stack-high-water.md, "Per-IPC depth").
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `colour-the-kernel-stacks-and-take-e1-again`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Written by milestone 134 (the register of measures)'s per-IPC stack-depth lane, from the measurement that retired E1's
+estimated input (notes/stack-high-water.md, "Per-IPC depth").
 
 **Gate: NONE.** The build is a feature on patagonia; the reading needs radon, which is booked by
 milestone 134's and 168's evenings anyway (notes/footprint-perturbation.md, "The next radon
@@ -37,3 +41,8 @@ must still pass). No syscall surface, no dependency, no default-build change.
 
 **What it does not do.** It is not a proposal to colour stacks by default. That is a decision to make
 after the reading, with the reading.
+
+## Index row
+
+E1 found IPC latency on radon rising 68% between 2 and 16 threads, bending between 8 and 16, then
+flat to 96.

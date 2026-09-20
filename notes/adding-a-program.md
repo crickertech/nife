@@ -293,7 +293,7 @@ rung one, deliberately, and it is the one place this milestone went down the lad
   and spawned by nothing (see `crates/pmap`'s `BUGS`); it costs a directory slot, which is what the
   rule prices it at.
 - **Whether a program may take an argument and an input together is open**, and it is calef's call:
-  [a-program-that-takes-an-argument-and-an-input.md](../design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
+  [a-program-that-takes-an-argument-and-an-input.md](../design/roadmap/498-a-program-that-takes-an-argument-and-an-input.md).
   The tree allows it and nothing uses it. The `crates/swish` sweep that used to go red on it (the
   "eighth edit site" milestone 117's fifth stranger found) now types every operand a manifest asks
   for, so the combination needs no edit outside its own declaration.

@@ -1,8 +1,12 @@
-# A const inside a proof module is not excluded, because its mutant has no module path
+# 492. A const inside a proof module is not excluded, because its mutant has no module path
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 438 while replaying `cargo mutants --in-diff`
-against milestone 319's pull request: two of the four survivors it reported are mutants that
-`cargo test` can never kill, in a module `cargo test` never compiles.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-const-in-a-proof-module-escapes-its-exclusion`, filed 2026-09-19, on calef's instruction
+of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
+unedited except for this paragraph: the argument is its author's and promotion is not the moment to
+improve it. Found by milestone 438 (would a diff-scoped mutation check have caught) while replaying `cargo mutants --in-diff` against milestone 319 (the crate that parses firmware had no)'s
+pull request: two of the four survivors it reported are mutants that `cargo test` can never kill, in
+a module `cargo test` never compiles.
 
 **Gate: NONE.** One entry in `.cargo/mutants.toml` and a paragraph saying why, which is the same
 shape milestone 326 already used for `**/src/proofs.rs`. Nothing has to build or boot first.
@@ -47,3 +51,8 @@ cannot rot). The second is what milestone 244's bare-metal gate already does one
 
 **What it blocks: nothing.** Three mutants is not a score. It is on the list because the same defect
 has now cost four triages, and because a proof lane that trips it reads as a lane with untested code.
+
+## Index row
+
+What is wrong. `.cargo/mutants.toml` excludes the Kani and loom harness modules by `exclude_re =
+["verification::", "proofs::", "interleavings::"]`, matched against the mutant's name.

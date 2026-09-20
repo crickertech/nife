@@ -1,7 +1,11 @@
-# The decision index is still hand-maintained
+# 513. The decision index is still hand-maintained
 
-**Status: PROPOSED 2026-09-19.** Filed by milestone 443's lane, which took the gates off the
-generated roadmap index and found the same hotspot one directory over, untouched.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `the-decision-index-is-still-hand-maintained`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Filed by milestone 443 (lanes wait on each other for three)'s lane, which took the gates off the generated roadmap index and found
+the same hotspot one directory over, untouched.
 
 **Gate: NONE.** It is milestone 294's shape applied to `design/decisions/`, over files already in
 the tree.
@@ -43,5 +47,11 @@ right division: a duplicate number is a real defect and should be a merge confli
 
 **And it inherits the open question next door.** A generated index that no lane may edit is only as
 current as whoever regenerates it, and nothing does;
-`design/roadmap/proposals/nothing-regenerates-the-roadmap-index.md` is that question and this would
+`design/roadmap/510-nothing-regenerates-the-roadmap-index.md` is that question and this would
 be its second customer rather than a second instance of it.
+
+## Index row
+
+`design/roadmap/README.md` used to be the tree's worst merge conflict, structurally rather than by
+bad luck: every lane edits its own milestone's block, every milestone also needs a row in one sorted
+table, so every lane in flight...
