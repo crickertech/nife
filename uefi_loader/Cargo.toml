@@ -37,6 +37,26 @@ required-features = ["uefi"]
 # Build the UEFI application. Meaningless without `--target x86_64-unknown-uefi`.
 uefi = []
 
+# **Write `screen-hold` on the kernel's boot command line**
+# (milestone 445 (the screen check stops sampling and starts asking)), which asks the kernel
+# to stop between painting its boot tour and clearing the screen, announce that on the serial line,
+# and wait for a byte back before handing the screen to userspace.
+#
+# For one caller, `cargo xtask uefi-boot`, which is the gate that photographs that screen. The
+# window it used to sample closes in guest time and no host-side deadline widens it; this replaces
+# the sampling with a question and an answer. `machine_discovery::framebuffer::SCREEN_HOLD` is the
+# token and `kernel::console::hold_screen_for_host` is what it turns on.
+#
+# **It must never reach a stick**, which is why the gate stages into `target/esp-screen` and
+# `cargo xtask uefi-image` (the one command the bench procedure names) does not pass it. The cost
+# of getting that wrong is small and real: a ten-second pause at every boot of that stick, waiting
+# for a host that is not there. Same shape and same reason as the kernel's own
+# `self_test_injection`, a feature that exists so a gate can assert something a shipped build must
+# not do.
+#
+# Name provisional (milestone 445): calef names what a reader meets.
+screen_hold = []
+
 [dependencies]
 # The tree's one ELF reader (milestone 208). This loader used to carry a second one because
 # `elf::Segment` had no `p_paddr` and, once it did, because `Elf::parse` refused the kernel image
@@ -72,6 +92,15 @@ screen_console = { version = "0.1.0", path = "../crates/screen_console" }
 # a layout two programs agree on. It was a `[dev-dependencies]` entry until milestone 243 made it a
 # real one; nothing about the test relationship changed.
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
+
+[dev-dependencies]
+# **A dependency on itself, with `screen_hold` on, so the package's own tests compile the code
+# behind it.** `script/lint`'s mutation gate asks for exactly this, and the reason is cargo-mutants:
+# it runs `cargo test -p uefi_loader` with the DEFAULT features, so anything behind a non-default
+# feature is mutated and never rebuilt, and every mutant there is recorded MISSED. `documentation`
+# does the same thing for the same reason. Tests get the feature; consumers and
+# `cargo build -p uefi_loader` do not.
+uefi_loader = { version = "0.1.0", path = ".", features = ["screen_hold"] }
 
 # **The device-tree reader the aarch64 and riscv64 kernels read with**, for the same reason
 # `machine_discovery` is here: `device_tree_patch`'s tests decode what the loader writes with the

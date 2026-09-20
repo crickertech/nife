@@ -135,3 +135,20 @@ pub const TOUR: &str = "nife: the capability core runs on ";
 ///
 /// See this module's `BUGS` for why the banner and not the prompt itself.
 pub const PROMPT: &str = "nife capability shell";
+
+/// **The kernel is holding the screen open for a host that wants to photograph it**
+/// (milestone 445 (the screen check stops sampling and starts asking)), and will clear it as soon as one byte comes
+/// back on the serial line.
+///
+/// *Wording provisional, like every other constant here.*
+///
+/// **Not a rung of the ladder, and it is here for the reason the rungs are**: it is a line two
+/// binaries agree on. `kernel::console::yield_screen` prints it when the boot command line carried
+/// `machine_discovery::framebuffer::SCREEN_HOLD`; `cargo xtask uefi-boot` waits for it, takes its
+/// screendump while the tour is guaranteed to still be on the framebuffer, and answers. A boot that
+/// was not asked to hold never prints it.
+///
+/// It exists because the alternative was sampling. The window between the kernel painting its tour
+/// and the handover clearing it closes in *guest* time, so no host-side deadline widens it: on
+/// 2026-09-20 a loaded `script/test` run caught zero rows where the same leg run alone caught 56.
+pub const SCREEN_HELD: &str = "nife screen: held for the host; ";

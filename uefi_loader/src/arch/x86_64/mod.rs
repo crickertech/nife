@@ -14,8 +14,8 @@ use uefi_loader::efi::{
     memory_type,
 };
 use uefi_loader::handoff::{
-    MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, START_INFO_LEN, StartInfo, e820_kind, encode_memmap_entry,
-    encode_module,
+    CMDLINE_LEN, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, START_INFO_LEN, StartInfo, e820_kind,
+    encode_memmap_entry, encode_module,
 };
 
 use crate::{MAP_SLACK_DESCRIPTORS, PAGE, Placed, say, say_conflict, say_decimal, say_span};
@@ -283,9 +283,11 @@ pub fn hand_over(
     // `ExitBootServices` like everything else in this section: it names memory this loader already
     // owns and needs no firmware call, so there is nothing here that could invalidate the map key.
     let cmdline = found.screen.map_or(0, |screen| {
-        let mut token = [0u8; Framebuffer::MAX_LEN + 1];
-        let n = screen.encode(&mut token);
-        // SAFETY: `CMDLINE_OFFSET + MAX_LEN + 1` is inside page 0 of the handoff block, which was
+        // The line itself is assembled in the library, where a host test reads it back with the
+        // kernel's own parser; `handoff::cmdline` also says what the `screen_hold` feature adds.
+        let mut token = [0u8; CMDLINE_LEN];
+        let n = uefi_loader::handoff::cmdline(&screen, &mut token);
+        // SAFETY: `CMDLINE_OFFSET + CMDLINE_LEN` is inside page 0 of the handoff block, which was
         // allocated above and whose first 88 bytes are the structure and the module list.
         unsafe { ptr::copy_nonoverlapping(token.as_ptr(), cmdline_at as *mut u8, n + 1) };
         cmdline_at
