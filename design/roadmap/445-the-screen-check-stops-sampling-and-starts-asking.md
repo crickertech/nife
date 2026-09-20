@@ -1,7 +1,10 @@
 # 445. The screen check stops sampling and starts asking
 
 **Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, after calef chose option A among
-three put to him the same day. *(Number provisional until the merge queue lands it.)*
+three put to him the same day. The ruling is
+[§199](../decisions/199-the-screen-check-asks-instead-of-sampling.md) (the screen check asks instead
+of sampling); this block is what was built against it. *(Number provisional until the merge queue
+lands it.)*
 
 ## The defect, measured
 
@@ -22,7 +25,7 @@ order, the stride and the mapping surviving `mmu::init`, none of which was wrong
 
 ## What calef chose, and what he refused
 
-Three options were put to him on 2026-09-20:
+Three options were put to him on 2026-09-20, and §199 records the ruling in his own terms:
 
 - **A, a handshake**, so the window closes when the host says it has seen the screen. **Chosen.**
 - **B, an xtask-only mode where the handover simply does not clear.** Refused: it makes the
@@ -131,8 +134,8 @@ screen is `kernel::screen`'s `ramfb`, whose pixels are the kernel's own `.bss`, 
 a window onto kernel statics. So `yield_screen` is never reached there, nothing clears the tour, and
 `cargo xtask screen-boot` photographs a screen that will show the same thing an hour later.
 
-**`script/boot-check` does not have this race either**, which was worth checking rather than
-assuming: it asserts its rungs on the serial transcript, which is a stream and not a state, and it
+**`script/boot-check` does not have this race either**, which §199 left to this lane and which was
+worth checking rather than assuming: it asserts its rungs on the serial transcript, which is a stream and not a state, and it
 takes no screendump at all.
 
 That changes when milestone 157 (real display output on the board) gives those two a firmware
