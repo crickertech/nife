@@ -412,9 +412,9 @@ pub(crate) fn uefi_boot() -> bool {
             // read, so a shallow catch means the tour genuinely had not finished painting. See
             // `UEFI_SCREEN_MARKER`.
             let depth = if text.contains(UEFI_SCREEN_DEEP_MARKER) {
-                "the whole tour, self-test verdict included"
+                "the whole tour, banner included: it never scrolled"
             } else {
-                "caught mid-paint; the serial transcript above has the rest"
+                "its last page; the tour is taller than this screen and the serial transcript above has the rest"
             };
             eprintln!(
                 "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer \
@@ -437,6 +437,12 @@ pub(crate) fn uefi_boot() -> bool {
                  window; the boot was stopped while the dump was taken. Last dump: {}",
                 shot.display()
             );
+            if let Some(text) = &screen.last_held {
+                eprintln!("uefi-boot: what the held screen DID show:");
+                for line in text.lines().filter(|l| !l.is_empty()) {
+                    eprintln!("uefi-boot:   | {line}");
+                }
+            }
             ok = false;
         }
         // **Never held: the handshake did not reach the kernel, which is a different afternoon.**
@@ -499,41 +505,48 @@ pub(crate) fn uefi_boot() -> bool {
 /// The line the screen has to be showing for milestone 243 (a machine with no serial port) to have
 /// worked.
 ///
-/// **It is the banner, the FIRST line of the tour, and that was a correction** (milestone 243's
-/// second lane, 2026-09-20). It used to be the self-test verdict, on the reasoning that a 1280x800
-/// screen is 100 character rows and the boot is longer than that, so early lines would have
-/// scrolled off. **Measured, that premise is false**: the tour tops out at 98 non-blank rows, so
-/// nothing scrolls and the banner is on the screen from the first line until the handover clears
-/// it. What the old marker actually selected for was the *last* line before the clear, which is a
-/// window of a few hundred milliseconds. The gate flaked accordingly: on a loaded dev Mac, four
-/// consecutive runs read 19, 27, 40 and 0 rows, and the BUGS of milestone 400 (the shell on the
-/// firmware's screen) predicted exactly this ("a much faster guest or a slower screendump could
-/// miss it").
+/// **It is the self-test verdict, the TAIL of the tour, and putting it back there is a correction
+/// of a correction** (milestone 445, 2026-09-20, hours after the change it reverses).
 ///
-/// **The total claim is unchanged**, which is the part worth checking before believing this. The
-/// screen's job is to prove the *pixels*: the loader's `LocateProtocol`, the byte order, the
+/// The marker was the self-test verdict originally. Milestone 243's second lane moved it to
+/// [`boot_ladder::BANNER`], the tour's first line, on a measurement that said the tour "tops out at
+/// 98 non-blank rows" against a screen of 100, so nothing scrolls and the banner stays up until the
+/// handover clears it. **That premise is false, and this lane watched it be false.** With the
+/// kernel stopped at the handover and the framebuffer photographed while it was held, the screen
+/// read 95 rows whose FIRST line was
+///
+/// ```text
+///                 0x00007ea8a000..0x00007eab4000  ram
+/// ```
+///
+/// which is the middle of the firmware memory map. The tour is longer than the screen on this
+/// machine, so it scrolls, and by the handover the banner is gone. What the old sampler was
+/// actually catching was the banner **early in the boot**, before the scroll, which is a window at
+/// the other end of the tour from the one its own comment described. That is why a loaded machine
+/// read zero rows: the first dump landed after the scroll rather than after the clear.
+///
+/// So the marker goes back to the tail, where the handshake makes it deterministic: with
+/// `console::hold_screen_for_host` stopping the boot, whatever the tour's last page is, is on the
+/// screen, and the self-test verdict is about twenty lines above the handover.
+///
+/// **The total claim is unchanged**, which is the part worth checking before believing any of this.
+/// The screen's job is to prove the *pixels*: the loader's `LocateProtocol`, the byte order, the
 /// stride, the mapping surviving `mmu::init`, and the glyphs. Any decoded row proves all five. That
 /// the boot got as far as the self-test is asserted separately and unconditionally, on the SERIAL
-/// transcript, a few dozen lines above this one. So moving the marker earlier trades nothing away;
-/// it stops the gate asserting a race it never meant to assert.
-///
-/// [`UEFI_SCREEN_DEEP_MARKER`] is still reported when it is caught, because a run that got the
-/// whole tour onto the screen is worth saying out loud.
-///
-/// **And moving the marker was not enough, which milestone 445 is** (2026-09-20, the same day). An
-/// earlier marker widens the window; it does not stop it being a window. A full `script/test` run
-/// caught **zero** rows where the same leg run alone a minute later read 56, because under load the
-/// dump-write-read-decode round trip stretches and the guest's window does not stretch with it. The
-/// kernel is now asked to hold the screen and say so ([`boot_ladder::SCREEN_HELD`]), and this
-/// marker is checked against a dump taken while it is held rather than against whatever the poller
-/// happened to catch. See [`screen_watch`].
+/// transcript, a few dozen lines above this one.
 ///
 /// It was the halt line, `nife x86_64: boot complete, halting.`, until milestone 182 removed the
-/// halt, and the self-test verdict after that.
-const UEFI_SCREEN_MARKER: &str = boot_ladder::BANNER;
+/// halt.
+const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
 
-/// The tour's last line, reported when the dump happened to catch it. Not required: see above.
-const UEFI_SCREEN_DEEP_MARKER: &str = boot_ladder::SELF_TEST;
+/// **The tour's first line, reported when the screen was tall enough to still be holding it.**
+///
+/// Not required, and on QEMU's 1280x800 OVMF console it is never there: the tour is longer than the
+/// hundred rows that screen holds. It is worth reporting because it is the one thing that separates
+/// "the whole boot is on this screen" from "the last page of it is", and because a machine whose
+/// tour stops scrolling (a taller screen, a shorter tour) should say so rather than have somebody
+/// rediscover it. See [`UEFI_SCREEN_MARKER`] for the measurement.
+const UEFI_SCREEN_DEEP_MARKER: &str = boot_ladder::BANNER;
 
 /// The command `uefi-boot` types on the serial line once the prompt is on the screen, and
 /// [`UEFI_SCREEN_ANSWER`] the line it must print there. Words that appear nowhere in the boot, so
@@ -552,6 +565,11 @@ struct ScreenReadings {
     held: bool,
     /// The kernel's tour, with [`UEFI_SCREEN_MARKER`] on it (milestone 243).
     tour: Option<String>,
+    /// **The last screen decoded while the kernel was holding it**, whether or not it carried the
+    /// marker. Printed when [`ScreenReadings::tour`] is `None` and [`ScreenReadings::held`] is
+    /// true, because that is the one case where the reader needs to see what WAS there: the boot
+    /// was stopped, so this picture is the answer rather than a near miss.
+    last_held: Option<String>,
     /// The shell's prompt, a row that starts `$ `.
     prompt: Option<String>,
     /// [`UEFI_SCREEN_ANSWER`] as a whole row, after [`UEFI_SCREEN_COMMAND`] was typed.
@@ -599,7 +617,25 @@ fn screen_watch(
     let mut seen = ScreenReadings::default();
     let mut typed = false;
     let mut released = false;
+    /// How many dumps taken while the kernel is holding the screen may fail to show the tour
+    /// before the boot is released anyway. Each costs `screendump`'s own settle plus the poll
+    /// interval below, about 650 ms measured, so four is under three seconds and comfortably inside
+    /// the kernel's ten-second bound. Three retries is already more than an asynchronous
+    /// `screendump` write has ever needed once the guest stopped spinning; see
+    /// `console::hold_screen_for_host`, which is where that turned out to matter.
+    const HELD_DUMPS: u32 = 4;
+    let mut dumps_while_held = 0u32;
     while std::time::Instant::now() < deadline {
+        // **The wire is read before the picture is taken, not after**, and getting that backwards
+        // cost this lane its first green run. A dump taken before the hold line arrived is a dump
+        // of whatever the screen showed *earlier*, so believing it because the line has since
+        // appeared is the original race wearing the handshake's clothes.
+        if !seen.held {
+            seen.held = wire
+                .lock()
+                .map(|t| t.contains(boot_ladder::SCREEN_HELD))
+                .unwrap_or(false);
+        }
         if !screendump(sock, shot) {
             if answered {
                 break;
@@ -608,14 +644,8 @@ fn screen_watch(
             continue;
         }
         answered = true;
-        // Read the wire before the picture. The kernel holds the screen for ten seconds at most
-        // (`console::hold_screen_for_host`), so a watcher that decoded first and asked afterwards
-        // would be spending the hold on work it could have done before it.
-        if !seen.held {
-            seen.held = wire
-                .lock()
-                .map(|t| t.contains(boot_ladder::SCREEN_HELD))
-                .unwrap_or(false);
+        if seen.held {
+            dumps_while_held += 1;
         }
         // A screen that decodes but does not hold what the stage wants is deliberately NOT stored:
         // an incomplete picture must not read as a pass. The dump file itself is the artefact,
@@ -624,8 +654,13 @@ fn screen_watch(
             .ok()
             .and_then(|bytes| board_console::screen::read(&bytes).ok());
         if let Some(text) = text {
-            if seen.held && seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
-                seen.tour = Some(text.clone());
+            if seen.held {
+                if seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
+                    seen.tour = Some(text.clone());
+                }
+                if !text.trim().is_empty() {
+                    seen.last_held = Some(text.clone());
+                }
             }
             if seen.prompt.is_none() && text.lines().any(|l| l.starts_with("$ ")) {
                 seen.prompt = Some(text.clone());
@@ -634,12 +669,18 @@ fn screen_watch(
                 seen.answer = Some(text);
                 break;
             }
-            // **Release the kernel once, after the tour has been read off the screen.** Any byte
-            // does; the kernel drains whatever arrives so the line editor that comes up on this
-            // same wire a moment later does not find a keystroke nobody typed. Released even when
-            // the decode failed, because a held kernel is a stopped boot and the verdict below can
-            // say more about a boot that finished than about one this watcher wedged.
-            if seen.held && !released {
+            // **Release the kernel once the tour has been read off the screen, or once enough
+            // dumps taken during the hold have failed to show it.** Any byte does; the kernel
+            // drains whatever arrives so the line editor that comes up on this same wire a moment
+            // later does not find a keystroke nobody typed.
+            //
+            // The second condition is what keeps the verdict honest in both directions. The state
+            // is stable while the kernel is held, so a dump that does not show the tour is a real
+            // answer rather than bad luck; [`HELD_DUMPS`] retries only because `screendump` writes
+            // its file asynchronously and a read can land mid-write. And the boot must be released
+            // either way: a held kernel is a stopped boot, and the verdict below can say more about
+            // a boot that finished than about one this watcher wedged.
+            if seen.held && !released && (seen.tour.is_some() || dumps_while_held >= HELD_DUMPS) {
                 let _ = writeln!(serial);
                 released = serial.flush().is_ok();
             }
@@ -654,7 +695,10 @@ fn screen_watch(
         // Before the release, the poll is fast because the kernel is stopped and every millisecond
         // is a millisecond of a bounded hold being spent. After it, the stages wait on a
         // person-speed shell.
-        let pause = if released { 500 } else { 50 };
+        // The kernel is parked while it holds the screen, so there is no hurry and no window to
+        // race: the pause is short enough to spend few of the hold's ten seconds and long enough
+        // that `screendump`'s asynchronous write has landed before the read.
+        let pause = 250;
         std::thread::sleep(std::time::Duration::from_millis(pause));
     }
     seen

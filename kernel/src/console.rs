@@ -394,9 +394,11 @@ pub fn hold_screen_at_handover() {
 fn hold_screen_for_host() {
     /// Ten seconds, in scheduler ticks. `TICK_HZ` is 100 on all three architectures.
     const HOLD_TICKS: u64 = 10 * crate::arch::timer::TICK_HZ;
-    /// The flat backstop. Large enough that it is never the bound that fires on a machine whose
-    /// timer works, and finite so that a machine whose timer does not still boots.
-    const HOLD_POLLS: u32 = 200_000_000;
+    /// The flat backstop, paid down only while the tick counter has not yet moved. Large enough
+    /// that it is never the bound that fires on a machine whose timer works, and finite so that a
+    /// machine whose timer does not still boots. Roughly a second of spinning on the dev Mac under
+    /// TCG, measured at about five million iterations per ten seconds of held boot.
+    const HOLD_POLLS: u32 = 1_000_000;
 
     // Whatever was already on the wire is not an answer to a question nobody had asked yet. One
     // drain, before the announcement, so the byte this waits for is one somebody sent on purpose.
@@ -408,12 +410,33 @@ fn hold_screen_for_host() {
 
     let start = crate::arch::timer::ticks();
     let mut polls = HOLD_POLLS;
+    let mut clock_alive = false;
     while polls > 0 && crate::arch::timer::ticks().wrapping_sub(start) < HOLD_TICKS {
         if CONSOLE.lock().uart.rx_waiting() {
             break;
         }
-        polls -= 1;
-        core::hint::spin_loop();
+        // **Park the core between polls rather than spinning, once the clock has proved itself.**
+        //
+        // This is measured rather than tidy. A guest spinning flat out starves the emulator's own
+        // main loop, which is the thread that serves the QEMU monitor: with `spin_loop` here, every
+        // `screendump` taken during the ten-second hold came back a half-written file that would not
+        // decode, and the gate failed for a reason that had nothing to do with the kernel. Parking
+        // gives the host the core back and the dumps decode first time.
+        //
+        // **Only after the tick counter has moved**, which is the whole point of `clock_alive`:
+        // `wait_for_interrupt` sleeps until an interrupt arrives, so entering it on a machine whose
+        // timer is dead would be the unbounded wait this function exists not to be. Until the clock
+        // has demonstrated itself, this spins and pays [`HOLD_POLLS`] down, which is the bound that
+        // covers exactly that machine.
+        if !clock_alive && crate::arch::timer::ticks() != start {
+            clock_alive = true;
+        }
+        if clock_alive {
+            crate::arch::wait_for_interrupt();
+        } else {
+            polls -= 1;
+            core::hint::spin_loop();
+        }
     }
     // The answering byte is taken rather than left, or the line editor that comes up on this same
     // wire a moment later would find a keystroke nobody typed at it and echo it at the prompt.
