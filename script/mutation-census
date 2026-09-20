@@ -1,7 +1,8 @@
 #!/bin/sh
 # script/mutation-census: the per-crate mutation record, and the diff between two censuses
-# (milestone 518, a census that cannot be attributed is a number nobody can act on). See notes/mutation-testing.md for what a mutant and a survivor mean, and
-# notes/project-metrics.md for the other committed series.
+# See notes/mutation-testing.md for what a mutant and a survivor mean, notes/mutation-census.md for
+# this record's own page, and notes/project-metrics.md for the other committed series.
+# Milestone 518 (a census that cannot be attributed is a number nobody can act on).
 #
 # **A census that cannot be attributed is a number nobody can act on.** `script/mutation --report`
 # prints a per-crate table from a finished run and then the run output is thrown away, so the tree
