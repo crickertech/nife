@@ -47,7 +47,7 @@ right division: a duplicate number is a real defect and should be a merge confli
 
 **And it inherits the open question next door.** A generated index that no lane may edit is only as
 current as whoever regenerates it, and nothing does;
-`design/roadmap/proposals/nothing-regenerates-the-roadmap-index.md` is that question and this would
+`design/roadmap/510-nothing-regenerates-the-roadmap-index.md` is that question and this would
 be its second customer rather than a second instance of it.
 
 ## Index row

@@ -96,7 +96,7 @@ integrator's at merge, written in `AGENTS.md` and in `script/roadmap`'s header, 
 and on 2026-09-19 `main` carried three stale rows because rung four is what it is. A post-merge
 workflow is **a bot writing to `main`, which this tree has never done**, and it needs milestone 128's
 identity plus a rule about what else such a commit may touch. That is calef's call and is written up
-rather than built: `design/roadmap/proposals/nothing-regenerates-the-roadmap-index.md`.
+rather than built: `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
 
 **The point stands without it.** After this milestone a stale index costs a reader an out-of-date
 page and costs a gate nothing, which is what "purely a rendering" was supposed to mean.

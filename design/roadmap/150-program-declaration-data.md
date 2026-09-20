@@ -55,7 +55,7 @@ spawnable program to have a `SHELL_CHECK_SCRIPT` line or a stated reason. That l
 **The eighth edit site is closed**: `the_arg_line_follows_the_manifest_for_every_program` types
 every operand a manifest asks for, so an argument-plus-input program needs no edit in `crates/swish`.
 Whether such a program is *wanted* (item 3) is calef's call and is written up as
-[a-program-that-takes-an-argument-and-an-input.md](proposals/a-program-that-takes-an-argument-and-an-input.md),
+[a-program-that-takes-an-argument-and-an-input.md](498-a-program-that-takes-an-argument-and-an-input.md),
 recommending the status quo. The neighbouring file-plus-input refusal moved from a comment into a
 host test.
 

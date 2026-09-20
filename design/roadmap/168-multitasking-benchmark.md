@@ -224,7 +224,7 @@ that holds on radon is one of the things the next evening reads.
 (every file-service path starts at a virtio block device), so it could only ever produce QEMU
 numbers; and the file service maps one channel into every client, which 32 concurrent tasks would
 race on. Both, with options and no recommendation (the second is a wire format), are in
-`design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
+`design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
 
 ### Smaller things found on the way
 

@@ -259,7 +259,7 @@ this pass bound only that.
 describe whatever holds that name now, so after a rename it would report, or stamp, another file,
 and succeed. That is a wire question (a handle-taking form, which runs into §112 because a file
 handle can never carry `dir::SETTIME`), proposed in
-`design/roadmap/proposals/an-mtime-for-an-open-file.md` rather than decided here.
+`design/roadmap/504-an-mtime-for-an-open-file.md` rather than decided here.
 
 **Why `set_times` never falls back to `SETMTIME`**: the caller's `SystemTime` is an assertion, which
 §112 put behind `dir::SETTIME`; writing the server's own "now" in its place and reporting success
@@ -319,7 +319,7 @@ the granted directory itself) plus a `NotFound` for an empty set on a missing na
   `GETMTIME` says, and for a file written on this system that is the FS server's per-mount counter,
   so it reads as early 1970, orders wrongly against files the host tool stamped, and restarts each
   boot. And because the engine only moves an mtime forward, a nife write to a host-made file does
-  not change its time at all. Proposed as `design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md`; the
+  not change its time at all. Proposed as `design/roadmap/497-a-filesystem-server-that-knows-the-time.md`; the
   details are in notes/std.md's file-times `BUGS`.
 - **The open-`File` time forms refuse** (`File::metadata().modified()`, `File::set_times`), because
   the verbs take a name. `set_times` truncates to whole seconds and refuses an access time whole.
