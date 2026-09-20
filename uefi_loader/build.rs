@@ -21,35 +21,23 @@ use std::{env, fs};
 /// become one file, so this is where the mismatch stops being expressible: the build fails, with the
 /// entry named, instead of producing a boot file that halts.
 ///
-/// The check is that each measured entry's digest occurs, as its 32 raw bytes, somewhere in the
-/// kernel image. That is exactly what the trust root compiles to, and a chance 256-bit match
-/// elsewhere in the image is not a case worth a sentence.
+/// **The comparison itself lives in `sealed_pair`**, built for milestone 223 (read a card and say whether its kernel and archive match),
+/// which is where a card checker asks the same
+/// question about files it did not build. It used to be written out here, and a second copy of a
+/// measured-entry list is exactly the thing that goes stale without anybody noticing: a kernel that
+/// grew a third boot program would have been vouched for by a check that had never heard of it.
 fn refuse_an_unsealed_pair(kernel_path: &str, initrd_path: &str) {
     let kernel = fs::read(kernel_path).unwrap_or_else(|e| panic!("cannot read {kernel_path}: {e}"));
     let archive =
         fs::read(initrd_path).unwrap_or_else(|e| panic!("cannot read {initrd_path}: {e}"));
-    let fs = nifefs::Fs::parse(&archive)
-        .unwrap_or_else(|e| panic!("{initrd_path} is not a nifefs archive: {e:?}"));
-    // The names the kernel measures (xtask's `boot_programs()` plus the progenitor's own table).
-    // An entry the archive does not carry is skipped; `progenitor` is not optional.
-    let measured = ["progenitor", "hello", measured_boot::PROGRAM_MEASUREMENTS];
+    let seal =
+        sealed_pair::inspect(&kernel, &archive).unwrap_or_else(|e| panic!("{initrd_path} {e}"));
     assert!(
-        fs.read("progenitor").is_some(),
-        "{initrd_path} carries no `progenitor`, so no kernel can enter it"
+        seal.is_sealed(),
+        "\n\n{}\nBuild the archive first and then the kernel, which is what `cargo xtask \
+         uefi-image` and `cargo xtask stick` do.\n",
+        seal.explain(kernel_path, initrd_path)
     );
-    for name in measured {
-        let Some(bytes) = fs.read(name) else {
-            continue;
-        };
-        let digest = measured_boot::sha256(bytes);
-        assert!(
-            kernel.windows(digest.len()).any(|w| w == digest),
-            "\n\nNOT SEALED: the kernel {kernel_path} does not vouch for the archive entry `{name}` \
-             in {initrd_path}.\nThey come from different builds, and this boot file would halt at \
-             MEASURED BOOT REFUSED. Build the archive first and then the kernel, which is what \
-             `cargo xtask uefi-image` and `cargo xtask stick` do.\n"
-        );
-    }
 }
 
 fn main() {

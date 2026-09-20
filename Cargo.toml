@@ -45,6 +45,7 @@ members = [
     "crates/paging",
     "crates/pci",
     "crates/schedule_store",
+    "crates/sealed_pair",
     "crates/screen_console",
     "crates/pgrep",
     "crates/portable_executable",

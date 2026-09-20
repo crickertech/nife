@@ -281,6 +281,15 @@ echo "built against and halts rather than hand the progenitor an archive that do
 echo "carries a new kernel over an old archive stops at MEASURED BOOT REFUSED. Copy all three files"
 echo "or none, which is what --card is for."
 echo
+
+# **Say it out loud rather than only claiming it**, which is milestone 223 (read a card and say whether its kernel and archive match). The ORDER above is what makes
+# the pair match, and an order is rung two at best: it held on 2026-08-15 and the board refused the
+# pair anyway, because the kernel had been built by something other than this script. So the payload
+# is checked before it is copied anywhere, which costs a fraction of a second against a four-minute
+# build and turns "these were built in the right order" from a claim in a comment into a fact this
+# run has read off the bytes. It is the board's own question, asked here.
+cargo xtask card-check "$OUT"
+echo
 # The copy, when a card was named. It happens here, after every build step has succeeded, so a
 # failed build cannot leave a card holding half a pair.
 if [ -n "$CARD" ]; then
@@ -302,6 +311,11 @@ if [ -n "$CARD" ]; then
     echo "copied onto $CARD, as one set:"
     echo "  nife-vf2.img, nife-initrd.img, boot.scr.uimg"
     echo
+    # And again against the card itself (milestone 223), which is a different claim from the one
+    # above: this reads what actually landed, so a copy that ran out of space or wrote onto a card
+    # somebody else's payload was already on is caught here rather than at the bench.
+    cargo xtask card-check "$CARD"
+    echo
     echo "Eject before pulling the card, then power the board; it needs nothing typed at it:"
     echo "  diskutil eject \"$CARD\"    # macOS; umount elsewhere"
     echo "  script/board-console --until banner --for 120s --log target/board/boot.log"
@@ -320,6 +334,12 @@ everything on it. Step 3 is this script's, so the kernel and the archive cannot 
   3. Copy the matched set, and eject:
        script/board-image --card /Volumes/NIFE
        diskutil eject /dev/diskN
+
+If the card came from somewhere else, or was written by hand, or has been sitting in a drawer,
+ask whether its kernel and archive are still one pair BEFORE you walk to the board. It reads the
+card and writes nothing; 0 means it boots, 1 means it would halt at MEASURED BOOT REFUSED:
+
+     script/card-check /Volumes/NIFE
 
 Then power the board with a terminal already attached. Nothing has to be typed at U-Boot: the
 boot script on the card runs the sequence below by itself.
