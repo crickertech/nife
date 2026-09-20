@@ -5,8 +5,8 @@ exists, it is backfilled to the first census this project ever completed, and th
 was asked returned a finding: **the fall that `design/fatal-risks.md`'s risk 3 stands on did not
 happen.** It is an artifact of two rows computed two different ways.
 
-**Gate: NONE.** Built from artifacts GitHub still holds and from `.cargo/mutants-baseline.txt`; no
-mutation run was needed and none was made, which is the point.
+Built from artifacts GitHub still holds and from `.cargo/mutants-baseline.txt`; no mutation run was
+needed and none was made, which is the point.
 
 ## Why
 
@@ -127,6 +127,19 @@ record here makes that rewrite safer by giving it something to be checked agains
   print as "only in A". `multicast_dns_protocol` and `multicast_dns_config` are that case between
   2026-09-14 and 2026-09-19.
 
+## Follow-on
+
+- **Proposed.** `design/roadmap/proposals/the-census-writes-its-own-row.md`: have `mutation.yml`
+  write the record rather than a person remembering to. It needs write permission on a workflow that
+  has `contents: read` today, which is a decision rather than a patch.
+- **Recorded.** The capture is rung three of AGENTS.md's ladder and nothing gates it, beside the
+  feature in `script/mutation-census`' own `BUGS` section and in `notes/mutation-census.md`.
+- **Recorded.** `script/mutation --report` prints `new` in the baseline column for `credentialer`,
+  because `.cargo/mutants-baseline.txt` still spells it `cred`. Recorded in
+  `notes/mutation-census.md`'s `BUGS`; the fix is milestone 326's part 4, held on purpose.
+- **Milestone 512.** The correction this lane's finding owes `design/fatal-risks.md` belongs with
+  the correction already proposed there, and both are calef's to make; this lane edits neither.
+
 ## What wants a lane
 
 - **Have the workflow write the row.** `mutation.yml`'s report job already aggregates every shard;
@@ -138,6 +151,8 @@ record here makes that rewrite safer by giving it something to be checked agains
 
 ## Index row
 
+**Built:** 2026-09-20
+
 The tree kept one per-crate mutation record in its life, so risk 3 could report that its score fell
 and not say which crates caused it. `script/mutation-census` is that record: one row per crate per
 census in `notes/project-metrics/mutation-census.csv`, backfilled to all four censuses that have
@@ -145,3 +160,4 @@ ever completed, with a `--compare` that attributes the corpus-level move to crat
 first question it was asked found that **the fall never happened**: risk 3's two rows count a
 timeout two different ways and the second drops `credentialer` to a rename, and read consistently
 the like-for-like rate went 93.6% to 94.7% while survivors fell 771 to 563.
+
