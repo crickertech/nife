@@ -125,10 +125,19 @@
 //!
 //! # BUGS
 //!
-//! - **`getrandom` 0.2 is not covered.** It selects a custom backend through the
-//!   `register_custom_getrandom!` macro rather than a bare symbol, so the two shapes cannot be
-//!   satisfied by one definition. `ring` 0.17 is the probe that pulls 0.2, and it fails on C sources
-//!   before this would matter to it, so nothing currently needs the second shape. Something will.
+//! - **`getrandom` 0.2 is covered since 2026-09-19**, by milestone 442 (a crypto provider
+//!   `rustls` can use on all three bare-metal targets), and the entry above it said this was
+//!   coming: *"nothing currently needs the second shape. Something will."* It did. `rustls-rustcrypto` reaches
+//!   `getrandom` 0.2 through `rand_core` 0.6, and that `compile_error!` was the only thing stopping
+//!   a TLS crypto provider building on any nife target. The two shapes still cannot be satisfied by
+//!   one definition, which is why there are now two functions here rather than one.
+//!   Two things are worth knowing before reading them. The 0.2 hook returns a **bare `u32`** (zero
+//!   for success) rather than a `Result`, so defining it needs no type from `getrandom` at all;
+//!   what it needs is 0.2's `custom` **feature**, which only a manifest can turn on, which is why
+//!   this crate now depends on 0.2 as well. And upstream's documentation says a registration
+//!   "can only be registered in the root binary crate", which is not quite the rule: what is true
+//!   is that an rlib nothing references is not linked, so `use entropy_backend as _;` in the binary
+//!   is load-bearing for the 0.2 symbol exactly as it already was for the 0.3/0.4 one.
 //! - **The symbol is `__getrandom_v03_custom` for both 0.3 and 0.4**, which reads like a typo and is
 //!   not: `getrandom` 0.4's own `backends/custom.rs` still declares the v03 name. A graph holding
 //!   both versions therefore resolves both to this one definition, and their `Error` types are
@@ -166,4 +175,28 @@ unsafe extern "Rust" fn __getrandom_v03_custom(
     let buf = unsafe { slice::from_raw_parts_mut(dest, len) };
     SystemRng.fill_bytes(buf);
     Ok(())
+}
+
+/// `getrandom` **0.2**'s custom-backend hook, which is a different symbol with a different
+/// signature and the same body.
+///
+/// This is what `getrandom::register_custom_getrandom!` expands to, written out rather than
+/// invoked. The macro exists to type-check the registered function against `getrandom::getrandom`
+/// and then emit exactly this; writing it directly costs that check and buys a definition that does
+/// not depend on which of 0.2's re-exports are in scope. The signature is upstream's:
+/// `unsafe fn __getrandom_custom(*mut u8, usize) -> u32`, Rust ABI, **zero for success** and an
+/// error code otherwise. There is no error path here for the same reason there is none above:
+/// `fill_bytes` writes the whole slice or panics.
+///
+/// # Safety
+///
+/// `getrandom` 0.2's contract, which is the 0.3 one plus a guarantee in our favour: `dest` is valid
+/// for writes of `len` bytes, and 0.2 has already zero-filled it (`uninit_slice_fill_zero` in its
+/// `custom.rs`) before calling, so nothing here can observe uninitialized memory.
+#[unsafe(no_mangle)]
+unsafe extern "Rust" fn __getrandom_custom(dest: *mut u8, len: usize) -> u32 {
+    // SAFETY: the caller's contract, restated above.
+    let buf = unsafe { slice::from_raw_parts_mut(dest, len) };
+    SystemRng.fill_bytes(buf);
+    0
 }
