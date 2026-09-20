@@ -224,6 +224,9 @@ The boot leg is CI's.
   a single-consumer `#[path]` module; folding it in would have put a judgment call inside the one
   mechanical commit milestone 39 asked for. `script/lint`'s consumer counter still guards the case
   that matters, and it now reads both directories.
+  This refusal is
+  milestone 465 (design/roadmap/465-net-transport-and-socket-test-client-as-crates.md), which
+  carries it with the condition that would change it.
 - **Refused.** Re-checking `crates/` against 39's three-audience split, which this block already
   put out of scope and which nothing found here changes.
 

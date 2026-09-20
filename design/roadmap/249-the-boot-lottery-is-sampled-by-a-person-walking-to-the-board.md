@@ -236,6 +236,8 @@ this block names working as an obstacle.
   better experiment (a power cycle is what the nine control boots were) and it is a lane spent on a
   guess until the firmware has actually refused reset type 1. notes/soak.md's outcome table is where
   that finding would arrive; raise it then.
+  This refusal is milestone 477 (design/roadmap/477-a-power-cycled-boot-series.md), which carries it
+  with the condition that would change it.
 - **Outstanding.** The tally's clean-core definition is `board_console::lottery`'s, host-tested
   against the one settled arrangement radon has printed. If a series shows the rate does not follow
   it, that is this milestone's result rather than a defect in the reader, and the definition is what

@@ -187,6 +187,8 @@ irreversible half.
 - **Refused.** A blocking `--in-diff` gate, per this block's recommendation and the ruling that ends
   it at measurement 1. Nothing is switched on and no workflow, `script/ci-build` row or ruleset entry
   was touched.
+  This refusal is milestone 479 (design/roadmap/479-a-blocking-mutation-gate-on-the-diff.md), which
+  carries it with the condition that would change it.
 
 ## BUGS
 

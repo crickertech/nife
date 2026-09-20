@@ -43,6 +43,7 @@ milestones. `script/roadmap` validates this column and fails on anything outside
 | `NOT-STARTED` | Specified, nothing built. |
 | `OPTIONAL` | Deliberately off the thesis path; not a backlog item. |
 | `RECORDED` | Analysis captured and the decision deliberately *not* taken. |
+| `REFUSED` | Work considered and deliberately not taken. **The block must carry a `## Revisit` section** saying what would change it, and `script/roadmap --check` fails without one. Not a backlog item: it is excluded from `--ready`, from the gate classification and from every count that reads as outstanding work. |
 
 A detail block may narrate its state in prose (that is where the evidence belongs), but the
 `**Status:` line is what answers "where do we stand", and **the column below is generated from
@@ -75,6 +76,24 @@ word earns its keep by being used correctly. Milestones 54 and 55 both take `REM
 blocks say which kind they were. **The cost of that choice showed up immediately** and is why the
 date is optional: 54 was `BUILT` and has one, 55 was `PARTIAL` and has none, and the gate rejected
 the first draft of this rule within a minute of it being written.
+
+**`REFUSED` was minted 2026-09-20** (calef), with the same complaint behind it that minted `REMOVED`:
+the existing words could only lie. This tree carried 140 `- **Refused.**` bullets across 98 milestone
+blocks, and exactly two of them named a milestone, so a refusal that named real work lived in the
+last section of a finished block and was read once. `RECORDED` was the nearest word and it says
+something else: it means the analysis was captured and the work deliberately not taken, and it
+carries no condition and nothing asks it for one. The whole value here is the condition, so a status
+that did not demand one would have reproduced the bullet in a bigger font. `NOT-STARTED` says pending
+where this says declined, and `OPTIONAL` reads as available to pick up.
+
+**It carries an extra obligation nothing else does**: a `## Revisit` section, whose bullets open
+`**Condition.**` (what would make this worth reopening), `**Nothing.**` (refused permanently, on a
+principle) or `**Unstated.**` (the original names no condition and none can honestly be inferred).
+Silence is the one answer that is not allowed, because silence and "we thought about it and nothing
+would change our minds" look identical to the next reader and mean opposite things. The condition is
+**not a promise to build**, which is exactly what §71 refuses to let a `BUGS` entry become; it is the
+difference between a dead end and a door with a bell on it, and `script/roadmap --revisit` is the
+bell. See milestone 448 (a refusal gets a number, a status, and a condition that would change it).
 
 **`IN-PROGRESS` earned its extra rule by being wrong every single time it was used** (2026-08-17). A
 sweep checked all six rows carrying it and found six false: milestones 58, 80, 112 and 115 had

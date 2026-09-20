@@ -55,6 +55,11 @@
 #     needs network in a gate that otherwise only reads files, and a deleted branch cannot tell a
 #     merged lane from a dead one where a merge commit is proof. It costs nothing when no milestone
 #     is `IN-PROGRESS`, because then there is no subprocess to run;
+#   - **every REFUSED block carries one `## Revisit` section**, whose bullets open `**Condition.**`,
+#     `**Nothing.**` or `**Unstated.**`; see milestone 448 (a refusal gets a number). REFUSED is "considered and deliberately not
+#     taken", and the whole reason it is a status rather than a bullet in somebody's block is that a
+#     status can be made to owe something. What it owes is the condition that would change it. The
+#     check proves the condition is PRESENT and can prove nothing else about it: see BUGS;
 #   - the **readiness classification**, which is the `Gate:` line every non-BUILT milestone file
 #     carries directly under its status. It answers "what stops a lane from starting this", the
 #     question that used to be answered by asking calef, and it lives in the milestone's own file so
@@ -81,7 +86,10 @@
 # `PARTIAL`), which is the query the maintainer actually makes. `--unclaimed` prints the follow-on
 # work a finished milestone named that nobody has taken, `--proposed` the unnumbered proposals oldest
 # first, and `--outstanding` what a PARTIAL milestone still says is left (milestone 252, and the
-# question calef had to ask by hand about milestone 16). `--index` prints the generated table and
+# question calef had to ask by hand about milestone 16 (real hardware, IOMMU-backed driver
+# isolation)). `--revisit` prints the REFUSED milestones
+# whose stated condition names a milestone that has since turned BUILT, which is a refusal the tree
+# has already walked past without noticing (milestone 448). `--index` prints the generated table and
 # `--write` rewrites it into design/roadmap/README.md between its markers. `--check` validates and
 # exits non-zero on a problem, which is what a gate wants; a stale committed table is reported
 # rather than failed, for the reason the index section below spells out.
@@ -91,6 +99,32 @@
 # had: milestone 247's exemption list was removed an hour after it was written and took the mode
 # with it, leaving half a sentence spliced onto the next. Corrected by milestone 252's lane, which
 # was reading the header to add to it.)
+#
+# BUGS
+#
+# **The `## Revisit` check proves a condition is present and nothing else.** It cannot prove one is
+# true, honest, current, or that the person writing it thought about it for longer than it took to
+# type. `**Unstated.**` passes, and it is meant to: an author with no honest condition who cannot
+# say so will invent one, and an invented condition is worse than a blank because it is a bell that
+# fires for a reason nobody meant. So a green run here means every REFUSED block answered the
+# question, never that the answers are good. This is the same posture `script/citations` takes about
+# glosses ("what you write is checked, not that you must write it") and DECISIONS §71 (a limitation
+# is promoted when it stops being a fact) takes about
+# its own promotion triggers, and it is stated here because a green check gets read as an answer.
+#
+# **`--revisit` reads prose, so it sees one shape of condition and misses the rest.** It fires when a
+# condition cites a milestone number that has since turned BUILT. It cannot fire on a condition
+# phrased as a workload ("when an x86_64 workload touches the crypto path"), a measurement, a
+# customer, a piece of hardware, or a decision, and most conditions in this tree are one of those:
+# the run prints the two counts so the reach is visible rather than assumed. It also cannot tell a
+# condition that CITES a milestone from one that merely MENTIONS one in passing, which is the
+# well-formed-but-wrong blind spot this script already records for citations, one record over.
+#
+# **Nothing re-reads a condition that stays false.** A refusal whose condition never comes true sits
+# here forever and this script will report it as healthy every time, because it is: a door with a
+# bell on it is still a door. The count in `--check` is the only pressure, and it is the same
+# pressure `--proposed` applies to the proposal pile, for the same reason a gate on age was refused
+# there (a rule routed around by not writing the record is worse than the record).
 #
 # Name: recorded (DECISIONS §134, which lists this script by name in the `script/` family's noun
 # half). Introduced 2026-07-30 with the status vocabulary and its gate. It reports rather than
@@ -125,7 +159,40 @@ import roadmap_proposals                                                    # no
 PROPOSED_DIR = "proposals"
 
 VOCAB = ["BUILT", "REMOVED", "SUPERSEDED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL",
-         "RECORDED"]
+         "RECORDED", "REFUSED"]
+
+# REFUSED is "this was considered and deliberately not taken", and calef ratified the word on
+# 2026-09-20. It is the status a refusal gets when the refusal names WORK: a route somebody could
+# execute, as against a name (which `script/names` already homes at the thing it was refused for),
+# a dependency, which §46 (thin primitives or whole subsystems) judges in design/decisions/, or a
+# choice about how one lane shaped its own diff (which is a paragraph in the block that made it).
+#
+# **Why the word was needed, measured.** This tree carried 140 `- **Refused.**` bullets across 98
+# milestone blocks and exactly two of them named a milestone. A bullet in a finished block is read
+# once, on the day it is written, by one person, which is the same burial `## Follow-on` exists to
+# stop one level up: that gate routes an INTENTION into a tracked form and has no word at all for a
+# DECISION NOT TO. So a refusal that named real work had nowhere to live, and the cost arrived on
+# 2026-09-20 as milestone 164 (x86_64 userspace can't build `aes`) and its Route 2, which refused
+# an SSE-enabled x86 userspace target in
+# September, correctly, because nothing needed FP state to compile `aes`. Milestone 442 (a crypto
+# provider `rustls` can use on all three bare-metal targets) then needed
+# five force-soft build flags, an AVX2-detecting crate died in ring 3 with `vector 6 (invalid
+# opcode)`, and nothing compared any of it against the refusal, because a refusal had no home that
+# anything reads. calef reopened it by hand, in conversation, which is the medium AGENTS.md exists
+# to abolish.
+#
+# **RECORDED was the nearest existing word and it says something else.** RECORDED is "the work was
+# deliberately not taken and the fact is written down"; it carries no condition and nothing asks it
+# for one. The whole value here is the condition, so a status that does not demand one would have
+# reproduced the bullet with a bigger font. OPTIONAL reads as available to pick up, which is the
+# precise opposite. NOT-STARTED is a lie by omission: it says pending where this says declined.
+#
+# **A REFUSED milestone is not outstanding work**, and every count in this script that reads as a
+# backlog excludes it: it is not in STARTABLE, so `--ready` cannot offer it; it never reaches the
+# gate parse, so it is not among "the milestones that are not built"; and it is not in ANSWERS,
+# because a block nothing will build owes no '## Follow-on'. Adding several dozen of these moves
+# every denominator a stranger quotes, which is why the exclusion is written here rather than
+# happening incidentally: see notes/project-metrics.md for the before and after.
 
 # REMOVED KEEPS its Built date where it had one, and that is half the reason it is a status rather
 # than prose: a milestone built on a date turned BUILT on that date, nothing later makes that untrue,
@@ -161,6 +228,21 @@ VOCAB = ["BUILT", "REMOVED", "SUPERSEDED", "PARTIAL", "IN-PROGRESS", "NOT-STARTE
 # nothing else, so promotion is how a proposal reaches a disposition at all.
 DATED = ("BUILT", "REMOVED")
 
+# The statuses that carry no `**Gate:**` line. A gate answers "what stops a lane from starting
+# this", and on a REFUSED block the status word has already answered it: what stops a lane is the
+# refusal. A gate beside it would be a second answer to a settled question, and the only gate that
+# would not read as a lie is `DECISION`, which would then say `--ready` should offer it the moment
+# calef rules, when what a ruling produces is a new milestone rather than this one waking up.
+#
+# **A REFUSED block carries no `**Built:**` line either**, and the date it WAS refused goes in the
+# status line's prose, the way SUPERSEDED already writes `**Status: SUPERSEDED.** 2026-09-15, by
+# milestone 166` -- that is, milestone 166 (one boot loader). The Built column means the date a
+# milestone turned BUILT; a refusal date in it
+# would be a lie in the field whose entire job is not lying, which is the correction this gate made
+# to its own minting on 2026-08-30 when it tried to demand a date from milestone 55 (Time Machine:
+# SMB3 with Apple's extensions, and mDNS).
+NOGATE = DATED + ("REFUSED",)
+
 # The statuses that must answer '## Follow-on'. BUILT and REMOVED were milestone 247's; PARTIAL is
 # milestone 252's, and it is the harder half.
 #
@@ -186,6 +268,13 @@ problems = []
 built_dates = {}
 # (milestone, file, branch) for every IN-PROGRESS block, checked against merge history below.
 in_progress_branches = []
+# (milestone, file, line, disposition, prose) for every '## Revisit' bullet a REFUSED block carries.
+# `--revisit` reads it, and so does the one thing this tree can check mechanically about a refusal:
+# whether its condition names a milestone that has since turned BUILT.
+revisits = []
+# milestone -> the milestones its status paragraph names, which for a REFUSED block are the ones
+# that refused it. `--revisit` excludes them: a condition quoting its own origin is context.
+refused_by = {}
 
 # ---- the index, which is now GENERATED (milestone 294) ------------------------
 # **The index table used to be the tree's worst merge hotspot, and it was structural rather than
@@ -274,6 +363,42 @@ for i, line in enumerate(index.split("\n"), start=1):
 # ---- the files, which are now the SOURCE of the index -------------------------
 FNAME = re.compile(r"(\d+)([a-z]?)-[a-z0-9][a-z0-9-]*\.md")
 INDEX_HEADING = "## Index row"
+# ---- the `## Revisit` section, which REFUSED owes (milestone 448) --------------
+# **What would change this.** calef, 2026-09-20: "ensure we capture what would change for a
+# milestone to no longer be refused." The word *ensure* is what puts this in the script instead of
+# in a convention, because AGENTS.md's ladder prices the difference: a condition asked for in prose
+# is rung four, and the tree's own evidence is that rung four does not hold. The refusal that
+# prompted milestone 448 stated its condition perfectly (milestone 164: "The number is owed when an
+# x86_64 workload touches the crypto path") and still went stale, because nothing re-read it.
+#
+# **The section is a fixed home, so the check tests structure and never vocabulary.** A sentence
+# anywhere in the prose would mean grepping for intent, which is the 82% false-positive rate
+# AGENTS.md prices for `git grep -w TODO` and the reason `## Follow-on` is a heading rather than a
+# pattern. Each bullet opens with one of three words:
+#
+#   - **Condition.**   what would make this worth reopening. Not a promise to build: §71 refuses to
+#                      let a `BUGS` entry become a plan and this refuses the same thing one record
+#                      over. It is the difference between a dead end and a door with a bell on it.
+#   - **Nothing.**     refused permanently, on a principle rather than on circumstance, and nothing
+#                      would change it. Carries the reason, and stands alone.
+#   - **Unstated.**    the original refusal names no condition and none can honestly be inferred.
+#                      Stands alone, and is meant to READ as a gap somebody could close rather than
+#                      as a settled matter.
+#
+# **`Unstated.` is the load-bearing one and it is deliberately cheap to write.** The failure this
+# gate exists to stop is silence, and an author with no honest condition and no way to say so will
+# invent one, which is worse than the blank: an invented condition is a false bell that fires for a
+# reason nobody meant. Silence and "we thought about it and nothing would change our minds" look
+# identical to the next reader and mean opposite things, so `Nothing.` and `Unstated.` must be
+# different words and both must pass.
+#
+# **What this can and cannot prove, said here because a green check is read as an answer.** It
+# proves a condition is PRESENT. It cannot prove one is true, honest, current, or that the person
+# writing it thought for more than a second. The same limit `script/citations` records about
+# glosses ("what you write is checked, not that you must write it") and §71 about its own promotion
+# triggers. See BUGS in this script's header.
+REVISIT_HEADING = "## Revisit"
+REVISIT = re.compile(r"^- \*\*(Condition|Nothing|Unstated)\.\*\*(.*)$")
 # `**Built:** <ISO>`, the Built column, kept as a field rather than read out of the status
 # sentence: 129 of 288 blocks stated the date in prose or not at all, in eight spellings.
 BUILT_LINE = re.compile(r"\*\*Built:\*\* (\d{4}-\d{2}-\d{2})")
@@ -367,6 +492,8 @@ for fname in sorted(os.listdir(d)):
     # `scripts/roadmap_proposals.py` for why the citation is a slug and not a path. Collected here
     # and checked against the pile after it is read.
     status_para = next(iter(blocks_of(lines[1:])), "")
+    if status == "REFUSED":
+        refused_by[num] = {int(m) for m in re.findall(r"[Mm]ilestone (\d+)", status_para)}
     slug = roadmap_proposals.promoted_from(status_para)
     if slug:
         promoted[slug] = fname
@@ -423,6 +550,62 @@ for fname in sorted(os.listdir(d)):
                             f"'**Built:** {built}'. It is the date a milestone turned BUILT and "
                             f"belongs to BUILT and REMOVED alone; a first phase's date belongs in "
                             f"the block's prose")
+    # ---- the `## Revisit` section, required by REFUSED and by nothing else --------
+    # Required, so that a REFUSED milestone with no stated condition is unrepresentable in a
+    # passing tree (rung one of AGENTS.md's ladder, where the bullet it replaces was rung four).
+    # Forbidden elsewhere, for the reason the gate line is forbidden on a BUILT block: a section
+    # answering "what would un-refuse this" on a milestone that was never refused can only be
+    # stale, and a heading that means nothing in most files is a heading nobody maintains.
+    if status == "REFUSED" and lines.count(REVISIT_HEADING) != 1:
+        problems.append(
+            f"{fname}: REFUSED with {lines.count(REVISIT_HEADING)} '{REVISIT_HEADING}' sections; "
+            f"it owes exactly one. A refusal whose condition is unwritten is the bullet this "
+            f"status replaced: bullets opening '**Condition.**' with what would make this worth "
+            f"reopening, '**Nothing.**' with why it is permanent, or '**Unstated.**' if the "
+            f"original names no condition and none can honestly be inferred. Silence is the one "
+            f"answer that is not allowed, because it reads exactly like the second one and means "
+            f"the opposite")
+    elif status != "REFUSED" and REVISIT_HEADING in lines:
+        problems.append(f"{fname}: status is {status} and it carries '{REVISIT_HEADING}', which "
+                        f"asks what would un-refuse a milestone that was never refused")
+    elif status == "REFUSED":
+        rbody, collecting = [], False
+        for n, l in enumerate(lines, start=1):
+            if l.rstrip() == REVISIT_HEADING:
+                collecting = True
+                continue
+            if collecting:
+                if l.startswith("#"):
+                    break
+                rbody.append((n, l))
+        rbullets = []
+        for n, l in rbody:
+            if l.startswith("- "):
+                rbullets.append([n, l])
+            elif rbullets and l.startswith(("  ", "\t")) and l.strip():
+                rbullets[-1][1] += " " + l.strip()
+        if not rbullets:
+            problems.append(f"{fname}: '{REVISIT_HEADING}' has no bullets. '- **Unstated.**' plus "
+                            f"a sentence is the whole answer when the original refusal names no "
+                            f"condition, and it is meant to be cheap to say")
+        for n, l in rbullets:
+            rm = REVISIT.match(l.rstrip())
+            if not rm:
+                problems.append(f"{fname}:{n}: {l[:60]!r} is not a revisit disposition. Every "
+                                f"bullet under '{REVISIT_HEADING}' opens '**Condition.**', "
+                                f"'**Nothing.**' or '**Unstated.**'")
+                continue
+            kind, rest = rm.group(1), rm.group(2).strip()
+            if kind in ("Nothing", "Unstated") and len(rbullets) > 1:
+                problems.append(f"{fname}:{n}: '**{kind}.**' is the whole answer, so it cannot sit "
+                                f"beside {len(rbullets) - 1} other condition(s)")
+            if len(rest) < 40:
+                problems.append(f"{fname}:{n}: '**{kind}.**' carries its reasoning. A bare one is "
+                                f"the silence this section exists to stop, with a heading over it "
+                                f"(found {rest!r})")
+            else:
+                revisits.append((num, fname, n, kind, rest))
+
     title = h.group(2).strip() if h else ""
     milestones[num] = {"file": fname, "status": status, "title": title,
                        "built": built, "summary": summary}
@@ -460,11 +643,12 @@ for fname in sorted(os.listdir(d)):
     # It sits in the paragraph directly under the status, so a reader meets "where do we stand" and
     # "what stops a start" together, and a new milestone cannot be filed without answering both.
     stray = [n for n, l in enumerate(lines, start=1) if l.startswith("**Gate:")]
-    if status in DATED:
+    if status in NOGATE:
         for n in stray:
             problems.append(f"{fname}:{n}: a {status} milestone carries a gate, which can "
-                            f"only be stale: nothing gates work that is finished, and nothing "
-                            f"gates work that has been deleted")
+                            f"only be stale: nothing gates work that is finished, nothing "
+                            f"gates work that has been deleted, and what stops a REFUSED "
+                            f"milestone is the refusal, which its status has already said")
         continue
 
     # Paragraph 1 is the title, paragraph 2 the status, paragraph 3 the gate.
@@ -1050,11 +1234,59 @@ if mode == "--check":
           f"(script/roadmap --outstanding)")
     print(f"roadmap: {len(unclaimed)} pieces of follow-on work were named by a finished "
           f"milestone and became proposals (script/roadmap --unclaimed)")
+    nrefused = sum(1 for ms in milestones.values() if ms["status"] == "REFUSED")
+    if nrefused:
+        print(f"roadmap: {nrefused} milestones are REFUSED and every one states what would change "
+              f"it; they are excluded from the gate, ready and outstanding counts above "
+              f"(script/roadmap --revisit)")
     if proposals:
         print(f"roadmap: {len(proposals)} unnumbered proposals awaiting a number, oldest "
               f"{min(p[0] for p in proposals)} (script/roadmap --proposed)")
     if lettered:
         print(f"roadmap: lettered addenda: {', '.join(lettered)}")
+    sys.exit(0)
+
+if mode == "--revisit":
+    # ---- the bell (milestone 448) ------------------------------------------------
+    # A REFUSED block states what would change it. This asks the one part of that a machine can
+    # answer: does the condition name a milestone that has since turned BUILT? If it does, the
+    # thing the refusal was waiting for has happened and nobody compared the two, which is exactly
+    # how milestone 164's Route 2 went stale while stating its condition perfectly.
+    #
+    # **Its reach is small and stated rather than implied.** A condition is prose. This catches the
+    # mechanical case, a citation of a milestone number, and misses every condition phrased as a
+    # workload, a measurement, a customer or a piece of hardware, which is most of them. The
+    # denominator is printed on every run for that reason: a reader should be able to see what
+    # fraction of the conditions this check can see at all, rather than reading a clean run as
+    # "nothing has gone stale". See BUGS in this script's header.
+    # **A condition almost always names the block that refused it**, because the reasoning being
+    # quoted is that block's. Those citations are context and never triggers, and left in they made
+    # this check useless on its first run: both of its two findings were a block pointing at its own
+    # origin. So the milestones named in a REFUSED block's status paragraph, which are by
+    # construction the ones that refused it, are excluded here.
+    rung = []
+    for num, fname, n, kind, rest in sorted(revisits):
+        for m in re.finditer(r"[Mm]ilestone (\d+)", rest):
+            t = int(m.group(1))
+            if t in refused_by.get(num, ()):
+                continue
+            if t in milestones and milestones[t]["status"] == "BUILT":
+                rung.append((num, fname, n, t, rest))
+                break
+    for num, fname, n, t, rest in rung:
+        print(f"  {num:>3}  {milestones[num]['title'][:66]}")
+        print(f"       names milestone {t} ({milestones[t]['title'][:48]}), BUILT "
+              f"{milestones[t]['built']}")
+        print(f"       {fname}:{n}")
+        print(f"       {rest[:150]}")
+    refused = sorted(n for n, ms in milestones.items() if ms["status"] == "REFUSED")
+    cited = {r[0] for r in revisits
+             if any(int(m) not in refused_by.get(r[0], ())
+                    for m in re.findall(r"[Mm]ilestone (\d+)", r[4]))}
+    print(f"\n{len(rung)} of {len(refused)} REFUSED milestones name a condition this check can "
+          f"see and that has come true. {len(cited)} state a condition naming a milestone at all; "
+          f"the other {len(refused) - len(cited)} are phrased as a workload, a measurement, a "
+          f"customer or a piece of hardware, and nothing here can read those")
     sys.exit(0)
 
 if mode == "--proposed":
@@ -1095,7 +1327,7 @@ if mode == "--ready":
 
 if mode:
     print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, "
-          f"--outstanding, --proposed, --index, --write, or --check)", file=sys.stderr)
+          f"--outstanding, --proposed, --revisit, --index, --write, or --check)", file=sys.stderr)
     sys.exit(2)
 
 by_status = {}
