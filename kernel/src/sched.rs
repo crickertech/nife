@@ -1995,9 +1995,18 @@ pub fn schedule() {
             next_cycle_counter = sched.threads.get(next).unwrap().cycle_counter_grant;
         }
 
-        // Copy the two raw pointers out before the lock drops. The assembly writes through the
-        // first and reads the second, and both threads' `Box`es keep their contents pinned.
-        let prev_slot: *mut *mut Context = &mut sched.threads.get_mut(current).unwrap().context;
+        // Copy the raw pointers out before the lock drops. The assembly writes through the
+        // context slot and reads the incoming context, and both threads' `Box`es keep their
+        // contents pinned.
+        //
+        // The outgoing thread's FP state comes out of the SAME `get_mut` (milestone 447): it is the
+        // second field this line needs off `current` and a second map probe for it would cost more
+        // than the binding does. `crate::fp::hand_over` reads one `u64` through this pointer on
+        // every switch and touches the other 536 bytes only for a thread that has taken the FP
+        // enable trap, which is no thread in this tree.
+        let prev_thread = sched.threads.get_mut(current).unwrap();
+        let prev_slot: *mut *mut Context = &mut prev_thread.context;
+        let prev_fp: *mut crate::arch::fp::FpState = &mut prev_thread.fp;
 
         // `next_ctx`, and on x86 the incoming thread's port grant (milestone 299) beside it, out of
         // ONE `threads.get(next)`. The two arms are byte-identical bar the port read, and the split
@@ -2009,22 +2018,28 @@ pub fn schedule() {
         // The cycle-counter grant is carried the same way now (milestone 300), so neither grant
         // widens this tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on
         // every shipping build.
+        //
+        // Milestone 447 added the incoming thread's FP state to both arms, out of the same lookup
+        // for the same reason, so the split above is now about the port grant alone.
         #[cfg(not(target_arch = "x86_64"))]
-        let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = {
+            let next_thread = sched.threads.get(next).unwrap();
+            (next_thread.context, &next_thread.fp)
+        };
         #[cfg(target_arch = "x86_64")]
-        let next_ctx: *mut Context = {
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = {
             let next_thread = sched.threads.get(next).unwrap();
             next_port_grant = next_thread.port_range_grant;
-            next_thread.context
+            (next_thread.context, &next_thread.fp)
         };
 
-        Some((prev_slot, next_ctx, next_root))
+        Some((prev_slot, next_ctx, next_root, prev_fp, next_fp))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root)) = switch {
+    if let Some((prev_slot, next_ctx, next_root, prev_fp, next_fp)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -2055,6 +2070,17 @@ pub fn schedule() {
         // crosses a holder. `#[cfg]`-gated, not folded: it exists on no other architecture's switch.
         #[cfg(target_arch = "x86_64")]
         install_port_grant(next_port_grant);
+
+        // And the register file the two threads are about to share a core over (milestone 447).
+        // This is beside `switch_to` rather than inside it because the two save different
+        // quantities for different reasons: `switch_to` saves what a *function call* may destroy,
+        // and this moves what a *thread* owns. It runs here, as the outgoing thread, with the lock
+        // released and interrupts masked, so the register file is already right when the switch
+        // lands. `crate::fp::hand_over` has the four cases and the CVE that decided them.
+        //
+        // SAFETY: `prev_fp` and `next_fp` name the `FpState`s of the outgoing and incoming threads,
+        // pinned by the same argument the two lines below make for their contexts.
+        unsafe { crate::fp::hand_over(prev_fp, next_fp) };
 
         // SAFETY: both pointers name live `Context`s owned by boxed `Thread`s in the map, and
         // interrupts are masked so nothing can reorder underneath us.
@@ -3976,6 +4002,31 @@ pub fn grant_cycle_counter_to_current() {
             .cycle_counter_grant = true;
     }
     crate::arch::timer::set_cycle_counter_grant(true);
+}
+
+/// **Record that the running thread has started using the floating-point unit** (milestone 447).
+///
+/// The scheduler half of [`crate::fp::enable_for_current`], and the only thing that ever sets the
+/// flag. Returns false when there is no scheduler or no current thread, which is a trap the caller
+/// must turn into a fault rather than return from: the flag is what stops the same instruction
+/// taking the same trap forever.
+///
+/// **Taking `IPC_TABLES` inside a trap handler is ordinary here**, not a liberty. Every syscall
+/// does it from the same place, through `syscall::dispatch`, and the argument is the same: this
+/// trap came from a thread that was *running*, so this core cannot already hold the lock. What
+/// would break that is kernel code executing an FP instruction while holding it, and the kernel is
+/// built `softfloat` and executes none.
+pub fn mark_current_fp_live() -> bool {
+    let mut guard = IPC_TABLES.lock();
+    let Some(sched) = guard.as_mut() else {
+        return false;
+    };
+    let current = current_thread_id();
+    let Some(thread) = sched.threads.get_mut(current) else {
+        return false;
+    };
+    thread.fp.set_live();
+    true
 }
 
 /// **Install a capability into an embryo's capability table** (milestone 19c.3): the child's initial

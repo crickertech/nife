@@ -16,6 +16,7 @@ pub mod context;
 pub mod exceptions;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
+pub mod fp;
 // The GICv3 CPU interface, `ICC_*` system registers (milestone 227). Private: `irq` is its only
 // caller, and the one place that knows which GIC version this machine has.
 mod gic_cpu_interface;
@@ -47,6 +48,10 @@ global_asm!(include_str!("vectors.s"));
 
 // The context switch, and where a new thread begins. Milestone 6.
 global_asm!(include_str!("context.s"));
+
+// Saving and restoring `q0`-`q31` (milestone 447). Separate from context.s because it moves a
+// register file rather than a calling convention's callee-saved set; see fp.rs.
+global_asm!(include_str!("fp.s"));
 
 unsafe extern "C" {
     /// The exception level core 0 was entered at, written by `boot.s` before anything else runs.
@@ -229,6 +234,10 @@ pub fn print_bring_up_mechanism() {
 /// job is to *print*.
 pub fn init() {
     exceptions::init();
+    // FP and SIMD trapped, at both exception levels, before anything can execute one. Per-core:
+    // `CPACR_EL1` is banked, and a secondary reaches this through `smp::secondary_main`. See fp.rs
+    // for why this is written rather than left at a reset value QEMU happens to make right.
+    fp::init();
 }
 
 /// Park this core forever.

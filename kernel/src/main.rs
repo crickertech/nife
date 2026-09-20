@@ -38,6 +38,7 @@ mod cpu;
 mod drivers;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
+mod fp;
 #[cfg(feature = "icount")]
 mod icount;
 mod interrupt_stack;

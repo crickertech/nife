@@ -373,6 +373,23 @@ pub struct Thread {
     /// write it down.
     pub context: *mut Context,
 
+    /// **The floating-point and vector registers, and whether any of them are worth moving**
+    /// (milestone 447).
+    ///
+    /// Not on the stack beside [`Self::context`], and the difference is the point. A `Context` is a
+    /// *calling convention's* callee-saved set, saved because `switch_to` is a function call. This
+    /// is the whole of `q0`-`q31` (or `f0`-`f31`, or the `FXSAVE` area), saved because it crosses a
+    /// *thread* boundary: the kernel is built `softfloat` and executes no FP instruction of its
+    /// own, so every bit in those registers belongs to whichever thread last ran.
+    ///
+    /// Half a kilobyte per thread, and it buys the rule in [`crate::fp`]: the register file holds
+    /// the running thread's data or the initial state, never a stranger's. Untouched on every
+    /// switch in this tree today, because `live` is false on every thread and nothing in a
+    /// soft-float userspace has ever taken the enable trap.
+    ///
+    /// *(Field name provisional: names are calef's.)*
+    pub fp: crate::arch::fp::FpState,
+
     /// `None` for the boot thread, which runs on the stack `boot.s` set up and does not own it.
     ///
     /// Never *read*, and that is the point: it exists to be **dropped**. When the reaper removes
@@ -573,6 +590,7 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
+            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
@@ -608,6 +626,7 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
+            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
@@ -716,6 +735,7 @@ impl Thread {
                 #[cfg(feature = "soak_test")]
                 last_cpu: u8::MAX,
                 context,
+                fp: crate::arch::fp::FpState::new(),
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
                 // and it can name nothing until it is handed something
@@ -766,6 +786,7 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
+            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
