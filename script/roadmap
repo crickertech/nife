@@ -334,7 +334,7 @@ except FileNotFoundError:
 
 # Kept as a check on the COMMITTED table only: a row is well formed, links to a block that exists,
 # and is not a duplicate. Everything the row SAYS is now checked at the block instead.
-ROW = re.compile(r"^\| (\d+) \| ([A-Z-]+) \| \[((?:\\\||[^\]])+)\]\(([^)]+)\) \|")
+ROW = re.compile(r"^\| (\d+) \| ([A-Z-]+) \| \[((?:\\\||\\\]|[^\]])+)\]\(([^)]+)\) \|")
 for i, line in enumerate(index.split("\n"), start=1):
     if not re.match(r"^\| \d+ \| ", line):
         continue
@@ -698,21 +698,32 @@ for num, token in gate_specs:
                         f"{mn.group(1)} is BUILT and no longer gates anything")
 
 # ---- the generated table ------------------------------------------------------
-# Five columns, and the one escape: a literal `|` inside a cell would end it, so it is written
-# `\|` here and stored unescaped in the block, where it is ordinary prose. Two summaries and one
-# title need this, milestone 67's because it is ABOUT the `||` operator.
+# Five columns, and two escapes.
+#
+# A literal `|` inside a cell would end it, so it is written `\|` here and stored unescaped in the
+# block, where it is ordinary prose. Two summaries and one title need this. One of them is
+# milestone 67 (`swish` the language), which is ABOUT the `||` operator.
+#
+# **A literal `]` inside a TITLE would end the link text**, so it is written `\]`. Found 2026-09-20
+# by milestone 448 (a refusal gets a number, a status, and a condition that would change it), whose
+# backfill minted the tree's first titles containing `#[path]`: the writer emitted a row the
+# reader's own `ROW` pattern then rejected, so `--write` and `--check` disagreed about a file one of
+# them had just produced. That is the shape this pair must never have, and it was latent from the
+# day the table was generated rather than introduced by those titles.
 INDEX_HEADER = ["| #  | Status | Milestone | Why it matters (§14) | Built |",
                 "|----|--------|-----------|----------------------|------------|"]
 
 
-def cell(text):
-    return text.replace("|", r"\|")
+def cell(text, link_text=False):
+    """Escape a cell's content. `link_text` also escapes `]`, which only a title needs."""
+    out = text.replace("|", r"\|")
+    return out.replace("]", r"\]") if link_text else out
 
 
 for num in sorted(milestones):
     ms = milestones[num]
     tail = f" {ms['built']} |" if ms["built"] else " |"
-    generated[num] = (f"| {num} | {ms['status']} | [{cell(ms['title'])}]({ms['file']}) "
+    generated[num] = (f"| {num} | {ms['status']} | [{cell(ms['title'], link_text=True)}]({ms['file']}) "
                       f"| {cell(ms['summary'])} |" + tail)
 
 stale = sorted(set(committed) ^ set(generated)
