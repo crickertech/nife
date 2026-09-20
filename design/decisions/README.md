@@ -258,6 +258,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 197 | DECIDED | [A package is one archive file, named and vouched for by its recipe](197-a-package-is-one-archive-file.md) |
 | 198 | DECIDED | [The glue is ours, the primitives are not](198-the-glue-is-ours-the-primitives-are-not.md) |
 | 199 | DECIDED | [The screen check asks instead of sampling](199-the-screen-check-asks-instead-of-sampling.md) |
+| 200 | DECIDED | [Two crates the documentation system refused](200-two-crates-the-documentation-system-refused.md) |
 | 201 | DECIDED | [One roadmap until a citation has to cross](201-one-roadmap-until-a-citation-has-to-cross.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
