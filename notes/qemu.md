@@ -184,6 +184,14 @@ forever, by design, exactly like real hardware. So every interactive run must be
   built QEMU on a Mac. And a QEMU installed into `$HOME/.cache/nife-qemu` is honoured by
   `scripts/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
   for one clone changes the emulator under every other lane.
+- **`cargo xtask uefi-boot`'s screen read fails under load, and it fails as a framebuffer bug.** The
+  check dumps the guest's framebuffer while the tour is being painted, so how deep it catches the
+  tour is a race the code deliberately does not require (`xtask/src/uefi.rs`). Catching *nothing* is
+  required, though, and on a busy machine that is what happens: on 2026-09-20 a full `script/test`
+  run read zero rows and reported *"the tour was never readable on the screen"*, and the same leg run
+  by itself a minute later read 56. Its own message then sends the reader after the loader's
+  `LocateProtocol`, the pixel order, the stride and the mapping, none of which was wrong. Re-run the
+  leg alone before believing it, and treat a contended machine as the first suspect.
 - **A kernel's serial log is binary to `grep`.** The test logs carry the guest's control bytes, so
   `grep FAILED log` says `Binary file log matches` or nothing, rather than the line. Use `grep -a`.
 
