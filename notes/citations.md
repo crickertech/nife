@@ -40,8 +40,11 @@ DECISIONS §24 (interrupting the foreground process)
 ```
 
 Both are self-checking: the parenthetical can be compared against the record's own title, which is
-the comparison neither existing gate can make. Write the citation without a gloss and nothing new
-happens; write one and it binds.
+the comparison neither existing gate can make. Write one and it binds.
+
+Until 2026-09-19 the other half of that sentence was "write the citation without a gloss and nothing
+new happens", and for everything already in the tree it still is. **On a line a commit adds, it is
+no longer true**: see the ratchet below.
 
 ### The tolerance rule
 
@@ -79,6 +82,136 @@ citations: notes/credentials.md:346: §49's gloss (users, login, and attribution
       but it matches milestone 49: Users, login, and attribution: what identity is for...
       Two schemes, one number. This is the milestone-24 defect.
 ```
+
+## The ratchet: a citation a commit adds says what it cites
+
+`script/citations --ratchet`, in `script/lint` since 2026-09-19, on calef's ruling that day: *"add
+the gloss ratchet."* It reads the **diff** against the merge base rather than the tree, so nothing
+existing is touched and no lane is asked about text it did not write.
+
+**The rule is per number per file, not per occurrence.** A `milestone N` or `§N` on an added line
+passes if that number, under that scheme, is glossed *somewhere* in the same file: by title, by
+quotation, by a path into the record, or by a `GLOSS_ALLOW` entry. A paragraph that names §151 four
+times explains it once, and a gate asking for four glosses would be answered by deleting three
+mentions.
+
+A bare date and a bare cross-reference do not count as that one gloss, though `--check` recognises
+both and is right to. They are well-formed citations that do not say what the target *is*, which is
+the only property this ratchet is about.
+
+### Why a ratchet rather than the sweep this page refused
+
+The BUGS entry below priced the sweep at 2,911 sites and refused it, on the ground that every one has
+to be **read**: a pattern-applied gloss would make a wrong citation look verified, which is the
+milestone-24 defect with better spelling. That argument is about a sweep and says nothing against a
+rule on new text. The ratchet reads nothing retroactively and writes nothing mechanically.
+
+What it buys is DECISIONS §151 (the goal of the repository split is independent release). A number is
+one namespace over one tree, and it means nothing in a repository that does not hold the block; a
+gloss is a string a reader or a `grep` resolves wherever the block ends up.
+
+### What it cannot catch
+
+- **A citation that arrives in a merge commit.** The diff is `base..HEAD`, and a merge brings in
+  lines this branch never wrote. Deliberate: the alternative fires on a lane for another lane's text.
+- **A grounded gloss that is still the wrong citation**, which is this page's standing BUGS entry and
+  is not made smaller by the ratchet. It is made more *visible*: a wrong gloss is something a reader
+  can see, and a bare number is not.
+- **A file that has already glossed the number keeps the escape forever**, including for a later
+  mention that means something else. That is the price of the per-file rule, and it is the right
+  price: the reader has the name in front of them.
+- **A parenthetical that opens with the citation** (`(milestone 298, notes/mdns.md)`) is not a gloss
+  in this scheme and never was, because `CITE` looks for `milestone N (`. The ratchet asks such a
+  site to be rephrased (`milestone 298 (retire the multicast DNS responder), notes/mdns.md`).
+- **Captured logs and the generated roadmap index are out of the corpus**, with `vendor/`,
+  `patches/` and lockfiles. Nobody wrote those lines as prose, and a fixture is the one thing a lane
+  must not edit to satisfy a gate.
+- **It reads `HEAD`, not the working tree**, because the line numbers in a `base..HEAD` diff are
+  HEAD's and reporting them against an edited file would point at the wrong lines. So a fix has to be
+  committed before this goes quiet, which is the same habit the BUGS section below asks for on
+  `--check` (stage before you check) with `commit` in place of `add`.
+
+### What it costs, measured before it was turned on
+
+Over the 42 pull request merges from #953 to #1002, replaying each lane's own diff against its merge
+base: a **median of 16 asks per pull request**, each answered by one parenthetical. The distribution
+is skewed rather than flat: 8 of the 42 would have been silent, and the one outlier is #970 at 893,
+which landed 24 proposal files at once. That number is the cost of writing 24 new documents that
+cite the roadmap heavily, which is exactly the case the gate is for.
+
+## The census: the population nothing had ever counted
+
+`script/citations --census` counts the citations that carry **no gloss at all**, which `--check`
+cannot see, because `--check` reads only the parentheticals that exist. The first run was 2026-09-19
+and it corrected the framing of milestone 444 (a citation says what it cites)'s own brief:
+
+```
+$ script/citations --census
+                    files  citations   named  unnamed  no record
+roadmap proposals      23        196       5      101          0
+roadmap blocks        439       5224     212     2351          0
+decisions             188       1944      66      984          0
+design/ (other)        25        444      38      224          0
+notes/                175       3408     131     1660          0
+Rust                  395       5867      33     2738          0
+scripts                64        716      12      399          0
+manifests              55        370       7      260          0
+CI workflows           13         64       0       44          0
+everything else        70        284       1      217          0
+total                1447      18517     505     8978          0
+```
+
+**Read the last two columns first.** 18,517 citations, in 1,447 files, and **505 of the 9,483
+(file, scheme, number) pairs are named**: 5.3%. The roadmap-after-the-split proposal reported the
+tree as "83% split-proof by habit", and that number is true of the 560 citations that carry a gloss.
+Over the whole population it is 5%. Both numbers are honest and they are about different sets; the
+second is the one that prices the backfill, and nobody had it before.
+
+**The zero is the other finding, and it was re-checked before being believed.** Not one cited number
+in the tree fails to resolve to a block or a section. That is `script/roadmap --check` and
+`script/decisions --check` doing exactly their job, for 18,517 citations. The check on the zero
+matters because a `git grep` for citations does turn up six-digit numbers that resolve to nothing.
+They are segment timestamps in the filenames under `bench/radon-2026-09-04/`, binary captures, and
+they arrive through the trap `script/decisions` records, where `git grep` prints *"Binary file ...
+matches"* into the same stream as the matches. The
+census skips a file containing a NUL byte and excludes `*.log`, so the zero survived the re-check.
+
+**The unit is the pair, not the occurrence**, because that is the unit of work: one gloss in a file
+answers every mention of that number in it. `--census --list` prints the worklist, one line per pair,
+which is how the backfill below chose what to do.
+
+## The backfill, and the rule that chose it
+
+Milestone 444 glossed **25 pairs across three files**: `README.md`, `CONTRIBUTING.md` and
+`SECURITY.md`. That is 0.3% of the backlog, chosen rather than sampled, and the rule is one
+question.
+
+**Gloss where the citation is the reader's only route to what is meant.** `SECURITY.md` is the
+worked case and it is why those three files were picked: a person reporting a vulnerability met
+*"(DECISIONS §20, §23, §30; `crates/dma_validator`, notes/iommu.md)"* and had no way to know what
+those three sections claim without cloning the repository and opening three files. They now read
+*"§20 (IOMMU-backed DMA isolation), §23 (multi-queue DMA confinement), §30 (the DMA boundary is
+proved for descriptors)"*. These are the documents a stranger meets before they have a checkout,
+which is principle 3 (a newcomer must be able to succeed without asking anyone) applied to a
+footnote.
+
+**Do not gloss where the surrounding text already says what the target is.** Two cases were looked
+at and deliberately left:
+
+- **`notes/scripts.md`, 50 pairs.** Its citations sit in a table whose row already describes the
+  script. The `script/icount` row says it is the instruction-count instrument and what it boots, and
+  the parenthetical records only which milestone built it. That number is provenance, not a pointer,
+  and a gloss would add a clause to a dense table row saying what the next clause already says.
+- **`notes/README.md`, 128 pairs.** The notes index, same shape: each row links the note and
+  describes it, and the milestone number records which milestone wrote it.
+
+**And do not gloss a dated account, a quotation, or a block's own history**, which is
+`design/naming.md`'s rule that a dated record keeps its words. A gloss inserted into a sentence
+written in August rewrites what that sentence said.
+
+The remainder, 8,953 pairs, is recorded as work in milestone 444's block rather than carried as an
+intention: `script/citations --census --list` regenerates the worklist at any time, so nothing about
+it has to be kept in a note that will go stale.
 
 ## Attributed quotations
 
@@ -143,6 +276,35 @@ citations: 1 attributed quotations, all still present in their sources
 The breakdown sums to the total on purpose. A summary line whose parts do not add up is a number
 nobody can check, which is the defect `script/lint`'s shellcheck line was fixed for.
 
+Ask what this branch adds, which is the second thing `script/lint` runs:
+
+```
+$ script/citations --ratchet
+citations: every citation on the 121 lines this branch adds says what it cites
+```
+
+**The proof that it fires**, run on 2026-09-19 by planting one line in this very file and committing
+it. The planted line cited three records, and the interesting part is which two were reported:
+
+```
+$ script/citations --ratchet
+citations: notes/citations.md:296: milestone 444 is cited with no gloss anywhere in this file
+      milestone 444 is: A citation says what it cites, so a number stops being the identity
+citations: notes/citations.md:296: §46 is cited with no gloss anywhere in this file
+      §46 is: Thin primitives or whole subsystems; we write everything in between
+```
+
+The third, milestone 55, was not reported, because this page already carries
+`milestone 55 (Time Machine over SMB3 with Apple's extensions)` in its tolerance-rule section. That
+is the per-number-per-file rule working, and it is the whole difference between a ratchet and a tax.
+The line was then removed and the same command went quiet.
+
+Judge a range that is not this checkout's HEAD, which is how the cost above was measured:
+
+```
+$ script/citations --ratchet "$(git merge-base $pr^1 $pr^2)..$pr^2"
+```
+
 Citing the decision rather than the milestone, in a code comment:
 
 ```rust
@@ -195,6 +357,22 @@ falsehood next to every wrong number). That is not a sweep this project can do c
 pass, and a mechanically-inserted gloss would make the 28 milestone-24 defects *look* verified. So
 the rule is "what you write is checked", not "you must write it". The number is recorded here so
 that whoever revisits it is arguing against a measurement.
+
+**That measurement was itself too small, and the census above replaced it on 2026-09-19.** 2,911 was
+first mentions counted one way; the census counts **9,483 (file, scheme, number) pairs, of which
+8,978 carry no gloss**, over 18,517 citations. The conclusion does not move, it gets stronger: a
+sweep of that size cannot be done correctly in one pass, and it is why milestone 444 shipped a
+ratchet plus 25 hand-read glosses rather than a rewrite.
+
+**The ratchet does not close this entry, it stops it growing.** An unglossed citation already in the
+tree is still checked by nothing, and the escape in the per-file rule means a file that glosses a
+number once satisfies the ratchet for every other mention in it forever.
+
+**A `--ratchet` replay of an old commit judges it against today's records.** The decision and
+milestone tables are loaded from the working tree, not from the revision under test, so a range
+replayed over history can report a number that had no block at the time, or ground a gloss in a title
+that has since been rewritten. That is harmless for the live check, where the tree and HEAD are the
+same thing, and it is worth knowing before quoting a replayed number as history.
 
 **A wrong citation whose gloss is also wrong in the same direction passes.** The first of these
 grounds in nothing and fails; the second grounds fine and is still in the wrong place if it sits

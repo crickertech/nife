@@ -848,6 +848,32 @@ fi
 echo "==> citations"
 "$(dirname "$0")/citations" --check
 
+# The ratchet on that gate, and the only check here that reads the DIFF rather than the tree
+# (milestone 444 (a citation says what it cites, so a number stops being the identity)). calef ruled
+# it on 2026-09-19: *"add the gloss ratchet."* A `milestone N` or `§N` on a line this branch ADDS has
+# to say what it cites, once per number per file; nothing existing is touched, and nothing is swept.
+#
+# **Why a ratchet and not a sweep.** notes/citations.md priced the sweep and refused it: 2,911 sites,
+# every one of which has to be READ to know what its author meant, because a pattern-applied gloss
+# would make a wrong citation look verified. That argument is about a sweep and says nothing against
+# a rule on new text, which is what this is. It moves the tree at the rate the tree changes.
+#
+# **Why it is worth a gate.** DECISIONS §151 (the goal of the repository split is independent
+# release) rules that this repository becomes several. A number is one namespace over one tree; a
+# gloss is a string a reader or a `grep` resolves wherever the block ends up. The tree is already
+# 83% there by habit (465 of 560 glossed citations resolve against their target's own title) and
+# nobody decided to make it so.
+#
+# **What it cannot catch, and the cost it is known to carry.** A citation arriving in a MERGE commit
+# is invisible to it, by design, since the alternative fires on a lane for another lane's text. A
+# gloss that is grounded and still cites the wrong record passes, which is `--check`'s own standing
+# BUGS entry. And it bites the honest case: a lane adding one line to a dated account is asked for a
+# gloss the surrounding passage already gives. Measured before it was turned on, over the 42 pull
+# request merges from #953 to #1002: a median of 16 asks per pull request, each answered by one
+# parenthetical, with one outlier of 893 (#970, which landed 24 proposal files at once).
+echo "==> new citations say what they cite"
+"$(dirname "$0")/citations" --ratchet
+
 # The fourth citation gate, and the only one that reads what a citation CLAIMS (milestone 275). The
 # three above prove a `milestone N` or `§N` resolves, and that its gloss names the right record;
 # none of them asks whether what `design/fatal-risks.md` SAYS about what it resolved to is still

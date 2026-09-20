@@ -15,8 +15,9 @@ the Earth's nickel-iron core. The full story, refused spellings included, is
 A capability microkernel for aarch64, riscv64 and x86_64, written in Rust, from the first
 instruction.
 
-The goal (DECISIONS §14): a verified-Rust capability microkernel that runs real workloads,
-built to stand next to Linux, macOS, and seL4 on the primitives that define an OS, and to win
+The goal is DECISIONS §14 (the project's direction): a verified-Rust capability microkernel that
+runs real workloads, built to stand next to Linux, macOS, and seL4 on the primitives that define an
+OS, and to win
 where a minimal kernel should. The capability core carries machine-checked proofs. The kernel
 allocates no memory of its own. Every driver and server is an EL0 process. The same portable
 core boots on three ISAs, and on real RISC-V silicon.
@@ -97,7 +98,7 @@ The CI badge above is green only when **every** gate passes:
 
 | Gate | What it proves |
 |---|---|
-| `script/test` | The host-logic crates, then the kernel under QEMU on **all three ISAs**: aarch64, riscv64 and x86_64. Architectural parity is a gate, not an aspiration (DECISIONS §19). |
+| `script/test` | The host-logic crates, then the kernel under QEMU on **all three ISAs**: aarch64, riscv64 and x86_64. Architectural parity is a gate, not an aspiration (DECISIONS §19 (architectural parity is a tenet)). |
 | `script/verify` | over 100 Kani harnesses <!--count-at-least:kani-harnesses--> across more than 20 crates <!--count-at-least:harness-crates-->: the capability model, IPC, MMU isolation, the DMA validator, the IOMMU domain, the NTP era pivot. |
 | `script/bench --check` | icount instruction counts against a committed baseline, on all three ISAs, so a performance regression surfaces next to the change that caused it. |
 | `script/lint` | clippy at `-D warnings`, plus broken intra-doc links, stray conflict markers, the roadmap's status vocabulary, DECISIONS numbering and citations, and that every script is documented. |
@@ -132,7 +133,8 @@ previous version of this section did repeat them, and drifted twice inside three
   ([notes/abi.md](notes/abi.md)), and ordinary Rust `std` programs on a custom target.
 - **Two ISAs at parity.** Everything architecture-specific lives under `kernel/src/arch/`, and
   riscv64 proves it: SMP, the whole test suite, the interactive shell, and the benchmarks all run on
-  both. Parity is a gate rather than an aspiration (DECISIONS §19).
+  both. Parity is a gate rather than an aspiration (DECISIONS §19 (architectural parity is a
+  tenet)).
 - **SMP.** Four cores via PSCI (aarch64), SBI (riscv64) and the APIC's startup IPI (x86_64), per-CPU run queues, cross-core
   placement by inbox plus a reschedule IPI. No shared run-queue lock.
 - **Every driver and server is an EL0 process**, confined by the MMU and, for DMA, by a validator
@@ -180,8 +182,8 @@ script/catch-up            # what changed since you last looked
 **`script/catch-up` is the one to run second**, and it is worth knowing about before you need it: it
 recomputes what moved (milestone status, decisions landed, what is waiting on calef, what is ready to
 start) from the roadmap, the decision files and git, rather than from a hand-written status page that
-would rot. Milestone 117's second stranger run called it the best onboarding command here and noted
-that nothing pointed at it, which this paragraph is fixing.
+would rot. The second run of milestone 117 (the stranger test) called it the best onboarding command
+here and noted that nothing pointed at it, which this paragraph is fixing.
 
 The `script/*` commands are the normalized entry points (the [Scripts to Rule Them
 All](https://github.com/github/scripts-to-rule-them-all) pattern, one interface across every
@@ -265,7 +267,8 @@ second copy: fifty-two lines of tick-marks, a partial and out-of-order subset, a
 it. A duplicate of a gated artifact is the copy that goes stale, because only one of them has the
 gate.
 
-If you want the shape rather than the list: milestone 7 is the dividing line between "a Rust program
+If you want the shape rather than the list: milestone 7 (user mode: EL0, capabilities, the ELF
+loader, and IPC) is the dividing line between "a Rust program
 that boots" and "an operating system": it is where EL0, address spaces, capabilities, the ELF loader
 and IPC arrive together.
 
@@ -298,7 +301,8 @@ tests hold the line. See [notes/boot-protocol.md](notes/boot-protocol.md).
 address goes into register `x30`, and the stack is where it gets *parked* when a function
 needs `x30` for a call of its own. See [notes/stack.md](notes/stack.md).
 
-**`into_iter()` on a big array is a kernel footgun.** Milestone 3 hung the machine for
+**`into_iter()` on a big array is a kernel footgun.** Milestone 3 (hand out physical memory, and
+detect a smashed stack) hung the machine for
 150 seconds with no output. `[Option<Frame>; 1024].into_iter().flatten()` moves 16 KiB by
 value, twice, onto a 64 KiB stack; `sp` walked through `.bss` and `.data` into `.text` and
 the kernel executed its own overwritten code. Two of the three diagnoses along the way were

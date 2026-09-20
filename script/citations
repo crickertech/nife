@@ -72,8 +72,10 @@
 # early numbers (milestone 12 and §12 really are both Call/Reply IPC) and diverge after, which is
 # exactly the trap: the habit of reading them as one scheme is correct often enough to survive.
 #
-#   script/citations           report: every citation, classified
-#   script/citations --check   validate; non-zero on a problem (wired into script/lint)
+#   script/citations             report: every citation, classified
+#   script/citations --check     validate; non-zero on a problem (wired into script/lint)
+#   script/citations --ratchet   the lines this branch ADDS carry a gloss (wired into script/lint)
+#   script/citations --census    count the citations that carry no gloss at all; reporting only
 #
 # Name: recorded (DECISIONS §134, which cites this name as the shape a later report should match).
 # Introduced by milestone 97's lane on 2026-08-04. §134 puts it in the noun half of the `script/`
@@ -88,13 +90,13 @@ set -e
 
 ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
-exec python3 - "$ROOT" "${1:-}" <<'PY'
+exec python3 - "$ROOT" "${1:-}" "${2:-}" <<'PY'
 import os
 import re
 import subprocess
 import sys
 
-root, mode = sys.argv[1], sys.argv[2]
+root, mode, arg = sys.argv[1], sys.argv[2], sys.argv[3]
 
 # ---- the two records ---------------------------------------------------------
 # Title from the H1 and body from the whole file. Milestone 114 and 76 split both records into one
@@ -209,6 +211,12 @@ GLOSS_ALLOW = {
 COMMENT_MARKER = re.compile(r"^[^\S\n]*(///|//!|//|#!?|\*|>)[^\S\n]?", re.MULTILINE)
 CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?,? \(([^)\n]{0,160}(?:\n[^)\n]{0,160})?)\)")
 
+# Every citation, glossed or not, which is the population `CITE` cannot see and which nothing had
+# ever counted: 3,697 `milestone N` and 1,953 `§N` in `*.rs` alone. The ratchet below reads this one
+# and the `--check` pass above reads `CITE`, and that difference is the whole distinction between
+# "what you write is checked" and "what you add must be written".
+ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?")
+
 # `git grep -I` skips binary files, which is the defect script/decisions records: for a binary,
 # git grep prints the SENTENCE "Binary file <path> matches" into the same stream as the matches, and
 # a parser that trusts its input reads "Binary" as a citation.
@@ -230,6 +238,7 @@ candidates = subprocess.run(
 
 tally = {"title": 0, "quotation": 0, "path": 0, "cross-reference": 0, "date": 0, "exempt": 0}
 
+
 def blank_fenced_blocks(raw):
     """Blank the inside of ``` fences, keeping the line count.
 
@@ -246,6 +255,334 @@ def blank_fenced_blocks(raw):
         else:
             out.append("" if fence else line)
     return "\n".join(out)
+
+
+# ==============================================================================================
+# The ratchet: a citation a commit ADDS says what it cites
+# ==============================================================================================
+#
+# `script/citations --ratchet [base]` reads the DIFF against the merge base, not the tree. It is
+# milestone 444, on calef's ruling of 2026-09-19 ("add the gloss ratchet"), and it is the answer to
+# the standing objection in notes/citations.md, which is about a SWEEP rather than about the rule:
+# requiring a gloss on the first mention of each number in each file means 2,911 sites, every one of
+# which has to be read to know what its author meant. A ratchet reads nothing retroactively, writes
+# no gloss mechanically, and moves the tree toward a split-proof convention at the rate the tree
+# changes.
+#
+# **Why it is worth a gate at all, and it is the split rather than tidiness.** DECISIONS §151 (the
+# goal of the repository split is independent release) rules that this repository becomes several.
+# A number is one global namespace over one tree and means nothing outside the repository that holds
+# the block; a gloss resolves by searching for the title, wherever the block ends up. 465 of the
+# tree's 560 glossed citations already resolve that way, by habit rather than by decision.
+#
+# ---------------------------------------------------------------------------------------------
+# The rule, which is per number per file rather than per occurrence
+# ---------------------------------------------------------------------------------------------
+#
+# A `milestone N` or `§N` on a line the commit adds passes if THAT number, under THAT scheme, is
+# glossed somewhere in the same file: by title, by quotation, by a path into the record, or by an
+# allowlist entry. Not every occurrence. A paragraph that names §151 four times explains it once,
+# and a gate that asked for four glosses would be answered by deleting three mentions.
+#
+# A date (`milestone 55 (2026-08-30)`) and a bare cross-reference (`milestone 12 (§12)`) are
+# deliberately NOT accepted as the file's one gloss, though `--check` recognises both and is right
+# to: they are well-formed citations that do not say what the target IS, which is the only property
+# this ratchet is about. They still pass whenever the file glosses the number somewhere.
+#
+# ---------------------------------------------------------------------------------------------
+# What it cannot catch, stated because a gate's blind spot is the part a reader has to know
+# ---------------------------------------------------------------------------------------------
+#
+# 1. **A citation that arrives in a merge commit.** The diff is `base..HEAD` over first-parent-ish
+#    history, and a merge brings in lines this branch never wrote. That is deliberate: the
+#    alternative fires on a lane for another lane's text, which is the failure mode that made
+#    script/lint's branch-prefix check reject GitHub's own synthetic branch names.
+# 2. **A gloss that is grounded and still the wrong citation.** `--check`'s own BUGS section has
+#    this one: `milestone 24 (a second aarch64 board)` sitting above interrupt code grounds
+#    perfectly and is in the wrong place. Only a reader catches that, and the ratchet makes it more
+#    likely rather than less, because the gloss is what lets the reader see the mismatch at all.
+# 3. **A file that already glosses the number keeps its escape forever.** Add a gloss once and
+#    every later unglossed mention in that file passes, including one that means something else.
+#    That is the price of the per-file rule above and it is the right price: the reader has the
+#    name in front of them.
+# 4. **Prose inside a fenced code block, and the generated roadmap index**, both skipped, for the
+#    reasons `--check` skips them (a page documenting this convention has to be able to show a bad
+#    citation; a generated table is not written by a person).
+# A record does not have to gloss its own number: design/roadmap/444-*.md saying "milestone 444" is
+# the block naming itself, and the title is the file's own H1 a few lines up.
+OWN = re.compile(r"design/(decisions|roadmap)/(\d+)[a-z]?-")
+
+
+def prepared(path, raw):
+    """The text the scanners read, plus a line number for every offset in it."""
+    if path.endswith(".md"):
+        raw = blank_fenced_blocks(raw)
+    text = COMMENT_MARKER.sub("", raw)
+    starts = [0]
+    for ch in text:
+        starts.append(starts[-1] + (1 if ch == "\n" else 0))
+    return text, starts
+
+
+def file_glosses(path, text):
+    """Every (scheme, number) this file NAMES somewhere in itself.
+
+    A date and a bare cross-reference are not names, though `--check` recognises both and is right
+    to: they are well-formed citations that do not say what the target IS.
+    """
+    out = set()
+    for m in CITE.finditer(text):
+        scheme = "decision" if m.group(1) == "§" else "milestone"
+        num = int(m.group(2))
+        gloss = re.sub(r"\s+", " ", m.group(3)).strip()
+        table = DECISIONS if scheme == "decision" else MILESTONES
+        if num not in table:
+            continue
+        if GLOSS_ALLOW.get(f"{path}:{scheme}:{num}"):
+            out.add((scheme, num))
+        elif IS_PATH.fullmatch(gloss.split(",")[0].strip()):
+            out.add((scheme, num))
+        elif not IS_XREF.fullmatch(gloss) and not IS_DATE.fullmatch(gloss) \
+                and grounded(gloss, table[num][0], table[num][1]):
+            out.add((scheme, num))
+    m = OWN.match(path)
+    if m:
+        out.add(("decision" if m.group(1) == "decisions" else "milestone", int(m.group(2))))
+    return out
+
+
+if mode == "--ratchet":
+    # `--ratchet` alone judges this branch against origin/main. `--ratchet <base>` names the base
+    # explicitly, and `--ratchet <base>..<tip>` judges a range that is not this checkout's HEAD,
+    # which is how the check was measured against history before it was turned on: a gate nobody
+    # has run over past commits is a gate whose noise nobody has priced.
+    base, tip = arg, "HEAD"
+    if ".." in arg:
+        base, tip = arg.split("..", 1)
+    if not base:
+        base = subprocess.run(["git", "-C", root, "merge-base", "HEAD", "origin/main"],
+                              capture_output=True, text=True).stdout.strip()
+    if not base:
+        # No merge base means no branch to judge: a detached HEAD in CI, or a fresh clone with no
+        # origin/main. Silence rather than a guess, which is what script/lint's 4b does with the
+        # same situation.
+        print("citations: no merge base against origin/main; ratchet skipped")
+        sys.exit(0)
+
+    # The post-image is the tip, because the line numbers in a `base..tip` diff are the tip's.
+    # Reading the working tree instead would drift by exactly the edits a lane has not committed
+    # yet, and report line numbers that point at the wrong lines.
+    def head_blob(path):
+        r = subprocess.run(["git", "-C", root, "show", f"{tip}:{path}"],
+                           capture_output=True)
+        if r.returncode != 0 or b"\0" in r.stdout:
+            return None
+        return r.stdout.decode(errors="replace")
+
+    # `*.log` and design/roadmap/README.md are here for one reason: **nobody wrote those lines as
+    # prose.** A captured console log under crates/board_console/tests/fixtures/captured/ is a
+    # recording of what a machine printed, and the roadmap index has been generated from the blocks
+    # since milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained).
+    # Asking either to carry a gloss asks a lane to edit a transcript, which is the one thing a
+    # fixture must not have done to it. This measured itself: the first run over history flagged two
+    # citations inside a captured QEMU log.
+    EXCLUDE = (":!vendor/", ":!patches/", ":!*.lock", ":!*.log", ":!script/citations",
+               ":!design/roadmap/README.md")
+    diff = subprocess.run(
+        ["git", "-C", root, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--"] +
+        list(EXCLUDE),
+        capture_output=True, text=True,
+    ).stdout
+
+    # `+++ b/<path>` then `@@ -a,b +c,d @@`: every added line is c .. c+d-1. `--unified=0` means
+    # there is no context to filter out, so the hunk header alone gives the added lines and the
+    # `+` bodies never have to be counted.
+    added = {}
+    path = None
+    for line in diff.split("\n"):
+        if line.startswith("+++ b/"):
+            path = line[6:]
+        elif line.startswith("@@ ") and path:
+            m = re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)
+            if m:
+                start = int(m.group(1))
+                count = 1 if m.group(2) is None else int(m.group(2))
+                added.setdefault(path, set()).update(range(start, start + count))
+
+    ungloss = []
+    for path in sorted(added):
+        raw = head_blob(path)
+        if raw is None:
+            continue
+        text, starts = prepared(path, raw)
+        glossed = file_glosses(path, text)
+
+        # Every citation on a line this commit added, glossed or not, reported once per
+        # (number, scheme, file) at its first added occurrence: a lane fixes it once.
+        seen = set()
+        lines = added[path]
+        for m in ANY_CITE.finditer(text):
+            lineno = starts[m.start()] + 1
+            if lineno not in lines:
+                continue
+            scheme = "decision" if m.group(1) == "§" else "milestone"
+            num = int(m.group(2))
+            table = DECISIONS if scheme == "decision" else MILESTONES
+            # A number that resolves to nothing is script/decisions' and script/roadmap's failure,
+            # and they already have it.
+            if num not in table or (scheme, num) in glossed or (scheme, num) in seen:
+                continue
+            seen.add((scheme, num))
+            label = f"§{num}" if scheme == "decision" else f"milestone {num}"
+            ungloss.append((f"{path}:{lineno}", label, table[num][0]))
+
+    if ungloss:
+        for where, label, title in ungloss:
+            print(f"citations: {where}: {label} is cited with no gloss anywhere in this file",
+                  file=sys.stderr)
+            print(f"      {label} is: {title[:76]}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("A number stops being an identity when this repository becomes several (DECISIONS",
+              file=sys.stderr)
+        print("§151, the goal of the repository split is independent release); a gloss survives the",
+              file=sys.stderr)
+        print("move, and a reader resolves it without leaving the sentence. Name the target once:",
+              file=sys.stderr)
+        print("", file=sys.stderr)
+        print("    milestone 24 (a second aarch64 board)", file=sys.stderr)
+        print("    §24 (interrupting the foreground process)", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Ground it in the record's own title or a phrase from its body, never from memory:",
+              file=sys.stderr)
+        print("a plausible gloss written without reading the target is the milestone-24 defect",
+              file=sys.stderr)
+        print("with better spelling. See notes/citations.md.", file=sys.stderr)
+        sys.exit(1)
+
+    touched = sum(len(v) for v in added.values())
+    print(f"citations: every citation on the {touched} lines this branch adds says what it cites")
+    sys.exit(0)
+
+
+# ==============================================================================================
+# The census: how big is the backlog the ratchet is not sweeping
+# ==============================================================================================
+#
+# `script/citations --census` counts the population `--check` cannot see, which is every citation
+# that carries no gloss at all. Milestone 444 built it because the number had never been taken:
+# `--check` reports 560 GLOSSED citations and the tree has thousands, so every previous statement
+# about "the backlog" was about the wrong set. Reporting, never a gate, and it takes about three
+# seconds over the tracked tree.
+#
+# **The unit is the (file, scheme, number) pair, not the occurrence**, because that is the unit of
+# work: one gloss in a file answers every mention of that number in it, which is the ratchet's rule
+# above. Occurrences are reported too, since they are what a reader meets.
+#
+# It is here rather than in a note so the number can be re-derived. A count in prose is a claim
+# about a tree that has moved since; script/lint's counted-claims check exists because this project
+# keeps writing those.
+if mode == "--census":
+    # Ordered, and the first prefix that matches wins, so design/roadmap/proposals/ is tested before
+    # design/roadmap/. `design/roadmap/README.md` is generated (milestone 294,
+    # `design/roadmap/README.md`'s index is generated, not hand-maintained) and `*.log` is a
+    # recording, so both are out for the reason the ratchet leaves them out.
+    AREAS = [
+        ("roadmap proposals", lambda p: p.startswith("design/roadmap/proposals/")),
+        ("roadmap blocks", lambda p: p.startswith("design/roadmap/")),
+        ("decisions", lambda p: p.startswith("design/decisions/")),
+        ("design/ (other)", lambda p: p.startswith("design/")),
+        ("notes/", lambda p: p.startswith("notes/")),
+        ("Rust", lambda p: p.endswith(".rs")),
+        ("scripts", lambda p: p.startswith("script/") or p.startswith("scripts/")),
+        ("manifests", lambda p: p.endswith(".toml")),
+        ("CI workflows", lambda p: p.startswith(".github/")),
+        ("everything else", lambda p: True),
+    ]
+
+    def area_of(path):
+        for name, test in AREAS:
+            if test(path):
+                return name
+
+    files = subprocess.run(
+        ["git", "-C", root, "ls-files", "--", ":!vendor/", ":!patches/", ":!*.lock", ":!*.log",
+         ":!script/citations", ":!design/roadmap/README.md"],
+        capture_output=True, text=True,
+    ).stdout.split("\n")
+
+    # area -> [files touched, occurrences, pairs named, pairs unnamed, pairs whose number is gone]
+    stat = {name: [0, 0, 0, 0, 0] for name, _ in AREAS}
+    worklist = []
+    for path in files:
+        if not path:
+            continue
+        try:
+            with open(os.path.join(root, path), "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if b"\0" in data:
+            continue
+        text, starts = prepared(path, data.decode(errors="replace"))
+        hits = list(ANY_CITE.finditer(text))
+        if not hits:
+            continue
+        glossed = file_glosses(path, text)
+        row = stat[area_of(path)]
+        row[0] += 1
+        seen = {}
+        for m in hits:
+            scheme = "decision" if m.group(1) == "§" else "milestone"
+            num = int(m.group(2))
+            row[1] += 1
+            key = (scheme, num)
+            seen.setdefault(key, starts[m.start()] + 1)
+        # A block citing its own number is not work in either direction: the title is its own H1.
+        # Counting it as "named" would flatter design/roadmap/ and design/decisions/ by one pair
+        # per file and say nothing about the citations a reader has to chase.
+        own = OWN.match(path)
+        own_key = None
+        if own:
+            own_key = ("decision" if own.group(1) == "decisions" else "milestone",
+                       int(own.group(2)))
+        for key, lineno in seen.items():
+            if key == own_key:
+                continue
+            scheme, num = key
+            table = DECISIONS if scheme == "decision" else MILESTONES
+            if num not in table:
+                row[4] += 1
+            elif key in glossed:
+                row[2] += 1
+            else:
+                row[3] += 1
+                worklist.append((area_of(path), f"{path}:{lineno}", scheme, num))
+
+    if arg == "--list":
+        for area, where, scheme, num in sorted(worklist):
+            label = f"§{num}" if scheme == "decision" else f"milestone {num}"
+            print(f"{area}\t{where}\t{label}")
+        sys.exit(0)
+
+    w = max(len(n) for n, _ in AREAS)
+    print(f"{'':<{w}}  {'files':>6} {'citations':>10} {'named':>7} {'unnamed':>8} {'no record':>10}")
+    for name, _ in AREAS:
+        f, occ, named, unnamed, gone = stat[name]
+        if not f:
+            continue
+        print(f"{name:<{w}}  {f:>6} {occ:>10} {named:>7} {unnamed:>8} {gone:>10}")
+    tot = [sum(stat[n][i] for n, _ in AREAS) for i in range(5)]
+    print(f"{'total':<{w}}  {tot[0]:>6} {tot[1]:>10} {tot[2]:>7} {tot[3]:>8} {tot[4]:>10}")
+    print()
+    print("A row counts (file, scheme, number) PAIRS, which is the unit of work: one gloss in a "
+          "file")
+    print("answers every mention of that number in it. `citations` is occurrences, which is what a")
+    print("reader meets. `no record` is a number with no block or section, which is "
+          "script/roadmap's")
+    print("and script/decisions' failure rather than this one's; it is counted here to keep the "
+          "row")
+    print("honest. `--census --list` prints the worklist.")
+    sys.exit(0)
 
 
 for path in candidates:

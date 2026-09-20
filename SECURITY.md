@@ -1,10 +1,10 @@
 # Security policy
 
-nife is a capability microkernel built as a **demonstrator** (DECISIONS §14): a small
-machine-checked core that confines unverified workloads. Nobody runs it in production, including us.
-It boots under QEMU, under HVF on an Apple Silicon laptop, and **on real silicon**: a StarFive
-VisionFive 2 has been running it since 2026-08-14 (notes/visionfive2.md carries every bench boot,
-including the ones that failed and why).
+nife is a capability microkernel built as a **demonstrator**, which is DECISIONS §14 (the project's
+direction): a small machine-checked core that confines unverified workloads. Nobody runs it in
+production, including us. It boots under QEMU, under HVF on an Apple Silicon laptop, and **on real
+silicon**: a StarFive VisionFive 2 has been running it since 2026-08-14 (notes/visionfive2.md
+carries every bench boot, including the ones that failed and why).
 
 That shapes what a security report means here. A bug that lets a confined process escape is
 interesting because escaping is the exact thing the project claims cannot happen. A bug that says
@@ -37,8 +37,8 @@ belongs in a public issue, and most things are everything else.
 - The **commit sha** you were looking at. `main` moves.
 - Which **architecture** (aarch64 or riscv64) and how it was run (`script/test`, `script/console`,
   `--hvf`, or on a board). Several boundaries differ between the two ISAs, and one working and the
-  other not is itself a finding (DECISIONS §19). **Say if you were on hardware**, because the
-  boundaries are not the same there: see the scope note below.
+  other not is itself a finding (DECISIONS §19 (architectural parity is a tenet)). **Say if you were
+  on hardware**, because the boundaries are not the same there: see the scope note below.
 - Which **boundary** you believe is crossed, in the terms below. "A process read another process's
   memory" is a different claim from "a process panicked the kernel", and both are welcome.
 - A **reproduction**, ideally as a test in the existing harness (a `#[test_case]` under
@@ -52,14 +52,16 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
 
 - **Capability forgery or widening.** Minting a capability that was never granted, widening rights
   across `derive`, `Send`, or delegation, naming another process's CapabilityTable or endpoints, or reusing a
-  generational name after revocation (DECISIONS §10, §13, §16; `crates/capability`).
+  generational name after revocation (DECISIONS §10 (the process model), §13 (capability revocation
+  and untyped reclamation), §16 (object revocation); `crates/capability`).
 - **MMU escape.** EL0 reading, writing, or executing kernel memory or another address space;
   breaking W^X; a stale TLB entry exposing a dead owner's data; anything reachable from userspace
   that maps physical memory outside the process's own untyped budget (`crates/paging`,
   notes/mmu.md).
 - **DMA escape.** A device programmed by a userspace driver to read or write memory outside the
   grant it was given, through the software descriptor validator or past the IOMMU domain (DECISIONS
-  §20, §23, §30; `crates/dma_validator`, notes/iommu.md).
+  §20 (IOMMU-backed DMA isolation), §23 (multi-queue DMA confinement), §30 (the DMA boundary is
+  proved for descriptors); `crates/dma_validator`, notes/iommu.md).
 
   **On the VisionFive 2 there is no IOMMU at all**, so on that board the confinement is the software
   validator and nothing else. That is a property of the silicon rather than a defect, and it is
@@ -68,10 +70,12 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
   finding in this file.
 - **IPC.** Anything that lets a message reach an endpoint the sender cannot name, a reply
   capability be used twice or by the wrong thread, or a server be confused about which client it is
-  answering (DECISIONS §12, §26; `crates/inter_process_communication`).
+  answering (DECISIONS §12 (Call/Reply IPC), §26 (the fault endpoint);
+  `crates/inter_process_communication`).
 - **The syscall surface.** Any `svc`/`ecall` argument, from EL0, that panics the kernel, corrupts
   kernel state, leaks kernel memory, or costs unbounded kernel time. The surface is deliberately
-  narrow and every method is meant to validate its own inputs (DECISIONS §4 rule 3, §16).
+  narrow and every method is meant to validate its own inputs (DECISIONS §4 (kernel shape) rule 3,
+  §16 (object revocation)).
 - **Time-of-check to time-of-use on shared pages.** Every service contract moves bulk data through a
   page shared with the client, so a value validated by one party and then re-read by another is a
   live double-fetch. notes/shared-page-audit.md is the sweep for this and says what it found, what
@@ -81,7 +85,8 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
   a virtio **device** misbehave, so the direction the IOMMU exists for has no negative control.
 - **The foreign-language and vendored seams.** The C component holds no capabilities and makes no
   syscalls; the vendored RedoxFS engine runs as a confined EL0 server. A way for either to reach
-  authority it was not given is exactly the claim under test (DECISIONS §27, §31; notes/c-seam.md,
+  authority it was not given is exactly the claim under test (DECISIONS §27 (the filesystem
+  service), §31 (the foreign-language seam); notes/c-seam.md,
   notes/redoxfs-audit.md).
 - **The boot trust root.** Anything that lets an unmeasured or altered progenitor run as though it were
   measured (`crates/measured_boot`, notes/trusted-init.md). This one has been exercised on real
@@ -119,7 +124,8 @@ down, which makes them roadmap items rather than reports.
 - **Findings in upstream code we vendor**, unless our configuration is what makes them exploitable.
   Send those upstream too; we carry redoxfs at a pinned version (vendor/README.md) and would rather
   the fix land where everyone gets it. Tell us as well, so the pin can move.
-- **Reports produced by a scanner with no analysis attached.** DECISIONS §35 is the standing policy:
+- **Reports produced by a scanner with no analysis attached.** DECISIONS §35 (what a scanner is for
+  here) is the standing policy:
   every finding gets a disposition and a dismissal is a written argument. That cuts both ways, and a
   list of tool output with no reasoning is not something either of us can disposition.
 
@@ -155,7 +161,8 @@ is the lens the last one lacked. (Documentation audits are in the same index and
 they read the tree for claims that had gone false, which is worth knowing if you find prose and code
 disagreeing.)
 
-- **notes/security.md**: a four-part review after milestone 11, with the threat model, what held
+- **notes/security.md**: a four-part review after milestone 11 (untyped memory), with the threat
+  model, what held
   up, and four real bugs (a crafted ELF that could panic the kernel, a spawn flood that could, a
   wasted-budget path, and documentation describing defences that had been deleted).
 - **notes/arch-audit.md**: a pass over the assembly and architecture layer that found three:
@@ -170,7 +177,8 @@ disagreeing.)
 - **notes/untrusted-input-audit.md**: the parsers and drivers that read bytes a hostile counterparty
   supplies in a single message or completion, which is the surface that arrived with `crates/non_volatile_memory_express`
   and `crates/multicast_dns_protocol` after the pass above was written. The second was retired on
-  2026-09-15 (milestone 298, notes/mdns.md), so that audit's DNS clearance describes nothing on
+  2026-09-15 (milestone 298 (retire the multicast DNS responder), notes/mdns.md), so that audit's
+  DNS clearance describes nothing on
   `main` today; its NVMe finding still stands. One finding, recorded and accepted: the
   NVMe driver panics on two completion fields the device writes, and the rule it hands forward is
   that **an IOMMU confines placement, not values**, so a confined device's accounting is as
