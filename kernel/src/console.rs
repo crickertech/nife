@@ -296,6 +296,13 @@ pub fn peek_screen() -> Option<Framebuffer> {
 /// unlikely. The caller must spawn nothing that paints the aperture until this has returned
 /// `Some`.
 pub fn yield_screen() -> Option<Framebuffer> {
+    // **The handshake, when a host asked for one** (milestone 445). Off unless the boot command
+    // line carried `machine_discovery::framebuffer::SCREEN_HOLD`, and then this is one relaxed load
+    // on a path taken once per boot. See [`hold_screen_for_host`] for why the wait is out here
+    // rather than inside the lock below.
+    if HOLD_AT_HANDOVER.load(core::sync::atomic::Ordering::Relaxed) {
+        hold_screen_for_host();
+    }
     let mut guard = CONSOLE.lock();
     let screen = guard.screen.as_mut()?;
     if screen.painter != Painter::Kernel {
@@ -307,6 +314,110 @@ pub fn yield_screen() -> Option<Framebuffer> {
     screen.console.clear(bytes);
     screen.painter = Painter::Terminal;
     Some(screen.console.screen())
+}
+
+/// **Whether [`yield_screen`] stops and asks before it clears the screen** (milestone 445).
+///
+/// False on every machine anybody boots for its own sake, and there is no way to set it but
+/// [`hold_screen_at_handover`], which one caller reaches only when the boot command line carried
+/// `machine_discovery::framebuffer::SCREEN_HOLD`. An ordinary boot pays one relaxed load, once.
+static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+
+/// **Ask [`yield_screen`] to hold the screen for a host before it clears it** (milestone 445).
+///
+/// *Name provisional (`AGENTS.md`: calef names public items).*
+///
+/// **A debugging affordance, and the doc comment says so where a reader meets it.** Nothing in a
+/// boot anybody performs calls this: the one caller is the boot-command-line reader, and the token
+/// it looks for is written by a gate. Called before the handover, from the boot tour, while the
+/// kernel is still single-threaded.
+///
+/// # Scope: one architecture arms this, and the other two have nothing to arm it for
+///
+/// DECISIONS §19 makes parity a gate, so the gap is stated rather than left to be discovered. The
+/// *mechanism* is arch-neutral: [`yield_screen`] consults the flag on all three, the wait is the
+/// same code, and both console UARTs grew the receive half it needs. What is x86-only is the
+/// **arming**, in `arch::x86_64::machine::attach_screen`, because that is the only architecture
+/// whose boot chain hands a command line over at all.
+///
+/// **And the other two do not need it yet, which is the part worth checking rather than assuming.**
+/// The race this exists to remove is the window between the tour being painted and [`yield_screen`]
+/// clearing it. On aarch64 and riscv64 the only screen is `crate::screen`'s `ramfb`, whose pixels
+/// are this kernel's own `.bss`, and `user::boot_screen_terminal` refuses to hand that to a
+/// userspace driver (`screen::is_kernel_memory`) rather than grant a process a window onto kernel
+/// statics. So [`yield_screen`] is never reached there, nothing ever clears the tour, and
+/// `cargo xtask screen-boot` photographs a screen that will still be showing the same thing an hour
+/// later. There is no window to close.
+///
+/// That changes when milestone 157 (real display output on the board) gives those two a firmware
+/// aperture outside the kernel image: the refusal stops firing, the handover starts happening, and
+/// the window appears. What is needed then is a reader for `/chosen/bootargs`, which this kernel
+/// does not parse today (`kernel/build.rs` says so), and one call to this function beside it.
+// Dead on the other two architectures for exactly the reason above, and the attribute is the same
+// one `arch::x86_64::machine::attach_screen`'s aarch64/riscv64 twin carries in `console.rs`.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn hold_screen_at_handover() {
+    HOLD_AT_HANDOVER.store(true, core::sync::atomic::Ordering::Relaxed);
+}
+
+/// **Say on the serial line that the screen still holds the tour, and wait for a byte back**
+/// (milestone 445).
+///
+/// The problem this replaces is a race nobody could win from outside. `cargo xtask uefi-boot`
+/// asserts milestone 243's claim (a machine with no serial port shows its boot on its screen) by
+/// photographing the framebuffer through QEMU's monitor, and the tour is only *on* the framebuffer
+/// between the last line of the tour and [`yield_screen`]'s clear. That window closes in **guest**
+/// time, so no host-side deadline widens it: on 2026-09-20 a loaded `script/test` run caught zero
+/// rows where the same leg run a minute later caught 56. Sampling a transient state and hoping is
+/// rung four of `AGENTS.md`'s ladder; being told when to look is rung one, because the state is no
+/// longer transient.
+///
+/// **The wait is bounded, and that is not optional.** A knob that can wedge a machine forever is a
+/// worse defect than the one it fixes, so there are two bounds and either one ends the wait:
+///
+/// - [`HOLD_TICKS`], ten seconds of scheduler ticks, which is the bound that means something. The
+///   host's round trip is a monitor command, an asynchronous PPM write, a read and a glyph decode,
+///   measured at about 50 ms on an idle machine; ten seconds is two orders of magnitude of headroom
+///   for the loaded machine that broke the old gate, and short enough that a knob set by mistake on
+///   a bench is a pause somebody waits out rather than a machine somebody power-cycles.
+/// - [`HOLD_POLLS`], a flat count of register reads, which is the backstop for a machine whose
+///   timer is not ticking at all. Ticks come from the timer interrupt, and a clock that has stopped
+///   would otherwise turn the first bound into no bound. Two bounds rather than one is the price of
+///   not trusting a clock inside the mechanism that exists so nothing hangs.
+///
+/// **Outside the console lock, on purpose.** [`yield_screen`]'s lock is an `IrqSafeMutex`: holding
+/// it for seconds would hold interrupts off for seconds, and the `println!` below would deadlock
+/// against it. So the announcement and the wait happen first, and the clear follows the moment the
+/// host answers, with nothing able to paint in between (the kernel is the only painter until
+/// [`yield_screen`] says otherwise, and no other kernel line is printed here).
+fn hold_screen_for_host() {
+    /// Ten seconds, in scheduler ticks. `TICK_HZ` is 100 on all three architectures.
+    const HOLD_TICKS: u64 = 10 * crate::arch::timer::TICK_HZ;
+    /// The flat backstop. Large enough that it is never the bound that fires on a machine whose
+    /// timer works, and finite so that a machine whose timer does not still boots.
+    const HOLD_POLLS: u32 = 200_000_000;
+
+    // Whatever was already on the wire is not an answer to a question nobody had asked yet. One
+    // drain, before the announcement, so the byte this waits for is one somebody sent on purpose.
+    CONSOLE.lock().uart.discard_rx();
+    crate::println!(
+        "{}send any byte on this line to release it",
+        boot_ladder::SCREEN_HELD
+    );
+
+    let start = crate::arch::timer::ticks();
+    let mut polls = HOLD_POLLS;
+    while polls > 0 && crate::arch::timer::ticks().wrapping_sub(start) < HOLD_TICKS {
+        if CONSOLE.lock().uart.rx_waiting() {
+            break;
+        }
+        polls -= 1;
+        core::hint::spin_loop();
+    }
+    // The answering byte is taken rather than left, or the line editor that comes up on this same
+    // wire a moment later would find a keystroke nobody typed at it and echo it at the prompt.
+    CONSOLE.lock().uart.discard_rx();
 }
 
 /// **Take the screen back to say why the kernel is dying.** Panic path only.

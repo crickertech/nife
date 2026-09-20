@@ -62,7 +62,10 @@ const LSR_TEMT: u8 = 0b0100_0000;
 // every five seconds and a keypress that arrived at any moment in between is still there to be
 // found. Only the rebooting soak reads it; the console is otherwise transmit-only (see
 // `enable_rx_interrupt`, whose whole point is that the kernel arms the line and reads nothing).
-#[cfg(feature = "reboot_soak_test")]
+//
+// Milestone 445 gave it a second reader with the same shape: the screen-hold handshake polls it to
+// learn that a host has finished photographing the framebuffer. That is why it is no longer behind
+// `reboot_soak_test`, and why the two methods below are not either.
 const LSR_DR: u8 = 0b0000_0001;
 // Interrupt Enable bit: Enable Received Data Available Interrupt (fires while the RX FIFO is nonempty).
 const IER_ERBFI: u8 = 0b0000_0001;
@@ -307,7 +310,6 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// and a script writing one byte to the port are the same event.
     ///
     /// Name provisional (milestone 249): calef names public items.
-    #[cfg(feature = "reboot_soak_test")]
     pub fn rx_waiting(&self) -> bool {
         self.read(LSR) & LSR_DR != 0
     }
@@ -327,7 +329,6 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// deeper one and is still a fixed number of register reads.
     ///
     /// Name provisional (milestone 249): calef names public items.
-    #[cfg(feature = "reboot_soak_test")]
     pub fn discard_rx(&self) {
         let mut bound = 64u32;
         while self.read(LSR) & LSR_DR != 0 && bound > 0 {

@@ -51,6 +51,23 @@ pub(crate) fn esp_dir() -> std::path::PathBuf {
 ///   of its own (`efibootmgr`'s job on Linux) is not done here, and is what a machine that boots
 ///   nife by default would need.
 pub(crate) fn uefi_image() -> bool {
+    let Some(kernel) = uefi_kernel() else {
+        return false;
+    };
+
+    uefi_stage(
+        &kernel,
+        &esp_dir(),
+        "the loader, the kernel and the archive",
+        false,
+    )
+}
+
+/// **The shipping kernel and the archive it is measured against**, built in the order the comment
+/// inside requires, returning the kernel's path. Split out of [`uefi_image`] by milestone 445 so
+/// that the screen gate can stage the same kernel behind a differently-built loader without
+/// duplicating that order, which is the one thing here nobody may get wrong.
+fn uefi_kernel() -> Option<String> {
     // **The archive FIRST, then the kernel, and the order is load-bearing.** Packing the archive
     // regenerates `target/init-measure-x86_64.txt`, the manifest `kernel/build.rs` compiles in as
     // the measured-boot trust root. Kernel-first builds a kernel vouching for the PREVIOUS archive,
@@ -71,19 +88,30 @@ pub(crate) fn uefi_image() -> bool {
     // `initrd_x86` builds `components`, never the kernel, so the dependency runs one way only and
     // this order is the safe one as well as the correct one.
     if !initrd_x86() || !cargo_profiled(&["build", "-p", "kernel", "--target", X86_TARGET]) {
-        return false;
+        return None;
     }
-
-    let kernel = workspace_root()
-        .join(format!("target/{X86_TARGET}/{}/kernel", profile_dir()))
-        .display()
-        .to_string();
-
-    uefi_stage(
-        &kernel,
-        &esp_dir(),
-        "the loader, the kernel and the archive",
+    Some(
+        workspace_root()
+            .join(format!("target/{X86_TARGET}/{}/kernel", profile_dir()))
+            .display()
+            .to_string(),
     )
+}
+
+/// **Where the screen gate's EFI system partition is staged** (milestone 445).
+///
+/// A third directory, for the reason [`uefi_test_esp_dir`] is a second one, and the entry in
+/// `uefi_loader`'s `Cargo.toml` says what it costs to get this wrong. The loader here is built with
+/// `screen_hold`, so the kernel it hands over to stops at the screen handover and waits up to ten
+/// seconds for a byte on the serial line. That is exactly right for a gate holding a camera and
+/// exactly wrong for a stick in somebody's pocket, and `esp_dir()` is the one the bench procedure
+/// copies from.
+///
+/// **The kernel is byte-identical to `esp_dir()`'s.** Only the loader differs, and only by one word
+/// on the command line it writes, which is the whole reason the knob is a boot-time token rather
+/// than a build of the kernel: the binary under test is the binary that ships.
+fn uefi_screen_esp_dir() -> std::path::PathBuf {
+    workspace_root().join("target/esp-screen")
 }
 
 /// **Where the test build's EFI system partition is staged** (milestone 195).
@@ -105,7 +133,14 @@ fn uefi_test_esp_dir() -> std::path::PathBuf {
 /// and the loader's build script `include_bytes!`s both it and the archive. `what` is the phrase
 /// the size line uses, because "the loader, the kernel and the archive" and "the loader, the test
 /// kernel and the archive" are the one difference a reader of the transcript can act on.
-fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
+fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str, screen_hold: bool) -> bool {
+    // `screen_hold` is milestone 445's: it makes the loader write one more word on the kernel's
+    // boot command line, and only `uefi_boot` passes it. See [`uefi_screen_esp_dir`].
+    let features = if screen_hold {
+        "uefi,screen_hold"
+    } else {
+        "uefi"
+    };
     let mut args = std::vec![
         "build",
         "-p",
@@ -113,7 +148,7 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
         "--bin",
         "uefi_loader",
         "--features",
-        "uefi",
+        features,
         "--target",
         UEFI_TARGET,
     ];
@@ -163,7 +198,16 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
         "  under QEMU with real firmware: scripts/qemu-uefi-x86_64.sh {}",
         esp.display()
     );
-    eprintln!("  on the bench: copy that file to a FAT32 stick as /EFI/BOOT/BOOTX64.EFI");
+    // Said only for a loader a bench may have. The `screen_hold` build waits ten seconds at the
+    // screen handover for a host that is not there, so telling anyone to carry it would be telling
+    // them to carry a defect; `uefi_screen_esp_dir`'s doc comment is the long version.
+    if screen_hold {
+        eprintln!(
+            "  NOT for a stick: this loader asks the kernel to hold the screen (milestone 445)"
+        );
+    } else {
+        eprintln!("  on the bench: copy that file to a FAT32 stick as /EFI/BOOT/BOOTX64.EFI");
+    }
     true
 }
 
@@ -195,7 +239,17 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
 /// the three rather than by hanging the gate. It is stopped as soon as the screen has answered.
 pub(crate) fn uefi_boot() -> bool {
-    if !uefi_image() {
+    // **The shipping kernel behind a loader built with `screen_hold`** (milestone 445), staged
+    // somewhere no bench procedure names. See [`uefi_screen_esp_dir`].
+    let Some(kernel) = uefi_kernel() else {
+        return false;
+    };
+    if !uefi_stage(
+        &kernel,
+        &uefi_screen_esp_dir(),
+        "the loader, the kernel and the archive",
+        true,
+    ) {
         return false;
     }
     eprintln!();
@@ -223,7 +277,7 @@ pub(crate) fn uefi_boot() -> bool {
     let _ = std::fs::remove_file(&shot);
 
     let mut child = match Command::new("scripts/qemu-uefi-x86_64.sh")
-        .arg(esp_dir())
+        .arg(uefi_screen_esp_dir())
         .current_dir(workspace_root())
         .env("NIFE_SCREEN_MON", &sock)
         // **Two cores** (milestone 195), where every other x86_64 boot in this tree takes one.
@@ -258,19 +312,43 @@ pub(crate) fn uefi_boot() -> bool {
     };
     // Both streams collected on threads of their own, because the watcher below decides when the
     // boot has said enough and a blocking read here would decide it instead.
-    let collect = |mut from: Box<dyn std::io::Read + Send>| {
+    //
+    // **Into a shared buffer rather than only into a return value** (milestone 445). The watcher
+    // now waits for a line the kernel prints on the SERIAL wire (`boot_ladder::SCREEN_HELD`), so it
+    // has to see the transcript as it arrives; a `read_to_end` that only yields at the join is a
+    // transcript nobody can read until the boot is over. The join still returns the whole of it.
+    let transcript_so_far = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let collect = |mut from: Box<dyn std::io::Read + Send>,
+                   into: std::sync::Arc<std::sync::Mutex<String>>| {
         std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = from.read_to_end(&mut bytes);
-            String::from_utf8_lossy(&bytes).into_owned()
+            let mut mine = String::new();
+            let mut buf = [0u8; 4096];
+            while let Ok(n) = from.read(&mut buf) {
+                if n == 0 {
+                    break;
+                }
+                let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
+                if let Ok(mut shared) = into.lock() {
+                    shared.push_str(&chunk);
+                }
+                mine.push_str(&chunk);
+            }
+            mine
         })
     };
-    let stdout = collect(Box::new(child.stdout.take().expect("piped stdout")));
-    let stderr = collect(Box::new(child.stderr.take().expect("piped stderr")));
+    let stdout = collect(
+        Box::new(child.stdout.take().expect("piped stdout")),
+        std::sync::Arc::clone(&transcript_so_far),
+    );
+    let stderr = collect(
+        Box::new(child.stderr.take().expect("piped stderr")),
+        std::sync::Arc::clone(&transcript_so_far),
+    );
     let serial = child.stdin.take().expect("piped stdin");
     let watcher = {
         let (sock, shot) = (sock.clone(), shot.clone());
-        std::thread::spawn(move || screen_watch(&sock, &shot, serial))
+        let wire = std::sync::Arc::clone(&transcript_so_far);
+        std::thread::spawn(move || screen_watch(&sock, &shot, serial, &wire))
     };
     let screen = watcher.join().unwrap_or_default();
     // **Stop the machine once the screen has answered**, rather than waiting out the runner's
@@ -326,11 +404,12 @@ pub(crate) fn uefi_boot() -> bool {
 
     // --- What was on the SCREEN: milestone 243's tour, then the shell ---
     let _ = std::fs::remove_file(&sock);
-    match &screen.tour {
-        Some(text) => {
+    match (&screen.tour, screen.held) {
+        (Some(text), _) => {
             let rows = text.lines().filter(|l| !l.is_empty()).count();
-            // How deep the dump caught the tour is reported and not required, because it is a race
-            // against the handover's clear rather than a property of the framebuffer path. See
+            // How deep the dump caught the tour is reported and not required. It was a race against
+            // the handover's clear until milestone 445; now the kernel is stopped while this is
+            // read, so a shallow catch means the tour genuinely had not finished painting. See
             // `UEFI_SCREEN_MARKER`.
             let depth = if text.contains(UEFI_SCREEN_DEEP_MARKER) {
                 "the whole tour, self-test verdict included"
@@ -346,12 +425,34 @@ pub(crate) fn uefi_boot() -> bool {
                 eprintln!("uefi-boot:   | {line}");
             }
         }
-        None => {
+        // **Held, and the screen still did not show it: the framebuffer path is what broke.** This
+        // is the verdict milestone 445 bought. The kernel was stopped between painting its tour and
+        // clearing it, with the marker on the wire, and a dump taken in that window decoded to
+        // something that is not the tour. Nothing about timing is left to blame.
+        (None, true) => {
             eprintln!(
-                "uefi-boot: the tour was never readable on the screen. The serial transcript above \
-                 says whether the kernel ran at all; if it did, the framebuffer path is what broke \
-                 (the loader's LocateProtocol, the pixel order, the stride, or the mapping \
-                 surviving mmu::init). Last dump: {}",
+                "uefi-boot: the kernel HELD the screen for this gate and the tour still was not on \
+                 it, so the framebuffer path is what broke: the loader's LocateProtocol, the pixel \
+                 order, the stride, or the mapping surviving mmu::init. This is not a missed \
+                 window; the boot was stopped while the dump was taken. Last dump: {}",
+                shot.display()
+            );
+            ok = false;
+        }
+        // **Never held: the handshake did not reach the kernel, which is a different afternoon.**
+        // Either the boot never got that far (the serial transcript above says), or the loader was
+        // built without `screen_hold`, or the kernel did not read the token. Saying "the tour was
+        // never on the screen" here is what cost a reader an afternoon on 2026-09-20, chasing five
+        // things in the framebuffer path that were all working.
+        (None, false) => {
+            eprintln!(
+                "uefi-boot: the kernel never said it was holding the screen ({:?} is absent from \
+                 the transcript above), so no dump was taken with the tour guaranteed to be on the \
+                 framebuffer. This is the HANDSHAKE, not the framebuffer: check that the loader was \
+                 built with the `screen_hold` feature (target/esp-screen, not target/esp), that \
+                 `screen-hold` reached the kernel's boot command line, and that the boot got as far \
+                 as the screen handover at all. Last dump: {}",
+                boot_ladder::SCREEN_HELD,
                 shot.display()
             );
             ok = false;
@@ -419,6 +520,14 @@ pub(crate) fn uefi_boot() -> bool {
 /// [`UEFI_SCREEN_DEEP_MARKER`] is still reported when it is caught, because a run that got the
 /// whole tour onto the screen is worth saying out loud.
 ///
+/// **And moving the marker was not enough, which milestone 445 is** (2026-09-20, the same day). An
+/// earlier marker widens the window; it does not stop it being a window. A full `script/test` run
+/// caught **zero** rows where the same leg run alone a minute later read 56, because under load the
+/// dump-write-read-decode round trip stretches and the guest's window does not stretch with it. The
+/// kernel is now asked to hold the screen and say so ([`boot_ladder::SCREEN_HELD`]), and this
+/// marker is checked against a dump taken while it is held rather than against whatever the poller
+/// happened to catch. See [`screen_watch`].
+///
 /// It was the halt line, `nife x86_64: boot complete, halting.`, until milestone 182 removed the
 /// halt, and the self-test verdict after that.
 const UEFI_SCREEN_MARKER: &str = boot_ladder::BANNER;
@@ -437,6 +546,10 @@ const UEFI_SCREEN_ANSWER: &str = "typed on the wire";
 /// seen, or `None` when it never was.
 #[derive(Default)]
 struct ScreenReadings {
+    /// **The kernel said it was holding the screen** (milestone 445), so a dump was taken while the
+    /// tour was guaranteed to be on the framebuffer. False means the handshake never happened,
+    /// which is a wiring failure rather than a framebuffer one and is reported as such.
+    held: bool,
     /// The kernel's tour, with [`UEFI_SCREEN_MARKER`] on it (milestone 243).
     tour: Option<String>,
     /// The shell's prompt, a row that starts `$ `.
@@ -445,18 +558,27 @@ struct ScreenReadings {
     answer: Option<String>,
 }
 
-/// **Poll the QEMU monitor through three stages of what the screen shows** (milestone 243, then
-/// the shell on the firmware screen).
+/// **Ask the kernel to hold still, then read three stages of what the screen shows**
+/// (milestone 243, then the shell on the firmware screen, then milestone 445).
 ///
 /// Runs on its own thread beside the boot, because the kernel never exits and the runner therefore
 /// does not return until its own timeout fires: by then QEMU is gone and there is nothing left to
 /// photograph. The stages, in the order they must happen:
 ///
-/// 1. **The tour's marker.** The kernel paints the boot tour until it hands the screen to the
-///    userspace terminal, which clears it. So this stage has a window (from the self-test verdict
-///    to the handover, a couple of seconds under TCG) and is polled faster than the others;
-///    missing it is a failure, because it is milestone 243's claim.
-/// 2. **The prompt.** A row starting `$ `, which the kernel's tour never prints.
+/// 1. **The tour, while the kernel is holding it there.** This used to be a race and is now a
+///    handshake, which is milestone 445 and calef's choice among three options on 2026-09-20. The
+///    kernel prints [`boot_ladder::SCREEN_HELD`] on the serial wire and waits for a byte before it
+///    clears the framebuffer and hands it to the userspace terminal, so the dump taken between
+///    those two events cannot miss the tour: the state is no longer transient. This watcher waits
+///    for that line in `wire`, dumps, decodes, and writes one byte back to release the boot.
+///
+///    **Nothing falls back to sampling if the line never comes.** A boot that does not print it was
+///    not asked to hold, which is a wiring failure (the `screen_hold` loader feature, the token, the
+///    kernel's reader) and not a framebuffer one; saying so is the whole of item 5 of this
+///    milestone, because "the tour was never on the screen" sent the last reader after five things
+///    that were all working.
+/// 2. **The prompt.** A row starting `$ `, which the kernel's tour never prints. Sampled, and that
+///    is fine: a prompt sits on the screen until somebody types, so it is a state and not an event.
 /// 3. **The answer.** [`UEFI_SCREEN_COMMAND`] is written to `serial` (COM1), and a row equal to
 ///    [`UEFI_SCREEN_ANSWER`] must appear. The command's own echo is `$ echo ...`, a different row,
 ///    so this row is only there if the shell ran the command and its output reached the screen.
@@ -465,12 +587,18 @@ struct ScreenReadings {
 /// later dump can be better), and at a deadline that bounds the whole watch. A dump that fails to
 /// decode is never fatal: `screendump` writes the file asynchronously, so a read that lands
 /// mid-write is short and ordinary, and the retry is the answer.
-fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -> ScreenReadings {
+fn screen_watch(
+    sock: &str,
+    shot: &Path,
+    mut serial: std::process::ChildStdin,
+    wire: &std::sync::Mutex<String>,
+) -> ScreenReadings {
     use std::io::Write;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
     let mut answered = false;
     let mut seen = ScreenReadings::default();
     let mut typed = false;
+    let mut released = false;
     while std::time::Instant::now() < deadline {
         if !screendump(sock, shot) {
             if answered {
@@ -480,6 +608,15 @@ fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -
             continue;
         }
         answered = true;
+        // Read the wire before the picture. The kernel holds the screen for ten seconds at most
+        // (`console::hold_screen_for_host`), so a watcher that decoded first and asked afterwards
+        // would be spending the hold on work it could have done before it.
+        if !seen.held {
+            seen.held = wire
+                .lock()
+                .map(|t| t.contains(boot_ladder::SCREEN_HELD))
+                .unwrap_or(false);
+        }
         // A screen that decodes but does not hold what the stage wants is deliberately NOT stored:
         // an incomplete picture must not read as a pass. The dump file itself is the artefact,
         // and the caller prints its path on failure.
@@ -487,7 +624,7 @@ fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -
             .ok()
             .and_then(|bytes| board_console::screen::read(&bytes).ok());
         if let Some(text) = text {
-            if seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
+            if seen.held && seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
                 seen.tour = Some(text.clone());
             }
             if seen.prompt.is_none() && text.lines().any(|l| l.starts_with("$ ")) {
@@ -497,6 +634,15 @@ fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -
                 seen.answer = Some(text);
                 break;
             }
+            // **Release the kernel once, after the tour has been read off the screen.** Any byte
+            // does; the kernel drains whatever arrives so the line editor that comes up on this
+            // same wire a moment later does not find a keystroke nobody typed. Released even when
+            // the decode failed, because a held kernel is a stopped boot and the verdict below can
+            // say more about a boot that finished than about one this watcher wedged.
+            if seen.held && !released {
+                let _ = writeln!(serial);
+                released = serial.flush().is_ok();
+            }
             // Typed once, after the prompt is on the screen: the line editor echoes a keystroke
             // the moment it arrives, so typing earlier would be typing into the boot.
             if seen.prompt.is_some() && !typed {
@@ -505,8 +651,10 @@ fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -
                     .is_ok();
             }
         }
-        // Stage 1 has a window; the others wait on a person-speed shell.
-        let pause = if seen.tour.is_none() { 50 } else { 500 };
+        // Before the release, the poll is fast because the kernel is stopped and every millisecond
+        // is a millisecond of a bounded hold being spent. After it, the stages wait on a
+        // person-speed shell.
+        let pause = if released { 500 } else { 50 };
         std::thread::sleep(std::time::Duration::from_millis(pause));
     }
     seen
@@ -545,6 +693,7 @@ pub(crate) fn uefi_test() -> bool {
         &kernel,
         &uefi_test_esp_dir(),
         "the loader, the test kernel and the archive",
+        false,
     ) {
         return false;
     }
