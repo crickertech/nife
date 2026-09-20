@@ -25,7 +25,7 @@ From the merged tree, outside test code:
 | ... outside test code | **306** |
 | ... of those, `Relaxed` | 243 |
 | ... of those, carrying acquire or release semantics | **63** (27 `Acquire`, 22 `Release`, 14 `SeqCst`) |
-| `fence` call sites outside test code | **11** |
+| `fence` call sites outside test code | **13** (11 at the 2026-09-0x count, plus milestone 243's two in `drivers/ramfb.rs`) |
 | `compiler_fence` call sites outside test code | **1** |
 | Files holding at least one non-test site | 45 |
 
@@ -80,7 +80,7 @@ rendezvous underneath it at all: a process reads the wall clock out of a shared 
 syscall. That is exactly where milestone 80's loom harness found a real bug, and it is not a
 coincidence.
 
-## The fences, all twelve, adjudicated
+## The fences, all fourteen, adjudicated
 
 Each of these now carries a `PAIR:` comment at the site naming where its other half is. The gate in
 `script/lint` requires it; see below.
@@ -100,6 +100,8 @@ Each of these now carries a `PAIR:` comment at the site naming where its other h
 | `components/src/display_terminal.rs` `present`, first | release | the display driver's `barrier()`, or `serve_frame` | **Sound, redundant** on the display path |
 | `components/src/display_terminal.rs` `present`, second | release | `serve_frame` | **Sound**, by the reply this process is about to send |
 | `components/src/compositor.rs` `flush` | release | `barrier()` in `components/src/gpu_driver.rs` | **Sound.** The `CALL` orders the driver's read; the fence covers the driver-to-device leg |
+| `kernel/src/drivers/ramfb.rs` `run`, first | release | **none in this tree**: QEMU's `fw_cfg` device model, reading guest memory | **Sound, and the only site whose partner is host code.** The command bytes are normal memory and the register that starts the transfer is device memory; without this the device may read a half-written command. Milestone 243 (a machine with no serial port) |
+| `kernel/src/drivers/ramfb.rs` `run`, second | acquire | the release leg five lines above, in the same function | **Sound.** A volatile load of the cleared control word does not order the data buffer's bytes behind it on a weak machine. Milestone 243 |
 
 ### The one publish the rendezvous does not cover
 

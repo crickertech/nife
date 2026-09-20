@@ -60,6 +60,10 @@ mod pci;
 mod non_volatile_memory_express;
 mod revoke;
 mod sched;
+// **A screen on the two architectures whose firmware never lights one**, milestone 243 (a machine
+// with no serial port): the `ramfb` discovery half, and the question of whether a framebuffer is
+// this kernel's own memory.
+mod screen;
 // The boot self-tests (milestone 268): the kernel proving it works on this machine, between the
 // machine description and the hand-off to userspace. The same set on all three architectures. A
 // `bench` or `icount` boot parks before userspace by design and never reaches this, and a `test`
@@ -163,6 +167,23 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     #[cfg(target_arch = "riscv64")]
     console::configure_from_dtb();
 
+    // **The screen, before the first word** (milestone 243), on the two architectures whose boot
+    // chain never lights one. The x86_64 arm below does the same thing a hundred lines down with
+    // the same comment and a different discovery: there the loader measured a UEFI aperture, here
+    // the kernel asks `fw_cfg` for a `ramfb` and supplies the memory itself. Both end at
+    // `console::attach_screen`.
+    //
+    // It is deliberately here, before the banner: everything after this line is on a monitor and
+    // everything before it is not, so the earliest possible line is the one worth buying. It needs
+    // nothing brought up first beyond the console lock and the device tree pointer, and it must run
+    // before `arch::mmu::init`, which it does by a wide margin. See `screen::attach`.
+    //
+    // The line itself is printed with the rest of the tour rather than here, for the same reason
+    // the x86 arm gives: a line describing the screen has to be printed by a console that already
+    // has one in order to appear on it.
+    #[cfg(not(target_arch = "x86_64"))]
+    let screen = screen::attach();
+
     // **The earliest line, and every architecture now has one** (milestone 268).
     //
     // riscv64 and x86_64 have opened with `nife on <arch>` since their ports were written, as the
@@ -187,6 +208,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             boot_ladder::BANNER,
             CurrentEL.read(CurrentEL::EL),
         );
+        screen::print_summary(&screen);
     }
 
     // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
@@ -776,6 +798,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         println!("  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.");
         println!("  running at  : {pc:#018x}  (high half: Sv39 paging is on)");
         println!("  device tree : {boot_info_pointer:#018x}");
+        screen::print_summary(&screen);
 
         // Traps: install stvec and prove the round-trip by taking a breakpoint and returning.
         arch::exceptions::init();

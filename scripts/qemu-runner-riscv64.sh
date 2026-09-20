@@ -210,13 +210,34 @@ if [ -n "$NIFE_NVME" ]; then
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
 fi
 
+# **A `ramfb` when NIFE_SCREEN is set**, milestone 243 (a machine with no serial port). The one
+# thing this `virt` board can present that looks like a screen the firmware left running: the guest
+# allocates the pixels and tells QEMU where they are over `fw_cfg`, and QEMU scans them out.
+# `kernel/src/screen.rs` is the guest half.
+#
+# Off by default, and a test-leg/gate device only, for the two reasons the GPU line above gives and
+# one of its own: `ramfb` adds a QEMU **console**, and `screendump` with no device argument writes
+# console 0, so a boot carrying both a virtio-gpu and a ramfb is a boot whose screendump means
+# whichever QEMU ordered first. `cargo xtask screen-boot` therefore attaches this one alone.
+SCREEN=""
+if [ -n "$NIFE_SCREEN" ]; then
+    SCREEN="-device ramfb"
+fi
+
 # A QEMU monitor on a unix socket when NIFE_GPU_MON names one (milestone 29), the twin of the
 # aarch64 runner's block: `screendump` over it writes a PPM of the scanout even with -display none,
 # which is how the scanout gets proven rather than only the framebuffer. The path must stay under the
 # OS's 104-byte unix-socket limit, which is why xtask puts it in /tmp. See gpu_shot in xtask.
+
+# NIFE_SCREEN_MON is the same socket for the `ramfb` gate (milestone 243), named apart so that the
+# two gates cannot both think they own console 0. Exactly one of the two is ever set; if both were,
+# the GPU's wins, because two `-monitor` options is a QEMU error and a silent preference is easier
+# to diagnose than a machine that will not start.
 MON=""
 if [ -n "$NIFE_GPU_MON" ]; then
     MON="-monitor unix:$NIFE_GPU_MON,server,nowait"
+elif [ -n "$NIFE_SCREEN_MON" ]; then
+    MON="-monitor unix:$NIFE_SCREEN_MON,server,nowait"
 fi
 
 # The RISC-V IOMMU (milestone 16b): the ratified v1.0.1 IOMMU as a PCI function (riscv-iommu-pci,
@@ -256,6 +277,7 @@ exec qemu-system-riscv64 \
     $DISK \
     $NET \
     $GPU \
+    $SCREEN \
     $KBD \
     $RNG \
     $NVME \

@@ -2,10 +2,11 @@
 
 use std::process::Command;
 
+use crate::archive::{initrd_path, initrd_riscv, initrd_x86, riscv_initrd_path, x86_initrd_path};
 use crate::host::{flag_value, run};
-use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir};
+use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 
-/// **Boot every architecture's default kernel and fail if its self-test verdict is not green.**
+/// **Boot every architecture's default kernel and fail if it does not climb the whole ladder.**
 ///
 /// This is the mechanism milestone 268's block calls "the whole mechanism and the piece most
 /// likely to be dropped as follow-up". Without it the milestone ships its own finding 4 back: a
@@ -21,6 +22,8 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir};
 /// - Every one of the boot self-tests passed, by reading the verdict the kernel printed rather
 ///   than by inferring anything from an exit status the kernel never produces: a default boot
 ///   parks in `wfi` or sits at a prompt and never exits.
+/// - **The `swish` prompt**, the ladder's top rung and the stated terminal state of a default
+///   boot, on all three architectures. See "The top rung" below.
 ///
 /// **`--inject` asserts the opposite**, and it is why this gate can be trusted. It rebuilds each
 /// kernel with `--features self_test_injection`, which makes one check report failure, and
@@ -29,18 +32,66 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir};
 /// condition is exactly that the same failure injected into any architecture turns the verdict red
 /// there and fails this.
 ///
-/// **No initrd and no disk**, deliberately. Every rung this gate reads is printed before userspace
-/// exists, so attaching either would make the gate slower and would couple it to whatever the
-/// archive happens to contain that week. The rung *above* the verdict (the `swish` prompt) does
-/// need an archive, and `cargo xtask shell-check` is the gate that boots it.
+/// # The top rung
+///
+/// **The archive is attached on all three architectures and the watch runs to `Stage::Prompt`**
+/// (2026-09-19). It did not before, and the reason was the machine rather than the gate: `x86_64`
+/// could not reach a prompt at all. DECISIONS §149 (may the kernel answer on an endpoint) was
+/// resolved 2026-09-15, and milestone 299 (the x86 port-range capability) built the thing that
+/// makes `console` a userspace driver there. Between them the rung is reachable everywhere, and
+/// asserting it is no longer the two-of-three shape milestone 268 (every architecture boots the
+/// same way) exists to remove.
+///
+/// **No disk, still.** Nothing here types, so nothing here needs a filesystem; `<` and `>` are
+/// `cargo xtask shell-check`'s business. The archive is the one thing a prompt cannot be reached
+/// without: the kernel hands the machine to the progenitor, which loads the console, the line
+/// discipline, the input driver and `swish` out of it by name.
+///
+/// **What this costs, measured on patagonia against a warm target directory** (2026-09-19):
+///
+/// | | verdict only (before) | prompt (now) |
+/// |---|---|---|
+/// | aarch64, boot | 2.8 s | 2.9 s |
+/// | riscv64, boot | 2.6 s | 2.8 s |
+/// | `x86_64`, boot | 2.9 s | 2.7 s |
+/// | whole gate, wall | 19.4 s | 25.6 s |
+///
+/// **The boot costs nothing and the archive costs six seconds**, which is the number that decided
+/// this. The prompt follows the verdict within a few hundred milliseconds on every architecture
+/// (the progenitor loads and measures every program it builds while the emulator is already
+/// running), so the whole of the difference is packing three archives, and two of those three
+/// packers are a no-op against a tree `script/test` has already built. A third of a pre-push
+/// gate's twenty seconds, for the rung that is the stated terminal state of a boot, was worth
+/// taking.
+///
+/// **It is the PVH `-kernel` boot on `x86_64`, not the UEFI image.** `shell-check`'s `x86_64` leg
+/// boots `BOOTX64.EFI` under OVMF and pays about six minutes for it, because under firmware the
+/// console server waits for every byte to be painted on the screen. That is milestone 400 (the
+/// shell on the firmware's screen), and what its fidelity buys `shell-check` is the loader, the
+/// firmware memory map and the screen tee. It buys this gate nothing it asserts: the prompt
+/// arrives on COM1 either way, and this is a pre-push gate. So the two legs boot different images
+/// on purpose, and the slow one is the one that types.
 ///
 /// # BUGS
 ///
-/// - **It does not check the prompt**, which is the ladder's top rung and milestone 268's stated
-///   terminal state for a default boot. Two reasons, and only the second is a real limitation:
-///   `shell-check` already boots to a prompt on aarch64 and riscv64, and `x86_64` cannot reach one
-///   at all until DECISIONS §149 and milestone 182. So nothing here can assert the top rung on all
-///   three, and asserting it on two would be the shape of defect this milestone exists to fix.
+/// - **`quiet_after` is suppressed from `Stage::Tour` up**, which on riscv64 is *below* the prompt:
+///   its tour finishes and then it hands over. So a riscv64 boot that reaches the tour and then
+///   wedges short of the prompt is caught by the 180-second cap rather than by the 30-second quiet
+///   window, and takes that long to report. The exemption is `watch::Policy::quiet_after`'s and is
+///   right for its own reason (a default aarch64 or `x86_64` boot that halts after the tour is a
+///   good boot, not a quiet one); the cost lands here.
+/// - **The prompt rung is the shell's banner, not the `$ `.** `boot_ladder::PROMPT`'s own `BUGS`
+///   says why (two bytes is too weak to key on in a log that has just carried a kilobyte of hex),
+///   and the consequence is this gate's: it proves `swish` started and printed, not that a prompt
+///   was offered or that anything could be typed at it. `cargo xtask shell-check` makes the
+///   stronger claim by typing, on every architecture, and this one does not duplicate it.
+/// - **One emulator was found orphaned after about fifteen `x86_64` boots** (2026-09-19),
+///   reparented to `launchd` and still running half an hour later, holding this lane's kernel and
+///   archive. The kill below is meant to prevent exactly that and works on every run anybody has
+///   watched, so the mechanism is not known and is not guessed at here. What a reader should do is
+///   `AGENTS.md`'s standing rule rather than anything specific to this gate: `pgrep -l qemu` after
+///   a session that ran it, and walk `ps -o pid,ppid` up before killing anything, because
+///   somebody's gate in flight looks the same from outside.
 /// - **A red verdict ends the watch early**, so a kernel whose self-test fails and which then
 ///   panics reports the self-test failure and not the panic. That is the right first thing to
 ///   report and the log has the rest, but a reader should know the report is the *first* failure
@@ -73,47 +124,88 @@ pub(crate) fn boot_check() -> bool {
     unsafe { std::env::remove_var("NIFE_ACCEL") };
 
     let mut ok = true;
-    for (i, (arch, target, runner)) in [
-        ("aarch64", TARGET, RUNNER),
-        ("riscv64", RISCV_TARGET, "scripts/qemu-runner-riscv64.sh"),
-        ("x86_64", X86_TARGET, "scripts/qemu-runner-x86_64.sh"),
+    // The archive packer per architecture, and where it writes. Both halves are needed: the
+    // packer has to run **before** the kernel build, because it writes the measurement manifest
+    // `kernel/build.rs` reads, at phase B.1 of milestone 22 (trusted init), and a kernel built
+    // against a stale one
+    // refuses to load the progenitor and never reaches a prompt.
+    for (i, (arch, target, runner, pack, archive)) in [
+        (
+            "aarch64",
+            TARGET,
+            RUNNER,
+            user as fn() -> bool,
+            initrd_path as fn() -> String,
+        ),
+        (
+            "riscv64",
+            RISCV_TARGET,
+            "scripts/qemu-runner-riscv64.sh",
+            initrd_riscv as fn() -> bool,
+            riscv_initrd_path as fn() -> String,
+        ),
+        (
+            "x86_64",
+            X86_TARGET,
+            "scripts/qemu-runner-x86_64.sh",
+            initrd_x86 as fn() -> bool,
+            x86_initrd_path as fn() -> String,
+        ),
     ]
     .into_iter()
     .enumerate()
     {
-        if legs[i] && !boot_check_leg(arch, target, runner, inject) {
+        if legs[i] && !boot_check_leg(arch, target, runner, inject, pack, archive) {
             ok = false;
         }
     }
     if ok {
         eprintln!();
+        // Two sentences rather than one with a hole in it: an injected run **stops at the red
+        // verdict** and never reaches the prompt, so a single wording would claim a rung that leg
+        // deliberately did not climb.
         eprintln!(
-            "boot-check: every architecture reached the self-test verdict and it was {}",
+            "{}",
             if inject {
-                "RED, as the injection asked"
+                "boot-check: every architecture's self-test verdict came back RED, as the \
+                 injection asked"
             } else {
-                "green"
+                "boot-check: every architecture climbed the ladder to a shell prompt, and the \
+                 self-test verdict on the way was green"
             },
         );
     }
     ok
 }
 
-/// One architecture's leg of [`boot_check`]. Builds, boots, watches for the verdict, kills QEMU,
-/// and says what it found either way.
-fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool {
+/// One architecture's leg of [`boot_check`]. Packs the archive, builds, boots, watches for the
+/// prompt, kills QEMU, and says what it found either way.
+fn boot_check_leg(
+    arch: &str,
+    target: &str,
+    runner: &str,
+    inject: bool,
+    pack: fn() -> bool,
+    archive: fn() -> String,
+) -> bool {
     use board_console::progress::{Failure, Stage};
     use board_console::watch::{Outcome, Policy};
 
     eprintln!();
     eprintln!(
-        "--- boot-check ({arch}): boot the default kernel and read its self-test verdict{} ---",
+        "--- boot-check ({arch}): boot the default kernel and climb the ladder to the prompt{} ---",
         if inject {
             ", with a failure injected"
         } else {
             ""
         },
     );
+
+    // Before the kernel, always: see the table in [`boot_check`].
+    if !pack() {
+        eprintln!("boot-check ({arch}): could not pack the userspace archive");
+        return false;
+    }
 
     let mut build = vec!["build", "-p", "kernel", "--target", target];
     if inject {
@@ -129,6 +221,21 @@ fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool 
     // exists about.
     let mut cmd = Command::new(runner);
     cmd.arg(format!("target/{target}/{}/kernel", profile_dir()));
+    // **The archive, which is the one thing a prompt cannot be reached without**, and nothing else:
+    // no disk, because this gate types nothing and so needs no filesystem.
+    //
+    // The two removals are not tidiness. `host::cargo` sets `NIFE_INITRD`, `NIFE_DISK` and
+    // `NIFE_NET` **in this process's own environment** for every cargo invocation it makes, and
+    // the archive packers above go through it, so by the time the runner is spawned it would
+    // inherit a `NIFE_DISK` naming a file `mkdisk` may never have written. The aarch64 and
+    // `x86_64` runners treat a set-but-missing `NIFE_DISK` as fatal (`does not exist (run mkdisk
+    // first)`) and the riscv64 one ignores it, so this gate went red on two of three legs the
+    // first time it packed an archive. Setting the environment a child is spawned with, here,
+    // beats inheriting whatever a sibling left behind; it also means an exported `NIFE_DISK` in a
+    // developer's shell cannot change what this gate boots.
+    cmd.env("NIFE_INITRD", archive());
+    cmd.env_remove("NIFE_DISK");
+    cmd.env_remove("NIFE_NET");
     cmd.stdout(std::process::Stdio::piped());
     // The guest's own stderr is not interesting and QEMU's is, so it is left attached: a runner
     // that cannot find its emulator should say so on this terminal rather than into a pipe nobody
@@ -149,9 +256,13 @@ fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool 
         // Generous: a debug kernel under TCG on a loaded CI runner is slow, and the cost of a
         // too-short cap is a red build that means nothing.
         total: std::time::Duration::from_secs(180),
-        until: Some(Stage::SelfTest),
-        // The verdict is printed a few milliseconds after the machine description, so a board that
-        // has gone quiet for half a minute in between is wedged rather than slow.
+        // **The top rung, on every architecture** (2026-09-19). `Stage::SelfTest` until then,
+        // because `x86_64` could reach no prompt; see this module's "The top rung".
+        until: Some(Stage::Prompt),
+        // Each rung follows the one below it within milliseconds up to the verdict, and the
+        // hand-over then loads and measures every program the progenitor builds, which is the one
+        // gap in the ladder with real work in it. Half a minute of silence is a wedge rather than
+        // slowness at any point in that.
         quiet_after: Some(std::time::Duration::from_secs(30)),
         // Keep reading after the rung arrives, so a verdict followed immediately by a panic is
         // reported as the panic rather than as a success. `watch`'s own doc records the capture
@@ -214,8 +325,11 @@ fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool 
         session.outcome,
         Outcome::Announced(Failure::SelfTestFailed(_))
     );
+    // `>= Stage::Prompt` rather than `== `: the rungs are ordered, so a boot that went further
+    // still climbed past this one, and an architecture that grows a rung above the prompt should
+    // not turn this gate red on the day it lands.
     let green = matches!(session.outcome, Outcome::Reached(_))
-        && session.progress.reached() >= Stage::SelfTest
+        && session.progress.reached() >= Stage::Prompt
         && session.progress.failure().is_none();
 
     let pass = if inject { red } else { green };
@@ -230,9 +344,11 @@ fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool 
             );
         } else {
             eprintln!(
-                "boot-check ({arch}): FAILED. The default boot did not reach a green self-test \
-                 verdict. The log is the diagnosis; `nife machine:` says how far discovery got and \
-                 `nife self-test:` names whatever did not pass."
+                "boot-check ({arch}): FAILED. The default boot did not climb the ladder to a \
+                 `swish` prompt with a green self-test verdict on the way. The log is the \
+                 diagnosis, and the rung named above says where it stopped: `nife machine:` says \
+                 how far discovery got, `nife self-test:` names whatever did not pass, and a boot \
+                 that reached the verdict and no further did not get userspace up."
             );
         }
         eprintln!("boot-check ({arch}): log at {log_path}");

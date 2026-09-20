@@ -38,3 +38,11 @@ pub mod plic;
 // this one driver is kernel-resident when §21 and §23 put drivers at EL0.
 #[cfg(target_arch = "riscv64")]
 pub mod jh7110_clock_and_reset;
+
+// **QEMU's `ramfb`**, milestone 243 (a machine with no serial port): the guest supplies the pixels
+// and `fw_cfg` tells the emulator where they are. Not gated by architecture, because the question
+// it answers is "does this machine have a display the kernel can write to", and the two `virt`
+// boards answer yes while `x86_64` answers with a real UEFI aperture instead.
+// `kernel/src/screen.rs` is its one caller and owns the memory; this file holds only the register
+// poking, and takes its base address from the caller.
+pub mod ramfb;

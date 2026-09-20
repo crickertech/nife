@@ -329,8 +329,17 @@ pub(crate) fn uefi_boot() -> bool {
     match &screen.tour {
         Some(text) => {
             let rows = text.lines().filter(|l| !l.is_empty()).count();
+            // How deep the dump caught the tour is reported and not required, because it is a race
+            // against the handover's clear rather than a property of the framebuffer path. See
+            // `UEFI_SCREEN_MARKER`.
+            let depth = if text.contains(UEFI_SCREEN_DEEP_MARKER) {
+                "the whole tour, self-test verdict included"
+            } else {
+                "caught mid-paint; the serial transcript above has the rest"
+            };
             eprintln!(
-                "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer, ending"
+                "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer \
+                 ({depth}), ending"
             );
             let tail: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
             for line in tail.iter().rev().take(3).rev() {
@@ -386,16 +395,36 @@ pub(crate) fn uefi_boot() -> bool {
     ok
 }
 
-/// The line the screen has to be showing for milestone 243 to have worked.
+/// The line the screen has to be showing for milestone 243 (a machine with no serial port) to have
+/// worked.
 ///
-/// **Near the end of the boot on purpose**: a 1280x800 screen is 100 character rows and the boot is
-/// longer than that, so the early lines have scrolled off by the time anything reads the picture.
-/// Asserting on a line that is still there is the difference between a gate and a flaky one.
+/// **It is the banner, the FIRST line of the tour, and that was a correction** (milestone 243's
+/// second lane, 2026-09-20). It used to be the self-test verdict, on the reasoning that a 1280x800
+/// screen is 100 character rows and the boot is longer than that, so early lines would have
+/// scrolled off. **Measured, that premise is false**: the tour tops out at 98 non-blank rows, so
+/// nothing scrolls and the banner is on the screen from the first line until the handover clears
+/// it. What the old marker actually selected for was the *last* line before the clear, which is a
+/// window of a few hundred milliseconds. The gate flaked accordingly: on a loaded dev Mac, four
+/// consecutive runs read 19, 27, 40 and 0 rows, and the BUGS of milestone 400 (the shell on the
+/// firmware's screen) predicted exactly this ("a much faster guest or a slower screendump could
+/// miss it").
+///
+/// **The total claim is unchanged**, which is the part worth checking before believing this. The
+/// screen's job is to prove the *pixels*: the loader's `LocateProtocol`, the byte order, the
+/// stride, the mapping surviving `mmu::init`, and the glyphs. Any decoded row proves all five. That
+/// the boot got as far as the self-test is asserted separately and unconditionally, on the SERIAL
+/// transcript, a few dozen lines above this one. So moving the marker earlier trades nothing away;
+/// it stops the gate asserting a race it never meant to assert.
+///
+/// [`UEFI_SCREEN_DEEP_MARKER`] is still reported when it is caught, because a run that got the
+/// whole tour onto the screen is worth saying out loud.
 ///
 /// It was the halt line, `nife x86_64: boot complete, halting.`, until milestone 182 removed the
-/// halt. The self-test verdict replaced it because it is the last line **every** boot prints
-/// whatever it hands over to next; it sits a few dozen rows above the bottom, well inside the 100.
-const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
+/// halt, and the self-test verdict after that.
+const UEFI_SCREEN_MARKER: &str = boot_ladder::BANNER;
+
+/// The tour's last line, reported when the dump happened to catch it. Not required: see above.
+const UEFI_SCREEN_DEEP_MARKER: &str = boot_ladder::SELF_TEST;
 
 /// The command `uefi-boot` types on the serial line once the prompt is on the screen, and
 /// [`UEFI_SCREEN_ANSWER`] the line it must print there. Words that appear nowhere in the boot, so

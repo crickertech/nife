@@ -542,6 +542,33 @@ pub(crate) fn test() -> bool {
         }
     }
 
+    // **And the boot tour on a screen, on the two boards**, milestone 243 (a machine with no serial
+    // port). The x86_64 leg above proves the same claim through `uefi_boot`, on a framebuffer the
+    // firmware lit; these two prove it on a `ramfb`, which is what QEMU's `virt` can present. One
+    // extra TCG boot per leg, and it is the only thing in this suite that can fail when the screen
+    // is black: every other assertion here reads a serial line that says the same words whether or
+    // not a pixel was written.
+    //
+    // It is a boot of its own rather than a stage of the suite above, because `ramfb` adds a QEMU
+    // console and the suite's machine already has a virtio-gpu on console 0.
+    //
+    // **Not under `--cpu`**, and this is a cost decision rather than a way around a failure. The
+    // matrix (`script/cpu-matrix`) runs this suite five times to narrow the *ISA*, and nothing on
+    // the screen path varies with `-cpu`: the `fw_cfg` conversation is byte moves and MMIO stores,
+    // `screen_console` is integer arithmetic and byte stores, and every instruction either uses is
+    // one the three hundred tests above have already executed on that same model. Five more TCG
+    // boots buy a claim that cannot differ between models, and the script's own warning ("do not
+    // route around it by dropping the model") is not what this is: no model is dropped, and the leg
+    // still runs on every ordinary `script/test`, including `--arch riscv64`.
+    if flag_value("--cpu").is_none() {
+        if legs.aarch64() && !crate::screen::screen_boot("aarch64") {
+            return false;
+        }
+        if legs.riscv64() && !crate::screen::screen_boot("riscv64") {
+            return false;
+        }
+    }
+
     // FS-level consistency after the runs (milestone 32 phase 2): reopen the RedoxFS image with the
     // host tool and confirm the FS server's write persisted and the filesystem still parses. This
     // checks the image of whichever leg ran LAST, each of which regenerates the fixture and then
