@@ -224,7 +224,7 @@ that holds on radon is one of the things the next evening reads.
 (every file-service path starts at a virtio block device), so it could only ever produce QEMU
 numbers; and the file service maps one channel into every client, which 32 concurrent tasks would
 race on. Both, with options and no recommendation (the second is a wire format), are in
-`design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
+`design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
 
 ### Smaller things found on the way
 
@@ -301,9 +301,9 @@ nothing**. So each is `BUILT` below rather than absent, with what it bought and 
   finished sweep from a wedged one by reading the log, with the reason it
   was deliberately not written blind: the outcome table in `notes/job-mix.md` becomes evidence after
   the first bench evening and a guess before it.
-- **Proposed.** The disk-file mix, blocked on a disk radon can drive and on a file-service
+- **Milestone 493.** The disk-file mix, blocked on a disk radon can drive and on a file-service
   channel per client (a wire format, so calef's).
-  `design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
+  milestone 493 (a disk-file job mix needs a disk), `design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
 - **Milestone 227.** The HVF cross-check on patagonia runs once the kernel has a GICv3 driver:
   `script/job-mix --hvf --release --smp 4`, alone on the host.
 - **Recorded.** The mix proportions are chosen rather than derived from an AIM7 workfile, so a

@@ -1,9 +1,13 @@
-# The boards' screen comes from the firmware, not from a `ramfb`
+# 511. The boards' screen comes from the firmware, not from a `ramfb`
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 243's lane while closing that block's two
-Outstanding items, and filed because milestone 441 changed the premise underneath it **while the
-lane was running**: `uefi_loader` gained aarch64 and riscv64 boot files, so on those architectures
-there is now a firmware stage that has already lit a display.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `the-boards-screen-under-uefi`, filed 2026-09-19, on calef's instruction of 2026-09-20 to
+give every proposal on `main` a number. The text below is the proposal's own, unedited except for
+this paragraph: the argument is its author's and promotion is not the moment to improve it. Found by
+milestone 243's lane while closing that block's two Outstanding items, and filed because milestone
+441 changed the premise underneath it **while the lane was running**: `uefi_loader` gained aarch64
+and riscv64 boot files, so on those architectures there is now a firmware stage that has already lit
+a display.
 
 **Gate: NONE.** Everything is in this tree; the only outside dependency is a machine to try it on,
 and QEMU with the board firmwares is enough to start.

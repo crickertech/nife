@@ -1,14 +1,17 @@
-# An mtime for an open file, not only for a name
+# 504. An mtime for an open file, not only for a name
 
-**Status: PROPOSED 2026-09-19.** Written by the milestone 64 lane (`milestone/64-std-filesystem-shim`),
-from milestone 64's block.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `an-mtime-for-an-open-file`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
+every proposal on `main` a number. The text below is the proposal's own, unedited except for this
+paragraph: the argument is its author's and promotion is not the moment to improve it. Written by
+the milestone 64 (enough std to run somebody else's crate) lane (`milestone/64-std-filesystem-shim`), from milestone 64's block.
 
 **Gate: DECISION.** Every option that closes this puts something on the file contract, which two
 programs agree on (`crates/filesystem_protocol`, the FS server, every caretaker and the `std` PAL),
 and so is calef's. Declining is also an answer, and the PAL already implements it.
 
-**In brief.** The three mtime verbs milestone 47 added for `touch` (`GETMTIME`, `SETMTIME`,
-`SETMTIME_AT`, DECISIONS §112) all take a **name under a directory handle**. `std` asks for a
+**In brief.** The three mtime verbs milestone 47 (navigation and naming) added for `touch` (`GETMTIME`, `SETMTIME`,
+`SETMTIME_AT`, DECISIONS §112 (touch's two behaviors need two rights)) all take a **name under a directory handle**. `std` asks for a
 modification time in two shapes: by path (`std::fs::metadata(p).modified()`, `std::fs::set_times(p,
 ..)`), which is bound as of 2026-09-19, and through an open file (`File::metadata().modified()`,
 `File::set_times`, `File::set_modified`), which is refused with `Unsupported` because a handle has no
@@ -88,3 +91,8 @@ and could be taken alone, and the setter should wait for a customer that restore
 
 **What is blocked until it is answered**: nothing on the customer path. Milestone 121 (`ripgrep`)
 reaches metadata by path. Milestone 64 is BUILT without it; the refusals are its `BUGS` entry.
+
+## Index row
+
+The three mtime verbs milestone 47 added for `touch` (`GETMTIME`, `SETMTIME`, `SETMTIME_AT`,
+DECISIONS §112) all take a name under a directory handle.
