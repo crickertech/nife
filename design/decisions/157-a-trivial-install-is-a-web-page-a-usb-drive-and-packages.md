@@ -63,7 +63,7 @@ person picks a target is left to the design, and the proposal recommends the uni
    afterwards, without the stick.
 4. **Expand it with packages over the internet.** Installing onto a running system is now part of
    the definition, so the format, activation and trust forks
-   (`design/roadmap/proposals/what-a-package-is-on-disk-and-on-the-wire.md`,
+   (DECISIONS §197,
    `installing-a-package-mutates-or-composes.md`,
    DECISIONS §195) are **on this definition's path**. The
    lane had sequenced them after a first slice that installed nothing.

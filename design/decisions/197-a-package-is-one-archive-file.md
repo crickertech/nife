@@ -1,16 +1,42 @@
-# What a package is, on disk and between the host that builds it and the target that runs it
+# 197. A package is one archive file, named and vouched for by its recipe
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
-(`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
-integrator to mint.
+**Status: DECIDED.** calef, 2026-09-20 (05:14 UTC), after comparing the container against what apt,
+Homebrew, Alpine, Haiku and Nix actually ship: *"C2 seems like the right shape given the
+comparisons."* *(Section number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** A package format is something two programs agree on (the host tool that writes
-it and the target code that reads it), so it is in AGENTS.md's irreversible category. **This
-proposal gives options and no winner**, per "recommend on reversible forks; give options only on
-irreversible ones." Blocked until it is answered: any package that leaves the machine that built it.
-**On the install path since 2026-09-19**: DECISIONS §157 defines a trivial install as including
-packages fetched over the internet, so a package does leave the machine that built it. (This line
-said the first slice was not blocked, when that slice composed whole images and conveyed nothing.)
+**The ruling.** A package is **one archive file per package**, the shape apt (`.deb`), Homebrew (a
+bottle), Alpine (`.apk`) and Haiku (`.hpkg`) all use. It is identified by name and version, and
+DECISIONS §195 (a reviewed recipe vouches for a package) decides whether its bytes may run: the
+recipe carries the digest, per source, and the machine's owner may overrule. **Homebrew is the
+worked example of exactly this pairing**, a tar bottle whose SHA-256 lives in a human-reviewed
+formula, which is what made C2 a live option rather than the heavyweight one.
+
+**What it costs, stated because it is the reason the other two existed.** A container is bytes a
+target must parse, and parsing bytes we did not write is on this tree's hostile-input path: the
+reader owes a fuzz target and the Kani treatment `crates/nifefs` and `crates/elf` already carry.
+That cost is now accepted rather than avoided.
+
+**What it buys, and why the alternatives lost.** C1 (members of the boot archive) is what the tree
+does today and is not a format at all; it cannot serve DECISIONS §159 (lab machines upgrade like
+user machines), because under it installing is something the *build* does and every upgrade is a new
+image. C3 (content-addressed blobs) avoids the parser and makes identity and integrity one fact, and
+it loses the thing a person and a repository both want: `rg 14.1` as a name. §195 already answered
+"who says these bytes are rg 14.1" with a reviewed recipe, so C3's advantage was smaller than it
+looked when the options were written.
+
+## Still calef's, and narrowed by this ruling
+
+- **Where a program's manifest travels.** The proposal's M1 (a sibling member) and M2 (inside the
+  ELF) are both still open. C2 makes M1 nearly free, because the package is already a container with
+  members; the maintainer's reading is that M1 wins on that alone, and it stays a ruling because it
+  is a thing two programs agree on.
+- **The digest's shape.** A plain SHA-256 over the package file, or a Merkle root. The proposal's
+  measurement says a Merkle tree buys verifying part of a file without reading all of it, which
+  matters for a binary paged in on demand and not for one read whole, which is what this loader
+  does, so plain unless something measures otherwise.
+- **Activation** (what installing *does*) is untouched by this and is its own ruling.
+
+## The proposal as calef ruled on it
 
 ## What is being decided
 
