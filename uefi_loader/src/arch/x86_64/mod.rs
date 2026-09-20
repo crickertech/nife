@@ -14,8 +14,8 @@ use uefi_loader::efi::{
     memory_type,
 };
 use uefi_loader::handoff::{
-    MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, START_INFO_LEN, StartInfo, e820_kind, encode_memmap_entry,
-    encode_module,
+    CMDLINE_LEN, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, START_INFO_LEN, StartInfo, e820_kind,
+    encode_memmap_entry, encode_module,
 };
 
 use crate::{MAP_SLACK_DESCRIPTORS, PAGE, Placed, say, say_conflict, say_decimal, say_span};
@@ -59,18 +59,6 @@ const AP_TRAMPOLINE_PHYS: u64 = 0x8000;
 /// to either does not silently start overwriting the command line; the page has four kilobytes and
 /// there is nothing else to spend them on.
 const CMDLINE_OFFSET: u64 = 128;
-
-/// **How many bytes the command line may occupy**, NUL included.
-///
-/// `Framebuffer::MAX_LEN` is the screen token; the rest is a space and
-/// `machine_discovery::framebuffer::SCREEN_HOLD`, which the `screen_hold` feature of
-/// milestone 445 (the screen check stops sampling and starts asking) adds.
-/// Sized for both whether or not that feature is on, so the buffer below has one length rather than
-/// two and a reader of the `copy_nonoverlapping` does not have to work out which build they are in.
-/// The page still has three and a half kilobytes spare, and the kernel's own `MAX_CMDLINE` (256) is
-/// comfortably past this.
-const CMDLINE_LEN: usize =
-    Framebuffer::MAX_LEN + 1 + machine_discovery::framebuffer::SCREEN_HOLD.len() + 1;
 
 /// What this architecture reads from the firmware before anything is placed.
 pub struct Found {
@@ -295,22 +283,10 @@ pub fn hand_over(
     // `ExitBootServices` like everything else in this section: it names memory this loader already
     // owns and needs no firmware call, so there is nothing here that could invalidate the map key.
     let cmdline = found.screen.map_or(0, |screen| {
-        // `+ 1` for the NUL; the `screen_hold` arm below adds a space and its own word on top, and
-        // `CMDLINE_LEN` is what the page reserved for all of it. See that constant.
+        // The line itself is assembled in the library, where a host test reads it back with the
+        // kernel's own parser; `handoff::cmdline` also says what the `screen_hold` feature adds.
         let mut token = [0u8; CMDLINE_LEN];
-        let mut n = screen.encode(&mut token);
-        // **One more word, for a gate and for nothing else** (milestone 445). Compiled in only
-        // under the `screen_hold` feature, which `cargo xtask uefi-boot` passes and
-        // `cargo xtask uefi-image` (the command the bench procedure names) does not. Cargo.toml's
-        // entry for it says what it costs a machine that gets it by mistake.
-        #[cfg(feature = "screen_hold")]
-        {
-            token[n] = b' ';
-            n += 1;
-            let word = machine_discovery::framebuffer::SCREEN_HOLD.as_bytes();
-            token[n..n + word.len()].copy_from_slice(word);
-            n += word.len();
-        }
+        let n = uefi_loader::handoff::cmdline(&screen, &mut token);
         // SAFETY: `CMDLINE_OFFSET + CMDLINE_LEN` is inside page 0 of the handoff block, which was
         // allocated above and whose first 88 bytes are the structure and the module list.
         unsafe { ptr::copy_nonoverlapping(token.as_ptr(), cmdline_at as *mut u8, n + 1) };

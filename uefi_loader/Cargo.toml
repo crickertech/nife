@@ -93,6 +93,15 @@ screen_console = { version = "0.1.0", path = "../crates/screen_console" }
 # real one; nothing about the test relationship changed.
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
 
+[dev-dependencies]
+# **A dependency on itself, with `screen_hold` on, so the package's own tests compile the code
+# behind it.** `script/lint`'s mutation gate asks for exactly this, and the reason is cargo-mutants:
+# it runs `cargo test -p uefi_loader` with the DEFAULT features, so anything behind a non-default
+# feature is mutated and never rebuilt, and every mutant there is recorded MISSED. `documentation`
+# does the same thing for the same reason. Tests get the feature; consumers and
+# `cargo build -p uefi_loader` do not.
+uefi_loader = { version = "0.1.0", path = ".", features = ["screen_hold"] }
+
 # **The device-tree reader the aarch64 and riscv64 kernels read with**, for the same reason
 # `machine_discovery` is here: `device_tree_patch`'s tests decode what the loader writes with the
 # crate the kernel decodes with, and the riscv64 loader asks it for `/chosen/boot-hartid` when the

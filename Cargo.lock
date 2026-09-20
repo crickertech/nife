@@ -1031,6 +1031,7 @@ dependencies = [
  "machine_discovery",
  "screen_console",
  "sealed_pair",
+ "uefi_loader",
 ]
 
 [[package]]
