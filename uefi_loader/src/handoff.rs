@@ -178,10 +178,10 @@ pub fn encode_module(addr: u64, size: u64) -> [u8; MODULE_ENTRY_LEN] {
 /// **How many bytes the kernel's boot command line may occupy**, NUL included.
 ///
 /// `Framebuffer::MAX_LEN` is the screen token; the rest is a space and
-/// `machine_discovery::framebuffer::SCREEN_HOLD`, which the `screen_hold` feature of milestone 445
-/// (the screen check stops sampling and starts asking) adds. Sized for both whether or not that
-/// feature is on, so a caller's buffer has one length rather than two and nobody reading the copy
-/// that places it has to work out which build they are in.
+/// `machine_discovery::framebuffer::SCREEN_HOLD`, which the `screen_hold` feature adds for
+/// milestone 445 (the screen check stops sampling and starts asking). Sized for both whether or
+/// not that feature is on, so a caller's buffer has one length rather than two and nobody reading
+/// the copy that places it has to work out which build they are in.
 pub const CMDLINE_LEN: usize = machine_discovery::framebuffer::Framebuffer::MAX_LEN
     + 1
     + machine_discovery::framebuffer::SCREEN_HOLD.len()
