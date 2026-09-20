@@ -325,8 +325,8 @@ static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 
 /// **Ask [`yield_screen`] to hold the screen for a host before it clears it**
-/// (milestone 445 (the screen check stops sampling and starts asking), ruled in §199, the screen
-/// check asks instead of sampling).
+/// (milestone 445 (the screen check stops sampling and starts asking)), ruled in
+/// §199 (the screen check asks instead of sampling).
 ///
 /// *Name provisional (`AGENTS.md`: calef names public items).*
 ///

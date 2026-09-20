@@ -2,8 +2,8 @@
 
 **Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, after calef chose option A among
 three put to him the same day. The ruling is
-[§199](../decisions/199-the-screen-check-asks-instead-of-sampling.md) (the screen check asks instead
-of sampling); this block is what was built against it. *(Number provisional until the merge queue
+[§199 (the screen check asks instead of sampling)](../decisions/199-the-screen-check-asks-instead-of-sampling.md);
+this block is what was built against it. *(Number provisional until the merge queue
 lands it.)*
 
 ## The defect, measured
