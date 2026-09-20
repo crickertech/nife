@@ -119,6 +119,8 @@ half of the same observation and is untouched.
   opinion on those crates, so aiming one prover at both halves narrows the independence that
   justifies them. What would reverse it is `xtask` growing logic the target then trusts, and the
   shape to watch is the measured-boot digest.
+  This refusal is milestone 468 (design/roadmap/468-proving-xtask.md), which carries it with the
+  condition that would change it.
 - **Recorded.** `design/roadmap/197-user-and-xtask-proofs.md` BUGS: two harnesses is not coverage of
   68 programs. The editor's editing operations are the richest untrusted-input surface left in
   `user/` and are out of reach as the document is laid out today; moving a row's length out of the

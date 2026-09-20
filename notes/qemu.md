@@ -184,14 +184,29 @@ forever, by design, exactly like real hardware. So every interactive run must be
   built QEMU on a Mac. And a QEMU installed into `$HOME/.cache/nife-qemu` is honoured by
   `scripts/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
   for one clone changes the emulator under every other lane.
-- **`cargo xtask uefi-boot`'s screen read fails under load, and it fails as a framebuffer bug.** The
-  check dumps the guest's framebuffer while the tour is being painted, so how deep it catches the
-  tour is a race the code deliberately does not require (`xtask/src/uefi.rs`). Catching *nothing* is
-  required, though, and on a busy machine that is what happens: on 2026-09-20 a full `script/test`
-  run read zero rows and reported *"the tour was never readable on the screen"*, and the same leg run
-  by itself a minute later read 56. Its own message then sends the reader after the loader's
-  `LocateProtocol`, the pixel order, the stride and the mapping, none of which was wrong. Re-run the
-  leg alone before believing it, and treat a contended machine as the first suspect.
+- **`cargo xtask uefi-boot`'s screen read used to be a race, and is now a handshake** (milestone
+  445, superseding this entry's previous text). The check reads the guest's framebuffer through
+  QEMU's monitor to assert the claim of milestone 243 (a machine with no serial port has no way to
+  say anything, and no gate can read it). It used to *sample*: poll every 50 ms and hope a
+  dump landed while the tour was still up. On a busy machine it did not, and on 2026-09-20 a full
+  `script/test` run read zero rows and reported *"the tour was never readable on the screen"* while
+  the same leg run alone a minute later read 56. The message then sent the reader after the loader's
+  `LocateProtocol`, the pixel order, the stride and the mapping, none of which was wrong.
+
+  The kernel is now *asked* to stop. `screen-hold` on the boot command line makes
+  `kernel::console::yield_screen` announce `boot_ladder::SCREEN_HELD` on the serial line and wait up
+  to ten seconds for a byte back before it clears the screen, so the dump is taken against a state
+  that is not going anywhere. Three runs at a one-minute load average of 17, 32 and 38 on an
+  eight-core Mac each read exactly 95 rows. **Two things are worth carrying out of building it**:
+
+  - **The tour is taller than the screen, so it scrolls**, which is the opposite of what
+    `UEFI_SCREEN_MARKER`'s previous comment said and is why the marker is the tour's *tail* again.
+    Held still, the OVMF console's first row is the middle of the firmware memory map.
+  - **A spinning guest starves the emulator's own monitor.** The first version of the wait polled
+    the UART with `spin_loop`, and every `screendump` taken during the ten-second hold came back a
+    file that would not decode. Parking the core with `wait_for_interrupt` between polls fixed it
+    outright. Worth remembering for anything else in this tree that busy-waits inside a guest while
+    a host is trying to talk to QEMU.
 - **A kernel's serial log is binary to `grep`.** The test logs carry the guest's control bytes, so
   `grep FAILED log` says `Binary file log matches` or nothing, rather than the line. Use `grep -a`.
 

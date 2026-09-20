@@ -246,6 +246,8 @@ proven here is the handoff below: the suite does not run under real firmware, on
   function with an absolute bus number, and subtracting `lo << 20` names a base below the window
   `mmu::map_everything` maps, turning config reads into reads of whatever sits underneath it. Every
   machine seen reports 0 and none is required to, so it is checked and refused rather than fixed up.
+  This refusal is milestone 463 (design/roadmap/463-an-mcfg-whose-first-bus-is-not-zero.md), which
+  carries it with the condition that would change it.
 - **Recorded.** In `design/roadmap/165-x86-64-pci-acpi-mcfg.md`: the `PCIEXBAR` writing arm is
   unexercised on both paths this kernel boots, since QEMU's PVH path already reports the window
   enabled and OVMF enables it too. It stays for the machine that genuinely arrives with the decode

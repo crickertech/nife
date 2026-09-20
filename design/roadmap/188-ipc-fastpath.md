@@ -601,6 +601,8 @@ The measurement is precise. It is the attribution that is missing.
 - **Refused.** `ReplyRecv` fusion, which would take the round trip from three syscalls to two. It is
   a syscall-surface change, DECISIONS §10 and §16 govern it, and the block already says it is named
   so it is tracked and not so it is planned. A lane must not take it.
+  This refusal is milestone 467 (design/roadmap/467-replyrecv-fusion.md), which carries it with the
+  condition that would change it.
 
 ## Index row
 

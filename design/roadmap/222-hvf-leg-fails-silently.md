@@ -129,6 +129,8 @@ only visible by running the thing.
 - **Refused.** Extending the probe to the other accelerated paths, KVM on cordoba and WHPX. Neither
   has a leg in `script/gates` today, so neither can fail this way yet, and a probe guarding a leg
   that does not exist is the false-skip shape `script/lint` has deleted three checks for.
+  This refusal is milestone 475 (design/roadmap/475-the-accelerator-probe-on-kvm-and-whpx.md), which
+  carries it with the condition that would change it.
 
 ## Index row
 

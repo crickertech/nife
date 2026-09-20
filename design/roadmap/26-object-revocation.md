@@ -13,6 +13,8 @@
   the same question for every case that exists, and what a CDT would additionally buy is the general
   non-LIFO return-of-pages-to-parent. `notes/object-revocation.md` records the refusal in the words
   "we still have no reason to build one", and the LIFO case is built.
+  This refusal is milestone 456 (design/roadmap/456-the-capability-derivation-tree.md), which
+  carries it with the condition that would change it.
 - **Recorded.** `notes/object-revocation.md` names "the honest remaining limit": endpoint revocation
   is the safe subset, so a service blocked on an endpoint that is *not* in any region being
   reclaimed is untouched, and the wake-with-an-error path reaches only waiters inside the region

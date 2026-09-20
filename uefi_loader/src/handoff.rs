@@ -175,6 +175,55 @@ pub fn encode_module(addr: u64, size: u64) -> [u8; MODULE_ENTRY_LEN] {
     out
 }
 
+/// **How many bytes the kernel's boot command line may occupy**, NUL included.
+///
+/// `Framebuffer::MAX_LEN` is the screen token; the rest is a space and
+/// `machine_discovery::framebuffer::SCREEN_HOLD`, which the `screen_hold` feature adds for
+/// milestone 445 (the screen check stops sampling and starts asking). Sized for both whether or
+/// not that feature is on, so a caller's buffer has one length rather than two and nobody reading
+/// the copy that places it has to work out which build they are in.
+pub const CMDLINE_LEN: usize = machine_discovery::framebuffer::Framebuffer::MAX_LEN
+    + 1
+    + machine_discovery::framebuffer::SCREEN_HOLD.len()
+    + 1;
+
+/// **Write the kernel's boot command line**, NUL-terminated, returning its length *without* the
+/// NUL. `out` must be at least [`CMDLINE_LEN`] bytes.
+///
+/// One token on an ordinary build: the screen the firmware was drawing on, which is the whole of
+/// what milestone 243 (a machine with no serial port has no way to say anything, and no gate can
+/// read it) carries across the handoff.
+///
+/// **Under the `screen_hold` feature there is a second word**, and it is for one caller:
+/// `cargo xtask uefi-boot`, the gate that photographs that screen. It asks the kernel to stop
+/// between painting its boot tour and clearing it, announce that on the serial line, and wait for a
+/// byte back, so the gate reads a state rather than racing a window. `uefi_loader`'s `Cargo.toml`
+/// says what it costs a machine that is handed it by mistake.
+///
+/// **Here rather than in the binary**, so the line two programs agree on is written where a host
+/// test can read it back with the kernel's own parser, which is this module's rule for every other
+/// encoder in it.
+///
+/// # Panics
+///
+/// If `out` is shorter than [`CMDLINE_LEN`].
+#[must_use]
+pub fn cmdline(screen: &machine_discovery::framebuffer::Framebuffer, out: &mut [u8]) -> usize {
+    assert!(out.len() >= CMDLINE_LEN, "cmdline needs CMDLINE_LEN bytes");
+    #[allow(unused_mut)]
+    let mut n = screen.encode(out);
+    #[cfg(feature = "screen_hold")]
+    {
+        out[n] = b' ';
+        n += 1;
+        let word = machine_discovery::framebuffer::SCREEN_HOLD.as_bytes();
+        out[n..n + word.len()].copy_from_slice(word);
+        n += word.len();
+    }
+    out[n] = 0;
+    n
+}
+
 fn put_u32(bytes: &mut [u8], at: usize, value: u32) {
     bytes[at..at + 4].copy_from_slice(&value.to_le_bytes());
 }
@@ -188,6 +237,42 @@ mod tests {
     use machine_discovery::x86_64 as pvh;
 
     use super::*;
+
+    /// **The command line the kernel reads back is the one this wrote**, whichever build produced
+    /// it, which is this module's rule applied to the one field that is not a fixed-width number.
+    ///
+    /// The package turns `screen_hold` on for its own tests (a dev-dependency on itself, see
+    /// `Cargo.toml`), so the assertion below covers the gate's build; the screen token is asserted
+    /// either way, because it is the half no build may lose.
+    #[test]
+    fn the_kernel_reads_back_the_command_line_this_writes() {
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder, screen_hold};
+
+        let screen = Framebuffer {
+            base: 0x8000_0000,
+            width: 1280,
+            height: 800,
+            stride: 5120,
+            order: PixelOrder::Bgrx,
+        };
+        let mut out = [0u8; CMDLINE_LEN];
+        let n = cmdline(&screen, &mut out);
+        assert_eq!(
+            out[n], 0,
+            "the line is NUL-terminated at the length returned"
+        );
+        let line = core::str::from_utf8(&out[..n]).expect("the writer emits ASCII");
+        assert_eq!(
+            Framebuffer::parse(line),
+            Some(screen),
+            "the kernel's own parser reads the screen back"
+        );
+        assert_eq!(
+            screen_hold(line),
+            cfg!(feature = "screen_hold"),
+            "the hold token is present exactly when the feature that writes it is on"
+        );
+    }
 
     /// The point of every test in this file: what this loader **writes** is decoded by the crate
     /// the kernel **reads** with, so the two cannot drift apart without a host test failing in

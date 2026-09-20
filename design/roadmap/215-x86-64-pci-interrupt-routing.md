@@ -161,6 +161,8 @@ arriving on a machine whose firmware turns it on.
   interpreter this tree does not have and would then have to maintain and verify, for four numbers.
   Hardcoding `q35`'s swizzle passes every gate on patagonia and might fail on the OptiPlex, which
   would be discovered at a null modem, this project's most expensive place to discover anything.
+  This refusal is milestone 459 (design/roadmap/459-legacy-intx-interrupt-routing.md), which carries
+  it with the condition that would change it.
 - **Refused.** A `PCI_IRQ_BASE` fallback for a machine that wants MSI where the function has no
   MSI-X. Bring-up fails loudly instead, because falling back to `intx_irq(0, ..)` there is the
   original bug wearing the clothes of a graceful degradation.

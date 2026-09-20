@@ -160,6 +160,8 @@ split than NVMe was:
   order of magnitude; the arithmetic here is general enough that a second domain is a table entry
   rather than a rewrite, so building the other four before anything needs them would be work with
   no reader.
+  This refusal is milestone 474 (design/roadmap/474-a-general-jh7110-clock-driver.md), which carries
+  it with the condition that would change it.
 - **Recorded.** The crate name `jh7110_crg` is provisional and unratified, as milestone 159's
   `jh7110_trng` and `Bus::Jh7110` already are. It carries its two refusals in its own header,
   beside the name, and shows up on `script/names --unratified`, which is a worklist rather than a

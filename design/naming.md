@@ -498,9 +498,16 @@ did most of the work in the 2026-08-04 triage:
   than why.
 
 **The gate never keys on `ratified`, and that is deliberate rather than a weakness to tighten
-later.** 54 of 126 names are unratified today. A lint that demanded the queue be drained would hold
-every unrelated merge behind a review nobody can hurry, which is a wall this milestone was written
-specifically not to build. `script/lint` insists only that a name say which of the three it is.
+later.** 54 of the 126 names were unratified when milestone 115 (the names that were ratified, and
+the ones that were refused) wrote this; the tree is at 76 of 229 on 2026-09-20, so the ratio held
+while the tree nearly doubled. A lint that demanded the queue be drained would hold every unrelated
+merge behind a review nobody can hurry, which is a wall this milestone was written specifically not
+to build. `script/lint` insists only that a name say which state it is in. **There are four states
+rather than these three**: §89 (`provisional` becomes the fourth provenance state) added
+`provisional` on 2026-08-16, a claim about intent where the other three are claims about the
+record, and it is the largest of the four today (48 of 229). The section *Those two captures print the worklist two
+different ways* below is where it is argued; this table is milestone 115's and is left as it was
+written.
 
 ### The three forms
 
@@ -720,9 +727,13 @@ UNRATIFIED (69 of 222), in the order worth working through
   circular either, since the decision adjudicated four live spellings and `script/lint` has enforced
   the winner since, but a reader deciding how much weight the state carries should know it leans on
   one decision and that the decision partly ratified the status quo.
-- **Three surfaces, and the tree has more than three kinds of name.** Crates, programs and `script/`
-  entry points carry blocks. Directories, types, `scripts/` helpers, `kernel`, `xtask`, `redoxfs_server`
-  and `tools/redoxfs_host` do not, and at least one ratified name has no home as a result:
+- **The tree has more kinds of name than the table covers, and this bullet is the one place that
+  says which.** Everything else that states the worklist's scope (`script/names`' own comment,
+  `scripts/name_provenance.py`, `scripts/roadmap_proposals.py`) cites this bullet rather than
+  restating it, on purpose: the last two copies of this claim went stale for a month after the
+  coverage grew and nothing compared them against the tool. Crates, programs, `script/`
+  entry points and Cargo packages carry blocks. Directories, types and `scripts/` helpers
+  do not, and at least one ratified name had no home as a result:
   **`design/audit-reports/`** (calef, 2026-08-04), where `audit-trail` was refused because
   `design/decisions/35-scanner-findings.md` already uses that phrase for a chronological record of
   dismissals and it is also what an operating system means by it (`auditd`), and bare `audits` was
@@ -734,7 +745,9 @@ UNRATIFIED (69 of 222), in the order worth working through
   `script/names std_exerciser` answering "neither a name in the tree nor a recorded refusal" and the
   `package` kind was added: `kernel`, `xtask`, `redoxfs_server` and `tools/redoxfs_host` now carry
   blocks in their manifests, and milestone 276's weekly series shows the hole closing in 2026W34.
-  Types and `scripts/` helpers are still uncovered.
+  Types are still uncovered. **`scripts/` is uncovered on purpose**, priced and refused on
+  2026-09-20 by milestone 446 (the naming worklist says what it covers, and stops saying what it
+  used to); its own bullet is below, because it is a decision rather than a gap.
 
   **That blind spot has a live casualty, found while triaging.** `disk_partitioner`'s introducing
   commit (2026-08-03) named two provisional things: itself, and `fs_maker`. The first is on a
@@ -742,6 +755,25 @@ UNRATIFIED (69 of 222), in the order worth working through
   second is at `redoxfs_server/src/bin/mkfs.rs`, where nothing looks, so it was resolved to `mkfs` by
   whoever was mid-task and no record anywhere says a decision was owed. That is the exact failure
   this milestone exists to prevent, still happening one directory over.
+- **`scripts/` helpers are deliberately outside the worklist, and the numbers are why.** There are
+  17 files in `scripts/`, of which **9 already carry a `Name:` paragraph** that nobody asked them
+  for, written by the lane that added the file. So the question is not whether a helper may argue
+  its own name (it may, and more than half do) but whether the worklist should **enumerate** them,
+  and enumerating costs **about 15 rows on a worklist that is 76 deep today**, a fifth again of the
+  only queue in this tree whose sole consumer is calef's attention. Three things decided it against.
+  **The worklist is ordered by exposure**, and its own header says so: a program is typed at the
+  prompt, a crate is what a newcomer greps, a `script/` entry point is typed by whoever works on the
+  tree. The **Scripts** section above defines `scripts/` as the drawer that is *not* typed by
+  people, so enumerating it would add a tier below the bottom tier of a list whose whole ordering is
+  exposure. **Nothing is being lost today**: not one of those 9 paragraphs records a refusal, so
+  milestone 115's "the refusals are the valuable half" claim gives up nothing by leaving them out,
+  and that is the number to re-measure if this is ever revisited. And **the 8 without a paragraph
+  are the machine-invoked ones** (`qemu-runner-*.sh`, `qemu-bounded.sh`, `memory-bounded-runner.sh`,
+  `build-ripgrep.sh`, `rust_source.py`), so a gate demanding blocks would mostly manufacture
+  rulings on names nobody types. **If it is ever built, order it last**, after `script/`, for the
+  same exposure reason. What the refusal did buy: `script/names <helper>` no longer answers
+  "neither a name in the tree nor a recorded refusal" about a file that argues its name at length,
+  and instead says the name is out of scope and points at the file.
 - **A type's name is a naming decision the mechanism does not see.** `BootEndowment` was ratified on
   2026-08-04 (replacing `Grants`) and is mentioned inside `system_initializer`'s block only because
   its crate happens to export it. `supervision_protocol::Endow` is an open naming question (§69) and

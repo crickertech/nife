@@ -133,6 +133,8 @@ shape, which is why it is named here rather than deferred.
   hosted 16 GB fits two. Sharding needed no new infrastructure and no new failure mode, and owning a
   runner for a public repository that accepts outside pull requests is a security posture rather
   than a configuration.
+  This refusal is milestone 488 (design/roadmap/488-a-self-hosted-ci-runner.md), which carries it
+  with the condition that would change it.
 - **Refused.** Dropping `verify` from the required checks to merge faster (§73). The proofs are the
   thesis, and a demonstrator whose headline claim is machine-checked verification does not stop
   gating on it.

@@ -33,17 +33,26 @@
 //! So it sits at the tree root as its own workspace, beside `std_exerciser`, which is already
 //! exactly that shape: our code, its own workspace, outside the kernel's shipping graph.
 //!
-//! # BUGS
+//! # The blind spot this package found, and how it closed
 //!
-//! - **`script/names` cannot see this crate, and could not see it under `patches/` either.** That
-//!   tool derives its table from four locations: `crates/<name>/src/lib.rs`,
-//!   `components/src/<name>.rs`, `fixtures/src/<name>.rs`
-//!   and `script/<name>`. A root-level workspace is none of them, so `script/names entropy_backend`
-//!   answers "neither a name in the tree nor a recorded refusal", and it says the same of
-//!   `std_exerciser`, which has sat there far longer. So the provenance block above is the whole
-//!   record, and the naming worklist will never list this crate as unratified. Pre-existing and
-//!   wider than this crate; recorded here because milestone 115's point was that a name's
-//!   provenance lives beside the name, and here it is the *only* place it lives.
+//! This section was a `BUGS` entry until milestone 446 (the naming worklist says what it covers,
+//! and stops saying what it used to), and it is worth keeping as history rather than deleting,
+//! because the defect was real and this package is how it was found.
+//!
+//! `script/names` derived its table from three directory listings (`crates/<name>/src/lib.rs`,
+//! `components/src/<name>.rs` and `fixtures/src/<name>.rs`, plus `script/<name>`). A root-level
+//! workspace is none of them, so `script/names entropy_backend` answered *"neither a name in the
+//! tree nor a recorded refusal"*, and said the same of `std_exerciser`, which had sat there far
+//! longer. A registry with a hole is worse than no registry: it answers confidently about the names
+//! it happens to cover.
+//!
+//! **Closed on 2026-08-18**, the day this package was named, by a fourth kind: `package`, every
+//! Cargo package outside `crates/`, carrying its block in the one file such a package must have.
+//! It is **discovered by walking the tree for `Cargo.toml` rather than listed**, which is the half
+//! that matters here, since a package arriving tomorrow is covered without anyone editing the
+//! script. So `script/names entropy_backend` now prints the ratification above, and this package
+//! appears in `script/names --check`'s count like any other name. See design/naming.md's
+//! *Where a name's provenance lives* for the rule and its BUGS section for what is still uncovered.
 //!
 //! # Why a whole crate exists for eleven lines
 //!

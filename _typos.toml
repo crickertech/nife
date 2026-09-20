@@ -85,6 +85,17 @@ hel = "hel"
 # it would churn five files to satisfy a spell checker, which is the tail wagging the dog.
 childs = "childs"
 
+# `rustls`' own trait and method names for the record layer: `MessageEncrypter`,
+# `MessageDecrypter`, and the `encrypter()`/`decrypter()` methods that build them. The checker
+# prefers "-or" and is not wrong about English; it is wrong about whose API this is.
+# `cryptography_provider` implements these traits, so the spelling is fixed by upstream at every
+# mention, and this tree's own types beside them take the same spelling deliberately, because a
+# file where the trait and its implementor differ by one letter reads as a typo.
+Encrypter = "Encrypter"
+Decrypter = "Decrypter"
+encrypter = "encrypter"
+decrypter = "decrypter"
+
 [default.extend-identifiers]
 # Deliberate capitalisation inside prose, where the case is the emphasis: "Address Space
 # IDentifier". Same list as clippy.toml's doc-valid-idents, for the same reason.

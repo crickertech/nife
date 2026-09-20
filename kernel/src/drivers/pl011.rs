@@ -23,6 +23,10 @@ register_bitfields! {
         TXFF OFFSET(5) NUMBITS(1) [],
         /// UART is busy transmitting.
         BUSY OFFSET(3) NUMBITS(1) [],
+        /// Receive FIFO empty. Clear while at least one byte is waiting to be read out of DR, and
+        /// set again only when DR has been read: a level, not a latch, which is what lets a poll
+        /// every few milliseconds serve as a mailbox. See `rx_waiting`.
+        RXFE OFFSET(4) NUMBITS(1) [],
     ],
 
     /// Line control register.
@@ -117,6 +121,37 @@ impl Pl011 {
         r.LCR_H.write(LCR_H::WLEN::EightBit + LCR_H::FEN::SET);
 
         r.CR.write(CR::UARTEN::SET + CR::TXE::SET + CR::RXE::SET);
+    }
+
+    /// **Is a byte waiting to be read?** Reads FR and consumes nothing, so the answer stays true
+    /// until [`discard_rx`](Self::discard_rx) takes the byte.
+    ///
+    /// The PL011 half of `console::hold_screen_for_host` (milestone 445 (the screen check stops sampling and starts asking)), and the twin of
+    /// `Ns16550::rx_waiting`, whose comment on the equivalent NS16550 bit has the reasoning.
+    /// aarch64's console is otherwise transmit-only: the *byte* on a booted machine belongs to the
+    /// userspace input driver, which holds this device as a capability, and this path runs before
+    /// any of that exists.
+    ///
+    /// Name provisional (milestone 445): calef names public items.
+    pub fn rx_waiting(&self) -> bool {
+        !self.regs().FR.is_set(FR::RXFE)
+    }
+
+    /// **Throw away whatever is already in the receive FIFO**, so that [`rx_waiting`](Self::rx_waiting)
+    /// answers about what arrives from now on.
+    ///
+    /// Bounded, because an unbounded drain on a wire somebody is typing into would never return.
+    /// Sixteen is the PL011's FIFO depth; four times that is slack for a part with a deeper one and
+    /// is still a fixed number of register reads. Same shape and same number as
+    /// `Ns16550::discard_rx`, deliberately.
+    ///
+    /// Name provisional (milestone 445): calef names public items.
+    pub fn discard_rx(&self) {
+        let mut bound = 64u32;
+        while !self.regs().FR.is_set(FR::RXFE) && bound > 0 {
+            let _ = self.regs().DR.get();
+            bound -= 1;
+        }
     }
 
     /// Write one byte, spinning until the transmit FIFO has room for it.

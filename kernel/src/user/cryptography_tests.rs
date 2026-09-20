@@ -59,6 +59,16 @@ const VECTORS: &[&str] = &[
     "x25519 ok",
     "p256 generator ok",
     "entropy 0.2 ok",
+    // **The two real chains, which are why `rsa` is in the graph at all** (calef, 2026-09-20:
+    // "Take rsa"). `github.com` is ECDSA P-256 throughout and would have needed none of it; the
+    // hosts that actually serve a release asset are RSA 2048 and RSA 4096, so a client without
+    // these can reach the site and not the file.
+    "chain objects.githubusercontent.com ok",
+    "chain ghcr.io ok",
+    // A verifier that returns `Ok` unconditionally would pass every line above. This one does not:
+    // a single flipped signature bit, and a certificate presented for another host's name, are
+    // both refused.
+    "chain refusals ok",
 ];
 
 /// **A `rustls` crypto provider's algorithms compute what their specifications say, here.**

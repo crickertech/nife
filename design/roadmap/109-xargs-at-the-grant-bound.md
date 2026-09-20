@@ -66,6 +66,8 @@ which is the strongest argument any name gets here.
   the number means giving the shell an allocator or the grant a different carrier, which is its own
   decision with its own argument, and `xargs` is still wanted afterwards because the ceiling moves
   rather than disappearing.
+  This refusal is milestone 451 (design/roadmap/451-more-than-eight-names-in-a-grant.md), which
+  carries it with the condition that would change it.
 - **Recorded.** `notes/glob-grant.md` states the bound first: a directory with nine matching files
   cannot be handed to one invocation at all, and the answer is a refusal with nothing spawned. The
   refusal is loud and total on purpose, because a glob that quietly granted a prefix of what it

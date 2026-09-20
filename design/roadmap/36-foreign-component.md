@@ -115,6 +115,8 @@ find it with a throwaway component rather than half way into a port.
 - **Refused.** Tier three, full POSIX (`open`, `fork`, `socket`, threads), stays out. It needs a
   real libc port, which DECISIONS §15 prices at "later, if ever", and a component that wants it is a
   different and much larger project than this one.
+  This refusal is milestone 478 (design/roadmap/478-tier-three-full-posix.md), which carries it with
+  the condition that would change it.
 - **Refused.** FAT32, the question that prompted the spike, is a weak first candidate and was not
   taken: RedoxFS is already a better filesystem, `no_std` Rust FAT crates exist so the FFI cost buys
   nothing, and its real value is host interoperability, which is a milestone 16a story to do in Rust
