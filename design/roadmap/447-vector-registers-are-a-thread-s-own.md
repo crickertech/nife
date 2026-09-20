@@ -141,9 +141,9 @@ are different bugs with the same symptom.
 
 | ISA | `ipc_send_recv` | `ipc_call_reply` | `syscall_entry` |
 |---|---|---|---|
-| aarch64 | 6256 → 6320 (+1.0%) | 8190 → 8254 (+0.8%) | 1701 → 1701 (0) |
-| riscv64 | 4632 → 4702 (+1.5%) | 5936 → 6000 (+1.1%) | 1870 → 1916 (+2.5%) |
-| x86_64 | 5356 → 5440 (+1.6%) | 7028 → 7100 (+1.0%) | 1504 → 1504 (0) |
+| aarch64 | 6256 → 6300 (+0.7%) | 8190 → 8234 (+0.5%) | 1701 → 1701 (0) |
+| riscv64 | 4632 → 4700 (+1.5%) | 5936 → 6004 (+1.1%) | 1870 → 1912 (+2.2%) |
+| x86_64 | 5356 → 5432 (+1.4%) | 7028 → 7104 (+1.1%) | 1504 → 1504 (0) |
 
 **The first measurement was not that**, and the correction is the useful part. Inlined into
 `schedule`, `hand_over`'s expensive half put riscv64's `ipc_send_recv` **7.5% over** the 5% bound
@@ -167,26 +167,33 @@ that moved them**, per `bench/baseline-*.txt`'s own header.
 
 | | aarch64 | riscv64 | x86_64 |
 |---|---|---|---|
-| `yield_switch` | 1101149 → 1129154 (+2.5%) | 184875 → 187625 (+1.5%) | 18903108 → 19228696 (+1.7%) |
-| `ctx_switch` | 2922971 → 2994815 (+2.5%) | 495050 → 502055 (+1.4%) | not measured on this ISA |
-| `ipc_rtt` | 1026311 → 1043171 (+1.6%) | 169382 → 171547 (+1.3%) | 17068218 → 17225887 (+0.9%) |
-| `ipc_rtt_el0` | 10755621 → 10907393 (+1.4%) | 1829296 → 1843058 (+0.8%) | not measured on this ISA |
+| `yield_switch` | 1101149 → 1134719 (+3.0%) | 184875 → 188666 (+2.1%) | 18903108 → 19288726 (+2.0%) |
+| `ctx_switch` | 2922971 → 3007320 (+2.9%) | 495050 → 504958 (+2.0%) | not measured on this ISA |
+| `ipc_rtt` | 1026311 → 1045670 (+1.9%) | 169382 → 172373 (+1.8%) | 17068218 → 17252344 (+1.1%) |
+| `ipc_rtt_el0` | 10755621 → 10949404 (+1.8%) | 1829296 → 1847912 (+1.0%) | not measured on this ISA |
 | `null_syscall` | 405004 → 410004 (+1.2%) | 72200 → 73029 (+1.1%) | not measured on this ISA |
-| `spawn_reap` | 210224 → 215841 (+2.7%) | 33756 → 34356 (+1.8%) | 2779705 → 2832013 (+1.9%) |
-| `coremark` | 20915599 → 20913255 (**-0.01%**) | 3654349 → 3654379 (+0.001%) | 306261408 → 306214481 (**-0.015%**) |
+| `spawn_reap` | 210224 → 214922 (+2.2%) | 33756 → 34277 (+1.5%) | 2779705 → 2830510 (+1.8%) |
+| `coremark` | 20915599 → 20913256 (**-0.01%**) | 3654349 → 3654349 (**0**) | 306261408 → 306259744 (**-0.001%**) |
 
 Every figure is inside the 10% tripwire. Read the table as two facts rather than one:
 
-- **A context switch costs about fourteen more instructions on aarch64** (550.6 → 564.6 per
-  `yield_switch` iteration) and about 1.4 on riscv64. That is `hand_over`'s two loads and branch
-  plus the two extra field reads `schedule` makes under the lock, and it is the honest price of
-  carrying the mechanism.
-- **`coremark` did not move, in either direction, on any architecture.** A compute workload switches
-  rarely, so the per-switch cost is invisible to it. The two numbers that went very slightly
-  *negative* are code layout, not an improvement; nothing here makes arithmetic faster.
+- **A context switch costs about seventeen more instructions on aarch64** (550.6 → 567.4 per
+  `yield_switch` iteration) and about 1.9 on riscv64. That is `hand_over`'s two loads and branch,
+  plus the two `fp_state_of` offsets `schedule` computes under the lock.
+- **`spawn_reap` went the other way when the register file moved out of `Thread`**: 215841 with the
+  field inline, 214922 with it in the page. Spawning copies a `Thread` and a smaller struct is a
+  smaller copy, so the shape the stack gate forced is also the cheaper one to spawn. Still +2.2%
+  against `main`, because the initial write of the register file is real work a spawn did not do
+  before.
+- **`coremark` did not move, on any architecture**, and on riscv64 it is identical to the digit. A
+  compute workload switches rarely, so the per-switch cost is invisible to it. The two numbers that
+  went very slightly *negative* are code layout, not an improvement; nothing here makes arithmetic
+  faster.
 
 `null_syscall`'s +1.2% on aarch64 is the new `ec::FP_SIMD_ACCESS` arm in the exception decoder: a
-quarter of an instruction per syscall, which is one compare amortised over the arms that precede it.
+quarter of an instruction per syscall, which is one compare amortised over the arms that precede
+it. It is identical between the two shapes, as it should be: nothing about where the register file
+lives is on the syscall path.
 
 ### The memory: none, and that is not a rounding of 544 down
 
@@ -444,7 +451,7 @@ it is CVE-2018-3665. The expensive half is `#[cold]` and off the IPC fastpath, s
 thread pays two loads and a branch, and the register file costs no memory: it lives in the 2,944
 bytes of a thread's TCB page that were already allocated and idle, which is where
 `script/stack-frame-check` sent it after the inline shape put `Thread::spawn` 1,056 bytes over the
-guard page. `script/fastpath-footprint` within bound on every ISA, a context switch about 1-3% more
+guard page. `script/fastpath-footprint` within bound on every ISA, a context switch 2-3% more
 instructions, `coremark` and `script/icount` unmoved. Proved by two threads
 doing vector work on one core, falsified against a kernel with the save removed. The target flip is
 **not** taken: it is an ABI and calef's, and the block ends with what it would take, buy and cost.

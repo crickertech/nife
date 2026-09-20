@@ -2063,7 +2063,8 @@ pub fn schedule() {
         // ONE lookup. The two arms are byte-identical bar the port read, and the split is
         // deliberate: the port read goes into the `x86_64`-only variable declared above the block,
         // not the switch tuple, so it costs the other two architectures nothing at all. The
-        // cycle-counter grant is carried the same way (milestone 300), so neither grant widens this
+        // cycle-counter grant is carried the same way, by milestone 300 (decompose the icount
+        // baseline drift, and re-baseline only what is proven), so neither grant widens this
         // tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on every
         // shipping build, plus milestone 447's two register-file pointers.
         //

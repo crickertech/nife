@@ -6,14 +6,14 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 19228696 2000
-tss_iomap_switch 23977753 2000
-tss_iomap_lazy_switch 23635750 2000
-tss_iomap_lazy_nop 19649750 2000
-ipc_rtt 17225887 1000
-relay_rtt 34367322 1000
-call_reply 17756191 1000
-broker_rtt 35469043 1000
-spawn_reap 2832013 64
+yield_switch 19288726 2000
+tss_iomap_switch 24037783 2000
+tss_iomap_lazy_switch 23695780 2000
+tss_iomap_lazy_nop 19719602 2000
+ipc_rtt 17252344 1000
+relay_rtt 34430628 1000
+call_reply 17786191 1000
+broker_rtt 35529058 1000
+spawn_reap 2830510 64
 map_new 180604 64
-coremark 306214481 256
+coremark 306259744 256
