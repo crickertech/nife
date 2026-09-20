@@ -854,6 +854,17 @@ in the code or the conversation doesn't make sense, it belongs here.
   calibration verdict on the exhaustive crates (`network_time_protocol`, `globally_unique_identifier_partition_table`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
+- [The mutation census record](mutation-census.md): milestone 518 (a census that cannot be attributed is a number nobody can act on), the time series the page above is
+  not. `script/mutation --report` prints a per-crate table and throws the run output away, so the
+  tree kept **one** per-crate record in its life and every comparison was made against it whether or
+  not it was the right comparand. One row per crate per census in
+  `notes/project-metrics/mutation-census.csv`, backfilled to all four censuses that have ever
+  completed, and a `--compare` whose `points` column attributes the corpus-level move to crates
+  exactly rather than ranking them. Carries the rename table a like-for-like join needs, derived
+  from `lib.rs` rather than `Cargo.toml` because git pairs identical `Cargo.toml` files across a
+  multi-crate sweep and answers confidently wrong. The first finding: the fall
+  `design/fatal-risks.md`'s risk 3 stands on is an artifact of two rows counting a timeout two
+  different ways, and read consistently the rate went up. Names provisional.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
   to the question milestone 191 raised: **can each of these harnesses actually be made to fail?**
   Opens with the check §134 asked for first, whether Kani or CBMC can produce an Inductive Validity
