@@ -1,9 +1,9 @@
 # 447. A thread's vector registers are its own
 
-**Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, on calef opening **Route 2 of
-milestone 164** ([x86_64 userspace can't build `aes`](164-x86-64-fs-server-aes.md), whose block
-refused that route and priced it) after a conversation about why SSE is switched off.
-*(Number provisional until the merge queue lands it.)*
+**Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, on calef opening **Route 2** of
+milestone 164 (x86_64 userspace can't build `aes`: no SSE, no scalar fallback), whose
+[block](164-x86-64-fs-server-aes.md) refused that route and priced it, after a conversation about
+why SSE is switched off. *(Number provisional until the merge queue lands it.)*
 
 ## What was true before this, and it was true on purpose
 
@@ -13,10 +13,12 @@ a gap: a decision, recorded three times and enforced by construction.
 - Every target in `targets/` is soft-float. `x86_64-unknown-nife.json` carries
   `"features": "-mmx,-sse,-sse2,...,-avx,-avx2,+soft-float"` and `"rustc-abi": "softfloat"`; the
   other two are the `-softfloat`/`-neon` equivalents.
-- [Milestone 184](184-std-x86-64.md), which brought `std` to x86_64, calls that feature string
+- Milestone 184 (extend the `std` port to x86_64), in [its own block](184-std-x86-64.md), calls
+  that feature string
   **"a correctness requirement"** in its own target table, with the reason beside it:
   "`kernel/src/arch/x86_64/` saves no FPU or SSE state on a context switch."
-- [DECISIONS §31](../decisions/31-foreign-language-seam.md), the foreign-language seam, says the
+- §31 (the foreign-language seam: C holds no capabilities and makes no syscalls), in
+  [its own section](../decisions/31-foreign-language-seam.md), says the
   same about the C boundary: "the kernel never enables FP/SIMD for EL0, and the context switch"
   saves nothing, so a vector register in a confined component would be a trap or a corruption
   depending on which of those two bit first.
@@ -196,8 +198,9 @@ count. Measured at this branch's base commit (`01d1cbf3`) and at its tip:
 | missed ticks, early arrivals | 0, 0 | 0, 0 |
 
 Not a surprise, and worth recording as the control it is: the timer handler does not switch threads
-([DECISIONS §9](../decisions/09-irq-safe-locking.md), "interrupt handlers record and defer; they
-do not do work", so the switch happens a frame out, on the interrupted thread's stack), so nothing this milestone added is inside the window that gate measures. A number that
+(§9 (locking: `IrqSafeMutex`, plus a discipline) has the rule in a table row, "interrupt handlers
+record and defer; they do not do work", so the switch happens a frame out, on the interrupted
+thread's stack), so nothing this milestone added is inside the window that gate measures. A number that
 *had* moved would have meant something was on a path it had no business being on.
 
 ## The proof, and it fails against a kernel without this
@@ -207,8 +210,8 @@ Five `#[test_case]`s in `kernel/src/fp.rs`, running on all three architectures.
 - **`two_threads_doing_vector_work_do_not_see_each_others_registers`** is the milestone. Two threads
   fill the whole register file with distinct patterns, yield two hundred times each, and check their
   own values after every turn. They are placed with `spawn_on(cpu::id(), ..)` and **not** with
-  `spawn`, because [DECISIONS §28](../decisions/28-smp-placement.md)'s "spawn placement: the power of two
-  choices" would put them on two cores with two register files, where the test would pass without
+  `spawn`, because §28 (SMP placement: two random choices at spawn) and its "spawn placement: the
+  power of two choices" would put them on two cores with two register files, where the test would pass without
   the kernel doing anything at all. On one core they interleave over one file, with this thread
   (which never touches FP) between them, so the scrub-and-disable arm runs between every pair of
   turns as well.
@@ -242,7 +245,7 @@ thing that changes if the flip below is taken.
 **No target JSON is changed and no force-soft flag is removed.** Turning `+soft-float` off changes
 the calling convention for every userspace binary and every `std` crate built against it, which is
 an ABI two programs agree on, which AGENTS.md's *move fast on what can be undone* tenet puts in the
-irreversible category, and which [DECISIONS §22](../decisions/22-rust-std-on-the-native-abi.md)
+irreversible category, and which §22 (Rust `std` on the native ABI, the Hermit way)
 chose deliberately when it specified nife's target JSON as "softfloat, and `singlethread = true`".
 
 This milestone makes that flip **possible**. It is calef's to make, and the point of the section
@@ -269,14 +272,15 @@ before the decision rather than after:
   x86_64 mounts an encrypted RedoxFS volume, so there is no workload and a synthetic number would
   be a fact leaving the machine with nothing behind it. **That refusal still stands after this
   milestone.** What changed is that the number is now *obtainable* rather than blocked.
-- **[Milestone 442](442-a-crypto-provider-that-builds-on-bare-metal.md)'s second failure class.**
+- **The second failure class of milestone 442 (a crypto provider `rustls` can use on all three
+  bare-metal targets).**
   Its block records that `sha2` and `polyval` "fail on soft-float x86_64", met through
   `embedded-tls`, and immediately warns that the probe behind that finding "ran against stock bare
   targets on the stable host toolchain, not against nife's own target specifications". 442 is
   NOT-STARTED and owes that re-measurement. **It should be run before the flip, not after**, because
   if those crates build against nife's targets on the pinned nightly then this half of the case
   evaporates, and if they do not, 442 has the specific list the flip would have to fix.
-- **[DECISIONS §31](../decisions/31-foreign-language-seam.md)'s seam widens.** A C component
+- **§31's seam widens.** A C component
   compiled by bare-metal clang currently cannot use vector registers at all. After the flip it can,
   and §31's sentence about "a trap or a corruption depending on which of those two bit first" stops
   being true, which is a real gain for the vendored-component rung the seam exists to de-risk.
