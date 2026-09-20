@@ -771,6 +771,8 @@ pdir = os.path.join(d, PROPOSED_DIR)
 for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
     rel = f"{PROPOSED_DIR}/{fname}"
     named = roadmap_proposals.filename_problem(fname)
+    if named == roadmap_proposals.EXEMPT_FILE:
+        continue
     if named == roadmap_proposals.NOT_MARKDOWN:
         problems.append(f"{rel}: only proposal files live here (<slug>.md)")
         continue

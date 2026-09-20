@@ -46,13 +46,26 @@ _GATE = re.compile(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)")
 # `script/metrics` only needs to know this file is not a proposal it can count.
 NOT_MARKDOWN = 'not-markdown'
 NOT_A_SLUG = 'not-a-slug'
+# Not a problem at all: a file this directory is allowed to hold that is not a proposal.
+EXEMPT_FILE = 'exempt'
 NO_TITLE = 'title'
 NO_STATUS = 'status'
 NO_GATE = 'gate'
 
 
+# The one filename in this directory that is not a proposal. `README.md` says what the directory is
+# for, in prose, and it is committed for a second reason: git does not track an empty directory, and
+# on 2026-09-20 promoting every proposal at once made the directory vanish from the index, after
+# which git's rename detection moved two lanes' new proposals a level up on their own branches.
+#
+# A file rather than a pattern, so that a second exemption has to be argued for.
+EXEMPT = ('README.md',)
+
+
 def filename_problem(filename):
     """Why this directory entry is not a proposal file, or None."""
+    if filename in EXEMPT:
+        return EXEMPT_FILE
     if not filename.endswith('.md'):
         return NOT_MARKDOWN
     if not _SLUG.fullmatch(filename):

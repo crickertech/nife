@@ -1,0 +1,60 @@
+# What this directory is for
+
+**This is the inbox for identified work that does not have a number yet.** It is prose, not an
+index: nothing here is generated, and no gate reads this file. The list of what is currently in the
+pile is `script/roadmap --proposed`, which reads the files themselves and cannot go stale.
+
+## Why it exists
+
+A lane that finds work it is not doing has to leave it somewhere a script can see, or it is gone.
+Milestone 247 (follow-on work named by a finished milestone goes nowhere) created this directory
+after the third time a finding died in a pull request body, and `AGENTS.md` states the rule it
+serves: identified work leaves the lane in a tracked form, or the merge waits.
+
+**The number is the thing a lane cannot mint**, because concurrent lanes cannot see each other and
+two of them reaching for "the next milestone number" is a collision nobody notices until merge. So a
+proposal carries no number, and an integrator assigns one at promotion. That is the whole reason
+this directory is separate from `design/roadmap/` rather than being part of it: **a lane can add to
+the roadmap here without coordinating with any other lane.**
+
+## What a file here looks like
+
+`<slug>.md`, lowercase and hyphenated, no number. Inside, the same three things a numbered block
+opens with, checked by `script/roadmap --check`:
+
+```
+# A title, with no milestone number in it
+
+**Status: PROPOSED <YYYY-MM-DD>.** Who raised it and what they were doing at the time.
+
+**Gate: NONE.** Or DECISION, HARDWARE, or MILESTONE <n>, and why.
+```
+
+The date is not decoration. A proposal nobody promotes is the same burial in a new place, and age is
+the only tell a script has.
+
+## What happens to one
+
+**Promotion is how a proposal reaches any disposition at all**, including being refused or found
+moot: this directory carries exactly one status by design, so nothing can be retired in place. An
+integrator gives it a number, `git mv`s it up a directory, and the numbered block's status paragraph
+says it was `promoted from the proposal <slug>`, which is the phrasing `scripts/roadmap_proposals.py`
+matches. The block that named the work updates its `**Proposed.**` bullet to `**Milestone N.**`, so
+neither record orphans the other.
+
+**A proposal is not a promise to build.** It is a claim that somebody found something real and wrote
+it where the next person can find it. DECISIONS §71 (a limitation is promoted when it stops being a
+fact and becomes a plan) draws the same line for `BUGS` entries, and it is deliberate: a pile that
+implied commitment would be kept short by not writing things in it, which is the failure this
+directory exists to prevent.
+
+## Why this file is here at all
+
+Partly to say the above. Partly because **git does not track an empty directory**, and on 2026-09-20
+every proposal in it was promoted at once: the directory vanished from the index, and git's rename
+detection then read two lanes' new proposals as belonging in `design/roadmap/` instead, quietly
+moving them a level up. A committed file keeps the inbox on disk and the intent legible.
+
+`README.md` is exempt from the slug rule for that reason, in
+`scripts/roadmap_proposals.py`. It is the only exemption, and it is a file rather than a pattern so
+that a second one has to be argued for.
