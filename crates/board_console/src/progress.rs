@@ -130,14 +130,18 @@ pub enum Stage {
     Tour,
     /// Userspace is up and the shell is offering a prompt (`boot_ladder::PROMPT`).
     ///
-    /// **The terminal state of a default boot** since milestone 268: nothing halts, and the prompt
+    /// **The terminal state of a default boot** since milestone 268 (every architecture boots the
+    /// same way): nothing halts, and the prompt
     /// rather than a halt is the signal that the boot finished. Above [`Stage::Tour`] because a
     /// boot that reaches a prompt has gone past any demonstration on the way.
     ///
-    /// Reachable today on aarch64's default boot and on riscv64's `--features shell` boot. **Not on
-    /// `x86_64`**, which has no entry point that hands the machine to a shell until DECISIONS §149
-    /// and milestone 182; that is stated here rather than left for a reader to discover from a
-    /// watch that times out.
+    /// **Reachable on all three architectures since 2026-09-19**, on each one's *default* boot with
+    /// an archive attached: aarch64 and riscv64 hand over at the end of the boot ladder's tour,
+    /// and `x86_64` does too, once DECISIONS §149 (may the kernel answer on an endpoint) said how
+    /// a shell reaches a console there and milestone 299 (the x86 port-range capability) made
+    /// `console` a userspace driver holding one. It was aarch64-and-riscv64-only before that, which is stated
+    /// here rather than left for a reader to discover from a watch that times out, and
+    /// `cargo xtask boot-check` asserts it on every architecture now.
     Prompt,
     /// A sustained workload announced itself and is expected to keep speaking (milestone 219).
     ///

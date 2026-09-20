@@ -1,7 +1,7 @@
 #!/bin/sh
-# script/boot-check: boot every architecture's default kernel and read its self-test verdict.
+# script/boot-check: boot every architecture's default kernel and watch it climb the boot ladder.
 #
-#   script/boot-check                     all three architectures, the verdict must be green
+#   script/boot-check                     all three architectures, verdict green and a prompt reached
 #   script/boot-check --arch riscv64      one leg
 #   script/boot-check --inject            all three, with a failure injected: the verdict must be RED
 #
@@ -18,6 +18,8 @@
 #   - the default kernel boots at all, in the configuration `cargo xtask run` gives a person
 #   - the machine description printed to its end (`nife machine: ...` is its LAST line)
 #   - the self-test verdict is `nife self-test: N of N passed` with nothing failed
+#   - the boot handed over and `swish` came up, which is the ladder's top rung and the stated
+#     terminal state of a default boot
 #
 # It reads those with `crates/board_console`, the same recogniser `cargo xtask board-console` points
 # at a real board over a serial cable. One reader, so a gate cannot pass something a bench run would
@@ -27,25 +29,41 @@
 # failure, and requires the run to come back RED. **A gate that has only ever been seen green is a
 # gate nobody has tested**; this is milestone 268's proof condition, and it is cheap enough to keep.
 #
-# No initrd and no disk: every rung this reads is printed before userspace exists. The rung above it
-# (the `swish` prompt) needs an archive, and `script/shell-check` is the gate that boots that.
+# The archive, and no disk. A prompt cannot be reached without the archive: the kernel hands the
+# machine to the progenitor, which loads the console, the line discipline, the input driver and
+# `swish` out of it by name. Nothing here types, so nothing here needs a filesystem.
+#
+# **It boots the PVH `-kernel` image on x86_64, not the UEFI one.** `script/shell-check`'s x86_64
+# leg boots `BOOTX64.EFI` under OVMF and pays about six minutes for it, because under firmware the
+# console server waits for every byte to be painted on the screen. That is milestone 400 (the shell
+# on the firmware's screen), and its fidelity buys the typing gate the loader, the firmware memory
+# map and the screen tee; it buys this one nothing it asserts, because the prompt arrives on COM1
+# either way and this is a gate a person runs before a push.
 #
 # BUGS
 #
-# **It does not check the prompt**, which is the ladder's top rung and the stated terminal state of
-# a default boot. `script/shell-check` reaches one on aarch64 and riscv64; x86_64 cannot reach one
-# at all until DECISIONS §149 and milestone 182, x86_64's own interactive-boot entry point
-# (`design/roadmap/182-x86-64-interactive-boot.md`). Asserting
-# it on two of three would be the shape of defect this milestone exists to fix, so it is recorded
-# here instead of half-done.
+# **The prompt rung is the shell's banner, not the `$ `.** Two bytes is too weak to key on in a log
+# that has just carried a kilobyte of hex (`crates/boot_ladder`'s own BUGS). So this proves `swish`
+# started and printed, not that a prompt was offered or that anything could be typed at it;
+# `script/shell-check` makes the stronger claim by typing, and this does not duplicate it.
+#
+# **A riscv64 boot that wedges between its tour and its prompt takes the full 180-second cap to
+# report**, rather than the 30-second quiet window, because that window is suppressed from the
+# `Stage::Tour` rung up and riscv64 prints its tour BELOW the prompt. The suppression is right for
+# its own reason (a boot that halts after the tour is a good boot, not a quiet one) and the cost
+# lands here.
 #
 # **A red verdict ends each leg's watch early**, so a kernel whose self-test fails and then panics
 # is reported as the self-test failure. That is the right first thing to report; the log named in
 # the output has the rest.
 #
-# **Three debug kernels under TCG is around a minute** against a warm target directory, and each leg
-# is killed rather than waited on (a default boot parks in `wfi` or sits at a prompt and never
-# exits). Run it when you touch the boot path, the machine description, or the self-tests.
+# **Three archives and three debug kernels under TCG is about 26 seconds** against a warm target
+# directory (patagonia, 2026-09-19), up from 19 before the prompt rung was asserted. The boot itself
+# costs nothing extra, under three seconds a leg either way; the six seconds are packing the
+# archives, and two of the three packers are a no-op against a tree `script/test` has already built.
+# Each leg is killed rather than waited on (a boot that reaches a prompt sits at it and never
+# exits). Run it when you touch the boot path, the machine description, the self-tests, or what the
+# hand-over grants userspace.
 #
 # Name: provisional (milestone 268). It sits beside `script/shell-check` and is named the same way,
 # which is deliberate and also inherits that name's recorded problem: `script/lint` runs
