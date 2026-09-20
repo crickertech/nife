@@ -137,7 +137,8 @@ pub const TOUR: &str = "nife: the capability core runs on ";
 pub const PROMPT: &str = "nife capability shell";
 
 /// **The kernel is holding the screen open for a host that wants to photograph it**
-/// (milestone 445), and will clear it as soon as one byte comes back on the serial line.
+/// (milestone 445 (the screen check stops sampling and starts asking)), and will clear it as soon as one byte comes
+/// back on the serial line.
 ///
 /// *Wording provisional, like every other constant here.*
 ///

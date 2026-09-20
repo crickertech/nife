@@ -63,7 +63,8 @@ const CMDLINE_OFFSET: u64 = 128;
 /// **How many bytes the command line may occupy**, NUL included.
 ///
 /// `Framebuffer::MAX_LEN` is the screen token; the rest is a space and
-/// `machine_discovery::framebuffer::SCREEN_HOLD`, which milestone 445's `screen_hold` feature adds.
+/// `machine_discovery::framebuffer::SCREEN_HOLD`, which the `screen_hold` feature of
+/// milestone 445 (the screen check stops sampling and starts asking) adds.
 /// Sized for both whether or not that feature is on, so the buffer below has one length rather than
 /// two and a reader of the `copy_nonoverlapping` does not have to work out which build they are in.
 /// The page still has three and a half kilobytes spare, and the kernel's own `MAX_CMDLINE` (256) is

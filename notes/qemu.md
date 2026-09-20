@@ -186,7 +186,8 @@ forever, by design, exactly like real hardware. So every interactive run must be
   for one clone changes the emulator under every other lane.
 - **`cargo xtask uefi-boot`'s screen read used to be a race, and is now a handshake** (milestone
   445, superseding this entry's previous text). The check reads the guest's framebuffer through
-  QEMU's monitor to assert milestone 243's claim. It used to *sample*: poll every 50 ms and hope a
+  QEMU's monitor to assert the claim of milestone 243 (a machine with no serial port has no way to
+  say anything, and no gate can read it). It used to *sample*: poll every 50 ms and hope a
   dump landed while the tour was still up. On a busy machine it did not, and on 2026-09-20 a full
   `script/test` run read zero rows and reported *"the tour was never readable on the screen"* while
   the same leg run alone a minute later read 56. The message then sent the reader after the loader's

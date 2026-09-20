@@ -126,7 +126,7 @@ impl Pl011 {
     /// **Is a byte waiting to be read?** Reads FR and consumes nothing, so the answer stays true
     /// until [`discard_rx`](Self::discard_rx) takes the byte.
     ///
-    /// The PL011 half of `console::hold_screen_for_host` (milestone 445), and the twin of
+    /// The PL011 half of `console::hold_screen_for_host` (milestone 445 (the screen check stops sampling and starts asking)), and the twin of
     /// `Ns16550::rx_waiting`, whose comment on the equivalent NS16550 bit has the reasoning.
     /// aarch64's console is otherwise transmit-only: the *byte* on a booted machine belongs to the
     /// userspace input driver, which holds this device as a capability, and this path runs before

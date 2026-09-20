@@ -324,7 +324,8 @@ pub fn yield_screen() -> Option<Framebuffer> {
 static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 
-/// **Ask [`yield_screen`] to hold the screen for a host before it clears it** (milestone 445).
+/// **Ask [`yield_screen`] to hold the screen for a host before it clears it**
+/// (milestone 445 (the screen check stops sampling and starts asking)).
 ///
 /// *Name provisional (`AGENTS.md`: calef names public items).*
 ///
@@ -335,7 +336,8 @@ static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
 ///
 /// # Scope: one architecture arms this, and the other two have nothing to arm it for
 ///
-/// DECISIONS §19 makes parity a gate, so the gap is stated rather than left to be discovered. The
+/// §19 (architectural parity is a tenet; the targets are aarch64, riscv64, and `x86_64`) makes parity
+/// a gate, so the gap is stated rather than left to be discovered. The
 /// *mechanism* is arch-neutral: [`yield_screen`] consults the flag on all three, the wait is the
 /// same code, and both console UARTs grew the receive half it needs. What is x86-only is the
 /// **arming**, in `arch::x86_64::machine::attach_screen`, because that is the only architecture
@@ -376,12 +378,12 @@ pub fn hold_screen_at_handover() {
 /// **The wait is bounded, and that is not optional.** A knob that can wedge a machine forever is a
 /// worse defect than the one it fixes, so there are two bounds and either one ends the wait:
 ///
-/// - [`HOLD_TICKS`], ten seconds of scheduler ticks, which is the bound that means something. The
+/// - `HOLD_TICKS`, ten seconds of scheduler ticks, which is the bound that means something. The
 ///   host's round trip is a monitor command, an asynchronous PPM write, a read and a glyph decode,
 ///   measured at about 50 ms on an idle machine; ten seconds is two orders of magnitude of headroom
 ///   for the loaded machine that broke the old gate, and short enough that a knob set by mistake on
 ///   a bench is a pause somebody waits out rather than a machine somebody power-cycles.
-/// - [`HOLD_POLLS`], a flat count of register reads, which is the backstop for a machine whose
+/// - `HOLD_POLLS`, a flat count of register reads, which is the backstop for a machine whose
 ///   timer is not ticking at all. Ticks come from the timer interrupt, and a clock that has stopped
 ///   would otherwise turn the first bound into no bound. Two bounds rather than one is the price of
 ///   not trusting a clock inside the mechanism that exists so nothing hangs.
@@ -426,7 +428,7 @@ fn hold_screen_for_host() {
         // **Only after the tick counter has moved**, which is the whole point of `clock_alive`:
         // `wait_for_interrupt` sleeps until an interrupt arrives, so entering it on a machine whose
         // timer is dead would be the unbounded wait this function exists not to be. Until the clock
-        // has demonstrated itself, this spins and pays [`HOLD_POLLS`] down, which is the bound that
+        // has demonstrated itself, this spins and pays `HOLD_POLLS` down, which is the bound that
         // covers exactly that machine.
         if !clock_alive && crate::arch::timer::ticks() != start {
             clock_alive = true;

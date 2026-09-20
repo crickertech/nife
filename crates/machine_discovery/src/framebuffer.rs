@@ -447,7 +447,7 @@ mod verification {
 }
 
 /// **The token that asks the kernel to hold the screen at the handover**, so that a host watching
-/// the framebuffer is told when to look instead of guessing (milestone 445).
+/// the framebuffer is told when to look instead of guessing (milestone 445 (the screen check stops sampling and starts asking)).
 ///
 /// *Name provisional (`AGENTS.md`: calef names what a reader meets).*
 ///

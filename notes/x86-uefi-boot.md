@@ -239,7 +239,8 @@ $ cargo xtask uefi-boot                        # the same pair, plus the asserti
 ```
 
 **`uefi-boot` stages its own copy at `target/esp-screen`, and that one is not for a stick.**
-Milestone 445 gave the screen check a handshake instead of a race: the loader there is built with
+Milestone 445 (the screen check stops sampling and starts asking) gave the screen check a
+handshake instead of a race: the loader there is built with
 the `screen_hold` feature, so it writes one extra word on the kernel's boot command line and the
 kernel stops at the screen handover until the gate has photographed the framebuffer. A machine
 booting that image with nobody listening waits ten seconds and carries on, which is a pause nobody

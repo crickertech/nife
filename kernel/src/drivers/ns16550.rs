@@ -63,7 +63,8 @@ const LSR_TEMT: u8 = 0b0100_0000;
 // found. Only the rebooting soak reads it; the console is otherwise transmit-only (see
 // `enable_rx_interrupt`, whose whole point is that the kernel arms the line and reads nothing).
 //
-// Milestone 445 gave it a second reader with the same shape: the screen-hold handshake polls it to
+// Milestone 445 (the screen check stops sampling and starts asking) gave it a second reader with
+// the same shape: the screen-hold handshake polls it to
 // learn that a host has finished photographing the framebuffer. That is why it is no longer behind
 // `reboot_soak_test`, and why the two methods below are not either.
 const LSR_DR: u8 = 0b0000_0001;

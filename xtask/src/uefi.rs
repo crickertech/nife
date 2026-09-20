@@ -98,7 +98,8 @@ fn uefi_kernel() -> Option<String> {
     )
 }
 
-/// **Where the screen gate's EFI system partition is staged** (milestone 445).
+/// **Where the screen gate's EFI system partition is staged**
+/// (milestone 445 (the screen check stops sampling and starts asking)).
 ///
 /// A third directory, for the reason [`uefi_test_esp_dir`] is a second one, and the entry in
 /// `uefi_loader`'s `Cargo.toml` says what it costs to get this wrong. The loader here is built with
@@ -676,7 +677,7 @@ fn screen_watch(
             //
             // The second condition is what keeps the verdict honest in both directions. The state
             // is stable while the kernel is held, so a dump that does not show the tour is a real
-            // answer rather than bad luck; [`HELD_DUMPS`] retries only because `screendump` writes
+            // answer rather than bad luck; `HELD_DUMPS` retries only because `screendump` writes
             // its file asynchronously and a read can land mid-write. And the boot must be released
             // either way: a held kernel is a stopped boot, and the verdict below can say more about
             // a boot that finished than about one this watcher wedged.

@@ -5,8 +5,9 @@ three put to him the same day. *(Number provisional until the merge queue lands 
 
 ## The defect, measured
 
-`cargo xtask uefi-boot` asserts milestone 243's claim, that a machine with no serial port shows its
-boot on its screen, by photographing the guest's framebuffer through QEMU's monitor. It used to do
+`cargo xtask uefi-boot` asserts the claim of milestone 243 (a machine with no serial port has no
+way to say anything, and no gate can read it), by photographing the guest's framebuffer through
+QEMU's monitor. It used to do
 that by **sampling**: `screen_watch` polled `screendump` every 50 ms and had to catch the kernel's
 marker on a screen that does not stay that way.
 
@@ -115,7 +116,8 @@ rather than of the host's spare capacity.
 
 ## Architectural parity
 
-DECISIONS §19 makes parity a gate, so the answer is stated rather than implied.
+§19 (architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64) makes parity a
+gate, so the answer is stated rather than implied.
 
 **The mechanism is arch-neutral.** `yield_screen` consults the flag on all three architectures, the
 wait is one piece of code, and both console UART drivers grew the receive half it needs: the NS16550
@@ -166,7 +168,7 @@ next person meets it.
   carries the starved-monitor finding, which is general.
 - **Recorded.** The three-ESP-directory hazard, in `notes/x86-uefi-boot.md` beside the commands and
   in `uefi_loader/Cargo.toml` beside the feature.
-- **Names, provisional** (`AGENTS.md`: calef names these). `screen-hold` the token and `SCREEN_HOLD`
+- **Recorded.** Every name below is provisional (`AGENTS.md`: calef names these). `screen-hold` the token and `SCREEN_HOLD`
   the constant; `SCREEN_HELD` the announcement in `boot_ladder`; `hold_screen_at_handover` and
   `hold_screen_for_host` in `kernel::console`; `screen_hold` the `uefi_loader` feature;
   `uefi_screen_esp_dir` and `uefi_kernel` in `xtask`; `Pl011::rx_waiting` and `Pl011::discard_rx`.

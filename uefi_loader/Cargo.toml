@@ -37,7 +37,8 @@ required-features = ["uefi"]
 # Build the UEFI application. Meaningless without `--target x86_64-unknown-uefi`.
 uefi = []
 
-# **Write `screen-hold` on the kernel's boot command line** (milestone 445), which asks the kernel
+# **Write `screen-hold` on the kernel's boot command line**
+# (milestone 445 (the screen check stops sampling and starts asking)), which asks the kernel
 # to stop between painting its boot tour and clearing the screen, announce that on the serial line,
 # and wait for a byte back before handing the screen to userspace.
 #

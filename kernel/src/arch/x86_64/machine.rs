@@ -86,8 +86,9 @@ pub fn attach_screen(at: usize) -> Option<(Framebuffer, u32, u32)> {
     let found = Framebuffer::parse(cmdline)?;
     let span = found.span()? as u64;
 
-    // **The screen-hold handshake, when a gate asked for it** (milestone 445): the same command
-    // line, one more word, read here because this is where the line is already in hand. Armed only
+    // **The screen-hold handshake, when a gate asked for it**: milestone 445 (the screen check
+    // stops sampling and starts asking), on the same command line, one more word, read here
+    // because this is where the line is already in hand. Armed only
     // once a screen has been found, so the wait is structurally impossible on a machine that has
     // none. See `console::hold_screen_at_handover`, which says what it costs an ordinary boot
     // (nothing) and what it is for.
