@@ -446,9 +446,57 @@ mod verification {
     }
 }
 
+/// **The token that asks the kernel to hold the screen at the handover**, so that a host watching
+/// the framebuffer is told when to look instead of guessing (milestone 445 (the screen check stops sampling and starts asking)).
+///
+/// *Name provisional (`AGENTS.md`: calef names what a reader meets).*
+///
+/// **A debugging affordance, and it belongs on no machine anybody boots for its own sake.** A
+/// kernel that finds this word on its boot command line stops between painting the tour and
+/// clearing the screen, says so on the serial line, and waits for a byte back; see
+/// `kernel::console::yield_screen`. Without the word nothing about the handover changes, which is
+/// the property that matters: the boot a gate photographs is otherwise the boot a stick performs.
+///
+/// **A bare word rather than `key=value`**, unlike [`Framebuffer::KEY`] beside it, because it
+/// carries nothing. The wait's bound is a constant in the kernel rather than a field here, so that
+/// a reader of the kernel meets the number and its reason in one place instead of having to find
+/// out what some host passed.
+pub const SCREEN_HOLD: &str = "screen-hold";
+
+/// Whether a boot command line carries [`SCREEN_HOLD`].
+///
+/// A whole-word match, so a longer token that merely starts this way (a future `screen-hold=5`,
+/// say) does not read as this one. Absence is the answer for an empty line, which is what every
+/// boot that is not a screen gate hands over.
+#[must_use]
+pub fn screen_hold(cmdline: &str) -> bool {
+    cmdline.split_ascii_whitespace().any(|w| w == SCREEN_HOLD)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Framebuffer, PixelOrder};
+    use super::{Framebuffer, PixelOrder, screen_hold};
+
+    /// The token has to survive sitting *beside* the framebuffer description, because that is the
+    /// only command line it is ever written on: the loader emits both or neither.
+    #[test]
+    fn the_hold_token_is_found_beside_a_framebuffer_and_nowhere_else() {
+        let line = "screen=0x80000000,800,600,3200,bgrx screen-hold";
+        assert!(screen_hold(line), "the token is on this line");
+        assert!(
+            Framebuffer::parse(line).is_some(),
+            "and the framebuffer beside it still parses"
+        );
+        assert!(!screen_hold(""), "an empty command line asks for nothing");
+        assert!(
+            !screen_hold("screen=0x80000000,800,600,3200,bgrx"),
+            "a framebuffer alone asks for nothing"
+        );
+        assert!(
+            !screen_hold("screen-holder"),
+            "a longer word that merely starts this way is not this word"
+        );
+    }
 
     /// The writer and the reader are one crate, so the property worth testing is that they agree.
     /// A loader whose token the kernel cannot read is the failure this exists to make impossible,

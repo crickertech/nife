@@ -119,6 +119,8 @@ something this project did not start.
   minute against every lane, for a script that changes twice a year, which is a poor trade. That is
   rung two declined deliberately, and the block says plainly that it is a foot gun: a later
   simplification of `qemu-bounded.sh` will not be caught by CI.
+  This refusal is milestone 476 (design/roadmap/476-the-qemu-bounded-self-test-in-a-gate.md), which
+  carries it with the condition that would change it.
 - **Recorded.** In `design/roadmap/226-qemu-bounded-orphans.md`: a SIGKILL to the killer defeats all
   of it and nothing on macOS can fix that, since SIGKILL is not trappable and there is no
   `prctl(PR_SET_PDEATHSIG)`. That is the case the lock diagnostic exists for, and the self-test

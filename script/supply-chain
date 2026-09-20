@@ -72,7 +72,15 @@ fi
 # gives: a licence or an advisory we would refuse in the kernel is not acceptable in the tooling
 # either. It adds three crates (libfuzzer-sys, arbitrary, cc) that nothing ships, which is exactly the
 # graph a project stops looking at.
-for manifest in Cargo.toml redoxfs_server/Cargo.toml tools/redoxfs_host/Cargo.toml fuzz/Cargo.toml; do
+# **`cryptography_provider` and `cryptography_exerciser` joined here** with
+# milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets), and they are
+# the reason `deny.toml` has its first `ignore` entry. They sit outside the main workspace, so nothing else would look at
+# them, and they hold the only crate in the tree with a live advisory against it. A suppression
+# whose graph no gate scans is a suppression nobody can check: listing the manifests here is what
+# makes the entry mean something, and it is narrower than the alternative, which is trusting that
+# somebody remembers to look before those crates are taken into the workspace.
+for manifest in Cargo.toml redoxfs_server/Cargo.toml tools/redoxfs_host/Cargo.toml fuzz/Cargo.toml \
+    cryptography_provider/Cargo.toml cryptography_exerciser/Cargo.toml; do
     echo "==> cargo-deny: $manifest"
     cargo deny --manifest-path "$manifest" --all-features --config deny.toml \
         check -A unmatched-skip -A license-exception-not-encountered

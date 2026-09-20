@@ -235,8 +235,17 @@ none of it is ours to take.
 ```console
 $ cargo xtask uefi-image                       # kernel + archive + loader, staged at target/esp
 $ scripts/qemu-uefi-x86_64.sh target/esp       # boot it under OVMF
-$ cargo xtask uefi-boot                        # both of the above, plus the assertions
+$ cargo xtask uefi-boot                        # the same pair, plus the assertions
 ```
+
+**`uefi-boot` stages its own copy at `target/esp-screen`, and that one is not for a stick.**
+Milestone 445 (the screen check stops sampling and starts asking) gave the screen check a
+handshake instead of a race: the loader there is built with
+the `screen_hold` feature, so it writes one extra word on the kernel's boot command line and the
+kernel stops at the screen handover until the gate has photographed the framebuffer. A machine
+booting that image with nobody listening waits ten seconds and carries on, which is a pause nobody
+asked for. **`target/esp` is the one the bench procedure copies from**, and `cargo xtask uefi-image`
+is what fills it. The kernel in the two directories is byte-identical; only the loader differs.
 
 ```console
 $ cargo xtask uefi-test                        # the kernel's TEST binary under the same firmware
@@ -245,8 +254,8 @@ $ cargo xtask uefi-test                        # the kernel's TEST binary under 
 Both run inside `script/test --arch x86_64`, after the PVH suite, and they are two boots rather than
 one because they carry two different kernels.
 
-`uefi-boot` boots the **tour**, which is the build `uefi-image` stages for the USB stick and the one
-calef carries to the bench. It runs at **two cores**, which no other x86_64 boot in this tree does;
+`uefi-boot` boots the **tour**, the same kernel and archive `uefi-image` stages for the USB stick
+and that calef carries to the bench, behind the screen-hold loader described above. It runs at **two cores**, which no other x86_64 boot in this tree does;
 see the SMP section below.
 
 What it asserts, chosen so it cannot pass for the wrong reason:
@@ -257,6 +266,9 @@ What it asserts, chosen so it cannot pass for the wrong reason:
   the timer, the scheduler, and two ring-3 processes, on a memory map from firmware.
 - `smp: 2 core(s) online`, and a PIT interrupt still reaching the boot core with two local APICs on
   the machine.
+- **the tour's tail on the SCREEN**, read back glyph by glyph while the kernel is holding it there
+  (milestone 445). Its tail rather than its banner, because the tour is taller than OVMF's 1280x800
+  console and scrolls: held still, the screen's first row is the middle of the firmware memory map.
 
 `uefi-test` boots the kernel's **test binary**, which is the same kernel with `test_main()` on the
 end of the same tour, so the boot prints every line above and then runs the suite. Milestone 195

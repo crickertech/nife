@@ -372,9 +372,14 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
   on. No server in this tree needs it: every multi-client server either serves exactly one principal
   by construction (`fs_subtree_caretaker`) or is anonymous by design (the credential service).
   Building it now would be a mechanism with no consumer to shape it.
+  This refusal is
+  milestone 480 (design/roadmap/480-a-server-that-logs-which-channel-a-request-arrived-on.md), which
+  carries it with the condition that would change it.
 - **Refused.** Real terminal multiplexing. `login` hands the terminal to the first successful caller
   and refuses the rest with a dedicated code until `LOGOUT`, deliberately, because the narrow shape
   commits to nothing the wider one would later have to unwind.
+  This refusal is milestone 481 (design/roadmap/481-terminal-multiplexing.md), which carries it with
+  the condition that would change it.
 
 ## Index row
 

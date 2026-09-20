@@ -184,6 +184,8 @@ because each is a scheduler-policy or syscall-surface question and those are cal
 - **Refused.** A soak leg inside `script/test`. Twenty seconds per architecture would stop the
   feature silently ceasing to compile, and it was judged too expensive for a gate every lane runs on
   every push.
+  This refusal is milestone 473 (design/roadmap/473-a-soak-leg-in-script-test.md), which carries it
+  with the condition that would change it.
 - **Recorded.** `notes/soak.md`: a soak that finds nothing is weak evidence, and what a clean run
   licenses is one sentence about round trips completed without a refused wake, a wrong reply or a
   stalled worker. `script/soak-test` prints that caveat on every green run.

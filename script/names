@@ -26,12 +26,18 @@
 # derives the table. Same family as script/roadmap, script/decisions and script/catch-up: a computed
 # report over the tree, which therefore cannot drift from it.
 #
-# What carries a provenance block, and where:
+# What carries a provenance block, and where. **Four kinds, not the three this list held until
+# 2026-08-18**, and the fourth is the one that matters for keeping the list honest, because it is
+# discovered rather than enumerated:
 #
 #   crates/<name>/src/lib.rs   the crate's module doc  (`//! Name: ...`)
 #   components/src/<name>.rs   the program's module doc (`//! Name: ...`)
 #   fixtures/src/<name>.rs     the same, for a test or benchmark program
 #   script/<name>              the entry point's comment block (`# Name: ...`)
+#   <anywhere>/Cargo.toml      a Cargo package outside crates/ (`# Name: ...`), found by walking
+#                              the tree, so a package arriving tomorrow is covered without an edit
+#                              here: kernel, xtask, redoxfs_server, tools/redoxfs_host, and the
+#                              root-level workspaces std_exerciser and entropy_backend
 #
 # The form, which is all that is checked:
 #
@@ -87,7 +93,10 @@
 # calef, and it must stay that way: a lint that demanded the queue be drained would block every
 # unrelated merge behind a review nobody can hurry, which is the wall this milestone exists to avoid
 # building. The worklist is how the queue gets worked; the gate only insists that a name says which
-# of the three it is.
+# state it is in. There are **four** states rather than the three listed above:
+# §89 (`provisional` becomes the fourth provenance state) added `provisional` on 2026-08-16, a
+# claim about INTENT where the other three are claims about the RECORD, and it is the largest of the
+# four today.
 #
 # BUGS. It checks that a name carries provenance and that the provenance parses. It cannot check
 # that the recorded reason is **still true**, that a date is right, that a `recorded` citation leads
@@ -126,8 +135,14 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(root, "scripts"))
 import name_provenance                                                      # noqa: E402
 
-# The three surfaces, each with the file that holds its header. Anything else in the tree (kernel,
-# xtask, redoxfs_server, tools/, scripts/) is out of scope on purpose; see design/naming.md's BUGS.
+# The three surfaces that are a directory listing, each with the file that holds its header. The
+# fourth kind, `package`, is discovered instead: see `packages()` below, which is what covers
+# `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host` and the root-level workspaces. What is
+# genuinely out of scope is `scripts/` (the helper drawer) and types. `scripts/` was priced and
+# refused by milestone 446 (the naming worklist says what it covers, and stops saying what it used
+# to). design/naming.md's BUGS section is the one place that carries the reason, and this comment
+# deliberately cites it rather than restating it, because the last copy of this scope claim went
+# stale without anyone noticing.
 SURFACES = [
     ("crate", os.path.join(root, "crates"),
      lambda name: os.path.join(root, "crates", name, "src", "lib.rs"), "//!"),
@@ -468,6 +483,22 @@ if mode and not mode.startswith("-"):
     hits = [r for r in records if r["name"] == mode]
     refused_hits = [(bad, r) for bad, r in refusals if bad == mode]
     if not hits and not refused_hits:
+        # **A scoped answer, not a confident wrong one** (milestone 446, the naming worklist says
+        # what it covers, and stops saying what it used to). `scripts/` is deliberately outside the
+        # table, and nine of its seventeen files carry a `Name:` paragraph anyway. Left
+        # alone, `script/names merge-drain` said "neither a name in the tree nor a recorded refusal"
+        # about a file whose header argues the name at length, which is the exact shape the
+        # `package` kind was added to fix one level along: a registry with a hole answering
+        # confidently about the names it happens to cover. Naming the scope costs six lines and
+        # sends the reader to the file instead of to nothing.
+        helper = next((os.path.join("scripts", mode + ext)
+                       for ext in (".sh", ".py")
+                       if os.path.exists(os.path.join(root, "scripts", mode + ext))), None)
+        if helper:
+            print(f"names: {mode!r} is a helper under scripts/, which the naming worklist leaves out "
+                  f"on purpose (design/naming.md's BUGS section says why).")
+            print(f"       Its record, if it has one, is in {helper} rather than in this table.")
+            sys.exit(1)
         print(f"names: {mode!r} is neither a name in the tree nor a recorded refusal")
         sys.exit(1)
     for r in hits:

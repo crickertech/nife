@@ -127,6 +127,8 @@ implementation back at itself.
   test" from "legitimately asserts agreement", and agreeing with itself is sometimes the property
   you want, so a gate that flagged every such harness would be wrong more often than right. The
   output is eleven falsification patches and a worklist instead.
+  This refusal is milestone 470 (design/roadmap/470-a-gate-on-harness-quality.md), which carries it
+  with the condition that would change it.
 - **Recorded.** `design/roadmap/211-self-referential-harnesses.md`: the rewrite is harder than the
   finding. Stating a property without the vocabulary the code uses is where specification work is
   expensive, and for some properties there may be no independent statement worth having.

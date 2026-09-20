@@ -332,6 +332,8 @@ proofs and tests run in a configuration nobody checks is not demonstrating.
   the overflow stays illegible. Growing the stack moves the fault further away without restoring the
   mechanism that makes it a fault at all; shrinking the frames below 4096 restores it. Growing the
   stack remains an independent question on its own merits.
+  This refusal is milestone 454 (design/roadmap/454-the-stack-sizes-nobody-has-sized.md), which
+  carries it with the condition that would change it.
 - **Milestone 331.** Delete the
   window in which a thread is published `Dead` while it still executes on its own kernel stack,
   instead of refusing inside it: mark it `Departing` in `depart()` and promote it to `Dead` from

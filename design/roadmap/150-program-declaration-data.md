@@ -55,7 +55,7 @@ spawnable program to have a `SHELL_CHECK_SCRIPT` line or a stated reason. That l
 **The eighth edit site is closed**: `the_arg_line_follows_the_manifest_for_every_program` types
 every operand a manifest asks for, so an argument-plus-input program needs no edit in `crates/swish`.
 Whether such a program is *wanted* (item 3) is calef's call and is written up as
-[a-program-that-takes-an-argument-and-an-input.md](proposals/a-program-that-takes-an-argument-and-an-input.md),
+[a-program-that-takes-an-argument-and-an-input.md](498-a-program-that-takes-an-argument-and-an-input.md),
 recommending the status quo. The neighbouring file-plus-input refusal moved from a comment into a
 host test.
 
@@ -204,7 +204,7 @@ milestone 117's handoff."
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md`: item 3,
+- **Milestone 498.** milestone 498 (whether a program may take an argument), `design/roadmap/498-a-program-that-takes-an-argument-and-an-input.md`: item 3,
   whether a manifest may declare an argument and an input together. The mechanical half is done
   (the `crates/swish` sweep supplies both); whether the shape is wanted is calef's call, and the
   proposal recommends the status quo.

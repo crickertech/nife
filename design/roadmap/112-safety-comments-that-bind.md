@@ -95,6 +95,8 @@ tree), not an assumption to start from.
   "caller" means the calling thread or process rather than a soundness obligation. If the
   distinction ever turns out to be mechanical, `design/decisions/61-lints-on-evidence.md` is the
   ledger that adopts a lint on evidence from this tree.
+  This refusal is milestone 453 (design/roadmap/453-a-lint-for-a-safety-comment-on-a-safe-fn.md),
+  which carries it with the condition that would change it.
 - **Recorded.** `notes/unsafe-obligations.md` carries the related finding, which is the wider one:
   eleven of the tree's 33 `unsafe fn`s contain no unsafe operation at all, so their unsafety is a
   contract about meaning and the rustdoc `# Safety` section is the only enforcement there is for a

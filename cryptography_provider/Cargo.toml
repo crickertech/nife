@@ -1,0 +1,88 @@
+# A `rustls` crypto provider assembled in this tree for milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets),
+# after calef refused `rustls-rustcrypto` on 2026-09-20:
+# "rustls-rustcrypto doesn't seem like a high quality dependency."
+#
+# **This package is glue and holds no cryptography.** DECISIONS §46 (thin primitives or whole
+# subsystems; we write everything in between) says cryptography is taken rather than written,
+# because its correctness includes constant-time behaviour and resistance to attacks no
+# specification states. Every such operation here is inside one of the crates below. What this
+# package does is select, name and plumb: five fields of a `CryptoProvider`. See src/lib.rs for
+# that line drawn out loud, and notes/cryptography-provider.md for the pricing that preceded it.
+#
+# Deliberately NOT a member of the main workspace, and that is a live constraint rather than
+# habit. The primitive set is not fully settled: `rsa` is still calef's (see the `BUGS` in
+# src/lib.rs), and until the set is ratified none of these crates belongs in this repository's
+# `Cargo.lock`, in `deny.toml`'s reach, or in CI. `scripts/build-cryptography-exerciser.sh` builds
+# it, nothing else does, and the kernel test skips when nobody has.
+#
+# Name: provisional, minted on 2026-09-20 by this milestone's lane. Names are calef's.
+# `cryptography_provider` takes `entropy_backend`'s shape, which is the domain word this tree
+# already uses plus the role the thing plays, and spells `cryptography` out because this tree
+# spells names out. `rustls_provider` was set aside for naming somebody else's crate rather than
+# this one; `tls_cryptography` was set aside because the package holds no cryptography, which is
+# the whole point of it.
+
+[package]
+name = "cryptography_provider"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+# Never goes to crates.io, and saying so is load-bearing rather than tidy: this package depends on
+# its neighbours by path, and `cargo-deny`'s `allow-wildcard-paths` only forgives a path dependency
+# in a package that is not publishable, because crates.io would reject one.
+publish = false
+
+[workspace]
+
+[dependencies]
+# The protocol crate DECISIONS §196 (nife carries TLS: `rustls` for the protocol, and a crypto
+# provider we make work) ruled on. `tls12` is **off**: this provider is TLS 1.3 only, which
+# src/lib.rs argues for rather than assumes.
+rustls = { version = "0.23", default-features = false, features = ["std"] }
+
+# The certificate-verification types. `rustls` already pulls both; they are named here because this
+# package implements `SignatureVerificationAlgorithm` and needs the trait and the algorithm
+# identifiers directly.
+webpki = { package = "rustls-webpki", version = "0.103", default-features = false, features = ["alloc"] }
+pki_types = { package = "rustls-pki-types", version = "1", default-features = false, features = ["alloc"] }
+
+# The record layer. Both carry NCC Group's 2020 audit in their own README, which is the strongest
+# evidence behind any crate in this graph and covers every byte that crosses the wire.
+# `force-soft` on `sha2` is a feature rather than a cfg, so it has to be named in a manifest;
+# notes/cryptography-provider.md records why that is unavoidable.
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+sha2 = { version = "0.10", default-features = false, features = ["force-soft"] }
+hmac = { version = "0.12", default-features = false }
+
+# Key exchange and signature verification. `p256` states in its own README that its curve
+# arithmetic "has never been independently audited"; it is in the path either way, because TLS 1.3
+# negotiates it and because GitHub's certificate chain is ECDSA P-256.
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh", "pkcs8"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+x25519-dalek = { version = "2", default-features = false, features = ["static_secrets"] }
+ed25519-dalek = { version = "2", default-features = false }
+
+# The randomness, through the major the ecosystem's key-generation traits still take. `rand_core`
+# 0.6 reaches `getrandom` 0.2, whose hook `entropy_backend` gained at this milestone, over
+# `std::random::SystemRng`, over the entropy service's one endpoint.
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
+
+# **`rsa`, taken on calef's ruling of 2026-09-20 ("Take rsa").** Without it this provider could
+# verify `github.com`, whose chain is ECDSA P-256 throughout, and not the hosts that serve the
+# bytes: `objects.githubusercontent.com` is RSA 2048 and `ghcr.io` is RSA 4096.
+#
+# It is the one crate here with an advisory against it, RUSTSEC-2023-0071, and `deny.toml` carries
+# the tree's first `ignore` entry for it with the argument written out. The short form: the Marvin
+# attack is a timing side channel in PKCS#1 v1.5 **decryption**, and this provider verifies
+# signatures and never decrypts. `src/verify.rs` is the whole of what this crate calls.
+#
+# `default-features = false` drops `std` and `pem`: nothing here parses a PEM file, and the two
+# bounds that matter (a 2048-to-8192-bit modulus, and a PSS salt length equal to the digest) are
+# enforced in `src/verify.rs` rather than by a feature.
+#
+# The `sha2` feature is on for one reason worth naming: PKCS#1 v1.5 prepends a DER `DigestInfo`
+# naming the hash, so verification needs each digest's object identifier. That feature is what
+# associates them, and it resolves to the same `sha2` 0.10 named above, with `force-soft` and
+# `oid` unified onto one copy rather than two.
+rsa = { version = "0.9", default-features = false, features = ["sha2"] }
