@@ -11,10 +11,11 @@ standard is how one of them goes stale.
 
 ## The shortest honest description
 
-A capability microkernel for aarch64, riscv64 and x86_64, in Rust, from the first instruction, built as a
-demonstrator (DECISIONS §14) rather than as a product. The kernel allocates no memory of its own.
-Every driver and server is a userspace process. The security-critical logic carries machine-checked
-proofs. Architectural parity across all three ISAs is a gate rather than an aspiration (DECISIONS §19).
+A capability microkernel for aarch64, riscv64 and x86_64, in Rust, from the first instruction, built
+as a demonstrator rather than as a product, which is DECISIONS §14 (the project's direction). The
+kernel allocates no memory of its own. Every driver and server is a userspace process. The
+security-critical logic carries machine-checked proofs. Architectural parity across all three ISAs is
+a gate rather than an aspiration, which is DECISIONS §19 (architectural parity is a tenet).
 
 It is a research project with one architect, so the response you get to a pull request is a real
 person reading it between other things. Both halves of that are honest.
@@ -104,7 +105,7 @@ about:
 | | |
 |---|---|
 | **The syscall surface** | A boundary, not a habit. A new method inside the existing capability model is fine and gets its semantics recorded in `design/decisions/`; a new syscall number is a design fork. |
-| **A new dependency** | Taking one is a decision (DECISIONS §46). The tree is thin architectural primitives or whole subsystems nobody would write, with nothing in between. |
+| **A new dependency** | Taking one is a decision (DECISIONS §46 (thin primitives or whole subsystems)). The tree is thin architectural primitives or whole subsystems nobody would write, with nothing in between. |
 | **Names** | Crates, programs, and shared modules are named by the architect. Ship provisional, say so. |
 | **Anything two programs agree on** | A wire format, an opcode number, a packed word. The code is a morning's work; the un-shipping is not. |
 | **`design/decisions/` section numbers** | Assigned at merge. |
@@ -130,8 +131,9 @@ run. It provisions first (`script/bootstrap`, which does nothing on a machine th
 what it needs), so it works on a cold checkout.
 
 `script/ci-build --list` prints the checks. They are **not** repeated here, and that is the point of
-milestone 286: this sentence had been corrected by hand twice as checks were added (three to five on
-2026-08-22, five to seven on 2026-09-03) and was wrong again by 2026-09-13, because a set written
+milestone 286 (one enumeration of the checks that gate a pull request): this sentence had been
+corrected by hand twice as checks were added (three to five on 2026-08-22, five to seven on
+2026-09-03) and was wrong again by 2026-09-13, because a set written
 down twice rots in one of the two copies. The list now lives in exactly one place, the table at the
 top of `script/ci-build`, and CI names checks out of that same table.
 
