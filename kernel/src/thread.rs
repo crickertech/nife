@@ -374,7 +374,7 @@ pub struct Thread {
     pub context: *mut Context,
 
     /// **The floating-point and vector registers, and whether any of them are worth moving**
-    /// (milestone 447).
+    /// See milestone 447 (a thread's vector registers are its own).
     ///
     /// Not on the stack beside [`Self::context`], and the difference is the point. A `Context` is a
     /// *calling convention's* callee-saved set, saved because `switch_to` is a function call. This

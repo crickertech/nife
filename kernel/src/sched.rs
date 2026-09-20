@@ -1159,7 +1159,8 @@ pub fn canary_disarm() {
 /// that in**, which is why the boot thread needs no special case: a thread's context is written
 /// by the act of leaving it.
 pub fn init() {
-    // **The floating-point unit is shut on this core before any thread exists** (milestone 447).
+    // **The floating-point unit is shut on this core before any thread exists**
+    // (milestone 447 (a thread's vector registers are its own)).
     //
     // Here rather than in `arch::init`, and the reason is a real trap rather than taste. What the
     // invariant is *about* is threads: `crate::fp` marks a thread `live` when it takes the first-use

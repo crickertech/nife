@@ -77,7 +77,8 @@ global_asm!(include_str!("boot.s"));
 // The context switch and the two first-run trampolines (the asm half of context.rs).
 global_asm!(include_str!("context.s"));
 
-// Saving and restoring the `FXSAVE` area (milestone 447). Separate from context.s because it moves
+// Saving and restoring the `FXSAVE` area (milestone 447 (a thread's vector registers are its own)).
+// Separate from context.s because it moves
 // a register file rather than a calling convention's callee-saved set; see fp.rs.
 global_asm!(include_str!("fp.s"));
 

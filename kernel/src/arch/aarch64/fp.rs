@@ -35,7 +35,7 @@ use core::arch::asm;
 ///
 /// Read by the tests in [`crate::fp`], which name the register that failed rather than reporting
 /// that one did, and which therefore cannot hard-code a count that is 32 here, 32 on RISC-V and 16
-/// on x86_64.
+/// on `x86_64`.
 #[cfg(test)]
 pub const REGISTERS: usize = 32;
 

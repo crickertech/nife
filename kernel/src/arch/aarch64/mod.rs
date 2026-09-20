@@ -49,7 +49,8 @@ global_asm!(include_str!("vectors.s"));
 // The context switch, and where a new thread begins. Milestone 6.
 global_asm!(include_str!("context.s"));
 
-// Saving and restoring `q0`-`q31` (milestone 447). Separate from context.s because it moves a
+// Saving and restoring `q0`-`q31` (milestone 447 (a thread's vector registers are its own)). Separate from
+// context.s because it moves a
 // register file rather than a calling convention's callee-saved set; see fp.rs.
 global_asm!(include_str!("fp.s"));
 

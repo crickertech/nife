@@ -454,7 +454,8 @@ extern "C" fn riscv_trap_body(frame: &mut TrapFrame) -> bool {
             frame.sepc += 4;
             crate::syscall::dispatch(frame);
         }
-        // **A thread asked for the FP unit for the first time** (milestone 447), and RISC-V does not
+        // **A thread asked for the FP unit for the first time**
+        // (milestone 447 (a thread's vector registers are its own)), and RISC-V does not
         // say so: an FP instruction under `sstatus.FS == Off` is reported as an ordinary illegal
         // instruction, with nothing in `scause` or `stval` to separate it from a genuinely bad
         // opcode. aarch64 has its own exception class for this and x86 has its own vector.

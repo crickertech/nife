@@ -1,4 +1,4 @@
-//! **A thread's floating-point and SSE registers, x86_64.** The register file, the control-register
+//! **A thread's floating-point and SSE registers, `x86_64`.** The register file, the control-register
 //! bits that decide who may touch it, and nothing else: the policy is [`crate::fp`]'s.
 //!
 //! # Four bits, and one of them has a CVE
@@ -15,7 +15,7 @@
 //! - **`CR0.TS`** is the one that matters: set, the next FP or SSE instruction raises `#NM` (vector
 //!   7, "device not available"). It is the enable bit here, written per thread.
 //!
-//! **`TS` is also the mechanism behind LazyFP, CVE-2018-3665**, and this module is why
+//! **`TS` is also the mechanism behind `LazyFP`, CVE-2018-3665**, and this module is why
 //! [`crate::fp`]'s header says what it says. The vulnerability was not `TS` itself: it was using
 //! `TS` to defer the *restore*, so that one thread ran with another thread's `xmm` registers still
 //! in the file and the `#NM` as the only thing between them. Speculative execution reads them

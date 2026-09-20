@@ -16,7 +16,7 @@
 //!
 //! The cheap-looking scheme is to leave the outgoing thread's registers in the hardware, trap when
 //! the incoming thread touches them, and only then swap. It is cheap because a thread that never
-//! touches FP never pays, and it is what several kernels did until 2018, when **LazyFP
+//! touches FP never pays, and it is what several kernels did until 2018, when **`LazyFP`
 //! (CVE-2018-3665)** showed that on x86 the trap is not a boundary: speculative execution past the
 //! `#NM` reads the registers the trap was supposed to protect, and one thread recovers another's
 //! AES round keys. The mechanism was `CR0.TS`, which is the very bit this tree's x86 half uses.
@@ -56,7 +56,8 @@ use crate::arch::fp::FpState;
 /// One per thread, ever, because `live` never clears and so the first-use trap is taken exactly
 /// once. **Zero on every shipping boot**, and that number is the point of having it: it says that
 /// no program in a soft-float userspace has ever needed the register file this kernel now carries
-/// for it, which is the measurement milestone 447's target-flip proposal is weighed against.
+/// for it, which is the measurement the target-flip proposal of milestone 447 (a thread's
+/// vector registers are its own) is weighed against.
 pub static ENABLES: AtomicUsize = AtomicUsize::new(0);
 
 /// **Move the register file from the outgoing thread to the incoming one.**
@@ -71,7 +72,7 @@ pub static ENABLES: AtomicUsize = AtomicUsize::new(0);
 /// | not live | live | enable, restore. |
 /// | live | not live | save, **scrub to [`FpState::INITIAL`]**, disable. |
 ///
-/// That last row is the confidentiality one. Disabling without scrubbing is what LazyFP taught us
+/// That last row is the confidentiality one. Disabling without scrubbing is what `LazyFP` taught us
 /// not to do (see this module's header), and it is the one arm a test can catch: two threads doing
 /// FP work concurrently is the *second* row, and it fails loudly against a kernel with no save
 /// path; the fourth row fails silently, so it is proved by reading the registers back after a
@@ -86,6 +87,7 @@ pub static ENABLES: AtomicUsize = AtomicUsize::new(0);
 pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
     // SAFETY: the caller's, forwarded. Both reads are of one `u64` in a pinned allocation.
     let prev_live = unsafe { (*prev).live() };
+    // SAFETY: the caller's, forwarded; one `u64` read in a pinned allocation, as above.
     let next_live = unsafe { (*next).live() };
 
     if !prev_live && !next_live {
@@ -149,7 +151,7 @@ unsafe fn move_the_register_file(
 /// **The running thread just tried to use the FP unit for the first time. Let it.**
 ///
 /// The body of every architecture's first-use trap: `CPACR_EL1.FPEN` at EL0 or EL1 on aarch64, an
-/// illegal instruction under `sstatus.FS == Off` on RISC-V, `#NM` under `CR0.TS` on x86_64. Returns
+/// illegal instruction under `sstatus.FS == Off` on RISC-V, `#NM` under `CR0.TS` on `x86_64`. Returns
 /// false when there is no scheduler or no current thread to record the fact against, which the
 /// caller must treat as a fault: returning to the trapping instruction with nothing changed would
 /// retake the same trap forever.
@@ -284,7 +286,8 @@ mod tests {
     ///
     /// It fails against a kernel without a save path, which is the only property that makes it
     /// worth having. Both threads are placed on **this** core with `spawn_on` rather than by
-    /// `spawn`, because DECISIONS §28 places by power-of-two-choices and two threads on two cores
+    /// `spawn`, because §28 (SMP placement: two random choices at spawn) places by
+    /// power-of-two choices and two threads on two cores
     /// have two register files: the test would pass without the kernel doing anything at all. On
     /// one core they interleave over one file, and this thread (which never touches FP) sits
     /// between them, so the scrub-and-disable arm of [`hand_over`] runs between every pair of turns

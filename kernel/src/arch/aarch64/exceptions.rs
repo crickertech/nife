@@ -222,7 +222,8 @@ mod ec {
     pub const UNKNOWN: u64 = 0x00;
     pub const TRAPPED_WFI_WFE: u64 = 0x01;
     /// Access to SVE, Advanced SIMD or floating-point functionality, trapped by
-    /// `CPACR_EL1.FPEN`. The first-use trap milestone 447 turns into an enable; see
+    /// `CPACR_EL1.FPEN`. The first-use trap milestone 447 (a thread's vector registers are its
+    /// own) turns into an enable; see
     /// `arch::aarch64::fp`.
     pub const FP_SIMD_ACCESS: u64 = 0x07;
     pub const ILLEGAL_EXECUTION_STATE: u64 = 0x0e;

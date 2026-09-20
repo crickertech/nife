@@ -734,7 +734,8 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
             BRK_COUNT.fetch_add(1, Ordering::Relaxed);
             false
         }
-        // **A thread asked for the FP unit for the first time** (milestone 447). Vector 7 is `#NM`,
+        // **A thread asked for the FP unit for the first time**
+        // (milestone 447 (a thread's vector registers are its own)). Vector 7 is `#NM`,
         // "device not available", which `CR0.TS` raises on the first FP or SSE instruction a thread
         // executes. Enabling is the whole handler: `#NM` is a fault, so `rip` already points at the
         // instruction that trapped and the `iret` re-executes it with the unit open.
