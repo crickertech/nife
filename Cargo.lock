@@ -1029,8 +1029,6 @@ dependencies = [
  "device_tree_blob",
  "elf",
  "machine_discovery",
- "measured_boot",
- "nifefs",
  "screen_console",
  "sealed_pair",
 ]
