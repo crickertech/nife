@@ -295,6 +295,18 @@ in the code or the conversation doesn't make sense, it belongs here.
   pattern". Also the 896 KiB ceiling a program's image hits against its own stack, found as
   `Unmappable(AlreadyMapped)` and worked around by relinking, and why that address is ABI-shaped
   rather than a kernel detail.
+- [A TLS crypto provider on nife](cryptography-provider.md): milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets), and the table
+  DECISIONS
+  §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we make work) asked for
+  and could not take. §196 measured against the stock bare-metal targets on a stable host and found
+  **every** provider failing; measured against `targets/*-unknown-nife.json` on the pinned nightly,
+  `rustls` plus `rustls-rustcrypto` **builds and runs on all three architectures**. The two
+  blockers were a `getrandom` major `entropy_backend` did not answer (0.2's hook is a different
+  symbol, and that crate's own `BUGS` had forecast needing it) and five build-configuration lines
+  forcing the portable implementations, because `x86_64-unknown-nife` has no SSE and the RustCrypto
+  crates compile their intrinsic paths anyway until LLVM cannot legalize them. Published vectors
+  from FIPS 180-4, RFC 4231, RFC 5869, RFC 8439 and RFC 7748 run on all three under QEMU. What is
+  still open is the dependency itself, which is calef's.
 - [The `thread::spawn` fork](thread-spawn-fork.md): milestone 64's rank-3 gap, written up against
   the six-questions framework ahead of a decision (pull request #394). Why a std thread needs one
   shared, growable heap and nife gives every TCB a privately owned, consumed `AddressSpace`; the

@@ -86,6 +86,16 @@ pub fn attach_screen(at: usize) -> Option<(Framebuffer, u32, u32)> {
     let found = Framebuffer::parse(cmdline)?;
     let span = found.span()? as u64;
 
+    // **The screen-hold handshake, when a gate asked for it**: milestone 445 (the screen check
+    // stops sampling and starts asking), on the same command line, one more word, read here
+    // because this is where the line is already in hand. Armed only
+    // once a screen has been found, so the wait is structurally impossible on a machine that has
+    // none. See `console::hold_screen_at_handover`, which says what it costs an ordinary boot
+    // (nothing) and what it is for.
+    if machine_discovery::framebuffer::screen_hold(cmdline) {
+        crate::console::hold_screen_at_handover();
+    }
+
     // Before the console is armed, not after: this is what makes the mapping survive `mmu::init`,
     // and a console armed against a window nothing will map is a fault inside `println!`.
     crate::memory::record_framebuffer(found.base, span);
