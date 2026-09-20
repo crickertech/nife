@@ -158,12 +158,12 @@ makes a recipe's digest decide what may run and a digest is checkable over any t
   `script/supply-chain`'s manifest list. The proposal that framed the question is gone rather than
   left standing as an open fork; the argument it held lives where a reader now meets it, which is
   `notes/cryptography-provider.md` and the `reason` field beside the suppression itself.
-- **Proposed.** A client that speaks TLS 1.3 to one peer, holding that peer's root or pinned key as
+- **Milestone 501.** A client that speaks TLS 1.3 to one peer, holding that peer's root or pinned key as
   a capability, which was this block's clause 3 and is repriced out of it above:
-  `design/roadmap/proposals/a-tls-client-that-speaks-to-one-pinned-peer.md`.
-- **Proposed.** That a program which aborts is never heard, so its panic message and every line
+  milestone 501 (a TLS client that speaks to one), `design/roadmap/501-a-tls-client-that-speaks-to-one-pinned-peer.md`.
+- **Milestone 496.** That a program which aborts is never heard, so its panic message and every line
   before it are discarded:
-  `design/roadmap/proposals/a-dying-programs-last-words-reach-nobody.md`. This lane's own wrong
+  milestone 496 (a dying program's last words reach nobody), `design/roadmap/496-a-dying-programs-last-words-reach-nobody.md`. This lane's own wrong
   finding is the worked example inside it.
 - **Recorded.** That `script/crate-probes` may be measuring the unpatched `std`, beside the
   measurement it feeds, in `notes/cryptography-provider.md`'s `BUGS`. The fifty crates of

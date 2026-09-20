@@ -1,8 +1,12 @@
-# A TLS client that speaks to one pinned peer
+# 501. A TLS client that speaks to one pinned peer
 
-**Status: PROPOSED 2026-09-19.** Written by the lane for milestone 442 (a crypto provider `rustls`
-can use on all three bare-metal targets), which carried that block's clauses 1 and 2 and repriced
-this one out of it rather than leaving it unnamed.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-tls-client-that-speaks-to-one-pinned-peer`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Written by the lane for milestone 442 (a crypto provider `rustls` can use on all three bare-
+metal targets), which carried that block's clauses 1 and 2 and repriced this one out of it rather
+than leaving it unnamed.
 
 **Gate: DECISION.** Which provider the client is built on is calef's, stated under "The decision
 this leaves" in 442's block. The handshake code is the same either way, so a lane could start
@@ -50,3 +54,8 @@ confidentiality and knowing which host answered.
   ordinary way. 442's block names this too.
 - **No cost is known.** A handshake on a board with no hardware crypto may be slow enough to
   matter, and 442 made it slower by forcing portable implementations on all three architectures.
+
+## Index row
+
+442 produced a provider that builds and runs on all three architectures and computes what the
+specifications say.

@@ -1,7 +1,11 @@
-# A filesystem server that knows what time it is
+# 497. A filesystem server that knows what time it is
 
-**Status: PROPOSED 2026-09-19.** Written by the milestone 64 lane (`milestone/64-std-filesystem-shim`),
-from milestone 64's block and `notes/touch.md`'s `BUGS`.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-filesystem-server-that-knows-the-time`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Written by the milestone 64 (enough std to run somebody else's crate) lane (`milestone/64-std-filesystem-shim`), from milestone 64's block
+and `notes/touch.md`'s `BUGS`.
 
 **Gate: NONE.** The mechanism a reader needs already exists and already has a decision behind it:
 DECISIONS §43 made reading the wall clock a broadly grantable, read-only authority (a `Frame`
@@ -60,3 +64,9 @@ they are a counter.
 
 **What is blocked**: nothing hard. Milestone 121's `rg --sort modified` would order nife-written files
 wrongly against host-made ones until this lands.
+
+## Index row
+
+`redoxfs_server` stamps every mutation with its own counter (`Server::clock`, starting at 1 on each
+mount and incremented per write, create, truncate, attribute change and bare `touch`), because it
+holds no clock.

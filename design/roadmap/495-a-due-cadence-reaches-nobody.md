@@ -1,7 +1,11 @@
-# A cadence that says "due" reaches nobody, and the watcher cannot tell due from dead
+# 495. A cadence that says "due" reaches nobody, and the watcher cannot tell due from dead
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 117's run 6 lane, from what the run showed
-about the cadence that was supposed to have started it.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-due-cadence-reaches-nobody`, filed 2026-09-19, on calef's instruction of 2026-09-20 to
+give every proposal on `main` a number. The text below is the proposal's own, unedited except for
+this paragraph: the argument is its author's and promotion is not the moment to improve it. Written
+by milestone 117 (the stranger test)'s run 6 lane, from what the run showed about the cadence that was supposed to have
+started it.
 
 **Gate: NONE.** A lane can start today. Every input is already on disk or one `gh` call away.
 
@@ -47,3 +51,8 @@ the current behaviour except by not acting.
 
 This is not a stranger-test fix. The stranger cadence is one of two consumers, and fixing it only
 there would leave the audit cadence red for a sixth week.
+
+## Index row
+
+Two scheduled workflows exist to say "a person must now do something": the stranger cadence
+(`script/stranger-test --due`) and the audit cadence (`script/audits`).

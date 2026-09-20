@@ -1,8 +1,11 @@
-# Nothing checks that a committed `.dtb` is what its `.dts` compiles to
+# 491. Nothing checks that a committed `.dtb` is what its `.dts` compiles to
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 326's `machine_discovery` lane while
-regenerating a fixture for an unrelated reason, and filed by the integrator at merge because the
-lane's report was its only home.
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-committed-blob-that-matches-its-source`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it. Found by milestone 326 (nobody has been assigned to turn a)'s `machine_discovery` lane while regenerating a fixture for an unrelated
+reason, and filed by the integrator at merge because the lane's report was its only home.
 
 **Gate: NONE.** The check is a `script/lint` entry over files already in the tree.
 
@@ -49,3 +52,8 @@ wants the stronger answer, this proposal is where the weaker one's cost is writt
 - **It does not generalise to other committed binaries** on its own. `bench/` images, the font
   atlases and the RedoxFS test image have the same property and no source beside them to compare
   against, so this check covers the one case where the comparison is possible rather than the class.
+
+## Index row
+
+Twenty-three `.dtb` blobs are committed beside the `.dts` sources they were compiled from, and
+nothing compares them.
