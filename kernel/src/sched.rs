@@ -2052,7 +2052,7 @@ pub fn schedule() {
         let prev_ptr = sched.threads.pointer(current).unwrap();
         // SAFETY: a live thread's TCB page, held under IPC_TABLES. Field projection through a raw
         // pointer, and `fp_state_of`'s contract is exactly what `pointer` returns.
-        let (prev_slot, prev_fp) = unsafe {
+        let (prev_slot, prev_fp): (*mut *mut Context, *mut crate::arch::fp::FpState) = unsafe {
             (
                 &raw mut (*prev_ptr).context,
                 crate::thread::fp_state_of(prev_ptr),
@@ -2067,11 +2067,10 @@ pub fn schedule() {
         // baseline drift, and re-baseline only what is proven), so neither grant widens this
         // tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on every
         // shipping build, plus milestone 447's two register-file pointers.
-        //
+        #[cfg(not(target_arch = "x86_64"))]
         // SAFETY: as `prev_ptr`; `next` was popped off this core's run queue and marked `Running`
         // inside this same locked block.
-        #[cfg(not(target_arch = "x86_64"))]
-        let (next_ctx, next_fp) = unsafe {
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = unsafe {
             let next_ptr = sched.threads.pointer(next).unwrap();
             (
                 (*next_ptr).context,
@@ -2079,7 +2078,8 @@ pub fn schedule() {
             )
         };
         #[cfg(target_arch = "x86_64")]
-        let (next_ctx, next_fp) = unsafe {
+        // SAFETY: as the arm above, plus the port grant, which is a plain field read.
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = unsafe {
             let next_ptr = sched.threads.pointer(next).unwrap();
             next_port_grant = (*next_ptr).port_range_grant;
             (

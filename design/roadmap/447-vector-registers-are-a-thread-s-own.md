@@ -414,8 +414,9 @@ are measurements rather than arguments, and neither needs this decision made fir
   rather than from `arch::init`, because RISC-V's boot hart never calls the latter. The reason is at
   the call site in `kernel/src/sched.rs`, and all three `arch/*/fp.rs` point at it.
 - **Recorded.** The `xsave`/`XCR0` coupling above, in `arch/x86_64/fp.rs`'s `BUGS`.
-- **Refused, and re-priced under the gate.** Building a `Thread` in place, field by field, instead
-  of writing a struct literal through a pointer. It would take `Thread::spawn_into`'s frame well
+- **Refused.** Building a `Thread` in place, field by field, instead of writing a struct literal
+  through a pointer. Priced under the gate rather than in the abstract, because
+  `script/stack-frame-check` is what raised the question. It would take `Thread::spawn_into`'s frame well
   below the 3552 bytes it has carried since milestone 124 (a thread is born where it lives: the
   spawn path's copies), because an unoptimised build materialises the value and copies it, so every
   byte of the struct costs two bytes of frame. What it costs is the thing the ladder ranks highest:
