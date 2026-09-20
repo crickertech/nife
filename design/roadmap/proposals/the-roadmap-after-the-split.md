@@ -303,7 +303,13 @@ what makes the identifier decision cheap whenever it is taken.**
 Concretely, three items, smallest first:
 
 1. **A ratchet on new citations: a `milestone N` or `§N` on a line this commit adds must carry a
-   gloss.** `script/lint` already has this shape at line 1995 (`git merge-base HEAD origin/main`),
+   gloss.** **Answered and built on 2026-09-20**: calef approved it the day this was filed, and
+   milestone 444 (a citation says what it cites) shipped it as `script/citations --ratchet`, wired
+   into `script/lint`. Its census also corrected this file's own number, and the correction is worth
+   carrying: the 83% below is 83% *of the citations that already carry a gloss*, which is 505 of
+   9,483 (file, scheme, number) pairs, or **5.3%** of the tree. The ratchet's rate argument is
+   unaffected and the starting point is far lower than this file assumed. Two limits the ratchet
+   turned out to have are in `notes/citations.md`'s BUGS. `script/lint` already has this shape at line 1995 (`git merge-base HEAD origin/main`),
    and the word "ratchet" appears in it eleven times. This answers `notes/citations.md`' standing
    objection exactly, which is about a *sweep*: *"Requiring a gloss on the first mention of each
    number in each file means 2,911 sites, every one of which has to be read to know what its author
