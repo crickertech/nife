@@ -160,7 +160,8 @@ mod tests {
     /// The assertion is deliberately about distinctness rather than about values: the kernel and
     /// the workload both reach the page through these functions, so any injective, aligned,
     /// in-page assignment is a correct one and pinning the arithmetic would test the code against
-    /// itself. Milestone 326: five of this crate's seven mutation survivors were offsets that
+    /// itself. Milestone 326 (nobody has been assigned to turn a mutation score upward): five of
+    /// this crate's seven mutation survivors were offsets that
     /// collide.
     #[test]
     fn every_slot_is_its_own_aligned_word() {

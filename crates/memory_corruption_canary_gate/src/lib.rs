@@ -287,7 +287,8 @@ mod tests {
     /// Two of the three entry points here are spin loops: `arm` and `disarm` keep looking until
     /// they win. So the way to break one is not to make it return the wrong thing, it is to make
     /// it never return, and a suite that calls it directly does not fail on that, it *hangs*.
-    /// Milestone 326 measured the cost: four mutants of this crate (both halves of `arm`'s
+    /// Milestone 326 (nobody has been assigned to turn a mutation score upward) measured the cost:
+    /// four mutants of this crate (both halves of `arm`'s
     /// acceptance condition, `disarm`'s, and deleting `ArmGuard`'s `Drop`) produced a deadlock
     /// rather than a failed assertion, and `cargo mutants` can only report a suite that never
     /// finished as a timeout, which is indistinguishable from a slow one. Liveness is the

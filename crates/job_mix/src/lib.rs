@@ -468,7 +468,8 @@ pub const REPEATS: usize = 21;
 // ever refused a split the budget was sized to allow. A relation between constants in one file, so
 // the compiler checks it (AGENTS.md's ladder, rung one).
 //
-// **Tightened by milestone 326, because the old form left the whole sizing argument unchecked.**
+// **Tightened, because the old form left the whole sizing argument unchecked.** Found by
+// milestone 326 (nobody has been assigned to turn a mutation score upward).
 // It asserted only that the budget exceeds each transient region on its own, which 19, 24 and 144
 // all satisfy, so five mutants of the expression above compiled and passed: one of them picked the
 // SMALLER of the two regions, leaving a task running `MAP` nine pages short of what the comment

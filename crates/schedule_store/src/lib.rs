@@ -329,8 +329,8 @@ mod tests {
         assert_eq!(render_manifest(&[b""], &mut buf), None);
     }
 
-    /// **Every bound is tested at the bound, not one past it**, which is the gap milestone 326's
-    /// mutation run found: six of this crate's eight survivors were a `>` that could become `>=`
+    /// **Every bound is tested at the bound, not one past it**, which is the gap
+    /// milestone 326 (nobody has been assigned to turn a mutation score upward) found: six of this crate's eight survivors were a `>` that could become `>=`
     /// and nothing would notice, because every existing refusal test hands the code a value one
     /// *past* the limit and a value one past the limit is refused either way. A store that quietly
     /// lost the 64th byte of a name or the 8th identity would pass the whole suite above.

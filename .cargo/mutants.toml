@@ -72,8 +72,9 @@ exclude_globs = [
     # inline `#[cfg(kani)] mod proofs { .. }` yields `proofs::a_fire_is_strictly_in_the_future` and
     # a `#[cfg(kani)] mod proofs;` in its own file yields `a_fire_is_strictly_in_the_future` with no
     # prefix at all. Same `cfg`, same unreachability under `cargo test`, and the module-path regex
-    # silently misses it. Found by milestone 326 triaging the 2026-09-14 census, where 36 of
-    # `timetable`'s 48 reported survivors were this crate's proof harnesses rather than its code,
+    # silently misses it. Found by milestone 326 (nobody has been assigned to turn a mutation score
+    # upward) triaging the 2026-09-14 census, where 36 of `timetable`'s 48 reported survivors were
+    # this crate's proof harnesses rather than its code,
     # which is the whole reason it read 73.6%. Glob rather than regex, because the file layout is
     # the thing that differs; `**/src/verification.rs` is listed with it so the sibling convention
     # cannot arrive unexcluded.
