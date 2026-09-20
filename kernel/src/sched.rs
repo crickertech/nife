@@ -243,6 +243,17 @@ impl Threads {
         Some(unsafe { &mut *p })
     }
 
+    /// **The raw pointer the table stores, which is the start of the thread's TCB page.**
+    ///
+    /// `get` and `get_mut` narrow it to a reference over `size_of::<Thread>()` bytes, and that is
+    /// exactly what the caller must not have when it wants the FP register file: that lives in the
+    /// same page, past the end of the struct, so a pointer derived from a reference would be
+    /// reaching outside its own provenance (`thread::fp_state_of`'s safety note). This hands back
+    /// the pointer the page cast produced, unnarrowed.
+    fn pointer(&self, tid: ThreadId) -> Option<*mut Thread> {
+        Some(self.table.get(tid)?.0)
+    }
+
     /// Insert: claim a page from the kernel budget, build the `Thread` (carrying its own minted
     /// name) into it, and store the pointer under that name. `None` (page recycled, `f` never
     /// run) if the budget or the table is exhausted.
@@ -300,6 +311,16 @@ impl Threads {
         let mut built = false;
         let name = self.table.insert_with(|tid| {
             built = build(tid, ptr);
+            if built {
+                // The register file beside the struct, in the same page (milestone 447). Here
+                // rather than in a `Thread` constructor because a constructor builds a value and
+                // this is a fact about a *place*: `kmem` pages are not zeroed, so the `live` flag
+                // has to be written before anything reads it. See `thread::init_fp_state`.
+                //
+                // SAFETY: `ptr` is the start of a page this insert exclusively owns, and `build`
+                // has just written a live `Thread` at it.
+                unsafe { crate::thread::init_fp_state(ptr) };
+            }
             ThreadControlBlockPointer(ptr)
         })?;
         if !built {
@@ -325,6 +346,11 @@ impl Threads {
             // SAFETY: a fresh, exclusively-ours page; `write` moves the Thread in, no drop of
             // uninitialized bytes.
             unsafe { ptr.write(f(tid)) };
+            // And its register file beside it in the same page; see `insert_at_in_place` for why
+            // this is here rather than in a `Thread` constructor.
+            //
+            // SAFETY: as above, with the `Thread` now live at `ptr`.
+            unsafe { crate::thread::init_fp_state(ptr) };
             ThreadControlBlockPointer(ptr)
         });
         if name.is_some() {
@@ -2015,41 +2041,50 @@ pub fn schedule() {
         }
 
         // Copy the raw pointers out before the lock drops. The assembly writes through the
-        // context slot and reads the incoming context, and both threads' `Box`es keep their
+        // context slot and reads the incoming context, and both threads' TCB pages keep their
         // contents pinned.
         //
-        // The outgoing thread's FP state comes out of the SAME `get_mut` (milestone 447): it is the
-        // second field this line needs off `current` and a second map probe for it would cost more
-        // than the binding does. `crate::fp::hand_over` reads one `u64` through this pointer on
-        // every switch and touches the other 536 bytes only for a thread that has taken the FP
-        // enable trap, which is no thread in this tree.
-        let prev_thread = sched.threads.get_mut(current).unwrap();
-        let prev_slot: *mut *mut Context = &mut prev_thread.context;
-        let prev_fp: *mut crate::arch::fp::FpState = &mut prev_thread.fp;
+        // **The TCB page pointer rather than `get_mut`** (milestone 447), and it is one probe per
+        // side rather than the two the obvious shape would cost. Each thread's FP register file
+        // lives in the free space of the same page, past the end of the struct, so a `&mut Thread`
+        // is exactly the wrong thing to hold: its provenance stops at the struct.
+        // `Threads::pointer` hands back the page cast unnarrowed and both addresses fall out of it.
+        let prev_ptr = sched.threads.pointer(current).unwrap();
+        // SAFETY: a live thread's TCB page, held under IPC_TABLES. Field projection through a raw
+        // pointer, and `fp_state_of`'s contract is exactly what `pointer` returns.
+        let (prev_slot, prev_fp) = unsafe {
+            (
+                &raw mut (*prev_ptr).context,
+                crate::thread::fp_state_of(prev_ptr),
+            )
+        };
 
         // `next_ctx`, and on x86 the incoming thread's port grant (milestone 299) beside it, out of
-        // ONE `threads.get(next)`. The two arms are byte-identical bar the port read, and the split
-        // is deliberate: the other two architectures must keep the exact `get(next).unwrap().context`
-        // their deterministic-icount baseline was measured on (introducing a `next_thread` binding
-        // there shifted it, tiny but not zero), while x86 reuses the one lookup rather than paying a
-        // second map probe for the port grant. The port read goes into the `x86_64`-only variable
-        // declared above the block, not the switch tuple, so it costs the other two nothing at all.
-        // The cycle-counter grant is carried the same way now (milestone 300), so neither grant
-        // widens this tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on
-        // every shipping build.
+        // ONE lookup. The two arms are byte-identical bar the port read, and the split is
+        // deliberate: the port read goes into the `x86_64`-only variable declared above the block,
+        // not the switch tuple, so it costs the other two architectures nothing at all. The
+        // cycle-counter grant is carried the same way (milestone 300), so neither grant widens this
+        // tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on every
+        // shipping build, plus milestone 447's two register-file pointers.
         //
-        // Milestone 447 added the incoming thread's FP state to both arms, out of the same lookup
-        // for the same reason, so the split above is now about the port grant alone.
+        // SAFETY: as `prev_ptr`; `next` was popped off this core's run queue and marked `Running`
+        // inside this same locked block.
         #[cfg(not(target_arch = "x86_64"))]
-        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = {
-            let next_thread = sched.threads.get(next).unwrap();
-            (next_thread.context, &next_thread.fp)
+        let (next_ctx, next_fp) = unsafe {
+            let next_ptr = sched.threads.pointer(next).unwrap();
+            (
+                (*next_ptr).context,
+                crate::thread::fp_state_of(next_ptr).cast_const(),
+            )
         };
         #[cfg(target_arch = "x86_64")]
-        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = {
-            let next_thread = sched.threads.get(next).unwrap();
-            next_port_grant = next_thread.port_range_grant;
-            (next_thread.context, &next_thread.fp)
+        let (next_ctx, next_fp) = unsafe {
+            let next_ptr = sched.threads.pointer(next).unwrap();
+            next_port_grant = (*next_ptr).port_range_grant;
+            (
+                (*next_ptr).context,
+                crate::thread::fp_state_of(next_ptr).cast_const(),
+            )
         };
 
         Some((prev_slot, next_ctx, next_root, prev_fp, next_fp))
@@ -4041,10 +4076,14 @@ pub fn mark_current_fp_live() -> bool {
         return false;
     };
     let current = current_thread_id();
-    let Some(thread) = sched.threads.get_mut(current) else {
+    let Some(pointer) = sched.threads.pointer(current) else {
         return false;
     };
-    thread.fp.set_live();
+    // The register file is in the TCB page beside the struct, so this goes through the page pointer
+    // rather than through a `&mut Thread`; see `Threads::pointer`.
+    //
+    // SAFETY: a live thread's TCB page, held under IPC_TABLES.
+    unsafe { (*crate::thread::fp_state_of(pointer)).set_live() };
     true
 }
 

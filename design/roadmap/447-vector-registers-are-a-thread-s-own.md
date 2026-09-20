@@ -52,9 +52,13 @@ before `arch::switch_to`. Four cases:
 all three architectures, and this runs beside it rather than inside it. That was a deliberate
 choice over the tidier-looking one of growing `Context` and letting `switch_to` do the whole job:
 the register file is not a calling convention's callee-saved set, it is 512 bytes that cross a
-*thread* boundary, and putting it in the `Thread` rather than on the kernel stack keeps it typed,
-testable from Rust, and out of three files of delicate hand-computed offsets. The cost of that
-choice is two extra field reads in `schedule`'s locked block, measured below.
+*thread* boundary, and keeping it in Rust keeps it typed, testable, and out of three files of
+delicate hand-computed offsets.
+
+**And it lives in the free space of the thread's own TCB page**, not in the `Thread` struct and not
+on the kernel stack. That was the second shape rather than the first, and the reason is in
+[what the gate caught](#what-the-gate-caught-a-struct-that-gets-copied-through-a-caller-s-frame)
+below.
 
 ## Why eager, and why "lazy" is a warning word here
 
@@ -165,7 +169,7 @@ that moved them**, per `bench/baseline-*.txt`'s own header.
 |---|---|---|---|
 | `yield_switch` | 1101149 → 1129154 (+2.5%) | 184875 → 187625 (+1.5%) | 18903108 → 19228696 (+1.7%) |
 | `ctx_switch` | 2922971 → 2994815 (+2.5%) | 495050 → 502055 (+1.4%) | not measured on this ISA |
-| `ipc_rtt` | 1026311 → 1043171 (+1.6%) | 169382 → 171546 (+1.3%) | 17068218 → 17225887 (+0.9%) |
+| `ipc_rtt` | 1026311 → 1043171 (+1.6%) | 169382 → 171547 (+1.3%) | 17068218 → 17225887 (+0.9%) |
 | `ipc_rtt_el0` | 10755621 → 10907393 (+1.4%) | 1829296 → 1843058 (+0.8%) | not measured on this ISA |
 | `null_syscall` | 405004 → 410004 (+1.2%) | 72200 → 73029 (+1.1%) | not measured on this ISA |
 | `spawn_reap` | 210224 → 215841 (+2.7%) | 33756 → 34356 (+1.8%) | 2779705 → 2832013 (+1.9%) |
@@ -184,18 +188,57 @@ Every figure is inside the 10% tripwire. Read the table as two facts rather than
 `null_syscall`'s +1.2% on aarch64 is the new `ec::FP_SIMD_ACCESS` arm in the exception decoder: a
 quarter of an instruction per syscall, which is one compare amortised over the arms that precede it.
 
-### The memory: 544 bytes per thread, and it still fits in the page it lives on
+### The memory: none, and that is not a rounding of 544 down
 
-`size_of::<Thread>()` is **1696 bytes, up from 1152**. Measured rather than reasoned about, because
-a `Thread` since milestone 124 (a thread is born where it lives: the spawn path's copies) is
-built in place **on its own TCB page**, so the number that matters is not the delta but the ceiling: 1696 of 4096, with the other 2400 still free.
+**The register file costs no memory at all.** A `Thread` is always constructed at the start of a
+whole 4096-byte TCB page it exclusively owns: `Threads::insert_at` and `insert_at_in_place` both
+take `phys_to_virt(page) as *mut Thread`, and every route into the table goes through one of the
+two. `size_of::<Thread>()` is 1152, so **2,944 bytes of that page were already allocated and
+idle**, and the register file (544 on aarch64, 528 on x86_64, 272 on riscv64) goes there.
 
-The 544 is the aarch64 figure (512 bytes of `q` registers, `FPCR`, `FPSR`, the `live` flag and its
-alignment padding). x86_64 is 528 and riscv64 is 272, so aarch64 is the worst case and is the one
-quoted. The boot stack's high-water reading after the change is 77% on aarch64 and riscv64 and 82%
-on x86_64's deepest leg, all reports rather than gates, and all inside the 65,504 bytes the boot
-stack has; `Thread::boot` and `Thread::adopt_current` are the two places a whole `Thread` crosses a
-stack frame by value.
+`thread::fp_state_of` is the accessor and `const _: () = assert!(FP_STATE_OFFSET + size_of::<FpState>() <= PAGE_SIZE)`
+is the whole of the mechanism that keeps the fit true: grow `Thread` past the point where the
+register file no longer fits beside it and the kernel does not build. The one thing the page does
+not do for free is zero itself, so `Threads`' two inserts call `thread::init_fp_state` right after
+the `Thread` is written; a `kmem` page carries whatever its last owner left, and `live` is the first
+thing `hand_over` reads.
+
+**It is reached through the page pointer, never through a `&Thread`.** A reference's provenance
+stops at the end of the struct and this address is past it, so `Threads::pointer` hands back the
+page cast unnarrowed and both the context slot and the register file fall out of that one pointer.
+That is one table probe per side where the first shape's `get_mut` plus a field borrow was one as
+well, so nothing was paid for the move.
+
+### What the gate caught: a struct that gets copied through a caller's frame
+
+**The first shape put `FpState` inline in `Thread`, and `script/stack-frame-check` failed it.** Not
+a flake and not a tuning problem: the gate exists because a frame larger than the 4096-byte guard
+page can move `sp` from inside a stack to below the guard in one step, touching nothing in between,
+so the guard never faults and the write lands in the neighbouring thread's stack.
+
+| | on `main` | inline `FpState` | in the TCB page |
+|---|---|---|---|
+| `spawn_into::<std_service::start_on_full>` | 3552 | 4672 | 3552 |
+| `spawn_into::<fs_service::spawn_fs_server>` | 3536 | 4656 | 3536 |
+| `Thread::spawn::<sched::init>` | 3504 | 5152 | 3504 |
+
+**The delta is 1120 for a 544-byte field, which is the finding.** An unoptimised build materialises
+the `Thread` value and then copies it, so a byte added to the struct costs two bytes of frame, and
+`Thread::spawn` pays it twice more on the way through. Milestone 124 (a thread is born where it
+lives: the spawn path's copies) is the block that already measured this shape, took
+`sched::spawn_on` from 3888-4592 down under the guard by handing the destination pointer down, and
+stopped one hop short of removing the last temporary. 447 spent that remaining headroom in one
+field.
+
+**Building the `Thread` in place, field by field, was priced and refused**; it is the `## Follow-on`
+entry. It would fix the rest of the 3552 as well as this milestone's 1120, and it converts a
+struct literal the compiler checks for completeness into twenty-five raw writes it does not. That
+is the wrong direction on `AGENTS.md`'s ladder, in a lane about floating point, on the spawn path.
+The register file moving one struct outwards into memory that was already there gets the same
+numbers for none of that risk, which is why the table's third column is the first column exactly.
+
+**`EXCEPT` was never a candidate.** The check offers it for a function that provably cannot run on a
+kernel thread stack, and `Thread::spawn` is the opposite of that case.
 
 ### The instruction clock: unchanged, byte for byte
 
@@ -364,6 +407,16 @@ are measurements rather than arguments, and neither needs this decision made fir
   rather than from `arch::init`, because RISC-V's boot hart never calls the latter. The reason is at
   the call site in `kernel/src/sched.rs`, and all three `arch/*/fp.rs` point at it.
 - **Recorded.** The `xsave`/`XCR0` coupling above, in `arch/x86_64/fp.rs`'s `BUGS`.
+- **Refused, and re-priced under the gate.** Building a `Thread` in place, field by field, instead
+  of writing a struct literal through a pointer. It would take `Thread::spawn_into`'s frame well
+  below the 3552 bytes it has carried since milestone 124 (a thread is born where it lives: the
+  spawn path's copies), because an unoptimised build materialises the value and copies it, so every
+  byte of the struct costs two bytes of frame. What it costs is the thing the ladder ranks highest:
+  a struct literal is checked for completeness by the compiler and twenty-five `addr_of_mut!` writes
+  are not, and a forgotten field is uninitialised memory in a TCB with nothing to catch it. 124
+  stopped one hop short of this for the same reason. It is the right next move **if** the frame ever
+  needs more headroom, and it was not needed here: the register file moved out of the struct
+  instead and the numbers went back to 124's exactly.
 - **Refused.** Growing `Context` so that `switch_to` saves the register file with the callee-saved
   set. It looks tidier and keeps `thread.rs`'s line that a thread's whole saved state is one stack
   pointer, and it is worse: an uninitialised region in every thread's kernel stack frame, a new
@@ -388,7 +441,10 @@ preference; it now saves the whole register file across a context switch on all 
 under one rule: the file holds the running thread's data or the initial state, never a stranger's.
 Eager and not lazy, because the trap this uses on x86 is `CR0.TS` and deferring the restore behind
 it is CVE-2018-3665. The expensive half is `#[cold]` and off the IPC fastpath, so a soft-float
-thread pays two loads and a branch: `script/fastpath-footprint` within bound on every ISA, a context
-switch about 1-3% more instructions, `coremark` and `script/icount` unmoved. Proved by two threads
+thread pays two loads and a branch, and the register file costs no memory: it lives in the 2,944
+bytes of a thread's TCB page that were already allocated and idle, which is where
+`script/stack-frame-check` sent it after the inline shape put `Thread::spawn` 1,056 bytes over the
+guard page. `script/fastpath-footprint` within bound on every ISA, a context switch about 1-3% more
+instructions, `coremark` and `script/icount` unmoved. Proved by two threads
 doing vector work on one core, falsified against a kernel with the save removed. The target flip is
 **not** taken: it is an ABI and calef's, and the block ends with what it would take, buy and cost.

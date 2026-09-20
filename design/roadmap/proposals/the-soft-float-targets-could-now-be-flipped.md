@@ -47,13 +47,22 @@ for the unit, which is the whole of 447's cost argument.
   **The correction is worth more than the count.** A lane measures the tree it branched from, and a
   claim of the form "grep finds no other" is a statement about a moment. This one went stale before
   its own pull request merged, which is the hazard every block asserting an absence carries.
+- **But not all seven, and this is the sharpest thing 447 can say about the flip.** 447 saves the
+  `FXSAVE` area: x87, `MXCSR` and `xmm0`-`xmm15`. It does **not** save AVX, and it cannot, because
+  `CR4.OSXSAVE` stays clear and that is precisely what makes every VEX-encoded instruction `#UD`
+  rather than a silent corruption (447's `arch/x86_64/fp.rs` carries this as its first `BUGS`
+  entry). `cryptography_exerciser/.cargo/config.toml` says `chacha20_force_soft` is there for a
+  **run-time** reason where the others are compile-time ones: `chacha20` "compiles fine and then
+  executes an AVX2 instruction in ring 3", and the program "dies with `vector 6 (invalid opcode)`
+  before it prints a byte". Flipping the targets does not change that one byte. **A crate that picks
+  its implementation by asking the CPU rather than by asking the compiler stays a hazard after the
+  flip**, and `chacha20_force_soft` stays with it until this kernel grows an `xsave` path and sets
+  `XCR0`. Anyone pricing the flip should count the flags it retires, not the flags that exist.
 - **AES-NI instead of a bitsliced software backend**, roughly an order of magnitude by upstream
   RustCrypto's own figures. **Still unmeasured, and 164's refusal to measure it still stands**:
   nothing on x86_64 mounts an encrypted RedoxFS volume, so there is no workload and a synthetic
   number would be a fact leaving the machine with nothing behind it. What 447 changed is that the
   number is obtainable rather than blocked.
-- **Possibly the second failure class of milestone 442 (a crypto provider `rustls` can use on all
-  three bare-metal targets)**, and this is the one worth measuring first; see below.
 - **The seam of §31 (the foreign-language seam: C holds no capabilities and makes no syscalls)
   widens.** A C component
   compiled by bare-metal clang currently cannot touch a vector register at all, and §31 says why:

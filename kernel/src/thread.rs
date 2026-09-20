@@ -373,28 +373,12 @@ pub struct Thread {
     /// of register values" means when you write it down.
     ///
     /// **This line used to say "the ENTIRE saved CPU state", and milestone 447 (a thread's vector
-    /// registers are its own) made that false**
-    /// rather than merely incomplete: the field below is the other half, and it is four times the
-    /// size. The sentence is corrected here rather than quietly widened, because a reader who
-    /// believed the old one would go looking for the vector registers on this stack.
+    /// registers are its own) made that false** rather than merely incomplete. The other half is
+    /// the FP/SIMD register file, four times the size, and it is neither in this struct nor on the
+    /// stack this points into: it lives in the free space of this thread's own TCB page. See
+    /// [`fp_state_of`]. The sentence is corrected here rather than quietly widened, because a
+    /// reader who believed the old one would go looking for the vector registers on that stack.
     pub context: *mut Context,
-
-    /// **The floating-point and vector registers, and whether any of them are worth moving**
-    /// (milestone 447, a thread's vector registers are its own).
-    ///
-    /// Not on the stack beside [`Self::context`], and the difference is the point. A `Context` is a
-    /// *calling convention's* callee-saved set, saved because `switch_to` is a function call. This
-    /// is the whole of `q0`-`q31` (or `f0`-`f31`, or the `FXSAVE` area), saved because it crosses a
-    /// *thread* boundary: the kernel is built `softfloat` and executes no FP instruction of its
-    /// own, so every bit in those registers belongs to whichever thread last ran.
-    ///
-    /// Half a kilobyte per thread, and it buys the rule in [`crate::fp`]: the register file holds
-    /// the running thread's data or the initial state, never a stranger's. Untouched on every
-    /// switch in this tree today, because `live` is false on every thread and nothing in a
-    /// soft-float userspace has ever taken the enable trap.
-    ///
-    /// *(Field name provisional: names are calef's.)*
-    pub fp: crate::arch::fp::FpState,
 
     /// `None` for the boot thread, which runs on the stack `boot.s` set up and does not own it.
     ///
@@ -569,6 +553,60 @@ pub struct Thread {
     pub(crate) fault_msg: Option<[u64; 5]>,
 }
 
+/// **Where a thread's FP/SIMD register file lives: the free space of its own TCB page**
+/// (milestone 447, a thread's vector registers are its own).
+///
+/// Byte offset from the start of the page, which is also the address of the [`Thread`]. Rounded up
+/// to `FpState`'s alignment, which is 16 on every architecture because the save instructions
+/// require it (`stp q`, `fxsave`).
+const FP_STATE_OFFSET: usize =
+    size_of::<Thread>().next_multiple_of(align_of::<crate::arch::fp::FpState>());
+
+/// **The page is the bound, and the compiler is what checks it.**
+///
+/// A `Thread` is always constructed at the start of a whole 4096-byte page it exclusively owns:
+/// `Threads::insert_at` and `insert_at_in_place` both take `phys_to_virt(page) as *mut Thread`, and
+/// every route into the table (`insert_with` from `kmem`, `insert_from_page` from a user region's
+/// retyped object page) goes through one of the two. Today that leaves 2,944 bytes of the page
+/// unused, so the register file is free: it is not memory this milestone asked anyone for, it is
+/// memory that was already allocated and idle.
+///
+/// This assertion is the whole of the mechanism that keeps that true. Grow `Thread` past the point
+/// where the register file no longer fits beside it and the kernel does not build.
+const _: () = assert!(
+    FP_STATE_OFFSET + size_of::<crate::arch::fp::FpState>() <= paging::PAGE_SIZE as usize,
+    "a Thread plus its FP register file no longer fits in one TCB page"
+);
+
+/// The address of `thread`'s FP register file.
+///
+/// # Safety
+///
+/// `thread` must be a pointer to a live `Thread` **at the start of its own TCB page**, as the table
+/// stores it. Deriving this from a `&Thread` or `&mut Thread` would be wrong rather than merely
+/// unidiomatic: a reference's provenance covers the struct, and this address is past its end. Take
+/// the raw pointer out of the table (`Threads::pointer`) and pass that.
+pub unsafe fn fp_state_of(thread: *mut Thread) -> *mut crate::arch::fp::FpState {
+    // SAFETY: the caller's contract. The offset is inside the page by the assertion above, and the
+    // result is aligned because `FP_STATE_OFFSET` is a multiple of `FpState`'s alignment and a page
+    // is aligned to far more than that.
+    unsafe { thread.cast::<u8>().add(FP_STATE_OFFSET).cast() }
+}
+
+/// Put a freshly-born thread's register file into its initial state.
+///
+/// Called once, by whichever `Threads` insert wrote the `Thread`, because those are the two places
+/// that hold the page pointer. **A `kmem` page is not zeroed**, so without this a thread's `live`
+/// flag would be whatever the last owner of the page left there, and `crate::fp::hand_over` would
+/// read it on the very first switch.
+///
+/// # Safety
+/// As [`fp_state_of`], and the register file must not already hold anything worth keeping.
+pub unsafe fn init_fp_state(thread: *mut Thread) {
+    // SAFETY: the caller's contract; one aligned write of a `Copy` value inside the page.
+    unsafe { fp_state_of(thread).write(crate::arch::fp::FpState::INITIAL) };
+}
+
 // SAFETY: plain storage of the link, nothing else, which is all the queue's contract asks.
 unsafe impl intrusive_fifo::Node for Thread {
     fn next(&self) -> Option<core::ptr::NonNull<Self>> {
@@ -596,7 +634,6 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
-            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
@@ -632,7 +669,6 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
-            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
@@ -741,7 +777,6 @@ impl Thread {
                 #[cfg(feature = "soak_test")]
                 last_cpu: u8::MAX,
                 context,
-                fp: crate::arch::fp::FpState::new(),
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
                 // and it can name nothing until it is handed something
@@ -792,7 +827,6 @@ impl Thread {
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
-            fp: crate::arch::fp::FpState::new(),
             stack: None,
             space: None,
             capability_table: crate::cap::CapabilityTable::new(),
