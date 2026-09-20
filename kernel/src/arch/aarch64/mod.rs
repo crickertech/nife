@@ -234,10 +234,6 @@ pub fn print_bring_up_mechanism() {
 /// job is to *print*.
 pub fn init() {
     exceptions::init();
-    // FP and SIMD trapped, at both exception levels, before anything can execute one. Per-core:
-    // `CPACR_EL1` is banked, and a secondary reaches this through `smp::secondary_main`. See fp.rs
-    // for why this is written rather than left at a reset value QEMU happens to make right.
-    fp::init();
 }
 
 /// Park this core forever.

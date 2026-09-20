@@ -1159,6 +1159,21 @@ pub fn canary_disarm() {
 /// that in**, which is why the boot thread needs no special case: a thread's context is written
 /// by the act of leaving it.
 pub fn init() {
+    // **The floating-point unit is shut on this core before any thread exists** (milestone 447).
+    //
+    // Here rather than in `arch::init`, and the reason is a real trap rather than taste. What the
+    // invariant is *about* is threads: `crate::fp` marks a thread `live` when it takes the first-use
+    // trap, and a core that started with the unit already open never produces one, so every thread
+    // on it stays `live == false` and two of them quietly share a register file. This is the
+    // function where threads begin to exist, so the property and the mechanism are in the same
+    // place. `arch::init` looked like the obvious home and is not one: **RISC-V's boot hart never
+    // calls it.** `main`'s RISC-V tour installs `stvec` with `arch::exceptions::init()` directly,
+    // reaches `sched::init` and never passes through `arch::init` at all, and OpenSBI hands the
+    // kernel a hart with `sstatus.FS` already set. That cost this milestone a red suite and is
+    // exactly the shape of failure AGENTS.md's ladder is about: it worked on two architectures and
+    // was invisible on the third.
+    crate::arch::fp::init();
+
     let mut sched = IPC_TABLES.lock();
 
     // **Install the empty tables FIRST, then name the boot thread through them**, rather than
@@ -1230,6 +1245,9 @@ pub fn init() {
 ///
 /// Interrupts must be masked (the caller has not enabled them yet), which is what `with_runq` needs.
 pub fn adopt_secondary_idle() {
+    // This core's turn at the line in `init` above: it is about to own threads.
+    crate::arch::fp::init();
+
     let idle = Thread::adopt_current();
 
     let id = {

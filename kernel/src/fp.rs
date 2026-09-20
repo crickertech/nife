@@ -133,11 +133,20 @@ pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
 /// writes its field, and the lock is safe here for the reason it is safe in `syscall::dispatch`:
 /// this is a trap from a thread that was running, so this core cannot already hold it.
 pub fn enable_for_current() -> bool {
-    if !crate::sched::mark_current_fp_live() {
+    crate::arch::fp::enable();
+    if !crate::arch::fp::is_enabled() {
+        // **The machine has no unit to open.** RISC-V hardwires `sstatus.FS` to zero on a hart
+        // without the F/D extensions, so the enable above is a legal no-op and retrying the
+        // instruction would trap forever. Asked after the write rather than before it because that
+        // is the only way any of the three architectures answers the question. The other two cannot
+        // reach this: aarch64 and x86_64 both have FP in their base.
         return false;
     }
-    crate::arch::fp::enable();
-    // SAFETY: `INITIAL` is a `'static` const and FP is enabled on the line above.
+    if !crate::sched::mark_current_fp_live() {
+        crate::arch::fp::disable();
+        return false;
+    }
+    // SAFETY: `INITIAL` is a `'static` const and FP is enabled by the lines above.
     unsafe { crate::arch::fp::restore(&FpState::INITIAL) };
     ENABLES.fetch_add(1, Ordering::Relaxed);
     true
@@ -285,6 +294,56 @@ mod tests {
         );
     }
 
+    /// **The first floating-point instruction a thread executes takes a trap, and the trap opens
+    /// the unit.**
+    ///
+    /// The mechanism everything else here rests on, asserted directly rather than inferred from a
+    /// concurrency result. Each architecture reports this differently (`CPACR_EL1.FPEN` as its own
+    /// exception class, `CR0.TS` as `#NM`, `sstatus.FS == Off` as an ordinary illegal instruction),
+    /// and a kernel where one of the three silently did not trap would leave `live` false on every
+    /// thread and hand two threads the same register file with nothing else to say so.
+    ///
+    /// In a **fresh** thread, because the harness's own thread may already be `live` from an
+    /// earlier test and the claim is about the first instruction.
+    #[test_case]
+    fn the_first_floating_point_instruction_takes_a_trap() {
+        /// 0 = unfinished, 1 = the trap opened the unit, 2 = the unit was open before the
+        /// instruction ran, 3 = the instruction ran and the unit is still shut.
+        static VERDICT: AtomicUsize = AtomicUsize::new(0);
+        VERDICT.store(0, Ordering::Relaxed);
+
+        crate::sched::spawn_on(crate::cpu::id(), || {
+            if crate::arch::fp::is_enabled() {
+                VERDICT.store(2, Ordering::Release);
+                return;
+            }
+            crate::arch::fp::touch();
+            VERDICT.store(
+                if crate::arch::fp::is_enabled() { 1 } else { 3 },
+                Ordering::Release,
+            );
+        })
+        .expect("could not spawn a thread to take the first-use trap");
+
+        let deadline = crate::arch::timer::now() + 2 * crate::arch::timer::frequency();
+        while crate::arch::timer::now() < deadline && VERDICT.load(Ordering::Acquire) == 0 {
+            crate::sched::yield_now();
+        }
+
+        match VERDICT.load(Ordering::Acquire) {
+            1 => {}
+            0 => panic!("the thread taking the first-use trap never finished"),
+            2 => panic!(
+                "a brand-new thread started with the floating-point unit already open, so the \
+                 first-use trap can never fire and no thread will ever be marked live",
+            ),
+            _ => panic!(
+                "a floating-point instruction executed without opening the unit: this machine \
+                 does not trap on the control register this kernel relies on",
+            ),
+        }
+    }
+
     /// **The arm a concurrency test cannot see**: handing the registers to a thread that has none
     /// leaves nothing of the previous thread's behind.
     ///
@@ -342,7 +401,7 @@ mod tests {
             unsafe { hand_over(&mut idle, &written) };
 
             let read_back = peek_registers();
-            for index in 0..32 {
+            for index in 0..crate::arch::fp::REGISTERS {
                 assert_eq!(
                     read_back.lane_low(index),
                     register_pattern(SEED, index),

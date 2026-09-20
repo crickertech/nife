@@ -31,6 +31,14 @@
 
 use core::arch::asm;
 
+/// **How many vector registers this architecture saves**: `q0`-`q31`.
+///
+/// Read by the tests in [`crate::fp`], which name the register that failed rather than reporting
+/// that one did, and which therefore cannot hard-code a count that is 32 here, 32 on RISC-V and 16
+/// on x86_64.
+#[cfg(test)]
+pub const REGISTERS: usize = 32;
+
 /// **The whole of a thread's FP/SIMD register file**, plus the flag that says whether any of it is
 /// worth moving.
 ///
@@ -103,10 +111,10 @@ const FPEN: u64 = 0b11 << 20;
 /// **Put this core into the state the rest of this module assumes**: FP and SIMD trapped, for EL1
 /// as well as EL0.
 ///
-/// Called from `arch::init`, which every core runs (the boot core from `main`, a secondary from
-/// `smp::secondary_main`), so this is per-core and not once per machine. `CPACR_EL1` is a banked
-/// per-core register; a secondary that skipped this would run its threads with whatever its reset
-/// left behind.
+/// Called from `sched::init` and `sched::adopt_secondary_idle`, per core rather than once per
+/// machine: `CPACR_EL1` is banked, and a secondary that skipped this would run its threads with
+/// whatever its reset left behind. The reason it is there rather than in `arch::init` is at the
+/// call site, and it is RISC-V's boot path rather than this one's.
 ///
 /// **Written rather than assumed, and that is the point.** QEMU resets `CPACR_EL1` to zero, which
 /// is already the value this wants, so on the emulator this line changes nothing and could be
@@ -143,11 +151,12 @@ pub fn enable() {
 
 /// Is the FP unit open on this core right now?
 ///
-/// Exists for the test helpers in [`crate::fp`], which borrow the register file and have to put the
-/// core back the way they found it. Nothing on the switch path asks: there the answer is `live`,
-/// which is a fact about a thread rather than about a core, and reading `CPACR_EL1` to learn it
-/// would be a system-register read per switch for something already in memory.
-#[cfg(test)]
+/// Read by `crate::fp::enable_for_current`, which asks whether the enable it just wrote took (it
+/// does not on a RISC-V hart with no FP unit, and the question is asked uniformly), and by the test
+/// helpers in [`crate::fp`], which borrow the register file and have to put the core back the way
+/// they found it. **Nothing on the switch path asks**: there the answer is `live`, which is a fact
+/// about a thread rather than about a core, and reading `CPACR_EL1` to learn it would be a
+/// system-register read per switch for something already in memory.
 pub fn is_enabled() -> bool {
     let cpacr: u64;
     // SAFETY: reads one control register into a local.
