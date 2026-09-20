@@ -9,9 +9,9 @@ calef's ruling rather than a lane's, which is what makes this a proposal.
 ## Why this is a proposal and not a change
 
 Every target in `targets/` is soft-float. Until 2026-09-20 that was **a correctness requirement**,
-in the words of milestone 184 (extend the `std` port to x86_64), because `kernel/src/arch/x86_64/` saved no FPU or SSE state on a
-context switch and neither did the other two architectures. Milestone 447 built the save, on all
-three, so the feature strings are now a **choice**.
+in the words of milestone 184 (extend the `std` port to x86_64), because `kernel/src/arch/x86_64/`
+saved no FPU or SSE state on a context switch and neither did the other two architectures.
+Milestone 447 built the save, on all three, so the feature strings are now a **choice**.
 
 Taking that choice is not a lane's. Turning `+soft-float` off changes the calling convention for
 every userspace binary and every `std` crate built against it, which is an ABI two programs agree

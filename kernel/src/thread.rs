@@ -366,15 +366,21 @@ pub struct Thread {
     #[cfg(feature = "soak_test")]
     pub last_cpu: u8,
 
-    /// **The entire saved CPU state of this thread**: one stack pointer.
+    /// **The saved general-purpose state of this thread**: one stack pointer.
     ///
-    /// Everything else lives on the stack it points at, pushed there by `switch_to`. Eight
-    /// bytes. That is what "a thread is a stack plus a set of register values" means when you
-    /// write it down.
+    /// Everything the calling convention promises a callee preserves lives on the stack it points
+    /// at, pushed there by `switch_to`. Eight bytes. That is what "a thread is a stack plus a set
+    /// of register values" means when you write it down.
+    ///
+    /// **This line used to say "the ENTIRE saved CPU state", and milestone 447 (a thread's vector
+    /// registers are its own) made that false**
+    /// rather than merely incomplete: the field below is the other half, and it is four times the
+    /// size. The sentence is corrected here rather than quietly widened, because a reader who
+    /// believed the old one would go looking for the vector registers on this stack.
     pub context: *mut Context,
 
     /// **The floating-point and vector registers, and whether any of them are worth moving**
-    /// See milestone 447 (a thread's vector registers are its own).
+    /// (milestone 447, a thread's vector registers are its own).
     ///
     /// Not on the stack beside [`Self::context`], and the difference is the point. A `Context` is a
     /// *calling convention's* callee-saved set, saved because `switch_to` is a function call. This

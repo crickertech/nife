@@ -14,22 +14,22 @@ a gap: a decision, recorded three times and enforced by construction.
   `"features": "-mmx,-sse,-sse2,...,-avx,-avx2,+soft-float"` and `"rustc-abi": "softfloat"`; the
   other two are the `-softfloat`/`-neon` equivalents.
 - Milestone 184 (extend the `std` port to x86_64), in [its own block](184-std-x86-64.md), calls
-  that feature string
-  **"a correctness requirement"** in its own target table, with the reason beside it:
-  "`kernel/src/arch/x86_64/` saves no FPU or SSE state on a context switch."
+  that feature string **"a correctness requirement"** in its target table, with the reason beside
+  it: "`kernel/src/arch/x86_64/` saves no FPU or SSE state on a context switch."
 - §31 (the foreign-language seam: C holds no capabilities and makes no syscalls), in
-  [its own section](../decisions/31-foreign-language-seam.md), says the
-  same about the C boundary: "the kernel never enables FP/SIMD for EL0, and the context switch"
-  saves nothing, so a vector register in a confined component would be a trap or a corruption
-  depending on which of those two bit first.
+  [its own section](../decisions/31-foreign-language-seam.md), says the same about the C boundary:
+  "the kernel never enables FP/SIMD for EL0, and the context switch" saves nothing, so a vector
+  register in a confined component would be a trap or a corruption depending on which of those two
+  bit first.
 - 164's own refusal priced exactly this milestone and declined to build it: an SSE-enabled x86
   userspace "would mean an `FXSAVE` area per thread and save/restore in the context-switch path,
   and none of that is needed to compile `aes`." That was the right call then. It is what calef
   reopened.
 
 **So the interesting thing here is not that a kernel can save registers.** It is that a kernel
-built for four hundred milestones on the assumption that it never had to now does, and that the
-cost of carrying the mechanism for the threads that do not use it is close to nothing.
+built this far on the assumption that it never had to now does, without the switch getting slower
+for the threads that do not use it, and that the three ISAs' mechanisms are different enough to be
+worth writing down.
 
 ## The rule, which is one sentence
 
@@ -184,6 +184,19 @@ Every figure is inside the 10% tripwire. Read the table as two facts rather than
 `null_syscall`'s +1.2% on aarch64 is the new `ec::FP_SIMD_ACCESS` arm in the exception decoder: a
 quarter of an instruction per syscall, which is one compare amortised over the arms that precede it.
 
+### The memory: 544 bytes per thread, and it still fits in the page it lives on
+
+`size_of::<Thread>()` is **1696 bytes, up from 1152**. Measured rather than reasoned about, because
+a `Thread` since milestone 124 (a thread is born where it lives: the spawn path's copies) is
+built in place **on its own TCB page**, so the number that matters is not the delta but the ceiling: 1696 of 4096, with the other 2400 still free.
+
+The 544 is the aarch64 figure (512 bytes of `q` registers, `FPCR`, `FPSR`, the `live` flag and its
+alignment padding). x86_64 is 528 and riscv64 is 272, so aarch64 is the worst case and is the one
+quoted. The boot stack's high-water reading after the change is 77% on aarch64 and riscv64 and 82%
+on x86_64's deepest leg, all reports rather than gates, and all inside the 65,504 bytes the boot
+stack has; `Thread::boot` and `Thread::adopt_current` are the two places a whole `Thread` crosses a
+stack frame by value.
+
 ### The instruction clock: unchanged, byte for byte
 
 `script/icount` boots under `-icount shift=0,sleep=off` and asserts the timer handler's instruction
@@ -197,11 +210,12 @@ count. Measured at this branch's base commit (`01d1cbf3`) and at its tip:
 | riscv64 `handler_instructions` | mean 800 max 900 | identical |
 | missed ticks, early arrivals | 0, 0 | 0, 0 |
 
-Not a surprise, and worth recording as the control it is: the timer handler does not switch threads
-(§9 (locking: `IrqSafeMutex`, plus a discipline) has the rule in a table row, "interrupt handlers
-record and defer; they do not do work", so the switch happens a frame out, on the interrupted
-thread's stack), so nothing this milestone added is inside the window that gate measures. A number that
-*had* moved would have meant something was on a path it had no business being on.
+Not a surprise, and worth recording as the control it is. The timer handler does not switch
+threads: §9 (locking: `IrqSafeMutex`, plus a discipline) puts the rule in a table row, "interrupt
+handlers record and defer; they do not do work", so the switch happens a frame out, on the
+interrupted thread's stack. Nothing this milestone added is inside the window that gate measures,
+and a number that *had* moved would have meant something was on a path it had no business being
+on.
 
 ## The proof, and it fails against a kernel without this
 
@@ -211,10 +225,10 @@ Five `#[test_case]`s in `kernel/src/fp.rs`, running on all three architectures.
   fill the whole register file with distinct patterns, yield two hundred times each, and check their
   own values after every turn. They are placed with `spawn_on(cpu::id(), ..)` and **not** with
   `spawn`, because §28 (SMP placement: two random choices at spawn) and its "spawn placement: the
-  power of two choices" would put them on two cores with two register files, where the test would pass without
-  the kernel doing anything at all. On one core they interleave over one file, with this thread
-  (which never touches FP) between them, so the scrub-and-disable arm runs between every pair of
-  turns as well.
+  power of two choices" would put them on two cores with two register files, where the test would
+  pass without the kernel doing anything at all. On one core they interleave over one file, with
+  this thread (which never touches FP) between them, so the scrub-and-disable arm runs between
+  every pair of turns as well.
 
   **Falsified on purpose**: with `save` removed from `hand_over` and nothing else changed, it fails
   with "a thread found another thread's values in its own vector registers". Run on aarch64 before
@@ -229,9 +243,9 @@ Five `#[test_case]`s in `kernel/src/fp.rs`, running on all three architectures.
   are preempted at matching offsets; the per-register pattern fails here.
 - **`the_first_floating_point_instruction_takes_a_trap`** is above: it is why the RISC-V bug was
   found rather than shipped.
-- **`two_threads_that_never_used_the_unit_leave_it_shut`** asserts the case every switch in this tree
-  actually takes. If it stopped being true the cost would be a kilobyte of memory traffic per switch
-  and the only symptom would be a slower benchmark.
+- **`two_threads_that_never_used_the_unit_leave_it_shut`** asserts the case every switch in this
+  tree actually takes. If it stopped being true the cost would be a kilobyte of memory traffic per
+  switch and the only symptom would be a slower benchmark.
 
 **The tests are kernel threads, not user programs, and that is forced rather than chosen.** Every
 target in `targets/` is soft-float, so no userspace binary in this tree can execute an FP
@@ -311,10 +325,10 @@ are measurements rather than arguments, and neither needs this decision made fir
   `kernel/src/fp.rs` and in `arch/riscv64/fp.rs`, which has the four-state table it declines to use.
 - **x86_64 uses `fxsave`, not `xsave`.** A thread using **AVX** would have `ymm` upper halves this
   does not move. Safe only because `CR4.OSXSAVE` is clear, so every VEX-encoded instruction raises
-  `#UD` and no thread can get into that state. **The day this kernel sets `XCR0`, `arch/x86_64/fp.rs`
-  has to grow an `xsave` path with it, and nothing enforces that coupling**; it is stated in that
-  file's `BUGS` where the next reader meets it. `xsave`'s init optimisation (skipping components in
-  their initial configuration) is left on the table with it.
+  `#UD` and no thread can get into that state. **The day this kernel sets `XCR0`,
+  `arch/x86_64/fp.rs` has to grow an `xsave` path with it, and nothing enforces that coupling**; it
+  is stated in that file's `BUGS` where the next reader meets it. `xsave`'s init optimisation
+  (skipping components in their initial configuration) is left on the table with it.
 - **aarch64 does not disable SVE or SME.** `CPACR_EL1.ZEN` and `SMEN` are left at their reset
   values, which on every machine this kernel has run on means trapped. A part that reset them open
   would let a thread keep vector state this file does not move. Nothing in this tree emits SVE and
@@ -344,8 +358,8 @@ are measurements rather than arguments, and neither needs this decision made fir
 - **Proposed.** First on that same file's list, in
   `design/roadmap/proposals/the-soft-float-targets-could-now-be-flipped.md`: re-measure milestone
   442's soft-float x86_64 failures against nife's own target specifications on the pinned nightly,
-  which 442's block already says it owes in its own first item. It is a prerequisite for pricing the flip rather than
-  a consequence of it, and it is cheap.
+  which 442's block already says it owes in its own first item. It is a prerequisite for pricing
+  the flip rather than a consequence of it, and it is cheap.
 - **Recorded.** `arch::fp::init` is called from `sched::init` and `sched::adopt_secondary_idle`
   rather than from `arch::init`, because RISC-V's boot hart never calls the latter. The reason is at
   the call site in `kernel/src/sched.rs`, and all three `arch/*/fp.rs` point at it.

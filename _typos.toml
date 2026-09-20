@@ -53,7 +53,8 @@ rela = "rela"
 Rela = "Rela"
 RELA = "RELA"
 # The aarch64 Scalable Matrix Extension, named beside SVE in `CPACR_EL1`'s `SMEN` field, which
-# milestone 447's FP module records as vector state it deliberately does not save. Two letters of a
+# the FP module of milestone 447 (a thread's vector registers are its own) records as vector
+# state it deliberately does not save. Two letters of a
 # real extension name; the checker offers "SOME" and "SAME".
 SME = "SME"
 # The aarch64 page-descriptor field, spelled `AttrIndx` in the ARM ARM.

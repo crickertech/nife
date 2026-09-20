@@ -102,10 +102,10 @@ pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
 
 /// The half of [`hand_over`] that touches registers, out of line and **`#[cold]`**.
 ///
-/// `#[cold]` is a claim about this tree, not a hint about taste, and it is true in the strongest
-/// possible way: every userspace target in `targets/` is soft-float and the kernel is built
-/// `softfloat`, so **no thread has ever reached this function**. `crate::fp::ENABLES` is the number
-/// that says so and it is zero on every shipping boot.
+/// `#[cold]` is a claim about this tree, not a hint about taste, and it is checkable: every
+/// userspace target in `targets/` is soft-float and the kernel is built `softfloat`, so **the only
+/// threads that reach this function are the ones this module's own tests spawn**.
+/// [`ENABLES`] counts them, and it is zero on every boot that is not a test.
 ///
 /// It is also what keeps `script/fastpath-footprint` honest rather than merely green. That gate
 /// measures the transitive closure of **non-cold** calls from the IPC roots, because Liedtke's
