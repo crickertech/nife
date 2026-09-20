@@ -29,6 +29,7 @@ mod archive;
 mod bench;
 mod board;
 mod boot_check;
+mod card_check;
 mod disk;
 mod disk_check;
 mod farm;
@@ -215,14 +216,22 @@ fn main() -> ExitCode {
         // its prompt. `script/board-image` calls this; it is a separate verb so the script it
         // produces can be rebuilt and read on its own.
         "board-script" => board_script(),
+        // **milestone 223 (read a card and say whether its kernel and archive match).**
+        // Returns its own exit code rather than a bool, because "this pair
+        // would be refused" and "there is nothing here to check" want different reactions from
+        // whoever ran it, and a bench script wants to tell them apart.
+        "card-check" => return card_check::card_check(std::env::args().nth(2)),
         other => {
             if !other.is_empty() {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
+            eprintln!(
+                "       cargo xtask card-check [<mounted card>|<stick dir>|<boot file>]   (default: target/board)"
+            );
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");
             eprintln!(
                 "       cargo xtask undefined-behavior-check [extra cargo-miri-test args, e.g. -p <crate>]"
