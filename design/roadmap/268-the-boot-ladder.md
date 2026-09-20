@@ -1,12 +1,14 @@
 # 268. Every architecture boots the same way: describe the machine, test yourself, hand over
 
-**Status: PARTIAL.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
-review that followed it. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT.** 2026-09-19. Minted 2026-09-09 by calef, from the parity review that followed
+milestone 267 (the tour is three things wearing one name) and its measurement. *(Number
+provisional until the merge queue lands it.)* Every rung below the last one landed 2026-09-14; the
+top rung's own gate landed 2026-09-19, once x86_64 could reach a prompt. See "Third pass".
 
-**Gate: NONE.** *(2026-09-19, milestone 182's lane, edited because `script/roadmap` refuses a gate
-on a BUILT milestone: DECISIONS §149 was resolved 2026-09-15, milestone 299 put a prompt on x86_64,
-and milestone 182 is BUILT with a `shell-check` leg typing at it. The rest of this paragraph is the
-record of what the gate was.)* The ladder itself is decided (calef, 2026-09-09, in
+**What the gate was, kept as the record.** *(The `**Gate:**` line itself is gone, because
+`script/roadmap` refuses one on a BUILT milestone and would be right: nothing gates work that is
+finished. It read `NONE` from 2026-09-19, when milestone 182's lane cleared it.)* The ladder itself
+is decided (calef, 2026-09-09, in
 conversation) and nothing in it is a design fork. What is gated is only its **last rung on
 x86_64**: that architecture cannot reach a prompt until DECISIONS §149 says how `swish` gets a
 console there. Milestone 182's entry point, the other half of this gate, was built on 2026-09-14
@@ -140,13 +142,16 @@ prints, and not a marker that exists on one architecture, which is the defect be
 - **Milestone 269.** `machine` as a program that can be run from the prompt.
 - **Recorded.** The `attach_screen` asymmetry is named in BUGS above rather than left for a lane to
   rediscover, because the wrong move is the obvious one.
-- **Outstanding.** The ladder's **top rung on `x86_64`**. Since 2026-09-14 a default boot there
-  hands the machine to the progenitor (milestone 182's entry point) and no longer halts, but it
-  reaches no prompt: the progenitor's console server cannot reach COM1 from ring 3, and how a shell
-  gets a console there is DECISIONS §149. The boot's last two lines say exactly that. Checked the
-  same day by booting it; see "Second pass" below.
-- **Outstanding.** `script/boot-check` asserting the prompt, on all three architectures at once when
-  §149 lets `x86_64` reach one. See `BUGS (as built)` for why not on two of three now.
+- **Done.** 2026-09-19, and by other lanes rather than this one: the ladder's **top rung on
+  `x86_64`**.
+  DECISIONS §149 (may the kernel answer on an endpoint) was resolved 2026-09-15 by reversing
+  DECISIONS §121 (x86 port I/O): x86's console is a userspace driver holding a port-range
+  capability. Milestone 299 (the x86 port-range capability) built that capability and the prompt
+  with it, and milestone 182 (x86_64's own interactive-boot entry point) added the third
+  `script/shell-check` leg that types 60 of 64 script lines at it. The paragraph above recorded what was true on
+  2026-09-14 and is kept as that record.
+- **Done.** 2026-09-19. `script/boot-check` asserting the prompt, on all three architectures at
+  once. See "Third pass" below; `BUGS (as built)`'s entry is marked closed rather than deleted.
 - **Done.** By milestone 295 (design/roadmap/295-retire-the-builder-program.md), which is the
   proposal file below promoted in place: calef answered the one-sentence question it was written to
   ask with *"Retire builder"*, option (b), and the removal landed on 2026-09-14. The paragraph that
@@ -427,6 +432,81 @@ The injected verdict reads `3 of 5 passed, 2 FAILED: exceptions timer` rather th
 1 FAILED: exceptions` in "What was built" above, because the injector injects two faults now; that
 transcript is kept as the record of the first pass.
 
+## Third pass (2026-09-19): the top rung, gated
+
+The last outstanding item. `script/boot-check` asserts the `swish` prompt on all three
+architectures, which is the rung this milestone named as the terminal state of a default boot and
+the one thing its own gate could not read.
+
+### What changed, and it is small
+
+Each leg packs its architecture's archive before building the kernel, hands the runner
+`NIFE_INITRD`, and watches to `Stage::Prompt` instead of `Stage::SelfTest`. The packer has to run
+first rather than beside: it writes the measurement manifest `kernel/build.rs` reads, and a kernel
+built against a stale one refuses to load the progenitor and reaches no prompt at all.
+
+```
+$ script/boot-check
+boot-check (aarch64): reached shell prompt (3867 bytes in 2.9s)
+boot-check (aarch64): nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz
+boot-check (aarch64): nife self-test: 5 of 5 passed
+boot-check (riscv64): reached shell prompt (7732 bytes in 2.8s)
+boot-check (riscv64): nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz
+boot-check (riscv64): nife self-test: 5 of 5 passed
+boot-check (x86_64): reached shell prompt (7332 bytes in 2.7s)
+boot-check (x86_64): nife machine: x86_64, 1 processor(s), 254 MiB, 100 Hz
+boot-check (x86_64): nife self-test: 5 of 5 passed
+boot-check: every architecture climbed the ladder to a shell prompt, and the self-test verdict on
+the way was green
+$ echo $?
+0
+```
+
+`--inject` still comes back RED on all three, and it stops at the red verdict rather than reaching
+a prompt, so its summary line says that instead of claiming a rung it did not climb.
+
+### The cost, measured before it was chosen
+
+The brief was to price this rather than make a pre-push gate slow by accident. Patagonia, warm
+target directory, 2026-09-19:
+
+| | verdict only | prompt |
+|---|---|---|
+| aarch64, boot | 2.8 s | 2.9 s |
+| riscv64, boot | 2.6 s | 2.8 s |
+| `x86_64`, boot | 2.9 s | 2.7 s |
+| whole gate, wall | 19.4 s | 25.6 s |
+
+**The boot costs nothing and the archive costs six seconds.** The prompt follows the verdict within
+a few hundred milliseconds on every architecture, because the progenitor loads and measures its
+programs while the emulator is already running; the whole difference is packing three archives, and
+two of the three packers are a no-op against a tree `script/test` has already built.
+
+**And it is the PVH `-kernel` boot on `x86_64`, not the UEFI image**, which is the choice worth
+recording because the number that prompted the question points the other way. Milestone 182's
+`script/shell-check` leg boots `BOOTX64.EFI` under OVMF and measures **about six minutes**, because
+under firmware the console server waits for every byte to be painted on the screen. That is
+milestone 400 (the shell on the firmware's screen). Six minutes on a gate a person runs
+before every push is not a cost to absorb quietly, and the fidelity it buys (the loader, the
+firmware memory map, OVMF's BAR placement, the screen tee) is fidelity for *typing*, which this
+gate does not do. The prompt arrives on COM1 either way. So the two gates boot different images on
+purpose, the slow one is the one that types, and this took 2.7 seconds.
+
+Would the PVH image still win if both cost the same? No, and saying so is the point: at equal cost
+the customer's image is the better thing to boot. This is a decision made on cost, and it is
+written down as one.
+
+### Two things found on the way
+
+- **`host::cargo` sets `NIFE_DISK` and `NIFE_NET` in xtask's own environment**, for every cargo
+  invocation it makes, and the archive packers go through it. The aarch64 and `x86_64` runners treat
+  a set-but-missing `NIFE_DISK` as fatal and the riscv64 one ignores it, so the gate went red on two
+  of three legs the first time it packed an archive, with a runner error and a zero-byte transcript.
+  The leg now sets the child's environment explicitly instead of inheriting it, which also means an
+  exported `NIFE_DISK` in a developer's shell cannot change what the gate boots.
+- **`Stage::Prompt`'s own documentation still said the rung was unreachable on `x86_64`.** Fixed
+  where a reader meets it, in `crates/board_console/src/progress.rs`.
+
 ## BUGS (as built)
 
 - **The machine description is printed twice-over on riscv64 and `x86_64`.** Both arms print their
@@ -445,13 +525,29 @@ transcript is kept as the record of the first pass.
   check whose *operation* never returns (a `yield_now` or a `map_page` that wedges), which needs a
   watchdog this module does not own; `kernel/src/self_test.rs`'s `BUGS` says so. `arch::timer::spin_for`
   keeps the stopped-counter exposure the self-test used to share.
-- **`script/boot-check` does not check the prompt**, still, and now for one reason rather than two.
-  `x86_64` no longer halts, but it reaches no prompt until DECISIONS §149, so the rung still cannot be
-  asserted on all three. Asserting it on aarch64 and riscv64 alone was considered and not done: it
-  would need the archive that `boot-check` deliberately boots without, which makes it a second
-  `script/shell-check`, which already reaches a prompt on those two; and it would ship the two of
-  three shape this milestone exists to remove. The plan is the Follow-on's second `Outstanding.`
-  line: one change that adds `--until prompt` with an archive on all three once §149 is decided.
+- **Closed 2026-09-19: "`script/boot-check` does not check the prompt."** See "Third pass". The
+  plan this entry wrote down is what was built, near enough to be worth saying: an archive on all
+  three and the watch run to `Stage::Prompt`, in one change, once §149 was decided. What it got
+  wrong is that it expected the archive to make this a second `script/shell-check`. It does not:
+  that gate types and this one reads, so this one needs no disk and no typing bound, and the two
+  boot different `x86_64` images on purpose.
+- **One emulator was found orphaned after about fifteen `x86_64` boots** on 2026-09-19, reparented
+  to `launchd` and still running half an hour later. The leg kills the runner's children before the
+  runner, which is what should prevent it, and it works on every run anybody has watched, so the
+  mechanism is unknown and is not guessed at. It is recorded at the kill site in
+  `xtask/src/boot_check.rs`; the standing answer is AGENTS.md's, which is to check `pgrep -l qemu`
+  after a session and walk `ps -o pid,ppid` up before killing anything.
+- **The prompt rung is the shell's banner, not the `$ `**, so what `boot-check` now asserts is that
+  `swish` started and printed, not that a prompt was offered or that anything could be typed at it.
+  `crates/boot_ladder`'s own BUGS has the reason (two bytes is too weak to key on in a log that has
+  just carried a kilobyte of hex) and it is the recogniser's limitation rather than the gate's.
+  `script/shell-check` makes the stronger claim by typing, on all three architectures since
+  2026-09-19, and this gate deliberately does not duplicate it.
+- **A riscv64 boot that wedges between its tour and its prompt takes the full 180-second cap to
+  report.** `watch::Policy::quiet_after` is suppressed from `Stage::Tour` up, and riscv64 is the one
+  architecture that prints its tour *below* the prompt. The suppression is right for its own reason,
+  which is that a default aarch64 or `x86_64` boot halting after the tour is a good boot rather than
+  a quiet one; the cost lands on this gate's slowest failure case.
 - **The injected leg is not in CI.** `script/boot-check --inject` rebuilds three kernels for one
   boolean, and what it proves is a property of the gate rather than of the change under test. It is
   run by hand when the self-test or the recogniser changes; the transcript above is from the run
@@ -472,6 +568,10 @@ transcript is kept as the record of the first pass.
 
 ## Index row
 
+**Built:** 2026-09-19
+
 calef, 2026-09-09. Parity is the demonstrator's claim (§19) and three boot arms had quietly
 diverged: `machine.rs` on one architecture, `self_test` on two, a `Stage::Tour` marker reachable
-on one.
+on one. Every architecture now describes its machine, runs the same five self-tests behind one
+verdict line, and hands over to a `swish` prompt rather than halting; `script/boot-check` reads the
+whole ladder with the same recogniser a bench run uses, and `--inject` proves it can come back red.
