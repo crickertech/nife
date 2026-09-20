@@ -203,12 +203,17 @@ take `phys_to_virt(page) as *mut Thread`, and every route into the table goes th
 two. `size_of::<Thread>()` is 1152, so **2,944 bytes of that page were already allocated and
 idle**, and the register file (544 on aarch64, 528 on x86_64, 272 on riscv64) goes there.
 
-`thread::fp_state_of` is the accessor and `const _: () = assert!(FP_STATE_OFFSET + size_of::<FpState>() <= PAGE_SIZE)`
-is the whole of the mechanism that keeps the fit true: grow `Thread` past the point where the
-register file no longer fits beside it and the kernel does not build. The one thing the page does
-not do for free is zero itself, so `Threads`' two inserts call `thread::init_fp_state` right after
-the `Thread` is written; a `kmem` page carries whatever its last owner left, and `live` is the first
-thing `hand_over` reads.
+`thread::fp_state_of` is the accessor, and one line is the whole of the mechanism that keeps the
+fit true:
+
+```rust
+const _: () = assert!(FP_STATE_OFFSET + size_of::<FpState>() <= PAGE_SIZE);
+```
+
+Grow `Thread` past the point where the register file no longer fits beside it and the kernel does
+not build. The one thing the page does not do for free is zero itself, so `Threads`' two inserts
+call `thread::init_fp_state` right after the `Thread` is written: a `kmem` page carries whatever its
+last owner left, and `live` is the first thing `hand_over` reads.
 
 **It is reached through the page pointer, never through a `&Thread`.** A reference's provenance
 stops at the end of the struct and this address is past it, so `Threads::pointer` hands back the
@@ -416,15 +421,15 @@ are measurements rather than arguments, and neither needs this decision made fir
 - **Recorded.** The `xsave`/`XCR0` coupling above, in `arch/x86_64/fp.rs`'s `BUGS`.
 - **Refused.** Building a `Thread` in place, field by field, instead of writing a struct literal
   through a pointer. Priced under the gate rather than in the abstract, because
-  `script/stack-frame-check` is what raised the question. It would take `Thread::spawn_into`'s frame well
-  below the 3552 bytes it has carried since milestone 124 (a thread is born where it lives: the
-  spawn path's copies), because an unoptimised build materialises the value and copies it, so every
-  byte of the struct costs two bytes of frame. What it costs is the thing the ladder ranks highest:
-  a struct literal is checked for completeness by the compiler and twenty-five `addr_of_mut!` writes
-  are not, and a forgotten field is uninitialised memory in a TCB with nothing to catch it. 124
-  stopped one hop short of this for the same reason. It is the right next move **if** the frame ever
-  needs more headroom, and it was not needed here: the register file moved out of the struct
-  instead and the numbers went back to 124's exactly.
+  `script/stack-frame-check` is what raised the question. It would take `Thread::spawn_into`'s
+  frame well below the 3552 bytes it has carried since milestone 124 (a thread is born where it
+  lives: the spawn path's copies), because an unoptimised build materialises the value and then
+  copies it, so every byte of the struct costs two bytes of frame. What it costs is the thing the
+  ladder ranks highest: a struct literal is checked for completeness by the compiler and
+  twenty-five `addr_of_mut!` writes are not, and a forgotten field is uninitialised memory in a TCB
+  with nothing to catch it. 124 stopped one hop short of this for the same reason. It is the right
+  next move **if** the frame ever needs more headroom, and it was not needed here: the register
+  file moved out of the struct instead and the numbers went back to 124's exactly.
 - **Refused.** Growing `Context` so that `switch_to` saves the register file with the callee-saved
   set. It looks tidier and keeps `thread.rs`'s line that a thread's whole saved state is one stack
   pointer, and it is worse: an uninitialised region in every thread's kernel stack frame, a new
