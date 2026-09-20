@@ -702,6 +702,8 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Refused.** Item 2's other half, PCI interrupt routing over INTx, was deliberately not taken by
   milestone 215: ACPI's `_PRT` is AML and this tree will not grow an interpreter, and hardcoding
   q35's swizzle would pass every gate here and might still fail on xenon.
+  This refusal is milestone 459 (design/roadmap/459-legacy-intx-interrupt-routing.md), which carries
+  it with the condition that would change it.
 - **Recorded.** Measured 2026-09-19; both bits stay off: the pinned QEMU flushes its whole TLB
   on every `CR3` write, so neither this tree's icount instrument nor plain TCG can see what PGE
   saves. `kernel/src/arch/x86_64/mmu.rs`'s `BUGS` and notes/benchmarks.md's 2026-09-19 section

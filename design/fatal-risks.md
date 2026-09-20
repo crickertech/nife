@@ -96,7 +96,7 @@ Nothing above depended on it: `ripgrep` stops at the missing argument vector (mi
 `std::fs`. What it adds is one more std surface that answers rather than refuses, with a caveat a
 stranger's program can trip over: a file written on nife reports an mtime in early 1970, because the
 FS server stamps a per-mount counter (notes/std.md; proposed as
-design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
+design/roadmap/497-a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
 lane, which does not normally edit this file; the status check requires the entry to know.
 
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach

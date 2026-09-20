@@ -164,6 +164,8 @@ itself, at which point no further code change is expected, only a status flip on
 - **Refused.** A riscv64 arm. Neither `RDSEED` nor `RNDR`/`RNDRRS` exists on that ISA, so there is
   no instruction to wrap; milestone 159's JH7110 TRNG is the real hardware source there, through its
   own driver, and pretending otherwise would be a parity claim with nothing behind it.
+  This refusal is milestone 460 (design/roadmap/460-a-riscv64-arm-for-instruction-entropy.md), which
+  carries it with the condition that would change it.
 
 ## Index row
 

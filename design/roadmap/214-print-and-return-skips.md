@@ -163,6 +163,8 @@ by hand and why nothing here claims to have found the last one.
   caught the helper cases structurally, and it is a return-type change on every `#[test_case]` in
   the tree plus an `Ok(())` on the end of each, for a defect the console check catches at the moment
   it happens. If the helper shape recurs, that is the argument for paying for it.
+  This refusal is milestone 471 (design/roadmap/471-a-skip-that-returns.md), which carries it with
+  the condition that would change it.
 - **Recorded.** `design/roadmap/214-print-and-return-skips.md` records the blind spot in the other
   direction: a test that returns early having proved nothing and printed nothing is invisible to a
   check that reads what the machine printed. Pass 2 went looking for those by hand and nothing here
