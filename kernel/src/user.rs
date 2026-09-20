@@ -2548,11 +2548,12 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
 /// **The shell's terminal on the screen the firmware left running** (the shell on the firmware
 /// screen, milestone 198's rung 1b; `design/roadmap/` has its block).
 ///
-/// Milestone 243 put the *kernel's* boot tour on a UEFI machine's framebuffer. Since milestone 299
-/// the console is a userspace process that writes COM1, so on a PC with no serial port the tour
-/// scrolled past and the prompt appeared nowhere. This puts `display_terminal` on that same screen,
-/// served by `framebuffer_driver`, and returns what the progenitor needs to hand the console server
-/// so that it writes every byte to the screen as well as to the UART.
+/// Milestone 243 (a machine with no serial port) put the *kernel's* boot tour on a UEFI machine's
+/// framebuffer. Since milestone 299 (the serial console becomes a userspace driver) the console is
+/// a userspace process that writes COM1, so on a PC with no serial port the tour scrolled past and
+/// the prompt appeared nowhere. This puts `display_terminal` on that same screen, served by
+/// `framebuffer_driver`, and returns what the progenitor needs to hand the console server so that
+/// it writes every byte to the screen as well as to the UART.
 ///
 /// **The order is the handover, and it is the point of the function.** The programs are found
 /// first, so a build that lacks one leaves the kernel painting rather than a blank screen. Then
@@ -2571,11 +2572,31 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
 /// and the terminal are running and the terminal has painted its blank grid.
 ///
 /// Arch-neutral, and `None` on aarch64 and riscv64 today only because nothing there tells the
-/// console about a screen: milestone 157's U-Boot `simple-framebuffer` discovery is what would, and
-/// then this function needs no change. **Name provisional.**
+/// console about a screen: milestone 157 (real display output on the board), the U-Boot
+/// `simple-framebuffer` discovery, is what would, and then this function needs no change. **Name
+/// provisional.**
 fn boot_screen_terminal() -> Option<display_service::TerminalWiring> {
     let driver = program("framebuffer_driver")?;
     let terminal = program("display_terminal")?;
+    // **A screen this kernel owns the memory of is not handed away** (milestone 243).
+    //
+    // The handover's whole shape assumes a UEFI aperture: a BAR on a display adapter, memory no
+    // part of this kernel is otherwise in, whose physical range `display_service` maps into a
+    // userspace driver. `ramfb` broke that assumption on the two `virt` boards, where the
+    // framebuffer is `kernel/src/screen.rs`'s own `.bss` and mapping its range into a driver would
+    // hand a userspace process a window onto kernel statics.
+    //
+    // Checked before the yield rather than after, so a refusal leaves the kernel still painting
+    // rather than leaving a screen cleared and unclaimed. It is a range test rather than a flag, so
+    // milestone 157's U-Boot aperture (outside the kernel image, like the UEFI one) passes without
+    // anybody having to remember to set anything.
+    let screen = crate::console::peek_screen()?;
+    if crate::screen::is_kernel_memory(&screen) {
+        crate::println!(
+            "  screen    : kept by the kernel; its framebuffer is kernel memory, not an aperture"
+        );
+        return None;
+    }
     let screen = crate::console::yield_screen()?;
     crate::println!(
         "  screen    : handed to a userspace terminal; the kernel writes the UART alone"
