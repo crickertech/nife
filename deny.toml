@@ -86,15 +86,10 @@ allow = [
     # simplified BSD: permissive, attribution, no endorsement clause, no copyleft, and strictly
     # easier than the Apache half of our own pair. `rustls` itself offers ISC among three and
     # satisfies the list through MIT; these two offer nothing else.
+    #
+    # **Approved by calef on 2026-09-20**, with the reasoning above put to him: permissive,
+    # no copyleft, and strictly easier than the Apache half of the pair this tree publishes under.
     "ISC",
-    # **Unicode-3.0, and it is the one entry here that ships nothing.** `unicode-ident` carries
-    # `(MIT OR Apache-2.0) AND Unicode-3.0`, and it reaches this tree only through `syn`, which is
-    # a proc-macro dependency that runs on the build host and is never linked into a nife program.
-    # It is allowed rather than excluded because this file's own posture, set when `fuzz/` joined
-    # `script/supply-chain`, is that a licence we would refuse in the kernel is not acceptable in
-    # the tooling either; and because Unicode-3.0 is permissive, covering the Unicode character
-    # tables rather than code, with attribution and no copyleft.
-    "Unicode-3.0",
 ]
 
 # **NCSA, for `libfuzzer-sys` and nothing else** (milestone 42's fuzzing leg). An exception rather
@@ -113,6 +108,30 @@ allow = [
 [[licenses.exceptions]]
 crate = "libfuzzer-sys"
 allow = ["NCSA"]
+
+# **Unicode-3.0, approved by calef on 2026-09-20 and scoped to the one crate that needs it.**
+# `unicode-ident` carries `(MIT OR Apache-2.0) AND Unicode-3.0` and reaches this tree only through
+# `syn`, a proc-macro dependency that runs on the build host and is never linked into a nife
+# program. The licence is permissive, covering Unicode's character tables rather than code, with
+# attribution and no copyleft.
+#
+# **Why an exception rather than a row in `allow` above, which is a ships-versus-builds question
+# calef asked on 2026-09-20.** The list above is what this project accepts in code it *distributes*;
+# obligations attach to distribution, and nothing here distributes `unicode-ident`. A second global
+# list for build-only licences was considered and refused: cargo-deny cannot split a graph by
+# dependency kind (it offers `--exclude`, `--exclude-dev` and `--exclude-unpublished`, and nothing
+# for build dependencies), so a two-list scheme would mean computing the shipped graph ourselves
+# from `cargo metadata` and keeping that classifier right, which is machinery to be wrong in for a
+# problem this file already solves.
+#
+# **The per-crate exception is strictly tighter than a global row**, which is the argument for it
+# rather than merely the argument against the alternative: it fails closed. A different crate
+# arriving tomorrow under Unicode-3.0 is refused until somebody decides about that crate, where a
+# global row would have admitted it silently. The cost is one entry per build-only crate, and that
+# cost is the mechanism working: a decision per crate rather than per licence.
+[[licenses.exceptions]]
+crate = "unicode-ident"
+allow = ["Unicode-3.0"]
 # NOT allowed, and the reason is worth stating rather than leaving as an absence: anything copyleft.
 # `r-efi` offers `MIT OR Apache-2.0 OR LGPL-2.1-or-later` and resolves cleanly because MIT is on the
 # list; a crate offering LGPL *only* would fail here, which is the intended behaviour for a kernel
