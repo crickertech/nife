@@ -303,7 +303,7 @@ nothing**. So each is `BUILT` below rather than absent, with what it bought and 
   the first bench evening and a guess before it.
 - **Milestone 493.** The disk-file mix, blocked on a disk radon can drive and on a file-service
   channel per client (a wire format, so calef's).
-  `design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
+  milestone 493 (a disk-file job mix needs a disk), `design/roadmap/493-a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`.
 - **Milestone 227.** The HVF cross-check on patagonia runs once the kernel has a GICv3 driver:
   `script/job-mix --hvf --release --smp 4`, alone on the host.
 - **Recorded.** The mix proportions are chosen rather than derived from an AIM7 workfile, so a

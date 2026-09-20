@@ -663,9 +663,9 @@ the milestone should say so wherever it reports a number.
 - **Done.** `script/names` prints one worklist count everywhere (69 of 222 today), provisional
   included, and design/naming.md's `BUGS` entry is removed.
 - **Milestone 495.** A due cadence reaches nobody, and the watcher cannot tell due from dead:
-  `design/roadmap/495-a-due-cadence-reaches-nobody.md`.
+  milestone 495 (a cadence that says "due" reaches nobody), `design/roadmap/495-a-due-cadence-reaches-nobody.md`.
 - **Milestone 516.** `uefi-test` can exit 1 after its own suite passed:
-  `design/roadmap/516-uefi-test-exits-one-after-a-passing-suite.md`.
+  milestone 516 (uefi-test can exit 1 after its own), `design/roadmap/516-uefi-test-exits-one-after-a-passing-suite.md`.
 - **Recorded.** The CLI's default model refuses the task text, a stranger that waits on background
   work ends its own run, a stranger can write to the machine, and `script/lint` announces the
   withholding: all in `script/stranger-test`'s `BUGS`, each naming what would change it and whose

@@ -4,7 +4,7 @@
 proposal `a-witness-bit-set-has-no-mechanism`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it. Found by milestone 326 while triaging the 2026-09-14 mutation census. It is not that milestone's
+it. Found by milestone 326 (nobody has been assigned to turn a) while triaging the 2026-09-14 mutation census. It is not that milestone's
 work: 326 fixed the two lists it found broken, which is rung four again.
 
 **Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.

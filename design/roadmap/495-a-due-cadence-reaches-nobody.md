@@ -4,7 +4,7 @@
 proposal `a-due-cadence-reaches-nobody`, filed 2026-09-19, on calef's instruction of 2026-09-20 to
 give every proposal on `main` a number. The text below is the proposal's own, unedited except for
 this paragraph: the argument is its author's and promotion is not the moment to improve it. Written
-by milestone 117's run 6 lane, from what the run showed about the cadence that was supposed to have
+by milestone 117 (the stranger test)'s run 6 lane, from what the run showed about the cadence that was supposed to have
 started it.
 
 **Gate: NONE.** A lane can start today. Every input is already on disk or one `gh` call away.

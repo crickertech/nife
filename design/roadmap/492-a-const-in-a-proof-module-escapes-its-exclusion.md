@@ -4,7 +4,7 @@
 proposal `a-const-in-a-proof-module-escapes-its-exclusion`, filed 2026-09-19, on calef's instruction
 of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
 unedited except for this paragraph: the argument is its author's and promotion is not the moment to
-improve it. Found by milestone 438 while replaying `cargo mutants --in-diff` against milestone 319's
+improve it. Found by milestone 438 (would a diff-scoped mutation check have caught) while replaying `cargo mutants --in-diff` against milestone 319 (the crate that parses firmware had no)'s
 pull request: two of the four survivors it reported are mutants that `cargo test` can never kill, in
 a module `cargo test` never compiles.
 

@@ -4,8 +4,8 @@
 proposal `the-installer-a-stick-runs-to-put-itself-on-the-disk`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
 proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
-not the moment to improve it. Written by milestone 198's rungs lane (`milestone/198-rungs-to-a-
-trivial-install`) for rung 2 of the trivial install DECISIONS §157 defines. §157's table names the
+not the moment to improve it. Written by milestone 198 (a package manager, and the trivial install)'s rungs lane (`milestone/198-rungs-to-a-
+trivial-install`) for rung 2 of the trivial install DECISIONS §157 (a trivial install is a web page,) defines. §157's table names the
 installer as owned by no milestone; this is the proposal for it.
 
 **Gate: DECISION.** The on-disk layout of an installed system is read by every later nife that boots

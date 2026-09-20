@@ -4,14 +4,14 @@
 proposal `nothing-regenerates-the-roadmap-index`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it. Filed by milestone 443's lane, which took every gate off the generated index and found the last
+it. Filed by milestone 443 (lanes wait on each other for three)'s lane, which took every gate off the generated index and found the last
 thing holding it together is a sentence.
 
 **Gate: NONE.** Everything it touches is in this tree, except the identity, which is milestone 128.
 
 ## What is left after 443
 
-`design/roadmap/README.md` is generated from the per-milestone blocks (milestone 294) and no longer
+`design/roadmap/README.md` is generated from the per-milestone blocks (milestone 294 (design/roadmap/README.md's index is generated, not hand-maintained)) and no longer
 feeds any gate: `script/fatal-risks` and `script/audits` read `script/roadmap --index` instead, and
 `script/lint` fails if a new reader of the committed file appears. What the file still is, and this
 is the whole reason it stays committed, is the roadmap a person browses on GitHub and the only

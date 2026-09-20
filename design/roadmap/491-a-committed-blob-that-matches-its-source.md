@@ -4,7 +4,7 @@
 proposal `a-committed-blob-that-matches-its-source`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it. Found by milestone 326's `machine_discovery` lane while regenerating a fixture for an unrelated
+it. Found by milestone 326 (nobody has been assigned to turn a)'s `machine_discovery` lane while regenerating a fixture for an unrelated
 reason, and filed by the integrator at merge because the lane's report was its only home.
 
 **Gate: NONE.** The check is a `script/lint` entry over files already in the tree.

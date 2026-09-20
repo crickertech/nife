@@ -4,8 +4,8 @@
 proposal `a-driver-for-the-network-card-a-pc-actually-has`, filed 2026-09-19, on calef's instruction
 of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
 unedited except for this paragraph: the argument is its author's and promotion is not the moment to
-improve it. Written by milestone 198's rungs lane (`milestone/198-rungs-to-a-trivial-install`) for
-rung 3 of the trivial install DECISIONS §157 defines: packages over the internet need a network
+improve it. Written by milestone 198 (a package manager, and the trivial install)'s rungs lane (`milestone/198-rungs-to-a-trivial-install`) for
+rung 3 of the trivial install DECISIONS §157 (a trivial install is a web page,) defines: packages over the internet need a network
 card, and the only one nife can drive is virtio-net, which no physical machine has.
 
 **Gate: NONE.** The driver is written and tested under QEMU, which emulates the family xenon has.

@@ -318,7 +318,7 @@ this milestone does not build.
 
 ## Follow-on
 
-- **Milestone 505.** `design/roadmap/505-an-x86-64-input-driver-that-never-lets-the-core-idle.md`:
+- **Milestone 505.** milestone 505 (an x86_64 input driver that never lets), `design/roadmap/505-an-x86-64-input-driver-that-never-lets-the-core-idle.md`:
   interrupt-driven x86_64 input. Milestone 299 recorded the poll as a latency and CPU limitation; this
   milestone measured that it also starves the idle loop, which takes the slot gauge and the core's
   halt with it.
