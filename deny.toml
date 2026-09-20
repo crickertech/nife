@@ -48,9 +48,16 @@ yanked = "deny"
 # next CVE nobody will fix. If this ever fires on something we cannot move off, the answer is an
 # `ignore` entry below WITH a written reason, per §35's rule that a dismissal is an argument.
 unmaintained = "all"
-# Empty on purpose, and it should stay short. Every entry here is a known-vulnerable dependency we
-# have decided to keep, so each one needs the sentence that says why.
-ignore = []
+# **One entry, and it is the tree's first.** Every entry here is a known-vulnerable dependency we
+# have decided to keep, so each one carries the sentence that says why, in the `reason` field
+# rather than only in a comment: cargo-deny prints `reason` in its own output, so the argument
+# travels with the finding instead of living in a file the reader may not open.
+#
+# Keep this list short, and read the entry below as the shape the next one should take: a **bounded
+# claim about a path we do not call**, with what would end it, rather than a dismissal.
+ignore = [
+    { id = "RUSTSEC-2023-0071", reason = "The Marvin attack is a timing side channel in RSA PKCS#1 v1.5 DECRYPTION, which recovers a private key from an oracle that decrypts attacker-chosen ciphertexts. This tree uses `rsa` in exactly one place, `cryptography_provider`'s certificate and handshake signature verification, which performs public-key operations only: it holds no RSA private key, decrypts nothing, and has no oracle to offer. The advisory names a path we do not call. THIS STOPS BEING TRUE the moment anything here decrypts with `rsa`, signs with it, or uses RSA key transport; TLS 1.3 has no RSA key exchange, so the provider being TLS 1.3 only is part of what holds this claim up. Taken on calef's ruling of 2026-09-20 (\"Take rsa\") because `objects.githubusercontent.com` serves RSA 2048 and `ghcr.io` RSA 4096, so a client without RSA verification can reach GitHub and not download from it. See DECISIONS §198 (the glue is ours, the primitives are not) and notes/cryptography-provider.md." },
+]
 
 [licenses]
 version = 2
@@ -72,6 +79,22 @@ allow = [
     # `smoltcp` and `managed`, milestone 26's TCP/IP stack. 0BSD is public-domain-equivalent: no
     # attribution required at all.
     "0BSD",
+    # **ISC, arriving with the TLS provider.** That is milestone 442 (a crypto provider `rustls`
+    # can use on all three bare-metal targets). `rustls-webpki` and `untrusted` are ISC-only, and both are
+    # on the certificate-verification path rather than beside it, so this is a shipped licence and
+    # not a tooling one. ISC is OpenBSD's licence and the FSF treats it as equivalent to a
+    # simplified BSD: permissive, attribution, no endorsement clause, no copyleft, and strictly
+    # easier than the Apache half of our own pair. `rustls` itself offers ISC among three and
+    # satisfies the list through MIT; these two offer nothing else.
+    "ISC",
+    # **Unicode-3.0, and it is the one entry here that ships nothing.** `unicode-ident` carries
+    # `(MIT OR Apache-2.0) AND Unicode-3.0`, and it reaches this tree only through `syn`, which is
+    # a proc-macro dependency that runs on the build host and is never linked into a nife program.
+    # It is allowed rather than excluded because this file's own posture, set when `fuzz/` joined
+    # `script/supply-chain`, is that a licence we would refuse in the kernel is not acceptable in
+    # the tooling either; and because Unicode-3.0 is permissive, covering the Unicode character
+    # tables rather than code, with attribution and no copyleft.
+    "Unicode-3.0",
 ]
 
 # **NCSA, for `libfuzzer-sys` and nothing else** (milestone 42's fuzzing leg). An exception rather
