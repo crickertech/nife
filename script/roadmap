@@ -102,6 +102,17 @@
 #
 # BUGS
 #
+# **`--write` cannot repair its own output, and that trap sprang on 2026-09-20.** It validates the
+# committed index BEFORE regenerating, and refuses to write when a row does not parse. That is the
+# right order for an operator who hand-edited the table; it is the wrong order when the WRITER
+# produced the unparseable row, which is what happened when milestone 448 (a refusal gets a number,
+# a status, and a condition that would change it) minted the tree's first titles containing
+# `#[path]` and `#[test_case]`: the `]` ended the link text, `--check` rejected the row, and
+# `--write` then refused to run at all. The escape is fixed (see `cell`), but the shape remains: a
+# generator that validates the artefact it is about to overwrite can deadlock, and the way out is to
+# repair one row by hand and run it again. A reader meeting *"refusing to write an index generated
+# from blocks that do not validate"* should suspect the writer before the blocks.
+#
 # **The `## Revisit` check proves a condition is present and nothing else.** It cannot prove one is
 # true, honest, current, or that the person writing it thought about it for longer than it took to
 # type. `**Unstated.**` passes, and it is meant to: an author with no honest condition who cannot
