@@ -53,12 +53,28 @@ needs a backend selector, and on `x86_64-unknown-nife` a crate that detects AVX2
 3 and dies with `vector 6 (invalid opcode)` before printing anything. That hazard is a property of
 the targets rather than of this ruling, and `notes/cryptography-provider.md` carries it.
 
-## Still calef's
+## `rsa` is taken
 
-**Whether to take `rsa`.** Without it the provider verifies `github.com` and not the hosts that serve
-the bytes: `objects.githubusercontent.com` presents RSA 2048 and `ghcr.io` RSA 4096, both measured.
-With it, `deny.toml` needs its first-ever `ignore` entry, for RUSTSEC-2023-0071. The argument and
-what is not known are in
-`design/roadmap/proposals/whether-to-take-rsa-and-what-it-costs-either-way.md`. Nothing waits on it,
-because under DECISIONS §195 (a reviewed recipe vouches for a package) a recipe's digest decides what
-may run and TLS is not load-bearing for integrity.
+**calef, 2026-09-20: "Take rsa."** Without it the provider verified `github.com` and not the hosts
+that serve the bytes: `objects.githubusercontent.com` presents RSA 2048 and `ghcr.io` RSA 4096 over
+a 3072-bit intermediate, both measured rather than assumed. The lane has since verified a real chain
+from each, on all three architectures, refusing a flipped signature bit and a certificate offered for
+another host's name.
+
+**It cost the tree its first suppression**, and that is the part worth reading. `deny.toml` now
+carries an entry for RUSTSEC-2023-0071, a Marvin timing side channel in PKCS#1 v1.5 **decryption**.
+This tree calls `rsa` in one file, for verification: it holds no private key, decrypts nothing,
+offers no oracle, and TLS 1.3 has no RSA key transport. The entry is written as a bounded claim in
+cargo-deny's structured `reason` field, so the argument prints with the finding, and it names what
+would end the claim: any use of `rsa` to decrypt, to sign, or for key transport.
+
+**One gap the entry exposed rather than created.** `script/supply-chain` was scanning four manifests
+and neither package the suppression is about was among them, so the entry would have been a claim
+about a graph no gate read. The gate now scans both, verified in both directions: the advisory fires
+without the entry and passes with it.
+
+`rsa` adds fourteen crates, taking the provider to **67**, which is six fewer than the refused
+alpha's 73 and exactly what this section predicted for the written path at equal coverage before the
+code existed. Two of the fourteen runtime-detect SIMD and neither is the ring-3 hazard: `ppv-lite86`
+and `libm` gate their x86 paths on `target_feature = "sse2"`, which `x86_64-unknown-nife` switches
+off, so both compile portable with no flag.
