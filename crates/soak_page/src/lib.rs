@@ -146,6 +146,48 @@ mod tests {
         assert!(mismatches(MAX_WORKERS - 1) + 8 <= wakes(0));
     }
 
+    /// **Every one of the 192 slots is its own aligned word**, which is the contract the two
+    /// binaries actually rely on and the one the two tests above only approximate.
+    ///
+    /// They check the ends of each array against the ends of the next, so an offset function that
+    /// collapses (`rounds` returning a constant), strides by the wrong amount, or counts backwards
+    /// through its array still passes them while giving two workers the same eight bytes. That is
+    /// not a slow workload, it is a silent one: the counters are single-writer *because* each has
+    /// exactly one owner, and two owners on one word makes the page's whole lock-free argument
+    /// false. Alignment is in the same test because a `u64` store is only the untearable thing the
+    /// module documentation claims when it lands on a `u64` boundary.
+    ///
+    /// The assertion is deliberately about distinctness rather than about values: the kernel and
+    /// the workload both reach the page through these functions, so any injective, aligned,
+    /// in-page assignment is a correct one and pinning the arithmetic would test the code against
+    /// itself. Milestone 326: five of this crate's seven mutation survivors were offsets that
+    /// collide.
+    #[test]
+    fn every_slot_is_its_own_aligned_word() {
+        let mut offset = [0u64; 3 * MAX_WORKERS];
+        for i in 0..MAX_WORKERS {
+            offset[i] = rounds(i);
+            offset[MAX_WORKERS + i] = mismatches(i);
+            offset[2 * MAX_WORKERS + i] = wakes(i);
+        }
+
+        for a in 0..offset.len() {
+            assert_eq!(
+                offset[a] % 8,
+                0,
+                "slot {a} is at {}, which is not a u64 boundary",
+                offset[a]
+            );
+            for b in (a + 1)..offset.len() {
+                assert_ne!(
+                    offset[a], offset[b],
+                    "slots {a} and {b} are both at byte {}, so two writers own one word",
+                    offset[a]
+                );
+            }
+        }
+    }
+
     /// **Neighbouring sequence numbers give unrelated answers**, which is the property that makes a
     /// wrong reply detectable rather than plausible. Checked against the two failures worth
     /// catching: an off-by-one delivery and a zeroed word.
@@ -156,5 +198,28 @@ mod tests {
             assert_ne!(answer(seq), 0, "a zeroed reply word must never be correct");
             assert_ne!(answer(seq), seq, "an echoed reply must never be correct");
         }
+    }
+
+    /// **No bit is set in every answer**, which is how this test states the property the whole
+    /// transform rests on: it is a bijection, so two sequence numbers never share a reply word.
+    ///
+    /// Injectivity is the thing that makes a wrong reply *detectable*, and it is not something a
+    /// handful of sampled pairs can show: a transform that only ever sets bits (`|` where this
+    /// writes `^`) passes every assertion above, because neighbouring answers still differ and
+    /// none of them is zero, while quietly mapping many sequence numbers onto one word. The tell
+    /// is cheap and total rather than sampled. A mask leaves its own bits standing in every
+    /// output; a xor clears a bit as often as it sets one, so intersecting enough answers leaves
+    /// nothing. Milestone 326: the `^`-to-`|` mutant survived the three assertions above.
+    #[test]
+    fn the_answers_share_no_bit_in_common() {
+        let mut common = u64::MAX;
+        for seq in 0..64u64 {
+            common &= answer(seq);
+        }
+        assert_eq!(
+            common, 0,
+            "every answer carries the bits {common:#x}, so the transform masks rather than \
+             permutes and two sequence numbers can produce one reply"
+        );
     }
 }
