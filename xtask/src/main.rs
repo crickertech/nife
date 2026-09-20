@@ -39,6 +39,7 @@ mod inspect;
 mod manual;
 mod measure;
 mod scanout;
+mod screen;
 mod shell_check;
 mod soak;
 mod stick;
@@ -167,6 +168,13 @@ fn main() -> ExitCode {
         // xtask/src/stick.rs and notes/boot-stick.md. Names provisional (2026-09-19).
         "stick" => stick::stick(),
         "stick-boot" => stick::stick_boot(),
+        // **The boot tour read back off a `ramfb`** (milestone 243), on the two architectures whose
+        // firmware never lights a screen. `uefi-boot`'s twin: same decoder, same claim, a different
+        // way of getting a framebuffer. Name provisional.
+        "screen-boot" => {
+            let arch = std::env::args().nth(2).unwrap_or_else(|| "aarch64".into());
+            screen::screen_boot(&arch)
+        }
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -220,7 +228,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");
@@ -260,7 +268,7 @@ fn build() -> bool {
 /// where `TTBR0` lives), so it cannot accidentally share anything with the kernel. And it stays
 /// an **ELF**: the kernel's loader wants program headers, unlike the kernel itself, which QEMU
 /// wants as a flat image. See notes/elf.md.
-fn user() -> bool {
+pub(crate) fn user() -> bool {
     cargo_profiled(&[
         "build",
         "-p",
