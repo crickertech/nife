@@ -82,6 +82,7 @@ pub static ENABLES: AtomicUsize = AtomicUsize::new(0);
 /// threads. The caller holds them by the same argument `sched::schedule` makes for `prev_slot` and
 /// `next_ctx`: both threads are pinned (the outgoing one is running, the incoming one is `Running`
 /// with `on_cpu` set), interrupts are masked, and nothing can reap either.
+#[inline(always)]
 pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
     // SAFETY: the caller's, forwarded. Both reads are of one `u64` in a pinned allocation.
     let prev_live = unsafe { (*prev).live() };
@@ -93,6 +94,36 @@ pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
         return;
     }
 
+    // SAFETY: the caller's, and at least one of the two flags is set.
+    unsafe { move_the_register_file(prev, next, prev_live, next_live) }
+}
+
+/// The half of [`hand_over`] that touches registers, out of line and **`#[cold]`**.
+///
+/// `#[cold]` is a claim about this tree, not a hint about taste, and it is true in the strongest
+/// possible way: every userspace target in `targets/` is soft-float and the kernel is built
+/// `softfloat`, so **no thread has ever reached this function**. `crate::fp::ENABLES` is the number
+/// that says so and it is zero on every shipping boot.
+///
+/// It is also what keeps `script/fastpath-footprint` honest rather than merely green. That gate
+/// measures the transitive closure of **non-cold** calls from the IPC roots, because Liedtke's
+/// argument is about what a round trip evicts from L1i, and five hundred bytes of register-file
+/// machinery that no IPC executes evicts nothing. Inlined into `schedule`, it put riscv64's
+/// `ipc_send_recv` 7.5% over the 5% bound for code that does not run; out of line and cold, what
+/// the fastpath carries is the two loads and the branch in [`hand_over`], which is what it actually
+/// costs.
+///
+/// # Safety
+/// [`hand_over`]'s, plus: at least one of `prev_live` and `next_live` is true, and each describes
+/// the `FpState` it is named for.
+#[cold]
+#[inline(never)]
+unsafe fn move_the_register_file(
+    prev: *mut FpState,
+    next: *const FpState,
+    prev_live: bool,
+    next_live: bool,
+) {
     if prev_live {
         // SAFETY: the caller's. FP is enabled on this core, because this core is running `prev` and
         // `prev.live` is exactly the condition under which the enable was installed.
@@ -132,6 +163,14 @@ pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
 /// The `live` flag is set under `IPC_TABLES`, exactly as `sched::grant_cycle_counter_to_current`
 /// writes its field, and the lock is safe here for the reason it is safe in `syscall::dispatch`:
 /// this is a trap from a thread that was running, so this core cannot already hold it.
+///
+/// **`#[cold]`, for [`move_the_register_file`]'s reason and one more.** It runs at most once per
+/// thread, ever, and on RISC-V it is called from `riscv_trap_body`, which is one of the symbols
+/// `script/fastpath-footprint` measures **flat**: the trap decoder's own bytes are on every
+/// syscall, so an arm that inlined a register-file load there would be charged to every `ecall`
+/// this kernel serves.
+#[cold]
+#[inline(never)]
 pub fn enable_for_current() -> bool {
     crate::arch::fp::enable();
     if !crate::arch::fp::is_enabled() {
