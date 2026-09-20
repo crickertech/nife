@@ -1,6 +1,6 @@
 #!/bin/sh
 # script/mutation-census: the per-crate mutation record, and the diff between two censuses
-# (milestone 518). See notes/mutation-testing.md for what a mutant and a survivor mean, and
+# (milestone 518, a census that cannot be attributed is a number nobody can act on). See notes/mutation-testing.md for what a mutant and a survivor mean, and
 # notes/project-metrics.md for the other committed series.
 #
 # **A census that cannot be attributed is a number nobody can act on.** `script/mutation --report`
@@ -37,7 +37,7 @@
 # definitions and the comparison inverted; see BUGS.
 #
 # **Why a rename table, and why it is derived rather than remembered.** Between the 2026-09-14 and
-# 2026-09-19 censuses, milestone 265's sweep renamed sixteen crates (`ntp_proto` to
+# 2026-09-19 censuses, milestone 265 (`_proto` is a truncation)'s sweep renamed sixteen crates (`ntp_proto` to
 # `network_time_protocol` and its siblings), and three more followed on 2026-09-18 (`dtb`, `ipc`,
 # `gpt`). A join on the bare crate name silently drops every renamed crate from a like-for-like
 # comparison, which is not a smaller answer but a wrong one: the crates that vanish take their
@@ -68,11 +68,14 @@
 #
 #     $ script/mutation-census --compare 2026-09-14 2026-09-19
 #     62 crates in both, 2 only in 2026-09-14, 0 only in 2026-09-19
-#     killed 91.7% -> 93.7% over the crates in both (+2.00 points)
+#     killed 92.3% -> 93.7% over the crates in both (+1.42 points)
+#     survivors 687 -> 563, viable 8,893 -> 8,925
 #
-#     crate                     viable       killed        survivors   points
-#     timetable                182 -> 182   73.6 -> 100.0   48 ->   0   +1.10
-#     mdns_proto               362 ->   -    77.3 ->   -    82 ->   -   -0.23
+#     crate                        viable          killed        survivors   points
+#     timetable               182 ->   146   73.6% -> 100.0%   48 ->    0      0.51
+#     filesystem_protocol     598 ->   598   90.1% ->  93.3%   59 ->   40      0.21
+#     machine_discovery       615 ->   622   88.1% ->  87.6%   73 ->   77     -0.04
+#     multicast_dns_protocol  362 ->     -   77.3% ->      -   82 ->    -   (gone)
 #     ...
 #
 # `points` is that crate's exact contribution to the corpus-level move, and the column sums to it:
@@ -99,7 +102,7 @@
 #   because the rename was to a different word rather than a longer spelling of the same one. This
 #   is why `script/mutation --report` prints `new` in the baseline column for `credentialer`
 #   today. The rename table resolves both directions, so the record is right; the file it was
-#   ingested from is not, and rewriting it is milestone 326's part 4, not this one's.
+#   ingested from is not, and rewriting it is milestone 326 (turn a mutation score upward)'s part 4, not this one's.
 # - **Nothing gates capture.** A census can still be run and thrown away, exactly as four of them
 #   were; this only makes it one command not to. A gate would have to know a run happened, and the
 #   thing that knows is the workflow, which does not write to the tree.
@@ -282,7 +285,7 @@ def add_run(run_id):
 
 def add_baseline():
     """Ingest .cargo/mutants-baseline.txt as the 2026-08-03 census. Read-only on that file: rewriting
-    it is milestone 326's part 4, deliberately held until its survivors are triaged, because a
+    it is milestone 326 (turn a mutation score upward)'s part 4, deliberately held until its survivors are triaged, because a
     baseline written before then enshrines the regressions as the new normal."""
     path = pathlib.Path(".cargo/mutants-baseline.txt")
     crates = {}

@@ -72,7 +72,7 @@ $ script/mutation-census --add-run 35421192143
 
 ## Renames, and why the table is derived from `lib.rs`
 
-Between 2026-09-14 and 2026-09-19, milestone 265's sweep renamed sixteen crates (`ntp_proto` to
+Between 2026-09-14 and 2026-09-19, milestone 265 (`_proto` is a truncation)'s sweep renamed sixteen crates (`ntp_proto` to
 `network_time_protocol` and its siblings) and three more followed on 2026-09-18 (`dtb`, `ipc`,
 `gpt`). **A join on the bare crate name does not give a smaller answer, it gives a wrong one**: the
 renamed crates vanish from the intersection and take their mutants with them, so the surviving rate
@@ -141,7 +141,7 @@ whole corpus went 91.7% to 93.7%; with timeouts as survivors, 89.5% to 91.4%. Su
 563 over the same window.
 
 **This does not make risk 3 green**, and milestone 518's lane did not edit that file. The entry's
-stronger argument is untouched by the arithmetic: milestone 85 (mutation testing: would any test notice if this line were wrong)'s rule is that every survivor
+stronger argument is untouched by the arithmetic: milestone 85 (mutation testing over the host crates)'s rule is that every survivor
 is triaged into a test, an exclusion with a reason or a recorded gap, and 563 of them are not.
 
 **One caveat on the definition this page prefers.** The hand-check that justifies scoring a timeout

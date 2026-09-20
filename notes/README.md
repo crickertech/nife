@@ -854,7 +854,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   calibration verdict on the exhaustive crates (`network_time_protocol`, `globally_unique_identifier_partition_table`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
-- [The mutation census record](mutation-census.md): milestone 518, the time series the page above is
+- [The mutation census record](mutation-census.md): milestone 518 (a census that cannot be attributed is a number nobody can act on), the time series the page above is
   not. `script/mutation --report` prints a per-crate table and throws the run output away, so the
   tree kept **one** per-crate record in its life and every comparison was made against it whether or
   not it was the right comparand. One row per crate per census in

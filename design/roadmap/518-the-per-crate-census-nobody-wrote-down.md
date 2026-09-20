@@ -97,7 +97,7 @@ kills: 91.7% to 93.7%. Whole corpus with timeouts as survivors: 89.5% to 91.4%. 
 to 563 in the same window. There is no reading of these artifacts in which the score went down.
 
 **This does not decide whether risk 3 is green**, and this lane does not touch
-`design/fatal-risks.md`. The entry's own better argument survives the arithmetic intact: milestone 85 (mutation testing: would any test notice if this line were wrong)'s rule
+`design/fatal-risks.md`. The entry's own better argument survives the arithmetic intact: milestone 85 (mutation testing over the host crates)'s rule
 is that every survivor is triaged into a test, an exclusion with a reason or a recorded gap, and 563
 of them are not. A verdict on a corrected rate is calef's.
 
