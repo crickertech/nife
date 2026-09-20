@@ -329,6 +329,86 @@ mod tests {
         assert_eq!(render_manifest(&[b""], &mut buf), None);
     }
 
+    /// **Every bound is tested at the bound, not one past it**, which is the gap milestone 326's
+    /// mutation run found: six of this crate's eight survivors were a `>` that could become `>=`
+    /// and nothing would notice, because every existing refusal test hands the code a value one
+    /// *past* the limit and a value one past the limit is refused either way. A store that quietly
+    /// lost the 64th byte of a name or the 8th identity would pass the whole suite above.
+    #[test]
+    fn the_last_thing_that_fits_still_fits() {
+        // A name of exactly MAX_IDENTITY_LEN bytes, through both halves.
+        let longest = repeat_byte_string(b'a', MAX_IDENTITY_LEN);
+        let mut doc = longest.clone();
+        doc.push('\n');
+        assert_eq!(
+            parse_manifest(&doc).unwrap().entries(),
+            &[longest.as_bytes()],
+            "a name exactly at the bound is a legal name"
+        );
+        let mut buf = [0u8; 256];
+        assert!(
+            render_manifest(&[longest.as_bytes()], &mut buf).is_some(),
+            "a name exactly at the bound is renderable"
+        );
+
+        // Exactly MAX_IDENTITIES of them, through both halves.
+        let full = heapless_repeat("chris\n", MAX_IDENTITIES);
+        assert_eq!(
+            parse_manifest(&full).unwrap().entries().len(),
+            MAX_IDENTITIES
+        );
+        let names: [&[u8]; MAX_IDENTITIES] = [b"chris".as_slice(); MAX_IDENTITIES];
+        assert!(
+            render_manifest(&names, &mut buf).is_some(),
+            "a manifest holding exactly its capacity is renderable"
+        );
+    }
+
+    /// **A buffer the exact size of the document is enough, and one byte less is refused rather
+    /// than overrun.**
+    ///
+    /// The two sit in one test because they are the two sides of the same comparison, and the
+    /// interesting half is the second: the bound is `n + name.len() + 1`, where the `+ 1` is the
+    /// newline that has not been written yet. Lose that term and the check passes on a buffer with
+    /// room for the name but not its terminator, and the next line indexes one past the end. That
+    /// is a panic in a `no_std` crate the kernel links, which is why the assertion is that it
+    /// returns `None` rather than that it returns anything at all.
+    #[test]
+    fn the_buffer_bound_counts_the_newline_it_has_not_written_yet() {
+        let names: [&[u8]; 2] = [b"chris", b"corinne"];
+        let exact = b"chris\ncorinne\n".len();
+
+        let mut just_enough = [0u8; 14];
+        assert_eq!(just_enough.len(), exact);
+        assert_eq!(render_manifest(&names, &mut just_enough), Some(exact));
+        assert_eq!(&just_enough[..], b"chris\ncorinne\n");
+
+        let mut one_short = [0u8; 13];
+        assert_eq!(
+            render_manifest(&names, &mut one_short),
+            None,
+            "a buffer with room for the name but not its newline must be refused"
+        );
+    }
+
+    /// **An error names the line it is about**, and [`Error::line`] is the accessor a caller reads
+    /// it through. The refusal tests above compare whole variants, so nothing called this function
+    /// at all: a `line` that returned a constant was invisible, and a configuration error pointing
+    /// at the wrong line is the failure the 1-based convention exists to prevent.
+    #[test]
+    fn each_error_carries_the_line_it_is_about() {
+        let mut doc = String::from("# heading\nchris\n");
+        doc.push_str(&repeat_byte_string(b'a', MAX_IDENTITY_LEN + 1));
+        doc.push('\n');
+        assert_eq!(parse_manifest(&doc).unwrap_err().line(), 3);
+
+        let crowded = heapless_repeat("chris\n", MAX_IDENTITIES + 1);
+        assert_eq!(
+            parse_manifest(&crowded).unwrap_err().line(),
+            MAX_IDENTITIES + 1
+        );
+    }
+
     #[test]
     fn every_error_reads_differently() {
         assert_ne!(
