@@ -4,11 +4,8 @@
 proposal `installing-a-package-mutates-or-composes`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Written by milestone 198's scoping lane
-(`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
-integrator to mint.
+it. Written by milestone 198's scoping lane (`milestone/198-package-manager-scoping`). Shaped as a
+`design/decisions/` section for the integrator to mint.
 
 **Gate: DECISION.** How installation reaches a running system is the contract every package, every
 program author and every future installer is written against, so it is irreversible in AGENTS.md's
@@ -109,3 +106,8 @@ a whole system state, which A3 gets only if the table of entries is itself versi
 Nothing is installed at runtime; packages are build inputs to an image, and a new program arrives by
 reflashing. That is the first slice, and it is a complete answer for us as builders. It is not an
 answer for a customer who wants `git` without rebuilding their system. *(2026-09-19: that first slice is superseded by DECISIONS §157; see milestone 198's "Rescoped 2026-09-19". Under §157 a "no" here also stops rung 3.)*
+
+## Index row
+
+What the act of installing *does*: which shared state changes, who holds the authority to change it,
+and how it is undone.

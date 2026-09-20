@@ -154,7 +154,7 @@ replacing it is harder than it looks.
   `kernel/src/arch/x86_64/boot.s` writes to no device and cannot, because it is a 32-bit
   instruction stream with no idea where the screen is and no IDT, so a fault in it is a triple
   fault and a reset. What *can* be done is done by the stage before it. See the section below.
-- **Proposed.** `design/roadmap/proposals/the-boards-screen-under-uefi.md`. The boards' screen under
+- **Milestone 511.** `design/roadmap/511-the-boards-screen-under-uefi.md`. The boards' screen under
   UEFI, which milestone 441 (the program that makes the stick) made reachable while this lane was
   running. `uefi_loader` now has aarch64 and riscv64 boot files, so on those architectures
   there is, for the first time, a firmware stage that has already lit a display and can be asked

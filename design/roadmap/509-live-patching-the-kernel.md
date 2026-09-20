@@ -3,11 +3,9 @@
 **Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `live-patching-the-kernel`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
 every proposal on `main` a number. The text below is the proposal's own, unedited except for this
-paragraph: the argument is its author's and promotion is not the moment to improve it.
-
-Recorded by the maintainer from calef's ruling in DECISIONS §159:
-*"Live-patching a kernel is a separate milestone that we may not get to for a very long time.
-Rebooting for a new kernel is fine for now."*
+paragraph: the argument is its author's and promotion is not the moment to improve it. Recorded by
+the maintainer from calef's ruling in DECISIONS §159: *"Live-patching a kernel is a separate
+milestone that we may not get to for a very long time. Rebooting for a new kernel is fine for now."*
 
 **Gate: DECISION.** Deferred by calef, deliberately and for a long time. This file exists so the
 idea has a home and is not re-proposed as new.
@@ -32,3 +30,7 @@ still a reboot). Neither has been read for this file; both are named from memory
 
 A customer whose uptime requirement a kernel reboot breaks, measured, after upgrades without a
 reimage (§159) work. Until then, `script/roadmap --proposed` shows its age, which is the intent.
+
+## Index row
+
+§159 makes every userspace upgrade reboot-free and accepts one reboot for a new kernel.

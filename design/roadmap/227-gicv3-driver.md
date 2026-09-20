@@ -173,7 +173,7 @@ one.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-hvf-std-listener-hangs-in-some-full-runs.md`: the HVF
+- **Milestone 514.** `design/roadmap/514-the-hvf-std-listener-hangs-in-some-full-runs.md`: the HVF
   leg's std listener hang. `user::tests::a_std_program_serves_a_granted_listening_port` hung in two
   of three full `script/test --hvf` runs: the std program aborts (`__rust_abort`, a panic), the kernel test waits
   for a report that never comes, and the watchdog reports a lost-wakeup hang. It passes alone under

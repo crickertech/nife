@@ -348,13 +348,13 @@ build them, and report what breaks.
 - **Done.** Ranks 19 and 28 are bound by path (2026-09-19, "The last pass: file times" above):
   `metadata(p).modified()` on `GETMTIME`, `fs::set_times` on `SETMTIME_AT`, and the shim's comments
   that said no verb existed are corrected.
-- **Proposed.** The open-`File` forms (`File::metadata().modified()`, `File::set_times`) still refuse,
+- **Milestone 504.** The open-`File` forms (`File::metadata().modified()`, `File::set_times`) still refuse,
   because the verbs take a name; a handle-taking form is a wire change and is
-  `design/roadmap/proposals/an-mtime-for-an-open-file.md`.
-- **Proposed.** A file written on nife reads as early 1970, because the FS server stamps its own
+  `design/roadmap/504-an-mtime-for-an-open-file.md`.
+- **Milestone 497.** A file written on nife reads as early 1970, because the FS server stamps its own
   per-mount counter rather than a wall-clock second (notes/touch.md's `BUGS`, and notes/std.md's
   file-times `BUGS` where a std reader meets it). Giving the server the clock page is
-  `design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md`.
+  `design/roadmap/497-a-filesystem-server-that-knows-the-time.md`.
 - **Recorded.** The exit event still carries no exit code, so a supervisor can tell exit from crash
   and cannot tell `exit(0)` from `exit(1)`. The reasoning lives in `notes/std.md`.
 - **Done.** `env` is seeded now: `design/decisions/111-inert-config-is-a-validated-page.md` and

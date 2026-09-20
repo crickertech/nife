@@ -4,9 +4,7 @@
 proposal `an-x86-64-input-driver-that-never-lets-the-core-idle`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
 proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
-not the moment to improve it.
-
-Found by milestone 182's lane while building `script/shell-check`'s
+not the moment to improve it. Found by milestone 182's lane while building `script/shell-check`'s
 x86_64 leg. Milestone 299 recorded x86_64's polling input driver as a latency and CPU limitation;
 this is the measurement that says it is more than that.
 
@@ -42,3 +40,7 @@ other two run: drain, arm, then `irq_wait`/drain/`irq_ack`. Then delete the x86 
   whatever it measures), and the leg's "that gauge is stale" caveat in `xtask/src/main.rs` is deleted.
 - QEMU's host CPU at an idle x86_64 prompt drops to near zero, measured the way the number above was.
 - `script/shell-check`'s BUGS entry and milestone 182's two BUGS entries on this are closed.
+
+## Index row
+
+`components/src/input.rs`'s x86_64 `_start` is `loop { drain(); yield_now(); }`.

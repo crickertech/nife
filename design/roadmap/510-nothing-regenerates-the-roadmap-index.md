@@ -4,10 +4,8 @@
 proposal `nothing-regenerates-the-roadmap-index`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Filed by milestone 443's lane, which took every gate off the
-generated index and found the last thing holding it together is a sentence.
+it. Filed by milestone 443's lane, which took every gate off the generated index and found the last
+thing holding it together is a sentence.
 
 **Gate: NONE.** Everything it touches is in this tree, except the identity, which is milestone 128.
 
@@ -65,3 +63,9 @@ already made and this proposal does not reopen it.
 - **Nothing here bounds how stale is too stale.** Three rows was tolerable and invisible; the failure
   mode is that it is still tolerable at thirty and still invisible. A staleness number is printed on
   every `script/roadmap` run and read by whoever happens to be looking, which is rung zero.
+
+## Index row
+
+`design/roadmap/README.md` is generated from the per-milestone blocks (milestone 294) and no longer
+feeds any gate: `script/fatal-risks` and `script/audits` read `script/roadmap --index` instead, and
+`script/lint` fails if a new reader...

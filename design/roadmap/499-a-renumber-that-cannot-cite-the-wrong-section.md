@@ -4,11 +4,9 @@
 proposal `a-renumber-that-cannot-cite-the-wrong-section`, filed 2026-09-19, on calef's instruction
 of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
 unedited except for this paragraph: the argument is its author's and promotion is not the moment to
-improve it.
-
-Filed by the integrator after the third `design/decisions/`
-number collision between two sessions in ninety minutes, on the evening calef ruled that the
-interleaving stays ([§194](../../decisions/194-sessions-interleave-rather-than-serialize.md)).
+improve it. Filed by the integrator after the third `design/decisions/` number collision between two
+sessions in ninety minutes, on the evening calef ruled that the interleaving stays
+([§194](../../decisions/194-sessions-interleave-rather-than-serialize.md)).
 
 **Gate: NONE.** It is a mode on a script that already exists, over files already in the tree.
 
@@ -48,3 +46,7 @@ used on 2026-09-19, for the third shift and the fourth, lives in a session scrat
   tool lists; a person decides.
 - **It does not prevent the collision**, and is not meant to. §194 rules that the interleaving is
   the condition being modeled rather than a fault to design out.
+
+## Index row
+
+When two sessions mint from the same range and one lands first, the other's whole run shifts.

@@ -204,7 +204,7 @@ milestone 117's handoff."
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md`: item 3,
+- **Milestone 498.** `design/roadmap/498-a-program-that-takes-an-argument-and-an-input.md`: item 3,
   whether a manifest may declare an argument and an input together. The mechanical half is done
   (the `crates/swish` sweep supplies both); whether the shape is wanted is calef's call, and the
   proposal recommends the status quo.

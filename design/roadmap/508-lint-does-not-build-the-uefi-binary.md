@@ -4,12 +4,10 @@
 proposal `lint-does-not-build-the-uefi-binary`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Found by milestone 243's lane, which re-applied its loader banner
-after a rebase, watched `script/lint` pass, and then watched `script/test`'s x86_64 leg fail to
-compile the same code. Reported as *"a real gap in the gate ladder, not just my mistake"*, which is
-the right reading: a gate that cannot see a target cannot hold it.
+it. Found by milestone 243's lane, which re-applied its loader banner after a rebase, watched
+`script/lint` pass, and then watched `script/test`'s x86_64 leg fail to compile the same code.
+Reported as *"a real gap in the gate ladder, not just my mistake"*, which is the right reading: a
+gate that cannot see a target cannot hold it.
 
 **Gate: NONE.** It is a check and its runtime cost, both inside this tree.
 
@@ -56,3 +54,8 @@ three kernels.
   listing what `script/lint` compiles and comparing it with what `script/test` compiles.
 - **A gate that only compiles proves compilation.** The loader's behaviour is still proved by an
   OVMF boot, and nothing here changes that.
+
+## Index row
+
+`script/lint`'s clippy stage builds the host workspace and `xtask`, plus the two vendored-ish
+workspaces (`tools/redoxfs_host`, `redoxfs_server`).

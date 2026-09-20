@@ -4,11 +4,9 @@
 proposal `the-census-blamed-a-pull-request-that-added-four`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
 proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
-not the moment to improve it.
-
-Found by milestone 438, whose first measurement was a replay of the
-pull request `design/fatal-risks.md` names, and which found four survivors where that record accounts
-for 55.
+not the moment to improve it. Found by milestone 438, whose first measurement was a replay of the
+pull request `design/fatal-risks.md` names, and which found four survivors where that record
+accounts for 55.
 
 **Gate: NONE.** It is a correction to one paragraph of `design/fatal-risks.md` and to milestone 438's
 own premise, both already written and both readable. A lane could start today; the numbers it needs
@@ -54,3 +52,8 @@ which census each number comes from, and record the trap: **`--report`'s baselin
 2026-08-03 and is not the previous census.** The trap is the durable half. Every future reading of
 that column by anyone will make the same mistake, and the fix is either a second column or a header
 that says the date out loud.
+
+## Index row
+
+What the record says. `design/fatal-risks.md`'s risk 3, AMBER as of 2026-09-19: *"One crate accounts
+for the fall and it was not one of the eight.

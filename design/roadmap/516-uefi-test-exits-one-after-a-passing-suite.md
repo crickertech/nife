@@ -4,10 +4,8 @@
 proposal `uefi-test-exits-one-after-a-passing-suite`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Written by milestone 117's run 6 lane, from the stranger's red
-`script/test` and the operator's green re-run.
+it. Written by milestone 117's run 6 lane, from the stranger's red `script/test` and the operator's
+green re-run.
 
 **Gate: NONE.** A lane can start today; it needs the dev Mac and nothing else.
 
@@ -29,3 +27,8 @@ the evidence does not support. Say at the failure that the VT-d lines are expect
 
 **Reversible**, and on the customer path only by way of trust: a gate that goes red for a reason nobody
 can name costs every contributor who meets it an hour, which is what it cost run 6.
+
+## Index row
+
+On 2026-09-19 a stranger's `cargo xtask test` passed every leg on all three ISAs and then failed at
+the last one: under OVMF the kernel suite printed `test result: ok.

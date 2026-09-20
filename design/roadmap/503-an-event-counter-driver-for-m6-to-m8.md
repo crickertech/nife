@@ -4,10 +4,8 @@
 proposal `an-event-counter-driver-for-m6-to-m8`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Written by milestone 134's per-IPC stack-depth lane, which
-re-checked tier B against the tree after milestone 74's aarch64 half landed (PR #972).
+it. Written by milestone 134's per-IPC stack-depth lane, which re-checked tier B against the tree
+after milestone 74's aarch64 half landed (PR #972).
 
 **Gate: HARDWARE.** The code can be written and exercised under QEMU, but QEMU counts no cache or
 TLB event that means anything; the reading needs radon and argon.
@@ -34,3 +32,8 @@ filter, so the question calef is deciding for `PMCCFILTR_EL0`
 answer should be the same one. And M7's attribution half (do the missing lines fall in the stack
 region) wants a data-address sampler that neither the A57 nor the U74 has; expect M7 to become
 "misses rise with thread count" read beside the per-IPC stack depth, not an attribution.
+
+## Index row
+
+Milestone 134's M6 (I-cache misses per IPC), M7 (D-cache misses, and whether they fall in the stack
+region) and M8 (TLB misses) have no instrument on any architecture.

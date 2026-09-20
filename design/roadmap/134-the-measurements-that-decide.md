@@ -335,7 +335,7 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   before he rules. That touches M5 and M9 on aarch64 and M12 entirely (seL4's 413 and 426 are TX1
   cycles). It does not touch M6 to M8 as such, since event counters carry their own filter in
   `PMEVTYPER<n>_EL0`, but that filter will raise the same question when a driver first writes it.
-- **Proposed.** `design/roadmap/proposals/an-event-counter-driver-for-m6-to-m8.md`: one
+- **Milestone 503.** `design/roadmap/503-an-event-counter-driver-for-m6-to-m8.md`: one
   cache-refill and one TLB-refill event per ISA, kernel-internal, read like 74's cycle counter.
   Milestone 74's scope note held generic events back until a second consumer; M6 to M8 are that
   consumer. Its first step is finding which events radon's OpenSBI and argon's A57 actually count.
@@ -391,7 +391,7 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   most 8 lines sharing a page offset fit, and every stack top is page-aligned), which the TCB pages
   would produce equally. §96's performance input therefore stands as measured and its mechanism
   becomes a testable question rather than an assumption; the next item is the test.
-- **Proposed.** `design/roadmap/proposals/colour-the-kernel-stacks-and-take-e1-again.md`: start
+- **Milestone 506.** `design/roadmap/506-colour-the-kernel-stacks-and-take-e1-again.md`: start
   each thread's stack a per-slot colour below its top in a feature build and take E1 again on
   radon. A knee that moves right says the stacks caused it and a process kernel buys it back with
   colouring; one that stays at 8 says the TCBs (also page-aligned) did, which an event kernel would

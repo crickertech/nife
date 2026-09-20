@@ -179,9 +179,9 @@ irreversible half.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-census-blamed-a-pull-request-that-added-four.md`, the
+- **Milestone 512.** `design/roadmap/512-the-census-blamed-a-pull-request-that-added-four.md`, the
   correction to `design/fatal-risks.md`'s risk 3, which this lane measured and does not own.
-- **Proposed.** `design/roadmap/proposals/a-const-in-a-proof-module-escapes-its-exclusion.md`, the
+- **Milestone 492.** `design/roadmap/492-a-const-in-a-proof-module-escapes-its-exclusion.md`, the
   three mutants that sit inside `#[cfg(kani)]` modules and are not excluded, two of which are half of
   this milestone's own result.
 - **Refused.** A blocking `--in-diff` gate, per this block's recommendation and the ruling that ends

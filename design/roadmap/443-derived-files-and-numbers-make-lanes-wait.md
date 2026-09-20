@@ -157,12 +157,12 @@ reported, and that the later lander takes the next free numbers instead of displ
 
 ## Follow-on
 
-- **Proposed.** Post-merge regeneration of `design/roadmap/README.md`, with the bot-identity
-  question it depends on, in `design/roadmap/proposals/nothing-regenerates-the-roadmap-index.md`.
+- **Milestone 510.** Post-merge regeneration of `design/roadmap/README.md`, with the bot-identity
+  question it depends on, in `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
   It is calef's call, not a lane's, which is why this milestone stopped at removing the gates'
   dependence on the file rather than at keeping the file current.
-- **Proposed.** `design/decisions/README.md` is hand-maintained and is now the tree's remaining
-  index hotspot, in `design/roadmap/proposals/the-decision-index-is-still-hand-maintained.md`.
+- **Milestone 513.** `design/decisions/README.md` is hand-maintained and is now the tree's remaining
+  index hotspot, in `design/roadmap/513-the-decision-index-is-still-hand-maintained.md`.
 - **Recorded.** `script/metrics` and `script/catch-up` still read the committed index, at historical
   revisions where nothing else can answer, and so they read `main`'s lag at HEAD too. The allow-list
   and the reason are in `script/lint` where the next person meets the check.

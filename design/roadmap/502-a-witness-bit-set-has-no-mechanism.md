@@ -4,11 +4,8 @@
 proposal `a-witness-bit-set-has-no-mechanism`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
-it.
-
-Found by milestone 326 while triaging the 2026-09-14 mutation
-census. It is not that milestone's work: 326 fixed the two lists it found broken, which is rung four
-again.
+it. Found by milestone 326 while triaging the 2026-09-14 mutation census. It is not that milestone's
+work: 326 fixed the two lists it found broken, which is rung four again.
 
 **Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
 
@@ -89,3 +86,7 @@ no such block, and the reason is only that they are constants rather than a tabl
   know which ones are witness bits and which are ordinary flags. So this is rung one for the modules
   that adopt it and rung zero for a module that does not, which is worth knowing before anyone calls
   it solved.
+
+## Index row
+
+The in-QEMU confinement tests report their outcome as a bitmask.
