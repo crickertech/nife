@@ -247,6 +247,40 @@ milestone 157's U-Boot aperture will pass it with nothing to remember.
 console, `screendump` with no device argument writes console 0, and the suite's machine already has a
 virtio-gpu there.
 
+### The x86_64 gate was asserting a race, and a measured premise was wrong
+
+**Found 2026-09-20 while re-verifying after a rebase, and it is not this lane's code.**
+`cargo xtask uefi-boot`'s tour stage failed intermittently on a loaded dev Mac: four consecutive
+runs read 19, 27, 40 and **0** rows. Milestone 400's own BUGS predicted it in those words ("a much
+faster guest or a slower screendump could miss it").
+
+**The lane's first instinct was that its own loader banner had caused it, and that was tested rather
+than assumed**: with the banner's paint disabled and nothing else changed, the same gate failed
+**two runs in four**, which is worse. The banner is not the cause, and the ninety seconds that test
+cost were the cheapest ninety seconds in this lane.
+
+**The actual cause is a premise that was false when it was written.** The marker was
+`boot_ladder::SELF_TEST`, chosen "near the end of the boot on purpose" because a 1280x800 screen is
+100 character rows and the boot was believed to be longer, so early lines would have scrolled off.
+**Measured, the tour tops out at 98 non-blank rows**, so nothing scrolls and the first line is on
+the screen the whole time. What the marker actually selected for was the *last* line before the
+handover's clear, a window of a few hundred milliseconds, which is exactly the race the comment
+claimed to be avoiding.
+
+**The marker is now the banner, the first line.** Five consecutive runs read 52, 68, 78, 84 and 89
+rows and all passed, where the same machine had been failing one run in two.
+
+**The total claim is unchanged**, which is the thing to check before believing any gate got easier.
+The screen's job is to prove the *pixels*: `LocateProtocol`, the byte order, the stride, the mapping
+surviving `mmu::init`, and the glyphs. Any decoded row proves all five. That the boot reached the
+self-test is asserted separately and unconditionally on the **serial** transcript a few dozen lines
+above. So the change trades nothing away; it stops the gate asserting something it never meant to.
+How deep the dump caught the tour is now *reported* rather than required.
+
+**This edits milestone 400's gate, not this one's**, and 400's `BUGS` entry about that window is now
+stale in its last clause. A lane may not edit another milestone's block, so it is named here and in
+this lane's report for the integrator to strike.
+
 ### The gate's first red run, and the line that made it readable
 
 **CI found a wiring bug this lane had already been told about and had dismissed**, which is worth
