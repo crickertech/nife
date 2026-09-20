@@ -15,7 +15,8 @@ point of raising it now rather than during the split.
 
 1. Is the in-tree roadmap still the right medium?
 2. Would an issue tracker be better, and at what?
-3. What happens to all of it when DECISIONS §151's split arrives?
+3. What happens to all of it when the split of §151 (the goal of the repository split is
+   independent release) arrives?
 
 They have different answers, so they are answered separately. The short version: **(1) yes, for the
 layer that gates read and the layer a newcomer reads; (2) yes, at exactly two things, neither of
@@ -31,7 +32,7 @@ Treating it as one thing is what makes the question look hard. Measured in this 
 |---|---|---|---|---|
 | **Argument** | why, what was refused, what was measured, the `BUGS` | `design/roadmap/<n>-<slug>.md`, `design/decisions/<n>-<slug>.md` | 441 blocks, 66,304 lines; 194 sections | No. It is co-versioned with the code it describes (see below) |
 | **Status** | one word per block, read by gates | the same files | 11 distinct words, 215 `BUILT` | No. A gate cannot read a tracker offline (measured below) |
-| **Scheduling** | who is working on what, what is next | **already outside the tree**: `gh pr list --draft` | one draft per lane | It already is one. §90 decided this on 2026-08-16 |
+| **Scheduling** | who is working on what, what is next | **already outside the tree**: `gh pr list --draft` | one draft per lane | It already is one. §90 (the claim is a draft pull request) decided this on 2026-08-16 |
 
 **The third row is the answer to most of the question.** DECISIONS §90 separated claiming from
 closing precisely because *"the two want opposite properties. A claim is ephemeral coordination
@@ -62,7 +63,8 @@ $ for f in script/lint script/names script/citations script/roadmap; do
 
 `script/lint` mentions `gh` once, in a comment at line 1927. Moving any status a gate reads into a
 tracker makes `script/lint` require a network and a token, on a laptop, in CI, and in every lane
-worktree. That is a dependency in the sense of §46 and it is in the gating path.
+worktree. That is a dependency in the sense of §46 (thin primitives or whole subsystems) and it is
+in the gating path.
 
 **Does it version with the code?** No, and this is the one that cannot be worked around. A record in
 the tree is evaluated *at the revision you checked out*; a tracker reference is always evaluated at
@@ -76,10 +78,12 @@ $ git show $old:design/roadmap.md | grep -oE '^#{2,3} [0-9]+\.' | tail -1
 ### 57.
 ```
 
-At that commit the tree knows what it meant by "milestone 39" and knows that 443 does not exist. An
+At that commit the tree knows what it meant by milestone 39 (repository structure for a
+loosely-coupled OS) and knows that 443 does not exist. An
 issue tracker cannot answer either question about that commit: `#39` resolves to whatever issue 39
 is today, and nothing records what it was. A code comment citing `#39` is therefore a dangling
-pointer into the future, which is the failure §76 is a whole decision about, with the two records
+pointer into the future, which is the failure §76 (what catches a milestone status that is wrong in
+both places) is a whole decision about, with the two records
 now unable to disagree because only one of them has a past.
 
 **Does a citation survive a checkout of an old tag?** Today, yes, because the target is in the same
@@ -88,12 +92,14 @@ release tags, so this is currently theoretical; it stops being theoretical the m
 releases anything.
 
 **What happens if the repository moves or the host changes?** The tree has already run half this
-experiment. Milestone 120 moved the repository from the `calef` user to the `crickertech`
+experiment. Milestone 120 (the rename: the OS becomes `nife`) moved the repository from the `calef`
+user to the `crickertech`
 organization on 2026-08-15 and recorded what survived: *"ruleset, Actions and history survived; the
 one casualty was the `TOOLCHAIN_BUMP_PAT` secret."* That was a GitHub *transfer*, which carries
 issues. **A split is not a transfer.** It is `git filter-repo` or equivalent, which carries files
 and history and carries no issues at all, into a repository whose issue numbering starts at 1. Any
-citation that named an issue number would need rewriting, and §194 records what rewriting citations
+citation that named an issue number would need rewriting, and §194 (sessions interleave rather than
+serialize) records what rewriting citations
 by number costs: *"a citation rewritten by number can be silently wrong and still pass every gate,
 because the section it now names exists."*
 
@@ -107,7 +113,8 @@ because the section it now names exists."*
 - **Assignment and notification**, which this project substitutes for with `scripts/merge-drain.sh`
   and a steward, both of which `notes/merge-queue.md` is honest do not report their own death.
 - **A backlog with an owner.** `script/roadmap --proposed` shows **24 unnumbered proposals**, all
-  dated 2026-09-19. The pile is young, so there is no ageing evidence yet, and milestone 247's own
+  dated 2026-09-19. The pile is young, so there is no ageing evidence yet, and the block for
+  milestone 247 (follow-on work named by a finished milestone goes nowhere) has its own
   reasoning says a due-date gate *"would be routed around by not writing proposals, which is
   worse."* A tracker is better at a backlog than a directory is. Whether it is better *enough* to
   pay for a second place where truth lives is the open part.
@@ -189,7 +196,8 @@ split-proof citation convention by habit, and nobody decided to do it.
 ### Options for what a citation means after the split, priced. No winner.
 
 **A. Records travel with their code; each repository numbers its own.**
-Blocks move to the repository they describe; `nife-kernel` milestone 1 and `basalt` milestone 1 both
+Blocks move to the repository they describe; `nife-kernel` milestone 1 (boot to Rust on QEMU
+`virt`) and `basalt` milestone 1 both
 exist. *Cost:* the 62% figure. Every cross-group citation needs a repository prefix added by hand or
 becomes ambiguous, and `script/citations`' path mode (24 citations) breaks outright since paths stop
 resolving in the local checkout. Its title mode (465) survives only if the sibling repository is
@@ -211,7 +219,8 @@ required, because the gloss is already there in the cases that matter.
 **D. A citation resolver that knows several repositories.**
 `script/citations` grows a manifest of sibling checkouts and resolves across them. *Cost:* a gate
 whose answer depends on what the operator has cloned, which is the opposite of the offline property
-measured in §2 above, and which degrades to a warning in CI. *Buys:* it is the only option that
+measured in section 2 above, and which degrades to a warning in CI. *Buys:* it is the only option
+that
 keeps a machine-checked cross-repository citation at all, so it is probably a **companion** to C
 rather than an alternative to it.
 
@@ -283,7 +292,7 @@ to GitHub Issues, and the RFC's stated reason is entirely about the tool, not ab
 belong: *"Our bugzilla installation is...not great. It's been not-great for a long time now,"* and
 *"Importantly, Github Issues is significantly less user-hostile than our bugzilla is, for new
 contributors and downstream developers who just want to tell us about bugs!"* The move is
-tracker-to-tracker for **bug reports from strangers**, which is the first item in §2's "genuinely
+tracker-to-tracker for **bug reports from strangers**, which is the first item in section 2's "genuinely
 better at" list and not the roadmap.
 
 **A correction to this lane's own research, recorded because this tree carried a fabricated block
@@ -294,7 +303,7 @@ anywhere above. Rust's move in the opposite direction is also worth one line sin
 the compiler team's MCP process put a *lighter* tier of proposal into tracker issues while leaving
 the heavy tier in the RFC repository, which is a proportionality argument rather than a medium one.
 
-## 5. Recommendation, with the §92 test on it
+## 5. Recommendation, with the test from §92 (a caretaker is supervised by the client it serves)
 
 **Keep the argument and the status in the tree. Do not move the roadmap to issues. Enable nothing
 and decide nothing about the identifier today, and instead spend one ratchet on the gloss, which is
@@ -317,7 +326,7 @@ Concretely, three items, smallest first:
    nothing retroactively and writes no gloss mechanically. It moves the tree from 83% split-proof to
    asymptotically 100%, at the rate the tree changes, starting now.
 2. **Write `design/roadmap/MOVED` when the split happens**, in FreeBSD's four-field form. One file,
-   and it makes every option in §3 survivable.
+   and it makes every option in section 3 survivable.
 3. **Use issues for the two things a tree cannot do**, as soon as either one is real: a stranger's
    bug report on a released artifact, and a work item spanning two repositories. Not for milestones,
    not for status, not for claims. §90's reason against a second place for truth is intact; that
@@ -355,7 +364,8 @@ historical revisions where no block-derived answer exists.
   (take the next free number, leave the hole) rather than impossible to *have*. Two sessions that
   cannot see each other still both reach for the next number, and the integrator still arbitrates at
   merge. The prior art's answer to this (let the tracker mint it) is untouched by 443.
-- **The citation identifier is a bare number and 443 does not look at it.** This is the whole of §3
+- **The citation identifier is a bare number and 443 does not look at it.** This is the whole of
+  section 3
   above and it is entirely unaffected.
 - **21 scripts under `script/` read `design/roadmap/`**, not 12 as first estimated: `audits`, `bench`,
   `board-netboot`, `boot-check`, `catch-up`, `ci-build`, `citations`, `fastpath-footprint`,
@@ -377,7 +387,8 @@ the identifier is a number, and that is not a problem 443 was scoped to touch.
 ## BUGS
 
 - **This page does not price letting GitHub mint the number**, although the prior art points
-  straight at it and it would dissolve the decouple-the-lanes block's third cause. It is left as an option in §4
+  straight at it and it would dissolve the decouple-the-lanes block's third cause. It is left as an
+  option in section 4
   because it has option B's post-split problem, because 441 existing blocks cannot be reconciled with
   a PR counter past 999 without §194's dangerous edit, and because it would make `script/lint` and
   `script/roadmap` depend on numbers minted by a host this project might leave. A lane could price it
@@ -388,7 +399,7 @@ the identifier is a number, and that is not a problem 443 was scoped to touch.
   repository makes some citations cross-repository, and the citation graph was never built to
   respect a boundary that did not exist.
 - **The gloss ratchet is not free of false positives and this page has not measured them.** A line
-  that mentions a number in a sentence that is not a citation ("milestone 12 lands this week") would
+  that mentions a number in a sentence that is not a citation would
   trip it, and `git grep -w TODO`'s 82% false-positive rate is this tree's standing warning about
   greps that judge prose. Whoever builds it should measure the rate against the last two hundred
   commits before turning it into a failure rather than a report.
