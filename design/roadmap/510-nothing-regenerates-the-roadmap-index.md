@@ -1,6 +1,12 @@
-# Regenerating the index is nobody's job
+# 510. Regenerating the index is nobody's job
 
-**Status: PROPOSED 2026-09-19.** Filed by milestone 443's lane, which took every gate off the
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `nothing-regenerates-the-roadmap-index`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Filed by milestone 443's lane, which took every gate off the
 generated index and found the last thing holding it together is a sentence.
 
 **Gate: NONE.** Everything it touches is in this tree, except the identity, which is milestone 128.

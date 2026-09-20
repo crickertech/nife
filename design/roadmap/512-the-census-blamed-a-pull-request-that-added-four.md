@@ -1,6 +1,12 @@
-# The census blamed one pull request for 55 survivors it did not write
+# 512. The census blamed one pull request for 55 survivors it did not write
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 438, whose first measurement was a replay of the
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `the-census-blamed-a-pull-request-that-added-four`, filed 2026-09-19, on calef's
+instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
+proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
+not the moment to improve it.
+
+Found by milestone 438, whose first measurement was a replay of the
 pull request `design/fatal-risks.md` names, and which found four survivors where that record accounts
 for 55.
 

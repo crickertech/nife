@@ -1,6 +1,12 @@
-# A witness bit set is held together by a hand-written list, and the list has gone stale twice
+# 502. A witness bit set is held together by a hand-written list, and the list has gone stale twice
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 326 while triaging the 2026-09-14 mutation
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-witness-bit-set-has-no-mechanism`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Found by milestone 326 while triaging the 2026-09-14 mutation
 census. It is not that milestone's work: 326 fixed the two lists it found broken, which is rung four
 again.
 

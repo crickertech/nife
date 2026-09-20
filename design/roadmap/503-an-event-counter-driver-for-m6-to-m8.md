@@ -1,6 +1,12 @@
-# An event-counter driver, so milestone 134's M6 to M8 have an instrument
+# 503. An event-counter driver, so milestone 134's M6 to M8 have an instrument
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 134's per-IPC stack-depth lane, which
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `an-event-counter-driver-for-m6-to-m8`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Written by milestone 134's per-IPC stack-depth lane, which
 re-checked tier B against the tree after milestone 74's aarch64 half landed (PR #972).
 
 **Gate: HARDWARE.** The code can be written and exercised under QEMU, but QEMU counts no cache or

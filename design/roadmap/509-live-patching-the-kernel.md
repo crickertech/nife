@@ -1,6 +1,11 @@
-# Live-patching the kernel, so that even a new kernel does not need a reboot
+# 509. Live-patching the kernel, so that even a new kernel does not need a reboot
 
-**Status: PROPOSED 2026-09-19.** Recorded by the maintainer from calef's ruling in DECISIONS §159:
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `live-patching-the-kernel`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
+every proposal on `main` a number. The text below is the proposal's own, unedited except for this
+paragraph: the argument is its author's and promotion is not the moment to improve it.
+
+Recorded by the maintainer from calef's ruling in DECISIONS §159:
 *"Live-patching a kernel is a separate milestone that we may not get to for a very long time.
 Rebooting for a new kernel is fine for now."*
 

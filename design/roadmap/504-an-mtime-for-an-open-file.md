@@ -1,6 +1,11 @@
-# An mtime for an open file, not only for a name
+# 504. An mtime for an open file, not only for a name
 
-**Status: PROPOSED 2026-09-19.** Written by the milestone 64 lane (`milestone/64-std-filesystem-shim`),
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `an-mtime-for-an-open-file`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
+every proposal on `main` a number. The text below is the proposal's own, unedited except for this
+paragraph: the argument is its author's and promotion is not the moment to improve it.
+
+Written by the milestone 64 lane (`milestone/64-std-filesystem-shim`),
 from milestone 64's block.
 
 **Gate: DECISION.** Every option that closes this puts something on the file contract, which two

@@ -1,6 +1,12 @@
-# The HVF leg's std listener test hangs in some full runs and passes alone
+# 514. The HVF leg's std listener test hangs in some full runs and passes alone
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 227's lane (a GICv3 driver), on the first two
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `the-hvf-std-listener-hangs-in-some-full-runs`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Found by milestone 227's lane (a GICv3 driver), on the first two
 full `script/test --hvf` runs this machine could make since milestone 222.
 
 **Gate: NONE.** It needs patagonia, or any Apple Silicon Mac with HVF, and nothing else.

@@ -1,6 +1,12 @@
-# A const inside a proof module is not excluded, because its mutant has no module path
+# 492. A const inside a proof module is not excluded, because its mutant has no module path
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 438 while replaying `cargo mutants --in-diff`
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-const-in-a-proof-module-escapes-its-exclusion`, filed 2026-09-19, on calef's instruction
+of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
+unedited except for this paragraph: the argument is its author's and promotion is not the moment to
+improve it.
+
+Found by milestone 438 while replaying `cargo mutants --in-diff`
 against milestone 319's pull request: two of the four survivors it reported are mutants that
 `cargo test` can never kill, in a module `cargo test` never compiles.
 

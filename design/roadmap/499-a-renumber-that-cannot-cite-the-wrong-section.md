@@ -1,6 +1,12 @@
-# A renumber that cannot cite the wrong section
+# 499. A renumber that cannot cite the wrong section
 
-**Status: PROPOSED 2026-09-19.** Filed by the integrator after the third `design/decisions/`
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-renumber-that-cannot-cite-the-wrong-section`, filed 2026-09-19, on calef's instruction
+of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
+unedited except for this paragraph: the argument is its author's and promotion is not the moment to
+improve it.
+
+Filed by the integrator after the third `design/decisions/`
 number collision between two sessions in ninety minutes, on the evening calef ruled that the
 interleaving stays ([§194](../../decisions/194-sessions-interleave-rather-than-serialize.md)).
 

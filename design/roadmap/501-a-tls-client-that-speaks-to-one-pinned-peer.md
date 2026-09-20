@@ -1,6 +1,12 @@
-# A TLS client that speaks to one pinned peer
+# 501. A TLS client that speaks to one pinned peer
 
-**Status: PROPOSED 2026-09-19.** Written by the lane for milestone 442 (a crypto provider `rustls`
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-tls-client-that-speaks-to-one-pinned-peer`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Written by the lane for milestone 442 (a crypto provider `rustls`
 can use on all three bare-metal targets), which carried that block's clauses 1 and 2 and repriced
 this one out of it rather than leaving it unnamed.
 

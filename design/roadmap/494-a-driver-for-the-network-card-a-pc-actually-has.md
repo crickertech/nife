@@ -1,6 +1,12 @@
-# A driver for the network card a PC actually has
+# 494. A driver for the network card a PC actually has
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's rungs lane
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-driver-for-the-network-card-a-pc-actually-has`, filed 2026-09-19, on calef's instruction
+of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
+unedited except for this paragraph: the argument is its author's and promotion is not the moment to
+improve it.
+
+Written by milestone 198's rungs lane
 (`milestone/198-rungs-to-a-trivial-install`) for rung 3 of the trivial install DECISIONS §157
 defines: packages over the internet need a network card, and the only one nife can drive is
 virtio-net, which no physical machine has.

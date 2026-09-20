@@ -1,6 +1,12 @@
-# `script/lint` does not build the UEFI binary, so lint-clean code can fail `script/test`
+# 508. `script/lint` does not build the UEFI binary, so lint-clean code can fail `script/test`
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 243's lane, which re-applied its loader banner
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `lint-does-not-build-the-uefi-binary`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Found by milestone 243's lane, which re-applied its loader banner
 after a rebase, watched `script/lint` pass, and then watched `script/test`'s x86_64 leg fail to
 compile the same code. Reported as *"a real gap in the gate ladder, not just my mistake"*, which is
 the right reading: a gate that cannot see a target cannot hold it.

@@ -1,6 +1,12 @@
-# Nothing checks that a committed `.dtb` is what its `.dts` compiles to
+# 491. Nothing checks that a committed `.dtb` is what its `.dts` compiles to
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 326's `machine_discovery` lane while
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-committed-blob-that-matches-its-source`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Found by milestone 326's `machine_discovery` lane while
 regenerating a fixture for an unrelated reason, and filed by the integrator at merge because the
 lane's report was its only home.
 

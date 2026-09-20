@@ -1,6 +1,12 @@
-# A disk-file job mix needs a disk radon can drive, and a file service that takes more than one client at a time
+# 493. A disk-file job mix needs a disk radon can drive, and a file service that takes more than one client at a time
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 168's lane, which was asked to add AIM7's
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-disk-file-job-mix-needs-a-disk-radon-can-drive`, filed 2026-09-19, on calef's
+instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
+proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
+not the moment to improve it.
+
+Written by milestone 168's lane, which was asked to add AIM7's
 disk-file category as a second mix and found two blockers, neither of which is a job-mix change.
 
 **Gate: DECISION, HARDWARE.** The first blocker is a block driver for radon; the second is

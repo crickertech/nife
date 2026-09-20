@@ -1,6 +1,12 @@
-# An x86_64 input driver that never lets the core idle
+# 505. An x86_64 input driver that never lets the core idle
 
-**Status: PROPOSED 2026-09-19.** Found by milestone 182's lane while building `script/shell-check`'s
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `an-x86-64-input-driver-that-never-lets-the-core-idle`, filed 2026-09-19, on calef's
+instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
+proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
+not the moment to improve it.
+
+Found by milestone 182's lane while building `script/shell-check`'s
 x86_64 leg. Milestone 299 recorded x86_64's polling input driver as a latency and CPU limitation;
 this is the measurement that says it is more than that.
 

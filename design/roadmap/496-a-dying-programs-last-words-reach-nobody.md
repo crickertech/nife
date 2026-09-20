@@ -1,6 +1,12 @@
-# A dying program's last words reach nobody
+# 496. A dying program's last words reach nobody
 
-**Status: PROPOSED 2026-09-20.** Written by the lane for milestone 442 (a crypto provider `rustls`
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `a-dying-programs-last-words-reach-nobody`, filed 2026-09-20, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Written by the lane for milestone 442 (a crypto provider `rustls`
 can use on all three bare-metal targets), which lost most of a day to this and then found that the
 thing it was chasing did not exist.
 

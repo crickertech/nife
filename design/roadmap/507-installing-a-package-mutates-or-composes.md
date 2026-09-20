@@ -1,6 +1,12 @@
-# Installing a package: mutate shared directories, compose a view, or only widen what can be spawned
+# 507. Installing a package: mutate shared directories, compose a view, or only widen what can be spawned
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+proposal `installing-a-package-mutates-or-composes`, filed 2026-09-19, on calef's instruction of
+2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
+except for this paragraph: the argument is its author's and promotion is not the moment to improve
+it.
+
+Written by milestone 198's scoping lane
 (`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
 integrator to mint.
 
