@@ -788,11 +788,19 @@ PY
 # host program that runs `diskutil` and reads sysfs. This list is typed out where `script/drift`
 # derives the same set from each crate's `no_std` attribute; the next host-only crate will fail
 # here exactly as this one did, and deriving it would make that unrepresentable.
+#
+# `sealed_pair` is the fourth, and it is the prediction above coming true: it was added on
+# 2026-09-19 for milestone 223 (read a card and say whether its kernel and archive match), failed
+# this pass on its first run with `Vec` not found, and the message said where to put it. It reads
+# two files a host has and answers a question about them, so it is `std` by nature; the kernel side
+# of the same question is `kernel::trust`, which is `no_std` and stays that way.
 echo "==> rustdoc (broken intra-doc links)"
 DOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::invalid_html_tags"
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --workspace --exclude xtask \
-    --exclude board_console --exclude stick_maker --target aarch64-unknown-none-softfloat
-RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console -p stick_maker
+    --exclude board_console --exclude stick_maker --exclude sealed_pair \
+    --target aarch64-unknown-none-softfloat
+RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console -p stick_maker \
+    -p sealed_pair
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path redoxfs_server/Cargo.toml --lib
 
 # The decision index (design/decisions/README.md and one file per decision, milestone 114): its

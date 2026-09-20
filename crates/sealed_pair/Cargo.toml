@@ -1,0 +1,18 @@
+# Name: the block lives in src/lib.rs, where `script/names` reads it.
+[package]
+name = "sealed_pair"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The tree's one archive reader: what must be measured is the bytes a kernel will read OUT of the
+# archive, so this parses the packed image the same way `xtask::measure` does rather than hashing
+# what somebody meant to pack. Ours, in this workspace, no dependencies of its own.
+nifefs = { version = "0.1.0", path = "../nifefs" }
+# The tree's one SHA-256 and the one manifest parser. Using any other would make this check able to
+# disagree with the kernel's, which is the single thing it must never do.
+measured_boot = { version = "0.1.0", path = "../measured_boot" }

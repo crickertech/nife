@@ -765,6 +765,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sealed_pair"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+ "nifefs",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1013,8 +1021,7 @@ dependencies = [
  "device_tree_blob",
  "elf",
  "machine_discovery",
- "measured_boot",
- "nifefs",
+ "sealed_pair",
 ]
 
 [[package]]
@@ -1111,6 +1118,7 @@ dependencies = [
  "measured_boot",
  "nifefs",
  "portable_executable",
+ "sealed_pair",
  "video_terminal",
 ]
 

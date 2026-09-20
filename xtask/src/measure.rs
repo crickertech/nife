@@ -38,8 +38,15 @@ use crate::host::workspace_root;
 /// an `arch` and still writes one manifest per architecture; if a board's list ever needs to differ
 /// again, the parameter comes back at that point with a reason attached. The absent-name path below
 /// it is the one that was already written for lists that differ, and it is kept.
+///
+/// **The list itself moved to `sealed_pair::BOOT_PROGRAMS`**, for milestone 223 (read a card and say whether its kernel and archive match).
+/// It was written out here and
+/// again in `uefi_loader/build.rs`, and a third copy was about to be written in the card checker.
+/// A reader of a kernel image has to know which names its trust root can hold, so the list belongs
+/// where all three of them can reach it; this function stays because the manifest writer below is
+/// its one caller here and because this block is where the list's reasons are recorded.
 pub(crate) fn boot_programs() -> &'static [&'static str] {
-    &["progenitor", "hello"]
+    &sealed_pair::BOOT_PROGRAMS
 }
 
 /// Where the measurement manifest for an architecture is written. `kernel/build.rs` derives exactly

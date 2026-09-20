@@ -74,6 +74,8 @@ device_tree_blob = { version = "0.1.0", path = "../crates/device_tree_blob" }
 # **The seal check** (`build.rs`'s `refuse_an_unsealed_pair`): the loader's build reads the archive
 # it embeds with the tree's one archive reader and hashes its measured entries with the tree's one
 # SHA-256, so a kernel beside an archive it does not vouch for fails the build rather than the
-# boot. Both ours, in this workspace, with no dependencies of their own; not a §46 decision.
-nifefs = { version = "0.1.0", path = "../crates/nifefs" }
-measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
+# boot. Since milestone 223 (read a card and say whether its kernel and archive match, before the
+# power cycle) that comparison is one crate rather than a copy here and a second copy in the card
+# checker. Ours, in this workspace; its own two dependencies are `nifefs` and `measured_boot`, both
+# ours and neither with dependencies of its own. Not a §46 (thin primitives or whole subsystems) decision.
+sealed_pair = { version = "0.1.0", path = "../crates/sealed_pair" }
