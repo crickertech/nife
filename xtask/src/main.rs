@@ -168,9 +168,9 @@ fn main() -> ExitCode {
         // xtask/src/stick.rs and notes/boot-stick.md. Names provisional (2026-09-19).
         "stick" => stick::stick(),
         "stick-boot" => stick::stick_boot(),
-        // **The boot tour read back off a `ramfb`** (milestone 243), on the two architectures whose
-        // firmware never lights a screen. `uefi-boot`'s twin: same decoder, same claim, a different
-        // way of getting a framebuffer. Name provisional.
+        // **The boot tour read back off a `ramfb`**, milestone 243 (a machine with no serial port),
+        // on the two architectures whose firmware never lights a screen. `uefi-boot`'s twin: same
+        // decoder, same claim, a different way of getting a framebuffer. Name provisional.
         "screen-boot" => {
             let arch = std::env::args().nth(2).unwrap_or_else(|| "aarch64".into());
             screen::screen_boot(&arch)

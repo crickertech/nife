@@ -1,4 +1,4 @@
-//! **`ramfb`: a screen on a board whose firmware never lit one** (milestone 243).
+//! **`ramfb`: a screen on a board whose firmware never lit one**, milestone 243 (a machine with no serial port).
 //!
 //! On `x86_64` the boot tour reaches a monitor because UEFI already configured a display and told
 //! the loader where its aperture is. QEMU's `virt` boards have no such stage: they are entered from
@@ -11,7 +11,7 @@
 //! it scans out a real adapter's aperture. So the `Framebuffer` this produces has the same five
 //! fields as the one the UEFI loader measures, and everything above it is unchanged.
 //!
-//! # This driver takes a base address and nothing else (DECISIONS §4)
+//! # This driver takes a base address and nothing else, per §4 (kernel shape, two cheap rules)
 //!
 //! It reaches no kernel global. The register block, a scratch region, and that scratch region's
 //! **physical** address are all arguments, because the translation from one to the other is the

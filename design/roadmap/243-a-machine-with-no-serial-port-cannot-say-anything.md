@@ -9,8 +9,8 @@ items, **early boot** and **the other two architectures**. See `notes/serial-les
 rather than solved.** A kernel that can write its diagnostics somewhere other than a UART now does
 so on all three architectures; the window before the kernel exists is *bounded* rather than
 narrated, and it cannot be narrated (see below); and a gate can read a screen under emulation on
-all three, while reading a *real* serial-less machine is milestone 369 and has always been its own
-block.
+all three, while reading a *real* serial-less machine is milestone 369 (the fleet is not virtual)
+and has always been its own block.
 
 ## What was built, and what it does not cover
 
@@ -155,7 +155,8 @@ replacing it is harder than it looks.
   instruction stream with no idea where the screen is and no IDT, so a fault in it is a triple
   fault and a reset. What *can* be done is done by the stage before it. See the section below.
 - **Proposed.** `design/roadmap/proposals/the-boards-screen-under-uefi.md`. The boards' screen under
-  UEFI, which milestone 441 made reachable while this lane was running. `uefi_loader` now has aarch64 and riscv64 boot files, so on those architectures
+  UEFI, which milestone 441 (the program that makes the stick) made reachable while this lane was
+  running. `uefi_loader` now has aarch64 and riscv64 boot files, so on those architectures
   there is, for the first time, a firmware stage that has already lit a display and can be asked
   about it. Two things fall out and neither is built: the loader could paint this block's handoff
   banner on those architectures too (`find_screen` is under `arch/x86_64/` today), and it could
@@ -277,9 +278,9 @@ self-test is asserted separately and unconditionally on the **serial** transcrip
 above. So the change trades nothing away; it stops the gate asserting something it never meant to.
 How deep the dump caught the tour is now *reported* rather than required.
 
-**This edits milestone 400's gate, not this one's**, and 400's `BUGS` entry about that window is now
-stale in its last clause. A lane may not edit another milestone's block, so it is named here and in
-this lane's report for the integrator to strike.
+**This edits the gate of milestone 400 (the shell on the firmware's screen), not this one's**, and
+400's `BUGS` entry about that window is now stale in its last clause. A lane may not edit another
+milestone's block, so it is named here and in this lane's report for the integrator to strike.
 
 ### The gate's first red run, and the line that made it readable
 

@@ -2,7 +2,7 @@
 //!
 //! *Module name provisional (AGENTS.md: calef names modules).*
 //!
-//! Milestone 243 built the whole console-on-a-framebuffer path arch-neutrally and then wired it up
+//! Milestone 243 (a machine with no serial port) built the whole console-on-a-framebuffer path arch-neutrally and then wired it up
 //! on `x86_64` alone, because `x86_64` is the only one of the three whose boot chain includes a
 //! stage that has already lit a display. Its own block records the gap in one line: *"aarch64 and
 //! riscv64 have no screen. `machine_discovery::framebuffer` and `screen_console` are arch-neutral
@@ -10,12 +10,13 @@
 //!
 //! # Two halves, and only one of them is here
 //!
-//! - **On real boards**, the answer is milestone 157: U-Boot has already configured the DC8200 and
-//!   advertises a `simple-framebuffer` node, and the kernel reads where it is. That is board work,
-//!   it needs the board on the desk, and it stays in 157 rather than being half-done here.
+//! - **On real boards**, the answer is milestone 157 (real display output on the board): U-Boot
+//!   has already configured the DC8200 and advertises a `simple-framebuffer` node, and the kernel
+//!   reads where it is. That is board work, it needs the board on the desk, and it stays in 157
+//!   rather than being half-done here.
 //! - **Under QEMU**, there is no such stage, so nothing can be read. What `virt` offers instead is
-//!   [`ramfb`](crate::drivers::ramfb), which inverts the arrangement: the guest provides the memory
-//!   and the emulator scans it out. That is this module.
+//!   [`ramfb`](crate::drivers::ramfb), which inverts the arrangement: the guest provides the
+//!   memory and the emulator scans it out. That is this module.
 //!
 //! Both halves end at the same call, `console::attach_screen`, with the same five-field
 //! [`Framebuffer`]. So when 157 lands it adds a branch above this one and changes nothing below it.

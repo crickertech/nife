@@ -1,4 +1,5 @@
-//! **Asking the emulator for a screen** (milestone 243): QEMU's `fw_cfg` interface, wire side.
+//! **Asking the emulator for a screen**, milestone 243 (a machine with no serial port): QEMU's
+//! `fw_cfg` interface, wire side.
 //!
 //! Milestone 243 put the kernel's boot tour on a screen on `x86_64`, where UEFI's
 //! `EFI_GRAPHICS_OUTPUT_PROTOCOL` hands the loader a linear framebuffer that is already lit.
@@ -88,17 +89,18 @@
 //!
 //! # BUGS
 //!
-//! - **Nothing here checks that the device is real.** A machine with no `fw_cfg` node in its device
-//!   tree never gets this far, and a machine whose node points somewhere else would have these
-//!   structures written into whatever is there. The trust boundary is the device tree, which is the
-//!   same boundary the UART and the interrupt controller already sit on.
+//! - **Nothing here checks that the device is real.** A machine with no `fw_cfg` node in its
+//!   device tree never gets this far, and a machine whose node points somewhere else would have
+//!   these structures written into whatever is there. The trust boundary is the device tree, which
+//!   is the same boundary the UART and the interrupt controller already sit on.
 //! - **The directory is walked, not indexed.** `ramfb`'s key is not architecturally fixed (QEMU
 //!   assigns file keys in the order the files are added, so it moves when another device is
 //!   attached), so the only correct way to find it is the walk, and the walk is `O(files)` reads
 //!   over a DMA interface. It happens once per boot.
 //! - **`ramfb` is QEMU's**, not a standard. Real silicon has no such device, which is why the
-//!   milestone that added this says plainly that the boards' answer is milestone 157's U-Boot
-//!   `simple-framebuffer` handoff and this is what the emulator can do in the meantime.
+//!   milestone that added this says plainly that the boards' answer is milestone 157 (real display
+//!   output on the board), the U-Boot `simple-framebuffer` handoff, and this is what the emulator
+//!   can do in the meantime.
 
 #![no_std]
 

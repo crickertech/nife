@@ -1,4 +1,5 @@
-//! **The last word anything says before the kernel exists** (milestone 243's early-boot half).
+//! **The last word anything says before the kernel exists**, the early-boot half of
+//! milestone 243 (a machine with no serial port).
 //!
 //! From `ExitBootServices` to the kernel's own `console::attach_screen` there is no console on a
 //! machine with no serial port. The firmware's is gone by specification, the kernel's is not up, and

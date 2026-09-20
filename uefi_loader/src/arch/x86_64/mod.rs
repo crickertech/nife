@@ -325,8 +325,8 @@ pub fn hand_over(
     //
     // Painted AFTER `ExitBootServices` on purpose: before it the screen is the firmware's console
     // and writing the aperture underneath it would race the firmware's own scrolling. The aperture
-    // survives that call, which is milestone 243's founding observation: what ends is the
-    // firmware's *console*, not the *display*.
+    // survives that call, which is the founding observation of milestone 243 (a machine with no
+    // serial port): what ends is the firmware's *console*, not the *display*.
     if let Some(screen) = found.screen
         && let Some(span) = screen.span()
     {

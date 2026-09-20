@@ -60,8 +60,9 @@ mod pci;
 mod non_volatile_memory_express;
 mod revoke;
 mod sched;
-// **A screen on the two architectures whose firmware never lights one** (milestone 243): the
-// `ramfb` discovery half, and the question of whether a framebuffer is this kernel's own memory.
+// **A screen on the two architectures whose firmware never lights one**, milestone 243 (a machine
+// with no serial port): the `ramfb` discovery half, and the question of whether a framebuffer is
+// this kernel's own memory.
 mod screen;
 // The boot self-tests (milestone 268): the kernel proving it works on this machine, between the
 // machine description and the hand-off to userspace. The same set on all three architectures. A

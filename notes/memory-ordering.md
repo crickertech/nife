@@ -100,7 +100,7 @@ Each of these now carries a `PAIR:` comment at the site naming where its other h
 | `components/src/display_terminal.rs` `present`, first | release | the display driver's `barrier()`, or `serve_frame` | **Sound, redundant** on the display path |
 | `components/src/display_terminal.rs` `present`, second | release | `serve_frame` | **Sound**, by the reply this process is about to send |
 | `components/src/compositor.rs` `flush` | release | `barrier()` in `components/src/gpu_driver.rs` | **Sound.** The `CALL` orders the driver's read; the fence covers the driver-to-device leg |
-| `kernel/src/drivers/ramfb.rs` `run`, first | release | **none in this tree**: QEMU's `fw_cfg` device model, reading guest memory | **Sound, and the only site whose partner is host code.** The command bytes are normal memory and the register that starts the transfer is device memory; without this the device may read a half-written command. Milestone 243 |
+| `kernel/src/drivers/ramfb.rs` `run`, first | release | **none in this tree**: QEMU's `fw_cfg` device model, reading guest memory | **Sound, and the only site whose partner is host code.** The command bytes are normal memory and the register that starts the transfer is device memory; without this the device may read a half-written command. Milestone 243 (a machine with no serial port) |
 | `kernel/src/drivers/ramfb.rs` `run`, second | acquire | the release leg five lines above, in the same function | **Sound.** A volatile load of the cleared control word does not order the data buffer's bytes behind it on a weak machine. Milestone 243 |
 
 ### The one publish the rendezvous does not cover

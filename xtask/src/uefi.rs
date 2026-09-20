@@ -395,7 +395,8 @@ pub(crate) fn uefi_boot() -> bool {
     ok
 }
 
-/// The line the screen has to be showing for milestone 243 to have worked.
+/// The line the screen has to be showing for milestone 243 (a machine with no serial port) to have
+/// worked.
 ///
 /// **It is the banner, the FIRST line of the tour, and that was a correction** (milestone 243's
 /// second lane, 2026-09-20). It used to be the self-test verdict, on the reasoning that a 1280x800
@@ -404,8 +405,9 @@ pub(crate) fn uefi_boot() -> bool {
 /// nothing scrolls and the banner is on the screen from the first line until the handover clears
 /// it. What the old marker actually selected for was the *last* line before the clear, which is a
 /// window of a few hundred milliseconds. The gate flaked accordingly: on a loaded dev Mac, four
-/// consecutive runs read 19, 27, 40 and 0 rows, and milestone 400's own BUGS predicted exactly this
-/// ("a much faster guest or a slower screendump could miss it").
+/// consecutive runs read 19, 27, 40 and 0 rows, and the BUGS of milestone 400 (the shell on the
+/// firmware's screen) predicted exactly this ("a much faster guest or a slower screendump could
+/// miss it").
 ///
 /// **The total claim is unchanged**, which is the part worth checking before believing this. The
 /// screen's job is to prove the *pixels*: the loader's `LocateProtocol`, the byte order, the

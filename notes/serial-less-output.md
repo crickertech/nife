@@ -1,6 +1,6 @@
 # A machine with no serial port
 
-Milestone 243. Every word nife had ever said, it said down a UART: the boot tour on all three
+Milestone 243 (a machine with no serial port). Every word nife had ever said, it said down a UART: the boot tour on all three
 architectures, the console server and the shell, the kernel's fault reports, and **every automated
 gate that reads any of them** (`script/board-console`, the soak's heartbeat, `script/shell-check`,
 `crates/board_console`'s stage judging).
@@ -153,7 +153,7 @@ works headlessly: OVMF finds a GOP here for the same reason a real machine's fir
 ## The shell on the screen, too (milestone 400, provisional number)
 
 Everything above is the **kernel's** voice. Since milestone 299 the console is a userspace process
-writing COM1, so until milestone 400 the tour reached the screen and the shell's prompt did not. Now
+writing COM1, so until milestone 400 (the shell on the firmware's screen) the tour reached the screen and the shell's prompt did not. Now
 it does, beside the serial console rather than instead of it:
 
 ```text
@@ -245,7 +245,8 @@ Without that line a blank screen sends the next reader into the framebuffer path
 
 **What it does not claim.** `ramfb` is QEMU's; no real board has one. It proves the arch-neutral
 console and the arch-neutral discovery *type* on all three architectures, and it proves nothing about
-the DC8200 on the VisionFive 2. That is milestone 157, and the shape of the change it needs is one
+the DC8200 on the VisionFive 2. That is milestone 157 (real display output on the board), and the shape of the change it needs is
+one
 branch above `screen::attach` and nothing below it.
 
 ## The bench: booting a serial-less machine

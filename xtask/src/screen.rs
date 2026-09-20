@@ -1,5 +1,5 @@
-//! **The boot tour read back off a `ramfb`** (milestone 243), on the two architectures whose
-//! firmware never lights a screen.
+//! **The boot tour read back off a `ramfb`**, milestone 243 (a machine with no serial port), on the
+//! two architectures whose firmware never lights a screen.
 //!
 //! [`crate::uefi`]'s `uefi_boot` twin, and deliberately the same shape: a QEMU monitor on a unix
 //! socket, a poller asking it for a screendump, and `board_console::screen` turning the picture back

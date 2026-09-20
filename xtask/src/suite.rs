@@ -542,11 +542,12 @@ pub(crate) fn test() -> bool {
         }
     }
 
-    // **And the boot tour on a screen, on the two boards** (milestone 243). The x86_64 leg above
-    // proves the same claim through `uefi_boot`, on a framebuffer the firmware lit; these two prove
-    // it on a `ramfb`, which is what QEMU's `virt` can present. One extra TCG boot per leg, and it
-    // is the only thing in this suite that can fail when the screen is black: every other assertion
-    // here reads a serial line that says the same words whether or not a pixel was written.
+    // **And the boot tour on a screen, on the two boards**, milestone 243 (a machine with no serial
+    // port). The x86_64 leg above proves the same claim through `uefi_boot`, on a framebuffer the
+    // firmware lit; these two prove it on a `ramfb`, which is what QEMU's `virt` can present. One
+    // extra TCG boot per leg, and it is the only thing in this suite that can fail when the screen
+    // is black: every other assertion here reads a serial line that says the same words whether or
+    // not a pixel was written.
     //
     // It is a boot of its own rather than a stage of the suite above, because `ramfb` adds a QEMU
     // console and the suite's machine already has a virtio-gpu on console 0.

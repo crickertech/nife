@@ -116,7 +116,8 @@ enum Painter {
     Terminal,
 }
 
-/// The kernel console: a UART, and since milestone 243 optionally a screen.
+/// The kernel console: a UART, and since milestone 243 (a machine with no serial port) optionally a
+/// screen.
 ///
 /// **Both, not either.** A machine with a serial port and a monitor should say the same thing on
 /// both, because the person at the bench and the gate reading the wire are looking for the same

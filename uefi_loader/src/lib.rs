@@ -16,5 +16,5 @@ pub mod device_tree_patch;
 pub mod efi;
 pub mod handoff;
 pub mod image;
-/// The one line this loader leaves on the screen across the handoff (milestone 243).
+/// The one line this loader leaves on the screen across the handoff, milestone 243 (a machine with no serial port).
 pub mod screen;

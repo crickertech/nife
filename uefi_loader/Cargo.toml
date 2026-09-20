@@ -52,16 +52,17 @@ elf = { version = "0.1.0", path = "../crates/elf" }
 # letters** (milestone 243's early-boot half). The loader paints one line into the framebuffer as
 # its final act, after `ExitBootServices` has taken the firmware's console away and before the
 # kernel exists, which is the only window on a serial-less machine that nothing else can cover.
-# Ours, in this workspace, no external dependencies: not a §46 decision, and the alternative was a
-# second glyph loop drawing the same font.
+# Ours, in this workspace, no external dependencies: not a decision under §46 (thin primitives or
+# whole subsystems), and the alternative was a second glyph loop drawing the same font.
 screen_console = { version = "0.1.0", path = "../crates/screen_console" }
 
-# **The reader this loader is the writer for**, and since milestone 243 a build dependency rather
-# than only a test one. It was always the crate that decoded this loader's `hvm_start_info` in the
-# tests below; what changed is that the loader now WRITES something structured into the handoff (the
-# screen the firmware was drawing on, `machine_discovery::framebuffer`) instead of only laying out
-# somebody else's fields. Rule 7: what two binaries agree on is a crate, and the alternative is two
-# spellings of one token with nothing keeping them in step.
+# **The reader this loader is the writer for**, and since milestone 243 (a machine with no serial
+# port) a build dependency rather than only a test one. It was always the crate that decoded this
+# loader's `hvm_start_info` in the tests below; what changed is that the loader now WRITES something
+# structured into the handoff (the screen the firmware was drawing on,
+# `machine_discovery::framebuffer`) instead of only laying out somebody else's fields. Rule 7: what
+# two binaries agree on is a crate, and the alternative is two spellings of one token with nothing
+# keeping them in step.
 #
 # It is not a §46 decision: `machine_discovery` is ours, in this workspace, and its own single
 # dependency (`device_tree_blob`) is ours and has none.

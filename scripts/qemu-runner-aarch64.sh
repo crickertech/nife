@@ -466,9 +466,10 @@ if [ -n "$NIFE_NVME" ]; then
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
 fi
 
-# **A `ramfb` when NIFE_SCREEN is set** (milestone 243). The one thing this `virt` board can present
-# that looks like a screen the firmware left running: the guest allocates the pixels and tells QEMU
-# where they are over `fw_cfg`, and QEMU scans them out. `kernel/src/screen.rs` is the guest half.
+# **A `ramfb` when NIFE_SCREEN is set**, milestone 243 (a machine with no serial port). The one
+# thing this `virt` board can present that looks like a screen the firmware left running: the guest
+# allocates the pixels and tells QEMU where they are over `fw_cfg`, and QEMU scans them out.
+# `kernel/src/screen.rs` is the guest half.
 #
 # Off by default, and a test-leg/gate device only, for the two reasons the GPU line above gives and
 # one of its own: `ramfb` adds a QEMU **console**, and `screendump` with no device argument writes

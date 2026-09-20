@@ -1,6 +1,6 @@
-# Name: **PROVISIONAL** (milestone 243). QEMU spells this interface `fw_cfg`, and every other
-# implementation of it (Linux, EDK2, U-Boot) keeps that spelling. This tree does not: its crate
-# names are spelled out (`address_space_identifier`,
+# Name: **PROVISIONAL**, coined for milestone 243 (a machine with no serial port). QEMU spells this
+# interface `fw_cfg`, and every other implementation of it (Linux, EDK2, U-Boot) keeps that
+# spelling. This tree does not: its crate names are spelled out (`address_space_identifier`,
 # `globally_unique_identifier_partition_table`, `inter_process_communication`), and an acronym only
 # its author can expand is the failure mode `design/naming.md` names. So the crate says what the
 # interface is, `firmware_configuration`, and this comment and the module doc both say that QEMU
