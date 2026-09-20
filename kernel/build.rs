@@ -40,6 +40,29 @@ fn main() {
         std::env::var("NIFE_TEST_FILTER").unwrap_or_default()
     );
 
+    // **E3's pad size and layout shift** (milestone 134's layout control), the same mechanism as
+    // the test filter above and chosen for a measured reason: a Cargo feature per size was built
+    // first, and a feature's name enters cargo's `-C metadata` hash, which reorders codegen units
+    // and moved up to 11 KB of unrelated code ahead of the sled. An environment variable does not
+    // enter that hash, so two images differ only in the bytes asked for. kernel/src/fastpath_pad.rs
+    // has what the two numbers mean.
+    //
+    // **Read only under `fastpath_pad`**, so a stray variable in somebody's shell cannot reach an
+    // ordinary build, and an ordinary build is not rebuilt when one changes. Anything that is not a
+    // plain decimal is refused here, before four minutes of cargo, rather than defaulted.
+    if std::env::var_os("CARGO_FEATURE_FASTPATH_PAD").is_some() {
+        for (var, default) in [("NIFE_FASTPATH_PAD", "1"), ("NIFE_FASTPATH_SHIFT", "0")] {
+            println!("cargo::rerun-if-env-changed={var}");
+            let value = std::env::var(var).unwrap_or_else(|_| default.to_string());
+            if value.parse::<u32>().is_err() {
+                panic!(
+                    "{var}={value:?} is not a non-negative decimal; see kernel/src/fastpath_pad.rs"
+                );
+            }
+            println!("cargo::rustc-env={var}={value}");
+        }
+    }
+
     println!("cargo::rerun-if-changed={link_script}");
     println!("cargo::rerun-if-changed={boot_asm}");
     println!("cargo::rustc-link-arg=-T{manifest_dir}/{link_script}");

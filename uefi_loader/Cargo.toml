@@ -48,12 +48,21 @@ uefi = []
 # deleted.
 elf = { version = "0.1.0", path = "../crates/elf" }
 
-# **The reader this loader is the writer for**, and since milestone 243 a build dependency rather
-# than only a test one. It was always the crate that decoded this loader's `hvm_start_info` in the
-# tests below; what changed is that the loader now WRITES something structured into the handoff (the
-# screen the firmware was drawing on, `machine_discovery::framebuffer`) instead of only laying out
-# somebody else's fields. Rule 7: what two binaries agree on is a crate, and the alternative is two
-# spellings of one token with nothing keeping them in step.
+# **The painter the kernel uses, so the loader's last word and the kernel's first are the same
+# letters** (milestone 243's early-boot half). The loader paints one line into the framebuffer as
+# its final act, after `ExitBootServices` has taken the firmware's console away and before the
+# kernel exists, which is the only window on a serial-less machine that nothing else can cover.
+# Ours, in this workspace, no external dependencies: not a decision under §46 (thin primitives or
+# whole subsystems), and the alternative was a second glyph loop drawing the same font.
+screen_console = { version = "0.1.0", path = "../crates/screen_console" }
+
+# **The reader this loader is the writer for**, and since milestone 243 (a machine with no serial
+# port) a build dependency rather than only a test one. It was always the crate that decoded this
+# loader's `hvm_start_info` in the tests below; what changed is that the loader now WRITES something
+# structured into the handoff (the screen the firmware was drawing on,
+# `machine_discovery::framebuffer`) instead of only laying out somebody else's fields. Rule 7: what
+# two binaries agree on is a crate, and the alternative is two spellings of one token with nothing
+# keeping them in step.
 #
 # It is not a §46 decision: `machine_discovery` is ours, in this workspace, and its own single
 # dependency (`device_tree_blob`) is ours and has none.
@@ -63,3 +72,19 @@ elf = { version = "0.1.0", path = "../crates/elf" }
 # a layout two programs agree on. It was a `[dev-dependencies]` entry until milestone 243 made it a
 # real one; nothing about the test relationship changed.
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
+
+# **The device-tree reader the aarch64 and riscv64 kernels read with**, for the same reason
+# `machine_discovery` is here: `device_tree_patch`'s tests decode what the loader writes with the
+# crate the kernel decodes with, and the riscv64 loader asks it for `/chosen/boot-hartid` when the
+# firmware has no RISC-V boot protocol. Ours, no dependencies; not a §46 decision.
+device_tree_blob = { version = "0.1.0", path = "../crates/device_tree_blob" }
+
+[build-dependencies]
+# **The seal check** (`build.rs`'s `refuse_an_unsealed_pair`): the loader's build reads the archive
+# it embeds with the tree's one archive reader and hashes its measured entries with the tree's one
+# SHA-256, so a kernel beside an archive it does not vouch for fails the build rather than the
+# boot. Since milestone 223 (read a card and say whether its kernel and archive match, before the
+# power cycle) that comparison is one crate rather than a copy here and a second copy in the card
+# checker. Ours, in this workspace; its own two dependencies are `nifefs` and `measured_boot`, both
+# ours and neither with dependencies of its own. Not a §46 (thin primitives or whole subsystems) decision.
+sealed_pair = { version = "0.1.0", path = "../crates/sealed_pair" }

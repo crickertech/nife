@@ -108,7 +108,7 @@ row pretending to be one.
 | `unsafe {}` blocks inside `kernel/src/arch/` | every run | `script/lint`, which prints it and asserts nothing |
 | E1: IPC round trip against thread count | **2026-09-04 (radon, 6 boots)**; 2026-08-22 (dev Mac) | `cargo xtask bench --real` (`ipc_scale_*` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
-| E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
+| E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad [--layout]` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real`; on radon, eight images over `NIFE_FASTPATH_PAD`/`NIFE_FASTPATH_SHIFT` (the layout control, 2026-09-19) built by `script/board-image --bench --extra-features fastpath_pad`, procedure in notes/footprint-perturbation.md |
 | E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | **2026-09-04 (radon, 6 boots)**; 2026-08-23 (dev Mac) | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | per-IPC kernel stack depth, per shape and role (milestone 134) | **2026-09-19 (QEMU, all three ISAs, debug and release)** | debug: `script/test`, the `ipc-stack-depth:` lines of `one_ipc_reaches_a_measured_depth_into_its_kernel_stack`; release: a `bench,ipc_stack_depth` kernel booted on one hart (notes/stack-high-water.md, "Per-IPC depth") |
 | multi-tasking throughput, jobs per minute against task count (milestone 168) | **2026-09-16 (radon, 5 boots; old instrument, `tasks=4` not a number)** | `script/board-image --job-mix --tftp`, then `script/board-console`, by `notes/job-mix.md`'s bench-evening procedure; the rehearsal is `script/job-mix` |
@@ -129,9 +129,9 @@ notes/footprint-perturbation.md.
 - **E3 separated cleanly and cannot be attributed.** The padded build is 1.49% slower on
   `call_reply` and **3.01% faster** on `ipc_rtt_el0`, both non-overlapping across three boots each.
   Resident dead code cannot make anything faster, so the experiment is measuring code layout summed
-  with footprint and reporting the total. **Do not quote an E3 number as a footprint result** until the control
-  `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md` specifies has been
-  built. This flaw
+  with footprint and reporting the total. **Do not quote an E3 number as a footprint result**: the
+  control milestone 370 specifies was built on 2026-09-19 and the evening that uses it has not been
+  run, so E3 has no attributable number at either date. This flaw
   was present in the 2026-08-22 dev-Mac reading too; the small cache made it visible rather than
   causing it.
 

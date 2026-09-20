@@ -77,6 +77,25 @@ pub fn physical_span<'a>(
     ))
 }
 
+/// **The physical address the firmware should jump to**: `e_entry` translated through the segment
+/// that contains it.
+///
+/// On `x86_64` this is the identity, because `_start` lives in `.boot`, which is linked where it
+/// is loaded. On aarch64 and riscv64 it is not: both kernels are linked in the high half with
+/// `AT()` placing them low (`kernel/link-aarch64.ld`, `kernel/link-riscv64.ld`), so `e_entry` is a
+/// virtual address nothing maps yet, and the jump has to go to where `_start`'s bytes actually are.
+/// QEMU's `-kernel` and U-Boot's `booti` both enter at the load address for the same reason.
+///
+/// `None` when no segment contains the entry, which `Elf::parse` refuses before this runs
+/// (`EntryNotExecutable`); a return value rather than a panic for the reason [`physical_span`]
+/// gives.
+pub fn physical_entry<'a>(entry: u64, segments: impl Iterator<Item = Segment<'a>>) -> Option<u64> {
+    segments
+        .filter(|s| entry >= s.vaddr && entry - s.vaddr < s.memsz)
+        .map(|s| s.paddr + (entry - s.vaddr))
+        .next()
+}
+
 /// A sentence for the firmware console, for every way [`Elf::parse`] can refuse the kernel this
 /// binary was built around.
 ///
@@ -96,7 +115,7 @@ pub const fn refusal(error: elf::Error) -> &'static str {
         Not64Bit => "the embedded kernel is not ELF64",
         NotLittleEndian => "the embedded kernel is not little-endian",
         BadVersion => "the embedded kernel's ELF version is not 1",
-        WrongMachine => "the embedded kernel is not an x86-64 ELF",
+        WrongMachine => "the embedded kernel is for a different architecture than this loader",
         NeedsRelocation => "the embedded kernel is a PIE and nothing here relocates it",
         NotExecutable => "the embedded kernel is not an executable",
         BadProgramHeaders => "the embedded kernel's program header table is out of bounds",
@@ -135,6 +154,35 @@ mod tests {
             flags: PF_R | PF_X,
             data: &[],
         }
+    }
+
+    #[test]
+    fn a_high_half_entry_is_entered_where_its_bytes_are() {
+        // aarch64's shape: `_start` at 0xffff_0000_4008_0000, loaded at 0x4008_0000.
+        let text = Segment {
+            vaddr: 0xffff_0000_4008_0000,
+            paddr: 0x4008_0000,
+            memsz: 0x2_0000,
+            flags: PF_R | PF_X,
+            data: &[],
+        };
+        assert_eq!(
+            physical_entry(0xffff_0000_4008_0040, [text].into_iter()),
+            Some(0x4008_0040)
+        );
+        // x86_64's shape: `.boot` is linked where it loads, so the translation is the identity.
+        let boot = Segment {
+            vaddr: 0x200_0000,
+            paddr: 0x200_0000,
+            memsz: 0x1000,
+            flags: PF_R | PF_X,
+            data: &[],
+        };
+        assert_eq!(
+            physical_entry(0x200_0010, [boot].into_iter()),
+            Some(0x200_0010)
+        );
+        assert_eq!(physical_entry(0x10, [boot, text].into_iter()), None);
     }
 
     /// The property this module exists for: the span is over **`p_paddr`**, so an image whose

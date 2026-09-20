@@ -39,7 +39,7 @@ and one that touches the OS they already have.
 The measured-boot chain (milestone 104, DECISIONS §26) chose a hash over a signature for exactly
 K2's reason: *"today they are built by one command in one tree in one sequence, so the hash is
 strictly better"*, and key custody was the objection §26 left standing. The trust fork's T2
-(`what-vouches-for-a-package-the-image-did-not-carry.md`) asks the same custody question for
+(DECISIONS §195) asks the same custody question for
 packages. **If both a package key and a boot key exist, whether they are one key is a ruling in
 itself**; the safer default is two.
 

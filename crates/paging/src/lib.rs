@@ -11,6 +11,23 @@
 //! same arithmetic: 9 index bits selects one of 512 eight-byte entries, so **a table is exactly one
 //! page** and the frame allocator can supply page tables and nothing else.
 //!
+//! # Blocks: a leaf one or two levels up
+//!
+//! The same arithmetic gives every format a second and third leaf size for free. An entry one level
+//! above the bottom covers 512 pages (2 MiB), one level above that 512 of those (1 GiB), and all
+//! three formats let such an entry be a **leaf** that maps the whole span directly instead of
+//! pointing at a table. aarch64 calls it a *block* descriptor, Sv39 a megapage or gigapage, x86 a
+//! large page (`PS`). [`PageSize`] names the three sizes and [`Mapper::map_span`] picks the largest
+//! one that fits, which is what a direct map of physical memory wants: in 4 KiB leaves it costs 8
+//! bytes of table per 4 KiB of RAM (0.2%), in 2 MiB leaves 8 bytes per 2 MiB.
+//!
+//! **A block is a leaf the walk meets early, and every walk has to know that.** `map` refuses to
+//! descend through one (it would read a 2 MiB frame of somebody's data as a page table and write a
+//! leaf into it), `unmap` refuses to take a 4 KiB bite out of one ([`MapError::InsideBlock`]), and
+//! `translate` stops at one and adds the offset within it. None of the three splits a block: doing
+//! that on a live table is valid-to-valid on aarch64, which is the break-before-make hazard
+//! [`TlbFlush`] exists for, and nothing in this tree has needed it.
+//!
 //! # Why this is a separate crate
 //!
 //! It is pure logic: addresses in, descriptors out. The host tests build real page tables in real
@@ -148,8 +165,75 @@ pub use domain::{DmaRegion, build_identity_domain};
 pub use sv39::Sv39;
 pub use x86_64::{Ia32e, Vtd};
 
-/// 4 KiB, the page size every format here maps in.
+/// 4 KiB, the smallest leaf every format here maps, and the unit every table is.
 pub const PAGE_SIZE: u64 = 4096;
+
+/// **How much one leaf maps**: a page at the bottom level, or a block one or two levels up.
+///
+/// The sizes are the same on all three CPU formats because they all use 4 KiB granules and 9-bit
+/// indices: each level up multiplies the span by 512. The names are the byte counts rather than
+/// "huge"/"giant"/"super", because those words mean different sizes in different kernels and the
+/// number does not. Name provisional (milestone 161); the `x86_64` crate spells the same three
+/// sizes the same way, which is the prior art.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PageSize {
+    /// A 4 KiB page, at the bottom level.
+    Size4KiB,
+    /// A 2 MiB block, one level up.
+    Size2MiB,
+    /// A 1 GiB block, two levels up.
+    Size1GiB,
+}
+
+impl PageSize {
+    /// Every size, smallest first.
+    pub const ALL: [PageSize; 3] = [PageSize::Size4KiB, PageSize::Size2MiB, PageSize::Size1GiB];
+
+    /// How many bytes one leaf of this size maps.
+    pub const fn bytes(self) -> u64 {
+        PAGE_SIZE << (9 * self.levels_above_bottom())
+    }
+
+    /// How many levels above the bottom a leaf of this size sits: 0, 1 or 2.
+    pub const fn levels_above_bottom(self) -> usize {
+        match self {
+            PageSize::Size4KiB => 0,
+            PageSize::Size2MiB => 1,
+            PageSize::Size1GiB => 2,
+        }
+    }
+
+    /// **The leaf size for the next step of mapping `remaining` bytes from `va` to `pa`**: the
+    /// largest size no bigger than `largest` for which both addresses are aligned and the whole
+    /// leaf fits in what is left.
+    ///
+    /// This is the one decision that makes a block mapping safe or not, which is why it is a
+    /// separate function rather than a line inside [`Mapper::map_span`]: a block that overran the
+    /// span would map bytes nobody asked for (a device window, the kernel image's frames under a
+    /// second, writable alias), and that property is proved for every input here, where it is
+    /// loopless arithmetic, rather than tested through a built table. See this module's Kani
+    /// harnesses `a_chosen_leaf_is_aligned_and_inside_the_span` and
+    /// `the_chosen_leaf_is_the_largest_that_fits`.
+    ///
+    /// Answers [`PageSize::Size4KiB`] when nothing larger fits, including when `remaining` is less
+    /// than a page; the caller is the one that knows a span must be page-aligned and whole.
+    pub const fn largest_fitting(va: u64, pa: u64, remaining: u64, largest: PageSize) -> PageSize {
+        // Written out rather than looped over `ALL`, so the proof below is over straight-line
+        // arithmetic. Every size is a power of two, so alignment is a mask test, not a division.
+        const fn fits(va: u64, pa: u64, remaining: u64, size: PageSize) -> bool {
+            let bytes = size.bytes();
+            (va | pa) & (bytes - 1) == 0 && remaining >= bytes
+        }
+        let allowed = largest.levels_above_bottom();
+        if allowed >= 2 && fits(va, pa, remaining, PageSize::Size1GiB) {
+            PageSize::Size1GiB
+        } else if allowed >= 1 && fits(va, pa, remaining, PageSize::Size2MiB) {
+            PageSize::Size2MiB
+        } else {
+            PageSize::Size4KiB
+        }
+    }
+}
 
 /// Entries per table. 4096 bytes / 8 bytes. The same for every format we support.
 pub const ENTRIES: usize = 512;
@@ -366,8 +450,28 @@ pub trait PageFormat {
     /// Encode a leaf entry mapping physical `pa` with `flags`.
     fn leaf_entry(pa: u64, flags: Flags) -> u64;
 
-    /// Decode a leaf entry's permission/attribute bits back into portable [`Flags`].
+    /// Decode a leaf entry's permission/attribute bits back into portable [`Flags`]. Works on a
+    /// block as well as a page: every format keeps its permission bits in the same positions at
+    /// every level.
     fn leaf_flags(entry: u64) -> Flags;
+
+    /// **Encode a block**: a leaf at the level `size` names (one level up for 2 MiB, two for
+    /// 1 GiB), mapping the naturally aligned span at `pa` with `flags`. `None` when this format has
+    /// no leaf of that size, which is how a format declines rather than being mis-encoded.
+    ///
+    /// Given [`PageSize::Size4KiB`] this is [`leaf_entry`](Self::leaf_entry), so a caller need
+    /// not special-case the bottom level.
+    ///
+    /// **Required, with no default, on purpose**: a default of `None` would let a new format
+    /// silently decline blocks, and a default that reused `leaf_entry` would silently write a
+    /// table pointer's bit pattern where the hardware expects a block's on aarch64 (`0b11` at L2
+    /// is a table; a block is `0b01`). Every format has to say.
+    fn block_entry(pa: u64, flags: Flags, size: PageSize) -> Option<u64>;
+
+    /// **Is this present entry, found above the bottom level, a block rather than a table
+    /// pointer?** Only ever asked of an entry above the bottom level: at the bottom every present
+    /// entry is a page, and on x86 the bit this reads there means something else entirely (PAT).
+    fn is_block(entry: u64) -> bool;
 
     /// Which 9-bit slice of `va` selects an entry at `level` (0 = the top level). The top level
     /// covers the highest translated bits; each lower level shifts down by 9. Derived from
@@ -493,6 +597,13 @@ pub enum MapError {
     WrongHalf,
     /// Nothing is mapped at this address, so there is nothing to unmap.
     NotMapped,
+    /// **This page is part of a block**, so it cannot be unmapped on its own: `unmap` takes 4 KiB
+    /// and a block is 2 MiB or 1 GiB of one entry. Splitting the block would be the way to honour
+    /// the request, and nothing here does that (see the module header). Name provisional.
+    InsideBlock,
+    /// The format has no leaf of the size asked for ([`PageFormat::block_entry`] declined). Name
+    /// provisional.
+    UnsupportedSize,
     /// **A region that is not a region**: its `base + size` wraps `u64`, so it has no end. Only
     /// [`domain::grant_pages`] raises this, and only for an input no caller can construct today; it
     /// exists because refusing such a region is what stops the page enumeration from wrapping into
@@ -588,6 +699,10 @@ where
                 }
 
                 *entry = F::table_entry(new);
+            } else if F::is_block(*entry) {
+                // A block already maps this address. Descending would take the block's frame for
+                // a page table and write a leaf into somebody's data.
+                return Err(MapError::AlreadyMapped);
             }
 
             table_pa = F::entry_pa(*entry);
@@ -604,6 +719,95 @@ where
 
         *entry = F::leaf_entry(pa, flags);
 
+        Ok(())
+    }
+
+    /// **Map one leaf of `size`**: a 4 KiB page (exactly [`map`](Self::map)), or a 2 MiB or 1 GiB
+    /// block written one or two levels up, with the tables above it created as needed.
+    ///
+    /// Refuses a misaligned `va` or `pa` (both must be multiples of `size`), a size the format
+    /// cannot encode ([`MapError::UnsupportedSize`]), and anything already present at or above the
+    /// block's slot, **including an empty table**: taking over a table slot would orphan the table
+    /// frame, and the mapper does not own frames to free them.
+    pub fn map_block(
+        &mut self,
+        va: u64,
+        pa: u64,
+        size: PageSize,
+        flags: Flags,
+    ) -> Result<(), MapError> {
+        if size == PageSize::Size4KiB {
+            return self.map(va, pa, flags);
+        }
+        if !F::in_half(self.half, va) {
+            return Err(MapError::WrongHalf);
+        }
+        let bytes = size.bytes();
+        if !va.is_multiple_of(bytes) || !pa.is_multiple_of(bytes) {
+            return Err(MapError::Misaligned);
+        }
+        let leaf = F::block_entry(pa, flags, size).ok_or(MapError::UnsupportedSize)?;
+        // Every CPU format here has at least three levels, so a 1 GiB block (two up) always has a
+        // level to sit at; a format with fewer would have declined above.
+        let leaf_level = F::LEVELS - 1 - size.levels_above_bottom();
+
+        let mut table_pa = self.root;
+        for level in 0..leaf_level {
+            let i = F::index(va, level);
+            // SAFETY: `table_pa` is a page-aligned table, per the type's contract.
+            let entry = unsafe { &mut (*(self.phys_to_ptr)(table_pa)).entries[i] };
+            if !F::is_present(*entry) {
+                let new = (self.alloc_page_frame)().ok_or(MapError::OutOfPageFrames)?;
+                // SAFETY: a fresh frame, zeroed before it becomes reachable (see `map`).
+                unsafe {
+                    (*(self.phys_to_ptr)(new)).entries = [0; ENTRIES];
+                }
+                *entry = F::table_entry(new);
+            } else if F::is_block(*entry) {
+                return Err(MapError::AlreadyMapped);
+            }
+            table_pa = F::entry_pa(*entry);
+        }
+
+        let i = F::index(va, leaf_level);
+        // SAFETY: as above.
+        let entry = unsafe { &mut (*(self.phys_to_ptr)(table_pa)).entries[i] };
+        if F::is_present(*entry) {
+            return Err(MapError::AlreadyMapped);
+        }
+        *entry = leaf;
+        Ok(())
+    }
+
+    /// **Map `len` bytes from `va` to `pa` in the largest leaves that fit**, none larger than
+    /// `largest`. The direct map's shape: a 4 KiB head up to the first 2 MiB boundary, blocks
+    /// through the middle, a 4 KiB tail.
+    ///
+    /// A block is used only where it lies wholly inside the span and both addresses are aligned to
+    /// it ([`PageSize::largest_fitting`], which is where that is proved), so this maps exactly the
+    /// pages [`map_range`](Self::map_range) would, in fewer entries. `largest` is the caller's
+    /// because only the caller knows what the running machine supports: x86 has 1 GiB leaves only
+    /// where `CPUID` says so, and a format cannot ask.
+    ///
+    /// `va`, `pa` and `len` must be page-aligned. Not atomic: on an error, what was mapped before
+    /// it stays mapped, exactly as with `map_range`.
+    pub fn map_span(
+        &mut self,
+        va: u64,
+        pa: u64,
+        len: u64,
+        flags: Flags,
+        largest: PageSize,
+    ) -> Result<(), MapError> {
+        if !len.is_multiple_of(PAGE_SIZE) {
+            return Err(MapError::Misaligned);
+        }
+        let mut done = 0;
+        while done < len {
+            let size = PageSize::largest_fitting(va + done, pa + done, len - done, largest);
+            self.map_block(va + done, pa + done, size, flags)?;
+            done += size.bytes();
+        }
         Ok(())
     }
 
@@ -648,6 +852,9 @@ where
             if !F::is_present(entry) {
                 return Err(MapError::NotMapped);
             }
+            if F::is_block(entry) {
+                return Err(MapError::InsideBlock);
+            }
             table_pa = F::entry_pa(entry);
         }
 
@@ -684,6 +891,13 @@ where
 
             if !F::is_present(entry) {
                 return None;
+            }
+            if F::is_block(entry) {
+                // The walk ends early: this entry maps the whole span it covers. The span is
+                // what the remaining index bits and the page offset address, together.
+                let span = PAGE_SIZE << (9 * (F::LEVELS - 1 - level));
+                let base = F::entry_pa(entry) & !(span - 1);
+                return Some((base + (va & (span - 1)), F::leaf_flags(entry)));
             }
             table_pa = F::entry_pa(entry);
         }
@@ -836,5 +1050,88 @@ mod geometry_tests {
             Mapper::<_, _, Aarch64>::new(0x8_2000, Half::Low, || None, |_| core::ptr::null_mut())
         };
         assert_eq!(m.root(), 0x8_2000);
+    }
+}
+
+/// Machine-checked proofs of the leaf-size choice [`Mapper::map_span`] makes for every block it
+/// writes. **This is the property that makes a block mapping safe**: a block that ran past the span
+/// it was asked for would map bytes nobody granted, which on the direct map means a second,
+/// writable alias of the kernel image or a cacheable view of a device window. Loopless arithmetic,
+/// so it is proved for every address and length rather than tested through a built table (the
+/// "prefer refactoring the logic to shrinking the proof" move notes/verification.md records for
+/// `domain::grant_pages`). The formats' own block encodings are proved in their modules.
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// The three leaf sizes, spelled as literals rather than through [`PageSize::bytes`]: a harness
+    /// that measured the choice with the same function that made it would be satisfied by any
+    /// `bytes` at all, which is the trap milestone 211 and milestone 307 each found once.
+    fn literal_bytes(size: PageSize) -> u64 {
+        match size {
+            PageSize::Size4KiB => 0x1000,
+            PageSize::Size2MiB => 0x20_0000,
+            PageSize::Size1GiB => 0x4000_0000,
+        }
+    }
+
+    fn any_size() -> PageSize {
+        let i: usize = kani::any();
+        kani::assume(i < 3);
+        PageSize::ALL[i]
+    }
+
+    /// **Soundness, the security direction: every leaf `map_span` writes is aligned at both ends
+    /// and lies wholly inside what is left of the span**, and is never larger than the caller
+    /// allowed, for every page-aligned `va`, `pa` and length. With this, the blocks cover no byte
+    /// the equivalent run of pages would not.
+    /// Falsification: replayable `crates/paging/falsifications/verification.a_chosen_leaf_is_aligned_and_inside_the_span.patch`
+    #[kani::proof]
+    fn a_chosen_leaf_is_aligned_and_inside_the_span() {
+        let va: u64 = kani::any();
+        let pa: u64 = kani::any();
+        let remaining: u64 = kani::any();
+        kani::assume(
+            va.is_multiple_of(0x1000)
+                && pa.is_multiple_of(0x1000)
+                && remaining.is_multiple_of(0x1000),
+        );
+        kani::assume(remaining >= 0x1000);
+        let largest = any_size();
+
+        let size = PageSize::largest_fitting(va, pa, remaining, largest);
+        let bytes = literal_bytes(size);
+        assert_eq!(
+            size.bytes(),
+            bytes,
+            "PageSize::bytes disagrees with the architecture"
+        );
+        assert!(size <= largest, "a leaf larger than the caller allowed");
+        assert_eq!(va % bytes, 0, "the leaf's virtual start is misaligned");
+        assert_eq!(pa % bytes, 0, "the leaf's physical start is misaligned");
+        assert!(bytes <= remaining, "the leaf runs past the end of the span");
+    }
+
+    /// **Completeness, the direction the 0.2% is about: no fitting leaf is passed over.** For
+    /// every size the caller allowed that would have fitted, the choice is at least that large.
+    /// Soundness alone is satisfied by always answering 4 KiB, which is correct and is exactly the
+    /// direct map this milestone exists to stop building.
+    /// Falsification: replayable `crates/paging/falsifications/verification.the_chosen_leaf_is_the_largest_that_fits.patch`
+    #[kani::proof]
+    fn the_chosen_leaf_is_the_largest_that_fits() {
+        let va: u64 = kani::any();
+        let pa: u64 = kani::any();
+        let remaining: u64 = kani::any();
+        let largest = any_size();
+        let candidate = any_size();
+        let want = literal_bytes(candidate);
+        kani::assume(candidate <= largest);
+        kani::assume(va.is_multiple_of(want) && pa.is_multiple_of(want) && remaining >= want);
+
+        let size = PageSize::largest_fitting(va, pa, remaining, largest);
+        assert!(
+            literal_bytes(size) >= want,
+            "a fitting larger leaf was passed over"
+        );
     }
 }

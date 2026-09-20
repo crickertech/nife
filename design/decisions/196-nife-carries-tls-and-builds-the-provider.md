@@ -1,15 +1,40 @@
-# Whether fetching a package needs TLS, and which one if it does
+# 196. nife carries TLS: `rustls` for the protocol, and a crypto provider we make work
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's rungs lane
-(`milestone/198-rungs-to-a-trivial-install`) for rung 3 of the trivial install DECISIONS §157
-defines. §157 lists TLS as missing and as a dependency decision. The existing
-`a-tls-stack-and-which-one.md` (2026-09-05) removed milestone 198 from its consumers and left
-198's transport "198's to decide"; this is that decision, written so it can be ruled on.
+**Status: DECIDED.** calef, 2026-09-19 (22:01 UTC): *"Carrying a TLS stack seems like table stakes
+these days"*, and, on being shown that no provider builds for our targets today, **take `rustls`
+and build the provider**. *(Section number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Taking a TLS stack is a dependency (DECISIONS §46, whose 2026-07-31 amendment
-makes crypto "an ordinary dependency, pinned in `Cargo.lock`, gated by `deny.toml`"), and the
-transport a package client speaks is something it and a repository agree on. **Options, no
-winner.**
+**The ruling, in four clauses:**
+
+1. **nife carries TLS.** HTTPS is the transport for fetching packages, which also settles hosting:
+   GitHub (Releases or GHCR, which is what Homebrew does) redirects plain HTTP, so a GitHub-hosted
+   source is reachable only over TLS. DECISIONS §157's web page and §195's per-source model both
+   assume a host somebody else runs, and that is the shape this pays for.
+2. **`rustls` for the protocol.** Measured below: `rustls` 0.23.45 with default features off plus
+   `tls12` is **7 crates, all Rust**, and that part builds. `embedded-tls` (58 crates) and OpenSSL
+   are not taken; the table says why.
+3. **The crypto provider is ours to make work, and it is the actual project.** Every candidate
+   provider fails on our bare-metal targets today, in two classes: `getrandom` has no backend
+   (`ring`, `rustls-rustcrypto`), which is exactly what `entropy_backend` exists to answer and
+   which nife can supply because it has an entropy service; and SIMD paths in `sha2` and `polyval`
+   fail on the soft-float `x86_64-unknown-none`, which the probe itself says may differ against
+   nife's own target specification and pinned nightly. **Milestone 442** carries that work.
+4. **Roots are held per source, not in a system store**, which is §195's shape one layer down: the
+   package client holds one root or one pinned key for the one source it talks to. A system-wide
+   trust store would need updating independently of the system, and the thing that updates it is
+   the package manager, which is the circularity this avoids rather than solves.
+
+**What this deliberately does not claim.** Under §195 a recipe's digest decides what may run, so
+**TLS is not load-bearing for integrity**: it buys confidentiality and knowing which host answered,
+not "is this package genuine". That is why it is table stakes without being urgent, and why rung 3a
+(fetch by digest from a source the owner opted into) does not wait for it.
+
+**Reversibility, and the §46 test.** This adds a dependency to the shipping graph, which §46 makes
+a decision rather than a convenience: the seven crates are the commitment, and a provider we write
+or adapt is code we own. It is reversible until a published web page tells strangers to fetch over
+HTTPS from a named host; after that the transport is what their machines speak.
+
+## The proposal as calef ruled on it
 
 ## What the transport has to provide, split into its parts
 
@@ -19,7 +44,7 @@ an old, vulnerable package list). TLS gives the first two for the connection; it
 first for the *content*, since a compromised mirror serves bad bytes over perfect TLS.
 
 **Integrity of content is the trust fork's job, whatever the transport**
-(`what-vouches-for-a-package-the-image-did-not-carry.md`):
+(DECISIONS §195):
 
 | Trust ruling | Where integrity comes from | Does it need TLS? |
 |---|---|---|

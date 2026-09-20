@@ -43,16 +43,19 @@ a shared definition (the crate) plus a gate that reads the channel (`script/boot
 | `Machine` | `nife machine: ` | yes | yes | yes |
 | `SelfTest` | `nife self-test: ` | yes | yes | yes |
 | `Tour` | `nife: the capability core runs on ` | no | yes | no |
-| `Prompt` | `nife capability shell` | yes | yes (with an archive) | **no** |
+| `Prompt` | `nife capability shell` | yes | yes | yes |
 
 `Tour` is deliberately **one architecture's rung** and is documented as one. Levelling it up would
 mean giving two architectures a marker for a demonstration tour they do not have; levelling it down
 would delete riscv64's, which is the trap milestone 268's block warns about. The rungs that replace
 it for every tool are `Machine` and `SelfTest`, which every architecture reaches.
 
-`Prompt` is unreachable on `x86_64` until DECISIONS §149 says how `swish` gets a console there and
-milestone 182 builds the entry point. That is stated in `Stage::Prompt`'s own doc and in
-`script/boot-check`'s `BUGS`, rather than left for somebody to discover from a watch that times out.
+`Prompt` needs an **archive** on every architecture, because the shell that prints it is loaded out
+of one. It was unreachable on `x86_64` until 2026-09-19: DECISIONS §149 (may the kernel answer on
+an endpoint) settled how `swish` gets a console there, milestone 299 (the x86 port-range
+capability) built the capability that makes `console` a userspace driver on that machine, and
+milestone 182 (x86_64's own interactive-boot entry point) added the `script/shell-check` leg that
+types at it. `script/boot-check` asserts this rung on all three architectures since the same day.
 
 ## The machine description: the same questions, not the same lines
 
@@ -89,16 +92,18 @@ either; that is how a checkpoint reachable on one of three architectures hid for
 
 ## EXAMPLES
 
-Boot all three and require a green verdict (a `local` row in `script/ci-build`'s table, so the
-no-argument path runs it before a push and CI's test job names it):
+Boot all three, require a green verdict, and require each one to reach a `swish` prompt (a `local`
+row in `script/ci-build`'s table, so the no-argument path runs it before a push and CI's test job
+names it). About 26 seconds against a warm target directory:
 
 ```
 $ script/boot-check
-boot-check (aarch64): reached self-test verdict (2404 bytes in 2.4s)
+boot-check (aarch64): reached shell prompt (3867 bytes in 2.9s)
 boot-check (aarch64): nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz
 boot-check (aarch64): nife self-test: 5 of 5 passed
 ...
-boot-check: every architecture reached the self-test verdict and it was green
+boot-check: every architecture climbed the ladder to a shell prompt, and the self-test verdict on
+the way was green
 ```
 
 One architecture:
@@ -111,9 +116,9 @@ Prove the gate has teeth, by making one check fail and requiring the run to come
 
 ```
 $ script/boot-check --inject
-boot-check (aarch64): nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+boot-check (aarch64): nife self-test: 3 of 5 passed, 2 FAILED: exceptions timer
 ...
-boot-check: every architecture reached the self-test verdict and it was RED, as the injection asked
+boot-check: every architecture's self-test verdict came back RED, as the injection asked
 ```
 
 Watch a real board over a serial cable and stop as soon as it has self-tested:
@@ -133,17 +138,17 @@ $ cargo xtask board-console --replay target/boot-check-riscv64.log --until selft
 
 ## BUGS
 
-- **Nothing proves an architecture ran the *right* five checks.** The verdict says five of five
-  passed on a kernel that ran five; a check deleted from the list takes its own evidence with it.
-  The count is the partial defence (a shrunken set prints a smaller total) and review is the rest.
-- **A self-test can hang the boot.** `timer` and `scheduler` both wait, and both are bounded by the
-  free-running counter rather than by an iteration count, so a machine whose counter never advances
-  sits in `timer` forever. That is the one failure the module cannot report, and it is the same
-  exposure `arch::timer::spin_for` already has.
-- **`script/boot-check` does not check the prompt.** It is the ladder's top rung and the stated
-  terminal state of a default boot, and `x86_64` cannot reach one at all. Asserting it on two of
-  three would be the shape of defect this whole milestone exists to fix. `script/shell-check`
-  reaches a prompt on the two that can.
+- **Closed 2026-09-14: "Nothing proves an architecture ran the *right* five checks."**
+  `boot_ladder::SELF_TEST_CHECKS` is the set, one list for every architecture and the recogniser;
+  the kernel names a listed check that never ran and `board_console` fails a verdict whose total is
+  not the list's length. What remains is that changing the set is one edit, which review judges.
+- **Closed 2026-09-14: "A self-test can hang the boot."** `timer` and `scheduler` read through
+  `self_test::Counter`, which reports a counter that read one value a million times running, and
+  `timer` spins rather than sleeping. What remains is a check whose *operation* never returns, which
+  needs a watchdog `kernel/src/self_test.rs` does not own and says so.
+- **The prompt rung is the shell's banner, not the `$ `.** `crates/boot_ladder`'s own BUGS has the
+  reason. So `script/boot-check` proves `swish` started and printed, not that a prompt was offered
+  or that anything could be typed at it. `script/shell-check` makes that stronger claim by typing.
 - **The injected leg is not in CI.** `--inject` rebuilds three kernels for one boolean, and what it
   proves is a property of the gate rather than of the change under test. Run it by hand when the
   self-test or the recogniser changes. This is rung four of AGENTS.md's ladder and it is said out

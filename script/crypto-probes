@@ -1,0 +1,461 @@
+#!/bin/sh
+# script/crypto-probes: build every candidate TLS crypto provider, and every primitive a provider
+# would be assembled from, against nife's own target specifications on the pinned nightly, for all
+# three architectures, and report what builds.
+#
+# Name: provisional, minted on 2026-09-19 by the lane for milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets),
+# and not yet put to calef, who
+# names things. It is `script/crate-probes`' sibling and takes its stem deliberately: same shape,
+# same output, narrower subject. `tls-probes` was set aside because most of what this builds is not
+# TLS, it is the primitives underneath one; `provider-probes` was set aside because half the rows
+# are not providers either.
+#
+# WHY THIS EXISTS, and it is the whole of this milestone's first deliverable. DECISIONS §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we make work)
+# ruled on a table measured with the stable host toolchain
+# against the *stock* bare-metal targets (`aarch64-unknown-none-softfloat`,
+# `riscv64gc-unknown-none-elf`, `x86_64-unknown-none`), and says so in its own limits paragraph.
+# Those are not nife's targets. nife's targets are `targets/*-unknown-nife.json`: `"os": "nife"`,
+# `"std": true`, built with build-std against the patched `std` farm, which is what any package
+# client this tree ships would actually be compiled for. A crate that needs `getrandom` or `std` on
+# a stock `-none` target and fails there may well build here, and a crate that fails here fails for
+# real.
+#
+# It is `script/crate-probes`' machinery with three differences, and each one is the point:
+#
+#   * it builds every probe for ALL THREE architectures, because the answer differs by ISA and that
+#     difference is the measurement (`x86_64-unknown-nife` disables SSE and sets `+soft-float`,
+#     which is where §196 expected SIMD paths to fail);
+#   * the probe list is providers and crypto primitives rather than fifty representative crates; and
+#   * a failure records the architecture it failed on, since a row that passes on two and fails on
+#     one is the interesting shape.
+#
+# EXAMPLES
+#
+#   script/crypto-probes                       # every probe on all three architectures
+#   script/crypto-probes sha2 p256             # just these two
+#   script/crypto-probes --arch x86_64         # one architecture
+#   script/crypto-probes --list                # the probe names, one per line
+#   script/crypto-probes --keep                # leave the generated probe crates and build logs
+#   script/crypto-probes --soft                # the same, with every SIMD path forced off
+#
+# BUGS
+#
+#   * It measures compile and link and nothing else, which is `script/crate-probes`' own caveat and
+#     bites harder here: a crypto crate that builds may still be selecting a portable fallback
+#     implementation that is correct and slow, or, worse, an RNG that is not one. Building is the
+#     floor. A build is not an answer about what the code computes.
+#   * Versions re-resolve on every run, so a row can change because crates.io moved. The resolved
+#     version is stamped beside each result.
+#   * It needs the network and it takes the account-wide `nife-dev` toolchain link (through
+#     `cargo xtask std-src`), so it is not a CI gate and `script/test` does not run it.
+#   * Three architectures times the probe list is a lot of build-std; the first run is slow and
+#     every later one shares one target directory per architecture.
+
+set -eu
+
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+
+# This project's own QEMU, if `script/ci-qemu` has built one, on `script/crate-probes`' reasoning:
+# sourced by absolute path because this script keeps a $ROOT rather than cd-ing. Nothing here boots
+# an emulator today, and the line still costs nothing; `cargo xtask std-src` below is the reason it
+# could, since anything reached through xtask can.
+. "$ROOT/scripts/qemu-path.sh"
+
+# **The probe crates are built OUTSIDE this repository**, which `scripts/build-ripgrep.sh` also
+# does and for a related reason. Its reason is cargo's workspace walk; this one is the toolchain
+# override, and it cost an hour twice on 2026-09-19. A probe under `target/` is inside the repo, so
+# the repo's own `rust-toolchain.toml` (the plain pinned nightly) beats `RUSTUP_TOOLCHAIN` for the
+# rustc that `-Zbuild-std` invokes: std is then compiled from the UNPATCHED sysroot and dies in
+# `sys/alloc`'s `cfg_select!` for want of a `nife` arm, which reads exactly like the crate under
+# test failing. Giving the probe its own `rust-toolchain.toml` naming `nife-dev` fixes riscv64 and
+# x86_64 and **still gets aarch64 wrong on an aarch64 host**, which is worse, because two of three
+# architectures then agree and the third looks like a real finding. Outside the repository, with
+# `RUSTUP_TOOLCHAIN` set, all three are right.
+#
+# `script/crate-probes` builds its probes under `target/` with the environment variable alone,
+# which is the first of those two configurations. Milestone 442's lane did not change it and did
+# not re-run its fifty; see this lane's report.
+WORK="${TMPDIR:-/tmp}/nife-crypto-probes"
+KEEP=0
+SOFT=0
+BACKEND="$ROOT/entropy_backend"
+
+# The `--soft` recipe, which is milestone 442's actual finding about `x86_64-unknown-nife` and is a
+# flag rather than the default so that the table can show both answers. That target sets
+# `+soft-float` and switches off every SSE level, and the RustCrypto crates compile their x86
+# intrinsic paths anyway, behind `cpufeatures` runtime detection rather than behind a `cfg` the
+# target spec can influence. LLVM then cannot legalize a 128-bit vector operation and rustc dies
+# with `LLVM ERROR: Do not know how to split the result of this operator!`, which is not a
+# diagnostic pointing at anything a reader could act on. Each crate has its own escape hatch and
+# they are not spelled alike: `sha2` takes a cargo FEATURE, the other three take a `--cfg`.
+SOFT_CFGS='"--cfg", "polyval_force_soft", "--cfg", "poly1305_force_soft", "--cfg", "aes_force_soft", "--cfg", "curve25519_dalek_backend=\"serial\""'
+
+# `sha2` with its soft implementation forced. Named in a probe's manifest even when the probe does
+# not depend on `sha2` directly, because cargo unifies features across the graph and the crate that
+# actually pulls it in (`rustls-rustcrypto`, `p256`, `hmac`) has no way to ask for this.
+SHA2_SOFT='sha2 = { version = "0.10", default-features = false, features = ["force-soft"] }' 
+
+ALL_ARCHES='aarch64 riscv64 x86_64'
+
+probe_names() {
+    cat <<'EOF'
+rustls
+provider
+rustls-rustcrypto
+ring
+aws-lc-rs
+embedded-tls
+sha2
+hmac
+hkdf
+aes-gcm
+chacha20poly1305
+polyval
+ghash
+p256
+x25519-dalek
+ed25519-dalek
+rsa
+rustls-webpki
+EOF
+}
+
+# The dependency line each probe gets. Default features are off wherever the crate has a `std` or
+# `alloc` story, because that is how a package client would take it and because §196's measurement
+# of `rustls` (7 crates) was taken that way.
+probe_dep() {
+    case "$1" in
+    provider)
+        # The whole recipe in one probe: the protocol crate §196 ruled on, a provider under it, and
+        # nothing else. This is the row that answers milestone 442's question.
+        echo 'rustls = { version = "0.23", default-features = false, features = ["tls12", "std"] }'
+        echo 'rustls-rustcrypto = { version = "0.0.2-alpha", default-features = false, features = ["alloc", "tls12"] }'
+        ;;
+    rustls) echo 'rustls = { version = "0.23", default-features = false, features = ["tls12", "std"] }' ;;
+    rustls-rustcrypto) echo 'rustls-rustcrypto = { version = "0.0.2-alpha", default-features = false, features = ["alloc", "tls12"] }' ;;
+    ring) echo 'ring = "0.17"' ;;
+    aws-lc-rs) echo 'aws-lc-rs = "1"' ;;
+    embedded-tls) echo 'embedded-tls = { version = "0.19", default-features = false }' ;;
+    # The `--soft` run adds `$SHA2_SOFT` to every probe, so this one would name `sha2` twice.
+    sha2) [ "$SOFT" -eq 1 ] || echo 'sha2 = { version = "0.10", default-features = false }' ;;
+    hmac) echo 'hmac = { version = "0.12", default-features = false }' ;;
+    hkdf) echo 'hkdf = { version = "0.12", default-features = false }' ;;
+    aes-gcm) echo 'aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }' ;;
+    chacha20poly1305) echo 'chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }' ;;
+    polyval) echo 'polyval = { version = "0.6", default-features = false }' ;;
+    ghash) echo 'ghash = { version = "0.5", default-features = false }' ;;
+    p256) echo 'p256 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh", "pkcs8"] }' ;;
+    x25519-dalek) echo 'x25519-dalek = { version = "2", default-features = false, features = ["static_secrets"] }' ;;
+    ed25519-dalek) echo 'ed25519-dalek = { version = "2", default-features = false }' ;;
+    rsa) echo 'rsa = { version = "0.9", default-features = false }' ;;
+    rustls-webpki)
+        echo 'webpki = { package = "rustls-webpki", version = "0.103", default-features = false, features = ["alloc"] }'
+        # `rustls-webpki` re-exports nothing called `types`; the types live in their own crate, which
+        # is one of the seven §196 counted. A probe has to name it.
+        echo 'pki_types = { package = "rustls-pki-types", version = "1", default-features = false, features = ["alloc"] }'
+        ;;
+    *) return 1 ;;
+    esac
+}
+
+# The `main` each probe gets. Every one calls the crate and prints something derived from the call,
+# so the linker is asked for real code: `script/crate-probes` learned twice that a probe proves
+# nothing the linker was not asked to do.
+probe_main() {
+    case "$1" in
+    provider) cat <<'EOF'
+fn main() {
+    // Build the provider and ask it what it can negotiate. A count is enough to force the whole
+    // cipher-suite table to be linked, which is the point of a probe.
+    let p = rustls_rustcrypto::provider();
+    println!("{} {:?}", p.cipher_suites.len(), rustls::version::TLS13.version);
+}
+EOF
+        ;;
+    rustls) cat <<'EOF'
+fn main() {
+    // No provider is installed, so this exercises the protocol crate's own code and nothing else,
+    // which is exactly what §196 measured as "7 crates and it builds".
+    println!("{:?}", rustls::version::TLS13.version);
+}
+EOF
+        ;;
+    rustls-rustcrypto) cat <<'EOF'
+fn main() {
+    let p = rustls_rustcrypto::provider();
+    println!("{}", p.cipher_suites.len());
+}
+EOF
+        ;;
+    ring) cat <<'EOF'
+fn main() {
+    let d = ring::digest::digest(&ring::digest::SHA256, b"hi");
+    println!("{}", d.as_ref().len());
+}
+EOF
+        ;;
+    aws-lc-rs) cat <<'EOF'
+fn main() {
+    let d = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, b"hi");
+    println!("{}", d.as_ref().len());
+}
+EOF
+        ;;
+    embedded-tls) cat <<'EOF'
+fn main() {
+    let mut rb = [0u8; 16640];
+    let mut wb = [0u8; 16640];
+    let c: embedded_tls::TlsConfig<'_> = embedded_tls::TlsConfig::new().with_server_name("a.example");
+    println!("{} {} {}", rb.len(), wb.len(), core::mem::size_of_val(&c));
+    rb[0] = 1;
+    wb[0] = 1;
+}
+EOF
+        ;;
+    sha2) cat <<'EOF'
+use sha2::{Digest, Sha256, Sha384};
+fn main() {
+    println!("{:x} {:x}", Sha256::digest(b"hi"), Sha384::digest(b"hi"));
+}
+EOF
+        ;;
+    hmac) cat <<'EOF'
+use hmac::{Hmac, Mac};
+fn main() {
+    let mut m = <Hmac<sha2::Sha256> as Mac>::new_from_slice(b"key").unwrap();
+    m.update(b"hi");
+    println!("{:?}", m.finalize().into_bytes().len());
+}
+EOF
+        ;;
+    hkdf) cat <<'EOF'
+fn main() {
+    let h = hkdf::Hkdf::<sha2::Sha256>::new(Some(b"salt"), b"ikm");
+    let mut out = [0u8; 32];
+    h.expand(b"info", &mut out).unwrap();
+    println!("{}", out[0]);
+}
+EOF
+        ;;
+    aes-gcm) cat <<'EOF'
+use aes_gcm::aead::{Aead, KeyInit};
+fn main() {
+    let c = aes_gcm::Aes128Gcm::new(&Default::default());
+    let ct = c.encrypt(&Default::default(), b"hi".as_ref()).unwrap();
+    println!("{}", ct.len());
+}
+EOF
+        ;;
+    chacha20poly1305) cat <<'EOF'
+use chacha20poly1305::aead::{Aead, KeyInit};
+fn main() {
+    let c = chacha20poly1305::ChaCha20Poly1305::new(&Default::default());
+    let ct = c.encrypt(&Default::default(), b"hi".as_ref()).unwrap();
+    println!("{}", ct.len());
+}
+EOF
+        ;;
+    polyval) cat <<'EOF'
+use polyval::universal_hash::{KeyInit, UniversalHash};
+fn main() {
+    let mut p = polyval::Polyval::new(&Default::default());
+    p.update(&[Default::default()]);
+    println!("{}", p.finalize()[0]);
+}
+EOF
+        ;;
+    ghash) cat <<'EOF'
+use ghash::universal_hash::{KeyInit, UniversalHash};
+fn main() {
+    let mut g = ghash::GHash::new(&Default::default());
+    g.update(&[Default::default()]);
+    println!("{}", g.finalize()[0]);
+}
+EOF
+        ;;
+    p256) cat <<'EOF'
+fn main() {
+    use p256::elliptic_curve::sec1::ToEncodedPoint;
+    let s = p256::SecretKey::from_slice(&[1u8; 32]).unwrap();
+    println!("{}", s.public_key().to_encoded_point(false).as_bytes().len());
+}
+EOF
+        ;;
+    x25519-dalek) cat <<'EOF'
+fn main() {
+    let s = x25519_dalek::StaticSecret::from([1u8; 32]);
+    let p = x25519_dalek::PublicKey::from(&s);
+    println!("{}", p.as_bytes()[0]);
+}
+EOF
+        ;;
+    ed25519-dalek) cat <<'EOF'
+use ed25519_dalek::Signer;
+fn main() {
+    let k = ed25519_dalek::SigningKey::from_bytes(&[1u8; 32]);
+    println!("{}", k.sign(b"hi").to_bytes()[0]);
+}
+EOF
+        ;;
+    rsa) cat <<'EOF'
+fn main() {
+    use rsa::traits::PublicKeyParts;
+    let k = rsa::RsaPublicKey::new(rsa::BigUint::from(65537u32) * rsa::BigUint::from(7u32), rsa::BigUint::from(65537u32));
+    println!("{:?}", k.map(|k| k.size()));
+}
+EOF
+        ;;
+    rustls-webpki) cat <<'EOF'
+fn main() {
+    // The certificate has to outlive the borrow: `anchor_from_trusted_cert` returns a
+    // `TrustAnchor` that borrows it, so a temporary in the argument is dropped too early.
+    let cert = pki_types::CertificateDer::from(vec![0u8; 4]);
+    let r = webpki::anchor_from_trusted_cert(&cert);
+    println!("{}", r.is_err());
+}
+EOF
+        ;;
+    *) return 1 ;;
+    esac
+}
+
+# `use entropy_backend as _;` is not tidiness: an rlib nothing references is not linked, so without
+# it any probe whose graph reaches `getrandom` stops at `undefined symbol:
+# __getrandom_v03_custom`. notes/crates-io-on-nife.md records the hour that cost.
+write_probe() {
+    name=$1
+    dir=$2
+    mkdir -p "$dir/src" "$dir/.cargo"
+    {
+        echo '[package]'
+        echo 'name = "probe"'
+        echo 'version = "0.1.0"'
+        echo 'edition = "2021"'
+        echo '[workspace]'
+        echo '[dependencies]'
+        probe_dep "$name"
+        case "$name" in
+        hmac | hkdf) [ "$SOFT" -eq 1 ] || echo 'sha2 = { version = "0.10", default-features = false }' ;;
+        esac
+        [ "$SOFT" -eq 0 ] || echo "$SHA2_SOFT"
+        echo "entropy_backend = { path = \"$BACKEND\" }"
+        echo '[profile.release]'
+        echo 'panic = "abort"'
+    } >"$dir/Cargo.toml"
+    {
+        echo '[build]'
+        if [ "$SOFT" -eq 1 ]; then
+            echo "rustflags = [\"--cfg\", \"getrandom_backend=\\\"custom\\\"\", $SOFT_CFGS]"
+        else
+            echo 'rustflags = ["--cfg", "getrandom_backend=\"custom\""]'
+        fi
+    } >"$dir/.cargo/config.toml"
+    # No `rust-toolchain.toml` here, deliberately, and the reason is the second half of the trap
+    # described at the top of this file: naming `nife-dev` in a toolchain FILE gets the
+    # `aarch64-unknown-nife` build wrong on an aarch64 host, silently, while riscv64 and x86_64
+    # stay right. `RUSTUP_TOOLCHAIN` in the environment is what works for all three, and it works
+    # only because `$WORK` is outside the repository.
+    {
+        echo 'use entropy_backend as _;'
+        probe_main "$name"
+    } >"$dir/src/main.rs"
+}
+
+resolved_version() {
+    lock="$1/Cargo.lock"
+    [ -f "$lock" ] || return 0
+    awk -v want="$2" '
+        /^name = /  { gsub(/"/, "", $3); n = $3 }
+        /^version = / { gsub(/"/, "", $3); if (n == want) { print $3; exit } }
+    ' "$lock"
+}
+
+usage() {
+    echo "usage: script/crypto-probes [--list] [--keep] [--soft] [--arch A[,B]] [probe...]" >&2
+    exit 2
+}
+
+arches="$ALL_ARCHES"
+want=''
+next_is_arch=0
+for arg in "$@"; do
+    if [ "$next_is_arch" -eq 1 ]; then
+        arches=$(echo "$arg" | tr ',' ' ')
+        next_is_arch=0
+        continue
+    fi
+    case "$arg" in
+    --list) probe_names; exit 0 ;;
+    --keep) KEEP=1 ;;
+    --soft) SOFT=1 ;;
+    --arch) next_is_arch=1 ;;
+    -h | --help) usage ;;
+    -*) usage ;;
+    *)
+        probe_dep "$arg" >/dev/null 2>&1 || {
+            echo "crypto-probes: no such probe: $arg (try --list)" >&2
+            exit 2
+        }
+        want="$want $arg"
+        ;;
+    esac
+done
+[ -n "$want" ] || want=$(probe_names)
+
+echo "==> refreshing the patched-std farm (this takes the account-wide nife-dev link)"
+(cd "$ROOT" && cargo xtask std-src) || {
+    echo "crypto-probes: cargo xtask std-src failed" >&2
+    exit 1
+}
+
+mkdir -p "$WORK"
+results="$WORK/.results"
+: >"$results"
+
+printf '%-20s %-12s' 'probe' 'version'
+for a in $arches; do printf ' %-9s' "$a"; done
+printf '\n'
+
+for name in $want; do
+    dir="$WORK/$name"
+    rm -rf "$dir"
+    write_probe "$name" "$dir"
+    row=''
+    version=''
+    for a in $arches; do
+        spec="$ROOT/targets/$a-unknown-nife.json"
+        shared="$WORK/.target-$a"
+        mkdir -p "$shared"
+        log="$dir/build-$a.log"
+        if (cd "$dir" && RUSTUP_TOOLCHAIN=nife-dev CARGO_TARGET_DIR="$shared" cargo build --release \
+            -Zjson-target-spec \
+            -Zbuild-std=core,alloc,std,panic_abort \
+            -Zbuild-std-features=compiler-builtins-mem \
+            --target "$spec") >"$log" 2>&1; then
+            row="$row PASS"
+            echo "PASS	$name	$a" >>"$results"
+        else
+            why=$(grep -m1 -E '^error(\[|:)' "$log" || true)
+            crate=$(grep -m1 -oE '\-\-> [^ ]*/([a-z0-9_-]+)-[0-9][^/]*/' "$log" | sed -E 's|.*/([a-z0-9_-]+)-[0-9][^/]*/|\1|' || true)
+            row="$row FAIL"
+            echo "FAIL	$name	$a	${crate:-?}	$why" >>"$results"
+        fi
+        # The `provider` row is two crates, and the one worth stamping is the provider rather
+        # than the protocol: `rustls`' version already has its own row above.
+        case "$name" in
+        provider) lookup=rustls-rustcrypto ;;
+        rustls-webpki) lookup=rustls-webpki ;;
+        *) lookup=$name ;;
+        esac
+        [ -n "$version" ] || version=$(resolved_version "$dir" "$lookup")
+    done
+    printf '%-20s %-12s' "$name" "${version:--}"
+    for cell in $row; do printf ' %-9s' "$cell"; done
+    printf '\n'
+done
+
+echo
+echo "--- failures, with the crate each one died in ---"
+grep '^FAIL' "$results" | awk -F'\t' '{ printf "%-20s %-9s %-22s %s\n", $2, $3, $4, $5 }' || echo "(none)"
+
+[ "$KEEP" -eq 1 ] || find "$WORK" -mindepth 1 -maxdepth 1 -type d ! -name '.target-*' -exec rm -rf {} +

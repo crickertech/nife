@@ -8,12 +8,24 @@
 #   script/board-console --tally target/radon-soak-1757...log        # what the lottery drew (249)
 #   script/board-console --stop               # end a rebooting soak at its next draw (249, 324)
 #   script/board-console --stop-after 50      # end one with exactly fifty samples in it
+#   script/board-console --board xenon        # a board whose firmware prologue is not radon's
+#   script/board-console --until sweep-done   # wait for a job-mix sweep to finish (324)
 #
 # `script/console` is QEMU. This is the other one: an actual serial port on an actual board, at
 # 115200 8N1, with the log written to a file whatever happens. It recognises the boot sequence
 # notes/visionfive2.md's bench runbook records (SPL, OpenSBI, U-Boot, `Starting kernel ...`, ours)
 # and returns a different exit status for each way a session can end, so a bench script can tell
 # them apart:
+#
+# **What it recognises is two halves, and only one of them is a board's** (milestone 324 part 3,
+# calef's ruling of 2026-09-19: *one tool with a board profile, and the profile is the firmware
+# prologue only*). `--board <name>` chooses the firmware chain to expect. `radon` is the default
+# and is the VisionFive 2's SPL, OpenSBI, U-Boot and handoff; `xenon` has an empty prologue,
+# because it boots through PVH straight into our banner and its 2026-09-17 capture shows nothing
+# before it. Everything from the kernel banner up is shared by every board and always was.
+# `--until spl` against a board with no SPL is refused rather than waited out. argon has no profile
+# on purpose: it has never booted nife, and a prologue read out of vendor documentation would be a
+# guess wearing a measurement's clothes.
 #
 #   0  reached the stage asked for (or watched the whole duration with nothing announced)
 #   1  the board announced a failure: a bad image header, a measured-boot refusal, a kernel panic

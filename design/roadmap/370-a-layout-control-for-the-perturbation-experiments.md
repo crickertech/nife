@@ -1,14 +1,89 @@
 # 370. A layout control, because the perturbation experiments cannot tell footprint from addresses
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 out of the E3 session on radon;
-promoted by milestone 433 on 2026-09-19. Checked against the tree that day: `fastpath_pad` is still
-a boolean Cargo feature with no size knob (`kernel/Cargo.toml`, `kernel/src/fastpath_pad.rs`), so
-the dose-response curve this file calls the cheapest honest version has not been built, and no
-control build of any kind exists. Milestone 134 is still `PARTIAL` and still owns the register of
-measures, so the gate below is unchanged.
+**Status: BUILT 2026-09-19.** Filed as a proposal on 2026-09-04 out of the E3 session on radon,
+promoted by milestone 433 on 2026-09-19, built the same day. "What was built" below is the record;
+everything after it is the proposal's own argument, kept because it is why this exists.
 
-**Gate: MILESTONE 134.** E3 and E4 are milestone 134's experiments and that block owns the register
-of measures. This proposes a control for them rather than a new measure.
+**The promoted block said `Gate: MILESTONE 134`, and that was backwards**, which is worth recording
+rather than deleting: the gate read as though the control had to wait on the register of measures.
+It did not. It is an instrument for 134's E3 and needed only E3's existing padding, and **134 is
+what waits on this**. A BUILT block carries no gate, so the line is gone.
+
+## What was built
+
+**Two numbers, read at build time under the existing `fastpath_pad` feature** (kernel/build.rs,
+kernel/src/fastpath_pad.rs). `NIFE_FASTPATH_PAD=<units>` sizes the sled in units of what the feature
+has always linked; unset is 1, the sled the 2026-09-04 session booted, and **0** is the
+dose-response's zero, the guard and a `ret`. `NIFE_FASTPATH_SHIFT=<bytes>` appends that many
+unreferenced zero bytes after the sled, in the sled's own input section, so it moves exactly the
+code the pad moves and adds nothing any path can reach. A **layout variant** is `PAD=0` with a
+non-zero `SHIFT`: an un-padded kernel at different addresses. E3's evening is eight images, four
+pad sizes and four shifts; notes/footprint-perturbation.md, "The next radon evening", is the
+procedure, the sizes and why each was chosen.
+
+**The linker scripts pin the sled's section first in `.text`**, right after the boot stub, and that
+is what makes the two numbers comparable: each moves the **whole kernel text** by the bytes asked
+for, so a pad and a shift of equal displacement are the same binary apart from the sled's own
+bytes. Checked: `PAD=1` and `SHIFT=5088` place all 1,047 riscv64 text symbols at identical
+addresses. **Two of the four shifts are therefore matched twins of pads**, and they are the
+sharpest comparison the experiment has: any difference between a pad and its twin is the counted
+footprint alone, which the physics says must be zero because the sled is never fetched.
+
+**Pinning it was not tidiness.** Nothing had pinned the section, so where the linker dropped it was
+redrawn every commit: on 2026-09-04 it landed ahead of the entire trap path, and by 2026-09-19 it
+landed past all but **5%** of the fastpath's bytes, which would have made the evening a
+dose-response on a path the doses barely touched. `--layout` now prints that share
+(`the sled precedes N of M hot symbols`), so the check is a line of output rather than a hope. The
+default build has no such section, so the default link order is unchanged, checked by comparing
+default boot images byte for byte on both ISAs across the change.
+
+**The proof each image is what it claims, and it needs no hardware.**
+`script/fastpath-footprint --layout` hashes every instruction of both IPC closures and the entry
+set with address operands normalised away (direct call and branch targets, `auipc`/`adrp` uppers,
+and the low-12 immediates that pair with one; it prints how many of each it touched). **All eight
+images share one hash**, on riscv64, on aarch64 and on the `board,bench,single_hart` card set. Read
+off the built binaries as well: only the 7 boot symbols ahead of the sled keep their address, all
+1,038 after it move by exactly the bytes asked for and none changes size; the sled has exactly one
+reference in the whole binary, the guard's skipped branch, and the shift block has none. The
+same flag prints where the hot path landed: each symbol's address, its set in the U74's L1i
+(32 KiB, 2-way, 64-byte lines, virtually indexed, so 256 sets from address bits 6 to 13, `SiFive`
+U74-MC Core Complex Manual 21G3.02.00 §4.2.2), its line phase, whether it starts 8-byte aligned
+(§4.2.6: the BTB predicts a taken branch or jump with no bubble only for an 8-byte-aligned target),
+and where `.text` ends and `.data` starts, because the page-aligned sections after `.text` move in
+whole pages and the L1d way is 8 KiB (§4.4.1).
+
+**A bench boot names its own image**: `bench-probe: fastpath_pad units <u> shift <s>`. Nothing on a
+card said which build it carried, and an interleave of eight is where that matters most.
+`script/board-image` echoes both values on its `features:` line and refuses to build when they are
+set without the feature.
+
+### Three things the proposal did not anticipate
+
+1. **A feature per size would have reproduced the defect.** It was built that way first, as seven
+   sibling Cargo features. A feature's *name* enters cargo's `-C metadata` hash, which renames every
+   symbol and repartitions codegen units: measured on the card build, that moved code linked
+   **ahead** of the sled by up to 11 KB and put `syscall::dispatch` anywhere across 240 of the 256
+   L1i sets. Each image was an uncontrolled layout draw and the variable of interest was noise on
+   top of it. Environment variables do not enter that hash. Editing the module's own source has the
+   same effect for the same reason, which is why every image in an evening must come from one
+   commit. Nor was the sled's *position* pinned, which had the same shape: an accident of each
+   commit's link order decided how much of the hot path a pad perturbed, and by 2026-09-19 it was
+   5% of it. Both are now properties of the build rather than draws.
+2. **A pad that is never executed can only act through addresses.** It is never fetched, so it
+   evicts nothing on its own; what it does is push other code apart. So E3 tests whether
+   `script/fastpath-footprint`'s number predicts latency, which is what milestone 188 phase 4 leans
+   on, and **not** Liedtke's claim about an *executed* footprint. That claim needs M6 or a
+   perturbation that adds executed instructions. Stated here, in the procedure and in the note's
+   `BUGS`, because it is the sentence most likely to be dropped when a result is quoted.
+3. **The bench card's kernel is not the kernel the static table describes.** `bench` changes the IPC
+   path's codegen (riscv64 `ipc_call_reply` is 5,212 bytes with it against 5,936 without, and the
+   normalised instruction stream differs) and `single_hart` adds four instructions; `board` alone
+   changes nothing. So the static step measures the card's own feature set, which the 2026-09-04
+   session did not.
+
+**Found on the way, and fixed**: `cargo xtask bench --riscv|--x86 --extra-features <f>` ignored the
+flag and built a plain `bench` kernel, so a riscv64 E3 rehearsal through that path measured an
+un-padded kernel and printed its numbers under the flag. riscv64 is the ISA radon runs.
 
 ## In brief
 
@@ -95,7 +170,33 @@ write per boot.
 The 2026-09-04 radon session. notes/footprint-perturbation.md's own BUGS carries the defect;
 `design/roadmap/188-ipc-fastpath.md` is what it blocks.
 
+## Scope note
+
+An instrument, not a measure and not a decision. No syscall surface, no wire format, no dependency;
+one Cargo feature that already existed now takes two build-time numbers. It produces no result by
+itself: the result is milestone 134's radon evening.
+
+## Follow-on
+
+- **Milestone 134.** The evening this control exists for, and the one thing between 134 and BUILT.
+  What it must produce is in that block's Follow-on and in notes/footprint-perturbation.md.
+- **Recorded.** Four layout images are a small sample of a distribution; Stabilizer (Curtsinger and
+  Berger, ASPLOS 2013) randomises layout repeatedly for exactly this reason. Four draws bound an
+  effect loosely and cannot prove one absent. In notes/footprint-perturbation.md's `BUGS`.
+- **Recorded.** A never-executed pad reaches a clock only by moving code, so no E3 reading can
+  settle Liedtke's executed-footprint claim. In the same `BUGS` section and in item 2 above.
+- **Recorded.** The bench card's kernel differs from the bare release kernel in the IPC path, so
+  static figures taken without `bench` describe a kernel nobody boots. In the same `BUGS` section;
+  milestone 134's optional per-IPC-depth boot rests on the same assumption.
+- **Done.** `xtask`'s riscv64 and x86_64 bench arms now pass `--extra-features` through.
+- **Recorded.** Every name this lane minted is **provisional**, as always, and listed where a reader
+  meets it (kernel/Cargo.toml, kernel/src/fastpath_pad.rs, `script/fastpath-footprint`'s usage):
+  `NIFE_FASTPATH_PAD`, `NIFE_FASTPATH_SHIFT`, `--layout`, `fastpath_layout_shift`, the
+  `bench-probe: fastpath_pad` line, `PAD_UNITS`, `SHIFT_BYTES` and `BUILD`.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 E3 compares two kernels that differ in one Cargo feature and reads the difference as the cost of the
 footprint that feature adds. The 2026-09-04 radon session proved that inference does not hold: six
@@ -108,4 +209,11 @@ assignment, which by construction add no reachable instruction, read across the 
 give a layout distribution: inside it is layout, outside it is footprint. The cheapest version is
 `fastpath_pad` taking a value rather than a boolean, because footprint predicts monotonicity where
 layout does not. It decides milestone 188's phase 4, which is holding a hand-written IPC fastpath on
-evidence of a 19 ns effect with a 193 ns artifact sitting on top of it.
+evidence of a 19 ns effect with a 193 ns artifact sitting on top of it. **BUILT 2026-09-19**:
+`NIFE_FASTPATH_PAD` and `NIFE_FASTPATH_SHIFT` size the sled and add an unreachable shift, the
+linker scripts pin that section first in `.text` so both move the whole kernel text and a pad has a
+byte-identical un-padded twin, eight images share one normalised instruction hash that
+`script/fastpath-footprint --layout` prints, and a bench boot names its own image. Building it found that a Cargo feature per size reproduces the
+defect (a feature name repartitions codegen units, moving 11 KB of unrelated code), and that a pad
+never executed can only act through addresses, so E3 tests whether the footprint number predicts
+latency, not Liedtke's claim about an executed footprint.

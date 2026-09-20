@@ -109,7 +109,7 @@ so a renderer wants both kinds of test and this one had only the first.
 
 **A doc bundle is a package's pages plus its index shard, installed as a unit.** `doc/<bundle>/` in
 the filesystem image, with `doc/bundles` listing the names, built by `cargo xtask manual` from the
-`DOC_BUNDLES` table in `xtask/src/main.rs` and imported into the RedoxFS image by `mkredoxfs`.
+`DOC_BUNDLES` table in `xtask/src/manual.rs` and imported into the RedoxFS image by `mkredoxfs`.
 
 The table names paths that already exist rather than copying notes into crate directories, and that
 is deliberate: **a second copy of a note is a copy that can drift**, and in-tree documentation earns
@@ -498,7 +498,7 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
   phase 1 measured it. The floor is what moves it: page alignment costs every bundle 16 KiB
   however small, so the ratio improves as the bundles grow rather than because anything got better.
 - **A source line longer than `documentation::LINE_MAX` (2048) loses its tail.** The longest line in this
-  repository is 1925 bytes <!--count:longest-markdown-line-->, so the corpus fits; a document from
+  repository is 2047 bytes <!--count:longest-markdown-line-->, so the corpus fits; a document from
   elsewhere may not, and `Renderer::truncated` reports it while `doc` does not print it. The number
   carries a marker because it drifted: these three places said 1835 for as long as the two gated
   ones said 1841, which is the margin this milestone is measured against going stale in the prose

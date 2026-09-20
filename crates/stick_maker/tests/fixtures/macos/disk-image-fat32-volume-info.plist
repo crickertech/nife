@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Captured with diskutil info -plist on the development Mac, 2026-09-19; trimmed to the keys stick_maker reads, volume names scrubbed. The FAT32 volume diskutil eraseDisk made on it. -->
+<plist version="1.0">
+<dict>
+	<key>BusProtocol</key>
+	<string>Disk Image</string>
+	<key>Content</key>
+	<string>DOS_FAT_32</string>
+	<key>DeviceIdentifier</key>
+	<string>disk7s1</string>
+	<key>FilesystemName</key>
+	<string>MS-DOS FAT32</string>
+	<key>FilesystemType</key>
+	<string>msdos</string>
+	<key>FreeSpace</key>
+	<integer>66010112</integer>
+	<key>Internal</key>
+	<false/>
+	<key>MountPoint</key>
+	<string>/Volumes/NIFE</string>
+	<key>ParentWholeDisk</key>
+	<string>disk7</string>
+	<key>RemovableMedia</key>
+	<true/>
+	<key>Size</key>
+	<integer>67060224</integer>
+	<key>VolumeName</key>
+	<string>NIFE</string>
+	<key>WholeDisk</key>
+	<false/>
+	<key>Writable</key>
+	<true/>
+</dict>
+</plist>

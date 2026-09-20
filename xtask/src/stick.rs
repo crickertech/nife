@@ -1,0 +1,445 @@
+//! **The stick: every architecture's boot file, and the program that writes them** (DECISIONS §157).
+//!
+//! ```text
+//! cargo xtask stick                        # target/stick/EFI/BOOT/*.EFI, and stick_maker for this host
+//! cargo xtask stick --host x86_64-unknown-linux-musl --host x86_64-pc-windows-gnu
+//! cargo xtask stick-boot                   # boot target/stick under all three UEFI firmwares
+//! ```
+//!
+//! **The order inside each payload is the seal, and it is not re-derived here.** For every
+//! architecture the archive is packed first, which writes the measurement manifest the kernel
+//! compiles in, then the kernel is built, then the loader embeds both, and the loader's own build
+//! (`uefi_loader/build.rs`) refuses a pair the kernel does not vouch for. `stick_maker` then embeds
+//! only those finished files. Nothing downstream of a loader can pair a kernel with the wrong
+//! archive, because nothing downstream handles a kernel or an archive at all.
+//!
+//! Names: `stick` and `stick-boot` are provisional (this lane, 2026-09-19), in the family of
+//! `uefi-image` and `uefi-boot`, naming what they make and what they check.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use super::{RISCV_TARGET, TARGET, cargo_profiled, profile_dir, user};
+use crate::archive::{initrd_path, initrd_riscv, riscv_initrd_path};
+use crate::host::workspace_root;
+use crate::uefi::uefi_image;
+
+/// Where the stick is staged: the layout the program writes, as a directory QEMU can boot.
+pub(super) fn stick_dir() -> PathBuf {
+    workspace_root().join("target/stick")
+}
+
+/// The one boot file per architecture, by the name UEFI gives its removable-media path.
+const PAYLOADS: [(&str, &str); 3] = [
+    ("x86_64", "BOOTX64.EFI"),
+    ("aarch64", "BOOTAA64.EFI"),
+    ("riscv64", "BOOTRISCV64.EFI"),
+];
+
+fn boot_dir() -> PathBuf {
+    stick_dir().join("EFI/BOOT")
+}
+
+fn copy_into_stick(from: &Path, name: &str) -> bool {
+    let to = boot_dir().join(name);
+    match std::fs::copy(from, &to) {
+        Ok(bytes) => {
+            eprintln!("stick: {} ({bytes} bytes)", to.display());
+            true
+        }
+        Err(e) => {
+            eprintln!(
+                "stick: cannot copy {} to {}: {e}",
+                from.display(),
+                to.display()
+            );
+            false
+        }
+    }
+}
+
+/// Build one loader around a kernel and an archive that were just built in the sealed order.
+fn build_loader(target: &str, kernel: &str, archive: &str, extra: &[(&str, &str)]) -> bool {
+    let mut args = vec![
+        "build",
+        "-p",
+        "uefi_loader",
+        "--bin",
+        "uefi_loader",
+        "--features",
+        "uefi",
+        "--target",
+        target,
+    ];
+    if profile_dir() == "release" {
+        args.push("--release");
+    }
+    let mut command = Command::new("cargo");
+    command
+        .args(&args)
+        .env("NIFE_UEFI_KERNEL", kernel)
+        .env("NIFE_UEFI_INITRD", archive);
+    for (key, value) in extra {
+        if *key == "--target-dir" {
+            command.args(["--target-dir", value]);
+        } else {
+            command.env(key, value);
+        }
+    }
+    command.status().is_ok_and(|s| s.success())
+}
+
+/// `BOOTX64.EFI`: exactly what `cargo xtask uefi-image` stages for xenon, copied.
+fn payload_x86_64() -> bool {
+    uefi_image()
+        && copy_into_stick(
+            &workspace_root().join("target/esp/EFI/BOOT/BOOTX64.EFI"),
+            "BOOTX64.EFI",
+        )
+}
+
+/// `BOOTAA64.EFI`: the aarch64 archive, then the kernel, then the loader for `aarch64-unknown-uefi`.
+fn payload_aarch64() -> bool {
+    if !user() || !cargo_profiled(&["build", "-p", "kernel", "--target", TARGET]) {
+        return false;
+    }
+    let kernel = workspace_root()
+        .join(format!("target/{TARGET}/{}/kernel", profile_dir()))
+        .display()
+        .to_string();
+    build_loader("aarch64-unknown-uefi", &kernel, &initrd_path(), &[])
+        && copy_into_stick(
+            &workspace_root().join(format!(
+                "target/aarch64-unknown-uefi/{}/uefi_loader.efi",
+                profile_dir()
+            )),
+            "BOOTAA64.EFI",
+        )
+}
+
+/// **`BOOTRISCV64.EFI`**, the one that is not built as PE: rustc has no riscv64 UEFI target, so the
+/// loader is linked as a static PIE for `riscv64imac-unknown-none-elf` and converted.
+///
+/// The kernel is the **`board`** build, the one radon runs (`script/board-image`), because the
+/// stick is for the bench as well as for QEMU, and the tour it runs is the same on both: the
+/// feature changes how a test run exits, which a tour never does. `stick-boot` proves it boots
+/// under QEMU's EDK2.
+///
+/// The link arguments, each for a reason:
+/// - `-pie --no-dynamic-linker`: a position-independent image with no interpreter, because the
+///   firmware loads it wherever it likes.
+/// - `-z notext`: the prebuilt `core` for this target is not PIC, so its vtables in `.rodata`
+///   need load-time relocations; the firmware applies them before a single instruction runs.
+/// - `-z separate-loadable-segments`: every segment page-aligned, so each becomes a PE section.
+/// - `--image-base=0x1000`: the first page is the PE headers'.
+/// - `--entry=efi_main`: the PE entry point.
+///
+/// A separate target directory, so these flags never touch the kernel's riscv64 build artifacts.
+fn payload_riscv64() -> bool {
+    if !initrd_riscv()
+        || !cargo_profiled(&[
+            "build",
+            "-p",
+            "kernel",
+            "--target",
+            RISCV_TARGET,
+            "--features",
+            "board",
+        ])
+    {
+        return false;
+    }
+    let kernel = workspace_root()
+        .join(format!("target/{RISCV_TARGET}/{}/kernel", profile_dir()))
+        .display()
+        .to_string();
+    let target_dir = workspace_root().join("target/uefi-riscv64");
+    let rustflags = "-C relocation-model=pie -C link-arg=-pie -C link-arg=--no-dynamic-linker \
+                     -C link-arg=-znotext -C link-arg=-zseparate-loadable-segments \
+                     -C link-arg=--image-base=0x1000 -C link-arg=--entry=efi_main";
+    if !build_loader(
+        RISCV_TARGET,
+        &kernel,
+        &riscv_initrd_path(),
+        &[
+            ("RUSTFLAGS", rustflags),
+            ("--target-dir", &target_dir.display().to_string()),
+        ],
+    ) {
+        return false;
+    }
+    let elf_path = target_dir.join(format!("{RISCV_TARGET}/{}/uefi_loader", profile_dir()));
+    let elf = match std::fs::read(&elf_path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("stick: cannot read {}: {e}", elf_path.display());
+            return false;
+        }
+    };
+    let pe = match portable_executable::from_elf(&elf) {
+        Ok(pe) => pe,
+        Err(e) => {
+            eprintln!(
+                "stick: {} cannot become a PE image: {e:?}",
+                elf_path.display()
+            );
+            return false;
+        }
+    };
+    let to = boot_dir().join("BOOTRISCV64.EFI");
+    match std::fs::write(&to, &pe) {
+        Ok(()) => {
+            eprintln!(
+                "stick: {} ({} bytes, converted from {})",
+                to.display(),
+                pe.len(),
+                elf_path.display()
+            );
+            true
+        }
+        Err(e) => {
+            eprintln!("stick: cannot write {}: {e}", to.display());
+            false
+        }
+    }
+}
+
+/// A short description of the source the stick was built from, for `NIFE.TXT`.
+fn build_label() -> String {
+    Command::new("git")
+        .args(["describe", "--always", "--dirty", "--abbrev=12"])
+        .current_dir(workspace_root())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
+/// The download's file name for a host triple: `stick_maker-<os>-<cpu>`, `.exe` on Windows.
+fn download_name(triple: &str) -> String {
+    let cpu = triple.split('-').next().unwrap_or("unknown");
+    let cpu = if cpu == "aarch64" { "arm64" } else { cpu };
+    let (os, suffix) = if triple.contains("apple") {
+        ("macos", "")
+    } else if triple.contains("windows") {
+        ("windows", ".exe")
+    } else if triple.contains("linux") {
+        ("linux", "")
+    } else {
+        ("other", "")
+    };
+    format!("stick_maker-{os}-{cpu}{suffix}")
+}
+
+fn host_triple() -> String {
+    Command::new("rustc")
+        .arg("-vV")
+        .output()
+        .ok()
+        .and_then(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .find_map(|l| l.strip_prefix("host: ").map(str::to_owned))
+        })
+        .unwrap_or_default()
+}
+
+/// Build `stick_maker` for one host triple around the staged payloads. Always release: it is the
+/// thing a stranger downloads, and its size is the payloads' plus a few hundred kilobytes.
+fn build_program(triple: &str, label: &str) -> Option<PathBuf> {
+    let mut command = Command::new("cargo");
+    command
+        .args([
+            "build",
+            "-p",
+            "stick_maker",
+            "--release",
+            "--target",
+            triple,
+        ])
+        .env("NIFE_STICK_PAYLOADS", stick_dir())
+        .env("NIFE_STICK_BUILD", label);
+    // A cross-built Linux binary is linked by rust-lld as a static musl executable, so it runs on
+    // any Linux with no C library to match and needs no cross toolchain installed here.
+    if triple.ends_with("linux-musl") {
+        command.env(
+            format!(
+                "CARGO_TARGET_{}_LINKER",
+                triple.to_uppercase().replace('-', "_")
+            ),
+            "rust-lld",
+        );
+    }
+    if !command.status().is_ok_and(|s| s.success()) {
+        eprintln!("stick: stick_maker did not build for {triple}");
+        return None;
+    }
+    let exe = if triple.contains("windows") {
+        "stick_maker.exe"
+    } else {
+        "stick_maker"
+    };
+    let built = workspace_root().join(format!("target/{triple}/release/{exe}"));
+    let out = workspace_root().join("target/stick-maker");
+    let _ = std::fs::create_dir_all(&out);
+    let to = out.join(download_name(triple));
+    match std::fs::copy(&built, &to) {
+        Ok(bytes) => {
+            eprintln!("stick: {} ({bytes} bytes)", to.display());
+            Some(to)
+        }
+        Err(e) => {
+            eprintln!("stick: cannot copy {}: {e}", built.display());
+            None
+        }
+    }
+}
+
+/// `cargo xtask stick [--release] [--host <triple>]...`
+pub(super) fn stick() -> bool {
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    if args.iter().any(|a| a == "--release") {
+        super::RELEASE.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    let mut hosts: Vec<String> = args
+        .windows(2)
+        .filter(|w| w[0] == "--host")
+        .map(|w| w[1].clone())
+        .collect();
+    if hosts.is_empty() {
+        hosts.push(host_triple());
+    }
+
+    // Start from nothing, so a payload that failed to build cannot be replaced by last time's.
+    let _ = std::fs::remove_dir_all(stick_dir());
+    if let Err(e) = std::fs::create_dir_all(boot_dir()) {
+        eprintln!("stick: cannot create {}: {e}", boot_dir().display());
+        return false;
+    }
+    if !(payload_x86_64() && payload_aarch64() && payload_riscv64()) {
+        eprintln!("stick: a payload failed to build; no program was built around a partial set");
+        return false;
+    }
+
+    let label = build_label();
+    let mut ok = true;
+    let mut apple = Vec::new();
+    for triple in &hosts {
+        match build_program(triple, &label) {
+            Some(path) if triple.contains("apple") => apple.push(path),
+            Some(_) => {}
+            None => ok = false,
+        }
+    }
+    // Both macOS builds present: one universal binary is the download, the way a Mac app ships.
+    if apple.len() == 2 {
+        let universal = workspace_root().join("target/stick-maker/stick_maker-macos");
+        let status = Command::new("lipo")
+            .arg("-create")
+            .args(&apple)
+            .arg("-output")
+            .arg(&universal)
+            .status();
+        if status.is_ok_and(|s| s.success()) {
+            eprintln!(
+                "stick: {} (universal: arm64 and x86_64)",
+                universal.display()
+            );
+        } else {
+            eprintln!("stick: lipo could not join the two macOS builds");
+            ok = false;
+        }
+    }
+    eprintln!(
+        "stick: staged at {}; boot it with `cargo xtask stick-boot`",
+        stick_dir().display()
+    );
+    ok
+}
+
+/// **Boot the staged stick under each architecture's UEFI firmware, and check it got all the way.**
+///
+/// One directory, three firmwares: each finds its own file among the three and ignores the others,
+/// which is the universal stick's whole claim. What is asserted, per architecture, is chosen so it
+/// cannot pass for the wrong reason: the loader's banner (the firmware found and ran our file), the
+/// self-test verdict with every check passing (the kernel ran on the machine the firmware
+/// described), and the hand-over to the progenitor (the archive the loader placed was found through
+/// the handoff and passed the measurement).
+pub(super) fn stick_boot() -> bool {
+    let mut ok = true;
+    for (arch, file) in PAYLOADS {
+        if !boot_dir().join(file).exists() {
+            eprintln!("stick-boot: {file} is not staged; run `cargo xtask stick` first");
+            return false;
+        }
+        let output = Command::new("scripts/qemu-stick.sh")
+            .args([arch, &stick_dir().display().to_string()])
+            .current_dir(workspace_root())
+            .env(
+                "NIFE_STICK_TIMEOUT",
+                std::env::var("NIFE_STICK_TIMEOUT").unwrap_or("120".into()),
+            )
+            .stdin(std::process::Stdio::null())
+            .output();
+        let Ok(output) = output else {
+            eprintln!("stick-boot: cannot run scripts/qemu-stick.sh");
+            return false;
+        };
+        let transcript = String::from_utf8_lossy(&output.stdout).into_owned();
+        let mut passed = true;
+        for wanted in [
+            "nife uefi_loader: milestone 87",
+            "nife self-test: 5 of 5 passed",
+            "nife: handing the system to the userspace progenitor.",
+        ] {
+            if !transcript.contains(wanted) {
+                eprintln!("stick-boot: {arch}: the transcript is missing {wanted:?}");
+                passed = false;
+            }
+        }
+        if transcript.contains("[PANIC]") {
+            eprintln!("stick-boot: {arch}: the kernel panicked");
+            passed = false;
+        }
+        if passed {
+            eprintln!("stick-boot: {arch}: booted from {file} to the progenitor");
+        } else {
+            let tail: Vec<&str> = transcript.lines().rev().take(25).collect();
+            for line in tail.iter().rev() {
+                eprintln!("stick-boot: {arch}: | {line}");
+            }
+            ok = false;
+        }
+    }
+    ok
+}
+
+#[cfg(test)]
+mod tests {
+    use super::download_name;
+
+    #[test]
+    fn downloads_are_named_by_os_and_cpu() {
+        assert_eq!(
+            download_name("aarch64-apple-darwin"),
+            "stick_maker-macos-arm64"
+        );
+        assert_eq!(
+            download_name("x86_64-apple-darwin"),
+            "stick_maker-macos-x86_64"
+        );
+        assert_eq!(
+            download_name("x86_64-unknown-linux-musl"),
+            "stick_maker-linux-x86_64"
+        );
+        assert_eq!(
+            download_name("aarch64-unknown-linux-musl"),
+            "stick_maker-linux-arm64"
+        );
+        assert_eq!(
+            download_name("x86_64-pc-windows-gnu"),
+            "stick_maker-windows-x86_64.exe"
+        );
+    }
+}

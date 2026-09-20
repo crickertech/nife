@@ -6,6 +6,8 @@
 #   script/board-image --job-mix              # the multi-tasking workload sweep instead of a halt (168)
 #   script/board-image --bench                # the microbenchmark suite instead of a halt, one hart (134)
 #   script/board-image --bench --extra-features fastpath_pad   # ...and E3's padded fastpath
+#   NIFE_FASTPATH_PAD=0 NIFE_FASTPATH_SHIFT=1640 script/board-image --bench --extra-features fastpath_pad
+#                                             # ...one image of E3's layout control (134)
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
 #   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
 #   script/board-image --tftp                 # a boot script that fetches over the network first (257)
@@ -174,6 +176,22 @@ fi
 # feature set is echoed below and it is the one line worth copying into the log beside the numbers.
 if [ -n "$EXTRA" ]; then FEATURES="$FEATURES,$EXTRA"; fi
 
+# **E3's layout control reads two variables, and only with `fastpath_pad`** (milestone 134,
+# kernel/build.rs). Set without the feature they would be silently ignored and the operator would
+# boot a kernel that is not the image they asked for, so that is refused. With it, their values join
+# the `features:` line below, because nothing else here records which E3 image was built.
+E3=""
+if [ -n "${NIFE_FASTPATH_PAD:-}${NIFE_FASTPATH_SHIFT:-}" ]; then
+    case ",$FEATURES," in
+        *,fastpath_pad,*) ;;
+        *) echo "board-image: NIFE_FASTPATH_PAD/NIFE_FASTPATH_SHIFT are set but fastpath_pad is not in the features; add --extra-features fastpath_pad or unset them" >&2
+           exit 2 ;;
+    esac
+fi
+case ",$FEATURES," in
+    *,fastpath_pad,*) E3=" (NIFE_FASTPATH_PAD=${NIFE_FASTPATH_PAD:-1} NIFE_FASTPATH_SHIFT=${NIFE_FASTPATH_SHIFT:-0})" ;;
+esac
+
 # Checked before the build rather than after it, so a typo costs a message instead of four minutes
 # of cargo. The refusals are narrow on purpose: this writes into a directory somebody named, and
 # the only paths it declines are the ones where "somebody named it" is not plausible.
@@ -250,7 +268,7 @@ SIZE="$(wc -c < "$IMG" | tr -d ' ')"
 ARCHIVE_SIZE="$(wc -c < "$OUT/nife-initrd.img" | tr -d ' ')"
 echo
 echo "built:"
-echo "  features: $FEATURES"
+echo "  features: $FEATURES$E3"
 echo "  $IMG  ($SIZE bytes, Image header verified)"
 echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
 if [ "$TFTP" = yes ]; then
@@ -262,6 +280,15 @@ echo "The kernel and the archive are ONE pair. The kernel compiles in a hash of 
 echo "built against and halts rather than hand the progenitor an archive that does not match, so a card that"
 echo "carries a new kernel over an old archive stops at MEASURED BOOT REFUSED. Copy all three files"
 echo "or none, which is what --card is for."
+echo
+
+# **Say it out loud rather than only claiming it**, which is milestone 223 (read a card and say whether its kernel and archive match). The ORDER above is what makes
+# the pair match, and an order is rung two at best: it held on 2026-08-15 and the board refused the
+# pair anyway, because the kernel had been built by something other than this script. So the payload
+# is checked before it is copied anywhere, which costs a fraction of a second against a four-minute
+# build and turns "these were built in the right order" from a claim in a comment into a fact this
+# run has read off the bytes. It is the board's own question, asked here.
+cargo xtask card-check "$OUT"
 echo
 # The copy, when a card was named. It happens here, after every build step has succeeded, so a
 # failed build cannot leave a card holding half a pair.
@@ -284,6 +311,11 @@ if [ -n "$CARD" ]; then
     echo "copied onto $CARD, as one set:"
     echo "  nife-vf2.img, nife-initrd.img, boot.scr.uimg"
     echo
+    # And again against the card itself (milestone 223), which is a different claim from the one
+    # above: this reads what actually landed, so a copy that ran out of space or wrote onto a card
+    # somebody else's payload was already on is caught here rather than at the bench.
+    cargo xtask card-check "$CARD"
+    echo
     echo "Eject before pulling the card, then power the board; it needs nothing typed at it:"
     echo "  diskutil eject \"$CARD\"    # macOS; umount elsewhere"
     echo "  script/board-console --until banner --for 120s --log target/board/boot.log"
@@ -302,6 +334,12 @@ everything on it. Step 3 is this script's, so the kernel and the archive cannot 
   3. Copy the matched set, and eject:
        script/board-image --card /Volumes/NIFE
        diskutil eject /dev/diskN
+
+If the card came from somewhere else, or was written by hand, or has been sitting in a drawer,
+ask whether its kernel and archive are still one pair BEFORE you walk to the board. It reads the
+card and writes nothing; 0 means it boots, 1 means it would halt at MEASURED BOOT REFUSED:
+
+     script/card-check /Volumes/NIFE
 
 Then power the board with a terminal already attached. Nothing has to be typed at U-Boot: the
 boot script on the card runs the sequence below by itself.

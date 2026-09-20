@@ -84,6 +84,7 @@ version = "0.1.0"
 dependencies = [
  "bitmap_font",
  "boot_ladder",
+ "job_mix",
  "machine_discovery",
  "screen_console",
 ]
@@ -347,6 +348,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
+name = "firmware_configuration"
+version = "0.1.0"
+dependencies = [
+ "machine_discovery",
+]
+
+[[package]]
 name = "fixtures"
 version = "0.1.0"
 dependencies = [
@@ -500,6 +508,7 @@ dependencies = [
  "entropy_protocol",
  "environment_protocol",
  "filesystem_protocol",
+ "firmware_configuration",
  "generational_table",
  "grant_plan",
  "graphics_protocol",
@@ -694,6 +703,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable_executable"
+version = "0.1.0"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -760,6 +773,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sealed_pair"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+ "nifefs",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,6 +834,13 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stick_maker"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
 
 [[package]]
 name = "subtle"
@@ -998,8 +1026,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uefi_loader"
 version = "0.1.0"
 dependencies = [
+ "device_tree_blob",
  "elf",
  "machine_discovery",
+ "screen_console",
+ "sealed_pair",
 ]
 
 [[package]]
@@ -1095,6 +1126,8 @@ dependencies = [
  "graphics_protocol",
  "measured_boot",
  "nifefs",
+ "portable_executable",
+ "sealed_pair",
  "video_terminal",
 ]
 

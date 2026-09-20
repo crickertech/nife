@@ -31,6 +31,20 @@ pub(super) fn assert_std_transcript(report: crate::sched::RendezvousId, want: &[
 /// The one decoder for every sink in the suite, on purpose. The indifference test's whole claim
 /// is that two destinations produce the same bytes, and it would be a much weaker claim if each
 /// arm were decoded by its own code.
+/// # BUGS
+///
+/// **A program that aborts is never heard, and this hid a bug for a day.** Found by
+/// milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets).
+/// This loop ends only on the sink's end-of-stream marker, which the runtime's `cleanup` sends after `main` returns. A program that
+/// panics under `panic = "abort"` traps instead, so every byte it printed, **including the panic
+/// message**, is sent to this endpoint and never read: the caller blocks until the watchdog fires
+/// and the transcript reads as empty. That is indistinguishable from a program that never started,
+/// and it was read as exactly that.
+///
+/// The workaround a program can apply itself is a panic hook that prints and then calls
+/// `process::exit`, which is what `cryptography_exerciser` does. A fix here would need a
+/// non-blocking receive or a pending count by rendezvous id, neither of which the scheduler
+/// exposes today.
 pub(super) fn drain_sink(ep: crate::sched::RendezvousId, out: &mut [u8], what: &str) -> usize {
     let mut len = 0usize;
     loop {

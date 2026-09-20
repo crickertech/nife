@@ -62,11 +62,10 @@ person picks a target is left to the design, and the proposal recommends the uni
 3. **Install it.** The minimal system writes itself onto the machine's own disk and boots from it
    afterwards, without the stick.
 4. **Expand it with packages over the internet.** Installing onto a running system is now part of
-   the definition, so the format, activation and trust forks
-   (`design/roadmap/proposals/what-a-package-is-on-disk-and-on-the-wire.md`,
-   `installing-a-package-mutates-or-composes.md`,
-   `what-vouches-for-a-package-the-image-did-not-carry.md`) are **on this definition's path**. The
-   lane had sequenced them after a first slice that installed nothing.
+   the definition, so the format, activation and trust forks are **on this definition's path**:
+   DECISIONS §197 (a package is one archive file), the activation proposal
+   `installing-a-package-mutates-or-composes.md`, and DECISIONS §195 (a reviewed recipe vouches
+   for a package). The lane had sequenced them after a first slice that installed nothing.
 
 ## What the tree has for each step, checked 2026-09-19
 

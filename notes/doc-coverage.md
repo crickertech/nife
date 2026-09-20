@@ -59,7 +59,7 @@ recorded limitation rather than a pass:
 
 - **Five crates' doctests are never run by `script/test`.** `user_mode_runtime`, `swap_protocol`, `virtio`,
   `supervision_protocol` and `system_initializer` take unconditional `user_mode_runtime` dependencies, so the host
-  test selection excludes them (the list is in `xtask/src/main.rs`, derived and checked by
+  test selection excludes them (the list is in `xtask/src/suite.rs`, derived and checked by
   `script/lint`). Their examples run under `cargo test --doc -p <crate>` **on an aarch64 host** and
   are checked by nothing in CI. On an x86_64 host they do not even compile, which is a property of the
   packages and not of the examples. The fix is to split each crate's pure half out from its syscall

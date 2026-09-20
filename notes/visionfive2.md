@@ -539,6 +539,22 @@ milestone 217's answer to whether a script may copy files is that copying a set 
 mounted filesystem is not the destructive act the formatting steps are, and only the script can
 make the set indivisible.
 
+**Ask the board's question before you walk to the board** (milestone 223 (read a card and say whether its kernel and archive match)). `--card` makes a card written by
+this script consistent by construction, and that is all it can do: a card written by hand, written
+by an older script, half-copied, or carried in from another machine is still expressible. So:
+
+```
+script/card-check /Volumes/NIFE     # 0 it boots, 1 it halts at MEASURED BOOT REFUSED, 2 nothing there
+```
+
+It reads the card and writes nothing. It hashes each archive entry the kernel may enter and looks
+for that digest in the kernel image's compiled-in trust root, which is the fact the board's own
+refusal turns on, and when the answer is no it says which of the two files is the stale one by
+comparing both against `target/board`. `script/board-image` now runs it on every payload it builds
+and on every card it writes, so the ordering this section relies on is read off the bytes rather
+than asserted in a comment. The kernel's check is still the authority; this one is the early
+warning, and if they ever disagree the board is right.
+
 The card layout U-Boot's distro boot wants [uboot-doc]: one FAT32 partition (MBR or GPT both work;
 the special GPT partition GUIDs in [uboot-doc] matter only when the card holds the firmware
 itself, and ours stays in QSPI flash). U-Boot scans each partition first for
@@ -894,7 +910,7 @@ Facts documentation could not settle, each an explicit measurement, none guessed
    |---|---|
    | `usb storage` lists the stick and `fatls` shows its files | radon reads USB; a nife boot from the stick is one boot script or one `bootefi` away |
    | `usb start` finds no storage, or the command is missing | this firmware cannot; the next step is a newer StarFive U-Boot in SPI flash, recoverable over UART (boot mode 1:1) |
-   | `help bootefi` prints usage | the universal stick's premise holds on radon (`design/roadmap/proposals/a-program-that-makes-the-stick.md`) |
+   | `help bootefi` prints usage | the universal stick's premise holds on radon; notes/boot-stick.md, "At the bench", has the two commands that then boot it |
    | `boot_targets` contains `usb` | U-Boot scans USB unprompted, with no script |
 
 ## BUGS

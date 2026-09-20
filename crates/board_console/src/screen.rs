@@ -277,11 +277,11 @@ mod tests {
         let banner = "nife on x86_64 (long mode, ring 0, 4-level paging)";
         let decoded = read(&painted(80, 4, &format!("{banner}\n"))).expect("a readable dump");
 
-        let mut from_the_screen = crate::progress::BootProgress::new();
+        let mut from_the_screen = crate::progress::BootProgress::default();
         for line in decoded.lines() {
             from_the_screen.observe_line(line);
         }
-        let mut from_a_wire = crate::progress::BootProgress::new();
+        let mut from_a_wire = crate::progress::BootProgress::default();
         from_a_wire.observe_line(banner);
 
         assert_eq!(

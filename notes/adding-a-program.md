@@ -143,7 +143,7 @@ Three edits, and after the first the machine names each of the others.
    `PROG_COUNT` are all generated from the row.
 2. **Its `manifest()` arm**, which the compiler asks for (`E0004` in `grant_plan`). This carries all
    of the actual meaning: see "What you declare" below.
-3. **A line in `SHELL_CHECK_SCRIPT`** in `xtask/src/main.rs`, and the array length the compiler then
+3. **A line in `SHELL_CHECK_SCRIPT`** in `xtask/src/shell_check.rs`, and the array length the compiler then
    asks for. The element is a `(&str, &[&str])` pair, one line typed and the substrings its answer
    must contain: `("triple 21", &["21*3 = 63"]),`. The host test
    `every_spawnable_program_has_a_shell_check_line` fails until the line exists, and names the one

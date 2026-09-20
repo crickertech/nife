@@ -8,16 +8,20 @@ still declares exactly those nine roles (`INIT` 20, `CHILD` 21, `DEV_CHILD` 22, 
 `INIT_CONSOLE` 24, `INIT_IRQ` 25, `IRQ_CHILD` 26, `INIT_LEAST_AUTHORITY_DEMO` 28, `INIT_COREMARK`
 29), `ROLES_ENTRY` is still `"hello"` and is still read by `init_build` and one other parent to
 re-enter this binary's own image, `kernel::user::spawn_hello` still takes a role and always enters
-`HELLO_ENTRY`, and `crates/capability_witness_protocol` is there for the agreed words. The gate
-still holds: milestone 268 is `PARTIAL`. **This block also absorbs milestone 399**, which proposed
+`HELLO_ENTRY`, and `crates/capability_witness_protocol` is there for the agreed words. The gate was
+`MILESTONE 268` and **it is cleared**: milestone 268 (every architecture boots the same way) turned
+BUILT on 2026-09-19, so nothing is rebuilding the boot sequence any more and this is ready to start.
+**This block also absorbs** milestone 399 (the six `init` roles in `hello`), which proposed
 renaming six of these nine constants and is `SUPERSEDED` for the reason 399's own successor gave
 first: after the split the six parents are programs with their own names and the constants are gone,
 so the rename would be a naming decision spent on an interim.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: MILESTONE 268.** That lane was rebuilding the boot sequence on all three architectures
-while 291 ran, and the change proposed here is in `kernel::user::spawn_hello`. Two lanes in
-that function is the collision this tree already knows how to avoid.
+**Gate: NONE.** *(Cleared 2026-09-19 by milestone 268's own lane, because `script/roadmap` refuses
+a gate on a BUILT milestone and 268 is now one. The reason it existed is kept: that lane was
+rebuilding the boot sequence on all three architectures while 291 ran, and the change proposed here
+is in `kernel::user::spawn_hello`. Two lanes in that function is the collision this tree already
+knows how to avoid.)*
 
 ## What is left, and why it did not come apart with the rest
 

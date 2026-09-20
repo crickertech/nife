@@ -400,17 +400,36 @@ def record(script, pattern, broken):
     return table
 
 
-def built_dates():
+def built_dates(broken):
     """The Built column, which is the one fact the report does not carry and the "as of" check
     needs. `script/roadmap --check` already enforces this column's shape (five fields, a date on
     every BUILT and REMOVED row and on no other), so this reads a validated column rather than
-    deriving a status of its own."""
-    out = {}
-    for line in open(os.path.join(root, "design", "roadmap", "README.md"), errors="replace"):
+    deriving a status of its own.
+
+    **It reads `script/roadmap --index`, which is generated from the blocks, and not the committed
+    `design/roadmap/README.md`, which is a rendering of that** (milestone 443). Until 2026-09-19
+    this opened the committed file, and that one `open()` was the coupling that jammed four pull
+    requests in a day: milestone 294 made the index derived and deliberately made a stale row a
+    report rather than a failure, so a lane never regenerates it and `main`'s table lags between a
+    merge and the integrator's `--write`. This check then read the lag as a fact. Risk 9's citation
+    of milestone 177 "looked current only while 177's row was not BUILT", which is a truthful record
+    failing a gate because a derived file had not caught up. The blocks are per-milestone files, so
+    two lanes on different milestones cannot collide in them at all.
+
+    The column, the parse and the meaning are unchanged; only where the five cells come from moved
+    one step upstream to their source."""
+    out = subprocess.run([os.path.join(root, "script", "roadmap"), "--index"],
+                         capture_output=True, text=True, cwd=root)
+    if out.returncode != 0:
+        broken.append("script/roadmap --index would not run, so no Built date can be read:\n"
+                      f"      {out.stderr.strip()[:200]}")
+        return {}
+    dates = {}
+    for line in out.stdout.splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) == 5 and cells[0].isdigit() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", cells[4]):
-            out[int(cells[0])] = cells[4]
-    return out
+            dates[int(cells[0])] = cells[4]
+    return dates
 
 
 # **This reads COMMITTED history, so this check answers differently before and after a commit**, and
@@ -495,9 +514,11 @@ if mode == "--selftest":
 broken = []
 MILESTONES = record("roadmap", r"^\s+(\d+)\s+\S", broken)
 DECISIONS = record("decisions", r"^\s+§(\d+)\s", broken)
+# Read before `broken` is turned into problems below, because it can add to it.
+BUILT = built_dates(broken)
 text = open(os.path.join(root, RISKS), errors="replace").read()
 problems = [(None, 1, b) for b in broken] + analyse(
-    text, MILESTONES, built_dates(), DECISIONS,
+    text, MILESTONES, BUILT, DECISIONS,
     lambda rel: os.path.exists(os.path.join(root, rel)), git_touched)
 
 risks = [s for s in sections_of(text) if s[0]]

@@ -2525,7 +2525,7 @@ needed no change to run on this ISA. What is missing is everything *around* it:
   self-contained tour with no `#[cfg(feature = "bench")]` branch at all (the other two architectures
   have had one since milestone 21); it now diverges into `bench::run()` right after
   `smp::bring_up_secondaries()`, the same position the aarch64 half of `kernel_main` uses. `cargo
-  xtask bench --x86` builds and runs it; see `bench_x86()` in `xtask/src/main.rs`.
+  xtask bench --x86` builds and runs it; see `bench_x86()` in `xtask/src/bench.rs`.
 
 Every EL0-plane bench (`null_syscall_el0`, `ctx_switch_el0`, `ipc_rtt_el0`, `sink_throughput`,
 `map_el0`, `spawn_el0`) self-skips on this leg through the mechanism they already had (`crate::
@@ -2658,7 +2658,7 @@ why: it has to translate `isa-debug-exit`'s always-odd exit status). So `run_ben
 wrapper shell, not QEMU, on this leg only; killing it after `bench: done` orphaned the real
 `qemu-system-x86_64` process rather than ending it. Under plain TCG that orphan idles at ~0% CPU in
 `hlt` and is easy to miss; under `-icount sleep=off` a parked guest's virtual clock never waits on
-the host, so the orphan spun a full core indefinitely. Fixed in `run_bench` itself (`xtask/src/main.rs`):
+the host, so the orphan spun a full core indefinitely. Fixed in `run_bench` itself (`xtask/src/bench.rs`):
 `pkill -9 -P <runner pid>` runs before the runner is killed, reaping any QEMU it spawned. This is a
 no-op for aarch64 and riscv64, whose runners already `exec` (their `Child` PID already is QEMU, so
 `pkill -P` finds no children), so nothing about the shared bench path changed for them.
@@ -3231,3 +3231,85 @@ architectures a gross regression forces a save, and on the third nothing ever fo
 
 The mechanism this argues for is written up separately, since it is calef's call:
 `design/roadmap/415-sub-tripwire-drift-accumulates-across-baseline-saves.md`.
+
+## 2026-09-19: `CR4.PGE` and `CR4.PCIDE`, and why this tree cannot yet measure either (milestone 161)
+
+Milestone 161 carried "measure `CR4.PGE` and `CR4.PCIDE`" from item 3 onward, deferred each time
+because nothing switched address spaces under load. Something does now, and the measurement was
+taken. **Its result is that the instrument cannot see the effect**, which is worth recording as
+carefully as a number, because the obvious reading of the table below ("PGE saves nothing") is
+wrong.
+
+### What changes when PGE is on, and what does not
+
+`CR4.PGE` lets a TLB entry whose leaf has `G` set survive a `CR3` write. This kernel already marks
+every kernel mapping global and no user mapping global (`paging::Flags`), so turning it on changes
+**no instruction** on any path: the only difference is which kernel translations the hardware still
+holds after a context switch writes `CR3`. The saving is refills, and refills are not instructions.
+
+### The workload
+
+`cargo xtask bench --x86` boots with no initrd, so every `_el0` bench self-skips and nothing in its
+baseline writes `CR3` (`yield_switch` and friends are kernel threads sharing one root). Run by hand
+with `target/initrd-x86_64.img` (`cargo xtask initrd-x86`) attached, the EL0 plane runs on x86_64 for
+the first time: `ctx_switch` is two processes yielding to each other, so every switch is a `CR3`
+write, and `ipc_rtt_el0` is a round trip between two processes, two per iteration.
+
+### icount: byte-identical, by construction
+
+Same tree, two builds differing only in setting `CR4.PGE` after the fine map is installed (in
+`mmu::init` and `mmu::init_secondary`), `-icount shift=0,sleep=off`, one boot each:
+
+| bench | iters | ticks, PGE off | ticks, PGE on |
+|---|---|---|---|
+| `yield_switch` | 2000 | 18,903,108 | 18,903,108 |
+| `null_syscall` | 20000 | 4,520,052 | 4,520,052 |
+| `ctx_switch` | 5000 | 48,943,033 | 48,943,033 |
+| `ipc_rtt_el0` | 5000 | 178,398,567 | 178,398,567 |
+| `map_el0` | 500 | 5,959,166 | 5,959,166 |
+
+Every one of the 17 lines matched to the tick. That confirms the premise (PGE costs no instruction)
+and says nothing about the benefit, since icount's clock advances per retired instruction and a TLB
+walk retires none.
+
+### Plain TCG wall clock: noise, and it could only ever be noise
+
+Three boots each, same host, `--real`-style (no icount), ns per iteration from the guest's
+PIT-calibrated TSC at 1.002 GHz:
+
+| bench | PGE off (3 boots) | PGE on (3 boots) |
+|---|---|---|
+| `ctx_switch` | 40.35, 40.03, 40.27 µs | 40.23, 39.79, 39.62 µs |
+| `ipc_rtt_el0` | 114.40, 117.05, 117.18 µs | 116.36, 116.10, 112.54 µs |
+
+Overlapping, about 1% apart, on a shared host with other lanes running. **And no difference was
+possible**: the pinned QEMU (11.0.2) implements `CR3` writes as `cpu_x86_update_cr3`, which calls
+`tlb_flush` on the whole softmmu TLB whenever paging is on, reading neither `PGE` nor `PCIDE`
+(`target/i386/helper.c`, read at the `v11.0.2` tag on 2026-09-19). Under TCG a global entry never
+survives a switch. The same holds for `PCIDE`: a tagged entry is discarded with everything else.
+
+### What would measure it
+
+A real TLB. Two routes exist and both are one step from usable:
+
+- **KVM on cordoba** (i5-4670, Haswell: `pcid`, `invpcid`, `pdpe1gb` and `pge` all in
+  `/proc/cpuinfo`). A no-sudo QEMU 8.2.2 was unpacked from Ubuntu's own packages into
+  `~/nife-kvm/root` there and runs; `-enable-kvm` fails with `Permission denied` because `/dev/kvm`
+  is `root:kvm 0660` and calef's account is not in `kvm`. **`sudo usermod -aG kvm calef` on cordoba
+  is the whole blocker**, and it is calef's to run. Then: the two bench kernels above, with the
+  initrd, under `-enable-kvm -cpu host`, a few boots each, and `ctx_switch` / `ipc_rtt_el0` read
+  against each other.
+- **A bench boot on xenon** (i5-7500T), which is the machine the answer is actually about.
+
+Neither is gating, and the number from either is a `--real` number: it reports and never gates.
+
+### PCIDE is a design, not a bit
+
+Turning PGE on is two lines and changes no invariant this kernel relies on (every kernel unmap
+already ends in `invlpg`, which does invalidate a global entry). PCIDE is different: with it on,
+`invlpg` and a `CR3` write act on the **current** tag only, so `mmu::unmap_user_at` on a space that is
+not installed, `mmu::flush_asid`, and the NMI shootdown's discard-everything arm would each leave
+another space's tagged entries alive, which is a stale-translation defect. The fix is `INVPCID` on
+each of those paths (present on both machines above) and a tag-reuse rule against
+`crates/address_space_identifier`'s generations. `kernel/src/arch/x86_64/mmu.rs`'s BUGS records both
+bits and this measurement.

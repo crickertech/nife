@@ -707,6 +707,68 @@ echo "TODO markers: $todo_count in code, each naming a milestone that has a bloc
 echo "==> roadmap status"
 "$(dirname "$0")/roadmap" --check
 
+# The generated index is a RENDERING, and nothing in script/ may gate on it (milestone 443).
+#
+# Milestone 294 derived `design/roadmap/README.md` from the per-milestone blocks and made a stale
+# row a report rather than a failure, so that no lane has to edit what was this tree's worst merge
+# hotspot. The consequence is that `main`'s committed table lags between a merge and the
+# integrator's `--write`, and every script that opened it read that lag as a fact. On 2026-09-19
+# that jammed four pull requests in a day: `script/fatal-risks` took its Built dates from the
+# committed table, so risk 9's citation of milestone 177 "looked current only while 177's row was
+# not BUILT", and `script/audits` counted 213 milestones built against a tree that had 214.
+#
+# Both now read `script/roadmap --index`, which renders the same five columns from the blocks. This
+# check is what stops the coupling growing back, because it is the kind that reads as ordinary code
+# at the call site: one `open()` of a path that looks like the record.
+#
+# **Two scripts are allowed and they are not exceptions, they are a different question.**
+# `script/metrics` and `script/catch-up` read the committed file at HISTORICAL revisions, through
+# `git ls-tree` and `git show`, to chart what the roadmap said in a past week. A block-derived
+# answer does not exist for a revision before milestone 294 landed, and no amount of generating
+# produces one. That is also the reason the file stays committed at all.
+#
+# **What this cannot catch:** a script that shells out to `git show HEAD:design/roadmap/README.md`,
+# or builds the path from pieces. It is a grep, and it catches the shape the two real defects had.
+echo "==> the roadmap index is not a gate input"
+python3 - <<'PY'
+import pathlib
+import re
+import sys
+
+ALLOWED = {"script/metrics", "script/catch-up", "script/roadmap"}
+PATH = re.compile(r"""["'](design/roadmap/README\.md)["']|"design",\s*"roadmap",\s*"README\.md\"""")
+bad = []
+for f in sorted(pathlib.Path("script").iterdir()):
+    if not f.is_file() or f.as_posix() in ALLOWED:
+        continue
+    for n, line in enumerate(f.read_text(errors="replace").split("\n"), start=1):
+        # A comment line is prose about the file, which every script here is entitled to write.
+        if line.lstrip().startswith("#"):
+            continue
+        if PATH.search(line):
+            bad.append(f"{f.as_posix()}:{n}: {line.strip()[:72]}")
+if bad:
+    print("lint: script/ reads the GENERATED roadmap index as data:", file=sys.stderr)
+    for b in bad:
+        print(f"  {b}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("design/roadmap/README.md is rendered from design/roadmap/<n>-<slug>.md and is allowed",
+          file=sys.stderr)
+    print("to lag main between a merge and the integrator's `script/roadmap --write`. A check that",
+          file=sys.stderr)
+    print("reads it reads that lag as a fact, which is how four pull requests jammed on",
+          file=sys.stderr)
+    print("2026-09-19. Read `script/roadmap --index` instead; it renders the same five columns",
+          file=sys.stderr)
+    print("from the blocks. script/metrics and script/catch-up are allowed because they read",
+          file=sys.stderr)
+    print("HISTORICAL revisions, where no block-derived answer exists. See milestone 443.",
+          file=sys.stderr)
+    sys.exit(1)
+print("the generated roadmap index is read by nothing in script/ but its generator and the two "
+      "history readers")
+PY
+
 # Intra-doc links, denied when broken. This codebase leans unusually hard on `[`Item`]` links to
 # stitch the code to itself and to the notes, which is deliberate (see CLAUDE.md on commenting) and
 # makes a broken link a real loss rather than cosmetic. Nothing checked them until 2026-07-30, and
@@ -721,11 +783,24 @@ echo "==> roadmap status"
 # line. It opens a serial port and spawns `stty`, so it is `std` by nature and cannot document for
 # a bare-metal target any more than `xtask` can. Both are still documented, on the pass that suits
 # them; the exclusion is about the target, not about skipping them.
+#
+# `stick_maker` (the stick program, 2026-09-19) is the third, and for the same reason: it is a
+# host program that runs `diskutil` and reads sysfs. This list is typed out where `script/drift`
+# derives the same set from each crate's `no_std` attribute; the next host-only crate will fail
+# here exactly as this one did, and deriving it would make that unrepresentable.
+#
+# `sealed_pair` is the fourth, and it is the prediction above coming true: it was added on
+# 2026-09-19 for milestone 223 (read a card and say whether its kernel and archive match), failed
+# this pass on its first run with `Vec` not found, and the message said where to put it. It reads
+# two files a host has and answers a question about them, so it is `std` by nature; the kernel side
+# of the same question is `kernel::trust`, which is `no_std` and stays that way.
 echo "==> rustdoc (broken intra-doc links)"
 DOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::invalid_html_tags"
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --workspace --exclude xtask \
-    --exclude board_console --target aarch64-unknown-none-softfloat
-RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console
+    --exclude board_console --exclude stick_maker --exclude sealed_pair \
+    --target aarch64-unknown-none-softfloat
+RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console -p stick_maker \
+    -p sealed_pair
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path redoxfs_server/Cargo.toml --lib
 
 # The decision index (design/decisions/README.md and one file per decision, milestone 114): its
@@ -780,6 +855,32 @@ fi
 # tolerance rule and for the honest list of what it still cannot see.
 echo "==> citations"
 "$(dirname "$0")/citations" --check
+
+# The ratchet on that gate, and the only check here that reads the DIFF rather than the tree
+# (milestone 444 (a citation says what it cites, so a number stops being the identity)). calef ruled
+# it on 2026-09-19: *"add the gloss ratchet."* A `milestone N` or `§N` on a line this branch ADDS has
+# to say what it cites, once per number per file; nothing existing is touched, and nothing is swept.
+#
+# **Why a ratchet and not a sweep.** notes/citations.md priced the sweep and refused it: 2,911 sites,
+# every one of which has to be READ to know what its author meant, because a pattern-applied gloss
+# would make a wrong citation look verified. That argument is about a sweep and says nothing against
+# a rule on new text, which is what this is. It moves the tree at the rate the tree changes.
+#
+# **Why it is worth a gate.** DECISIONS §151 (the goal of the repository split is independent
+# release) rules that this repository becomes several. A number is one namespace over one tree; a
+# gloss is a string a reader or a `grep` resolves wherever the block ends up. The tree is already
+# 83% there by habit (465 of 560 glossed citations resolve against their target's own title) and
+# nobody decided to make it so.
+#
+# **What it cannot catch, and the cost it is known to carry.** A citation arriving in a MERGE commit
+# is invisible to it, by design, since the alternative fires on a lane for another lane's text. A
+# gloss that is grounded and still cites the wrong record passes, which is `--check`'s own standing
+# BUGS entry. And it bites the honest case: a lane adding one line to a dated account is asked for a
+# gloss the surrounding passage already gives. Measured before it was turned on, over the 42 pull
+# request merges from #953 to #1002: a median of 16 asks per pull request, each answered by one
+# parenthetical, with one outlier of 893 (#970, which landed 24 proposal files at once).
+echo "==> new citations say what they cite"
+"$(dirname "$0")/citations" --ratchet
 
 # The fourth citation gate, and the only one that reads what a citation CLAIMS (milestone 275). The
 # three above prove a `milestone N` or `§N` resolves, and that its gloss names the right record;
@@ -836,7 +937,7 @@ echo "==> fatal risks"
 # those exclusions carry their own recorded reasons and are judgement rather than physics.
 echo "==> the host pass excludes exactly the bare-metal crates"
 python3 - <<'PYEOF' || exit 1
-import json, subprocess, sys
+import json, pathlib, subprocess, sys
 
 meta = json.loads(subprocess.run(
     ["cargo", "metadata", "--format-version", "1", "--locked"],
@@ -861,7 +962,10 @@ bare = sorted(name_of[m] for m in members
               if name_of[m] == "user_mode_runtime" or reaches_user_mode_runtime(m))
 
 lint = open("script/lint").read()
-xtask = open("xtask/src/main.rs").read()
+# Every xtask source, not `main.rs` alone: milestone 365 split that file into a module per
+# command, and the exclusion list moved to the module that runs the host pass. What this check
+# means is "the list exists somewhere in xtask", so read the directory rather than one file.
+xtask = "".join(open(p).read() for p in sorted(pathlib.Path("xtask/src").glob("*.rs")))
 coverage = open("script/coverage").read()
 mutants = open(".cargo/mutants.toml").read()
 missing = []
@@ -869,7 +973,7 @@ for c in bare:
     if f"--exclude {c}" not in lint:
         missing.append((c, "script/lint"))
     if f'"{c}",' not in xtask:
-        missing.append((c, "xtask/src/main.rs"))
+        missing.append((c, "xtask/src/"))
     # script/coverage has two exclusion mechanisms and a crate needs only the one that fits it:
     # `--exclude` on the run (which `cargo llvm-cov report` has no equivalent of) or the awk filter
     # that drops the file from the report. `virtio` uses only the second and `kernel` only the

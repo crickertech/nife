@@ -882,7 +882,7 @@ skipped, which is not fussiness: this tree's PAL files discuss the panics they r
 and a check that could not tell a fix from its own explanation would have been useless on the day it
 was written.
 
-What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/main.rs`, **which carries the
+What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, **which carries the
 reason for every entry**. A new one fails the build with the file, the line, and the two things it
 can be. Today there are 26 across 79 compiled sources, in three groups:
 
