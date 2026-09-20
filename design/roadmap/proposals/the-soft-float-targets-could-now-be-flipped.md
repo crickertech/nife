@@ -37,12 +37,16 @@ for the unit, which is the whole of 447's cost argument.
 
 ## What it would buy, honestly accounted
 
-- **One flag disappears.** `--cfg aes_force_soft`, in `.cargo/config.toml`'s
-  `[target.x86_64-unknown-none]` block, is the only force-soft flag in this tree; `grep` finds no
-  other. The block of milestone 164 (x86_64 userspace can't build `aes`: no SSE, no scalar
-  fallback) and the framing this proposal inherited both suggest a family of
-  them. There is one, and saying so weakens the case rather than strengthening it, which is why it
-  is the first line here.
+- **Seven flags disappear, and this line was wrong when it was written.** It said there was one,
+  `--cfg aes_force_soft` in `.cargo/config.toml`'s `[target.x86_64-unknown-none]` block, and that
+  `grep` found no other. That was true of the commit this lane branched from and false of `main`
+  within the hour: milestone 442 (a crypto provider `rustls` can use on all three bare-metal
+  targets) landed `cryptography_provider`, which carries a `force-soft` feature on `sha2` and five
+  `--cfg` flags selecting portable implementations. Corrected 2026-09-20 by the integrator.
+
+  **The correction is worth more than the count.** A lane measures the tree it branched from, and a
+  claim of the form "grep finds no other" is a statement about a moment. This one went stale before
+  its own pull request merged, which is the hazard every block asserting an absence carries.
 - **AES-NI instead of a bitsliced software backend**, roughly an order of magnitude by upstream
   RustCrypto's own figures. **Still unmeasured, and 164's refusal to measure it still stands**:
   nothing on x86_64 mounts an encrypted RedoxFS volume, so there is no workload and a synthetic
@@ -75,11 +79,11 @@ Nothing measures that, and nothing can until there is a hard-float userspace to 
 1. **Re-measure 442's soft-float failures against nife's own targets.** Its block
    records that `sha2` and `polyval` "fail on soft-float x86_64", met through `embedded-tls`, and in
    the next sentence warns that the probe behind that finding "ran against stock bare targets on the
-   stable host toolchain, not against nife's own target specifications and pinned nightly". 442 is
-   NOT-STARTED and already owes this re-measurement as the first item on its own list. If those
-   crates build against our targets, this half of the flip's case evaporates; if they do not, 442
-   hands over the specific list the flip would have to fix. Cheap, and it is 442's work rather than
-   a new lane's.
+   stable host toolchain, not against nife's own target specifications and pinned nightly". **442
+   has since done exactly that and is BUILT**: `script/crypto-probes` measures against
+   `targets/*-unknown-nife.json`, and the answer was that those crates do build here, with the
+   force-soft flags above. So this item is closed rather than owed, and what it hands the flip is
+   the concrete list of seven flags, not an unknown.
 2. **Price a live thread's switch.** Build one user program hard-float against a scratch target
    (not the committed ones), run `script/bench`'s `yield_switch` and `ctx_switch` with it in the
    mix, and report what a switch costs when both threads are `live`. That turns the paragraph above
