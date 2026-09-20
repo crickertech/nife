@@ -84,6 +84,16 @@
 # without its own rate moving, by growing or shrinking against the corpus average, and the
 # decomposition says so instead of leaving a reader to guess.
 #
+# Name: provisional, coined 2026-09-20 by milestone 518's lane. `census` is the word
+# `design/fatal-risks.md` and `notes/mutation-testing.md` already use for a whole-corpus run ("it is
+# a census rather than a sample"), so this names the function in the tree's own vocabulary, and the
+# `mutation-` prefix is what says which census: this tree also takes an `unsafe` census and a thread
+# census. `mutation-history` and `mutation-trend` were both refused for saying what the file is used
+# for rather than what it holds; a census is the thing recorded, and a trend is one question asked of
+# several. Folding it into `script/mutation` as `--census` was refused for a different reason: that
+# script installs a pinned tool and runs it for hours, and this one reads a CSV. The two CSV files
+# and `notes/mutation-census.md` carry the same provisional name and stand or fall with it.
+#
 # BUGS
 #
 # - **The record starts on 2026-08-03 and has a four-census hole before it that nothing can fill.**
