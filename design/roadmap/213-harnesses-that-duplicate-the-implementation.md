@@ -94,6 +94,8 @@ whole family. Every harness was read.
   milestone 211's reason and it held through the sweep. The discriminator the sweep worked out is a
   question a person answers, "which side of the assertion did the crate produce?", and both sides
   look like arithmetic beside a call to any pattern a lint could match.
+  This refusal is milestone 470 (design/roadmap/470-a-gate-on-harness-quality.md), which carries it
+  with the condition that would change it.
 - **Refused.** The mechanical narrowing this block predicted, greping for harnesses that never call
   the crate. It is easy to run and it is the wrong question: almost every harness that recomputes
   something also calls the crate, so the interesting cases are the mixed ones, and 211 had already

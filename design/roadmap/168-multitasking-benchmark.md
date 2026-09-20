@@ -316,6 +316,9 @@ nothing**. So each is `BUILT` below rather than absent, with what it bought and 
   that gate meaningful, and a workload whose entire subject is scheduling under contention is not
   deterministic on any accelerator this tree has. A gate here would be asserting a tolerance nobody
   has measured, which is how `script/lint` has already lost three checks.
+  This refusal is
+  milestone 464 (design/roadmap/464-a-committed-baseline-for-the-multitasking-sweep.md), which
+  carries it with the condition that would change it.
 
 ## Index row
 

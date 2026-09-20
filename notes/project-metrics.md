@@ -99,6 +99,25 @@ something is choosing the order.
 2026-08-30, when milestone 54 (a network file service a Mac can actually mount) was deleted and the
 six words then available could only lie about it.
 
+**Two statuses were missing from this chart's own vocabulary until 2026-09-20, and one of them had
+been missing for five days without anyone noticing.** `script/metrics` keys the count on a fixed
+list, and a token it does not hold is counted as nothing rather than as an error, so
+`milestones_total` went short by exactly the blocks it could not see. `SUPERSEDED` was minted
+2026-09-15 and never added: seven blocks were invisible, and 2026W38's total read 435 where the
+tree had 442. Milestone 448 (a refusal gets a number, a status, and a condition that would change
+it) added `SUPERSEDED` and `REFUSED` together and restated the history with `--backfill`, so the
+correction reaches the weeks already written rather than only the next one. The failure is worth
+keeping in view: a chart that undercounts silently looks exactly like a chart that is right.
+
+**`REFUSED` will move every denominator on this page, and it is not work appearing.** Milestone 448
+backfilled 42 blocks for refusals that name executable work, taking the roadmap from 444 milestones
+to 487. None of them is a backlog item: they are excluded from `script/roadmap --ready`, from the
+gate classification and from every count that reads as outstanding, and the ready count was 120
+before and 120 after. The numbers that move are the totals a stranger quotes, so they are recorded
+here rather than left to be rediscovered as a cliff in a bar chart. The column arrives on this chart
+only when the index table is regenerated at merge, because this chart reads index rows and a lane
+never edits that table.
+
 ## Milestones built each week
 
 ![Milestones built each week](project-metrics/velocity.svg)

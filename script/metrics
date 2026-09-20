@@ -137,8 +137,15 @@ PAGE = 'notes/project-metrics.md'
 DATA_DIR = pathlib.Path('notes/project-metrics')
 CSV_PATH = DATA_DIR / 'weekly.csv'
 
+# **This list is the roadmap's status vocabulary and it has to stay all of it**, because a status
+# missing here is counted as nothing: `milestones()` below keys on this dict and skips a row whose
+# token it does not hold, so `milestones_total` goes short by exactly the milestones it cannot see.
+# That is not hypothetical. `SUPERSEDED` was minted 2026-09-15 and never added, so seven blocks were
+# invisible in every weekly row until milestone 448 (a refusal gets a number, a status, and a
+# condition that would change it) added both it and `REFUSED`. A backfill restates the history, so
+# the correction reaches the weeks that were already written rather than only the next one.
 MILESTONE_STATUSES = ['BUILT', 'PARTIAL', 'IN-PROGRESS', 'REMOVED',
-                      'NOT-STARTED', 'OPTIONAL', 'RECORDED']
+                      'NOT-STARTED', 'OPTIONAL', 'RECORDED', 'SUPERSEDED', 'REFUSED']
 DECISION_STATUSES = ['DECIDED', 'AMENDED', 'SUPERSEDED', 'PROPOSED', 'UNRECORDED']
 # The naming vocabulary is `script/names`', taken from the shared module rather than retyped, so a
 # fifth word added there arrives here as a column instead of as a silent undercount. It is lower

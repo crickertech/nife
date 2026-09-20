@@ -26,6 +26,8 @@ while.
   ISA-suffixed module", which is a different check with its own false-positive surface, and
   `script/lint` has already had checks deleted for exactly that. Whether it is worth writing is a
   question for after this one has run for a while.
+  This refusal is milestone 489 (design/roadmap/489-the-rule-1-lint-past-the-kernel.md), which
+  carries it with the condition that would change it.
 
 ## Index row
 

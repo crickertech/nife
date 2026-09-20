@@ -681,6 +681,8 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   subsystem carrying its own tuning rather than one machine-global panel.
 - **Refused.** The signalling stratum (`kill`, `pkill`, `skill`, `snice`) stays unbuilt: a survey
   returns a tid, a tid is not a capability, and killing stays with whoever holds the child's region.
+  This refusal is milestone 455 (design/roadmap/455-the-signalling-stratum.md), which carries it
+  with the condition that would change it.
 - **Recorded.** `pmap` prints one row per page with no coalescing and cannot tell a device mapping
   from ordinary memory, both stated in `crates/pmap`'s module docs, because the listing reads the
   revocation log.
