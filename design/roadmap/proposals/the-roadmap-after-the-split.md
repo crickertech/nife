@@ -11,6 +11,8 @@ not**: 3,148 `milestone N` sites in 288 Rust files follow it, and it is in a rea
 below, with no winner on the identifier. Blocked until answered: nothing today, and that is the
 point of raising it now rather than during the split.
 
+**Answered 2026-09-20 by DECISIONS §201 (one roadmap until a citation has to cross), which rules on all three asks: the citation identity is deferred under option E with two conditions, a cross-repository dependency is declared by the blocked side alone, and issues carry a stranger's bug and non-dependency coordination. This file stays as the priced analysis behind that ruling.**
+
 ## What is being asked, split into the three questions hiding in it
 
 1. Is the in-tree roadmap still the right medium?
