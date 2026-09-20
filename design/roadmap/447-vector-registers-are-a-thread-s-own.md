@@ -56,9 +56,8 @@ the register file is not a calling convention's callee-saved set, it is 512 byte
 delicate hand-computed offsets.
 
 **And it lives in the free space of the thread's own TCB page**, not in the `Thread` struct and not
-on the kernel stack. That was the second shape rather than the first, and the reason is in
-[what the gate caught](#what-the-gate-caught-a-struct-that-gets-copied-through-a-caller-s-frame)
-below.
+on the kernel stack. That was the second shape rather than the first, and `script/stack-frame-check`
+is the reason; see *What the gate caught*, below.
 
 ## Why eager, and why "lazy" is a warning word here
 
@@ -235,8 +234,9 @@ so the guard never faults and the write lands in the neighbouring thread's stack
 | `Thread::spawn::<sched::init>` | 3504 | 5152 | 3504 |
 
 **The delta is 1120 for a 544-byte field, which is the finding.** An unoptimised build materialises
-the `Thread` value and then copies it, so a byte added to the struct costs two bytes of frame, and
-`Thread::spawn` pays it twice more on the way through. Milestone 124 (a thread is born where it
+the `Thread` value and then copies it, so a byte added to the struct costs two bytes of frame.
+`Thread::spawn` wraps `spawn_into` and paid 1648, half again as much, because the value passes
+through one more frame on the way. Milestone 124 (a thread is born where it
 lives: the spawn path's copies) is the block that already measured this shape, took
 `sched::spawn_on` from 3888-4592 down under the guard by handing the destination pointer down, and
 stopped one hop short of removing the last temporary. 447 spent that remaining headroom in one
