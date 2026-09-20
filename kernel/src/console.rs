@@ -369,12 +369,12 @@ pub fn hold_screen_at_handover() {
 ///
 /// The problem this replaces is a race nobody could win from outside. `cargo xtask uefi-boot`
 /// asserts milestone 243's claim (a machine with no serial port shows its boot on its screen) by
-/// photographing the framebuffer through QEMU's monitor, and the tour is only *on* the framebuffer
-/// between the last line of the tour and [`yield_screen`]'s clear. That window closes in **guest**
-/// time, so no host-side deadline widens it: on 2026-09-20 a loaded `script/test` run caught zero
-/// rows where the same leg run a minute later caught 56. Sampling a transient state and hoping is
-/// rung four of `AGENTS.md`'s ladder; being told when to look is rung one, because the state is no
-/// longer transient.
+/// photographing the framebuffer through QEMU's monitor, and every line of the tour is on that
+/// framebuffer only until something replaces it: the next page of the tour scrolling up, and then
+/// [`yield_screen`]'s clear. Both of those close in **guest** time, so no host-side deadline widens
+/// them: on 2026-09-20 a loaded `script/test` run caught zero rows where the same leg run a minute
+/// later caught 56. Sampling a transient state and hoping is rung four of `AGENTS.md`'s ladder;
+/// being told when to look is rung one, because the state is no longer transient.
 ///
 /// **The wait is bounded, and that is not optional.** A knob that can wedge a machine forever is a
 /// worse defect than the one it fixes, so there are two bounds and either one ends the wait:
