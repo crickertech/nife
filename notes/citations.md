@@ -463,6 +463,22 @@ SAFETY comments are milestone 112's territory and not this script's, deliberatel
 recording it here is that the citation gate is one member of a family, and whoever adds the next
 member should recognise the shape rather than rediscover it.
 
+**The ratchet reads the committed tip, not the working tree, and a clean run on dirty files means
+nothing.** `--ratchet` diffs against the branch's base and then reads each file with `git show`, so
+a gloss you have just typed and not committed is invisible to it: the check reports on the last
+commit and exits on that. Found on 2026-09-20, twice in one hour, by a maintainer who fixed three
+unglossed citations, re-ran the ratchet, and read the same three failures back. **Commit, then run
+it.** That is the same habit the staging entry above asks for one level along, and it is the same
+family as every other absent-signal defect on this page: nothing was wrong with the check, and the
+exit code was a statement about a tree the author was no longer looking at.
+
+**A gloss must sit on the same line as the number it explains.** The parenthetical is matched near
+its citation, so a citation at the end of a line whose gloss wraps onto the next one is read as
+unglossed, and the fix is to rewrap rather than to reword. This is the price of matching by
+proximity rather than by parsing prose, it is cheap to pay once you know, and knowing is what this
+entry is for. It bites hardest in a long table row and in markdown wrapped at 100 columns, which is
+most of this tree.
+
 ## See also
 
 - [Naming things](../design/naming.md): why `§N` and `milestone N` are different numbers over the same
