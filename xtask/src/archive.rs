@@ -4,7 +4,7 @@
 //! tree loads by name is declared in a manifest the packer reads.
 
 use crate::disk::{mkfs_elf, redoxfs_server_elf};
-use crate::farm::{ripgrep_elf, std_exerciser_elf};
+use crate::farm::{cryptography_exerciser_elf, ripgrep_elf, std_exerciser_elf};
 use crate::host::{bin_elf, run, workspace_root};
 use crate::inspect::read_stripped;
 use crate::measure::{boot_programs, measurement_table, write_measure_manifest};
@@ -271,6 +271,15 @@ pub(crate) fn initrd_riscv() -> bool {
     if let Ok(bytes) = read_stripped(&ripgrep_elf("riscv64-unknown-nife").display().to_string()) {
         blobs.push(("rg", bytes));
     }
+    // **The crypto-provider workload** of milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets), on the same terms and for the same
+    // reason: present iff `scripts/build-cryptography-exerciser.sh` has been run.
+    if let Ok(bytes) = read_stripped(
+        &cryptography_exerciser_elf("riscv64-unknown-nife")
+            .display()
+            .to_string(),
+    ) {
+        blobs.push(("cryptography_exerciser", bytes));
+    }
     // The FS server (milestone 32 phase 2), built for the riscv bare target, rides along when
     // present, exactly as std_exerciser does; `test` builds it first.
     if let Ok(bytes) = read_stripped(&redoxfs_server_elf(RISCV_TARGET)) {
@@ -420,6 +429,15 @@ pub(crate) fn initrd_x86() -> bool {
     if let Ok(bytes) = read_stripped(&ripgrep_elf("x86_64-unknown-nife").display().to_string()) {
         blobs.push(("rg", bytes));
     }
+    // **The crypto-provider workload** (milestone 442), on the same terms and for the same
+    // reason: present iff `scripts/build-cryptography-exerciser.sh` has been run.
+    if let Ok(bytes) = read_stripped(
+        &cryptography_exerciser_elf("x86_64-unknown-nife")
+            .display()
+            .to_string(),
+    ) {
+        blobs.push(("cryptography_exerciser", bytes));
+    }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The measurement table (milestone 104), on the same terms as the other two: last, so it
     // measures everything above it, and vouched for by the kernel's trust root so the progenitor's refusals
@@ -516,6 +534,18 @@ pub(crate) fn initrd_aarch64() -> bool {
     if let Some(bytes) = &ripgrep {
         files.push(("rg", bytes.as_slice()));
     }
+    // **The crypto-provider workload** (milestone 442), on exactly those terms: present iff
+    // `scripts/build-cryptography-exerciser.sh` has been run, absent from every ordinary build and
+    // from CI, because the crates under it are a dependency decision calef has not made.
+    let cryptography = read_stripped(
+        &cryptography_exerciser_elf("aarch64-unknown-nife")
+            .display()
+            .to_string(),
+    )
+    .ok();
+    if let Some(bytes) = &cryptography {
+        files.push(("cryptography_exerciser", bytes.as_slice()));
+    }
     // **The measurement table, last, so it measures everything above it** (milestone 104). The progenitor
     // reads this entry out of the archive it already holds and refuses to load a program whose
     // bytes it does not match. See [`measurement_table`] for why it lives here rather than inside
@@ -600,7 +630,13 @@ mod tests {
     fn every_program_the_tree_loads_by_name_is_declared() {
         // Archive entries packed from outside `components/` and `fixtures/`, each present only
         // when its own build ran (see the `initrd_*` functions).
-        const BUILT_ELSEWHERE: [&str; 4] = ["redoxfs_server", "mkfs", "std_exerciser", "rg"];
+        const BUILT_ELSEWHERE: [&str; 5] = [
+            "redoxfs_server",
+            "mkfs",
+            "std_exerciser",
+            "rg",
+            "cryptography_exerciser",
+        ];
         let declared = declared_programs().unwrap_or_else(|e| panic!("{e}"));
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap().flatten() {

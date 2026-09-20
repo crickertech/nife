@@ -76,9 +76,40 @@ pub fn start(
     clock_image: &'static [u8],
     entropy_image: &'static [u8],
 ) -> (RendezvousId, crate::thread::ThreadId) {
+    let spawned = start_reclaimable(image, clock_image, entropy_image);
+    (spawned.report, spawned.thread)
+}
+
+/// What [`start_reclaimable`] hands back. [`StdSpawn`] is `fs_service`'s name for the same idea and
+/// this is deliberately its twin: the stdout endpoint, the thread, and **the untyped region the
+/// heap was drawn from**, so a caller that knows the program has exited can give the pages back.
+pub struct StdRun {
+    pub report: RendezvousId,
+    pub thread: crate::thread::ThreadId,
+    pub heap: u64,
+}
+
+/// The same spawn as [`start`], **also handing back the heap region**, for
+/// [`super::fs_service::start_std_full`]'s reason exactly, at milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets).
+///
+/// `std_exerciser` is in every archive, so its 256 pages are a charge this suite's frame ledger has
+/// always carried and [`start`] does not bother. A program present only when somebody ran a build
+/// script is different: leaving its pages spoken for makes the ledger fail **for exactly the person
+/// running the experiment** and pass for everyone else, which is the worst shape a gate can have.
+/// `cryptography_exerciser` is that kind of program, and the 196 frames it kept are what forced
+/// this function to exist.
+pub fn start_reclaimable(
+    image: &'static [u8],
+    clock_image: &'static [u8],
+    entropy_image: &'static [u8],
+) -> StdRun {
     let report = crate::sched::create_rendezvous();
-    let tid = start_on(image, clock_image, entropy_image, report);
-    (report, tid)
+    let (heap, thread) = start_on_full(image, clock_image, entropy_image, report);
+    StdRun {
+        report,
+        thread,
+        heap,
+    }
 }
 
 /// The same spawn, with **the output sink chosen by the caller** (milestone 50).
@@ -94,6 +125,17 @@ pub fn start_on(
     entropy_image: &'static [u8],
     report: RendezvousId,
 ) -> crate::thread::ThreadId {
+    start_on_full(image, clock_image, entropy_image, report).1
+}
+
+/// [`start_on`], returning the heap region beside the thread. See [`start_reclaimable`] for why a
+/// caller would want it; everything else about this function is `start_on`'s documentation.
+pub fn start_on_full(
+    image: &'static [u8],
+    clock_image: &'static [u8],
+    entropy_image: &'static [u8],
+    report: RendezvousId,
+) -> (u64, crate::thread::ThreadId) {
     let budget = crate::memory_region::create(BUDGET_PAGES).expect("no untyped for std_exerciser");
 
     // The entropy service, wired once per boot and shared with the milestone-56 tests. Its
@@ -177,7 +219,7 @@ pub fn start_on(
         m.phys = phys;
     }
 
-    crate::sched::spawn(move || {
+    let tid = crate::sched::spawn(move || {
         // The clock, config and entropy capabilities go in at their named slots BEFORE `run`
         // grants in order, so `run`'s two grants land at 0 and 1 and slots 2 to 4 stay empty.
         // The clock and config pages are `READ` only: the whole point of each is that a reader
@@ -202,5 +244,6 @@ pub fn start_on(
             },
         )
     })
-    .expect("could not spawn std_exerciser")
+    .expect("could not spawn std_exerciser");
+    (budget, tid)
 }

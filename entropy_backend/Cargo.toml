@@ -35,3 +35,18 @@ path = "src/lib.rs"
 # or both; 0.4 is named here because it is the one that resolves for a fresh dependency.
 [dependencies]
 getrandom = "0.4"
+
+# `getrandom` **0.2**, which is a different mechanism and is here for a different reason than the
+# line above. 0.2 selects a custom backend through the `register_custom_getrandom!` macro, whose
+# expansion is a `__getrandom_custom` symbol returning a bare `u32`, so no type from this crate is
+# needed to define it. What IS needed is 0.2's `custom` **feature**: without it 0.2's own ladder
+# reaches `compile_error!` before it ever looks for the symbol, and a feature can only be turned on
+# by a manifest. Naming it here turns it on for every graph that takes this crate, which is the
+# point: a consumer cannot be expected to know that one of its transitive dependencies pinned the
+# older major.
+#
+# The cost is one extra crate in the graph of a consumer that only ever needed 0.4. That is stated
+# rather than hidden; `rustls-rustcrypto` reaches 0.2 through `rand_core` 0.6 and is the reason
+# this exists: milestone 442 (a crypto provider `rustls` can use on all three bare-metal
+# targets).
+getrandom02 = { package = "getrandom", version = "0.2", features = ["custom"] }

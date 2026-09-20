@@ -57,6 +57,20 @@ pub(crate) fn ripgrep_elf(triple: &str) -> PathBuf {
     workspace_root().join(format!("target/ripgrep/{triple}/rg"))
 }
 
+/// **The crypto-provider workload, if somebody built it**: milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets).
+///
+/// `scripts/build-cryptography-exerciser.sh` puts it here, and it rides in the archive on exactly
+/// `ripgrep`'s terms and for exactly its reason. The program depends on `rustls` and a crypto
+/// provider; DECISIONS §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we
+/// make work) ruled on the first and explicitly not on the second, so making a gate fetch a
+/// hundred crates would take a dependency decision that is calef's. The archive carries it when it
+/// is on disk and does not when it is not, and `kernel/src/user/cryptography_tests.rs` skips.
+pub(crate) fn cryptography_exerciser_elf(triple: &str) -> PathBuf {
+    workspace_root().join(format!(
+        "target/cryptography-exerciser/{triple}/cryptography_exerciser"
+    ))
+}
+
 /// A cheap FNV-1a over a byte slice, folded into the running hash. No crypto, no dep: this only
 /// needs to notice when a PAL input changed so the farm (and thus the build-std cache) is rebuilt.
 fn fnv(mut h: u64, bytes: &[u8]) -> u64 {

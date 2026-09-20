@@ -2958,6 +2958,15 @@ mod std_tests;
 #[cfg(all(test, initrd))]
 mod ripgrep_tests;
 
+/// **A TLS crypto provider's primitives against published test vectors**, for milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets), on
+/// `ripgrep`'s exact terms: present only when `scripts/build-cryptography-exerciser.sh` has been
+/// run, because the crates under it are a dependency decision DECISIONS §46 (thin primitives or whole subsystems; we write everything in between) makes calef's. Every
+/// ISA, per DECISIONS §19 (architectural parity is a tenet; the targets are aarch64, riscv64 and x86_64),
+/// and here the x86_64 leg is the one that matters most: it is the only
+/// target whose build forces the portable implementations.
+#[cfg(all(test, initrd))]
+mod cryptography_tests;
+
 /// **Capability delegation: authority moves between processes at runtime.**
 ///
 /// Every other capability in nife is minted by the kernel and handed to a process at spawn.
