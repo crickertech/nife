@@ -35,7 +35,9 @@
 #     (the §67-inside-§61 class, and the appended-past-the-closer class);
 #   - two files claiming one number is fatal, which is the collision the old single file made visible
 #     by accident and this makes visible on purpose;
-#   - no gap in the numbering (the usual cause is a renumber on merge that left a hole);
+#   - a gap in the numbering is REPORTED and does not fail (milestone 443): the defect is a
+#     duplicate, which stays fatal, and failing on a gap is what forced the renumber that moves
+#     every citation. The reasoning is at the check.
 #   - every `§N` citation TREE-WIDE resolves to an index row (vendor/, patches/ and lockfiles
 #     excluded: other people's text and generated files).
 #
@@ -120,12 +122,31 @@ for i, line in enumerate(index.split("\n"), start=1):
 if not rows:
     problems.append("no decision rows found in the index: has the table format changed?")
 
-# A gap is almost always a renumber on merge that left a hole nobody meant to leave. A withdrawn
-# proposal does not make one: it stays, as the record of what was declined.
-if rows:
-    missing = sorted(set(range(1, max(rows) + 1)) - set(rows))
-    if missing:
-        problems.append(f"gap in the numbering: {', '.join('§' + str(n) for n in missing)}")
+# A gap is REPORTED and does not fail (milestone 443). It used to be a problem, on the reasoning
+# that a gap is almost always a renumber on merge that left a hole nobody meant to leave, and that
+# reasoning had the cost backwards.
+#
+# **A duplicate is the defect; a gap is the cure's side effect.** Two files claiming §156 makes
+# every citation to it ambiguous, which is why that stays fatal in both directions (two index rows,
+# two files). A hole at §157 misleads nobody: `§157` appears nowhere, every citation that exists
+# still resolves, and the number line is not a promise that it is dense.
+#
+# **Failing on the gap is what forced the renumber, and the renumber is the expensive thing.** On
+# 2026-09-19 two sessions collided on §156 and §158 in one day. Whoever lands second has to change
+# the file, its index row, its H1, its own Status line and every `§N` in the tree that points at it,
+# and a renumber is exactly the operation this script's own header says it cannot check the meaning
+# of: "after any renumber, check by content and not by running this." So the gate was spending the
+# tree's most citation-dangerous edit to keep a property no reader uses.
+#
+# **What this can no longer catch**, stated plainly because it is a real loss: a decision file
+# deleted outright, where its index row is deleted in the same commit and nothing in the tree cites
+# it. Every other shape still fires. A file with no row, a row with no file, a row pointing at a
+# missing file and a citation to a number that has no row are all still problems, and they are the
+# shapes a half-finished deletion actually takes. The residue is a decision nobody ever referred to,
+# removed completely and on purpose, which is not the accident this check was written for.
+#
+# A withdrawn proposal still does not make a gap: it stays, as the record of what was declined.
+gaps = sorted(set(range(1, max(rows) + 1)) - set(rows)) if rows else []
 
 # `SUPERSEDED BY N` must point somewhere. The retired decision is kept, never deleted, so its
 # forward pointer is the only way a reader gets from it to what replaced it.
@@ -247,6 +268,10 @@ if mode == "--check":
         sys.exit(1)
     print(f"decisions: {len(rows)} decisions, {len(ids)} files, status vocabulary clean, "
           f"index and files agree, every tree-wide citation resolves")
+    if gaps:
+        print(f"decisions: {len(gaps)} unused number{'s' if len(gaps) != 1 else ''} "
+              f"({', '.join('§' + str(n) for n in gaps)}). Reported, not a failure: a duplicate is "
+              f"the defect, a gap is not, and renumbering to close one moves citations")
     sys.exit(0)
 
 by_status = {}
@@ -263,6 +288,8 @@ for status in ["PROPOSED", "DECIDED", "AMENDED", "SUPERSEDED"]:
         print(f"  §{n:<3} {title[:72]}{tag}")
 
 print(f"\ntotal: {len(rows)} decisions")
+if gaps:
+    print(f"unused numbers: {', '.join('§' + str(n) for n in gaps)}")
 for p in sorted(set(problems)):
     print(f"PROBLEM: {p}")
 PY

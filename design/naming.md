@@ -850,6 +850,34 @@ So:
 verify that it resolves to the *right* one: a well-formed wrong citation is indistinguishable from a
 correct one from the outside. Worth knowing before trusting that gate for more than it claims.
 
+### Both schemes are sparse: a duplicate is the defect, a gap is not (milestone 443)
+
+**Two files claiming one number is fatal in both schemes**, because every citation to that number is
+then ambiguous and no gate can tell which one a sentence meant. `script/decisions --check` and
+`script/roadmap --check` each fail on it twice over, once for two index rows and once for two files.
+
+**A hole in the numbers is reported and passes.** `§157` with nothing behind it misleads nobody: the
+number appears in no citation, every citation that does exist still resolves, and the sequence was
+never a promise that it is dense. The roadmap has always worked this way, and 441 and 442 are unused
+today. `script/decisions` failed on a gap until 2026-09-19 and no longer does.
+
+**The reason is that the gate was buying a cosmetic property with the tree's most dangerous edit.**
+A gap is closed by renumbering, and [§194](decisions/194-sessions-interleave-rather-than-serialize.md)
+records what renumbering costs: a citation rewritten by number can be silently wrong and still pass
+every gate, because the section it now names exists. On 2026-09-19 one branch was renumbered four
+times in two and a half hours, from §156-§189 to §160-§194, because another session was minting from
+the same range and a contiguous scheme made every collision displace the whole run.
+
+**So when two sessions collide on a number, the later lander takes the next free ones and leaves the
+hole.** Only the colliding sections move, not the run behind them, which is four files rather than
+thirty-four. The rule above it is unchanged and is `AGENTS.md`'s: a number is provisional until the
+merge queue lands it, and anything global to the tree is the integrator's at merge.
+
+**What no longer has a gate, stated rather than discovered.** A decision file deleted outright, with
+its index row deleted in the same commit and no citation to it anywhere in the tree, now leaves
+nothing behind to notice. Every partial shape still fails: a file with no row, a row with no file, a
+row pointing at a missing file, and a `§N` in the tree that resolves to nothing.
+
 ## Branches
 
 Eight prefixes were in use when this was written, including both `feature/` and `feat/` for the same
