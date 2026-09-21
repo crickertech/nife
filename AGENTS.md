@@ -828,8 +828,10 @@ its `git stash pop`, so the pop popped *someone else's* entry into this lane's t
 Nothing was lost that time (the conflict preserved the other entry, and it was restored and re-popped
 by name), but the failure mode is the same family as the squash-against-`origin/main` trap above: a
 command that reads as lane-local silently touches shared state. **Use a patch file
-(`git diff > /tmp/x.patch`, later `git apply`) instead of `git stash` in a worktree**, the same way
-`origin/*` is not treated as a fixed point once more than one lane can move it.
+(`git diff > /tmp/<lane>-<what>.patch`, later `git apply`) instead of `git stash` in a worktree**, the
+same way `origin/*` is not a fixed point once more than one lane can move it. **Name it what no other
+lane would**: this said `/tmp/x.patch` until two lanes both staged a body at `/tmp/pr-body.md` on
+2026-09-21 and one pushed the other's text.
 
 **Never squash across purposes.** Squash-*merging* is already impossible:
 `allow_squash_merge` is `false` on this repository, so the platform refuses it. This clause stays a

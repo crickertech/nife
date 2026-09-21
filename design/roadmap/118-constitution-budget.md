@@ -413,10 +413,16 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 922 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 924 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
-for 988 against its own smaller diff, which §155 superseded): the point, per this section's own
+for 988 against its own smaller diff, which §155 (naming conventions) superseded): **Raised from 922 to 924 on 2026-09-21**,
+which is the first time this ceiling has moved, and the reason is worth reading because it is the
+case this budget exists to permit rather than the case it exists to refuse: the file's advice on
+avoiding a shared `git stash` **recommended `/tmp/x.patch` by name**, a fixed path that is shared
+machine-wide exactly like the stash stack it was protecting against, and two lanes duly collided on
+`/tmp/pr-body.md` that day. Two lines bought a correction to a hazard the constitution was itself
+teaching. Compressed first: the addition was five lines before being cut to three. the point, per this section's own
 words above, is that every line added should replace one removed, or be a considered act that says
 why the growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a
 different reason (a population small and consequential enough that every addition deserves the
