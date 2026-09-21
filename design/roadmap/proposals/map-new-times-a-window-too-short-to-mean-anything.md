@@ -5,9 +5,10 @@ which established that the whole of a 26.4% benchmark failure was a fixed 47,752
 inside the timed window, and nothing at all on the path the row claims to measure. The measurements
 are in notes/benchmarks.md under this date; this is the fix they hand off.
 
-**Gate: `script/bench --x86 --check`, and the two legs beside it.** Changing `MAP_ITERS` moves the
-row on all three architectures, so this re-saves three baselines and is a naming-and-numbers change
-calef has to approve rather than one a lane lands quietly.
+**Gate: DECISION.** Either shape of the fix re-saves `map_new` on all three baselines, and a
+baseline save is a statement that a performance change is intended and understood, which is calef's
+to make rather than a lane's. The gate is that ruling, not the measurement: `script/bench --x86
+--check` and the two legs beside it are what a lane runs afterwards.
 
 ## The defect, in one table
 
