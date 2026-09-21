@@ -44,9 +44,31 @@
 //!
 //! | | |
 //! |---|---|
-//! | 1 | A GPT: a **nife data partition first**, then an EFI system partition at the end of the disk |
+//! | 1 | A GPT: a **nife data partition first**, then two boot slots, then an EFI system partition at the end of the disk |
 //! | 2 | A FAT32 volume in the EFI system partition (`crates/file_allocation_table`) |
-//! | 3 | The boot file, into that volume, at `\EFI\BOOT\BOOTX64.EFI` |
+//! | 3 | The boot file, into that volume, at `\EFI\BOOT\BOOTX64.EFI`, where it is the **chooser** |
+//! | 4 | The same boot file again, raw, into boot slot 0, with the slot marked good |
+//!
+//! ## The two boot slots, which are rung 2b and calef's ruling of 2026-09-21
+//!
+//! *"Yes, write the tries and priority attributes in 2b."* **An installed machine must not be
+//! brickable by a bad upgrade**: if a newly written boot image fails to come up, the machine has to
+//! go back to the previous one by itself, with nobody at the console.
+//!
+//! So an install lays out **two** boot slots and fills one. The image in the EFI system partition
+//! is a third copy and it has a different job: the firmware starts it, and it chooses between the
+//! slots (`uefi_loader`'s chooser). Upgrades replace a slot; the chooser stays where it is.
+//!
+//! The state that decides which slot boots is three fields in each slot partition's **GPT
+//! attribute bits**, which is `crates/boot_slot` and where the whole argument is. What belongs
+//! here is only why the slots are partitions and not files: UEFI 2.11 5.3.3 gives bits 48 to 63 to
+//! the owner of the partition's type GUID, and
+//! [`types::NIFE_BOOT`](globally_unique_identifier_partition_table::guid::types::NIFE_BOOT) is
+//! ours. On a file, or on somebody else's partition type, they would not be.
+//!
+//! This install writes **slot 0 confirmed** ([`boot_slot::State::installed`]) and leaves slot 1
+//! laid out and empty, so that an upgrade has somewhere to write without repartitioning a running
+//! machine.
 //!
 //! It does **not** create the filesystem in the data partition. `redoxfs_server`'s `mkfs` already
 //! does exactly that, finding the partition by its type GUID, and it is run next by the same
@@ -107,6 +129,20 @@
 //!   `disk_surveyor` and `disk_partitioner`: nothing in `filesystem_protocol::blk` carries the
 //!   device's. An NVMe namespace formatted with 4096-byte logical blocks would get a table no other
 //!   operating system can read. The fix is a field on the wire.
+//! - **The boot slots cost 128 MiB and one of them is always empty after an install.** Two 64 MiB
+//!   partitions is the price of never being one bad upgrade away from a dead machine, and it is
+//!   paid on every installed machine whether or not it is ever upgraded. 64 MiB is
+//!   `uefi_loader`'s own `BOOT_FILE_MAX` rather than a measurement of the image.
+//! - **Nothing writes slot 1**, because nothing in this tree upgrades a running machine yet. The
+//!   slot is laid out and marked never-boot so that whatever does it later does not have to
+//!   repartition a disk somebody's data is on. Until then the rollback mechanism is exercised by
+//!   `cargo xtask rollback-boot` and by nothing a person does.
+//! - **Nothing marks a trial boot successful**, so an upgrade that came up perfectly still rolls
+//!   back once its tries are spent. That fails safe and it means upgrades do not stick;
+//!   `crates/boot_slot`'s `BUGS` has the whole of it and names the proposal.
+//! - **A disk under about 700 MiB is refused**, up from about 600 before the slots. The floor is
+//!   the 512 MiB EFI system partition, two 64 MiB slots and the 64 MiB minimum for data, and
+//!   nothing tests the refusal.
 //! - **Nothing here is crash-atomic.** A power cut partway through leaves a disk that boots nothing.
 //!   Real installers share the property; nobody has measured this one.
 //! - **There is no progress report during the copy.** Ten megabytes at one 4096-byte request per
@@ -124,6 +160,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
+use boot_slot::{SlotHeader, State};
 use entropy_protocol as entropy;
 use file_allocation_table as fat;
 use filesystem_protocol::fixture::blank;
@@ -185,18 +222,30 @@ const ALIGN: u64 = 2048;
 /// somebody builds the two-slot layout milestone 515 lists as L2.
 const ESP_SECTORS: u64 = 512 * 1024 * 1024 / 512;
 
+/// **How big one boot slot is**, in logical blocks: 64 MiB.
+///
+/// The image is about 10 MiB for the tour build and about 19 for the test build, and
+/// `uefi_loader`'s own `BOOT_FILE_MAX` refuses anything over 64 as not being this file at all. So
+/// 64 MiB is that ceiling exactly: a slot that cannot hold an image the loader would agree to read
+/// is a slot that would fail at the worst possible moment.
+const SLOT_SECTORS: u64 = 64 * 1024 * 1024 / 512;
+
+/// **How many boot slots an install lays out.** Two, which is the smallest number that can hold a
+/// new image without destroying the one that is running.
+const SLOTS: usize = 2;
+
 /// **The smallest nife data partition this program will leave behind.** A disk that cannot spare
-/// this after the EFI system partition is refused, rather than installed onto and then found to be
-/// full.
+/// this after the EFI system partition and the boot slots is refused, rather than installed onto
+/// and then found to be full.
 const DATA_MIN_SECTORS: u64 = 64 * 1024 * 1024 / 512;
 
 /// How many logical blocks the backup table needs at the far end of the disk: the entry array plus
 /// its header.
 const BACKUP_BLOCKS: u64 = 33;
 
-/// The names written into the two partition entries. Read back by nothing; a person running
-/// `disk_surveyor` on the installed machine meets them.
-const NAMES: [&str; 2] = ["nife data", "nife boot"];
+/// The names written into the partition entries, in disk order. Read back by nothing; a person
+/// running `disk_surveyor` or `sgdisk -p` on the installed machine meets them.
+const NAMES: [&str; 2 + SLOTS] = ["nife data", "nife slot 0", "nife slot 1", "nife boot"];
 
 /// The removable-media boot file's name on the EFI system partition. 8.3, which is what
 /// `file_allocation_table` will write; see that crate's BUGS for the riscv64 name that is not.
@@ -316,8 +365,8 @@ fn install(boot_file_len: u64) -> ! {
 
     // **Every random byte this install needs, drawn together and before the first write**, so that
     // a process with no entropy endpoint finds out while the disk still holds whatever it held.
-    // Three ids for the table and one serial for the FAT volume.
-    let mut guids = [Guid::ZERO; 3];
+    // One id for the disk, one per partition, and one serial for the FAT volume.
+    let mut guids = [Guid::ZERO; 1 + 2 + SLOTS];
     for g in guids.iter_mut() {
         let Some(bytes) = random16() else {
             send(REPORT, R_NO_ENTROPY, 0, 0);
@@ -351,6 +400,13 @@ fn install(boot_file_len: u64) -> ! {
         user_mode_runtime::exit()
     }
 
+    // **Boot slot 0**, which is the same bytes a third time and is what the chooser will start from
+    // the next boot onward. The table above already marked it confirmed.
+    if let Err(step) = write_slot(layout.slot_first[0], boot_file_len) {
+        send(REPORT, R_DISK_FAILED, step, 0);
+        user_mode_runtime::exit()
+    }
+
     // One flush, so that what a reboot reads is what this program wrote rather than what a
     // controller still has in a cache.
     let _ = call(BLK, req(blk::FLUSH), 0);
@@ -359,11 +415,15 @@ fn install(boot_file_len: u64) -> ! {
     user_mode_runtime::exit()
 }
 
-/// **Where the two partitions go**, in logical blocks, inclusive at both ends the way a GPT entry
+/// **Where the four partitions go**, in logical blocks, inclusive at both ends the way a GPT entry
 /// records them.
 struct Layout {
     data_first: u64,
     data_last: u64,
+    /// The first block of each boot slot, in disk order. The image inside one starts
+    /// [`boot_slot::SLOT_IMAGE_OFFSET`] bytes further in; the blocks before it are the slot header.
+    slot_first: [u64; SLOTS],
+    slot_last: [u64; SLOTS],
     esp_first: u64,
     esp_last: u64,
 }
@@ -372,8 +432,8 @@ impl Layout {
     /// Fit the layout onto a disk of `block_count` logical blocks, or answer `None` if it will not
     /// fit. **All of the arithmetic, in one place**, so the writes below have nothing to decide.
     ///
-    /// The EFI system partition goes at the end and the data partition takes everything before it,
-    /// for the reason this file's header gives.
+    /// The EFI system partition goes at the end, the boot slots just below it, and the data
+    /// partition takes everything before them, for the reason this file's header gives.
     fn fit(block_count: u64) -> Option<Layout> {
         // The last block a partition may use: the backup entry array and its header sit above it.
         let last_usable = block_count.checked_sub(BACKUP_BLOCKS + 1)?;
@@ -381,11 +441,23 @@ impl Layout {
         // The EFI system partition, pushed down to an alignment boundary. Its length then grows by
         // whatever the rounding left over, which is harmless: FAT is told how many sectors it has.
         let esp_first = (last_usable + 1).checked_sub(ESP_SECTORS)? / ALIGN * ALIGN;
-        if esp_first < ALIGN + DATA_MIN_SECTORS {
+
+        // The slots, stacked immediately below it. `SLOT_SECTORS` is a whole number of `ALIGN`
+        // units, so each one lands aligned without a second rounding step.
+        let mut slot_first = [0u64; SLOTS];
+        let mut slot_last = [0u64; SLOTS];
+        let mut above = esp_first;
+        for i in (0..SLOTS).rev() {
+            slot_first[i] = above.checked_sub(SLOT_SECTORS)?;
+            slot_last[i] = above - 1;
+            above = slot_first[i];
+        }
+
+        if above < ALIGN + DATA_MIN_SECTORS {
             return None;
         }
         let data_first = ALIGN;
-        let data_last = esp_first - 1;
+        let data_last = above - 1;
 
         // `mkfs` refuses a partition that is not 4096-aligned at both ends rather than rounding one
         // in, so this must not hand it one. Both bounds are multiples of `ALIGN`, which is a
@@ -400,6 +472,8 @@ impl Layout {
         Some(Layout {
             data_first,
             data_last,
+            slot_first,
+            slot_last,
             esp_first,
             esp_last: last_usable,
         })
@@ -407,26 +481,54 @@ impl Layout {
 }
 
 /// Write both copies of the partition table. `Err(step)` names which write failed.
-fn write_table(layout: &Layout, block_count: u64, guids: &[Guid; 3]) -> Result<(), u64> {
-    let entries = [
-        (
-            types::NIFE_DATA,
-            layout.data_first,
-            layout.data_last,
-            NAMES[0],
-        ),
-        (
-            types::EFI_SYSTEM,
-            layout.esp_first,
-            layout.esp_last,
-            NAMES[1],
-        ),
-    ];
-    let mut parts = [Entry::UNUSED; 2];
-    for (i, (type_guid, first, last, name)) in entries.iter().enumerate() {
+///
+/// **The slot entries carry their boot state in the attribute word**, which is the one thing here a
+/// reader should not skim: slot 0 is written confirmed because the bytes about to go into it are
+/// the bytes the firmware started this machine with a few seconds ago, and slot 1 is written empty
+/// so that an upgrade finds a partition rather than having to make one.
+fn write_table(
+    layout: &Layout,
+    block_count: u64,
+    guids: &[Guid; 1 + 2 + SLOTS],
+) -> Result<(), u64> {
+    let mut entries = [(types::UNUSED, 0u64, 0u64, "", 0u64); 2 + SLOTS];
+    entries[0] = (
+        types::NIFE_DATA,
+        layout.data_first,
+        layout.data_last,
+        NAMES[0],
+        0,
+    );
+    for i in 0..SLOTS {
+        // Slot 0 holds the image this install is about to copy; every other slot is laid out and
+        // will not be chosen until something writes an image into it.
+        let state = if i == 0 {
+            State::installed()
+        } else {
+            State::EMPTY
+        };
+        entries[1 + i] = (
+            types::NIFE_BOOT,
+            layout.slot_first[i],
+            layout.slot_last[i],
+            NAMES[1 + i],
+            state.into_attributes(0),
+        );
+    }
+    entries[1 + SLOTS] = (
+        types::EFI_SYSTEM,
+        layout.esp_first,
+        layout.esp_last,
+        NAMES[1 + SLOTS],
+        0,
+    );
+
+    let mut parts = [Entry::UNUSED; 2 + SLOTS];
+    for (i, (type_guid, first, last, name, attributes)) in entries.iter().enumerate() {
         parts[i] = Entry::new(*type_guid, guids[i + 1], *first, *last)
             .with_name(name)
             .map_err(|_| 10 + i as u64)?;
+        parts[i].attributes = *attributes;
     }
 
     let array = array();
@@ -521,8 +623,54 @@ fn write_efi_system_partition(
     if !first.is_multiple_of(SECTORS_PER_TRANSFER) {
         return Err(42);
     }
-    let blocks = boot_file_len.div_ceil(TRANSFER);
-    for i in 0..blocks {
+    copy_boot_file(first / SECTORS_PER_TRANSFER, boot_file_len, 41)
+}
+
+/// **Fill one boot slot**: its header, then the image, starting at logical block `slot_first`.
+///
+/// The header is what tells the chooser how many of the slot's 64 MiB are an image and whether
+/// those bytes are the ones that were meant to be there. Its checksum is not ceremony: the failure
+/// it catches is an install or an upgrade that died partway through this very copy, which without
+/// it leaves a slot holding a valid-looking prefix of a boot image.
+///
+/// `crates/boot_slot` reserves a whole 4096-byte transfer block for the header so the image after
+/// it starts on a block boundary. Milestone 198's rung 2a lost ten megabytes to an unaligned start
+/// once (`crates/file_allocation_table`'s own notes) and that is the reason the padding is there.
+fn write_slot(slot_first: u64, boot_file_len: u64) -> Result<(), u64> {
+    // SAFETY: the kernel mapped `boot_file_len` bytes read-only at `BOOT_FILE_VA`; this program
+    // has one thread, and nothing else in it writes there.
+    let image =
+        unsafe { core::slice::from_raw_parts(BOOT_FILE_VA as *const u8, boot_file_len as usize) };
+
+    // SAFETY: `BLK_PAGE` is a mapped, writable page of exactly one transfer block.
+    let page = unsafe { core::slice::from_raw_parts_mut(BLK_PAGE as *mut u8, TRANSFER as usize) };
+    page.fill(0);
+    if !SlotHeader::of(image).encode(page) {
+        return Err(50);
+    }
+    if !slot_first.is_multiple_of(SECTORS_PER_TRANSFER) {
+        return Err(51);
+    }
+    let header_block = slot_first / SECTORS_PER_TRANSFER;
+    if (call(BLK, req(blk::WRITE), header_block).0 as i64) < 0 {
+        return Err(52);
+    }
+
+    copy_boot_file(
+        header_block + boot_slot::SLOT_IMAGE_OFFSET / TRANSFER,
+        boot_file_len,
+        53,
+    )
+}
+
+/// Copy the mapped boot file onto the disk, one transfer block per request, starting at transfer
+/// block `first_block`. `Err(step)` is the caller's own name for a refused write.
+///
+/// The one subtlety is the tail: the last block is short, and the bytes past the end are zeroed
+/// rather than left as whatever the shared page held, because otherwise somebody else's data goes
+/// onto the disk.
+fn copy_boot_file(first_block: u64, boot_file_len: u64, step: u64) -> Result<(), u64> {
+    for i in 0..boot_file_len.div_ceil(TRANSFER) {
         let at = i * TRANSFER;
         let n = core::cmp::min(TRANSFER, boot_file_len - at) as usize;
         // SAFETY: the kernel mapped `boot_file_len` bytes read-only at `BOOT_FILE_VA`, and
@@ -534,13 +682,11 @@ fn write_efi_system_partition(
                 n,
             );
             if n < TRANSFER as usize {
-                // The tail of the last cluster is never read, but leaving the previous block's
-                // bytes there would put somebody else's data on the disk.
                 core::ptr::write_bytes((BLK_PAGE as *mut u8).add(n), 0, TRANSFER as usize - n);
             }
         }
-        if (call(BLK, req(blk::WRITE), first / SECTORS_PER_TRANSFER + i).0 as i64) < 0 {
-            return Err(41);
+        if (call(BLK, req(blk::WRITE), first_block + i).0 as i64) < 0 {
+            return Err(step);
         }
     }
     Ok(())
