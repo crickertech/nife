@@ -25,8 +25,9 @@
 //!
 //! **Why the fix is a required argument rather than a call.** `record_mapping` already takes
 //! [`crate::revoke::PageMapSource`] as an argument with no default, for AGENTS.md's rung one: a
-//! mapping that cannot say which capability made it is the record DECISIONS §132 (which capability's
-//! authority a revoke takes back) found missing. `map_physical` was the
+//! mapping that cannot say which capability made it is the record
+//! DECISIONS §132 (what `PageFrame::REVOKE` owes an overlapping run) found missing. `map_physical`
+//! was the
 //! one mapping site that never had to answer, because it never recorded. It takes the same argument
 //! now, so a caller must say, and recording is no longer something a caller can forget to do after
 //! the fact: [`super::user_address_space_map`] used to be the one path that remembered, and it is

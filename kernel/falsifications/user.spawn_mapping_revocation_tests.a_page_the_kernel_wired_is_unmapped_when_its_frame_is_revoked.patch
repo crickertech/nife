@@ -40,6 +40,10 @@ the mapping log, the sweeps and `map_physical` are portable kernel code. The rec
 because that is where it was replayed, not because the defect is; the test passes on aarch64,
 riscv64 and x86_64.
 
+The `MAP_INTO` hunk's context carries a comment citing milestone 19 (run a real workload), whose
+`d` phase is where the I-cache sync beside it came from; the gloss is here because a patch's context
+lines are the tree's text and the citation gate reads them.
+
 diff --git a/kernel/src/revoke.rs b/kernel/src/revoke.rs
 index 5cdfe48c..2875829d 100644
 --- a/kernel/src/revoke.rs
