@@ -190,8 +190,8 @@ pub fn start(
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .expect("could not map login's stack");
     }
-    #[cfg(target_arch = "x86_64")]
-    map_x86_timebase_page(&mut space).expect("could not map login's timebase page");
+    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    map_timebase_page(&mut space).expect("could not map login's timebase page");
     map_blob(&mut space, login_protocol::CARETAKER_ELF_VA, caretaker);
     map_blob(
         &mut space,

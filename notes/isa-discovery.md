@@ -305,12 +305,17 @@ says so where a reader meets the function.
   binding permits it per hart, and a machine whose harts genuinely differ would be misread. The
   kernel treats the counter as machine-wide regardless, so this is a limitation of the model rather
   than of the parse.
-- **`user_mode_runtime::cntfrq` still returns 10 MHz on RISC-V, and it is now the last copy.** The kernel reads
-  the real rate; **userspace cannot**, because there is no register to read and no channel to hand it
-  down. Closing it is an ABI addition (an aux-vector entry at process start, the way Linux passes
-  `AT_HWCAP`), which is a design fork rather than a fix, and `notes/riscv-parity-scope.md` already
-  names it as workstream E's prerequisite for honest cross-arch benchmark numbers. Worth knowing that
-  the kernel and its userspace now disagree about where that number comes from.
+- **`user_mode_runtime::cntfrq` returned 10 MHz on RISC-V until 2026-09-21. Closed, and the reasoning
+  that kept it open was wrong.** This entry used to say that userspace *cannot* learn the rate, that
+  closing it was an ABI addition (an aux-vector entry at process start, the way Linux passes
+  `AT_HWCAP`), and that it was therefore a design fork rather than a fix. The premise was right and
+  the conclusion was not: userspace cannot *read* the device tree, but the kernel can *hand it a
+  page*, which is not an ABI addition because the mechanism already existed and shipped on `x86_64`
+  (`counter_frequency_protocol`, from milestone 161 (the x86_64 kernel port)). The fix was to widen a `cfg`,
+  not to design a handoff. **The lesson is the one worth keeping**: a limitation recorded with a
+  proposed fix attached stops being re-examined, and this one went two months without anybody asking
+  whether the tree already solved it somewhere else. What made it urgent was radon, whose rate is
+  4 MHz, so the "honest gap" was a silent 2.5x on the one board that matters.
 - **A `status = "disabled"` CPU node is counted in the intersection.** Firmware sometimes describes
   a core the OS will never run on, and including it narrows `common` further than it needs to be.
   That is the safe direction and it is not free: a board describing a disabled core with no FPU

@@ -364,21 +364,25 @@ pub fn now() -> u64 {
     }
 }
 
-/// Ticks per second. aarch64 reports it in `CNTFRQ_EL0`; RISC-V has no architectural register
-/// for the timebase, so this is the QEMU `virt` constant, the same honest gap `user_mode_runtime::cntfrq`
-/// records (10 MHz until the ABI grows an aux-vector-style handoff). `x86_64` has no register either,
-/// and no constant would be honest (a TSC's rate is per part), so the kernel calibrates once at boot
-/// and maps the answer read-only at `counter_frequency_protocol::PAGE_VA` into every process it loads;
-/// this reads that page, the same way `user_mode_runtime::cntfrq` does.
+/// Ticks per second. aarch64 reports it in `CNTFRQ_EL0`, the one architecture where the machine
+/// states its own rate. Neither other one has such a register: RISC-V states the timebase in the
+/// device tree and `x86_64`'s TSC rate is measured or read from `CPUID`, and in both cases only the
+/// kernel can ever know it. So the kernel learns it once at boot and maps the answer read-only at
+/// `counter_frequency_protocol::PAGE_VA` into every process it builds; this reads that page, the
+/// same way `user_mode_runtime::cntfrq` does, which is what keeps a `std` program and a `no_std`
+/// program on one machine agreeing about what a second is.
 ///
-/// # BUGS
+/// **RISC-V returned a hardcoded 10 MHz here until 2026-09-21**, QEMU `virt`'s rate, copied from the
+/// same gap `user_mode_runtime::cntfrq` carried. radon (the VisionFive 2) runs at 4 MHz, so every
+/// `Instant` duration and every `thread::sleep` in a std program on that board was out by 2.5x and
+/// said nothing. calef's ruling: only accurate numbers, never hardcoded ones.
 ///
-/// A zeroed timebase page reads as 1 GHz rather than as "unknown", matching `user_mode_runtime::cntfrq`
-/// exactly so a `no_std` program and a `std` program on the same machine agree on what a second is.
-/// Every std program today is spawned by the kernel's `load`, which maps the real page, so the
-/// fallback is unreached here; a std program built by `supervision_protocol::build_child_space` would
-/// read the placeholder and its `Instant` durations would be scaled wrong by the ratio of the true
-/// rate to 1 GHz. That gap is `counter_frequency_protocol`'s own recorded `BUGS` entry, not a new one.
+/// # Panics
+///
+/// If the rate is unknown, which is a zeroed or unrecognized page. **It used to fall back to 1 GHz**,
+/// and that fallback is gone for the reason above: a std program whose `Instant` is silently scaled
+/// wrong reports durations nobody can tell from real ones. Dying is the honest outcome, and it
+/// matches `user_mode_runtime::cntfrq` exactly, which is the property this function exists to keep.
 pub fn cntfrq() -> u64 {
     #[cfg(target_arch = "aarch64")]
     {
@@ -388,18 +392,16 @@ pub fn cntfrq() -> u64 {
         }
         f
     }
-    #[cfg(target_arch = "riscv64")]
+    #[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
     {
-        10_000_000
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        // SAFETY: the kernel maps a page at `PAGE_VA` read-only into every process `load` builds,
-        // before the process runs; see the BUGS section above for the one path that maps a
-        // zeroed placeholder instead, which still reads safely.
+        // SAFETY: every path that builds a process on these architectures maps a page (real, or
+        // zeroed when the rate was never learned) read-only at `PAGE_VA` before it runs.
         let page = unsafe {
             super::counterfreqproto::TimebasePage::new(super::counterfreqproto::PAGE_VA)
         };
-        page.hz().unwrap_or(1_000_000_000)
+        page.hz().expect(
+            "the counter frequency is unknown: this process's timebase page is zeroed or \
+             unrecognized",
+        )
     }
 }

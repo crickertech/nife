@@ -727,6 +727,10 @@ pub fn now() -> u64 {
 
 /// The counter frequency in Hz, `CNTFRQ_EL0`: how many [`now`] ticks make a second. Constant for the
 /// life of the machine (QEMU reports 62.5 MHz under TCG, the host's counter frequency under HVF).
+///
+/// This is the one architecture where the rate is always knowable, so [`cntfrq_checked`] here is
+/// always `Some` and this function cannot fail. The other two read a page the kernel fills, and both
+/// can report "unknown"; see [`cntfrq_checked`].
 #[cfg(target_arch = "aarch64")]
 pub fn cntfrq() -> u64 {
     let f: u64;
@@ -737,14 +741,55 @@ pub fn cntfrq() -> u64 {
     f
 }
 
-/// The counter frequency in Hz (RISC-V). Unlike aarch64's `CNTFRQ_EL0`, RISC-V has **no** register
-/// that reports the timebase; it lives in the device tree's `timebase-frequency` (10 MHz on QEMU
-/// `virt`), which userspace cannot read. This is a real ABI gap: a complete port hands the frequency
-/// to a process at start (an aux-vector entry, the way Linux passes `AT_HWCAP`). Until that exists,
-/// this returns the known QEMU `virt` constant so self-timing works on the one machine we run.
+/// The counter frequency in Hz, or `None` if this process cannot know it (aarch64: never, the
+/// machine states it in `CNTFRQ_EL0`).
+#[cfg(target_arch = "aarch64")]
+pub fn cntfrq_checked() -> Option<u64> {
+    Some(cntfrq())
+}
+
+/// The counter frequency in Hz (RISC-V), read from the **timebase page** the kernel maps read-only
+/// into every process at [`counter_frequency_protocol::PAGE_VA`].
+///
+/// RISC-V has **no** register that reports the timebase. The machine states it in the device tree,
+/// at `/cpus/timebase-frequency`, and a process holds neither a pointer to the blob nor a capability
+/// naming the memory it lives in, so the kernel is the only party that can ever know this number.
+/// `kernel::arch::riscv64::timer::init_frequency` reads it on the boot hart and
+/// `kernel::user::timebase_page_phys` publishes it; this function is the reader, a plain load, no
+/// syscall, the same ambient shape [`now`] already has.
+///
+/// **It returned a hardcoded `10_000_000` until 2026-09-21**, QEMU `virt`'s rate, with a comment
+/// proposing an aux-vector as the eventual fix. radon (the VisionFive 2) runs its `time` CSR at
+/// **4 MHz**: every userspace duration measured on that board was 2.5x too large and nothing said
+/// so. The aux-vector was never built and is not needed; `x86_64` had already solved the same
+/// problem with a page, one directory away, and this now uses it. calef's ruling that forced it:
+/// *"We should ensure that the program only returns accurate numbers versus leveraging hard coded
+/// ones."*
+///
+/// # Panics
+///
+/// If the rate is unknown: see [`cntfrq_checked`], which is this without the panic.
 #[cfg(target_arch = "riscv64")]
 pub fn cntfrq() -> u64 {
-    10_000_000
+    cntfrq_checked().expect(
+        "the counter frequency is unknown: this process's timebase page is zeroed or unrecognized",
+    )
+}
+
+/// The counter frequency in Hz (RISC-V), or `None` if this process cannot know it. See [`cntfrq`]
+/// for where the number comes from and [`cntfrq_checked`]'s `x86_64` twin for why "unknown" is a
+/// state worth representing rather than papering over.
+#[cfg(target_arch = "riscv64")]
+pub fn cntfrq_checked() -> Option<u64> {
+    // SAFETY: every path that builds a riscv64 process maps a page (real, or zeroed when the rate
+    // was never learned) read-only at `counter_frequency_protocol::PAGE_VA` before it runs:
+    // `kernel::user::load`, `kernel::user::map_timebase_page`, and
+    // `supervision_protocol::build_child_space`. See that crate's `BUGS` section for the one shape
+    // that does not, which faults here on purpose.
+    let page = unsafe {
+        counter_frequency_protocol::TimebasePage::new(counter_frequency_protocol::PAGE_VA)
+    };
+    page.hz()
 }
 
 /// The monotonic tick count (`x86_64`, milestone 161): `rdtsc`, which reads the time-stamp counter.
@@ -835,41 +880,59 @@ pub fn now() -> u64 {
 /// plain load through an unsafe pointer, no syscall, the same "ambient, no capability" shape
 /// [`now`] already has.
 ///
+/// # Panics
+///
+/// If the rate is unknown, which is a zeroed or unrecognized page. **It used to return 1 GHz
+/// instead**, and that fallback was deleted on 2026-09-21 under calef's ruling: *"We should ensure
+/// that the program only returns accurate numbers versus leveraging hard coded ones."* A plausible
+/// wrong rate is worse than no rate, because it produces a benchmark figure somebody quotes; a
+/// process that dies on the read produces nothing to quote. [`cntfrq_checked`] is this without the
+/// panic, for a caller that would rather cope than die.
+///
+/// **The argument that fallback rested on has expired.** It was that widening this one architecture
+/// to `Option<u64>` would make every caller of the portable [`monotonic_nanos`] handle a case the
+/// other two could not produce. Two of three architectures read a page now, so the case is no
+/// longer peculiar, and the shape this tree already uses for exactly this question is the kernel's
+/// own: `arch::timer::frequency` panics and `arch::timer::frequency_checked` returns an `Option`,
+/// with the reason written beside them ("a plausible zero is worse than a panic naming this file").
+/// This is that pair, one privilege level down, so `monotonic_nanos` keeps its `u64` and nothing
+/// fabricates a rate.
+///
+/// **What the panic costs, honestly**: a userspace panic here traps (see [`trap`]) and the kernel
+/// kills the process, with no message, because a program with no console cannot print one. So the
+/// symptom a reader meets is a killed process and a fault line, not a diagnostic naming the page.
+/// That is the same floor every `expect` in userspace has and it is not special to this one.
+///
 /// # BUGS
 ///
-/// **A zeroed page (calibration has not run, or a process was built by the userspace ELF loader
-/// rather than by the kernel) reads as 1 GHz, not as "unknown".** This function still needs *some*
-/// `u64` to hand back rather than an `Option` (every other architecture's `cntfrq` returns a bare
-/// rate, and widening this one alone to `Option<u64>` would make every caller of the portable
-/// `monotonic_nanos` handle a case the other two architectures cannot produce), so a zeroed page
-/// falls back to the same 1 GHz constant this function used to hardcode unconditionally. Two real
-/// cases reach this, and only one of them is rare:
-///
-/// - **Calibration genuinely has not run yet.** Not observed in practice: `init_frequency` runs
-///   early in the boot tour, well before the first process is loaded.
-/// - **A process was built by `supervision_protocol::build_child_space`** (the tree's one userspace
-///   ELF loader, used by `root_supervisor`, `spawner`, `system_initializer`, and every role
-///   `hello` builds, `coremark` and `timetable`'s own `least_authority_demo` included), which maps
-///   a *freshly
-///   retyped, zeroed* placeholder rather than the kernel's real page: nothing in that crate holds
-///   a capability naming the kernel's specific physical frame, so it cannot forward the real
-///   number, only a page shaped enough not to fault. See that crate's own comment at the map site
-///   for why closing this gap needs more than a userspace crate can do alone (a capability the
-///   kernel would have to hand down through every generation of the supervision tree, which is
-///   real plumbing this milestone's scope did not reach). **This is where the 1 GHz constant
-///   actually still lives**, not the "always wrong on real hardware" gap the pre-fix version of
-///   this function had: a process built this way gets a syscall-free, non-faulting, honestly
-///   *approximate* answer instead of the kernel's measured one, and every process built directly
-///   by the kernel gets the real number.
+/// **The one case that used to reach the fallback is gone, not merely refused.** A process built by
+/// `supervision_protocol::build_child_space` (the tree's one userspace ELF loader, used by
+/// `root_supervisor`, `spawner`, `system_initializer`, and every role `hello` builds, `coremark` and
+/// `timetable`'s own `least_authority_demo` included) used to map a freshly retyped, *zeroed*
+/// placeholder and so read 1 GHz. It now gets a page that crate fills from its own rate, read
+/// through [`cntfrq_checked`], so a child inherits its parent's measured number. The residue is
+/// real and small: a parent that does not know the rate writes a zeroed page, and the whole subtree
+/// below it refuses rather than guessing.
 #[cfg(target_arch = "x86_64")]
 pub fn cntfrq() -> u64 {
+    cntfrq_checked().expect(
+        "the counter frequency is unknown: this process's timebase page is zeroed or unrecognized",
+    )
+}
+
+/// The counter frequency in Hz (`x86_64`), or `None` if this process cannot know it: a zeroed page
+/// (the rate was never measured, or the parent that built this process did not know it) or one
+/// whose magic does not match. See [`cntfrq`] for where the number comes from and why the
+/// unchecked twin refuses rather than substituting a constant.
+#[cfg(target_arch = "x86_64")]
+pub fn cntfrq_checked() -> Option<u64> {
     // SAFETY: every kernel-side space-building function this crate's own docs list maps a page
-    // (real, or a zeroed placeholder; see this function's own `BUGS` section) read-only at
+    // (real, or zeroed when the rate was never learned) read-only at
     // `counter_frequency_protocol::PAGE_VA` into every x86_64 process before it ever runs.
     let page = unsafe {
         counter_frequency_protocol::TimebasePage::new(counter_frequency_protocol::PAGE_VA)
     };
-    page.hz().unwrap_or(1_000_000_000)
+    page.hz()
 }
 
 /// **Monotonic nanoseconds since boot**, from [`now`] and [`cntfrq`].

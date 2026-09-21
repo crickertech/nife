@@ -312,19 +312,16 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
         backing: Backing::Lent(region),
     };
 
-    // The x86_64 timebase page is **not** mapped unconditionally here (an earlier version of this
+    // The timebase page is **not** mapped unconditionally here (an earlier version of this
     // lane's work did, and a full-suite run under `script/test --arch x86_64` caught two
     // regressions: `a_process_can_build_an_address_space_from_el0`'s hand-sized demo region ran
     // out of table budget, and it makes no sense for the many callers of this syscall that build
     // nothing resembling a real ELF process at all). This syscall is shared by every purpose that
     // needs a bare address space object, not only the userspace ELF loader
     // (`supervision_protocol::build_child_space`), and the loader is where this page actually
-    // belongs: see that crate's own x86_64-gated code for the targeted fix, which maps a zeroed
-    // placeholder (this crate has no way to hand a child-builder the *real*, kernel-measured
-    // number without a new syscall or capability plumbing well past this milestone's scope; see
-    // `counter_frequency_protocol`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
-    // itself builds, so `user_mode_runtime::cntfrq` reads "unknown" there and falls back rather than
-    // faulting on an unmapped read.
+    // belongs: see that crate's own code for the targeted fix, which writes the page from the rate
+    // the *parent* already holds, so a child reads its parent's measured number and a parent that
+    // knows nothing hands down nothing rather than a plausible constant.
     let name = USER_SPACES.lock().insert_with(|_| space);
     if name.is_none() {
         // Undo the bookkeeping; the page stays spent on the caller's budget.
@@ -511,15 +508,17 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
         .map_new(USER_STACK_VA, Flags::user_data())
         .map_err(LoadError::Unmappable)?;
 
-    // The x86_64 timebase page (milestone 161's `cntfrq` follow-up): the one number this
-    // architecture's `user_mode_runtime::now()` needs that neither a register (aarch64's `CNTFRQ_EL0`) nor
-    // a build-time constant (RISC-V's device-tree rate) can give it. `map_physical` does not
+    // The timebase page, from milestone 161 (the x86_64 kernel port) and its `cntfrq` follow-up,
+    // widened to riscv64 on 2026-09-21: the
+    // one number `user_mode_runtime::now()` needs on an architecture with no `CNTFRQ_EL0` to read it
+    // from. `x86_64` measures it; `riscv64` reads it out of the device tree, which is privileged
+    // knowledge a process has no way to reach. `map_physical` does not
     // spend `content`'s budget (only the intermediate table pages it walks come from the space's
     // own region, the same as every `Spawn::maps` entry `run()` applies below), so this needs no
     // extra accounting here. Unconditional, the same "grant is unconditional, a zeroed page reads
-    // as unknown" shape `boot_clock_page` already uses: see `x86_timebase_page_phys`'s own docs.
-    #[cfg(target_arch = "x86_64")]
-    if let Some(phys) = x86_timebase_page_phys() {
+    // as unknown" shape `boot_clock_page` already uses: see `timebase_page_phys`'s own docs.
+    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    if let Some(phys) = timebase_page_phys() {
         space
             .map_physical(
                 counter_frequency_protocol::PAGE_VA,
@@ -532,21 +531,26 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
     Ok((space, elf.entry()))
 }
 
-/// **The `x86_64` timebase page's one physical frame**, computed and written once, then reused for
-/// every process `load` maps it into. The frequency the kernel measured or read from `CPUID`
+/// **The timebase page's one physical frame**, computed and written once, then reused for
+/// every process `load` maps it into. The frequency the kernel measured (`x86_64`) or read from the
+/// device tree (`riscv64`)
 /// does not change while the machine runs, so one frame mapped read-only into every address space
 /// is correct rather than merely convenient: there is only ever one true answer to publish.
+///
+/// **aarch64 has no such frame and needs none**: `CNTFRQ_EL0` is architected, the kernel opens it to
+/// EL0, and a register the machine itself states cannot go stale between the kernel reading it and
+/// a process reading it.
 ///
 /// `None` only if the frame allocator is out of memory (propagated by `load` as the same
 /// `OutOfFrames` a segment that would not fit reports; this is not a bad-program condition, so it
 /// is not a panic). If [`crate::arch::timer::frequency_checked`] has not resolved yet (never
-/// observed: `init_frequency` runs early in the `x86_64` boot tour, well before the first call to
+/// observed: `init_frequency` runs early in both boot tours, well before the first call to
 /// `load`), the frame is allocated anyway and left zeroed, which [`counter_frequency_protocol::TimebasePage::hz`]
-/// reads as "unknown" rather than a fabricated rate; that keeps every `x86_64` process's layout
+/// reads as "unknown" rather than a fabricated rate; that keeps every process's layout
 /// identical regardless of boot order, the same reason `boot_clock_page` hands out a zeroed page
 /// when there is no `clock` program to ask.
-#[cfg(target_arch = "x86_64")]
-fn x86_timebase_page_phys() -> Option<u64> {
+#[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+fn timebase_page_phys() -> Option<u64> {
     use core::sync::atomic::{AtomicU64, Ordering};
     static PAGE_PHYS: AtomicU64 = AtomicU64::new(0);
 
@@ -581,7 +585,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
     Some(phys)
 }
 
-/// Map the `x86_64` timebase page into `space`, if this process needs one built directly rather
+/// Map the timebase page into `space`, if this process needs one built directly rather
 /// than through [`load`]. Several kernel-side functions build a top-level process's own
 /// `AddressSpace` by hand instead of calling `load` (`spawn_hello`, and every
 /// `spawn_<program>`-shaped test harness that hands a narrowed archive to a named program:
@@ -596,9 +600,13 @@ fn x86_timebase_page_phys() -> Option<u64> {
 /// all). Factored out once here rather than copied into each, per CLAUDE.md rule 7's reasoning
 /// one level down: this is kernel-internal, not shared with a second *binary*, but the six call
 /// sites are exactly the "same lines three times" shape that rule exists to prevent.
-#[cfg(target_arch = "x86_64")]
-fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
-    if let Some(phys) = x86_timebase_page_phys() {
+///
+/// **`riscv64` joined this path on 2026-09-21** and inherited every one of those call sites at
+/// once, rather than rediscovering them one page fault at a time, which is what the factoring above
+/// bought: there was one function to widen and one `cfg` per site to change.
+#[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+fn map_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
+    if let Some(phys) = timebase_page_phys() {
         space.map_physical(
             counter_frequency_protocol::PAGE_VA,
             phys,
@@ -1006,8 +1014,8 @@ pub fn spawn_hello(
                 .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
                 .expect("could not map hello's stack");
         }
-        #[cfg(target_arch = "x86_64")]
-        map_x86_timebase_page(&mut space).expect("could not map hello's timebase page");
+        #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+        map_timebase_page(&mut space).expect("could not map hello's timebase page");
 
         // Map the initrd, one page at a time, read-only. These are reserved RAM pages the frame
         // allocator does not own, so this maps rather than allocates. A role that builds a child
@@ -1770,11 +1778,11 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .map_err(LoadError::Unmappable)?;
     }
-    // The `x86_64` timebase page, which [`load`] maps for every process it builds and a hand-built
-    // address space has to map for itself (see [`map_x86_timebase_page`] for the six call sites
+    // The timebase page, which [`load`] maps for every process it builds and a hand-built
+    // address space has to map for itself (see [`map_timebase_page`] for the six call sites
     // that each found this as a page fault). The progenitor reads the clock like any program does.
-    #[cfg(target_arch = "x86_64")]
-    map_x86_timebase_page(&mut space).map_err(LoadError::Unmappable)?;
+    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    map_timebase_page(&mut space).map_err(LoadError::Unmappable)?;
     for i in 0..initrd_pages {
         space
             .map_physical(
@@ -2762,6 +2770,17 @@ mod non_volatile_memory_express_tests;
 /// suite's default `-cpu max` with no code change of its own.
 #[cfg(all(test, initrd))]
 mod entropy_tests;
+
+/// **What a userspace program is told the counter runs at** (2026-09-21, calef's ruling that a
+/// program returns accurate numbers rather than hardcoded ones).
+///
+/// Its own file rather than a case in `tests.rs`, and arch-neutral on purpose: all three
+/// architectures run literally these tests (DECISIONS §19, parity is a gate), even though each
+/// learns its rate a different way and two of the three carry it to userspace through a page the
+/// third does not need. The question ("does a process time itself against the number the machine
+/// stated") is the same on all three, so the assertion is too.
+#[cfg(all(test, initrd))]
+mod counter_frequency_tests;
 
 /// **The credential service, its provisioner, and its clients** (milestone 56, the credential half;
 /// notes/credentials.md).

@@ -75,7 +75,11 @@ pub fn init_frequency(dtb_ptr: usize) {
     let hz = list
         .timebase_hz
         .expect("the device tree states no /cpus/timebase-frequency, and RISC-V has no CNTFRQ_EL0");
-    assert!(hz > 0, "a counter that never advances cannot drive a tick");
+    assert!(
+        counter_frequency_protocol::is_plausible(hz),
+        "the device tree states a timebase of {hz} Hz, which no real part runs at: a counter that \
+         slow cannot drive a tick, and one that fast was never measured"
+    );
     TIMEBASE_HZ.store(hz, Ordering::Relaxed);
 }
 
@@ -143,6 +147,22 @@ pub fn now() -> u64 {
 /// The counter's frequency in Hz, as the machine stated it.
 pub fn frequency() -> u64 {
     timebase_hz()
+}
+
+/// How many counter ticks make a second, or `None` if [`init_frequency`] has not run yet.
+///
+/// Unlike [`frequency`], does not panic, and it exists for exactly one caller: the timebase page
+/// (`kernel::user::timebase_page_phys`), which must treat "the machine has not been asked yet" as a
+/// representable state rather than a bug to die on, because it builds the same page layout for
+/// every process regardless of boot order. Same signature and same reason as
+/// `arch::x86_64::timer::frequency_checked`; that architecture needed it first because its number is
+/// measured rather than read.
+///
+/// In practice this is never `None` by the time any process is loaded: `init_frequency` runs on the
+/// boot hart before the first deadline is armed, long before `kernel::user::load`.
+pub fn frequency_checked() -> Option<u64> {
+    let hz = TIMEBASE_HZ.load(Ordering::Relaxed);
+    (hz != 0).then_some(hz)
 }
 
 /// Counter ticks between two timer interrupts (the reload interval): one tick period.

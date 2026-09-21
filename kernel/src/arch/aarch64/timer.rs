@@ -139,7 +139,11 @@ static COUNTER_OPEN: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) };
 /// The GIC must already be up: we ask it to deliver INTID 30, and it has to exist to be asked.
 pub fn init() {
     let freq = CNTFRQ_EL0.get();
-    assert!(freq > 0, "firmware left CNTFRQ_EL0 at zero: no clock");
+    assert!(
+        counter_frequency_protocol::is_plausible(freq),
+        "CNTFRQ_EL0 reports {freq} Hz, which no real part does: firmware never wrote it, or wrote \
+         nonsense"
+    );
 
     // Let EL0 read the virtual counter (`CNTVCT_EL0`) and `CNTFRQ_EL0`, so a userspace program can
     // time *itself*, the way Linux exposes the counter to its vDSO. Without this the read traps.
@@ -559,6 +563,69 @@ pub fn now() -> u64 {
 
 pub fn frequency() -> u64 {
     CNTFRQ_EL0.get()
+}
+
+/// **Cross-check `CNTFRQ_EL0` against what the device tree says the timer runs at**, and refuse the
+/// boot if the two disagree.
+///
+/// This architecture is the one that needs no timebase page: `CNTFRQ_EL0` is architected, EL0 may
+/// read the same register the kernel does (`init` opens `CNTKCTL_EL1.EL0VCTEN`), so there is one
+/// source and nothing to keep in sync. That is a strong position and it has one weakness, which the
+/// register table at the top of this file already states in three words: **set by firmware**. The
+/// part does not know its own counter frequency; something running before us wrote it, and on real
+/// ARM boards that something is wrong often enough that the device-tree binding carries an override
+/// for it. `arm,armv8-timer`'s optional `clock-frequency` property exists for exactly that case, and
+/// Linux honours it in preference to the register.
+///
+/// **This refuses rather than preferring either one.** Linux takes the override because Linux must
+/// boot on the board in front of it; this kernel's ruling is calef's, 2026-09-21, that a wrong
+/// number is worse than no number, and two sources that disagree mean we do not know which is
+/// right. Preferring the device tree would be a guess with a rationale, and the failure it hides is
+/// the one this whole change exists to stop: a plausible rate that silently scales every
+/// measurement. Reversible: a board that turns up with a bad register and a good tree is an
+/// argument for preferring the tree, and it is an argument somebody can make with that board's
+/// numbers in hand.
+///
+/// **Unexercised on silicon, and that is stated rather than implied.** QEMU's `virt` machine states
+/// no `clock-frequency` (measured 2026-09-21 with `-machine virt,dumpdtb=`: the `timer` node carries
+/// `interrupts`, `always-on` and `compatible`, and nothing else), so on every machine this kernel is
+/// tested on today this function finds no property and returns without comparing anything. The first
+/// board that exercises it is argon, the Jetson TX1, which is the seL4 comparison bench and so the
+/// one machine where a wrong rate would corrupt the numbers this project is most measured on. Until
+/// something reports a real mismatch, the only thing proven here is that the absent-property path
+/// does not stop a boot.
+///
+/// # Panics
+///
+/// If the device tree states a rate and the register disagrees with it, naming both values. Also if
+/// the tree is unreadable, which is the same `expect` `isa::init` makes of the same pointer one
+/// call earlier.
+pub fn check_frequency_against_device_tree(dtb_ptr: usize) {
+    // SAFETY: the pointer firmware handed us, whose magic `memory::init` has already checked, named
+    // through the boot map's direct region. Same read `isa::init` makes of the same pointer.
+    let dt = unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(
+            super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8
+        )
+    }
+    .expect("device tree is unreadable");
+
+    let Ok(Some(bytes)) = dt.node_prop_compatible(b"arm,armv8-timer", b"clock-frequency") else {
+        return;
+    };
+    // The binding spells this one cell, and a property that is not one cell is a tree we do not
+    // understand rather than a mismatch to panic about.
+    let Ok(cell) = <[u8; 4]>::try_from(bytes) else {
+        return;
+    };
+    let stated = u64::from(u32::from_be_bytes(cell));
+
+    let register = CNTFRQ_EL0.get();
+    assert_eq!(
+        stated, register,
+        "the device tree says this timer runs at {stated} Hz and CNTFRQ_EL0 says {register} Hz; \
+         one of them is wrong and nothing here can tell which"
+    );
 }
 
 /// Milliseconds since boot, from the counter rather than from the tick count.

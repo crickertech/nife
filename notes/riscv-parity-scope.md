@@ -489,9 +489,13 @@ spawn), plus cross-OS comparisons. RISC-V runs none. The workloads are userspace
 (`coremark` is compute; `os_primitives_benchmarker` uses `user_mode_runtime::now`, which is `rdtime` on riscv).
 
 - Make the `bench` boot mode reachable on riscv.
-- Resolve the timing caveat honestly: `user_mode_runtime::cntfrq` is hardcoded to the QEMU virt 10 MHz timebase
+- ~~Resolve the timing caveat honestly: `user_mode_runtime::cntfrq` is hardcoded to the QEMU virt 10 MHz timebase
   on riscv (there is no `CNTFRQ` register); a real number needs the frequency handed to userspace
-  (an aux-vector entry from the DTB `timebase-frequency`).
+  (an aux-vector entry from the DTB `timebase-frequency`).~~ **Done 2026-09-21, and not the way this
+  line predicted.** No aux-vector: the kernel writes the device tree's rate into a page and maps it
+  read-only into every process, which is the mechanism `x86_64` already used
+  (`counter_frequency_protocol`). Userspace reads the machine's number on all three architectures now,
+  and a process that cannot learn it refuses rather than substituting a constant.
 - **Proves:** comparable performance on a second arch: the "measure, don't argue" ethos, with riscv
   as a new data point next to the L4 lineage. Depends on the timing fix for the numbers to be honest.
 
