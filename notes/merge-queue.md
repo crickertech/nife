@@ -444,6 +444,20 @@ is a fact about two branches.
 
 ## BUGS
 
+**A branch in the merge queue cannot be pushed to, and the error names the fix without naming the
+cost.** `git push` is rejected with `GH006: Protected branch update failed ... Branches that are
+queued for merging cannot be updated. To modify this branch, dequeue the associated pull request.`
+Met on 2026-09-20 by a maintainer who armed auto-merge, then found a defect in the committed tip: the
+fixed commit could not be pushed, `gh pr merge --disable-auto` did not release it, and the
+`merge-queue` REST endpoint answered `Not Found`. **What worked was waiting for the group build to
+evict the branch**, then pushing and re-arming.
+
+**The order that avoids it: gate, then arm.** An armed pull request is one whose content you have
+stopped editing. That sounds obvious and is exactly what a maintainer fixing a gloss at the last
+moment forgets.
+
+
+
 - **`Blocked-by:` is matched anywhere in the body, including inside a code span or a quotation.** A
   pull request that *discusses* the convention, as opposed to using it, will be held. The
   counted-claims check in `script/lint` solved the same problem by blanking code spans first; this

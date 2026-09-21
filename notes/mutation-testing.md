@@ -2044,6 +2044,21 @@ leaves a pass of the loop that makes no progress, and none of them returns at al
 `take_returns_rather_than_spinning` states the property on a five-second deadline, which is worth
 having for the human who runs `cargo test`, and does not move the classification.
 
+## Pending: one survivor nobody has triaged, found by a lane that could not file it
+
+**`compositor`: `replace * with + in Rect::area`.** Milestone 517 (what fraction of survivor growth
+arrives on lines a pull request touched) ran the mutation over the tree as it stood on 2026-08-03 and
+found this mutant in that run's `caught.txt` and in the 2026-09-19 census's survivors. **It is the
+single genuine decay on a line nobody edited** among 142 candidates: the other 141 were already
+survivors in August.
+
+It is recorded here rather than fixed because the lane that found it held neither this file nor
+`.cargo/mutants.toml` at the time, both of which were owned by milestone 326's triage lanes. **What
+would close it**: a test that distinguishes `w * h` from `w + h`, which needs a rectangle whose
+width and height are neither equal nor {0, 2}, since `2 * 2 == 2 + 2` and `0 * n == 0 + n` only when
+`n` is 0. Most fixture rectangles in that crate are squares, which is the likely reason it was never
+caught.
+
 ## 2026-09-20: `board_console`, milestone 326 (turn a mutation score upward) part 3
 
 `board_console` is one of the new-crate backlog's worst rates, at **238 viable, 43 survivors, 79.4%

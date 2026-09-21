@@ -236,9 +236,22 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   genuinely worse than its flagged rate once the loom mutants left. The `mdns_proto` row closed by
   deletion, as this entry guessed it might: milestone 298 retired the crate on 2026-09-15 under its
   renamed spelling `multicast_dns_protocol`.
-- **Outstanding.** The rest of part 3, which is the other nineteen crates that did not exist at the
-  August baseline. Nobody has measured one of them per crate, and the census rates they would be
+- **Outstanding.** The rest of part 3, which is the other **seventeen** crates that did not exist at
+  the August baseline. Nobody has measured one of them per crate, and the census rates they would be
   picked by are the 2026-09-14 ones. A lane taking this should re-derive before it triages.
+
+  **Two of the nineteen closed on 2026-09-20, and they were the first work this project routed to a
+  cheaper model** under DECISIONS §202 (mechanical work goes to a cheaper model). Both reproduce on
+  the maintainer's own re-run:
+
+  | crate | before | after | killed | equivalent | gap | timeouts |
+  |---|---|---|---|---|---|---|
+  | `board_console` | 43 survivors, 83.2% | 4, 96.6% | 39 | 1 | 3 | 6 unchanged |
+  | `video_terminal` | 79 survivors, 79.0% | 16, 95.8% | 63 | 16 | 0 | 0 |
+
+  `board_console`'s three gaps all need a real tty or a pseudo-terminal pair, which is a dependency
+  question above a triage lane's authority. `video_terminal` needed no gap and no exclusion, and the
+  crate-by-crate accounts are in `notes/mutation-testing.md`'s two dated sections.
 - **Recorded.** `notes/mutation-testing.md`'s `## Scope and honest caveats` section: **a mutant that
   hangs is not a mutant that survived, and this instrument cannot say so.** Nine survivors across
   the two 326 lanes were non-terminating rather than wrong, and cargo-mutants 27.1.0's complete set of

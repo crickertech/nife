@@ -99,6 +99,43 @@ uncontended, with every outcome machine-checkable. Two or three more before the 
 and **external research stays on the frontier model**, because it is the one category this tree has
 no gate behind: a fabricated summary passes every check green.
 
+## Trial 2, `video_terminal`, 2026-09-20: passed, on the tree's largest untriaged set
+
+**79 survivors to 16**, 79.0% to 95.8%, five tests closing 63 of them and the remaining 16 argued
+equivalent with no exclusion and no recorded gap. The maintainer re-ran the sweep: **392 mutants, 16
+missed, 361 caught, 15 unviable**, which reproduces the lane's report exactly. 286k tokens, 130 tool
+calls, **no maintainer repair**.
+
+**The claim worth checking was "all sixteen are equivalent"**, because a lane that wants to be
+finished can rationalise there and no gate would catch it. Three were read closely and they hold.
+The four `CellRect::union` selectors are equivalent for a reason that is a proof rather than an
+observation: a selector of the form `if a < b { a } else { b }` returns the same value on both
+branches whenever `a == b`, and `<` against `<=` disagrees only about which branch fires at exactly
+that point, so **no** input can separate them rather than merely no input a test tried.
+
+**And it discriminated where it would have been easier not to.** The size clamp had four survivors;
+it called the two `>`-against-`>=` mutants equivalent by that same argument and the two `==` mutants
+a **real** behaviour change, because `==` clamps only the boundary value and lets everything past it
+through. It then wrote a test for those two. A lane looking to declare victory would have called all
+four equivalent.
+
+**One caveat against counting this as a hard test.** `video_terminal` has no Kani harnesses and no
+loom model, so it carried none of the "the mutant was never the crate's code" artifact that bit
+earlier sweeps, and its before-numbers matched the census row for row. It is a cleaner crate to
+triage than average.
+
+## Where the two trials leave this
+
+**The routing works for this class, and the class is now well defined**: machine-checkable outcomes,
+a standard already written down, and a blast radius that ends at tests and a ledger. Both lanes came
+in **below** the median frontier lane of the same day (184k to 641k tokens) and neither needed a
+correction.
+
+**The failure that would change this is not a bad test.** It is a plausible-sounding equivalence
+argument that is wrong, because that is the one output no gate in this tree can check. Both trials
+cleared that bar in a way a reader could verify. A third trial is running on `machine_discovery`, a
+boot-path parser whose callers are three kernels, which is the first genuinely hard case.
+
 ## The note this supersedes
 
 A standing maintainer note says to omit the `Agent` tool's model parameter so a lane inherits the
