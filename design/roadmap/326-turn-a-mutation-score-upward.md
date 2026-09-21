@@ -238,7 +238,10 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   renamed spelling `multicast_dns_protocol`.
 - **Outstanding.** The rest of part 3, which is the other **seventeen** crates that did not exist at
   the August baseline. Nobody has measured one of them per crate, and the census rates they would be
-  picked by are the 2026-09-14 ones. A lane taking this should re-derive before it triages.
+  picked by are the 2026-09-14 ones. A lane taking this should re-derive before it triages,
+  and **should first read `notes/mutation-testing.md` and the crate's recent history**: three
+  crates chosen off the census have now turned out to be already triaged, retired, or measuring
+  a loom model, and the ledger said so in every case.
 
   **Two of the nineteen closed on 2026-09-20, and they were the first work this project routed to a
   cheaper model** under DECISIONS §202 (mechanical work goes to a cheaper model). Both reproduce on
