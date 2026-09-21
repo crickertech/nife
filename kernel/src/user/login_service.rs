@@ -211,7 +211,12 @@ pub fn start(
     // looked up.
     let cred_page = verify_page_frame;
     space
-        .map_physical(CRED_VA, cred_page, Flags::user_data())
+        .map_physical(
+            CRED_VA,
+            cred_page,
+            Flags::user_data(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
         .expect("could not map login's credential-relay page");
 
     let aspace = readopt_user_address_space(space).expect("register the login aspace");

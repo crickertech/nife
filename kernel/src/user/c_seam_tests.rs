@@ -71,6 +71,7 @@ fn spawn_confiner() -> sched::RendezvousId {
                 INITRD_VA + i * FRAME_SIZE,
                 initrd_start + i * FRAME_SIZE,
                 Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
             )
             .expect("could not map the initrd");
     }

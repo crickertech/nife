@@ -143,6 +143,7 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
                 INITRD_VA + i * FRAME_SIZE,
                 initrd_start + i * FRAME_SIZE,
                 Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
             )
             .expect("could not map the initrd");
     }

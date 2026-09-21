@@ -205,26 +205,53 @@ impl AddressSpace {
     /// get into a userspace server's address space, and how a shared buffer gets into both a
     /// client's and a server's.
     ///
+    /// **The mapping is recorded** (`under`), because a mapping revocation cannot see is the
+    /// DECISIONS §13 (capability revocation and untyped reclamation) use-after-free, and until
+    /// 2026-09-21 this function was the one mapping site in the kernel that recorded nothing. The
+    /// paragraph above is about `Drop` and frame *ownership*, which is a different question that a
+    /// reader can easily take this for: not freeing a frame and not being able to unmap it are
+    /// unrelated, and the tree read the first as covering the second for as long as this function
+    /// existed. An unrecordable mapping is unmapped and refused as `OutOfPageFrames`, exactly as at
+    /// the `PageFrame::MAP` syscall, because the alternative is a mapping no sweep can reach.
+    ///
+    /// `under` says which capability's authority made this mapping, and it is a required argument
+    /// with no default for [`crate::revoke::PageMapSource`]'s own reason (AGENTS.md's ladder, rung
+    /// one). Every kernel-wiring caller passes `NoCapability`, truthfully: a [`Spawn`]`::maps`
+    /// entry, a [`DeviceRun`], the initrd and the `x86_64` timebase page are all endowments the
+    /// process holds no capability for, so the page stands as its own object and a single-page
+    /// revoke of it finds the record. [`user_address_space_map`] is the one caller that passes a
+    /// capability through, because the `MAP_INTO` syscall has one to pass.
+    ///
+    /// **What the defect was, since a reader will meet the fix without the failure.** Every unmap
+    /// sweep in `crate::revoke` is driven by the mapping log, so a page wired here was invisible to
+    /// `PageFrame::REVOKE`, `DeviceFrame::REVOKE` and `MemoryRegion::DESTROY` alike: the capability
+    /// went and the mapping stayed. Recorded by risk 7's adversarial pass as latent; it was not.
+    /// [`fs_service::spawn_fs_server`](crate::user::fs_service) wires the file channel's shared
+    /// pages into the FS server through `Spawn::maps`, and [`boot_progenitor`] hands the progenitor
+    /// `PageFrame(file_shared, 1)` with `GRANT` over the first of them, so `PageFrame::REVOKE` on
+    /// that slot left the FS server writing to a page the progenitor had just un-shared.
+    /// `user::spawn_mapping_revocation_tests` is the falsification.
+    ///
     /// # BUGS
     ///
-    /// **A mapping made through this function is invisible to revocation** (risk 7's adversarial
-    /// pass, 2026-09-21). It does not call [`crate::revoke::record_mapping`], and every unmap sweep
-    /// in `crate::revoke` is driven by that log, so `DeviceFrame::REVOKE`, `PageFrame::REVOKE` and
-    /// `MemoryRegion::DESTROY` all walk past a page placed here. The paragraph above is about
-    /// `Drop` and frame ownership, which is a different question that a reader can easily take this
-    /// for; [`user_address_space_map`] is the recording path and is what the `MAP_INTO` syscall
-    /// takes.
-    ///
-    /// **Latent rather than live, and the reason is who the callers are.** Every call site is
-    /// kernel wiring at boot: the serial driver's UART registers, a [`Spawn`]`::maps` entry, a
-    /// [`DeviceRun`], the initrd read-only, the `x86_64` timebase page. A driver a userspace
-    /// supervisor builds gets its registers through `MAP_INTO`, which records, and that is the path
-    /// `user::live_swap_tests` proves a revoked driver faults on. So nothing in the tree today
-    /// revokes a device out from under a process that was wired here. What makes it worth writing
-    /// down is that the take-back would silently do half its job if anything ever did: the
-    /// capability would go and the mapping would stay.
-    pub fn map_physical(&mut self, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
-        self.map_at(va, phys, flags)
+    /// **[`Self::map_new`] still does not record**, and is deliberately left alone: its frames are
+    /// retyped from this space's own backing region and freed with it, so no capability names them
+    /// and no sweep can be asked about them. If that ever stops being true, this is the second half
+    /// of the same hole.
+    pub fn map_physical(
+        &mut self,
+        va: u64,
+        phys: u64,
+        flags: Flags,
+        under: crate::revoke::PageMapSource,
+    ) -> Result<(), MapError> {
+        self.map_at(va, phys, flags)?;
+        let root = self.root.addr();
+        if !crate::revoke::record_mapping(phys, root, va, under) {
+            mmu::unmap_user_at(root, va);
+            return Err(MapError::OutOfPageFrames);
+        }
+        Ok(())
     }
 
     /// Map `phys` at `va`. Intermediate tables come from this address space's own region, so
@@ -354,11 +381,11 @@ pub fn user_address_space_map(
     let mut spaces = USER_SPACES.lock();
     let space = spaces.get_mut(name).ok_or(MapError::NotMapped)?;
 
-    space.map_physical(va, phys, flags)?;
-    if !crate::revoke::record_mapping(phys, space.root(), va, under) {
-        mmu::unmap_user_at(space.root(), va);
-        return Err(MapError::OutOfPageFrames);
-    }
+    // `map_physical` maps and records in one step since 2026-09-21, including the unmap-and-refuse
+    // on an unrecordable mapping that used to live here: this function was the one caller that
+    // remembered to record, which is exactly why it is now the one caller with nothing extra to
+    // remember. See that function's own docs for the defect the other callers carried.
+    space.map_physical(va, phys, flags, under)?;
     // A code page a loader just filled via data writes (milestone 19d): the instruction fetcher
     // has its own cache and has never heard of those bytes. On aarch64 the I-cache is not
     // coherent with the D-cache, so make it so now, via the frame's direct-map VA (any VA that
@@ -525,6 +552,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
                 counter_frequency_protocol::PAGE_VA,
                 phys,
                 Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
             )
             .map_err(LoadError::Unmappable)?;
     }
@@ -603,6 +631,7 @@ fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
             counter_frequency_protocol::PAGE_VA,
             phys,
             Flags::user_rodata(),
+            crate::revoke::PageMapSource::NoCapability,
         )?;
     }
     Ok(())
@@ -1018,6 +1047,7 @@ pub fn spawn_hello(
                     INITRD_VA + i * FRAME_SIZE,
                     initrd_start + i * FRAME_SIZE,
                     Flags::user_rodata(),
+                    crate::revoke::PageMapSource::NoCapability,
                 )
                 .expect("could not map the initrd into hello");
         }
@@ -1121,7 +1151,12 @@ fn run_with(image: &[u8], spawn: Spawn, device: Option<DeviceRun>) -> ! {
     // device's MMIO for a driver. This is the line that puts a UART into a userspace process.
     for m in spawn.maps {
         space
-            .map_physical(m.va, m.phys, m.flags)
+            .map_physical(
+                m.va,
+                m.phys,
+                m.flags,
+                crate::revoke::PageMapSource::NoCapability,
+            )
             .expect("could not map a Spawn page into the new address space");
     }
     if let Some(d) = device {
@@ -1131,6 +1166,7 @@ fn run_with(image: &[u8], spawn: Spawn, device: Option<DeviceRun>) -> ! {
                     d.va + k * FRAME_SIZE,
                     d.phys + k * FRAME_SIZE,
                     Flags::user_device(),
+                    crate::revoke::PageMapSource::NoCapability,
                 )
                 .expect("could not map a device run into the new address space");
         }
@@ -1625,7 +1661,12 @@ pub fn riscv_uart_driver_demo(
     }
     // The UART registers, device-typed and user-accessible: the driver reads RBR/LSR directly.
     space
-        .map_physical(DRIVER_UART_VA, UART_PHYS, Flags::user_device())
+        .map_physical(
+            DRIVER_UART_VA,
+            UART_PHYS,
+            Flags::user_device(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
         .map_err(LoadError::Unmappable)?;
 
     let aspace_name = readopt_user_address_space(space).expect("register driver address space");
@@ -1781,6 +1822,7 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
                 INITRD_VA + i * FRAME_SIZE,
                 initrd_start + i * FRAME_SIZE,
                 Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
             )
             .map_err(LoadError::Unmappable)?;
     }
@@ -3586,3 +3628,18 @@ mod thread_leak_police;
 /// each architecture.
 #[cfg(test)]
 mod revocation_in_flight_tests;
+
+/// **Revocation against a mapping the kernel wired** (the `map_physical` mapping record,
+/// 2026-09-21).
+///
+/// Every unmap sweep in `crate::revoke` is driven by the mapping log, and `AddressSpace::map_physical`
+/// filed nothing in it, so a `Spawn::maps` entry survived a revoke of its own frame. The module's
+/// own header has the reasoning, the reachable boot path and the `BUGS`; it is here rather than in
+/// [`tests`] because that file is this tree's worst merge hotspot, and it is named to sort before
+/// [`thread_leak_police`] for that module's own reason.
+///
+/// Cross-ISA: the mapping log, the sweeps and `map_physical` are portable kernel code, so the
+/// parity gate (DECISIONS §19, architectural parity is a tenet) is met by the same test running on
+/// each architecture.
+#[cfg(test)]
+mod spawn_mapping_revocation_tests;
