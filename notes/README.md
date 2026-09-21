@@ -865,6 +865,17 @@ in the code or the conversation doesn't make sense, it belongs here.
   multi-crate sweep and answers confidently wrong. The first finding: the fall
   `design/fatal-risks.md`'s risk 3 stands on is an artifact of two rows counting a timeout two
   different ways, and read consistently the rate went up. Names provisional.
+- [The CI log baseline](ci-log-baseline.md): per-check attribution for failed CI jobs, mined from
+  GitHub Actions logs before the retention window deletes them. `script/lint` wraps 47 named checks
+  in one `clippy` job and a job conclusion alone cannot say which fired; the log's last `==>` marker
+  can, and this record captures it for every failed job of the five job types that wrap more than one
+  distinguishable check (`clippy`, `supply chain`, `cpu matrix`, `verify (Kani proofs)`, `bench`'s
+  icount tripwire), one row per job in
+  `notes/project-metrics/ci-log-baseline.csv`, re-derivable with `script/ci-log-baseline`. Corrects
+  the premise it was briefed under: nothing had expired as of 2026-09-21, contrary to what was
+  assumed going in. Not the gate-firing ledger (a separate, still-open proposal) and not a ranking of
+  gate value: a check that fires locally and is pushed green never reaches this record at all. Names
+  provisional.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
   to the question milestone 191 raised: **can each of these harnesses actually be made to fail?**
   Opens with the check §134 asked for first, whether Kani or CBMC can produce an Inductive Validity

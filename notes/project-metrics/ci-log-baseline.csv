@@ -1,0 +1,641 @@
+run_id,job_id,date,workflow,job_name,attributed_check,branch
+29975578616,89106507575,2026-07-23,CI,clippy,==> clippy: kernel + user (aarch64),dependabot/cargo/tock-registers-0.10.1
+29975582970,89106520516,2026-07-23,CI,clippy,==> clippy: kernel + user (aarch64),dependabot/cargo/aarch64-cpu-11.2.0
+29975824065,89107227119,2026-07-23,CI,clippy,==> clippy: kernel + user (aarch64),dependabot/cargo/tock-registers-0.10.1
+30177796718,89729340263,2026-07-25,CI,clippy,==> clippy: host crates + xtask,main
+30178857498,89731982558,2026-07-25,CI,clippy,==> clippy: host crates + xtask,main
+30179101683,89732585381,2026-07-25,CI,clippy,==> clippy: host crates + xtask,main
+30179431070,89733441161,2026-07-25,CI,clippy,==> clippy: host crates + xtask,main
+30180717125,89736647615,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30183642938,89744433517,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30184042340,89745472174,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30184126386,89745677633,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30184594228,89746897103,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30184992528,89747944217,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30185156530,89748382326,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30186251150,89751448492,2026-07-26,CI,clippy,==> clippy: host crates + xtask,main
+30340600489,90215102505,2026-07-28,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),main
+30524575974,90812497305,2026-07-30,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",main
+30561540317,90935538921,2026-07-30,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",main
+30575582585,90982909406,2026-07-30,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",main
+30677429032,91307481396,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30678683789,91312895485,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30678705237,91311139168,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30678945928,91311854511,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30679269026,91312844841,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30680647073,91316832751,2026-08-01,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,main
+30709679526,91394822247,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30713732645,91405627778,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30718851614,91419086016,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 thead-c906,main
+30719213487,91420045220,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64,main
+30720707024,91423890105,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,main
+30721073319,91424878314,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 rva23s64,main
+30723969840,91432204240,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 rva22s64,main
+30724309873,91433090512,2026-08-01,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,main
+30724651869,91433989512,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva23s64,main
+30724877901,91434571414,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64,main
+30725607092,91436602671,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+30726955879,91440296274,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30728543456,91444572557,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30728664533,91444882506,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,main
+30728731245,91445059454,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64 thead-c906,main
+30729607247,91447391325,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54,main
+30729770579,91447830615,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64,main
+30732332982,91454812165,2026-08-02,CI,clippy,==> decisions,main
+30732332982,91454812184,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,main
+30754793359,91515007982,2026-08-02,CI,clippy,==> decisions,main
+30754793359,91515007997,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,main
+30755211531,91516079233,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+30755211531,91516079280,2026-08-02,CI,clippy,==> decisions,main
+30756304866,91519015966,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 rva23s64,toolchain/nightly-bump
+30756304866,91519015978,2026-08-02,CI,clippy,==> decisions,toolchain/nightly-bump
+30757883723,91523156821,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 rva22s64,fix/decisions-parser-and-history-debt
+30760706861,91530533577,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,main
+30764920845,91541800785,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,fix/thread-leak-police
+30766123119,91545069504,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,fix/ci-deadline-and-diagnosis
+30767882703,91549754576,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+30767893977,91549785355,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,fix/thread-leak-police
+30769055253,91552877252,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,docs/smp-placement-correction
+30769774512,91554733299,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva23s64,main
+30770145799,91555787435,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,feature/42-fuzzing
+30770174138,91555879692,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,fix/smp-probe-placement
+30770186603,91555923108,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,ci/scope-cpu-matrix
+30771712548,91559876263,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64,main
+30771741860,91559953684,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64,main
+30771858954,91560250887,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64,main
+30771924702,91560450561,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,milestone/50-append
+30771924799,91560447019,2026-08-02,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,fix/user-entry-zero-pc-diagnostic
+30806458795,91662858754,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30807190381,91665184974,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+30807216186,91665268265,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+30810352594,91675375379,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,milestone/60-isa-discovery
+30811056305,91677631978,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,milestone/60-isa-discovery
+30811396137,91678734891,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,milestone/57-real-drive
+30812014044,91680760881,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30839122520,91771563890,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,fix/redoxfs-update-hash-public
+30843002266,91784404497,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,milestone/60-isa-discovery
+30844284393,91788636267,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,milestone/60-isa-discovery
+30846769978,91796883828,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30847962463,91800788518,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,main
+30848460856,91802406840,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,main
+30848790887,91806217669,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,ci/verify-scope-closure
+30850269355,91808352061,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,ci/verify-scope-closure
+30851594234,91812656429,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,verify/parallel-jobs
+30851748969,91813154786,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,fix/milestone-78-load-sensitive-assertions
+30852299581,91814954645,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,verify/parallel-jobs
+30852319375,91815017607,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,fix/milestone-78-load-sensitive-assertions
+30852685785,91816257187,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,fix/milestone-78-load-sensitive-assertions
+30852716626,91816364740,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,ci/verify-scope-closure
+30852745799,91816527953,2026-08-03,verify,verify (Kani proofs),"==> kani: glob (matching is total, and a hostile pattern cannot be made to blow up)",verify/parallel-jobs
+30852745835,91816459109,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,verify/parallel-jobs
+30853157895,91817831779,2026-08-03,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54 rva22s64 rva23s64 thead-c906,roadmap/milestone-76-split
+30857912190,91833137793,2026-08-03,verify,verify (Kani proofs),"==> kani: glob (matching is total, and a hostile pattern cannot be made to blow up)",ci/verify-scope-closure
+30864854785,91860072378,2026-08-04,verify,verify (Kani proofs),"==> kani: glob (matching is total, and a hostile pattern cannot be made to blow up)",ci/verify-scope-closure
+30867474931,91862353734,2026-08-04,verify,verify (Kani proofs),"==> kani: glob (matching is total, and a hostile pattern cannot be made to blow up)",ci/verify-scope-closure
+30880764397,91901512555,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,main
+30929445054,92060093758,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,milestone/96-one-init
+30930230993,92062742887,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,milestone/81-hvf-leg
+30930406230,92063341625,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,milestone/86-time-command
+30936798549,92084870594,2026-08-04,CI,clippy,==> roadmap status,feature/roadmap-readiness
+30939612869,92103200538,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,milestone/100-psci-and-cpu-discovery
+30939784837,92094944287,2026-08-04,CI,clippy,==> roadmap status,feature/roadmap-readiness
+30942199567,92103168803,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64 thead-c906,main
+30942366482,92103724171,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 rva23s64,milestone/109-xargs-at-the-grant-bound
+30944619862,92111384360,2026-08-04,CI,clippy,==> roadmap status,main
+30947128390,92119767939,2026-08-04,CI,clippy,==> roadmap status,main
+30947128390,92119768004,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva23s64,main
+30947181598,92119947116,2026-08-04,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,main
+30947181598,92119947194,2026-08-04,CI,clippy,==> roadmap status,main
+30960427051,92162930887,2026-08-04,CI,clippy,==> naming conventions,main
+30960699480,92163768710,2026-08-04,CI,clippy,==> naming conventions,milestone/43-second-security-audit
+30961442336,92166032944,2026-08-04,CI,clippy,==> naming conventions,milestone/67-swish-language
+30961504013,92166218055,2026-08-04,CI,clippy,==> naming conventions,milestone/116-one-sided-fences
+30962241227,92168458654,2026-08-05,CI,clippy,==> naming conventions,milestone/40-documentation-service
+30962572711,92169469190,2026-08-05,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,main
+30964298475,92174792530,2026-08-05,CI,clippy,==> naming conventions,milestone/40-documentation-service
+30973572328,92202856635,2026-08-05,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),milestone/50-pipeline-draining
+30973572328,92202856713,2026-08-05,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/50-pipeline-draining
+30976857655,92212551130,2026-08-05,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,integration/maintainer-daemons
+30976857655,92212551252,2026-08-05,CI,clippy,==> em-dashes,integration/maintainer-daemons
+30976913487,92212723253,2026-08-05,CI,clippy,==> citations,decisions/one-build-threshold
+30977165664,92213483498,2026-08-05,CI,clippy,==> citations,decisions/one-build-threshold
+30977567510,92214733948,2026-08-05,CI,clippy,==> citations,decisions/one-build-threshold
+30978622331,92218049765,2026-08-05,CI,clippy,==> naming conventions,milestone/80-loom
+31015632232,92338822846,2026-08-05,CI,clippy,==> every fence names its counterpart,milestone/116-fence-inventory
+31015688898,92339015843,2026-08-05,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,integration/maintainer-daemons
+31412473231,93533572651,2026-08-10,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,dependabot/cargo/md4-0.11.0
+31412473231,93533572814,2026-08-10,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/md4-0.11.0
+31412473231,93533572823,2026-08-10,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",dependabot/cargo/md4-0.11.0
+31412473231,93533572830,2026-08-10,CI,clippy,==> clippy: host crates + xtask,dependabot/cargo/md4-0.11.0
+31412480964,93533597748,2026-08-10,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",dependabot/cargo/md-5-0.11.0
+31412480964,93533597759,2026-08-10,CI,clippy,==> clippy: host crates + xtask,dependabot/cargo/md-5-0.11.0
+31412480964,93533597803,2026-08-10,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/md-5-0.11.0
+31412480964,93533597835,2026-08-10,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,dependabot/cargo/md-5-0.11.0
+31412497218,93533649927,2026-08-10,CI,clippy,==> clippy: host crates + xtask,dependabot/cargo/hmac-0.13.0
+31412497218,93533649931,2026-08-10,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/hmac-0.13.0
+31412497218,93533649978,2026-08-10,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,dependabot/cargo/hmac-0.13.0
+31412497218,93533650029,2026-08-10,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",dependabot/cargo/hmac-0.13.0
+31412510766,93533691451,2026-08-10,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",dependabot/cargo/digest-0.11.3
+31412510766,93533691480,2026-08-10,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,dependabot/cargo/digest-0.11.3
+31412510766,93533691488,2026-08-10,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/digest-0.11.3
+31412510766,93533691534,2026-08-10,CI,clippy,==> clippy: host crates + xtask,dependabot/cargo/digest-0.11.3
+31712879837,94490107390,2026-08-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 127.",milestone/104-measurement-past-init
+31712879837,94490107426,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),==> QEMU 11.0.2 installed at /home/runner/.cache/cricker-qemu,milestone/104-measurement-past-init
+31712881269,94490112766,2026-08-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 127.",integration/maintainer-daemons
+31712887334,94490134700,2026-08-13,CI,clippy,==> every fence names its counterpart,milestone/116-fence-inventory
+31712887334,94490134702,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),==> QEMU 11.0.2 installed at /home/runner/.cache/cricker-qemu,milestone/116-fence-inventory
+31713024914,94490608985,2026-08-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 101.",milestone/40-documentation-service
+31713024914,94490609009,2026-08-13,CI,clippy,==> clippy: host crates + xtask,milestone/40-documentation-service
+31713024914,94490609124,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/40-documentation-service
+31713169114,94491089201,2026-08-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 127.",milestone/80-loom
+31713169114,94491089273,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),==> QEMU 11.0.2 installed at /home/runner/.cache/cricker-qemu,milestone/80-loom
+31713169114,94491089472,2026-08-13,CI,clippy,==> naming conventions,milestone/80-loom
+31713326411,94491645546,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),==> QEMU 11.0.2 installed at /home/runner/.cache/cricker-qemu,toolchain/nightly-bump
+31728781071,94543695835,2026-08-13,CI,clippy,==> em-dashes,roadmap/120-nife-and-the-organization
+31729788238,94547062143,2026-08-13,CI,clippy,==> em-dashes,roadmap/120-nife-and-the-organization
+31730245954,94548725919,2026-08-13,CI,clippy,==> spelling,roadmap/120-nife-and-the-organization
+31730375523,94549067768,2026-08-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",dependabot/cargo/ntlm-crypto-9163761ad5
+31730375523,94549067772,2026-08-13,CI,clippy,==> clippy: host crates + xtask,dependabot/cargo/ntlm-crypto-9163761ad5
+31730375523,94549067826,2026-08-13,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/ntlm-crypto-9163761ad5
+31730375523,94549067996,2026-08-13,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,dependabot/cargo/ntlm-crypto-9163761ad5
+31742353306,94588584110,2026-08-13,CI,clippy,==> roadmap status,decisions/82-83-thesis-and-rust-first
+31742676594,94589658379,2026-08-13,CI,clippy,==> roadmap status,decisions/82-83-thesis-and-rust-first
+31743657642,94592864988,2026-08-13,CI,clippy,==> roadmap status,decisions/82-83-thesis-and-rust-first
+31744497287,94595625280,2026-08-13,CI,clippy,==> decisions,roadmap/121-ripgrep-and-enumeration
+31747816813,94606454155,2026-08-13,CI,"supply chain (advisories, licences, vendored integrity)",==> cargo-deny: Cargo.toml,dependabot/cargo/ntlm-crypto-9163761ad5
+31762371197,94651242503,2026-08-14,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,milestone/119-merge-throughput
+31831157981,94866988053,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-s7-supervisorless
+31837118533,94885769602,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-kmap-and-initrd
+31843209591,94904341549,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-remote-fence-i
+31844845554,94909054716,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-remote-fence-i
+31846255028,94913202959,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/online-set-sweep
+31847807573,94917684279,2026-08-14,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/online-set-sweep
+31847807573,94917684547,2026-08-14,CI,clippy,==> naming conventions,fix/online-set-sweep
+31848721795,94920259666,2026-08-14,CI,clippy,==> naming conventions,fix/boot7-blocked-pc
+31854822587,94937466647,2026-08-15,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-s7-supervisorless
+31855680380,94941707448,2026-08-15,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-s7-supervisorless
+31856685333,94942663165,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) sifive-u54,fix/vf2-s7-supervisorless
+31856685333,94942663230,2026-08-15,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,fix/vf2-s7-supervisorless
+31858736222,94948111424,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,fix/architect-referent-calef
+31868046989,94972132543,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,milestone/53-nvme-driver
+31868919364,94974342733,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,main
+31891747345,95028960198,2026-08-15,CI,clippy,==> clippy: kernel --features shell (riscv64imac-unknown-none-elf),integration/milestone-120-nife
+31909078888,95071347298,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,feature/mascot-record
+31910351384,95074355073,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-205-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31910351689,95074355968,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-207-4c8681f7cc372a1b27ca71069622f4a8d597f505
+31910351816,95074356280,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-209-3eb9d38209810a14af71213ef00793f8f8bd4854
+31910372291,95074409106,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-211-8cc2cd5b13ed6175a9eb84c92e6492e465f44c99
+31910586237,95074913300,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-207-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31910586859,95074914777,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-209-cdfa55d07eb7fc1c2f0bccd3dac60ca565619d07
+31910587048,95074915042,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-211-ebf8b331c88d5cd7550c2e976a39b0cf5846c1da
+31910905505,95075668651,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-204-65592ac07cb2109e2c3b5add5fc618d82ff7e954
+31910971804,95075822501,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-209-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31910972091,95075821887,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-211-400bfd6dc5c3910dbd54d3f736aee7663c20fba5
+31910972946,95075823902,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-204-42aa902468042e2b2a3f63d778210b3baf46de1d
+31911198295,95076396755,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-208-750fe8bfeb7e8ac6363e7f06ab82df70756283f4
+31911393708,95076880653,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-211-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31911393836,95076880991,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-204-795a2cbe2e04706eb5dd4e4512c880e0fb3ccfbf
+31911394200,95076881811,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-208-4f17ddce8acc00f2662c1dd0a3d051068bbaea0c
+31911457463,95077033874,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-212-813f478e9c895cbcea235e11223f483d0d82de55
+31911483224,95077126150,2026-08-15,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,fix/69-child-endowment
+31911524468,95077199287,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-204-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31911524984,95077200664,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-208-05987b79484b78d75bd87cd8386e18744a4b1fa0
+31911524994,95077200580,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-212-c31318d8fee5a5b01706b8579d302eccdbb27732
+31911689408,95077614695,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-214-30793a4f548356469810b6e8f7f62a19b1d8e30c
+31911963908,95078326980,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-208-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31911964403,95078328034,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-212-78bdb28d596f28921732f9da1009e0fc280b1290
+31911964842,95078329504,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-214-315bf62ce3b4b939bdb59ad6be904c02d814d236
+31912402159,95079361577,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-212-b4a842b763dffc45ccdd30a81057756a0fa1b8c8
+31912402348,95079361960,2026-08-15,CI,clippy,==> naming conventions,gh-readonly-queue/main/pr-214-0bcb04ab952e834f3e9bf8981d9215550bce5a6a
+31931656188,95127305891,2026-08-16,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,gh-readonly-queue/main/pr-219-5fa6ee858b7fee0742761f781c132d5d1daef454
+31935576198,95136806259,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-225-ec11c191896177fb0abcc88645eb7feb7b19c39b
+31935777655,95137343111,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-226-19b7c55b90c29da25c84b043857d702215c00484
+31936986049,95140359362,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-225-ea23a0e665552a968fd87d551963f3da80c803d0
+31936986318,95140359807,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-228-a2e12901e5a345d6606858f35968b60fae729820
+31937777934,95142323680,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-225-8dda3054b6a6b93047c328151a92172132d005a7
+31938009080,95142875467,2026-08-16,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_new,gh-readonly-queue/main/pr-225-dec57c312a934a4299a5f8541541929eb5aaf1bd
+31940220409,95148198312,2026-08-16,CI,clippy,==> decisions,decisions/91-reclaim-ordering
+31959852498,95196057723,2026-08-16,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/54-smb-write-path
+31959852498,95196057748,2026-08-16,CI,clippy,==> clippy: host crates + xtask,milestone/54-smb-write-path
+31959852498,95196057761,2026-08-16,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",milestone/54-smb-write-path
+31960549543,95197747665,2026-08-16,CI,clippy,==> decisions,feature/tenet-inconvenience
+31961166892,95199292949,2026-08-16,CI,bench (icount regression tripwire),"icount tripwire: benchmark: broker_rtt, call_reply, ctx_switch, ipc_rtt, ipc_rtt_el, null_syscall, relay_rtt, sink_throughput, yield_switch",fix/124-per-cpu-interrupt-stack
+31964338066,95207061128,2026-08-16,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rva22s64,gh-readonly-queue/main/pr-248-1d7308b9cb71d37427081fa42e1a89f693ff9276
+31983148596,95253411595,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/125-numbers-are-claims
+31983148596,95253411621,2026-08-17,CI,clippy,==> naming conventions,milestone/125-numbers-are-claims
+31990673098,95273512324,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,main
+32012654857,95335369338,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,gh-readonly-queue/main/pr-266-1d76020fd4cb3a580bf44bb6a61058da6ebfb5ee
+32043199502,95426037104,2026-08-17,CI,"supply chain (advisories, licences, vendored integrity)",unattributable: no distinguishing marker in log (##[error]Failed to download archive 'https://codeload.github.com/taiki-e/install-action/tar.gz/b20de),gh-readonly-queue/main/pr-256-6ef8ab5990c8172001bad5ab7cec4f8144b3fc14
+32043905015,95427867763,2026-08-17,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Response status code does not indicate success: 502 (Bad Gateway).",main
+32050124053,95447233019,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/54-smb-identity
+32050124053,95447233102,2026-08-17,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),milestone/54-smb-identity
+32050124053,95447233232,2026-08-17,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",milestone/54-smb-identity
+32052339937,95454532517,2026-08-17,CI,clippy,==> roadmap status,claude/code-smells-review-3uipoy
+32061276184,95482884917,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-000cfabec3b700d586ebef410aad711045a773c9
+32062054592,95485331514,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-000cfabec3b700d586ebef410aad711045a773c9
+32062734612,95487526877,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-000cfabec3b700d586ebef410aad711045a773c9
+32063438841,95489758756,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-2399a09823bbaecdce11ce82349d8fc64463b938
+32063806577,95490938315,2026-08-17,CI,clippy,==> markdown links and the notes index,roadmap/blocked-thread-teardown
+32064133994,95492012616,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-2399a09823bbaecdce11ce82349d8fc64463b938
+32064826526,95494266207,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-2399a09823bbaecdce11ce82349d8fc64463b938
+32065510566,95496560754,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-2399a09823bbaecdce11ce82349d8fc64463b938
+32066200551,95498797750,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-2399a09823bbaecdce11ce82349d8fc64463b938
+32066520927,95499827072,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-277-c4d39ab733d24ca3606278dd414ad0f0afad644f
+32066890061,95500974874,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32067597182,95503213114,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32068271832,95505329415,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32068946531,95507466078,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32069624467,95509630802,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32070293838,95511739796,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-bc9bac3e0a4df530c10de9e917b0bd639cc2516f
+32070295000,95511743321,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-284-0be4420ca39a920aa5c8bf66594e1bf1829a77da
+32070956283,95513851408,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-d668fde2ed8a1398e70aab375bbec72818f2e23e
+32072291317,95517948745,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-d668fde2ed8a1398e70aab375bbec72818f2e23e
+32072938320,95519911283,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-d668fde2ed8a1398e70aab375bbec72818f2e23e
+32073355279,95521173911,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32073988272,95523060530,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32074614789,95524985673,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32075223050,95526839509,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32075802252,95528629217,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32076386251,95530420050,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-6f768b030e3cba29d7f0c1089846f63a262e883e
+32076547524,95530893571,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-286-05b34873f12ade4ee2d942b77b76ef82d01be647
+32076769847,95531533158,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-cebdc14ac596faba19db49cd5cc30cc596d79dd7
+32077682569,95534207031,2026-08-17,CI,clippy,==> em-dashes,feature/52-zygote-and-snapshot
+32078338948,95536129131,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-cebdc14ac596faba19db49cd5cc30cc596d79dd7
+32079675159,95540088677,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-274-cebdc14ac596faba19db49cd5cc30cc596d79dd7
+32079915933,95540749490,2026-08-17,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-294-ed6e8e98a1aa99ee7b5c867834ffb49940c81920
+32080392130,95542160664,2026-08-17,CI,clippy,==> counted claims,milestone/31-subtree-caretaker-per-grant
+32111384702,95631373993,2026-08-18,CI,clippy,==> spelling,feature/l4-lessons-audit
+32113640932,95638322573,2026-08-18,CI,clippy,==> citations,feature/measurement-plan
+32118901576,95654583993,2026-08-18,CI,clippy,==> spelling,feature/l4-lessons-audit
+32163253815,95796806314,2026-08-18,CI,clippy,==> counted claims,milestone/31-subtree-caretaker-per-grant
+32163266461,95796848195,2026-08-18,CI,clippy,==> spelling,feature/l4-lessons-audit
+32175214351,95835450636,2026-08-18,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),milestone/38-fs-throughput
+32178969900,95847311830,2026-08-18,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),milestone/38-fs-throughput
+32179863889,95850096679,2026-08-18,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/122-opendir-pal
+32181805051,95856475997,2026-08-18,CI,clippy,==> clippy: host crates + xtask,milestone/135-loom-region-claim
+32184199884,95864126030,2026-08-18,CI,clippy,==> roadmap status,milestone/38-fs-throughput
+32187489973,95874375768,2026-08-18,CI,clippy,==> decisions,milestone/55-apple-metadata-proposal
+32193304305,95892098952,2026-08-18,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,milestone/47-namespace
+32196005717,95900054120,2026-08-18,CI,clippy,==> roadmap status,bench/record-level-sweep
+32213825619,95951495219,2026-08-19,CI,"supply chain (advisories, licences, vendored integrity)",==> redoxfs 0.9.1,milestone/138-record-level
+32213825619,95951495257,2026-08-19,CI,clippy,==> clippy: fs_server (its own workspace),milestone/138-record-level
+32271397434,96128622247,2026-08-19,CI,clippy,==> clippy: host crates + xtask,milestone/138-multi-page-transfer
+32283641790,96167913703,2026-08-19,CI,clippy,==> script docs,ci/runner-container
+32284953091,96172174503,2026-08-19,CI,clippy,==> script docs,ci/runner-container
+32393776783,96508798438,2026-08-20,CI,clippy,==> citations,decisions/101-notification-objects
+32395439693,96511363809,2026-08-20,CI,clippy,==> citations,decisions/101-notification-objects
+32401069881,96529209076,2026-08-20,CI,clippy,==> em-dashes,decisions/101-notification-objects
+32408701776,96553884968,2026-08-20,CI,clippy,==> rustdoc (broken intra-doc links),milestone/29-kaypro-style-font
+32416554311,96578902519,2026-08-20,CI,clippy,==> roadmap status,decisions/104-font-and-palette
+32424717429,96604166613,2026-08-20,CI,clippy,==> roadmap status,decisions/104-font-and-palette
+32429036439,96616843076,2026-08-20,CI,clippy,==> citations,gh-readonly-queue/main/pr-374-a9e532a1ce722b9b18adfc74b44cfb49b6af8513
+32535256776,96934833896,2026-08-21,CI,clippy,==> decisions,milestone/145-test-fixture-skip
+32535997205,96936928444,2026-08-21,CI,clippy,==> em-dashes,milestone/146-nfs-network-file-system
+32536373528,96937971034,2026-08-21,CI,clippy,==> decisions,milestone/145-test-fixture-skip
+32536884337,96939384170,2026-08-21,CI,clippy,==> decisions,milestone/147-noise-bound-and-pmu-capability
+32537461815,96940937070,2026-08-21,CI,clippy,==> em-dashes,milestone/149-common-hpc-benchmark-suite
+32538099984,96942669079,2026-08-21,CI,clippy,==> roadmap status,milestone/147-noise-bound-and-pmu-capability
+32538145372,96942791073,2026-08-21,CI,clippy,==> em-dashes,milestone/149-common-hpc-benchmark-suite
+32548662747,96971679877,2026-08-22,CI,clippy,==> citations,milestone/145-test-fixture-skip
+32582208672,97053176644,2026-08-22,CI,clippy,==> decisions,milestone/147-noise-bound-and-pmu-capability
+32583019214,97055136546,2026-08-22,CI,clippy,==> roadmap status,milestone/147-noise-bound-and-pmu-capability
+32583764061,97056923228,2026-08-22,CI,clippy,==> roadmap status,milestone/147-noise-bound-and-pmu-capability
+32586354499,97063194770,2026-08-22,CI,clippy,==> decisions,milestone/40-docs-spawn-decision
+32587740636,97066592188,2026-08-22,CI,clippy,==> decisions,milestone/68-missing-docs-ratchet
+32590024791,97072275696,2026-08-22,CI,clippy,==> em-dashes,roadmap/152-durable-delegation
+32590643209,97073825244,2026-08-22,CI,clippy,==> counted claims,milestone/64-thread-spawn-decision
+32592870532,97079294359,2026-08-22,CI,clippy,==> decisions,milestone/68-missing-docs-ratchet
+32592965312,97079524755,2026-08-22,CI,clippy,==> decisions,roadmap/152-durable-delegation
+32595304955,97085163670,2026-08-22,CI,clippy,==> decisions,roadmap/152-durable-delegation
+32608156505,97116558574,2026-08-23,CI,clippy,==> decisions,roadmap/153-out-of-memory-causes
+32610268017,97122047288,2026-08-23,CI,clippy,==> decisions,decisions/111-env-config-page
+32610511321,97122673104,2026-08-23,CI,clippy,==> decisions,decisions/112-touch-mtime-authority
+32612940986,97128726382,2026-08-23,CI,clippy,==> decisions,decisions/114-aspace-enumerate
+32613224438,97129504159,2026-08-23,CI,clippy,==> decisions,decisions/115-no-sysctl
+32619764745,97146042597,2026-08-23,CI,clippy,==> decisions,decisions/115-no-sysctl
+32620101884,97146877108,2026-08-23,CI,clippy,==> roadmap status,milestone/118-constitution-budget
+32620209437,97147142447,2026-08-23,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/49-login-region-reclaim
+32620592745,97148069727,2026-08-23,CI,clippy,==> counted claims,milestone/118-size-gate-and-ledger
+32621161434,97149417396,2026-08-23,CI,clippy,==> counted claims,milestone/47-env-config-page
+32623323353,97154757615,2026-08-23,CI,clippy,==> roadmap status,decisions/116-state-handoff-declined
+32624003815,97156425552,2026-08-23,CI,clippy,==> decisions,decisions/117-subtree-name-is-identity
+32648267490,97215796594,2026-08-23,CI,clippy,==> roadmap status,milestone/154-multi-dir-namespace
+32649083126,97217767171,2026-08-23,CI,clippy,==> decisions,decisions/119-oom-causes-declined
+32662925703,97254249801,2026-08-23,verify,verify (Kani proofs),==> a shard reported 'failure',names/kernel-core-primitives
+32663578228,97253333272,2026-08-23,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),names/protocol-crates
+32773871419,97580298679,2026-08-24,CI,clippy,==> citations,decisions/124-x86-64-syscall-abi
+32775110737,97584367552,2026-08-24,CI,clippy,==> em-dashes,decisions/124-x86-64-syscall-abi
+32800120097,97659172018,2026-08-25,CI,clippy,==> em-dashes,decisions/78-signing-decline
+32802214170,97665219215,2026-08-25,CI,clippy,==> citations,decisions/121-tss-io-bitmap-bench
+32802932495,97667276135,2026-08-25,CI,clippy,==> em-dashes,decisions/163-mint-pcie-milestone
+32803569549,97669161048,2026-08-25,CI,clippy,==> roadmap status,roadmap/164-x86-fs-server-aes
+32804519564,97671865700,2026-08-25,CI,clippy,==> em-dashes,milestone/165-x86-pci-acpi-mcfg
+32804615266,97672144068,2026-08-25,CI,clippy,==> markdown links and the notes index,roadmap/166-init-boot-parity
+32807363341,97679969553,2026-08-25,CI,clippy,==> counted claims,milestone/161-x86-64-userspace
+32810351884,97688386502,2026-08-25,CI,clippy,==> em-dashes,roadmap/167-timebase-delegation
+32812653755,97694867754,2026-08-25,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32812653755,97694867790,2026-08-25,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32812653755,97694867896,2026-08-25,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32813419430,97697009549,2026-08-25,CI,clippy,==> em-dashes,roadmap/168-multitask-benchmark
+32814137324,97698985678,2026-08-25,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32814137324,97698985734,2026-08-25,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32814137324,97698985735,2026-08-25,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-496-a176da2941c24a4486bfebd0f0776c0d27e87fd2
+32815021395,97701456138,2026-08-25,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/161-x86-64-userspace
+32827424800,97738408284,2026-08-25,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),toolchain/nightly-bump
+32864196605,97855292748,2026-08-25,CI,clippy,==> clippy: kernel + user + user_rt (aarch64),gh-readonly-queue/main/pr-496-20ee120206d23d770f8847e56e480f02b31a3cab
+32864196605,97855293160,2026-08-25,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-496-20ee120206d23d770f8847e56e480f02b31a3cab
+32864196605,97855293474,2026-08-25,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-496-20ee120206d23d770f8847e56e480f02b31a3cab
+32864211127,97855340644,2026-08-25,CI,clippy,==> em-dashes,decisions/78-signing-decline
+32864265650,97855520082,2026-08-25,CI,clippy,==> em-dashes,roadmap/168-multitask-benchmark
+32865476789,97859916869,2026-08-25,CI,clippy,==> roadmap status,roadmap/164-x86-fs-server-aes
+32865819377,97860880386,2026-08-25,CI,clippy,==> markdown links and the notes index,roadmap/166-init-boot-parity
+32875320348,97891884429,2026-08-25,CI,clippy,==> roadmap status,roadmap/171-selfhost-milestones
+33011051924,98317110860,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-23161cfa8871156c2738fe974ff3f0db30b56e31
+33011382099,98318250371,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-d043f0b340f7521bfc6d7cec171578ae1535181b
+33011815686,98319742614,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-bf670b6f17bce42dab60c131b2157aab028e8613
+33012241628,98321224653,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-ab1386e65ee7eeee26e9490f8eaf407c70ecae90
+33012685354,98322762203,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-b010802e0f5bee44a3b97d90c35777b761ba6701
+33013551358,98325770775,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-6b0e0fa9e6119d323161152e044f5d1c53c2899a
+33014187039,98328116012,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-06399a0b16c0c70d3d5dfa419ef2133e7a5d860d
+33014393871,98328714673,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-532-3c88b4e2f1cb7f48ae5d1277a48ab742bec8a4b3
+33015118882,98331218162,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-532-06399a0b16c0c70d3d5dfa419ef2133e7a5d860d
+33015220013,98331568705,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-1623568b197d32068fda5b677c5d640857aa5324
+33015621860,98332961993,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-75c423efdea3cf444f54c491ca1411d4fe19ae42
+33016005313,98334276265,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-09fdc71570021ba8ce6c744d041dae7b3b8b247a
+33016430193,98335730829,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-4e0a53c0b3a51bf88497b00939cb0a18a4469cad
+33016787633,98336962873,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-75851b5d401f28a8cd28470b79a286777645e948
+33017190541,98338328359,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-aca320b9f84f3e9e18f9495e5e3490d126a32fe6
+33017527803,98339498814,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-246b63aec8800e54a45a8e0bc7123401d4fd8f0b
+33017883276,98340713694,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-aed3f3aca924a7bdb653c7a1e5d09ed61d4c49a7
+33018190025,98341761643,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-aa29d7f559ff590f522356b43383d861e455c89a
+33018630042,98343147460,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-c78f375a8a7d89f87188256646909e522283996b
+33019038336,98344574085,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-06399a0b16c0c70d3d5dfa419ef2133e7a5d860d
+33019389464,98345696546,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-0980aed0be12975358b7b0e3bd63ee61d0b11c38
+33019991818,98347743195,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-532-e31389a3b8cb7e32cdc243181fa9840e7725770d
+33020253963,98348622532,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-e31389a3b8cb7e32cdc243181fa9840e7725770d
+33020501680,98349452935,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-ec4735dd60c43fa321f2f8babfe73fc01febfef9
+33020811153,98350450977,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-83b7d087aab3327a3a34e766498bfe243b050d37
+33021144013,98351534492,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-26cda152c273738983651368295d0ffc97b29165
+33021507568,98352729389,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-a0ed60992bafa93d3859247abd268c5a4f141e6a
+33021827095,98353848021,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-06399a0b16c0c70d3d5dfa419ef2133e7a5d860d
+33021827598,98353795228,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-537-07b0d4f96ece879b165cc306a4937256d51ef890
+33021858226,98353900861,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-9796202a88a07ef855be12609c31c768aca39ece
+33022167012,98354940020,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-aee8dea966106b03f728c5cdfd7709b975ddf634
+33022872501,98357239361,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-b702e6483a15a99010fdf14d7698bce8040db35e
+33022964654,98357549141,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-538-3f1cec7df7c6afbdd2cc040d2a4e1cbfbfdd34fd
+33023256184,98358512525,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-536-a0b94b8a17260d6a1ecb4cec575f06879106c59a
+33023404922,98359043750,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-55c0f68bc6efee1806e9c707a65ab7bf5c3b09a9
+33023405473,98358997061,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-538-48b6971ec7d9faf262a9d0f9281c084d29d03299
+33023405872,98358998407,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-536-73abc44c76ba7412329c3871820a98c94cec373c
+33023501280,98359303988,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-94480d49ad5066517cd3a2247e2293b2f9592396
+33024146454,98361400778,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-f72fce19cef336ed12bfe55054c600c62166b563
+33024690765,98363162599,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-0598ad4ce2d65223ee59f529e95431dd2a2fe694
+33024690913,98363162905,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-539-0dd00757f0dc96835cc0cd88134032e2c6c3665a
+33024710266,98363228976,2026-08-26,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-520-d5337a0ad404a010cba4df2c50428e7b41e50e50
+33026239197,98368110675,2026-08-27,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-6202f388fc668ef97f96884377cfc9b3e4859c0b
+33030132408,98380542706,2026-08-27,CI,clippy,==> markdown links and the notes index,gh-readonly-queue/main/pr-531-6202f388fc668ef97f96884377cfc9b3e4859c0b
+33030427001,98381431137,2026-08-27,CI,clippy,==> markdown links and the notes index,maintainer/watchers-on-launchd
+33038307434,98405955856,2026-08-27,CI,clippy,==> em-dashes,maintainer/178-credential-rotation
+33038500568,98406554957,2026-08-27,CI,clippy,==> roadmap status,maintainer/179-180-mouse-clipboard
+33039120634,98408475496,2026-08-27,CI,clippy,==> em-dashes,maintainer/178-credential-rotation
+33039124029,98408486042,2026-08-27,CI,clippy,==> roadmap status,maintainer/179-180-mouse-clipboard
+33106478055,98637650569,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-c65298ba01fe7b8b3a092b6aed1ca261646196c8
+33106538197,98637777854,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-555-4436244533bc920255e754e344af0b85edfd995f
+33107332989,98640608804,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33107843839,98642410317,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-545-ee645bcec771df295f079ee2f674356c5397623a
+33107843839,98642410377,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-545-ee645bcec771df295f079ee2f674356c5397623a
+33108989752,98646445212,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-545-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33109421105,98647965967,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33110248976,98651904371,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33111504034,98655769611,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33112777481,98659631363,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33113607666,98663197207,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33114445109,98666439891,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33115681621,98669898391,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33116147273,98671175738,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-545-594c4b4f0bfba0561b8e541faf03d182b441b02a
+33116147273,98671175851,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-545-594c4b4f0bfba0561b8e541faf03d182b441b02a
+33116359654,98671895839,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-545-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33116454711,98673348385,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-72dcb3277ed73c666395a0cf63772ccf2705d42a
+33116893666,98673722747,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-2970106d578f4970af09486650d91449a7a6a6e8
+33116893666,98673723063,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-559-2970106d578f4970af09486650d91449a7a6a6e8
+33117401031,98675465775,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-c52e3687ca56273222351fa4def8322f64713028
+33117744983,98676641019,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-c52e3687ca56273222351fa4def8322f64713028
+33118533326,98679992538,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-c52e3687ca56273222351fa4def8322f64713028
+33118716984,98679917360,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-559-e1c2ffa2348b3fc9ce0414ae75114936785c6832
+33118716984,98679917413,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-e1c2ffa2348b3fc9ce0414ae75114936785c6832
+33119359635,98682066825,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-c52e3687ca56273222351fa4def8322f64713028
+33119699820,98683206660,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-c52e3687ca56273222351fa4def8322f64713028
+33119700498,98683208856,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-f3ca86b604c69394f55ee9834efff69729d3ecd2
+33119700498,98683209063,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-559-f3ca86b604c69394f55ee9834efff69729d3ecd2
+33120237414,98685386549,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-c52e3687ca56273222351fa4def8322f64713028
+33121389624,98688834481,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,milestone/142-terminal-size
+33126926752,98707174018,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,milestone/142-terminal-size
+33126932778,98707192363,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33126933336,98707194190,2026-08-27,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-ebe7d0c24ef2212b9def260207816d88e5bd5c44
+33126933336,98707194193,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-ebe7d0c24ef2212b9def260207816d88e5bd5c44
+33127356813,98708553673,2026-08-27,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33127356813,98708553771,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33127472157,98708919208,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-4423e7f6cdae44f88256adeddb412274ce19fe06
+33127472157,98708919371,2026-08-27,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-4423e7f6cdae44f88256adeddb412274ce19fe06
+33127669411,98709648406,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33127760262,98709863679,2026-08-27,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-5d81d67d2fe99d03d942f17b757b7867bb1a9f49
+33127760262,98709863713,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-5d81d67d2fe99d03d942f17b757b7867bb1a9f49
+33128073992,98710875732,2026-08-27,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,milestone/142-terminal-size
+33128081072,98710896758,2026-08-27,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33128081072,98710896806,2026-08-27,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33128370363,98711833105,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-295ffdfb4858280a5d0fde6c4f511022c6688a96
+33128370363,98711833140,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-295ffdfb4858280a5d0fde6c4f511022c6688a96
+33128451317,98712091704,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33128681373,98712821974,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-5fb07b8ad283969f8042b5c4100080592a4e7c31
+33128681373,98712822207,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-5fb07b8ad283969f8042b5c4100080592a4e7c31
+33128987449,98713811934,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33128987449,98713811992,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33129265084,98714696736,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-de7b35b17ca0caa791bed7005a61a53ff2e4a991
+33129265084,98714696948,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-de7b35b17ca0caa791bed7005a61a53ff2e4a991
+33129345596,98715221593,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33129544221,98715591966,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-562296383b4d82d3d0a7e989602518e7c27882f8
+33129544221,98715592115,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-562296383b4d82d3d0a7e989602518e7c27882f8
+33129831466,98716495582,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33129831466,98716495607,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33130099688,98717360337,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-6ee3d5a5b34efa47e18ee4a9c45b8c40525266ad
+33130099688,98717360465,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-6ee3d5a5b34efa47e18ee4a9c45b8c40525266ad
+33130127904,98717448853,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33130372693,98718229029,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-481702dea351d2d543dbf7129ddb3cc6ecf21025
+33130372693,98718229201,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-481702dea351d2d543dbf7129ddb3cc6ecf21025
+33130541790,98718779418,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33130541790,98718779627,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33130642298,98719095283,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-8b0209535800889b626bdebb69539a4c1da8ddab
+33130642298,98719095306,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-8b0209535800889b626bdebb69539a4c1da8ddab
+33130823158,98719667980,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33130913569,98719969752,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fd6252a416c7908cb78e0af93f8d2e6ed755afcf
+33130913569,98719969800,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fd6252a416c7908cb78e0af93f8d2e6ed755afcf
+33131296807,98721190355,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33131296807,98721190362,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33131446961,98721677867,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-4bcd5613bfa66c93b2cec8ef6f4357986e31c1c5
+33131446961,98721677978,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-4bcd5613bfa66c93b2cec8ef6f4357986e31c1c5
+33131549939,98721995597,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33131729118,98722555383,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-f93381a02da269715c5e55e251ed560d3eaa5b1d
+33131729118,98722555494,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-f93381a02da269715c5e55e251ed560d3eaa5b1d
+33132006481,98723432779,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33132006481,98723432920,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33132273563,98724300855,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33132547166,98725141644,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-77d918890554f7a599305583fc17b7366a97774a
+33132547166,98725141666,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-77d918890554f7a599305583fc17b7366a97774a
+33132696552,98725602990,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33132696552,98725603131,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33132812024,98725958747,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-f4fbf46ad042e9641c4b75bd2f348276badd540a
+33132812024,98725958878,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-f4fbf46ad042e9641c4b75bd2f348276badd540a
+33132965286,98726424925,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33133075605,98726760221,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-e47143234e6aded02cf3ff4efaf6dfb5458be474
+33133075605,98726760243,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-e47143234e6aded02cf3ff4efaf6dfb5458be474
+33133356561,98727735696,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33133356561,98727735732,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33133603355,98728543579,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-09991ce7e5bc7b12e707521ab1e3d5e28d326dec
+33133603355,98728543781,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-09991ce7e5bc7b12e707521ab1e3d5e28d326dec
+33133619166,98728743906,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33133863959,98729355414,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-e8e83821e6379d37cd2dcd2646e854390bd17765
+33133863959,98729355428,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-e8e83821e6379d37cd2dcd2646e854390bd17765
+33134082274,98730033061,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33134082274,98730033141,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33134129521,98730179380,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-546-76f821101e6a2bd9fff63afd9221eae97706d3eb
+33134129521,98730179470,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-76f821101e6a2bd9fff63afd9221eae97706d3eb
+33134333724,98730930731,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-546-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33134393088,98730999231,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-332bd08f371ffa7fefd4eb3cc4f90ffbbd007275
+33134393088,98730999262,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-332bd08f371ffa7fefd4eb3cc4f90ffbbd007275
+33134786805,98732226754,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33134786805,98732226755,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33134831620,98732364921,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/169-kilo-editor
+33135192147,98733713789,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33135192147,98733713865,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33135725293,98735179384,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33135725293,98735179548,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33136232760,98736718842,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/169-kilo-editor
+33136243509,98736752906,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33136243509,98736752987,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",gh-readonly-queue/main/pr-556-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33136737070,98738273122,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",milestone/49-boot-terminal-attribution
+33136737070,98738273164,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/49-boot-terminal-attribution
+33136765695,98738357390,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33137027418,98740764987,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-559-fb97f97839f53a3aaddfd16309376db1bdc24fdf
+33137500221,98740683434,2026-08-28,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",milestone/49-boot-terminal-attribution
+33137500221,98740683447,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/49-boot-terminal-attribution
+33137871553,98741859908,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,decisions/132-capability-scoped-revocation
+33137871553,98741859964,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,decisions/132-capability-scoped-revocation
+33138502084,98743837305,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,decisions/132-capability-scoped-revocation
+33139269922,98746223534,2026-08-28,CI,clippy,==> citations,maintainer/milestone-184-std-x86-64
+33139664244,98747442901,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_el,decisions/132-capability-scoped-revocation
+33140294630,98749417227,2026-08-28,CI,clippy,==> em-dashes,maintainer/milestone-184-std-x86-64
+33141215200,98752276441,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: map_el,decisions/132-capability-scoped-revocation
+33142909682,98757498440,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-566-0b56f7ae17ddce77e2d3fa4266d7fd4cfab88bcb
+33142910301,98757499869,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,gh-readonly-queue/main/pr-568-e1076a8784b744c2a20cb6f95dfa08f88a356061
+33142936528,98757585519,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,fix/thread-table-capacity
+33144132860,98761346258,2026-08-28,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64,gh-readonly-queue/main/pr-569-a145456d61ee8b67ea42e3e15922ac74e468e9e7
+33144184792,98761508359,2026-08-28,CI,bench (icount regression tripwire),icount tripwire: benchmark: spawn_el,fix/thread-table-capacity
+33349817159,99360858982,2026-08-31,CI,clippy,==> citations,maintainer/fatal-risks-and-ext4
+33353578654,99371412117,2026-08-31,CI,clippy,==> roadmap status,milestone/191-proof-retrospective
+33353579735,99371416171,2026-08-31,CI,clippy,==> roadmap status,milestone/193-kernel-kani
+33430218095,99613536484,2026-08-31,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-7683bf58d4a2624b6ad8b84c99fc5b9b40649997
+33430948996,99615913905,2026-08-31,CI,clippy,==> decisions,maintainer/community-docs
+33431861491,99623795666,2026-08-31,CI,clippy,==> counted claims,milestone/203-vendor-watch
+33434367207,99627121703,2026-08-31,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-0a2668e809ba968daf8e361a99e32b6f931c4428
+33435225234,99629903597,2026-08-31,CI,clippy,==> em-dashes,maintainer/kernel-wx-boot
+33436121140,99632891921,2026-08-31,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-0a2668e809ba968daf8e361a99e32b6f931c4428
+33452052214,99683940018,2026-08-31,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33453247818,99687632140,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33453590017,99690606398,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33454629459,99693487030,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33455316553,99696322305,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33457494105,99700482255,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33457827200,99703256853,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33458650776,99705962306,2026-09-01,CI,clippy,==> counted claims,gh-readonly-queue/main/pr-603-3eb5cccbe6e2e206f1ad9854f706f7fbe0a72c40
+33469606392,99736520926,2026-09-01,CI,clippy,==> em-dashes,maintainer/self-referential-sweep
+33783588478,100742925021,2026-09-03,CI,clippy,==> citations,maintainer/bench-runbook
+33799709865,100795971358,2026-09-03,CI,clippy,==> citations,maintainer/bench-runbook
+33820776923,100862795336,2026-09-04,CI,clippy,==> TODO markers cite a milestone,maintainer/radon-soak-3h-and-census
+33822244180,100867254236,2026-09-04,CI,clippy,==> TODO markers cite a milestone,maintainer/radon-soak-3h-and-census
+33832590859,100898545633,2026-09-04,CI,clippy,==> em-dashes,maintainer/mint-251-256
+33834492206,100904098316,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-3214caad671386d194cde1e1a2a0d00e32428b56
+33834550052,100904271867,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-31fc3ce2a6be88a0d1338fcfaf543a3c478e2564
+33834629220,100904602640,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-3214caad671386d194cde1e1a2a0d00e32428b56
+33834662721,100904621246,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-c094c0a7c90fdabe8ed4ee313fb07853d5ea9683
+33834806413,100906676435,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-3214caad671386d194cde1e1a2a0d00e32428b56
+33834958737,100905553510,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-aa7c0fc4c3b79df962c0c8bd964a83448a289cf9
+33835670574,100907592939,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-3214caad671386d194cde1e1a2a0d00e32428b56
+33835882268,100910217302,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-3214caad671386d194cde1e1a2a0d00e32428b56
+33836210298,100909192765,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-b15b0fc6d6335f031dee986aa8ba93ff55148fb1
+33836834133,100910999247,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-3214caad671386d194cde1e1a2a0d00e32428b56
+33836854233,100911193823,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-37d3de787dbd0d7aa6d1ca11df9e2da8641b26f5
+33837061860,100913240031,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-3214caad671386d194cde1e1a2a0d00e32428b56
+33837098776,100911801186,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-701-a9bc3633c9251506249d1da684ebce5b3097bcfa
+33837184494,100912174882,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-47f11ff8a809c212ae66fb8dfaad6f796141d75f
+33838151913,100914966513,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-49db708fb019a8bea080339ca4c7275e9da8c2b0
+33838494100,100916295663,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-b9bc42f464f0519ca713c451a9e04833d4073446
+33839438259,100918553742,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-49db708fb019a8bea080339ca4c7275e9da8c2b0
+33839494367,100918735485,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-d61f63debaa0a6863d60df5755cc19d5fc49860e
+33839567038,100918940012,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-702-43002888e24c61bc4206929c3dd6226fc1c6e34e
+33839603131,100919065286,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-49db708fb019a8bea080339ca4c7275e9da8c2b0
+33839604201,100919046034,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-702-c264b25f1eb16b38333033f73a26f9286ee255af
+33839637167,100919182931,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-d606d58e8f16c80d85010f0b6f6c966674548f5d
+33839841194,100920020968,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-7ce2eb7b6e6493b5732ad4054229fcc88d127c40
+33841128792,100923681422,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-705-deabeaf9224f1fdd69228b7c7022e8a4259d54da
+33841431601,100924651291,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-704-f9dcf56ad9e8583bcda7cb3f6e3d151d192286d8
+33841557453,100924820192,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-d606d58e8f16c80d85010f0b6f6c966674548f5d
+33841557912,100924787233,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-705-7e75ac998d2b45d5d8eb64634a8d94f122697d85
+33841558641,100924763451,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-704-0eee0918daf2cddd67a473a05b402b1388fef65d
+33841795389,100926134451,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-707-7187dbdbc2a62d6ff4cba9bb271c58dd52a05783
+33842184320,100926726599,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-ca93dee65b86906c7bbb3303e8ef8831b4c3b2a0
+33842306629,100927004057,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-709-d74ab643f6e995aa4b0faf23bc9b0966a653573c
+33842515494,100927633769,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-447c33dcec908eb18be6dcbcf34b7433c7a0023b
+33843917225,100932237432,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-447c33dcec908eb18be6dcbcf34b7433c7a0023b
+33844149896,100932356036,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-706-c413d4f76b3cb0c0107818d3ebc535a8571f0193
+33844272479,100932765319,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-fd65fb1f066a3d37d77c1e1b9326b62652c3afae
+33844635821,100935698123,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-fd65fb1f066a3d37d77c1e1b9326b62652c3afae
+33844773747,100934202981,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-708-839f932ba75f778c29c559ecde945d08d97af6f4
+33845095258,100935169094,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-697-040522da72900742df0cc6cb62b644838a2de4b9
+33845726686,100937092909,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-7ef7099e0531326bf1556797487490e8e6e6a942
+33846342975,100939094494,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-713-721b803f76046915f6c7085d10118680e5954fb3
+33847267996,100942148400,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-c84ba0f8a9f916d366786661e33b4b46ad64f968
+33847652583,100943925137,2026-09-04,CI,bench (icount regression tripwire),"icount tripwire: benchmark: map_new, spawn_reap",milestone/254-stranded-caller
+33847788084,100943499676,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-711-12cf1fd4bdfef1e7ee0bb1a7000bfd3f9980caa0
+33848051981,100944836304,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-698-6e19fe33a6a221aacbec5b4ef57087bdd7fc745a
+33849167941,100947821636,2026-09-04,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-715-02a885d2153ccfa1a2cea460be0b32667bc1b611
+33986211657,101360075742,2026-09-05,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",maintainer/mint-265
+33986211657,101360075759,2026-09-05,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,maintainer/mint-265
+34310229705,102335227154,2026-09-09,CI,clippy,==> decisions,maintainer/mint-266
+34491415708,102918876282,2026-09-10,CI,clippy,==> em-dashes,maintainer/parity-plan
+34658561512,103456116521,2026-09-11,CI,clippy,==> em-dashes,maintainer/roadmap-fatal-risks-check
+34669757630,103488788855,2026-09-12,CI,clippy,==> roadmap status,maintainer/naming-metrics
+34670769754,103491596517,2026-09-12,CI,clippy,==> roadmap status,milestone/276-naming-metrics
+34670910469,103492008448,2026-09-12,CI,clippy,==> roadmap status,maintainer/naming-metrics
+34727809773,103645876055,2026-09-13,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,maintainer/documentation-mdr
+34727809773,103645876068,2026-09-13,CI,bench (icount regression tripwire),"unattributable: not the tripwire (generic step failure, no distinguishing signal): ##[error]Process completed with exit code 1.",maintainer/documentation-mdr
+34734099524,103662746398,2026-09-13,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/175-user-components-fixtures-split
+34735856488,103667112588,2026-09-13,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,maintainer/memory-grant-depleter
+34738916087,103675155955,2026-09-13,CI,clippy,==> em-dashes,maintainer/mint-281
+34739723629,103677275868,2026-09-13,CI,clippy,==> roadmap status,maintainer/decide-cpu-accounting
+34892917306,104139790461,2026-09-14,CI,clippy,==> roadmap status,milestone/296-initboot-is-shell
+34908098182,104189312384,2026-09-14,CI,clippy,==> roadmap status,milestone/296-initboot-is-shell
+35018513109,104552750790,2026-09-15,CI,bench (icount regression tripwire),"icount tripwire: benchmark: ctx_switch, yield_switch",milestone/299-x86-port-cap
+35027888309,104579249168,2026-09-15,CI,bench (icount regression tripwire),"icount tripwire: benchmark: ctx_switch, yield_switch",milestone/299-x86-port-cap
+35030590516,104587963863,2026-09-15,CI,bench (icount regression tripwire),"icount tripwire: benchmark: ctx_switch, yield_switch",milestone/299-x86-port-cap
+35032757081,104594849098,2026-09-15,CI,clippy,==> em-dashes,maintainer/icount-baselines-stale
+35048609369,104643889911,2026-09-16,CI,clippy,==> naming conventions,names/call-reply-ratify
+35053980267,104660182291,2026-09-16,CI,clippy,==> markdown links and the notes index,roadmap/301-one-grant-order
+35056586354,104667983843,2026-09-16,CI,clippy,==> markdown links and the notes index,roadmap/301-one-grant-order
+35345592752,105601345410,2026-09-18,CI,clippy,==> clippy: kernel + user + user_mode_runtime (aarch64),toolchain/nightly-bump
+35345592752,105601345440,2026-09-18,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,toolchain/nightly-bump
+35411820249,105812817639,2026-09-19,CI,clippy,==> clippy: kernel + user + user_mode_runtime (aarch64),toolchain/nightly-bump
+35411820249,105812817724,2026-09-19,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,toolchain/nightly-bump
+35442272591,105895052402,2026-09-19,CI,clippy,==> clippy: kernel + user + user_mode_runtime (aarch64),toolchain/nightly-bump
+35442272591,105895052420,2026-09-19,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,toolchain/nightly-bump
+35454857112,105928241303,2026-09-19,CI,clippy,==> roadmap status,gh-readonly-queue/main/pr-970-8bac3637cf526fc41170eb3a60e28e22dbedce06
+35474783704,105982061864,2026-09-19,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) rv64 sifive-u54 rva22s64 rva23s64 thead-c906,milestone/243-no-serial-port
+35478985684,105993194705,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-1003-6acd09505a68f9209bcbfe9a525559ef88e3ffe8
+35480997163,105998670216,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-998-2ab287f43764d48cab08be2f790c258ff8cca44c
+35481168154,106001306283,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-998-2ab287f43764d48cab08be2f790c258ff8cca44c
+35482190845,106003929890,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-998-2ab287f43764d48cab08be2f790c258ff8cca44c
+35483166684,106006680943,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-998-2ab287f43764d48cab08be2f790c258ff8cca44c
+35484298391,106009430805,2026-09-20,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-998-2ab287f43764d48cab08be2f790c258ff8cca44c
+35491271655,106026522918,2026-09-20,CI,clippy,==> new citations say what they cite,maintainer/197-package-format
+35494500169,106035001339,2026-09-20,CI,cpu matrix (riscv64 across QEMU CPU models),cpu matrix: model(s) thead-c906,gh-readonly-queue/main/pr-1009-a8c6eeffad32eb4a5de29427f4a3348646cd588c
+35529163882,106126593093,2026-09-20,CI,clippy,==> roadmap status,maintainer/200-two-dependency-refusals
+35557939623,106205163739,2026-09-21,CI,clippy,==> new citations say what they cite,gh-readonly-queue/main/pr-1022-effc58aa20aef091c380e7a8046111c71a91ec31

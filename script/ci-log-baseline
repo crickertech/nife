@@ -1,0 +1,313 @@
+#!/bin/sh
+# script/ci-log-baseline: per-check attribution for failed CI jobs, mined before the logs expire
+#
+# Name: provisional, coined 2026-09-21 by the lane that absorbed this baseline. `ci-log-baseline`
+# says what it captures (a baseline, one committed snapshot to build future comparisons against, the
+# same word `notes/mutation-census.md`'s record uses) and where it comes from (CI logs), rather than
+# naming the mechanism (a marker grep) or the motivation (expiry). Considered and set aside:
+# `gate-history`, which reads as the still-open gate-firing ledger this is deliberately not, and
+# `ci-attribution`, which is accurate but names a technique rather than a thing calef would ask for
+# by name. calef has not ruled on it.
+#
+# See notes/ci-log-baseline.md for the record's own page and what it does and does not claim.
+# Milestone 191 (did the proofs catch the bugs?), which built its answer as a hand-assembled
+# eighteen-row corpus, had to answer "has this gate ever fired?" for Kani harnesses by reading git
+# history one commit at a time. This
+# script answers the same question for CI jobs, from a source that expires: GitHub Actions keeps a
+# failed run's metadata forever but deletes its log at the retention window (measured against this
+# repository on 2026-09-21: still intact back to the oldest failed run this repository has ever had,
+# 2026-07-23; the existing gate-audit proposal projects deletion starting around 2026-10-21, and nothing
+# here re-derives that date, only checks it has not started early).
+#
+#   script/ci-log-baseline --update           fetch anything new, attribute it, append to the CSV
+#   script/ci-log-baseline --report           print the honest accounting from the committed CSV
+#   script/ci-log-baseline --verify N         re-fetch N existing rows at random, check the log still
+#                                              agrees with the committed attribution (drift/expiry check)
+#
+# The record is notes/project-metrics/ci-log-baseline.csv, one row per failed job GitHub still
+# names, for the job types this script knows wrap more than one distinguishable check:
+#
+#     run_id,job_id,date,workflow,job_name,attributed_check,branch
+#
+# **Which job types, and why only these five.** `script/lint` runs 47 named checks inside one
+# `clippy` job and exits on the first failure, so the log's last `==>` marker names the check that
+# was running. Three more scripts share that convention over their own sub-items: `script/supply-chain`
+# (one cargo-deny pass per manifest, then script/vendor-verify's per-package pass), `script/verify`
+# (one Kani harness per crate), and `script/cpu-matrix` mostly does NOT: its own last `==>` marker is
+# always "matrix", a section header printed whether every model passed or not, so this script instead
+# greps the "cpu-matrix: failed on: ..." line the script prints to stderr, or, for a preflight
+# failure, the marker that precedes it (nothing else follows a preflight exit). `script/icount`'s
+# bench job has no `==>` convention at all; it prints "bench: CHECK FAIL <name>: ..." per regressed
+# benchmark, which this script greps for directly, the same technique the existing gate-audit
+# proposal already used by hand for that one job type.
+#
+# **Every other failed job type is a single check**, and GitHub's job name is already the finest
+# attribution available: `build + test (host + QEMU)`, `coverage (host crates)`, `rustfmt`,
+# `fastpath footprint (the IPC path must stay L1i-sized)`, `stack frames (no frame over a third of a
+# thread stack)`, `undefined-behavior check (host crates, sampled paths)`, `build against the latest
+# nightly`, `architect hold (needs-architect label)` (a status check, not a script, and its own red
+# is a label rather than a defect), `mutants (shard N/M)`, `re-falsify the harnesses this change can
+# reach`, `report against the baseline`, `propose a pin bump`, `is an audit due`, and CodeQL's
+# `Analyze (javascript-typescript)`. `script/coverage`'s floor check DOES name the offending file, but
+# on a `coverage: <file>: N% ... under the floor` line that carries no `==>`, and the marker that
+# follows it ("coverage floor FAILED") is identical on every one of its 104 failures; attributing
+# it would need a different technique than this script's, and is out of scope here (see BUGS).
+#
+# EXAMPLES
+#
+#     $ script/ci-log-baseline --update
+#     fetching failed runs since 2026-09-21 (last captured date)...
+#     12 new attributable-type failed jobs, 12 attributed, 0 unattributable
+#     wrote notes/project-metrics/ci-log-baseline.csv (652 rows)
+#
+#     $ script/ci-log-baseline --report
+#     652 rows, 5 job types, oldest 2026-07-23, newest 2026-09-21
+#     clippy                                          309 (0 unattributable)
+#     cpu matrix (riscv64 across QEMU CPU models)      213 (0 unattributable)
+#     bench (icount regression tripwire)                99 (56 unattributable)
+#     supply chain (advisories, licences, vendored...)  14 (1 unattributable)
+#     verify (Kani proofs)                               5 (0 unattributable)
+#
+# BUGS
+#
+# - **No incremental cursor finer than a date.** `--update` re-lists every failed run whose
+#   `created_at` date is >= the newest date already in the CSV, so a re-run on the day of the last
+#   capture re-lists that whole day's runs (cheap: one paginated `runs?status=failure` query plus one
+#   `/jobs` call per run that day) rather than truly resuming mid-day. Job IDs already in the CSV are
+#   never re-fetched, so this costs time, not correctness.
+# - **`coverage (host crates)`'s per-file attribution is left uncaptured**, see above. If it is
+#   wanted, it needs its own extraction (grep the `coverage: <file>:` lines, not the `==>` marker),
+#   which this script does not attempt.
+# - **A job whose log truly expires reads as `unattributable: log expired`**, and the row is
+#   still written; nothing here has exercised that path against a real expired log (none had expired
+#   as of 2026-09-21), so it is unverified against the real error text GitHub returns after
+#   2026-10-21 and may need adjusting when the window actually opens.
+# - **`--verify` re-fetches; it does not compare against anything but the committed row**, so it
+#   catches drift or a wrong original attribution, never a log GitHub has already deleted (a deleted
+#   log fails with EXPIRED either way and that path only widens the record, it can't correct one).
+
+set -e
+cd "$(dirname "$0")/.."
+
+REPO=crickertech/nife
+CSV=notes/project-metrics/ci-log-baseline.csv
+CACHE=target/ci-log-baseline-cache
+mkdir -p "$CACHE"
+
+# The five job names this script knows how to attribute past "the job itself failed", and how.
+# Kept as one case statement (attribute_job below) rather than five variables so a new job type is
+# one new case arm, not four new names to keep in sync.
+
+usage() {
+    echo "usage: script/ci-log-baseline --update | --report | --verify N" >&2
+    exit 1
+}
+
+fetch_log() {
+    # $1 = job id; writes the raw log to $CACHE/$1.log (cached across runs), prints its path.
+    # A job whose log is gone is cached too, as an empty marker file, so a re-run does not retry a
+    # log that is not coming back.
+    jid=$1
+    f="$CACHE/$jid.log"
+    ef="$CACHE/$jid.err"
+    if [ -s "$f" ] || [ -f "$ef" ]; then
+        echo "$f"
+        return
+    fi
+    if gh api --allow-escape-sequences "repos/$REPO/actions/jobs/$jid/logs" >"$f" 2>"$ef"; then
+        : > "$ef" # success: keep an empty error file too, so "$ef exists" alone cannot be read as failure
+        rm -f "$ef.marker" 2>/dev/null || true
+        echo "SUCCESS:$f"
+    else
+        echo "FAIL:$ef"
+    fi
+}
+
+# Extracts the attribution for one job. $1 = job name (as GitHub prints it), $2 = job id.
+# Prints "STATUS<TAB>detail" on stdout. STATUS is one of MARKER / PREFLIGHT / MODELS / TRIPWIRE /
+# UNATTRIBUTABLE.
+attribute_job() {
+    jname=$1
+    jid=$2
+    res=$(fetch_log "$jid")
+    case "$res" in
+        FAIL:*)
+            errf=${res#FAIL:}
+            errtxt=$(tr '\n' ' ' < "$errf" 2>/dev/null)
+            if echo "$errtxt" | grep -qi "expired\|410"; then
+                printf 'UNATTRIBUTABLE\tlog expired (%s)\n' "$(echo "$errtxt" | cut -c1-100)"
+            else
+                printf 'UNATTRIBUTABLE\tlog unavailable (%s)\n' "$(echo "$errtxt" | cut -c1-100)"
+            fi
+            return
+            ;;
+        SUCCESS:*) logf=${res#SUCCESS:} ;;
+        *) logf=$res ;; # cache hit, bare path
+    esac
+
+    case "$jname" in
+        clippy)
+            m=$(grep -a '==>' "$logf" | tail -1 | sed -E 's/^[0-9TZ:.-]+Z//; s/^ *//')
+            [ -n "$m" ] && printf 'MARKER\t%s\n' "$m" || printf 'UNATTRIBUTABLE\tno ==> marker found\n'
+            ;;
+        "supply chain (advisories, licences, vendored integrity)"|"verify (Kani proofs)")
+            m=$(grep -a '==>' "$logf" | tail -1 | sed -E 's/^[0-9TZ:.-]+Z//; s/^ *//')
+            if [ -n "$m" ]; then
+                printf 'MARKER\t%s\n' "$m"
+            else
+                e=$(grep -aoE '##\[error\].*' "$logf" | tail -1 | cut -c1-100)
+                printf 'UNATTRIBUTABLE\tno distinguishing marker in log (%s)\n' "$e"
+            fi
+            ;;
+        "cpu matrix (riscv64 across QEMU CPU models)")
+            if grep -aq 'cpu-matrix: PREFLIGHT FAILED' "$logf"; then
+                r=$(grep -a 'cpu-matrix: PREFLIGHT FAILED' "$logf" | tail -1 | sed -E 's/^[0-9TZ:.-]+Z//; s/^ *//')
+                printf 'PREFLIGHT\t%s\n' "$r"
+            elif grep -aq 'cpu-matrix: failed on:' "$logf"; then
+                r=$(grep -a 'cpu-matrix: failed on:' "$logf" | tail -1 | sed -E 's/^[0-9TZ:.-]+Z//; s/^ *//')
+                printf 'MODELS\t%s\n' "$r"
+            else
+                m=$(grep -a '==>' "$logf" | tail -1 | sed -E 's/^[0-9TZ:.-]+Z//; s/^ *//')
+                [ -n "$m" ] && printf 'MARKER\t%s\n' "$m" || printf 'UNATTRIBUTABLE\tno matrix/preflight signal found\n'
+            fi
+            ;;
+        "bench (icount regression tripwire)")
+            if grep -aq 'CHECK FAIL' "$logf"; then
+                names=$(grep -aoE 'CHECK FAIL [a-z_]*' "$logf" | sed 's/CHECK FAIL //' | sort -u | paste -sd, - | sed 's/,/, /g')
+                printf 'TRIPWIRE\t%s\n' "$names"
+            else
+                e=$(grep -aoE '##\[error\].*' "$logf" | tail -1 | cut -c1-100)
+                printf 'UNATTRIBUTABLE\tnot the tripwire (generic step failure, no distinguishing signal): %s\n' "$e"
+            fi
+            ;;
+        *)
+            printf 'UNATTRIBUTABLE\tjob type not examined by this script\n'
+            ;;
+    esac
+}
+
+format_attribution() {
+    # $1 = job_name, $2 = status, $3.. = detail
+    jname=$1; status=$2; shift 2; detail=$*
+    case "$status" in
+        MARKER) echo "$detail" ;;
+        PREFLIGHT) echo "cpu-matrix preflight: $detail" ;;
+        MODELS)
+            m=$(echo "$detail" | sed -E 's/.*failed on:[ ]*//')
+            echo "cpu matrix: model(s) $m"
+            ;;
+        TRIPWIRE) echo "icount tripwire: benchmark: $detail" ;;
+        UNATTRIBUTABLE) echo "unattributable: $detail" ;;
+        *) echo "unattributable: $status $detail" ;;
+    esac
+}
+
+cmd_report() {
+    # CSV-quote-aware (the `supply chain (...)` job name embeds commas), hence python3's csv module
+    # rather than `awk -F,`, which several other scripts in this tree already reach for.
+    if [ ! -f "$CSV" ]; then
+        echo "no record yet: $CSV does not exist" >&2
+        exit 1
+    fi
+    python3 - "$CSV" <<'PY'
+import csv, sys
+from collections import Counter
+path = sys.argv[1]
+rows = list(csv.DictReader(open(path)))
+dates = sorted(r["date"] for r in rows)
+print(f"{len(rows)} rows, oldest {dates[0]}, newest {dates[-1]}")
+totals = Counter(r["job_name"] for r in rows)
+unattrib = Counter(r["job_name"] for r in rows if r["attributed_check"].startswith("unattributable"))
+for name, n in totals.most_common():
+    print(f"{n:6d}  {name:<58} ({unattrib[name]} unattributable)")
+PY
+}
+
+cmd_update() {
+    since="2026-07-23"
+    if [ -f "$CSV" ]; then
+        since=$(tail -n +2 "$CSV" | awk -F, '{print $3}' | sort | tail -1)
+    fi
+    echo "fetching failed runs from $since onward..." >&2
+
+    have=$(mktemp)
+    if [ -f "$CSV" ]; then
+        tail -n +2 "$CSV" | awk -F, '{print $2}' > "$have"
+    fi
+
+    tmp_rows=$(mktemp)
+
+    gh api "repos/$REPO/actions/runs?status=failure&per_page=100" --paginate \
+        --jq '.workflow_runs[] | select(.created_at >= "'"$since"'") | [.id, .head_branch, (.created_at|split("T")[0]), .name] | @tsv' \
+        > "$CACHE/runs-since-$since.tsv"
+
+    while IFS="$(printf '\t')" read -r rid branch date wf; do
+        gh api "repos/$REPO/actions/runs/$rid/jobs" \
+            --jq '.jobs[] | select(.conclusion=="failure") | [.id, .name] | @tsv' \
+            2>/dev/null | while IFS="$(printf '\t')" read -r jid jname; do
+            case "$jname" in
+                clippy|"supply chain (advisories, licences, vendored integrity)"| \
+                "cpu matrix (riscv64 across QEMU CPU models)"|"bench (icount regression tripwire)"| \
+                "verify (Kani proofs)")
+                    if grep -qxF "$jid" "$have" 2>/dev/null; then continue; fi
+                    result=$(attribute_job "$jname" "$jid")
+                    status=$(echo "$result" | cut -f1)
+                    detail=$(echo "$result" | cut -f2-)
+                    line=$(format_attribution "$jname" "$status" "$detail")
+                    printf '%s,%s,%s,%s,%s,"%s",%s\n' "$rid" "$jid" "$date" "$wf" "$jname" "$(echo "$line" | sed 's/"/""/g')" "$branch" >> "$tmp_rows"
+                    ;;
+            esac
+        done
+    done < "$CACHE/runs-since-$since.tsv"
+
+    if [ ! -f "$CSV" ]; then
+        mkdir -p "$(dirname "$CSV")"
+        echo "run_id,job_id,date,workflow,job_name,attributed_check,branch" > "$CSV"
+    fi
+    if [ -s "$tmp_rows" ]; then
+        cat "$tmp_rows" >> "$CSV"
+        new=$(wc -l < "$tmp_rows" | tr -d ' ')
+    fi
+    rm -f "$have" "$tmp_rows"
+    echo "$new new attributable-type failed job rows appended" >&2
+    echo "wrote $CSV ($(tail -n +2 "$CSV" | wc -l | tr -d ' ') rows total)" >&2
+}
+
+cmd_verify() {
+    # CSV-quote-aware row selection (python3's csv module), same reason as cmd_report. The
+    # selection is written to a plain file first, deliberately not piped straight into the `while`
+    # below: mixing a heredoc with a pipe into a multi-line loop on the same command is exactly the
+    # kind of shell that reads fine and parses wrong.
+    n=${1:-5}
+    if [ ! -f "$CSV" ]; then
+        echo "no record yet: $CSV does not exist" >&2
+        exit 1
+    fi
+    sample=$(mktemp)
+    python3 - "$CSV" "$n" > "$sample" <<'PY'
+import csv, random, sys
+path, n = sys.argv[1], int(sys.argv[2])
+rows = list(csv.DictReader(open(path)))
+for r in random.sample(rows, min(n, len(rows))):
+    print(f"{r['job_id']}\t{r['job_name']}\t{r['date']}\t{r['attributed_check']}")
+PY
+    while IFS="$(printf '\t')" read -r jid jname date committed; do
+        echo "job $jid ($jname, $date)"
+        echo "  committed: $committed"
+        rm -f "$CACHE/$jid.log" "$CACHE/$jid.err"
+        result=$(attribute_job "$jname" "$jid")
+        status=$(echo "$result" | cut -f1)
+        detail=$(echo "$result" | cut -f2-)
+        live=$(format_attribution "$jname" "$status" "$detail")
+        echo "  live:      $live"
+        [ "$committed" = "$live" ] && echo "  MATCH" || echo "  MISMATCH"
+    done < "$sample"
+    rm -f "$sample"
+}
+
+case "$1" in
+    --update) cmd_update ;;
+    --report) cmd_report ;;
+    --verify) cmd_verify "$2" ;;
+    *) usage ;;
+esac
