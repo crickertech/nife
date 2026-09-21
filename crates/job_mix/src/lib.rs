@@ -467,7 +467,19 @@ pub const REPEATS: usize = 21;
 // A task's budget holds what it keeps plus the larger of the two transient regions, so no job is
 // ever refused a split the budget was sized to allow. A relation between constants in one file, so
 // the compiler checks it (AGENTS.md's ladder, rung one).
-const _: () = assert!(TASK_BUDGET_PAGES > MAP_REGION_PAGES && TASK_BUDGET_PAGES > CHILD_PAGES);
+//
+// **Tightened, because the old form left the whole sizing argument unchecked.** Found by
+// milestone 326 (nobody has been assigned to turn a mutation score upward).
+// It asserted only that the budget exceeds each transient region on its own, which 19, 24 and 144
+// all satisfy, so five mutants of the expression above compiled and passed: one of them picked the
+// SMALLER of the two regions, leaving a task running `MAP` nine pages short of what the comment
+// promises it. The two bounds below are what the paragraph on `TASK_BUDGET_PAGES` actually claims:
+// at least the kept pages plus the larger region, and less than both regions together, because a
+// task runs one job at a time and each gives its region back. Written as compile-time assertions
+// rather than as a test for the reason the comment above already gives.
+const _: () = assert!(TASK_BUDGET_PAGES >= 1 + 8 + MAP_REGION_PAGES);
+const _: () = assert!(TASK_BUDGET_PAGES >= 1 + 8 + CHILD_PAGES);
+const _: () = assert!(TASK_BUDGET_PAGES < 1 + 8 + MAP_REGION_PAGES + CHILD_PAGES);
 
 /// The median, and the two ends, of one sweep point's repeats: what a `job-mix:` point line carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -558,6 +570,23 @@ const _: () = assert!(ECHO_SERVERS >= 1 && ECHO_SERVERS < MAX_TASKS);
 /// Fisher-Yates driven by a 64-bit LCG, which is enough randomness for "these tasks are not in
 /// lockstep" and is deterministic given the seed, so a run is reproducible. It is **not** a source
 /// of randomness for anything else and must not be used as one.
+///
+/// # BUGS
+///
+/// - **Two seeds in, one order out: `order(2k)` and `order(2k + 1)` are the same permutation**,
+///   for every `k`. The `seed | 1` below exists to keep the LCG off its degenerate state, and it
+///   does that by throwing away bit zero, which halves the seed space. Measured rather than
+///   reasoned, by milestone 326 triaging a mutation survivor that turned that `|` into a `^`.
+///
+///   **Nothing in the tree hits it**, which is why this is recorded instead of fixed: the kernel
+///   hands every task "a distinct, odd, well-spread seed" (`kernel/src/job_mix.rs`), and an odd
+///   seed passes through `| 1` unchanged, so no two tasks in a sweep have ever shared an order.
+///   A caller that seeded tasks by consecutive index would put every adjacent pair in lockstep,
+///   which is the one property this function exists to prevent.
+///
+///   Fixing it would change every permutation this function has ever produced, and a benchmark's
+///   published numbers are a fact that has left the machine (AGENTS.md's *move fast on what can
+///   be undone*). So the seed contract is written down here and the arithmetic is left alone.
 #[must_use]
 pub fn order(seed: u64) -> [u8; MIX_LEN] {
     let mut out = MIX;
@@ -594,15 +623,19 @@ pub fn jobs_per_minute(jobs: u64, ticks: u64, hz: u64) -> u64 {
 
 /// How many jobs of `kind` one task runs in one subrun: its count in [`MIX`] times
 /// [`ROUNDS_PER_TASK`]. The denominator a `job-mix-kind:` line's per-job figure is made with.
+///
+/// A `for` over the mix rather than a hand-rolled index, and the difference is not style. The
+/// index version's own increment is a mutable it has to remember to advance, so the way to break
+/// it is to make it never advance, and the whole suite's answer to that is to hang rather than to
+/// fail: milestone 326 measured exactly one timeout in this crate and it was this loop. A `for`
+/// has no increment to lose (AGENTS.md's ladder, rung one).
 #[must_use]
 pub fn jobs_of_kind(kind: u8) -> u64 {
     let mut n = 0u64;
-    let mut i = 0;
-    while i < MIX_LEN {
-        if MIX[i] == kind {
+    for &k in &MIX {
+        if k == kind {
             n += 1;
         }
-        i += 1;
     }
     n * ROUNDS_PER_TASK
 }
@@ -661,6 +694,35 @@ mod tests {
             differing > 90,
             "only {differing} of 100 seeds differed from the first; the shuffle is degenerate"
         );
+    }
+
+    /// **No position in the order is pinned to one job kind**, which is the property
+    /// "different seeds give different orders" does not reach: a shuffle can vary a great deal
+    /// overall while one slot never moves, and a slot that never moves is a slot every task runs
+    /// the same job in, which is lockstep in the one place it matters least visibly.
+    ///
+    /// It is the draw this checks rather than the output. `order` takes the *high* bits of the
+    /// LCG because the low ones cycle short, and taking the low ones instead makes the draw a
+    /// multiple of a large power of two, which is zero modulo every power-of-two swap index: the
+    /// last position then receives the mix's first job on every seed. Milestone 326 found that
+    /// mutant alive with every other test here passing.
+    #[test]
+    fn no_position_in_the_order_is_pinned_to_one_job() {
+        let mut seen = [[false; JOB_KINDS]; MIX_LEN];
+        for seed in 1..=512u64 {
+            for (position, &kind) in order(seed).iter().enumerate() {
+                seen[position][kind as usize] = true;
+            }
+        }
+        for (position, kinds) in seen.iter().enumerate() {
+            for (kind, &ever) in kinds.iter().enumerate() {
+                assert!(
+                    ever,
+                    "{} never appeared at position {position} across 512 seeds",
+                    KIND_NAMES[kind]
+                );
+            }
+        }
     }
 
     /// The same seed twice is the same order. A run has to be reproducible for a second run on the
