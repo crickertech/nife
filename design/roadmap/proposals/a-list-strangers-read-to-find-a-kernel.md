@@ -16,9 +16,10 @@ they quote.
 > The goal is to collect all kinds of different open source OSs so people can study their code and
 > learn from them.
 
-Entries sit under `## Open Source Operating Systems`, alphabetically, one line each, in the form
-`* [Name](url) - description`. The neighbours are the right ones: Redox, Theseus, Hubris, Genode,
-Asterinas, Hermit, Maestro, Charlotte, Fomos.
+Entries sit under `## Open Source Operating Systems`, alphabetically, one line each: a bullet, the
+project's name as a markdown link to its home, then a hyphen and one clause of description. The
+neighbours are the right ones: Redox, Theseus, Hubris, Genode, Asterinas, Hermit, Maestro,
+Charlotte, Fomos.
 
 ## The premise to check first, because it looks like a blocker and is not
 
