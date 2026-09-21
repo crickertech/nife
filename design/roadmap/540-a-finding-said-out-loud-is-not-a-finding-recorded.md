@@ -1,6 +1,6 @@
-# 524. A finding said out loud is not a finding recorded
+# 540. A finding said out loud is not a finding recorded
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-finding-said-out-loud-is-not-a-finding-recorded`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by calef, who asked for *"improved rigor around capturing
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it. It was 524 in this branch until 2026-09-21, when a concurrently merged lane took that number; the integrator renumbered at merge, which is the case AGENTS.md predicts for anything global to the tree.)* Promoted from the proposal `a-finding-said-out-loud-is-not-a-finding-recorded`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by calef, who asked for *"improved rigor around capturing
 all of the action without my prompting"* after a day in which he had to ask twice what had not been
 written down, and got four items both times.
 
