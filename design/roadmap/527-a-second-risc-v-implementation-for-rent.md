@@ -1,6 +1,6 @@
-# A second RISC-V implementation, for €16 a month
+# 527. A second RISC-V implementation, for €16 a month
 
-**Status: PROPOSED 2026-09-20.** Filed by the maintainer after calef asked for rented riscv64
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-second-risc-v-implementation-for-rent`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by the maintainer after calef asked for rented riscv64
 hardware to be looked for rather than assumed absent: *"let's try to find riscv64 rented hardware. I
 predict availability will improve."* It has improved, and the finding is better than the prediction.
 
@@ -68,3 +68,7 @@ otherwise, but they are marketing until a byte comes out of that port.
 The other honest exit: **0% SLA on a Labs product.** A gate that depends on a machine the provider may
 withdraw is a gate that will one day be red for a reason nobody can fix. Anything built on this should
 degrade to a skip that says so loudly, the way milestone 81 (an HVF leg: the test suite on the physical core) already does.
+
+## Index row
+
+Scaleway's Elastic Metal RV1, read from the product page on 2026-09-20 rather than recalled:

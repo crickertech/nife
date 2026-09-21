@@ -1,6 +1,6 @@
-# The mutation census should write its own row, rather than a person remembering to
+# 532. The mutation census should write its own row, rather than a person remembering to
 
-**Status: PROPOSED 2026-09-20.** Written by milestone 518 (a census that cannot be attributed is a
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-census-writes-its-own-row`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Written by milestone 518 (a census that cannot be attributed is a
 number nobody can act on)'s lane, from the gap its own `BUGS` section names: the record it built is
 rung three of AGENTS.md's ladder, a thing somebody has to remember, and the tenet says to move up a
 rung when you notice that shape.
@@ -49,3 +49,7 @@ bot that can open a pull request is a request.
 
 Nothing. `script/mutation-census --add-run` works today and the record is backfilled. This is about
 whether the next census is captured by a mechanism or by somebody remembering.
+
+## Index row
+
+`script/mutation-census --add-run <id>` captures a finished census in one command.

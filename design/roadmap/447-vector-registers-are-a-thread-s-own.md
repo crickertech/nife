@@ -403,15 +403,15 @@ are measurements rather than arguments, and neither needs this decision made fir
 
 ## Follow-on
 
-- **Proposed.** The target flip, in
-  `design/roadmap/proposals/the-soft-float-targets-could-now-be-flipped.md`: what it would take, buy
+- **Milestone 534.** The target flip, in
+  `design/roadmap/534-the-soft-float-targets-could-now-be-flipped.md`: what it would take, buy
   and cost, and the two measurements that should come before it. Written up rather than
   recommended, because it is an ABI two programs agree on and §22 chose the current one
   deliberately; the *fork reaches calef with its questions already answered* tenet asks for options
   and costs on an irreversible fork and explicitly not for a winner. **A `design/decisions/` section
   is owed when calef rules on it**; this lane does not write one, per its brief.
-- **Proposed.** First on that same file's list, in
-  `design/roadmap/proposals/the-soft-float-targets-could-now-be-flipped.md`: re-measure milestone
+- **Milestone 534.** First on that same file's list, in
+  `design/roadmap/534-the-soft-float-targets-could-now-be-flipped.md`: re-measure milestone
   442's soft-float x86_64 failures against nife's own target specifications on the pinned nightly,
   which 442's block already says it owes in its own first item. It is a prerequisite for pricing
   the flip rather than a consequence of it, and it is cheap.

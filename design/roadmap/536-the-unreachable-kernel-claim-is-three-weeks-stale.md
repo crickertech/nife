@@ -1,6 +1,6 @@
-# Two records still say the prover cannot see `kernel/src`, and it has been able to since 2026-08-30
+# 536. Two records still say the prover cannot see `kernel/src`, and it has been able to since 2026-08-30
 
-**Status: PROPOSED 2026-09-20.** Raised by the `maintainer/verus-versus-kani` lane, which was briefed
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-unreachable-kernel-claim-is-three-weeks-stale`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane, which was briefed
 on the claim and found it expired before it found anything else.
 
 **Gate: DECISION.** `design/fatal-risks.md` is calef's file and risk 2's text is his to amend;
@@ -71,3 +71,8 @@ the same.
 has still ever caught a defect after the day it was written, which is the finding, and reach was
 only ever half of the explanation for it. See `notes/verus.md`, which asked whether a different
 verifier would extend the reach and found that it stops at the same boundary.
+
+## Index row
+
+`design/fatal-risks.md` risk 2 (the proofs prove trivia, and the real bugs live where Kani cannot
+reach), verbatim:

@@ -1,6 +1,6 @@
-# Which RVA23 extensions this kernel must save, and which it only has to admit exist
+# 539. Which RVA23 extensions this kernel must save, and which it only has to admit exist
 
-**Status: PROPOSED 2026-09-20.** Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `which-rva23-extensions-this-kernel-must-save`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number and slug provisional until the merge
 queue lands it.)*
 
@@ -77,3 +77,9 @@ first appear as development options"* (https://riscv-europe.org/summit/2026/pres
 belongs in this milestone's block as one paragraph, because the audit above is the place a reader
 will next ask "and what about the O-options", and the answer should be waiting there rather than
 rediscovered.
+
+## Index row
+
+Guodong Xu and Charlie Jenkins, *RVA23 Profile Support in Linux Kernel: From Extension Definitions
+to Userspace Export* (https://riscv-europe.org/summit/2026/presentations#P-B7EASJ, abstract only, no
+slides read).
