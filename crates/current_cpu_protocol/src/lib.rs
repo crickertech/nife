@@ -199,39 +199,42 @@ const OFF_CPU: usize = OFF_MAGIC + 8;
 pub const PAGE_BYTES: usize = OFF_CPU + 8;
 
 /// **The fixed virtual address the kernel maps this page at** in every process it builds a space
-/// for. Both sides agree on it through this crate rather than through two copies of a constant.
+/// for, and it is the same number on all three architectures. Both sides agree on it through this
+/// crate rather than through two copies of a constant.
 ///
-/// Three quarters of the way up this architecture's low half, which is the convention
-/// `counter_frequency_protocol::PAGE_VA` established (it sits at seven eighths) and for its reason:
-/// every program's ELF loads in the low few megabytes and individual fixtures map their own windows
-/// just above it, so a page mapped **unconditionally into every process** cannot share that
-/// neighbourhood at all. `aarch64` runs `TCR_EL1.T0SZ = 16`, so the low half is every address under
-/// `1 << 48` (`crates/paging`'s `Aarch64::SPLIT_SHIFT`), and this is `0xC000_0000_0000`.
-#[cfg(target_arch = "aarch64")]
-pub const PAGE_VA: u64 = 0x0000_C000_0000_0000;
-
-/// See the `aarch64` constant. `x86_64`'s `SPLIT_SHIFT` is 47, so the low half ends at
-/// `0x0000_8000_0000_0000` and three quarters of it is `0x0000_6000_0000_0000`, a clear
-/// 32 TiB below `counter_frequency_protocol::PAGE_VA`.
-#[cfg(target_arch = "x86_64")]
-pub const PAGE_VA: u64 = 0x0000_6000_0000_0000;
-
-/// See the `aarch64` constant. **Sv39 needs its own number and cannot borrow either of the others**:
-/// its `SPLIT_SHIFT` is 38, so the entire low half ends at `0x0000_0040_0000_0000` and both
-/// addresses above are unmappable here. Three quarters of it is `0x0000_0030_0000_0000`.
-/// `counter_frequency_protocol` learned the same thing one constant earlier.
-#[cfg(target_arch = "riscv64")]
-pub const PAGE_VA: u64 = 0x0000_0030_0000_0000;
-
-/// See the `aarch64` constant. The host build (`cargo test`) has no user address space to map into;
-/// this exists so the crate's own tests and the kernel's host-side tests compile, and nothing
-/// maps anything here.
-#[cfg(not(any(
-    target_arch = "aarch64",
-    target_arch = "x86_64",
-    target_arch = "riscv64"
-)))]
-pub const PAGE_VA: u64 = 0x0000_6000_0000_0000;
+/// **The last page of the first gigabyte**, and the reason is a measurement rather than a
+/// convention. The first draft put this at three quarters of each architecture's low half, copying
+/// `counter_frequency_protocol::PAGE_VA` (seven eighths) and its argument: a page mapped
+/// unconditionally into every process must not share a neighbourhood with the low few megabytes
+/// where every ELF loads and every fixture maps its own windows. That argument is right about
+/// collisions and says nothing about what the address *costs*, and the cost turned out to be the
+/// larger fact.
+///
+/// A virtual address alone in a far corner of the space is alone in its **page tables** too. On
+/// `aarch64` a 4 KiB-granule walk indexes L1 on bits 38:30, L2 on 29:21 and L3 on 20:12, so an
+/// address sharing no gigabyte with anything the process already maps needs a fresh L1 entry, a
+/// fresh L2 table and a fresh L3 table: **three page-table frames retyped and zeroed, per address
+/// space**, every spawn. `script/bench`'s `spawn_el0` measured that at **1,245 ticks per spawn**
+/// (+10.25% against the recorded baseline, over the gate's 10% bound), of which only 277 was
+/// allocating and zeroing this page's own frame. The other 968 was the walk.
+///
+/// Inside the first gigabyte the L1 and L2 tables are ones the process's own segments already paid
+/// for, so the mapping buys **one** L3 rather than three, and the same measurement reads 741 ticks.
+/// Sharing the L3 as well would mean sitting in the same 2 MiB as the program's own segments, which
+/// is the collision hazard the first draft was right about, so that is where this stops.
+///
+/// `0x3FFF_F000` is the top of that gigabyte: the conventions in this tree all grow upward from
+/// zero (the highest is `kernel::user::INITRD_VA` at `0x2000_0000`, and
+/// `display_service::SCREEN_APERTURE_VA` sits at `0x4000_0000`, one page above this and outside
+/// the gigabyte), so the top of it is the furthest a page can be from them while still sharing
+/// their tables.
+///
+/// **One number rather than three**, which the first draft could not have: `0x3FFF_F000` is inside
+/// every one of these architectures' low halves, Sv39's included (its `SPLIT_SHIFT` is 38, so its
+/// low half ends at `0x0000_0040_0000_0000` and the three-quarters addresses the first draft
+/// computed per architecture were all different). The host build gets the same constant and maps
+/// nothing anywhere.
+pub const PAGE_VA: u64 = 0x0000_0000_3FFF_F000;
 
 /// Build a fresh page's bytes: the magic, and [`UNSCHEDULED`] for a thread that has not run yet.
 /// The kernel writes this into a zeroed frame before mapping it read-only into the process, and
@@ -426,13 +429,22 @@ mod tests {
 
     /// The page address is page-aligned on every target, which is what makes it mappable at all,
     /// and is far from the addresses programs and fixtures use.
+    /// The address is page-aligned (which is what makes it mappable at all), inside the first
+    /// gigabyte (which is what makes it share the process's own L1 and L2 tables, worth 504 ticks
+    /// a spawn), and at the top of that gigabyte, clear of every convention in this tree that
+    /// grows upward from zero. Pinned because all three properties are load-bearing and none of
+    /// them is visible from the number.
     #[test]
     #[allow(clippy::assertions_on_constants)]
-    fn the_page_address_is_page_aligned_and_out_of_the_way() {
+    fn the_page_address_is_page_aligned_and_at_the_top_of_the_first_gigabyte() {
         assert_eq!(PAGE_VA % 4096, 0);
         assert!(
-            PAGE_VA > 0x1_0000_0000,
-            "clear of every low-memory convention"
+            PAGE_VA < 0x4000_0000,
+            "inside the first gigabyte, or the mapping buys two more page-table levels"
+        );
+        assert!(
+            PAGE_VA >= 0x4000_0000 - 0x20_0000,
+            "in the top 2 MiB of that gigabyte, clear of everything that grows up from zero"
         );
     }
 }
