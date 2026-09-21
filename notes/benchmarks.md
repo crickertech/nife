@@ -3569,3 +3569,107 @@ as data" by "a column-0-only check". The filter it sits above is
 `.filter(|l| !l.trim_start().starts_with('#'))`, which handles indented comments correctly. The
 comment describes a hazard the code already fixed. Left as a finding rather than edited, because
 `xtask/src/bench.rs` is shared bench scaffolding another lane is in.
+
+## 2026-09-21: the x86_64 `map_new` "+26.4%" is a fixed 47,752-tick lump, not a cost per map
+
+`script/bench --x86 --check` was reported failing on `map_new` (228,380 against a baseline of
+180,604, +26.4%) by the lane building a thread's own CPU page, which A/B'd it and concluded it was
+somebody else's and predated them. **Both halves of that conclusion are wrong, and the way they are
+wrong is the useful part.** This is the attribution.
+
+### The regression is not on `main`, and never was
+
+On `origin/main` at `8ea8e2f3`, `map_new` measures **180,604**, which is the committed baseline to
+the digit, and `script/bench --x86 --check` exits 0. It also measures 180,604 at `8cda8b53`, the
+merge base that branch was cut from. Every number quoted in that pull request is a number from its
+own branch.
+
+### One commit, and one hunk inside it
+
+Walking the branch commit by commit:
+
+| commit | `map_new` |
+|---|---|
+| `99875a7b` the crate alone | 180,604 |
+| `d5b28887` the kernel writes each thread's core | **228,380** |
+| `32ac6bdd`, `d2489e26` | 228,380 |
+| `31061717` the page moves into the gigabyte the process already maps | 224,332 |
+
+So `228,380` and `224,332` are two commits of one branch, not a with-and-without pair. The A/B that
+reported them "identical with the change compiled out" had compared the branch against itself.
+
+### It is not the page, and it is not `cpu::id()`
+
+Three A/Bs on the branch tip, each rebuilt and re-measured:
+
+| what was removed | `map_new` |
+|---|---|
+| nothing (the tip) | 224,332 |
+| `attach_current_cpu_page` in `AddressSpace::new` | 228,380 |
+| `attach_current_cpu_page` made a no-op everywhere, so no space has a page at all | 228,380 |
+| `cpu::id()` replaced by the constant `0` at the call site | 224,332 |
+| `schedule()`'s `next_root` restored to its old expression | **176,556** |
+
+The whole of it is one hunk in `schedule()`, and that hunk's semantic content is not what costs.
+Applying **only** the shape change to a clean `origin/main`, with no current-CPU page, no
+`cpu::id()` call and no new crate, reproduces the failure exactly:
+
+```
+let next_root = match sched.threads.get(next).unwrap().space.as_ref() {
+    Some(space) => space.ttbr0(),
+    None => crate::arch::mmu::reserved_root(),
+};
+```
+in place of the `.map(|s| s.ttbr0()).unwrap_or_else(...)` chain gives `map_new` **228,356**. Two
+spellings of the same value, and a 26.4% benchmark failure between them.
+
+The map path's object code is byte-identical in both builds: `AddressSpace::map_at` at `0x8e`,
+`AddressSpace::map_new` at `0x148`, the monomorphised `Mapper::map` at `0x331`,
+`memory_region::retype_page` at `0x144`. Nothing on the path that `map_new` times got larger.
+
+### What it actually is: a fixed lump inside a window that is too short
+
+Sweeping the iteration count against both spellings settles it.
+
+| `MAP_ITERS` | old chain | the `match` | delta | reads as |
+|---|---|---|---|---|
+| 64 (what ships) | 180,604 | 228,356 | **47,752** | **+26.4%** |
+| 192 | 529,532 | 577,284 | **47,752** | +9.0% |
+
+**The delta is the same 47,752 ticks at both sizes.** It is not work per map: the marginal cost of
+one map is `(529,532 - 180,604) / 128 = 2,726` ticks in the old build and
+`(577,284 - 228,356) / 128 = 2,726` in the new one, identical. It is a fixed lump that lands inside
+the timed window, and `47,752 / 9,594` is **4.98 `yield_switch` iterations**, so the reading that
+fits the arithmetic is roughly five context switches falling inside the window in one build and not
+the other, as the periodic timer's phase moves against a `schedule()` of a different length.
+
+Two consequences, and the second is the one that matters:
+
+- **Every other row moves 0.3% to 0.6% and in the opposite direction**, `coremark` by 0.01%. The
+  `match` form is marginally *cheaper* on the switch path, which is the honest reading of the
+  change. `map_new` is the lone outlier by two orders of magnitude.
+- **At 192 iterations the identical lump reads as +9.0% and passes the 10% tripwire.** The row is
+  only 180,604 ticks, an order of magnitude smaller than every other non-`spawn` row, so a handful
+  of preemptions is a quarter of it. `map_new` as it ships cannot tell a regression in the map path
+  from the scheduler's code moving by a few hundred bytes.
+
+### The x86_64 leg IS in CI, and the comment saying otherwise is stale
+
+The pull request's premise, quoted from `.github/workflows/ci.yml` itself, was that this had sat
+undetected because nothing pulls the x86_64 tripwire. That stopped being true on 2026-09-15:
+`ba99c835` added `script/bench --x86 --check` to the `bench` row of `script/ci-build`, which is what
+the `bench (icount regression tripwire)` job runs. It caught this on the first push, in 5m10s, which
+is why that job is red. The `BUGS` comment beside the step is what is out of date, and it is
+corrected in the same commit as this entry.
+
+### BUGS
+
+- **This entry attributes the number and does not fix the benchmark.** `map_new`'s window is short
+  enough to be dominated by whether a preemption lands in it, and that is a defect in the benchmark
+  rather than in either spelling of `schedule()`. See
+  `design/roadmap/proposals/map-new-times-a-window-too-short-to-mean-anything.md`.
+- **The five-context-switches reading is arithmetic that fits, not an instrumented count.** The
+  lump is measured; its composition is inferred from `47,752 / 9,594`. Nothing here counts the
+  preemptions directly, and a lane that fixes the benchmark should.
+- **No baseline was re-saved.** `map_new`'s baseline of 180,604 is the old spelling's number and
+  still reproduces on `main` exactly.
