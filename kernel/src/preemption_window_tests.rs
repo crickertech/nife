@@ -1,4 +1,5 @@
-//! **A timed window can exclude preemption, and this is the test that says so** (milestone 541).
+//! **A timed window can exclude preemption, and this is the test that says so.**
+//! Milestone 541 (a timed window that excludes preemption).
 //!
 //! `kernel/src/bench.rs`'s `map_new` masks interrupts across its timed window, because the window
 //! is roughly 250 microseconds of guest time against a 10 ms scheduler tick (`TICK_HZ` is 100 on

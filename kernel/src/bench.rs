@@ -503,7 +503,8 @@ fn map_new() {
     #[cfg(target_arch = "riscv64")]
     let fences_before = crate::arch::remote_fence_count();
 
-    // Preemption is masked across the window, and this is the whole of milestone 541's fix.
+    // Preemption is masked across the window. Milestone 541 (a timed window that excludes
+    // preemption) is this, and the masking is the whole of it.
     //
     // **The window is ~250 microseconds of guest time and the scheduler tick is 10 ms**
     // (`TICK_HZ` is 100 on all three architectures), so the window covers about 2.5% of a tick

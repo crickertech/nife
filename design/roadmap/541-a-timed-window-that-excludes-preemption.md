@@ -5,8 +5,8 @@
 **Promoted from a proposal on calef's instruction of 2026-09-21**, which was to promote the
 `map_new` proposal and launch a lane on it. It was written the same day as
 `design/roadmap/proposals/map-new-times-a-window-too-short-to-mean-anything.md` by the lane
-attributing the x86_64 `map_new` regression (milestone 540's neighbour on
-`mapnew/attribute-the-x86-map-new-regression`), and its gate was `DECISION`, because either shape
+attributing the x86_64 `map_new` regression (`mapnew/attribute-the-x86-map-new-regression`, pull
+request #1081, which this branch is based on), and its gate was `DECISION`, because either shape
 of the fix re-saves `map_new` on all three baselines and a baseline save is a statement that a
 performance change is intended and understood. That ruling is now given, so the save is in scope
 and the block below records what was chosen and why the alternatives lost.
@@ -102,7 +102,8 @@ The proposal's second `BUGS` entry was that only x86_64 had been swept. Measured
   regression into a failure or any real 15% one into a pass.
 
 So the fix ships on all three, and the three baselines are saved in their own commit with the
-attribution beside the numbers (milestone 415's requirement of any save).
+attribution beside the numbers.
+Milestone 415 (sub-tripwire drift accumulates across baseline saves) requires that of any save.
 
 ## BUGS
 
@@ -122,3 +123,29 @@ attribution beside the numbers (milestone 415's requirement of any save).
 - **The 2.5% window-to-tick ratio is arithmetic over one measurement of each architecture**, not a
   distribution. Nothing here sweeps the phase, so "one in forty" is the shape of the exposure and
   not a measured rate.
+
+## Follow-on
+
+- **Recorded.** `map_el0` has the same short-window shape and this mechanism cannot reach it,
+  because the kernel does not own a window that runs in EL0. The limitation is beside the feature
+  in this block's `BUGS` and in `notes/benchmarks.md`'s 2026-09-21 entry, which is where a reader
+  meets the row. It is not promoted to a milestone because the instrument is undecided and the
+  choice is a design fork (a syscall that brackets the window, or reporting the marginal cost),
+  not work a lane can pick up.
+- **Recorded.** The one relaxed increment this adds to every preemption on every core is
+  unmeasured in isolation; the `BUGS` entry beside it says so and bounds it by the tripwire.
+- **Done.** The proposal's three `BUGS` entries are all closed by this block: the composition of
+  the lump is counted rather than inferred (and the inference was wrong), the other two
+  architectures are measured, and the three baselines are saved on calef's ruling.
+
+## Index row
+
+**Built:** 2026-09-21
+
+A benchmark row whose window is 2.5% of a scheduler tick period does not measure what its name
+says; it measures whether a timer interrupt happened to land in it, and reports the answer as a
+26.4% regression in a code path that never changed. This milestone establishes that a timed window
+*can* exclude preemption under `-icount`, which was an open question, and makes `map_new` do it: the
+row is now byte-identical across the perturbation that used to move it by a quarter. It matters
+beyond one row because the alternative habit is re-saving a baseline to make red go away, which is
+how a tripwire stops being one.

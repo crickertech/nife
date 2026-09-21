@@ -4726,9 +4726,16 @@ pub fn count_preemption() {
 /// Preemptions taken **on this core**, which is the question the global counter cannot answer.
 ///
 /// A window with interrupts masked takes none of these however long it lasts, and that property is
-/// what `kernel/src/bench.rs`'s `map_new` is built on; see milestone 541 and
+/// what `kernel/src/bench.rs`'s `map_new` is built on.
+/// See milestone 541 (a timed window that excludes preemption), and
 /// `kernel/src/preemption_window_tests.rs`.
-#[cfg_attr(feature = "shell", allow(dead_code))]
+///
+/// **Its two callers are both conditional**, which is why the allow is the inverse shape of
+/// `preemptions()`'s above: that one has a caller in the ordinary build (the milestone tour) and
+/// loses it under `shell` and `bench`, while this one has callers only under `test` and `bench`
+/// and is genuinely dead in the build that ships. The counter it reads is written unconditionally,
+/// so no configuration can make the number stale.
+#[cfg_attr(not(any(test, feature = "bench")), allow(dead_code))]
 pub fn preemptions_here() -> u64 {
     cpu::current().preemptions.load(Ordering::Relaxed)
 }

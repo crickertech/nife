@@ -67,7 +67,7 @@ pub struct PerCpu {
     pub need_resched: AtomicBool,
 
     /// How many times **this core** has taken the CPU away from a thread, the per-core half of
-    /// `sched::PREEMPTIONS` (milestone 541).
+    /// `sched::PREEMPTIONS`, added by milestone 541 (a timed window that excludes preemption).
     ///
     /// The global counter cannot answer "was I preempted", only "was anyone", and on a multi-core
     /// kernel those are different questions: another core ticking its own thread moves the global
