@@ -33,6 +33,34 @@ The day this was raised produced at least these, none of which reached the tree 
 - A lane's own correction went stale before its pull request merged, because it measured the tree it
   branched from and `main` moved within the hour.
 
+## A second clause the same day argued for: a lane's job ends at green
+
+**A lane that has pushed a green branch is finished.** The merge queue is the maintainer's, and a
+lane that stays alive to watch it spends frontier tokens reading a status page.
+
+Measured on 2026-09-20: one lane reported the same completed result **three times** while polling
+CI, for about 550,000 tokens in total, and was stopped by hand. Its work had been correct and
+pushed at the first report. **Nothing in `AGENTS.md` says when a lane is done**, which is why it
+kept going: the standing instruction is that a lane continues until it needs a human or it is done,
+and "done" was never defined against the merge queue.
+
+The wording this proposes, for calef: **a lane's work ends when its branch is green and pushed and
+its report is written.** Watching a queue is the maintainer's, and a watcher on it should be a shell
+loop or nothing.
+
+## Two more from the same day, listed because they are still homeless
+
+- **`AGENTS.md`'s disk paragraph is out of date by a factor of four.** It names *"7.2 GB in the main
+  checkout's own `target/`"* as part of the budget that took a 252 GB volume to 1.9 GB free.
+  Measured 2026-09-21: **30 GB**, and the main checkout is invisible to `git worktree list`, which
+  is why nobody watches it. That file is calef's, so this is a finding rather than an edit.
+- **One mutation survivor found by a lane that could not route it.** A lane measuring
+  milestone 517 (what fraction of survivor growth arrives on touched lines) found
+  `compositor`'s `replace * with + in Rect::area` regressed on a line nobody edited: caught in
+  August, a survivor in September, the single genuine old-code decay among 142 candidates. It
+  belongs in `notes/mutation-testing.md`'s triage, which another lane held open at the time, so it
+  was reported and not filed.
+
 ## What cannot be mechanised, said first
 
 **Nothing can read the conversation.** No gate can know that a maintainer said something to calef
