@@ -727,6 +727,44 @@ mod tests {
     }
 
     #[test]
+    fn csts_cfs_is_a_different_bit_from_csts_rdy() {
+        // Nothing in this crate's host-tested half reads CSTS; the kernel driver does
+        // (kernel/src/non_volatile_memory_express.rs). This transcription check is the only
+        // place on the host that would catch a copied-to-the-wrong-bit constant (the NVMe
+        // Controller Status register: CFS is bit 1, RDY is bit 0).
+        assert_eq!(CSTS_CFS, 0b10);
+        assert_ne!(CSTS_CFS, CSTS_RDY);
+    }
+
+    #[test]
+    fn cc_enabled_sets_en_and_the_admin_queue_entry_sizes() {
+        let cc = cc_enabled();
+        assert_eq!(cc & 1, 1, "EN");
+        assert_eq!(
+            (cc >> 16) & 0xf,
+            6,
+            "IOSQES: 64-byte submission entries, 2^6"
+        );
+        assert_eq!(
+            (cc >> 20) & 0xf,
+            4,
+            "IOCQES: 16-byte completion entries, 2^4"
+        );
+    }
+
+    #[test]
+    fn cc_enableds_three_fields_share_no_bit_so_or_and_xor_agree() {
+        // Both `|` operators in `cc_enabled` survive being mutated to `^`, and this is why:
+        // EN (bit 0), IOSQES (`6 << 16`, bits 17-18) and IOCQES (`4 << 20`, bit 22) never share a
+        // bit, so `|` and `^` compute the exact same `u32` for these three literals. `cc_enabled`
+        // takes no argument, so there is no wider case to check; these ARE the only operands it
+        // ever combines.
+        assert_eq!(1u32 & (6u32 << 16), 0);
+        assert_eq!(1u32 & (4u32 << 20), 0);
+        assert_eq!((6u32 << 16) & (4u32 << 20), 0);
+    }
+
+    #[test]
     fn doorbells_land_where_the_spec_puts_them() {
         // §3.1.24-25 worked example, stride 0: SQ0 tail at 0x1000, CQ0 head at 0x1004,
         // SQ1 tail 0x1008, CQ1 head 0x100c.
@@ -749,6 +787,19 @@ mod tests {
     }
 
     #[test]
+    fn a_write_command_encodes_the_spec_dwords() {
+        // The mirror of `a_read_command_encodes_the_spec_dwords`, and `Command::write` had no
+        // test of its own: `transfer_command`'s own test always passes `write: false`, so this
+        // whole function's body had never run under a host test.
+        let c = Command::write(7, 1, 0x1_0000_0008, 8, 0xdead_b000, 0);
+        assert_eq!(c.0[0], 0x01 | 7 << 16, "opcode and cid share dword 0");
+        assert_eq!(c.0[1], 1, "nsid");
+        assert_eq!((c.0[6], c.0[7]), (0xdead_b000, 0), "prp1 split across 6/7");
+        assert_eq!((c.0[10], c.0[11]), (8, 1), "slba split across 10/11");
+        assert_eq!(c.0[12], 7, "the block count is 0-based on the wire");
+    }
+
+    #[test]
     fn queue_creation_packs_size_and_pairing() {
         let cq = Command::create_io_cq(1, 3, 16, 0x2000);
         assert_eq!(cq.0[10], 3 | 15 << 16, "qid, and the 0-based size");
@@ -756,6 +807,20 @@ mod tests {
         let sq = Command::create_io_sq(2, 3, 16, 3, 0x3000);
         assert_eq!(sq.0[10], 3 | 15 << 16);
         assert_eq!(sq.0[11], 1 | 3 << 16, "PC, and the paired cqid");
+    }
+
+    #[test]
+    fn queue_creation_words_pack_disjoint_halves_so_or_and_xor_agree() {
+        // Three `| -> ^` mutants survive in `create_io_cq` and `create_io_sq`, all the same
+        // shape: a `u16`-width field on the right of `|`, shifted left by 16, next to a value
+        // that only ever occupies the low 16 bits. A left shift by 16 zeroes the low 16 bits of
+        // *anything*, so the two halves can never share a bit, checked here at the widest a
+        // `u16` can be (if the extremes do not collide, nothing narrower can either).
+        assert_eq!(
+            0xffffu32 & (0xffffu32 << 16),
+            0,
+            "qid/1 against the shifted half"
+        );
     }
 
     #[test]
@@ -789,6 +854,18 @@ mod tests {
             }
         }
         assert_eq!(flips, 3, "nine pops of a 3-ring wrap exactly three times");
+    }
+
+    #[test]
+    fn head_reports_the_actual_next_slot_not_a_constant() {
+        // Every existing caller only ever asserts `head() < entries`, which a constant 0 or a
+        // constant 1 both satisfy. Assert the actual progression instead.
+        let mut cq = CqState::new(4);
+        assert_eq!(cq.head(), 0);
+        cq.pop();
+        assert_eq!(cq.head(), 1);
+        cq.pop();
+        assert_eq!(cq.head(), 2);
     }
 
     #[test]
@@ -841,6 +918,60 @@ mod tests {
         assert!(parse_identify_namespace(&[0u8; 100]).is_none(), "truncated");
     }
 
+    #[test]
+    fn identify_namespace_accepts_the_minimum_length_and_refuses_one_byte_less() {
+        // The `[0u8; 100]` case above is far short of the boundary and cannot tell `< 384` from
+        // `<= 384`. Sit exactly on it instead.
+        let mut data = [0u8; 384];
+        data[0..8].copy_from_slice(&1u64.to_le_bytes());
+        data[26] = 0;
+        data[130] = 9;
+        assert!(
+            parse_identify_namespace(&data).is_some(),
+            "384 bytes is documented as enough"
+        );
+        assert!(
+            parse_identify_namespace(&data[..383]).is_none(),
+            "one byte short of the documented minimum must be refused"
+        );
+    }
+
+    #[test]
+    fn identify_namespace_reads_the_lba_format_table_at_flbas_not_format_zero() {
+        // The test above uses FLBAS=0, where the table offset `128 + 4*flbas` happens to equal
+        // `128 - 4*flbas`: both are 128. Use FLBAS=1 so the two diverge, and plant a different,
+        // still-valid LBADS at format 0's slot so a lane reading the wrong slot gets caught by
+        // value rather than by accidentally landing on unset (and therefore refused) bytes.
+        let mut data = [0u8; 384];
+        data[0..8].copy_from_slice(&1u64.to_le_bytes());
+        data[26] = 1; // FLBAS: format 1
+        data[128 + 2] = 10; // format 0's LBADS: a decoy
+        data[128 + 4 + 2] = 11; // format 1's LBADS: the one that must be read
+        let id = parse_identify_namespace(&data).unwrap();
+        assert_eq!(id.lba_shift, 11, "format 1's slot, not format 0's");
+    }
+
+    #[test]
+    fn blocks_per_masks_by_the_actual_block_size() {
+        // `identify_namespace_yields_size_and_shift`'s only `blocks_per` call is 4096, which is a
+        // multiple of every mask this function could plausibly compute (511, 512, or 513: none
+        // of their low bits reach as high as bit 12), so it cannot tell them apart, and it never
+        // calls `blocks_per(0)` either.
+        let id = IdentifyNamespace {
+            blocks: 1,
+            lba_shift: 9, // 512-byte blocks; mask is 511
+        };
+        assert_eq!(
+            id.blocks_per(0),
+            None,
+            "a zero unit is refused even though 0 & anything is 0"
+        );
+        // 1536 = 3 * 512, so the correct mask (511) says it divides evenly. The `+1` mutant's
+        // mask (513) and the `/1` mutant's mask (512) both share bit 9 with 1536 and would
+        // wrongly refuse it.
+        assert_eq!(id.blocks_per(1536), Some(3));
+    }
+
     /// The handoff the kernel's admin plane builds is the handoff the EL0 data plane reads, and a
     /// word that cannot describe a servable controller is refused rather than decoded.
     #[test]
@@ -866,6 +997,51 @@ mod tests {
         assert!(Handoff::unpack([8 << 16 | 1, 0, 0]).is_none());
         assert!(Handoff::unpack([9 << 16 | 16, 0, 0]).is_none());
         assert!(Handoff::unpack([16, 0, 0]).is_none(), "blocks_per zero");
+        // The spec's minimum queue depth is 2 (`SqState::new`'s own doc says why: a one-slot
+        // ring cannot distinguish full from empty), and nothing above sits exactly on that
+        // boundary: `entries: 1` is refused either by `< 2` or by the `<= 2` this guards against.
+        assert!(
+            Handoff::unpack([8 << 16 | 2, 0, 0]).is_some(),
+            "the minimum queue depth must be accepted, not refused"
+        );
+    }
+
+    #[test]
+    fn pack_shifts_dstrd_left_not_right() {
+        // The round-trip test above uses `dstrd: 0`, where `<< 32` and `>> 32` both give 0.
+        // Nothing else calls `pack` at all, so a nonzero `dstrd` never reached it.
+        let h = Handoff {
+            dstrd: MAX_DSTRD,
+            blocks_per: 8,
+            entries: 16,
+            data_plane_phys: 0x4001_3000,
+            size_bytes: 8 * 1024 * 1024,
+        };
+        let words = h.pack();
+        assert_eq!(
+            words[0] >> 32,
+            MAX_DSTRD as u64,
+            "dstrd lands in the high word, shifted left, not right"
+        );
+        assert_eq!(Handoff::unpack(words), Some(h));
+    }
+
+    #[test]
+    fn pack_words_three_fields_share_no_bit_so_or_and_xor_agree() {
+        // The remaining two `| -> ^` survivors in `pack` are both this shape: `entries` (a plain
+        // `u16`, bits 0-15), `blocks_per as u64 << 16` (bits 16-31, a `u16` shifted left 16), and
+        // `dstrd as u64 << 32` (bits 32-63, a `u32` shifted left 32). Each shift zeroes exactly
+        // the bits the field below it occupies, checked at the widest each field can be.
+        assert_eq!(
+            0xffffu64 & (0xffffu64 << 16),
+            0,
+            "entries against blocks_per"
+        );
+        assert_eq!(
+            0xffff_ffffu64 & (0xffff_ffffu64 << 32),
+            0,
+            "the low 32 bits against dstrd"
+        );
     }
 
     /// The last block of the namespace is servable and the one after it is not, which is the
