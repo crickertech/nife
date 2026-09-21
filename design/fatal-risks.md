@@ -216,8 +216,7 @@ upward) triaged everything the amber half named, and he asked for a fresh census
 whether it went green. **The verdict stands and the reason it was given does not**, which is the
 useful part.
 
-**The fall this entry was built on did not happen.** Milestone 518 (the per-crate census nobody
-wrote down) captured both censuses into a committed per-crate record and recomputed them
+**The fall this entry was built on did not happen.** Milestone 518 (a census that cannot be attributed) captured both censuses into a committed per-crate record and recomputed them
 consistently. Like-for-like reads **94.7%**, not 92.6%; the whole corpus **93.7%**, not 91.4%. The
 runs themselves are unchanged: run
 [35421192143](https://github.com/crickertech/nife/actions/runs/35421192143), eight shards, all green.
@@ -247,10 +246,45 @@ as a survivor-basis number, against a 93.6% that is kill-basis, which is the mix
 from the other side.
 
 **It stays amber, on the standard this entry actually holds.** 563 survivors are untriaged against
-milestone 85 (mutation testing: does the suite notice when the code is wrong)'s rule that every
+milestone 85 (mutation testing over the host crates)'s rule that every
 survivor becomes a test, an exclusion carrying its reason, or a recorded gap. **That was the honest
 ground all along.** The fall was never needed to reach amber, and leaning on it meant this entry
 asserted a cause it could not attribute, which its own next paragraph admitted in the same breath.
+
+**What green now requires, ruled 2026-09-20 and measured 2026-09-21.** calef ruled that the
+condition should be **inflow**: new code cannot arrive less tested, with the corpus rate as a lagging
+indicator. Milestone 517 (what fraction of survivor growth arrives on lines a pull request touched)
+then measured the premise rather than assuming it, and the answer is decisive. Of the census's 771
+survivors, **629 sit on lines a pull request wrote and one** is a genuine regression on a line nobody
+edited (`compositor`'s `Rect::area`, caught in August, surviving in September). Old-code decay runs
+about three orders of magnitude behind inflow.
+
+> **Green when both hold.** (a) **Inflow:** the survivors a merged pull request adds on its own
+> lines, measured by `cargo mutants --in-diff` on the merged diff, are zero or triaged into a test,
+> an exclusion with a reason, or a recorded gap, under milestone 85 (mutation testing over the
+> host crates)'s rule, for every pull request since the last census.
+> (b) **Trailing:** the like-for-like census rate has not fallen between the two most recent
+> censuses. **Amber if (a) holds and (b) does not**, because that is coverage decaying on code
+> nobody is editing, which is a different defect wanting a different repair.
+
+**Three things about that wording are deliberate.** It does **not** say "the blocking gate is on",
+because that would make this verdict hostage to a decision milestone 479 (a blocking `--in-diff`
+mutation gate) refused; the measurement is available without the gate, at four seconds on a
+documentation change. It keeps clause (b) even though inflow dominates, because an inflow-only
+condition cannot see `Rect::area` at all and that failure is silent by construction: nobody is
+editing the code, so nothing prompts anyone to look. And it is **a floor rather than a target**,
+since a percentage target can be met by excluding awkward crates, which is what milestone 85's rule
+exists instead of.
+
+**What it does not carry, stated where the verdict is read.** The kernel. `kernel` generates 7,529
+mutants and `components` 3,482, and a kernel mutant costs a relink plus a full QEMU suite, about 55
+seconds each: roughly 500 runner-hours per census across three architectures against 52 minutes
+today. A kernel *census* is refused on that arithmetic; a kernel *diff-scoped* check is minutes on a
+kernel pull request and is the affordable half. **So this condition speaks for the host-testable
+corpus and not for the kernel**, which is the largest thing it does not say.
+
+**The cost of adopting it, measured rather than estimated**: 62 of the 761 pull requests merged in
+the six-week window (8.1%) would have carried untriaged survivors, median 6 each.
 
 **What this cost, recorded because it is the second time.** Milestone 512 (the census blamed one pull
 request for 55 survivors it did not write) holds the first: a delta read from `script/mutation
