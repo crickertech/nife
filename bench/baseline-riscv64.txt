@@ -13,7 +13,10 @@ call_reply 177982 1000
 broker_rtt 355473 1000
 spawn_reap 34277 64
 map_new 2411 64
-rfence_self 6476 512
+# rfence_self: corrected by hand from 6476 on 2026-09-21. 6476 was never what this tree
+# measured; 5991 is, at 28e165e2, at its parent, and at every commit since. `--save` rewrites
+# this file and will delete these three lines: notes/benchmarks.md holds the account.
+rfence_self 5991 512
 coremark 3654349 256
 null_syscall 73029 20000
 ctx_switch 504958 5000
