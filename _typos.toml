@@ -138,3 +138,9 @@ ANDD = "ANDD"
 # strength of that claim differs from the retrospective's summary of it, which is the whole point of
 # the quotation. Correcting a source inside quotation marks would be worse than the typo.
 architecure = "architecure"
+# Two verified-kernel projects named in notes/redleaf.md's comparison of proof-to-code ratios.
+# `CertiKOS` (Yale, Coq) splits into "Certi" + "KOS" and the checker offers "Certificate"/"Certify";
+# `SeKVM` (Columbia, Coq) is the verified KVM core cited beside it. Both are proper nouns in the
+# literature, spelled by their authors, and both appear inside or beside quoted material.
+CertiKOS = "CertiKOS"
+SeKVM = "SeKVM"
