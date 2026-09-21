@@ -3313,3 +3313,44 @@ another space's tagged entries alive, which is a stale-translation defect. The f
 each of those paths (present on both machines above) and a tag-reuse rule against
 `crates/address_space_identifier`'s generations. `kernel/src/arch/x86_64/mmu.rs`'s BUGS records both
 bits and this measurement.
+
+## 2026-09-21: the userspace counter frequency was a constant on riscv64, and what it did not reach
+
+`user_mode_runtime::cntfrq` returned a hardcoded `10_000_000` on riscv64 from the port until this
+date, and the std PAL (`sys/pal/nife/rt.rs`) carried its own copy of the same constant. QEMU `virt`
+runs its `time` CSR at exactly that rate, so the number was right on every machine the suite runs on
+and wrong by **2.5x on radon**, whose JH7110 states 4 MHz. calef's ruling that ended it: *"We should
+ensure that the program only returns accurate numbers versus leveraging hard coded ones."*
+
+**The first thing to establish was whether any committed number was wrong, and the answer is no.**
+It is worth writing down why, because the reasoning is the reusable part:
+
+- **The bench baselines are icount**, not time. `bench/baseline-riscv64.txt` holds guest instruction
+  counts, which no counter frequency enters.
+- **The `ns/iter` column does not come from userspace.** `os_primitives_benchmarker` reports raw
+  ticks over IPC and `xtask/src/bench.rs` converts them, dividing by the `bench: cntfrq <hz>` line
+  the *kernel* prints from `arch::timer::frequency()`. That has read `/cpus/timebase-frequency` since
+  milestone 100 (read the machine's PSCI and its CPU list, not QEMU `virt`'s), so the published EL0
+  figures were computed from the machine's own rate, on both
+  QEMU and a board.
+- **The job mix is the same shape**, from milestone 168 (a multi-tasking workload benchmark).
+  `kernel/src/job_mix.rs` prints the kernel's `hz` and
+  the tasks report ticks, so the multi-tasking numbers were never exposed to this.
+- **CoreMark reports its own `cntfrq`** (`fixtures/src/coremark.rs` sends `[crc, ticks, freq]`) and
+  is therefore the one measurement that *did* carry the constant. Nothing published a CoreMark score
+  from it: this note's own CoreMark section says the binary "reports correctness, not yet a score",
+  and the kernel test asserted only `freq > 0`.
+
+**What the constant did reach was every program's own sense of how long something took**, which is
+not a published figure and is not therefore harmless: `Instant`, `thread::sleep`, the shell's `time`,
+`uptime`, and the timeouts in `net_stack` all run 2.5x off on radon, in the direction that makes
+everything look slower than it is. On `x86_64` the equivalent defect was a 1 GHz fallback read by any
+process the userspace ELF loader built, `coremark` included.
+
+**The fix and the test are worth separating.** The fix was to widen a `cfg`: `x86_64` had already
+built the mechanism (`counter_frequency_protocol`, a page the kernel fills and maps read-only into
+every process) and riscv64 now uses it, with an unknown rate refusing rather than falling back. The
+test is the part that would have caught this in July: `kernel/src/user/counter_frequency_tests.rs`
+asserts that what a userspace program reports equals what the kernel measured, on all three
+architectures. **A test that compares a rate against a constant cannot catch a constant**, which is
+exactly why `freq > 0` held for two months.
