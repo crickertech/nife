@@ -178,8 +178,8 @@ def unsafe_census(files):
 # --format-version 1`, once, at the repository root: every workspace member's `resolve.nodes[*].
 # deps[*].dep_kinds` was read, and a crate is `KERNEL_ONLY`/`USERSPACE_ONLY` by whether it is
 # reachable, over edges that are NOT exclusively `dev`, from the `kernel` package versus from
-# `components` or `fixtures` (the two packages holding every EL0 program, milestone 175, split
-# `user/`: `components/` for services, `fixtures/` for test and benchmark programs). A crate
+# `components` or `fixtures` (the two packages holding every EL0 program, milestone 175 (split
+# `user/`: `components/` for services, `fixtures/` for test and benchmark programs)). A crate
 # reachable from both sides is `SHARED`. This is mechanical and checkable
 # (`cargo metadata | scripts/<this file's own derivation>`, not reproduced as a script here because
 # `script/metrics` can never run cargo -- see this file's own module docstring -- so the result is
