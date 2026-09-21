@@ -1220,6 +1220,8 @@ in the code or the conversation doesn't make sense, it belongs here.
   The **write half** (2026-08-03) is here too: a disk endpoint plus an entropy endpoint are jointly
   sufficient to partition and format a drive and separately neither is, proved by withholding each
   from the same binary and then reading the disk.
+- [Things this project has already gotten wrong](corrections.md): the index of scars, kept because
+  the corrections were the most instructive part, each pointing at the note with the full account.
 - [Prior art and reuse](prior-art.md): where to look before building (Redox, rCore, Tock,
   Hubris, seL4, Fuchsia) and the rule that decides build-vs-reuse: the reuse boundary is the
   TCB boundary. Inside it, always build; userspace components, actively prefer porting,
