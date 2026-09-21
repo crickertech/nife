@@ -102,6 +102,23 @@ struct LogEntry {
 /// benchmarks with it and should expect to re-record them.
 const LOG_ENTRIES: usize = 170;
 
+/// **How many log pages `n` recorded mappings cost**, for a caller sizing an address space's
+/// backing region.
+///
+/// Every mapping is recorded ([`record_mapping`]), and the record is paid for out of the mapped
+/// space's own region, so a caller that carves a budget and then maps a large window has to pay for
+/// the window's records as well as for the page tables reaching it. That was free until 2026-09-21,
+/// because [`crate::user::AddressSpace::map_physical`] recorded nothing; it is not free now, and
+/// the callers that map a whole initrd (thousands of pages) are the ones where the difference is
+/// visible rather than lost in `AS_OVERHEAD`'s slack.
+///
+/// Exported rather than left as arithmetic at each call site because `LOG_ENTRIES` is this
+/// module's own business: a caller that spelled `n / 170` would be a copy of a constant that moves
+/// (its own doc prices a fourth `LogEntry` word at 127 entries per page).
+pub fn log_pages_for(n: u64) -> u64 {
+    n.div_ceil(LOG_ENTRIES as u64)
+}
+
 /// **What authority a mapping was made under**, which is the question [`record_mapping`] now
 /// requires an answer to (DECISIONS §132).
 ///

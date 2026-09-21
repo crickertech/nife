@@ -1023,6 +1023,7 @@ pub fn spawn_hello(
             .sum::<u64>()
             + 1
             + initrd_pages / 512
+            + crate::revoke::log_pages_for(initrd_pages)
             + INIT_STACK_PAGES
             + 8;
         let mut space = AddressSpace::new(content).expect("no memory for hello");
@@ -1792,6 +1793,12 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
 
     // system_initializer's address space: its segments, a deep stack (it runs an ELF loader that builds three
     // children), and the whole archive mapped read-only so it can load them by name.
+    //
+    // `log_pages_for(initrd_pages)` is the term that was not here before 2026-09-21: the archive's
+    // pages are mapped with `map_physical`, which records now, and a record is paid for out of this
+    // space's own region like the page tables beside it. It is the largest single such window in
+    // the tree (the aarch64 archive is a few thousand pages), so it is the one place the cost is
+    // visible rather than lost in `AS_OVERHEAD`'s slack. See `crate::revoke::log_pages_for`.
     let content: u64 = elf
         .segments()
         .map(|seg| {
@@ -1801,6 +1808,7 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         .sum::<u64>()
         + 1
         + initrd_pages / 512
+        + crate::revoke::log_pages_for(initrd_pages)
         + INIT_STACK_PAGES
         + 8;
     let mut space =

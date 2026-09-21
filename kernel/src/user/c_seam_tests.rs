@@ -54,6 +54,7 @@ fn spawn_confiner() -> sched::RendezvousId {
         .sum::<u64>()
         + 1
         + initrd_pages / 512
+        + crate::revoke::log_pages_for(initrd_pages)
         + INIT_STACK_PAGES
         + 8;
     let mut space = AddressSpace::new(content).expect("no memory for c_confiner");
