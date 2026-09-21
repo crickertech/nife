@@ -18,57 +18,102 @@
 #   a0 = where to STORE our stack pointer (&mut prev.context)
 #   a1 = the stack pointer to RESTORE     (next.context)
 # The RISC-V calling convention puts the first two arguments in a0 and a1.
+# CFI (see notes/cfi-unwind.md and, for the full argument, the identical technique in
+# arch/aarch64/context.s). One continuous frame description, no special handling at the stack
+# swap: `.cfi_def_cfa_offset 112` is a formula in terms of the CURRENT sp, and `next_context` (a1)
+# is by construction the exact sp another thread's own earlier call to this function (or
+# `Context::for_*_thread`'s synthetic frame) left behind after this same `addi sp, sp, -112`. So
+# the formula, and the thirteen `.cfi_offset` rules below, stay correct on both sides of `mv sp,
+# a1`.
 .global switch_to
+.type switch_to, @function
 switch_to:
+    .cfi_startproc
     # Push the callee-saved registers. 112 bytes: 13 registers plus 8 bytes of padding, a multiple
     # of 16 so sp stays aligned. The layout matches `struct Context` field for field.
     addi sp, sp, -112
+    .cfi_def_cfa_offset 112
     sd   ra,   0(sp)
+    .cfi_offset ra, -112
     sd   s0,   8(sp)
+    .cfi_offset s0, -104
     sd   s1,  16(sp)
+    .cfi_offset s1, -96
     sd   s2,  24(sp)
+    .cfi_offset s2, -88
     sd   s3,  32(sp)
+    .cfi_offset s3, -80
     sd   s4,  40(sp)
+    .cfi_offset s4, -72
     sd   s5,  48(sp)
+    .cfi_offset s5, -64
     sd   s6,  56(sp)
+    .cfi_offset s6, -56
     sd   s7,  64(sp)
+    .cfi_offset s7, -48
     sd   s8,  72(sp)
+    .cfi_offset s8, -40
     sd   s9,  80(sp)
+    .cfi_offset s9, -32
     sd   s10, 88(sp)
+    .cfi_offset s10, -24
     sd   s11, 96(sp)
+    .cfi_offset s11, -16
     # offset 104 is the padding field; nothing is written there.
 
     # Remember where we put them: THIS is the entire saved state of a thread, a single sp.
     sd   sp, 0(a0)
 
-    # And now we run on somebody else's stack.
+    # And now we run on somebody else's stack. No CFI directive belongs here; see the note above.
     mv   sp, a1
 
     # Pop THEIR callee-saved registers, pushed by their own call to switch_to, whenever that was
     # (or faked by Context::for_*_thread for a thread that has never run).
     ld   ra,   0(sp)
+    .cfi_restore ra
     ld   s0,   8(sp)
+    .cfi_restore s0
     ld   s1,  16(sp)
+    .cfi_restore s1
     ld   s2,  24(sp)
+    .cfi_restore s2
     ld   s3,  32(sp)
+    .cfi_restore s3
     ld   s4,  40(sp)
+    .cfi_restore s4
     ld   s5,  48(sp)
+    .cfi_restore s5
     ld   s6,  56(sp)
+    .cfi_restore s6
     ld   s7,  64(sp)
+    .cfi_restore s7
     ld   s8,  72(sp)
+    .cfi_restore s8
     ld   s9,  80(sp)
+    .cfi_restore s9
     ld   s10, 88(sp)
+    .cfi_restore s10
     ld   s11, 96(sp)
+    .cfi_restore s11
     addi sp, sp, 112
+    .cfi_def_cfa_offset 0
 
     # ra now holds the OTHER thread's return address. This does not go back to our caller.
     ret
+    .cfi_endproc
+.size switch_to, . - switch_to
 
 # Where a brand-new KERNEL thread begins. Context::for_kernel_thread faked a frame whose ra points
 # here, with s0 = the closure pointer and s1 = the monomorphized caller, both restored by switch_to
 # on the way in. We hand them to the portable `thread_entry`, which never returns.
 .global thread_trampoline
+.type thread_trampoline, @function
 thread_trampoline:
+    .cfi_startproc
+    # Never reached by `call`: the fake return address Context::for_kernel_thread writes into a
+    # synthetic switch frame. ra here is self-referential (still this function's own address,
+    # restored by switch_to's `ret`), not a real caller.
+    .cfi_undefined ra
     # We arrive with interrupts masked (as on aarch64); the portable `thread_entry` unmasks after
     # `finish_switch`, never here. See arch/aarch64/context.s for the hang an early unmask caused.
     mv   a0, s0            # the closure, on this thread's own stack
@@ -76,6 +121,8 @@ thread_trampoline:
     call thread_entry      # extern "C" fn(*mut (), fn(*mut ())) -> !  -- never returns
 1:  wfi
     j    1b
+    .cfi_endproc
+.size thread_trampoline, . - thread_trampoline
 
 # Where a brand-new USER thread begins: the U-mode mirror of thread_trampoline.
 # Context::for_user_thread faked a frame whose ra points here, with s0 = the U-mode entry, s1 = the
@@ -92,8 +139,13 @@ thread_trampoline:
 # from where trap.s builds an S-mode frame, so any interrupt in the window rewrote it. The 288 is
 # size_of::<TrapFrame>(), asserted in exceptions.rs, and is a multiple of 16 so sp stays aligned.
 .global user_entry_trampoline
+.type user_entry_trampoline, @function
 user_entry_trampoline:
+    .cfi_startproc
+    # Same fake-frame reasoning as thread_trampoline above.
+    .cfi_undefined ra
     addi sp, sp, -288      # reserve [top-288, top) for this thread's TrapFrame
+    .cfi_def_cfa_offset 288
     mv   a0, s0            # the U-mode entry address
     mv   a1, s1            # the user stack pointer
     mv   a2, s2            # the child's initial a0
@@ -102,3 +154,5 @@ user_entry_trampoline:
     call user_thread_entry # extern "C" fn(u64, u64, u64, u64, u64) -> !  -- never returns
 1:  wfi
     j    1b
+    .cfi_endproc
+.size user_entry_trampoline, . - user_entry_trampoline

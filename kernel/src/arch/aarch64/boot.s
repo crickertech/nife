@@ -63,6 +63,12 @@
 //
 // See notes/higher-half.md.
 
+// CFI (call-frame information) below: see notes/cfi-unwind.md for what these directives mean and
+// why this file's shape is `.cfi_undefined lr` almost everywhere. Short version: nothing in this
+// file is reached by `bl`, so `lr` (x30) never holds a real return address here, and inventing a
+// CFA formula anyway would tell a debugger to unwind into whatever garbage x30 last held. Marking
+// it undefined tells the unwinder, correctly, that this is as far back as it can go.
+
 .section ".text.boot", "ax"
 .global _boot
 
@@ -87,7 +93,12 @@
 // below, it is the architecture.
 .equ BOOT_TCR,          0xb5103510
 
+.type _boot, @function
 _boot:
+    .cfi_startproc
+    // No caller: this is where the firmware/QEMU jumps with the MMU off and no stack. See the
+    // file header's CFI note.
+    .cfi_undefined lr
     // The firmware handed us the device tree pointer in x0, and it is a PHYSICAL address. Keep
     // it; kernel_main converts it. This is the FIRST instruction executed for the same reason
     // image_header.s does not touch x0: everything below is allowed to clobber it, and x19 is
@@ -211,6 +222,8 @@ _boot_el1:
     mov     x0, x19                     // the device tree (still a physical address)
     ldr     x1, =kernel_main            // the HIGH entry point
     br      x1                          // and we are in the high half forever
+    .cfi_endproc
+.size _boot, . - _boot
 
 // --- the EL2 to EL1 drop (milestone 127's first prerequisite) ---
 //
@@ -239,7 +252,13 @@ _boot_el1:
 // implemented level and is firmware's to set, so writing our own guess would replace a real
 // number with an invented one.
 .global enter_el1
+.type enter_el1, @function
 enter_el1:
+    .cfi_startproc
+    // Reached by a plain `b`, not `bl`: the caller passes its own resume point in x21, not lr.
+    // lr therefore carries whatever the caller's caller left in it and names no return here at
+    // all; describing it as this function's return address would be describing the wrong thing.
+    .cfi_undefined lr
     // `CurrentEL` holds the level in bits [3:2] and reads as RES0 elsewhere, so this is the
     // level as an ordinary number.
     mrs     x0, CurrentEL
@@ -373,12 +392,19 @@ enter_el1:
     eret
 
 9:  br      x21
+    .cfi_endproc
+.size enter_el1, . - enter_el1
 
+.type park, @function
 park:
+    .cfi_startproc
+    .cfi_undefined lr
     // wfi, not wfe: QEMU idles the host thread on wfi and merely spins on wfe. A parked core
     // that burns 100% of a host CPU is not parked. See notes/qemu.md.
     wfi
     b       park
+    .cfi_endproc
+.size park, . - park
 
 // --- secondary core entry (SMP step 2, DECISIONS §11) ---
 //
@@ -391,7 +417,12 @@ park:
 // and it is still sitting in .bss, so we do NOT rebuild it. We only replay the MMU-enable
 // (fact 1 in the header comment gets us the table's PA with `adrp`) and jump to the high half.
 .global secondary_boot
+.type secondary_boot, @function
 secondary_boot:
+    .cfi_startproc
+    // No caller: PSCI CPU_ON starts a secondary core here directly, MMU off, no stack. Same
+    // reasoning as `_boot`.
+    .cfi_undefined lr
     mov     x19, x0                     // stash the stack-top VA for after the MMU is on
 
     // **A secondary can arrive at EL2 even though EL1 made the call**, so this drop is not
@@ -446,6 +477,8 @@ _secondary_el1:
 
     ldr     x1, =secondary_main         // the HIGH entry, x0 = cpu id
     br      x1
+    .cfi_endproc
+.size secondary_boot, . - secondary_boot
 
 // The boot page tables. In .bss, so the zeroing loop above clears them for free.
 .section ".bss", "aw", @nobits

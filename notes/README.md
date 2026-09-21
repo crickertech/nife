@@ -13,6 +13,13 @@ in the code or the conversation doesn't make sense, it belongs here.
 
 ## Tooling
 
+- [Call-frame information in hand-written assembly](cfi-unwind.md): what CFI is, why the twelve
+  (really thirteen) hand-written `.s` files lacked it, the link-script discovery that a discarded
+  `.eh_frame*` was hiding the *compiler's* CFI too, and the before/after GDB transcripts: a
+  backtrace that used to loop past #9976 frames of `exception_vectors ()` now walks seven real
+  Rust frames through a context switch and a trap, and stops honestly where AArch64's DWARF gap and
+  GDB's own AArch64 return-column limitation say it must. Name provisional.
+
 - [QEMU](qemu.md): the software computer we develop on. Why we need it, what the `virt`
   machine is, what each flag does.
 
@@ -133,6 +140,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The device tree](device-tree.md): the machine describing itself. Everything in it is
   big-endian, and the width of an address is declared by the *parent* node. Those are the
   two things most likely to be silently wrong.
+- [How this is built](how-this-is-built.md): the method as a claim, with the caveats that make it one.
 - [ISA discovery](isa-discovery.md): milestone 60, one record per architecture for what the machine
   actually is, populated once at boot and printed at boot. Why RISC-V needs a parser and aarch64
   needs only a decoder (ARM never removed the CPU's self-description; RISC-V did, on purpose), how
@@ -817,6 +825,28 @@ in the code or the conversation doesn't make sense, it belongs here.
   listed, and a **reasoned refusal of `xtask`** on four grounds, the sharpest being that its
   hand-written decoders exist to be a second opinion and proving both halves of a deliberately
   independent pair narrows the independence. Name provisional.
+- [Verus, and whether it reaches the code Kani stops at](verus.md): the question
+  `design/fatal-risks.md` risk 2 (the proofs prove trivia, and the real bugs live where Kani cannot
+  reach) implies and `script/verify`'s own header anticipated when it said the script was named so
+  that *"swapping Kani for Verus someday would cost nothing"*. **The premise had already expired**:
+  risk 2 still says `kernel/src` is unreachable by construction, and milestone 193 (put `kernel/src`
+  within reach of the prover, because today the proofs cannot see it) opened it on 2026-08-30. So the
+  note asks the narrower question instead, and answers it by running both tools. Three throwaway Kani
+  harnesses establish what actually stops it (`asm!` reaching through a *dependency*, an MMIO read,
+  and the silent architecture `cfg`), with every error message quoted and the residue measured at
+  15,001 lines, all of them under `arch/`. Verus was downloaded and run: it refuses `asm!` and
+  refuses the integer-to-pointer cast that is the MMIO idiom, so **it stops at the same boundary**,
+  and reaches past it only by letting a human assert a postcondition that nothing checks (a worked
+  example passes on a claim about `CNTVCT_EL0` that is false). Atmosphere's SOSP '25 trusted
+  computing base is that boundary drawn by hand: 172 lines of assembly and ~3,000 lines of trusted
+  Rust for the IOMMU, APIC, IDT, GDT and syscall entry, which is this tree's `arch/x86_64/` file
+  list. The effort numbers with their conditions (3.32:1 proof-to-code, 6K executable lines, 1.5
+  person-years of verification, under 20 seconds of wall clock), what a linear extrapolation to
+  `kernel/src`'s 40,953 code lines implies, and why linear is the optimistic reading. Also the
+  finding that Verus's concurrency model is **sequentially consistent**, which is the assumption
+  DECISIONS §4 (kernel shape: monolithic, deferred, with two cheap rules) rule 4, assume weak memory
+  ordering, exists to avoid acquiring. Recommends nothing,
+  deliberately. Name provisional.
 - [Fuzzing the parse surface](fuzzing.md): milestone 42's second leg, and the complement to the
   proofs above. Starts with the question that decides whether it is worth having at all, given 107
   Kani harnesses: **what does fuzzing find that Kani does not**, answered against three worked cases
@@ -865,6 +895,17 @@ in the code or the conversation doesn't make sense, it belongs here.
   multi-crate sweep and answers confidently wrong. The first finding: the fall
   `design/fatal-risks.md`'s risk 3 stands on is an artifact of two rows counting a timeout two
   different ways, and read consistently the rate went up. Names provisional.
+- [The CI log baseline](ci-log-baseline.md): per-check attribution for failed CI jobs, mined from
+  GitHub Actions logs before the retention window deletes them. `script/lint` wraps 47 named checks
+  in one `clippy` job and a job conclusion alone cannot say which fired; the log's last `==>` marker
+  can, and this record captures it for every failed job of the five job types that wrap more than one
+  distinguishable check (`clippy`, `supply chain`, `cpu matrix`, `verify (Kani proofs)`, `bench`'s
+  icount tripwire), one row per job in
+  `notes/project-metrics/ci-log-baseline.csv`, re-derivable with `script/ci-log-baseline`. Corrects
+  the premise it was briefed under: nothing had expired as of 2026-09-21, contrary to what was
+  assumed going in. Not the gate-firing ledger (a separate, still-open proposal) and not a ranking of
+  gate value: a check that fires locally and is pushed green never reaches this record at all. Names
+  provisional.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
   to the question milestone 191 raised: **can each of these harnesses actually be made to fail?**
   Opens with the check §134 asked for first, whether Kani or CBMC can produce an Inductive Validity

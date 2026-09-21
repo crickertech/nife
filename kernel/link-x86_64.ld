@@ -254,9 +254,24 @@ SECTIONS
     __image_end = .;
     __image_size = __image_end - __image_start;
 
+    /* `.eh_frame*` (call-frame information; milestone: CFI in hand-written asm) is deliberately
+     * not discarded any more, and placed HERE, after `__image_end`/`__image_size` are already
+     * computed, rather than left to default orphan placement: see the long comment in
+     * link-aarch64.ld for the full reasoning (default placement inflated that ISA's image-size
+     * symbol by the CFI's own size; NOLOAD and INFO output sections each broke something else).
+     * `__image_size` has no reader on this ISA yet (there is no board port), but keeping the same
+     * shape across all three link scripts is one fewer thing to re-derive later.
+     *
+     * UNLIKE aarch64, nothing strips this section back out before QEMU boots it: this port has no
+     * flat-Image / objcopy step at all (PVH loads the ELF's PT_LOAD segments directly; see
+     * scripts/qemu-runner-x86_64.sh's own header comment), so the CFI rides along into guest RAM.
+     * That is harmless extra RAM in a VM with QEMU's usual hundreds of megabytes and is not why
+     * this section moved; see notes/cfi-unwind.md's BUGS section for the honest scope of what
+     * this milestone did and did not strip. */
+    .eh_frame : { KEEP(*(.eh_frame)) KEEP(*(.eh_frame_hdr)) }
+
     /DISCARD/ : {
         *(.comment)
         *(.note*)
-        *(.eh_frame*)         /* stack-unwinding tables; we never unwind */
     }
 }

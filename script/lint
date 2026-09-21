@@ -386,6 +386,40 @@ if git grep -nE 'asm!\(|core::arch::' -- \
 fi
 echo "rule 1: no asm outside kernel/src/arch/"
 
+# Hand-written assembly carries call-frame information (milestone: CFI in hand-written asm).
+#
+# What this checks: that a `.s` file under kernel/src/arch/ which defines at least one exported
+# (`.global`) symbol also contains at least one `.cfi_startproc`. **What it cannot check, and is
+# honest about not checking**: that the CFI is CORRECT (a right-looking `.cfi_offset` with the
+# wrong number passes this exactly as readily as a true one), that every individual function has
+# its own directives rather than one somewhere in the file, or that a `.cfi_startproc` is matched
+# by a `.cfi_endproc` in the right place (the assembler itself is the check for that: an unbalanced
+# pair fails the build, not this gate). This is a presence check, at file granularity, the same
+# reach `script/citations` and the roadmap's `## Revisit` check are honest about for their own
+# claims. A file that is data rather than code (the boot header aarch64/image_header.s is the one
+# example today) says so with a `CFI-EXEMPT:` comment instead of carrying directives that would
+# describe a frame the file never builds; see notes/cfi-unwind.md for what that would cost.
+echo "==> hand-written asm carries CFI"
+cfi_bad=""
+for f in $(git ls-files 'kernel/src/arch/*/*.s'); do
+    grep -q 'CFI-EXEMPT:' "$f" && continue
+    grep -q '^\.global ' "$f" || continue
+    grep -q '\.cfi_startproc' "$f" || cfi_bad="$cfi_bad $f"
+done
+if [ -n "$cfi_bad" ]; then
+    echo "lint: hand-written .s files with an exported symbol and no CFI directives:" >&2
+    for f in $cfi_bad; do echo "  $f" >&2; done
+    echo "" >&2
+    echo "Add .cfi_startproc/.cfi_endproc around each function (and .type/.size), describing the" >&2
+    echo "frame the function actually builds. Where a function genuinely has no caller (a boot" >&2
+    echo "entry, a fake-return trampoline), say so with .cfi_undefined on the return-address" >&2
+    echo "register rather than inventing a formula; see notes/cfi-unwind.md and the CFI comments" >&2
+    echo "in kernel/src/arch/*/context.s for the shape. A file that is genuinely data, not code," >&2
+    echo "gets a CFI-EXEMPT: comment instead (see kernel/src/arch/aarch64/image_header.s)." >&2
+    exit 1
+fi
+echo "CFI: every hand-written .s file with an exported symbol carries call-frame information"
+
 # The machine description prints on every boot (milestone 267).
 #
 # `kernel/src/main.rs`'s `print_machine_description` is the bring-up transcript: paging, the ISA,
