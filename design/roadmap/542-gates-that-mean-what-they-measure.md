@@ -1,6 +1,6 @@
-# 541. Two gates that stopped meaning what they measure: a bump-time mechanism and a footprint reported against its budget
+# 542. Two gates that stopped meaning what they measure: a bump-time mechanism and a footprint reported against its budget
 
-**Status: BUILT 2026-09-21.** *(Number provisional until the merge queue lands it; 524 to 540 were
+**Status: BUILT 2026-09-21.** *(Renumbered from 541 by the integrator on 2026-09-21: 541 had already been minted for the `map_new` window while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 524 to 540 were
 claimed on in-flight branches when this was written.)*
 
 calef, 2026-09-21: *"Do the bump-time mechanism. Do the footprint gate."* Two rulings, and they are
