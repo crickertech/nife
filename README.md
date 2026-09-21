@@ -297,15 +297,6 @@ never passed, a return address that does not go on the stack, and a kernel that 
 overwritten code. [notes/corrections.md](notes/corrections.md) has them, each pointing at the note
 that carries the full account.
 
-## Reading
-
-- The **xv6 book** (MIT, ~100pp) for how a real Unix-shaped kernel is put together
-- [`rust-raspberrypi-OS-tutorials`](https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials)
-  for aarch64 mechanics
-- The [OSDev wiki](https://wiki.osdev.org), as a reference rather than a tutorial
-- [Compiler Explorer](https://godbolt.org), set to Rust + aarch64. The fastest way to build
-  assembly intuition that exists.
-
 ## Security
 
 [SECURITY.md](SECURITY.md) says what is in scope (the confinement boundaries this kernel claims to
