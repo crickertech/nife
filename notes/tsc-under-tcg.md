@@ -202,8 +202,21 @@ What reads the number: `bench --x86 --real`'s ns/iter, `Instant` and `uptime` th
 in the x86 suite. Deadlines fail safe (an inflated rate makes a two-second timeout longer in real
 time, never shorter); the reported numbers do not.
 
-**This is tracked**: `design/roadmap/571-the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md`,
-and `arch::x86_64::timer`'s `BUGS` section now says it where a reader meets the feature.
+**FIXED, 2026-09-21, the same day**, by milestone 571 (the x86 boot calibrates the TSC once, and can be wrong by 4x), which is what
+the proposal this paragraph used to point at became. The boot now
+times several windows and keeps the smallest, because the error being one-sided is what makes the
+minimum the right estimator; it stops as soon as two windows agree to one part in a thousand, so the
+mean cost is 3.5 windows on a quiet host; and the boot line prints the worst window beside the
+chosen one, so a calibration the host fought is visible rather than silent.
+
+**The numbers in this section are the defect, and they got worse when measured harder.** This note
+recorded 4330 MHz as the worst of twenty-two boots. Milestone 571's sweep ran 490 boots at three
+host loads and saw **+1153%**, with 56 of 200 boots at load 30 wrong by more than one per cent. The
+one-sidedness held without a single exception across all 490. After the fix, 0 of those 200 boots
+are wrong by more than one per cent and the worst is +0.47%.
+
+`arch::x86_64::timer`'s `BUGS` section says all of this where a reader meets the feature, including
+what it still does not bound.
 
 ## What this measurement cannot see
 

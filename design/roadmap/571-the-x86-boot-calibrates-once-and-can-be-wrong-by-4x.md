@@ -1,65 +1,231 @@
 # 571. The x86 boot calibrates the TSC once, and can be wrong by 4x
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-x86-boot-calibrates-once-and-can-be-wrong-by-4x` on 2026-09-22, filed 2026-09-21. Raised by the `tscdrift` lane, which was sent to measure whether
-TCG's TSC drifts and found that it does not, while the number the boot writes down does.
+**Status: BUILT** 2026-09-21. The boot times several 10 ms PIT windows instead of one, keeps the
+smallest, stops as soon as two of them agree, and prints the worst beside the chosen one so a
+calibration the host fought is visible rather than silently confident.
+*(Renumbered from the lane's provisional 526 on 2026-09-22: a concurrently merged lane had taken
+526 for a riscv64 ACPI host, and this proposal had meanwhile been promoted to 571 on main. 524 onward was contested between in-flight
+branches.)*
 
-**Gate: NONE.** The fix is inside `kernel/src/arch/x86_64/timer.rs`, touches no syscall surface, no
-wire format and no dependency. It is one function.
+Inside `kernel/src/arch/x86_64/timer.rs`. No syscall surface, no wire format, no dependency.
 
-## The measurement
+**x86_64 only by nature, and not a parity gap.** Under §19 (architectural parity is a tenet; the
+targets are aarch64, riscv64, and x86_64): aarch64 reads `CNTFRQ_EL0` and riscv64 reads the
+device tree; both are architected statements of the rate, so neither has a calibration that could
+be wrong. This is the one
+architecture that has to *measure* the clock everything else is measured against, which is what
+`timer.rs`'s header has said since the port landed.
 
-`notes/tsc-under-tcg.md` has the method. Against a counter measured to tick at exactly 1000.000 MHz
-under plain TCG on patagonia, twenty-two boots of the same binary reported:
+## The defect, which another lane found while looking for something else
 
-| Host state | Stored rate, per boot |
-|---|---|
-| Ordinary session load | 1001, 1001, 1002, 1002, 1003, 1003, 1003, 1004, 1004, 1005, 1005, 1042 MHz |
-| Saturated (16 spinners) | 1003, 1003, 1006, 1422, 1703, 2349, 2364, 2616, 3421, 4330 MHz |
+Milestone 524 (the three x86_64 boot gates: NX, SYSCALL, and the invariant TSC) had just argued
+that a non-invariant TSC "cannot be caught by measuring harder". The `tscdrift` lane then went to
+check whether TCG's TSC drifts at all, built an RTC-referenced probe, and found that it does not:
+the counter ticks at exactly 1000.000 MHz, constant to within 42 ppm whatever the host is doing.
 
-**Twenty-two of twenty-two were above the truth and none below**, which is the shape that names the
-mechanism rather than merely describing the spread.
+What it found instead was that the number the boot **writes down** had almost nothing to do with
+that. Twenty-two boots of one binary stored 1001 MHz to 4330 MHz. This lane widened that to 490
+boots at three host loads and the shape held without a single exception: **every boot high, none
+ever low.**
 
-## Why it is one-sided, which is what makes it cheap to fix
+`init_frequency` armed PIT channel 2 for a 10 ms one-shot and polled port 0x61 until the output
+line went high, reading the TSC either side. Polling can only ever notice the terminal count
+**late**, and the entire elapsed TSC delta was then attributed to exactly 10 ms. One descheduling
+of the QEMU thread inside that window inflates the answer without bound: a 4330 MHz reading is a
+43 ms window reported as a 10 ms one, and the worst this lane saw, +1153%, is a 125 ms one.
 
-`init_frequency` arms PIT channel 2 for a 10 ms one-shot and polls port 0x61 until the output line
-goes high, reading the TSC either side. The poll can only ever notice the terminal count **late**,
-never early, and the entire elapsed TSC delta is then divided by exactly 10 ms. A single descheduling
-of the QEMU thread inside that window inflates the answer without bound: 4330 MHz is a 43 ms window
-reported as a 10 ms one.
+**The error being one-sided is the whole of the fix.** Every window is an *upper bound* on the true
+rate, so the minimum of several is the tightest bound taken, and it converges on the truth from
+above. An average would be a biased estimator for precisely the reason the minimum is an unbiased
+one: it carries every descheduling into the answer instead of discarding it.
 
-So the error is **non-negative by construction**, and the minimum of several windows converges on the
-truth from above. That is not an argument from taste; it is why averaging would be the wrong
-estimator here and the minimum is the right one.
+## calef's ruling named the shape; the count was measured
 
-## What to do
+> "Fix the calibration with min-of-five windows." (2026-09-21)
 
-**Take the smallest of N windows rather than the only one.** Five 10 ms windows cost 50 ms of boot
-and turn an unbounded tail into a bounded one, because a run of five that are all descheduled is the
-thing that has to happen for the answer to stay wrong. The one-sidedness above is what makes the
-minimum a sound estimator; with a two-sided error it would be a biased one.
+The brief for this lane said not to take five as given, and that was the right instruction: **five
+would have been the wrong number to ship.** Two hundred boots on a host deliberately saturated to
+load 30 on eight cores, each timing sixteen windows and reporting every one, give the error of the
+min over the first k of them:
 
-Two things to decide while doing it, both small:
+| Windows | Median error | 99th percentile | Worst of 200 | Boots wrong by >1% |
+|---|---|---|---|---|
+| 1 (what shipped) | +0.36% | +884% | **+1153%** | 56 / 200 |
+| 3 | +0.00% | +120% | +131% | 24 / 200 |
+| 5 | +0.00% | +20.6% | +51.4% | 11 / 200 |
+| 9 | +0.00% | +0.49% | +7.1% | 2 / 200 |
+| 16 | +0.00% | +0.01% | **+0.47%** | **0 / 200** |
 
-- **Whether the boot should say how confident it is.** The spread between the best and worst of the
-  N windows is free once they are taken, and a boot line that printed it would make a bad
-  calibration visible instead of silent. That is the same posture milestone 524 (the three x86_64
-  boot gates: NX, SYSCALL, and the invariant TSC) took for the invariant-TSC bit.
-- **Whether the local APIC timer's rate should be derived from the same windows.** Today it is
-  measured in the same single window and inherits the same error, which is why the `apic timer NN
-  MHz` figure moves in lockstep with the TSC one in every transcript.
+Five still leaves one boot in eighteen wrong by more than a per cent and a worst case of +51%. The
+tail only closes at sixteen. **The median is +0.00% at every count from three upward, which is why
+reporting the worst case rather than the mean was the instruction that mattered**: by the mean, the
+defect was fixed at three windows and had never been very bad at one.
 
-## What it is worth
+The load matters and is stated rather than hidden. At ordinary session load one window's worst of
+30 boots was +773%, and min-of-9 got to +0.01%; at load 22 the same estimators gave +318% and
++0.34%. The table above is the hardest condition measured, which is the one a cap should be chosen
+against.
 
-`bench --x86 --real`'s ns/iter, `Instant` and `uptime` through `counter_frequency_protocol`'s page,
-and `coremark`'s self-reported rate all read the stored number, so on a loaded machine any of them
-can be off by a factor of four with nothing saying so. `wait_for`'s deadlines fail safe (an inflated
-rate makes a timeout longer in real time, never shorter), which is why this has never shown up as a
-red test and why it would have gone on not showing up.
+## Sixteen windows would be a 160 ms boot tax, so it is a cap and not a count
 
-It also decides how much a **D'**-style marking (carrying "unpromised" in the type, so consumers must
-acknowledge the rate is unpromised) is really worth: a marked number that is still 4x wrong is
-honest about the wrong thing.
+Ten milliseconds per window is real time on every boot, including every CI test boot, and the suite
+boots repeatedly. Paying it sixteen times when three would do is the kind of cost that gets noticed
+later and reverted by someone with less context.
+
+So the loop stops as soon as **two windows agree to within one part in a thousand**, and the
+reasoning is the one-sidedness used the other way round. A window is inflated by a descheduling,
+an event of essentially arbitrary size; for two windows to land within a thousandth of each other
+they must both have been left alone, because two independent deschedulings agreeing to three
+decimal places is not a thing that happens. **Agreement is evidence of cleanliness**, and once
+there is evidence the remaining windows buy nothing but boot time.
+
+Measured over the same 490 boots, this reaches **exactly** the accuracy of taking the full cap
+every time, boot for boot, at a mean of:
+
+| Host | Mean windows timed | Mean calibration cost |
+|---|---|---|
+| Ordinary session load | 3.53 | 35 ms |
+| Busy (load 22) | 4.77 | 48 ms |
+| Saturated (load 30) | 5.20 | 52 ms |
+
+**calef's five is what this costs; sixteen is only what it is willing to spend when the host is
+fighting.** That the measured mean on a saturated host came out at 5.20 is a coincidence and is
+recorded as one.
+
+A tighter tolerance (one part in 2000) moved the mean by 0.07 windows and the error distribution
+not at all, which says the choice is not delicate: clean windows agree to within the PIT's own
+quantisation and dirty ones are nowhere near.
+
+### The measured boot cost, stated plainly
+
+`script/test --arch x86_64` boots the kernel **four** times, and those four boots took 3, 3, 4 and
+3 windows. So the suite pays **90 ms** more than the one-window design did, against a 3m38s
+runtime: **0.04%**, an order of magnitude below the suite's own run-to-run variance. That is a
+computed figure and deliberately not a measured delta, because there is nothing to measure a 90 ms
+change against.
+
+## Was there a better reference than the PIT? Asked, and the answer is no, twice
+
+**`CPUID` leaf 0x15** states the TSC's ratio to a core crystal whose frequency leaf 0x16 may give,
+and where it exists it is strictly better than any measurement because it is the part stating its
+own rate. `arch::x86_64::isa::tsc_crystal_hz` already reads it and `init_frequency` already prefers
+it. That path is milestone 161 (the x86_64 kernel port: bring up the HAL's third architecture)'s
+work and this lane changed nothing about it. It is empirically unavailable here: QEMU's TCG does
+not offer the leaf under any invocation tried, which is why every boot in this tree takes the
+calibrated path. **Nothing to do; the better reference is already
+preferred and the machine declines to provide it.**
+
+**The CMOS RTC** is the harder question, because it is the reference `tsc_probe` uses and it is
+genuinely independent (QEMU drives it from `QEMU_CLOCK_HOST`, host wall time, rather than from the
+vCPU). It is a better *check* and a worse *calibration source*, and the reason is resolution. Its
+seconds register has one-second granularity, so calibrating against it means either waiting for a
+seconds edge (up to one second of boot, a hundred times this fix's cost) or reading it as a time
+and accepting a one-second error. `tsc_probe` gets its precision by watching for an **edge** and
+then spanning thirty-two seconds, which is fine for an instrument that runs once on demand and
+absurd for every boot. Worse, the edge wait has the same one-sided polling error this whole section
+is about, so it would need the same min-of-N treatment on top of costing a hundred times more.
+
+So: **the PIT stays, and it stays because it is the only fixed-rate device on a PC that can be
+timed in ten milliseconds.** The RTC's role is the one it already has, as the independent reference
+that says whether the PIT calibration was right.
+
+## What is in the diff
+
+- `kernel/src/arch/x86_64/timer.rs`: the loop, the cap, the stopping rule, a `Calibration` record
+  (**provisional name**) that keeps every window rather than discarding them, and a rewritten
+  `BUGS` section. The old "one calibration, no averaging" bullet is gone, replaced by two that are
+  true now: what this still does not bound, and what it costs in boot time.
+- `kernel/src/main.rs`: the boot line prints `best of N windows, worst M MHz`. This is the part
+  that is rung three of AGENTS.md's ladder rather than rung one: nothing can *make* a host leave
+  the vCPU alone, so the next best thing is that a calibration the host fought stops being
+  invisible.
+- `kernel/src/arch/x86_64/timer_calibration_tests.rs`, new: five tests of the stopping rule fed
+  sequences by hand, and two boot assertions (several windows were timed; the stored rate is the
+  smallest of them). Its header says why they run under QEMU rather than on the host, which is that
+  `timer.rs` compiles only for `x86_64-unknown-none` and there is no second consumer to justify
+  moving the rule into a crate.
+- `kernel/src/arch/x86_64/tsc_probe.rs`: prints every calibration window, which is what turned the
+  probe from "is the calibration right" into "is the estimator right" and is how the tables above
+  were measured.
+- `scripts/qemu-runner-x86_64.sh`: forwards SIGTERM to QEMU. See below; this is a separate bug that
+  this lane's own sweep tripped over several hundred times.
+- `notes/benchmarks.md`: the 2026-08-24 x86 `ns/iter` table is marked in place, and a new dated
+  section records what the defect reaches and what it does not.
+
+## The bug this lane tripped over on its way, and fixed
+
+**`scripts/qemu-bounded.sh`'s bound did nothing on x86_64**, and the reason is one word in a
+comment. `qemu-runner-x86_64.sh` is the only one of the three runners that does not `exec` QEMU,
+because it has to translate `isa-debug-exit`'s status afterwards, and it says so. But the wrapper
+bounds a run by sending SIGTERM **to the child it started**, which on aarch64 and riscv64 is QEMU
+and here was the runner shell. The shell died; QEMU was reparented to pid 1 and ran forever.
+
+This lane's calibration sweep orphaned an emulator on every boot until someone looked, and
+`qemu-bounded.sh`'s own `BUGS` section named a different cause ("a SIGKILL to the killer defeats
+all of it") than the one operating. The runner now runs QEMU in the background, traps TERM and HUP,
+forwards them, and reaps. It also needed `qemu-bounded.sh`'s own fd-3 dance, because backgrounding
+a command gives it `/dev/null` on stdin under dash and would have broken every piped-input run in
+CI.
+
+**That is a general hazard rather than this lane's**: any bounded x86_64 run in this tree, in any
+lane, leaked its emulator at the bound. It is worth reading as evidence for AGENTS.md's ladder,
+since the property that failed was recorded in a comment (rung three) in a file that was correct
+about everything except what another file would do to it.
+
+## BUGS
+
+- **This is a probabilistic filter, not a bound.** The minimum is only as good as the best window
+  the host allowed, so a host that never leaves the vCPU alone for ten unbroken milliseconds
+  produces an inflated rate however many windows are taken. 0 of 200 boots at load 30 were wrong by
+  more than 1%; that is a measured distribution and not a guarantee. The boot line's worst-window
+  figure is what makes the remaining failures visible rather than silent.
+- **The cap was chosen against one machine.** Every number here is patagonia, an eight-core Apple
+  Silicon host running TCG. An x86_64 CI runner with KVM, or xenon, has a different descheduling
+  distribution and might want a different cap. Nothing here measures that, and the promotion
+  trigger is the first time an x86 wall-clock number from another machine looks wrong.
+- **Nothing gates the accuracy.** The two boot tests assert the estimator is the one intended, not
+  that the answer is right; checking the answer needs an independent clock, which is `tsc_probe`
+  behind an off-by-default feature costing thirty-five seconds a boot. A gate would mean a
+  thirty-five-second suite leg to catch a defect that fails safe, which is not a trade worth
+  making today. If x86 wall-clock figures ever become something the project publishes rather than
+  reads, that changes.
+- **The local APIC timer's rate gets the same treatment and has no `CPUID` escape.** It is the
+  minimum over the same windows, taken independently of the TSC's. Unlike the TSC there is no path
+  that skips the measurement, so on a part that reports leaf 0x15 the windows are still timed.
+
+## Follow-on
+
+- **Recorded.** That this is a probabilistic filter rather than a bound, and that a host which
+  never leaves the vCPU alone still defeats it, is a limitation stated where a reader meets the
+  feature: `kernel/src/arch/x86_64/timer.rs`'s `BUGS`, beside the constant that sets the cap.
+- **Recorded.** That the cap was chosen against one machine (patagonia, eight-core Apple Silicon,
+  TCG) and may want a different value on a KVM runner or on xenon is in this block's `BUGS` and in
+  `kernel/src/arch/x86_64/timer.rs`'s. The promotion trigger is the first x86 wall-clock figure
+  from another machine that looks wrong.
+- **Recorded.** That nothing gates the calibration's *accuracy*, only its estimator, is in
+  `kernel/src/arch/x86_64/timer_calibration_tests.rs`'s own `BUGS`, with the reason (an accuracy
+  gate costs a thirty-five-second suite leg to catch a defect that fails safe).
+- **Done.** The proposal this promotes,
+  `design/roadmap/proposals/the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md`, is removed by
+  this milestone: its two open questions are both answered above (the boot does print its
+  confidence, and the local APIC timer is derived from the same windows).
+- **Recorded.** `scripts/qemu-bounded.sh`'s `BUGS` section still describes SIGKILL as the way its
+  bound is defeated, and does not mention that a runner which does not `exec` defeats it with an
+  ordinary TERM. The x86_64 runner is fixed here and now says so at the code; the wrapper's own
+  `BUGS` is the place a reader would look first and is left for whoever next touches that file.
 
 ## Index row
 
-The x86_64 boot calibrates the TSC once, against a PIT channel-2 one-shot it polls, and the poll can only ever notice the terminal count late. Twenty-two boots of one binary against a counter measured at exactly 1000.000 MHz reported rates from 1001 MHz to 4330 MHz, every one of them above the truth and none below, because a single descheduling of the QEMU thread inside the window inflates the answer without bound. The one-sidedness is what makes the fix cheap, and it is one function in `kernel/src/arch/x86_64/timer.rs`.
+**Built:** 2026-09-21
+
+The x86 boot measured the TSC against a single 10 ms PIT window and stored the result for the life
+of the boot, and that number was wrong by up to **+1153%** against a counter known to tick at
+1000.000 MHz, high on every one of 490 boots and never low, because a poll can only notice the
+PIT's terminal count late. Everything time-derived on x86 read it: `bench --x86 --real`'s ns/iter,
+`Instant`, `uptime`, `coremark`'s self-reported rate. This milestone takes the smallest of several
+windows instead, which is the right estimator precisely because the error is one-sided, and stops
+as soon as two windows agree to one part in a thousand, so the mean cost is 3.5 windows on a quiet
+host and 5.2 on a saturated one against a cap of sixteen. calef's ruling said five; five was
+measured and found to leave a +51% worst case, which is why the cap is sixteen and the five is what
+it spends. The worst window is now printed beside the chosen one, so a calibration the host fought
+is visible rather than silently confident.
