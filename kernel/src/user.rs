@@ -204,6 +204,25 @@ impl AddressSpace {
     /// This one function is what lets a driver leave the kernel: it is how the UART's registers
     /// get into a userspace server's address space, and how a shared buffer gets into both a
     /// client's and a server's.
+    ///
+    /// # BUGS
+    ///
+    /// **A mapping made through this function is invisible to revocation** (risk 7's adversarial
+    /// pass, 2026-09-21). It does not call [`crate::revoke::record_mapping`], and every unmap sweep
+    /// in `crate::revoke` is driven by that log, so `DeviceFrame::REVOKE`, `PageFrame::REVOKE` and
+    /// `MemoryRegion::DESTROY` all walk past a page placed here. The paragraph above is about
+    /// `Drop` and frame ownership, which is a different question that a reader can easily take this
+    /// for; [`user_address_space_map`] is the recording path and is what the `MAP_INTO` syscall
+    /// takes.
+    ///
+    /// **Latent rather than live, and the reason is who the callers are.** Every call site is
+    /// kernel wiring at boot: the serial driver's UART registers, a [`Spawn`]`::maps` entry, a
+    /// [`DeviceRun`], the initrd read-only, the `x86_64` timebase page. A driver a userspace
+    /// supervisor builds gets its registers through `MAP_INTO`, which records, and that is the path
+    /// `user::live_swap_tests` proves a revoked driver faults on. So nothing in the tree today
+    /// revokes a device out from under a process that was wired here. What makes it worth writing
+    /// down is that the take-back would silently do half its job if anything ever did: the
+    /// capability would go and the mapping would stay.
     pub fn map_physical(&mut self, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
         self.map_at(va, phys, flags)
     }
@@ -3554,3 +3573,16 @@ mod rmle_tests;
 /// somewhere unrelated rather than a failure here.
 #[cfg(test)]
 mod thread_leak_police;
+
+/// **Revocation against a capability that is in flight** (risk 7's adversarial pass, 2026-09-21).
+///
+/// Every revocation sweep in this kernel walks capability tables. A capability handed to a
+/// rendezvous nobody is receiving on yet sits in `Thread::outgoing_cap` instead, which no sweep but
+/// `sched::delete_reply_caps_naming` reads. The module's own header has the reasoning and the
+/// `BUGS`; it is here rather than in [`tests`] because that file is this tree's worst merge hotspot.
+///
+/// Cross-ISA: `outgoing_cap`, the sweeps and the rendezvous are portable scheduler code, so the
+/// parity gate (DECISIONS §19, architectural parity is a tenet) is met by the same test running on
+/// each architecture.
+#[cfg(test)]
+mod revocation_in_flight_tests;
