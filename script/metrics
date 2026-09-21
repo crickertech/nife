@@ -140,7 +140,7 @@ import pathlib
 import re
 import subprocess
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 # The derivations this script shares with `script/lint`, in one place rather than copied into both
 # (milestone 236: three derivations are copied between scripts, and nothing notices when they
@@ -161,6 +161,14 @@ from rust_source import non_blank, strip_non_code                           # no
 PAGE = 'notes/project-metrics.md'
 DATA_DIR = pathlib.Path('notes/project-metrics')
 CSV_PATH = DATA_DIR / 'weekly.csv'
+# Milestone 519 (what this project costs, tracked where it cannot rot) needs two inputs that no
+# revision of this tree can produce. `effort.csv` is written by
+# `script/effort` from session records that exist only on the machine the lanes ran on; `ledger.md`
+# is typed by a person. Both are read from the WORKING TREE for every week, never from a week's own
+# revision, for `built_by_week`'s reason one level over: they are records of a fact rather than
+# snapshots of a tree, and reading them late is not a revision of history.
+EFFORT_PATH = DATA_DIR / 'effort.csv'
+LEDGER_PATH = DATA_DIR / 'ledger.md'
 
 # **This list is the roadmap's status vocabulary and it has to stay all of it**, because a status
 # missing here is counted as nothing: `milestones()` below keys on this dict and skips a row whose
@@ -186,7 +194,7 @@ FIELDS = (['week', 'commit', 'date']
           + [_col('milestones', s) for s in MILESTONE_STATUSES] + ['milestones_total']
           + [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']
           + [_col('names', s) for s in NAME_STATUSES] + ['names_total']
-          + ['proposals_unnumbered', 'milestones_built_this_week']
+          + ['proposals_unnumbered', 'milestones_built_this_week', 'merged_pull_requests']
           + ['kernel_code_lines', 'kernel_comment_lines',
              'other_code_lines', 'other_comment_lines',
              'bugs_markdown', 'bugs_rust',
@@ -198,7 +206,30 @@ FIELDS = (['week', 'commit', 'date']
              'unsafe_trust_userspace_density',
              'unsafe_trust_shared', 'unsafe_trust_boot_chain', 'unsafe_trust_unclassified',
              'fatal_risks_tested', 'fatal_risks_untested',
-             'coverage_lines_pct'])
+             'coverage_lines_pct']
+          # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them
+          # up: person-weeks for the comparison against the verification literature, tokens with a
+          # dated price for the argument about the method, cash for calef's own budgeting. 519
+          # refuses a single headline number, so this file does not compute one.
+          + ['human_person_weeks', 'lane_tokens', 'lane_wall_clock_hours',
+             'price_per_mtok_at_date', 'cash_spend'])
+
+# Columns a rewrite must CARRY rather than recompute, because nothing in git can produce them and
+# the only copy is the cell itself. `--backfill` drops every row and rebuilds it, so a column not
+# named here is silently erased by one. That is not hypothetical: milestone 276 ran a backfill to
+# add a column and watched 2026W36's measured 94.4 coverage disappear with it, which is why the
+# mechanism is now a named set instead of one special case in `main`. It was found by
+# milestone 276 (the dashboard counts milestones and decisions by status, and names not at all).
+#
+# `human_person_weeks` joins coverage here for a different reason than coverage's. It is DERIVED on
+# a new row, at 1.0 per calendar week, from calef's standing datum that he works on this full time
+# (milestone 519, which refuses time tracking and asks only for a correction when the datum stops
+# being true). Carrying it is what makes that correction survive: a hand-edited 0.4 for a week he
+# was away stays 0.4 through every later backfill, and nothing has to remember it was edited.
+CARRIED_FIELDS = ('coverage_lines_pct', 'human_person_weeks')
+
+# calef's standing datum, applied to a week that has no cell yet. See CARRIED_FIELDS.
+DEFAULT_PERSON_WEEKS = '1.0'
 
 
 def git(*args):
@@ -344,6 +375,214 @@ def built_by_week(tree):
             key = week_of_date(stamp.group(0))
             counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def merges_by_week(rev):
+    """How many pull requests merged in each ISO week, from git alone, keyed by week.
+
+    **A flow beside `built_by_week`, and the pairing is the point.** Milestones count DECLARED units
+    of work, and a large share of what lands here is not one: a decision, a correction, a record
+    fix, a capture. On 2026-09-21 the maintainer opened about fifteen pull requests of which three
+    were milestones, and every column on this page was blind to the other twelve. That work is real
+    and it costs real tokens, which is the reason calef asked for this column in milestone 519's
+    lane rather than a later one.
+
+    **It is derived from git and never from the GitHub API**, which is what makes it backfill to the
+    first commit like everything else here. A merge commit carries its own committer date and
+    `main` holds every one of them; Actions' run history is retained for ninety days and would have
+    given a series that started in June and could never be extended backwards.
+
+    Read from HEAD for every week rather than from each week's own revision, for the same reason
+    `built_by_week` is: a merge's date is a fact that does not change, so one pass over one log
+    answers every week at once, and a past week's answer is identical either way.
+
+    The shape matched is GitHub's own default merge-commit subject, `Merge pull request #N from ...`,
+    which is what the merge queue writes. A merge made any other way is not counted, and there is no
+    way to tell one from an ordinary merge commit after the fact.
+    """
+    counts = {}
+    log = git('log', '--first-parent', '--format=%cI%x09%s', rev).decode('utf-8', 'replace')
+    for entry in log.split('\n'):
+        if '\t' not in entry:
+            continue
+        when, subject = entry.split('\t', 1)
+        if not subject.startswith('Merge pull request #'):
+            continue
+        key = week_of(when)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+# ---------------------------------------------------------------------------------------------
+# Milestone 519's cost inputs, which are the two things on this page that no revision can produce.
+#
+# `notes/project-metrics/effort.csv` is written by `script/effort` from the agent harness's session
+# records, which live on one laptop outside this repository and are discarded. `ledger.md` is typed
+# by a person. Both are committed, so the weekly workflow on a GitHub runner reads exactly what a
+# run on the dev Mac reads, and produces the same bytes.
+#
+# **An absent week is absent, never zero.** The first five weeks of this project have no session
+# records left anywhere, and a zero in a cost column would be averaged into a published figure by
+# somebody who never read this comment. Every function below returns nothing for a week it cannot
+# answer for, and every cell it does not fill stays empty.
+
+# `| 2026-08-15 | argon, ... | 89.99 | source |` and the two other table shapes in the
+# ledger. Parsed by the heading they sit under, because three tables in one file cannot be told
+# apart by their columns alone and guessing from column count is how a ledger silently loses a row.
+_LEDGER_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def _money(cell):
+    """A price cell, or None. Commas and a leading currency symbol are tolerated, prose is not."""
+    text = cell.replace(',', '').replace('$', '').strip()
+    text = re.sub(r'\*+', '', text)
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def ledger():
+    """What was paid and what a token lists for, out of `notes/project-metrics/ledger.md`.
+
+    Returns (purchases, subscriptions, rates):
+      purchases     [(YYYY-MM-DD, usd)]
+      subscriptions [(YYYY-MM-DD start, usd per month)]
+      rates         {model: {'input': usd, 'cache_write_5m': ..., ...}} per million tokens
+
+    A missing file is not an error: it means the cost columns stay empty, which is the correct
+    reading of a tree that has not recorded a cost yet.
+    """
+    purchases, subscriptions, rates = [], [], {}
+    if not LEDGER_PATH.exists():
+        return purchases, subscriptions, rates
+    section = ''
+    for line in LEDGER_PATH.read_text().split('\n'):
+        if line.startswith('#'):
+            section = line.lstrip('#').strip().lower()
+            continue
+        if not line.startswith('|'):
+            continue
+        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+        if section == 'hardware' and len(cells) >= 3 and _LEDGER_DATE.match(cells[0]):
+            price = _money(cells[2])
+            if price is not None:
+                purchases.append((cells[0], price))
+        elif section == 'subscriptions' and len(cells) >= 4 and _LEDGER_DATE.match(cells[0]):
+            # `200.00 / month`, which is the only cadence this tree has ever had. A rate written in
+            # any other unit is skipped rather than guessed at, and the ledger's own BUGS says so.
+            rate = _money(cells[3].split('/')[0]) if '/ month' in cells[3] else None
+            if rate is not None:
+                subscriptions.append((cells[0], rate))
+        elif (section.startswith('retail rates') and len(cells) >= 7
+              and _LEDGER_DATE.match(cells[0])):
+            model = cells[1].strip('`')
+            values = [_money(c) for c in cells[2:7]]
+            if model and all(v is not None for v in values):
+                # A later row for the same model replaces an earlier one: the ledger is appended to,
+                # so the last row wins, and the file's own BUGS records that this restates old weeks
+                # at the newest rate.
+                rates[model] = dict(zip(('input', 'cache_write_5m', 'cache_write_1h',
+                                         'cache_read', 'output'), values))
+    return purchases, subscriptions, rates
+
+
+def _subscription_charges(subscriptions, through):
+    """[(YYYY-MM-DD, usd)] for every monthly charge from each start date up to `through`.
+
+    The billing day is the monthly anniversary of the start date, which is an assumption the ledger
+    states out loud because no invoice is recorded anywhere. A month with no such day (a start on
+    the 31st) bills on its last day.
+    """
+    out = []
+    for start, rate in subscriptions:
+        first = date.fromisoformat(start)
+        year, month = first.year, first.month
+        while True:
+            if month == 12:
+                last = 31
+            else:
+                last = (date(year + (month == 12), month % 12 + 1, 1)
+                        - timedelta(days=1)).day
+            when = date(year, month, min(first.day, last))
+            if when > through:
+                break
+            if when >= first:
+                out.append((when.isoformat(), rate))
+            month += 1
+            if month > 12:
+                year, month = year + 1, 1
+    return out
+
+
+def cash_by_week(through):
+    """{ISO week: dollars actually paid that week}, from the ledger.
+
+    **Paid, not accrued**, which is milestone 519's own definition of the column and is why it is
+    lumpy: three weeks carry a subscription charge and seven carry nothing. An accrual is derivable
+    from the ledger by anyone who wants one; a payment is not derivable from an accrual, so the
+    file keeps the one that cannot be reconstructed.
+    """
+    purchases, subscriptions, _rates = ledger()
+    out = {}
+    for when, amount in purchases + _subscription_charges(subscriptions, through):
+        key = week_of_date(when)
+        out[key] = out.get(key, 0.0) + amount
+    return out
+
+
+def effort_by_week():
+    """{ISO week: (tokens, hours, blended usd per million tokens or '')} from `effort.csv`.
+
+    `tokens` is every token class added together, which is the physical quantity and is the only
+    thing on this page a reader can compare against another project's. The price is kept separate
+    rather than folded in, because the four classes are billed between 0.1x and 2x of each other and
+    one number would hide which.
+
+    **The blended rate is left blank for a week whose mix this tree cannot price**, rather than
+    priced over the part it can. A rate derived from three quarters of a week's tokens is not that
+    week's rate, and a number that looks like a measurement is the one thing this page cannot
+    afford to be casual with.
+    """
+    if not EFFORT_PATH.exists():
+        return {}
+    _p, _s, rates = ledger()
+    text = EFFORT_PATH.read_text().strip().split('\n')
+    header = text[0].split(',')
+    weeks = {}
+    for line in text[1:]:
+        if not line.strip():
+            continue
+        row = dict(zip(header, line.split(',')))
+        week = row['week']
+        held = weeks.setdefault(week, {'tokens': 0, 'hours': 0.0, 'usd': 0.0, 'priced': True})
+        counts = {
+            'input': int(row.get('input_tokens') or 0),
+            'cache_write_5m': int(row.get('cache_write_5m_tokens') or 0),
+            'cache_write_1h': int(row.get('cache_write_1h_tokens') or 0),
+            'cache_read': int(row.get('cache_read_tokens') or 0),
+            'output': int(row.get('output_tokens') or 0),
+        }
+        total = sum(counts.values())
+        held['tokens'] += total
+        held['hours'] += float(row.get('machine_hours') or 0.0)
+        rate = rates.get(row['model'])
+        if rate is None:
+            # A model with no rate and no tokens is the harness's `<synthetic>` label, which nobody
+            # billed for and which cannot make a week unpriceable. A model with tokens and no rate
+            # can, and does.
+            if total:
+                held['priced'] = False
+            continue
+        for kind, count in counts.items():
+            held['usd'] += count * rate[kind] / 1_000_000.0
+    out = {}
+    for week, held in weeks.items():
+        blended = ''
+        if held['priced'] and held['tokens']:
+            blended = '%.3f' % (held['usd'] * 1_000_000.0 / held['tokens'])
+        out[week] = (held['tokens'], held['hours'], blended)
+    return out
 
 
 def decisions(tree):
@@ -595,11 +834,12 @@ def coverage_from_lcov(path):
     return '%.1f' % (100.0 * hit / found)
 
 
-def row_for(rev, week, coverage=''):
+def row_for(rev, week, coverage='', person_weeks=''):
     tree = Tree(rev)
     when = git('show', '-s', '--format=%cI', rev).decode().strip()
     row = {'week': week, 'commit': rev[:12], 'date': when[:10],
-           'coverage_lines_pct': coverage}
+           'coverage_lines_pct': coverage,
+           'human_person_weeks': person_weeks or DEFAULT_PERSON_WEEKS}
     ms = milestones(tree)
     for status in MILESTONE_STATUSES:
         row[_col('milestones', status)] = ms[status]
@@ -755,13 +995,20 @@ def week_label(week):
     return week
 
 
-def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
+def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
     """One stacked bar per week, one colour per series, a legend on the right.
 
     `series` is [(label, [value per week])]. A single-element series is an ordinary bar chart,
     which is what the density and coverage panels are. `ceiling` is a number, labelled
     `ceiling`, or a (number, word) pair when the dashed line is something else: coverage's is
     `script/coverage`'s per-file floor, and labelling a floor a ceiling says the opposite.
+
+    `absent` is a per-week flag for **a week that was not measured, as against a week that measured
+    zero**. Both draw no bar, and a reader cannot tell them apart, which for milestone 519's cost
+    columns is the difference between an honest gap and a lie that gets averaged into a published
+    figure. A flagged week gets a muted marker in the plot and a `<title>` saying so. Coverage's
+    2026W29 is the same shape and settled for a sentence in its subtitle; this makes it visible on
+    the chart, where the reader is.
     """
     line_word = 'ceiling'
     if isinstance(ceiling, tuple):
@@ -862,6 +1109,16 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
             out.append('<text class="fg val" x="%.1f" y="%.1f" font-size="10" '
                        'text-anchor="middle">%s</text>'
                        % (x + bar_w / 2, y_of(totals[i]) - 5, _number(totals[i])))
+        elif absent and absent[i]:
+            # Words rather than a dash at the foot of the empty slot. This is the one place on
+            # this page where a reader is entitled to read "nothing here" as "nobody measured"
+            # rather than "zero", so it says which, and it says it in the chart rather than only in
+            # the tooltip, because a tooltip does not exist on a phone or in a screenshot.
+            out.append('<text class="mut" x="%.1f" y="%.1f" font-size="9" '
+                       'text-anchor="middle">not<tspan x="%.1f" dy="10">measured</tspan>'
+                       '<title>%s: not measured</title></text>'
+                       % (x + bar_w / 2, PAD_T + plot_h - 16, x + bar_w / 2,
+                          esc(week_label(week))))
 
 
     legend_x = CHART_W - PAD_R + 22
@@ -896,9 +1153,29 @@ def _cell(row, field):
 # three weeks before milestone 115 invented the convention would otherwise be three empty bars,
 # which this page's own rule reads as "the record did not exist" and would leave the reader with no
 # idea that the tree already had 119 named things in it.
+def _tokens_per_milestone(row):
+    """Millions of tokens per milestone built that week, or zero when either side is missing.
+
+    **A ratio rather than a total, which is milestone 519's own requirement**: a total says the
+    project was busy, and a ratio says whether the method is getting cheaper, which is the claim the
+    project actually makes. Zero is returned for a week with no capture and for a week that built
+    nothing, and the chart's `absent` flag is what tells those two apart for the reader.
+
+    The denominator is the milestone count, with every caveat that series already carries: a
+    milestone is not a fixed unit, and a week of bookkeeping moves the ratio without anything
+    getting cheaper or dearer. Read the shape.
+    """
+    built = _cell(row, 'milestones_built_this_week')
+    tokens = _cell(row, 'lane_tokens')
+    if not built or not tokens:
+        return 0.0
+    return tokens / 1_000_000.0 / built
+
+
 DERIVED = {
     'names_no_block': lambda row: max(
         0.0, _cell(row, 'names_total') - sum(_cell(row, _col('names', s)) for s in NAME_STATUSES)),
+    'tokens_per_milestone': _tokens_per_milestone,
 }
 
 
@@ -915,6 +1192,10 @@ def series_of(rows, weeks, columns, scale=1.0):
     return out
 
 
+# Each entry is (file, title, subtitle, columns, scale, ceiling, absent_field). `absent_field` names
+# a CSV column whose empty cell means "not measured" rather than "zero"; the chart then marks that
+# week instead of leaving a gap a reader will read as a zero. Only the columns that can genuinely be
+# absent carry one, which is milestone 519's cost pair and coverage.
 CHARTS = [
     ('milestones.svg', 'Milestones by status, and proposals waiting for a number',
      'design/roadmap/README.md; unnumbered proposals from design/roadmap/proposals/ stacked on top',
@@ -922,32 +1203,33 @@ CHARTS = [
       ('In progress', 'milestones_in_progress'), ('Not started', 'milestones_not_started'),
       ('Optional', 'milestones_optional'), ('Recorded', 'milestones_recorded'),
       ('Removed', 'milestones_removed'),
-      ('Proposal, no number yet', 'proposals_unnumbered')], 1.0, None),
+      ('Proposal, no number yet', 'proposals_unnumbered')], 1.0, None, None),
     ('decisions.svg', 'Architecture decisions by status',
      'design/decisions/README.md; before milestone 114 split it, a decision carried no status',
      [('Decided', 'decisions_decided'), ('Amended', 'decisions_amended'),
       ('Superseded', 'decisions_superseded'), ('Proposed', 'decisions_proposed'),
-      ('No status recorded', 'decisions_unrecorded')], 1.0, None),
+      ('No status recorded', 'decisions_unrecorded')], 1.0, None, None),
     ('names.svg', 'Names by what the tree records about them',
      'crates, programs, script/ entry points and Cargo packages; provenance lives in the header',
      [('Ratified', 'names_ratified'), ('Recorded', 'names_recorded'),
       ('Provisional', 'names_provisional'), ('Unrecorded', 'names_unrecorded'),
-      ('No provenance block', 'names_no_block')], 1.0, None),
+      ('No provenance block', 'names_no_block')], 1.0, None, None),
     ('lines.svg', 'Rust in the tree, in thousands of lines',
      'kernel/src split out, because it is commented on purpose; vendor/ excluded',
      [('kernel/src code', 'kernel_code_lines'), ('kernel/src comments', 'kernel_comment_lines'),
       ('other code', 'other_code_lines'), ('other comments', 'other_comment_lines')],
-     1000.0, None),
+     1000.0, None, None),
     ('bugs.svg', 'BUGS sections, where a reader meets the feature',
      'rising is good: an honest limitation beside the thing it limits',
-     [('in markdown', 'bugs_markdown'), ('in Rust doc comments', 'bugs_rust')], 1.0, None),
+     [('in markdown', 'bugs_markdown'), ('in Rust doc comments', 'bugs_rust')], 1.0, None,
+     None),
     ('harnesses.svg', 'Kani proof harnesses, and what can falsify them',
      'fatal risk 2: a proof nobody can turn red is not evidence',
      [('falsification on record', 'harnesses_falsified'),
-      ('unfalsified', 'harnesses_unfalsified')], 1.0, None),
+      ('unfalsified', 'harnesses_unfalsified')], 1.0, None, None),
     ('unsafe.svg', 'unsafe blocks per 10,000 lines outside kernel/src/arch/',
      'the direction is down; the ceiling is script/lint’s',
-     [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88),
+     [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88, None),
     ('unsafe-trust.svg', 'The same unsafe blocks, by trust boundary',
      'kernel: no confinement over it. userspace: confined like any other program. see notes/'
      'project-metrics.md for shared/boot chain/unclassified and why this is not the chart above',
@@ -955,40 +1237,87 @@ CHARTS = [
       ('userspace (confined)', 'unsafe_trust_userspace'),
       ('shared (both, unresolved)', 'unsafe_trust_shared'),
       ('boot chain (uefi_loader)', 'unsafe_trust_boot_chain'),
-      ('unclassified', 'unsafe_trust_unclassified')], 1.0, None),
+      ('unclassified', 'unsafe_trust_unclassified')], 1.0, None, None),
     ('fatal-risks.svg', 'The nine things that would kill nife',
      'design/fatal-risks.md; tested means an experiment has been run, not that it came back green',
      [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],
-     1.0, None),
+     1.0, None, None),
     ('velocity.svg', 'Milestones built each week',
      'a flow, not a stock: what the index says turned BUILT in those seven days',
-     [('built that week', 'milestones_built_this_week')], 1.0, None),
+     [('built that week', 'milestones_built_this_week')], 1.0, None, None),
+    ('pull-requests.svg', 'Pull requests merged each week',
+     'first-parent merge commits on main; a milestone is one of these, and most of these are not',
+     [('merged that week', 'merged_pull_requests')], 1.0, None, None),
+    ('effort.svg', 'Machine effort per milestone built, in millions of tokens',
+     'a ratio, not a total: down means the method got cheaper. Weeks with no surviving records are '
+     'marked, not zeroed',
+     [('million tokens per milestone', 'tokens_per_milestone')], 1.0, None, 'lane_tokens'),
     ('coverage.svg', 'Host-crate line coverage, per cent',
      'each week by its own script/coverage; 2026W29 predates the script',
-     [('line coverage', 'coverage_lines_pct')], 1.0, (80, 'floor')),
+     [('line coverage', 'coverage_lines_pct')], 1.0, (80, 'floor'), 'coverage_lines_pct'),
 ]
 
 
-def fill_built_by_week(rows, rev):
-    """Set `milestones_built_this_week` on every row from one tree. See `built_by_week`.
+def fill_derived(rows, rev):
+    """Set every column that is read once for all weeks rather than per revision.
 
-    Every week the CSV holds gets a value, including a week with none, because an empty cell and a
-    zero are different claims and only one of them is true here.
+    Four kinds of thing land here and they are here for two different reasons.
+
+    `milestones_built_this_week` and `merged_pull_requests` are FLOWS read from today's tree and
+    today's log; `built_by_week` has the long argument for why a flow must not be read from each
+    week's own revision. Both get a value for every week the CSV holds, a zero included, because a
+    week in which nothing was built is a fact and an empty cell would read as "not measured".
+
+    The cost columns are the opposite: they are read from committed records rather than from git,
+    and **a week they cannot answer for is left EMPTY, never zeroed**. The first five weeks of this
+    project have no session records left anywhere on earth. A zero there would be averaged into a
+    published figure by a reader who never opened this file, which milestone 519 names as the one
+    failure it exists to prevent.
+
+    `human_person_weeks` is not touched here. It is carried on the row (CARRIED_FIELDS), because a
+    hand correction to it has to survive every later rewrite.
     """
-    counts = built_by_week(Tree(rev))
+    built = built_by_week(Tree(rev))
+    merged = merges_by_week(rev)
+    effort = effort_by_week()
+    cash = cash_by_week(date.today())
     for week, row in rows.items():
-        row['milestones_built_this_week'] = counts.get(week, 0)
+        row['milestones_built_this_week'] = built.get(week, 0)
+        row['merged_pull_requests'] = merged.get(week, 0)
+        tokens, hours, blended = effort.get(week, (None, None, ''))
+        row['lane_tokens'] = '' if tokens is None else tokens
+        row['lane_wall_clock_hours'] = '' if hours is None else '%.1f' % hours
+        row['price_per_mtok_at_date'] = blended
+        # Cash is the one cost column a missing week CAN be zero in, and the difference is that the
+        # evidence exists. The ledger is complete by construction: it records every payment, so a
+        # week with no row in it is a week nothing was paid, not a week nobody looked.
+        row['cash_spend'] = '%.2f' % cash.get(week, 0.0)
+    # Money paid in a week the series has no row for is money this column silently drops, and the
+    # case is real rather than defensive: calef dates the subscription 2026-07-12, which is a Sunday
+    # and therefore 2026W28, while the first commit is 2026-07-13 UTC and the series starts at
+    # 2026W29. So $200 sits one week before the first row. A week has a row only if a commit fell in
+    # it, and inventing a row with no commit would leave every other column in it empty or wrong,
+    # so the amount is reported instead of absorbed into a neighbour. notes/project-metrics.md
+    # carries the same arithmetic where a reader meets the number.
+    orphaned = {week: amount for week, amount in cash.items() if week not in rows}
+    if orphaned:
+        print('metrics: $%.2f of ledger spend falls in %s, which the series has no row for; '
+              'cash_spend does not include it'
+              % (sum(orphaned.values()), ', '.join(sorted(orphaned))), file=sys.stderr)
     return rows
 
 
 def draw_charts(rows):
     weeks = sorted(rows)[-CHART_WEEKS:]
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    for name, title, subtitle, columns, scale, ceiling in CHARTS:
+    for name, title, subtitle, columns, scale, ceiling, absent_field in CHARTS:
         series = series_of(rows, weeks, columns, scale)
         if not series:
             series = [(columns[0][0], [0.0] * len(weeks))]
-        svg_chart(title, subtitle, weeks, series, DATA_DIR / name, ceiling)
+        absent = None
+        if absent_field:
+            absent = [rows[week].get(absent_field, '') in ('', None) for week in weeks]
+        svg_chart(title, subtitle, weeks, series, DATA_DIR / name, ceiling, absent)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1042,7 +1371,7 @@ def main(argv):
                          % mode)
 
     if mode == '--charts':
-        draw_charts(fill_built_by_week(read_csv(),
+        draw_charts(fill_derived(read_csv(),
                                        git('rev-parse', 'HEAD').decode().strip()))
         print('metrics: charts written to %s/' % DATA_DIR)
         return 0
@@ -1060,12 +1389,14 @@ def main(argv):
 
     weeks = week_commits()
     rows = read_csv()
-    # Coverage survives a rewrite, including a `--backfill` that drops every other cell. It cannot
-    # be re-derived from history (it needs an instrumented build at each checkout, and nothing here
-    # is allowed to build), so the cell a caller filled from an lcov file is the only copy of that
-    # measurement there will ever be. Milestone 276 found this the way it is usually found: running
-    # `--backfill` to add a column, and watching 2026W36's 94.4 disappear with it.
-    kept_coverage = {week: row.get('coverage_lines_pct', '') for week, row in rows.items()}
+    # CARRIED_FIELDS survive a rewrite, including a `--backfill` that drops every other cell,
+    # because nothing in git can reproduce them. Coverage needs an instrumented build at each
+    # checkout and nothing here is allowed to build; `human_person_weeks` is a person's statement.
+    # Milestone 276 found this the way it is usually found: running `--backfill` to add a column,
+    # and watching 2026W36's measured 94.4 disappear with it. It is a named set now rather than one
+    # special case, so milestone 519's column inherited the protection instead of the bug.
+    kept = {week: {field: row.get(field, '') for field in CARRIED_FIELDS}
+            for week, row in rows.items()}
     current = week_of(git('show', '-s', '--format=%cI', head).decode().strip())
     if mode == '--backfill':
         rows = {}
@@ -1085,12 +1416,15 @@ def main(argv):
     # stamped one measurement across every week in the series and erased the backfilled cells.
     for week, rev in targets:
         fresh = coverage if week == current else ''
-        rows[week] = row_for(rev, week, fresh or kept_coverage.get(week, ''))
+        held = kept.get(week, {})
+        rows[week] = row_for(rev, week,
+                             fresh or held.get('coverage_lines_pct', ''),
+                             held.get('human_person_weeks', ''))
 
-    # Derived last, from HEAD, for every week at once: see `built_by_week` for why this one column
-    # cannot be read from each week's own revision. It runs before `--check` compares, so a stale
-    # cell is a failure there rather than a surprise on the next write.
-    rows = fill_built_by_week(rows, head)
+    # Derived last, from HEAD and from the committed cost records, for every week at once: see
+    # `fill_derived`. It runs before `--check` compares, so a stale cell is a failure there rather
+    # than a surprise on the next write.
+    rows = fill_derived(rows, head)
 
     text = write_csv(rows)
     if mode == '--check':

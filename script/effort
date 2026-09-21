@@ -1,0 +1,474 @@
+#!/bin/sh
+#
+# script/effort: how much machine effort this project spent, per ISO week, out of the session
+# records on this machine.
+#
+# PROVISIONAL NAME. See the `Name:` block at the end of this comment.
+#
+# Why this exists, and why it is a separate entry point from `script/metrics`. Milestone 519 (what
+# this project costs, tracked where it cannot rot) needs three inputs the dashboard cannot reach:
+# human effort, cash, and machine effort. The first two are statements a person makes and they live
+# in a ledger. The third is a measurement, and it is the one with a deadline.
+#
+# **Every other column in `notes/project-metrics/weekly.csv` is computed from a git revision**, so
+# history backfills by reading the tree at a past commit. Tokens and wall clock are not in git. They
+# live in the agent harness's own session records under `~/.claude/projects/`, outside this
+# repository, on one laptop, and nothing promises to keep them. When 519 was written the first ten
+# weeks of the project were already gone: the oldest record on patagonia began in 2026W34, against a
+# first commit on 2026-07-12 in 2026W29. **Weeks 29 through 33 are unrecoverable and are recorded as
+# absent rather than as zero**, which is this file's whole posture in one sentence.
+#
+# `script/metrics` may not read anything but git, by its own rule, and it runs on a GitHub runner
+# every Monday where none of this exists. So the split is: this reads the machine, writes
+# `notes/project-metrics/effort.csv`, and that file is committed; `script/metrics` reads the
+# committed file and fills five columns from it. A scheduled run on a runner then produces the same
+# bytes as a run here, because both read the same committed evidence rather than the machine.
+#
+# # What a scheduled run can and cannot see, stated plainly because it decides the design
+#
+# It cannot see any of this. `.github/workflows/metrics.yml` runs on `ubuntu-24.04-arm` with a fresh
+# checkout: no `~/.claude`, no session records, nothing. **So machine effort cannot be captured
+# without a person on the machine that ran the lanes**, and no amount of workflow will change that.
+#
+# Two mechanisms answer that instead of pretending otherwise, and they are deliberately different
+# rungs of AGENTS.md's ladder:
+#
+#   - **`--snapshot` is rung two**, and it is what makes forgetting survivable. It reads the same
+#     records and writes the aggregate to a machine-local cache outside the repository, so a week's
+#     numbers outlive the transcripts they came from. Nothing in it touches the tree, so it is safe
+#     to run unattended from `launchd` beside `merge-drain.sh` and `trunk-health.sh` (the plist is in
+#     notes/project-metrics.md). A month of nobody committing then costs nothing.
+#   - **`--check` is rung two as well, pointed at the other failure.** It fails when a completed week
+#     has no committed row, and `script/cadence-check` calls it, so patagonia's existing watcher says
+#     so out loud. It is a report and not a gate, for the same reason `script/metrics --check` is not
+#     in `script/lint`.
+#
+# What is left for a person is one command, `script/effort --update`, and a commit. That is rung
+# four, it is said to be rung four, and the two mechanisms above exist so that missing it is a delay
+# rather than a loss.
+#
+# # What is counted
+#
+# One row per (week, model). A row is the sum over every assistant response the records hold: the
+# four token classes the API bills separately, the number of requests, and an hours figure.
+#
+# **Requests are deduplicated by `requestId`.** The harness writes several lines for one response as
+# it streams, each carrying the running usage for that request, so summing the lines multiplies a
+# request's input tokens by however many lines it happened to take. The last line of a request is
+# kept, identified as the one with the greatest `output_tokens`.
+#
+# **Tokens are kept in four columns, not one**, because the API prices them a long way apart: a
+# cache read is a tenth of an input token and a one-hour cache write is twice one. Summing them into
+# a single number first would make the dollar figure underivable, which is exactly the shape
+# milestone 519 refuses ("not a dollar figure that hides which dollar it means").
+#
+# **Cache writes are split by time-to-live** where the record says so (`ephemeral_5m_input_tokens`
+# and `ephemeral_1h_input_tokens`), because the two are priced 1.25x and 2x of input. A record with
+# the total but no split is filed under 5m, which is the cheaper of the two and therefore the one
+# that understates rather than flatters.
+#
+# **Model matters and cannot be averaged away.** Over the captured weeks this tree's mix is roughly
+# half `claude-opus-5` and half `claude-sonnet-5` by token, with a long tail of others, and those
+# two list at different rates. A single blended rate applied to a single token total would be a
+# number with no derivation behind it.
+#
+# ## `machine_hours`, and what it conflates
+#
+# Sum, over every record stream, of the gap between consecutive assistant responses, **dropping any
+# gap longer than `IDLE_GAP_S`** (30 minutes). A stream is one transcript file: the session, or one
+# subagent lane.
+#
+# Read it as "how many hours of machine were in flight", not as elapsed time. Three properties are
+# worth holding:
+#
+#   - **Parallel lanes add.** Four lanes working for an hour is four hours here, which is the point:
+#     it is an effort figure, and the thing being measured is the machine rather than the calendar.
+#     It can and does exceed 168 in a week.
+#   - **It conflates queueing with work.** A lane waiting on a merge queue, a gate, or a rate limit
+#     is indistinguishable here from one thinking. Milestone 519's own table says to say so.
+#   - **The 30-minute cut is a judgement.** A gap longer than that is a session left open overnight
+#     rather than a slow response, and counting it would put a sleeping laptop in the total. Nothing
+#     validates the threshold; it is a round number chosen once, and a different one would move the
+#     figure. `IDLE_GAP_S` is overridable so the sensitivity can be seen.
+#
+# A gap is attributed to the model of the response that ENDS it, so the per-model hours sum to the
+# per-week total without double counting.
+#
+# # EXAMPLES
+#
+#     script/effort                  # per-week table, from the machine, writing nothing
+#     script/effort --csv            # the same merged rows as CSV on stdout
+#     script/effort --snapshot       # write the machine-local cache; touches no file in the tree
+#     script/effort --update         # merge cache and records into notes/project-metrics/effort.csv
+#     script/effort --check          # non-zero if a completed week has no committed row
+#
+#     IDLE_GAP_S=600 script/effort   # the same weeks with a ten-minute idle cut, to see the spread
+#
+# A worked run, 2026-09-21, on patagonia:
+#
+#     week       requests        input     cache wr       cache rd       output   hours
+#     2026W34       19841        39650     73812900     5445834041     11905105   110.2
+#     2026W35       22740        45524    104605730     8054561428     12932594   130.7
+#     2026W36       13903        27792     86611062     3506945841      3150318   132.8
+#     2026W37        1164         2354     13912125      316572496       626146    12.2
+#     2026W38       13248        40724     97316727     4100011735      9202108   125.8
+#     2026W39        1618         3236      6966597      494708850      1158725    11.9
+#
+#     read 477 stream(s) in 2 project directories: .../-Users-calef-projects-nife,
+#     .../-Users-calef-projects-cricker-os
+#
+# 2026W29 through 2026W33 are absent from that table, and that absence is the finding: the project's
+# first commit is 2026-07-12, in 2026W29, and no record of those five weeks survives on this machine.
+# The second directory is the pre-rename one and it is empty; it is read and listed anyway, because a
+# reader should be able to see that it was looked in.
+#
+# # BUGS
+#
+# - **A week can only ever go up, and that is enforced rather than hoped.** `--update` refuses to
+#   lower a committed figure and says which week and column it refused, because the way this
+#   measurement dies is transcripts being pruned and a later run writing the smaller number over the
+#   larger one without comment. `--restate` overrides it, for the case where a past row was wrong.
+#   The cost of the rule is that a genuine over-count stays until somebody passes that flag.
+# - **2026W37 reads far lower than its neighbours and nobody knows why.** 12.3 hours against 110-133
+#   on either side, in a week whose roadmap says 13 milestones were built. Either that week really
+#   was quiet, or records for it were rotated away before the first capture on 2026-09-21. Nothing
+#   here can tell those apart after the fact, which is itself the argument for the snapshot. Treat
+#   that cell as suspect rather than as a dip.
+# - **The current week is always partial.** It is captured up to the moment of the run, so its row
+#   rises all week and any ratio built on it is understated until the week closes. Nothing marks it,
+#   because the row's week being the current one is the mark.
+# - **It reads the harness's records, whose shape is not a contract.** The field names here
+#   (`requestId`, `message.usage.cache_creation.ephemeral_1h_input_tokens`) are an observation of one
+#   version of one tool, not a documented interface. A rename upstream makes this quietly count zero
+#   rather than fail, which is this project's most-recorded failure mode. `--check` is the only thing
+#   standing between that and silence: a week that stops being captured is reported as absent.
+# - **It cannot attribute effort to a milestone.** Every record carries a `gitBranch`, and a lane's
+#   branch is named for its milestone, so the join is *available* and is deliberately not built here:
+#   a branch is not a milestone (maintainer branches, `main`, rebases), and a wrong attribution is
+#   worse than none. Milestone 519's own `BUGS` says per-component cost is not derivable yet; this
+#   records that the raw material for it is on disk.
+# - **Project directories are matched by name.** The harness files records under a slug of the
+#   working directory, so the nife ones are `-Users-calef-projects-nife` and, before the 2026-08-15
+#   rename, `-Users-calef-projects-cricker-os`. A lane worktree under a path that slugs to neither
+#   would be missed. Every directory read is printed, so the reader can see what was counted.
+#
+# Name: provisional. Minted 2026-09-21 by milestone 519's lane. `effort` is the word milestone 519's
+# own block uses for the quantity ("machine effort per milestone built"), it is a noun, which is the
+# form this tree's reporting entry points take (`names`, `metrics`, `falsifications`, `decisions`
+# report; `verify`, `test`, `fuzz`, `bench` do something), and it is the unit rather than the source, which is what keeps it true if the
+# records ever move. Refused `tokens` (it names one of four columns and would be wrong the day hours
+# mattered), `usage` (the harness's own word for its billing records, so it would read as a wrapper
+# around someone else's report rather than as this project's measurement), and `cost` (this file
+# deliberately produces no dollar figure; the ledger and `script/metrics` do, and naming this one
+# `cost` would put the refusal milestone 519 makes about dollars in the wrong place). calef has not
+# ratified it.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec python3 - "$@" <<'PYEOF'
+import csv
+import json
+import os
+import pathlib
+import sys
+from datetime import datetime, timezone
+
+CSV_PATH = pathlib.Path('notes/project-metrics/effort.csv')
+
+FIELDS = ['week', 'model', 'requests', 'input_tokens', 'cache_write_5m_tokens',
+          'cache_write_1h_tokens', 'cache_read_tokens', 'output_tokens', 'machine_hours']
+
+# The columns a merge compares, which is every measured one. `machine_hours` is a float and the rest
+# are counts; both are monotone for the same reason, so both are guarded the same way.
+COUNTED = FIELDS[2:]
+
+# A gap longer than this is somebody's laptop, not a slow response. See the header: this is a
+# judgement, not a measurement, and it is overridable so the sensitivity can be seen.
+IDLE_GAP_S = float(os.environ.get('IDLE_GAP_S', 30 * 60))
+
+# Where the harness keeps its records, and which of its project directories are this project's. The
+# slug is the working directory with the separators replaced, so the rename on 2026-08-15 (milestone
+# 120) left the old name behind as a second directory rather than moving anything.
+RECORDS_ROOT = pathlib.Path(os.environ.get(
+    'NIFE_SESSION_RECORDS', os.path.expanduser('~/.claude/projects')))
+PROJECT_SLUGS = ('-Users-calef-projects-nife', '-Users-calef-projects-cricker-os')
+
+# The machine-local cache. Outside the repository on purpose: `--snapshot` must be safe to run from
+# `launchd` while lanes are working, and anything that wrote into a worktree would not be.
+CACHE_DIR = pathlib.Path(os.environ.get(
+    'NIFE_EFFORT_CACHE',
+    os.path.join(os.environ.get('XDG_STATE_HOME', os.path.expanduser('~/.local/state')),
+                 'nife', 'effort')))
+
+
+def week_of(stamp):
+    """The ISO week of a record's timestamp, in UTC. AGENTS.md: every date in this tree is UTC."""
+    when = datetime.fromisoformat(stamp.replace('Z', '+00:00')).astimezone(timezone.utc)
+    year, week, _day = when.isocalendar()
+    return '%04dW%02d' % (year, week)
+
+
+def _blank(week, model):
+    row = {'week': week, 'model': model, 'machine_hours': 0.0}
+    for field in COUNTED:
+        row.setdefault(field, 0)
+    return row
+
+
+def read_records():
+    """{(week, model): row} from every session record on this machine, plus what was read.
+
+    Two passes over each stream and no more: one to collect the responses, one to walk them in time
+    order for the gaps. A stream is a file, which is what makes parallel lanes add rather than
+    interleave: two lanes working at once are two files, each with its own unbroken run of gaps.
+    """
+    rows = {}
+    streams = 0
+    dirs = []
+    for slug in PROJECT_SLUGS:
+        root = RECORDS_ROOT / slug
+        if not root.is_dir():
+            continue
+        dirs.append(str(root))
+        for path in sorted(root.rglob('*.jsonl')):
+            # The harness keeps other things under these directories; `memory/` is notes a session
+            # wrote to itself, not a transcript, and has no usage in it at all.
+            if 'memory' in path.parts:
+                continue
+            streams += 1
+            latest = {}
+            for line in path.read_text(errors='replace').split('\n'):
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if record.get('type') != 'assistant':
+                    continue
+                stamp = record.get('timestamp')
+                message = record.get('message') or {}
+                usage = message.get('usage') or {}
+                if not stamp or not usage:
+                    continue
+                # Several lines per streamed response, each with that response's running usage.
+                # Keeping the one with the most output tokens keeps the final figure and discards
+                # the partials, which is the difference between counting a request once and counting
+                # it as many times as it took lines to arrive.
+                key = record.get('requestId') or record.get('uuid')
+                seen = latest.get(key)
+                out = usage.get('output_tokens', 0)
+                if seen is None or out > seen[2].get('output_tokens', 0):
+                    latest[key] = (stamp, message.get('model') or 'unknown', usage)
+
+            ordered = sorted(latest.values(), key=lambda item: item[0])
+            previous = None
+            for stamp, model, usage in ordered:
+                week = week_of(stamp)
+                row = rows.setdefault((week, model), _blank(week, model))
+                row['requests'] += 1
+                row['input_tokens'] += usage.get('input_tokens', 0) or 0
+                row['cache_read_tokens'] += usage.get('cache_read_input_tokens', 0) or 0
+                row['output_tokens'] += usage.get('output_tokens', 0) or 0
+                total_write = usage.get('cache_creation_input_tokens', 0) or 0
+                split = usage.get('cache_creation') or {}
+                long_ttl = split.get('ephemeral_1h_input_tokens', 0) or 0
+                short_ttl = split.get('ephemeral_5m_input_tokens', 0) or 0
+                if long_ttl + short_ttl != total_write:
+                    # No split, or one that does not add up. File the remainder under the cheaper
+                    # TTL, which understates rather than flatters. See the header.
+                    short_ttl = total_write - long_ttl
+                row['cache_write_1h_tokens'] += long_ttl
+                row['cache_write_5m_tokens'] += max(0, short_ttl)
+
+                when = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+                if previous is not None:
+                    gap = (when - previous).total_seconds()
+                    if 0 < gap <= IDLE_GAP_S:
+                        # To the model that ENDS the gap, so per-model hours sum to the week's.
+                        row['machine_hours'] += gap / 3600.0
+                previous = when
+    return rows, streams, dirs
+
+
+def read_csv_rows(path):
+    if not path.exists():
+        return {}
+    rows = {}
+    with path.open() as handle:
+        for raw in csv.DictReader(handle):
+            row = {'week': raw['week'], 'model': raw['model']}
+            for field in COUNTED:
+                value = raw.get(field) or '0'
+                row[field] = float(value) if field == 'machine_hours' else int(value)
+            rows[(row['week'], row['model'])] = row
+    return rows
+
+
+def read_cache():
+    """The machine-local snapshots, merged. Missing or unreadable is empty, never an error.
+
+    A cache is an optimisation against forgetting, not a source of truth, so a corrupt file must not
+    stop a capture that the live records can still serve.
+    """
+    rows = {}
+    if not CACHE_DIR.is_dir():
+        return rows
+    for path in sorted(CACHE_DIR.glob('*.csv')):
+        try:
+            rows.update(read_csv_rows(path))
+        except (OSError, ValueError, KeyError):
+            print('effort: ignoring unreadable snapshot %s' % path, file=sys.stderr)
+    return rows
+
+
+def merge(*sources):
+    """Field-wise maximum across sources, keyed by (week, model).
+
+    **Maximum rather than latest**, and the reason is the whole point of the cache: a snapshot taken
+    while the transcripts existed is a better measurement of that week than a live read taken after
+    they were pruned, and nothing in a later run knows which it is holding. Both are honest partial
+    views of the same week and the larger one saw more of it.
+    """
+    out = {}
+    for source in sources:
+        for key, row in source.items():
+            held = out.setdefault(key, _blank(*key))
+            for field in COUNTED:
+                held[field] = max(held[field], row[field])
+    return out
+
+
+def write_csv(rows, path):
+    lines = [','.join(FIELDS)]
+    for key in sorted(rows):
+        row = rows[key]
+        cells = [row['week'], row['model']]
+        for field in COUNTED:
+            value = row[field]
+            cells.append('%.1f' % value if field == 'machine_hours' else str(int(value)))
+        lines.append(','.join(cells))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join(lines) + '\n')
+
+
+def by_week(rows):
+    out = {}
+    for (week, _model), row in rows.items():
+        held = out.setdefault(week, _blank(week, '*'))
+        for field in COUNTED:
+            held[field] += row[field]
+    return out
+
+
+def current_week():
+    now = datetime.now(timezone.utc)
+    year, week, _day = now.isocalendar()
+    return '%04dW%02d' % (year, week)
+
+
+def print_table(rows, streams, dirs):
+    weeks = by_week(rows)
+    print('%-9s %9s %12s %12s %14s %12s %7s'
+          % ('week', 'requests', 'input', 'cache wr', 'cache rd', 'output', 'hours'))
+    for week in sorted(weeks):
+        row = weeks[week]
+        print('%-9s %9d %12d %12d %14d %12d %7.1f'
+              % (week, row['requests'], row['input_tokens'],
+                 row['cache_write_5m_tokens'] + row['cache_write_1h_tokens'],
+                 row['cache_read_tokens'], row['output_tokens'], row['machine_hours']))
+    print()
+    print('read %d stream(s) in %d project director%s: %s'
+          % (streams, len(dirs), 'y' if len(dirs) == 1 else 'ies', ', '.join(dirs) or 'none'))
+
+
+def main(argv):
+    restate = '--restate' in argv
+    argv = [a for a in argv if a != '--restate']
+    mode = argv[0] if argv else '--table'
+    if mode not in ('--table', '--csv', '--snapshot', '--update', '--check'):
+        raise SystemExit('effort: unknown argument %s; see the comment at the top of this script'
+                         % mode)
+
+    if mode == '--check':
+        # The question is not "is the file current" but "has a week that is over been recorded at
+        # all". A week still running is not late, and the current week's row moves every day, so
+        # gating on its exact value would fire constantly and be muted, which is the failure
+        # `script/cadence-check`'s own header spends four paragraphs on.
+        committed = read_csv_rows(CSV_PATH)
+        have = {week for week, _model in committed}
+        if not have:
+            print('effort: %s has no rows; nothing has ever been captured' % CSV_PATH,
+                  file=sys.stderr)
+            return 1
+        newest = max(have)
+        now = current_week()
+        if newest < now:
+            # One completed week uncaptured is the normal state between Monday and whenever somebody
+            # runs `--update`; it is still worth saying, because nothing else says it.
+            print('effort: last captured week is %s and the current week is %s; '
+                  'run script/effort --update on the machine that ran the lanes' % (newest, now),
+                  file=sys.stderr)
+            return 1
+        print('effort: %s holds the current week (%s)' % (CSV_PATH, now))
+        return 0
+
+    rows, streams, dirs = read_records()
+    if mode == '--snapshot':
+        weeks = {}
+        for key, row in rows.items():
+            weeks.setdefault(key[0], {})[key] = row
+        existing = read_cache()
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        for week, week_rows in weeks.items():
+            held = {k: v for k, v in existing.items() if k[0] == week}
+            write_csv(merge(held, week_rows), CACHE_DIR / ('%s.csv' % week))
+        print('effort: %d week(s) snapshotted to %s' % (len(weeks), CACHE_DIR))
+        return 0
+
+    merged = merge(read_cache(), rows)
+
+    if mode == '--table':
+        print_table(merged, streams, dirs)
+        return 0
+    if mode == '--csv':
+        lines = [','.join(FIELDS)]
+        for key in sorted(merged):
+            row = merged[key]
+            lines.append(','.join([row['week'], row['model']]
+                                  + ['%.1f' % row[f] if f == 'machine_hours' else str(int(row[f]))
+                                     for f in COUNTED]))
+        print('\n'.join(lines))
+        return 0
+
+    # --update. The committed file is one of the merge sources, which is what makes a week
+    # monotone: a row already on record is never dropped, only raised.
+    committed = read_csv_rows(CSV_PATH)
+    lowered = []
+    for key, row in committed.items():
+        fresh = merged.get(key)
+        if fresh is None:
+            continue
+        for field in COUNTED:
+            if fresh[field] < row[field]:
+                lowered.append((key, field, row[field], fresh[field]))
+    if lowered and not restate:
+        for (week, model), field, was, now_value in lowered:
+            print('effort: %s %s %s would fall from %s to %s; keeping the larger'
+                  % (week, model, field, was, now_value), file=sys.stderr)
+        print('effort: %d figure(s) would have fallen. That is what a pruned transcript looks '
+              'like, so the committed numbers are kept. Pass --restate if a past row was wrong.'
+              % len(lowered), file=sys.stderr)
+
+    final = merge(committed, merged) if not restate else merge(merged)
+    write_csv(final, CSV_PATH)
+    weeks = sorted({week for week, _model in final})
+    print('effort: %d row(s) over %d week(s) in %s (%s-%s); read %d stream(s)'
+          % (len(final), len(weeks), CSV_PATH, weeks[0], weeks[-1], streams))
+    print('effort: commit it. Nothing else on any machine holds these numbers.')
+    return 0
+
+
+sys.exit(main(sys.argv[1:]))
+PYEOF

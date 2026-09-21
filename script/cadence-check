@@ -86,8 +86,16 @@
 # intended reading rather than a miss: a red daily is `scripts/trunk-health.sh`'s existing job, and
 # this one answers the different question of whether an answer is still arriving at all.
 #
+# **One of the cadences is not a workflow**, and it is the only one this file can check without a
+# network. Milestone 519's weekly capture of machine effort is a person running `script/effort
+# --update` on the machine the lanes ran on, because a GitHub runner cannot see the session records
+# it reads. It has no run history to interrogate, so the question asked instead is whether the
+# committed `notes/project-metrics/effort.csv` holds the current week. See the block beside the
+# check itself for why the reminder lives here rather than in a watcher of its own.
+#
 # Exit 1 when at least one cadence is dead, 0 when all of them are live, 2 when it could not ask
-# (no `gh`, no network, no credentials). The nonzero is for a person's `&&`, not for a gate; nothing
+# (no `gh`, no network, no credentials), and 3 when it could not ask AND the effort capture is
+# behind, so the one finding it could make is not lost behind the one it could not. The nonzero is for a person's `&&`, not for a gate; nothing
 # in this repository blocks on it, per the paragraph above.
 #
 # # BUGS
@@ -96,6 +104,10 @@
 #   weeklies) that is about five weeks, comfortably past the 15-day threshold, but a repository that
 #   grew a dozen more dailies would shorten the window under the threshold and this would start
 #   calling live cadences dead. The check prints the oldest run it saw so the reader can tell.
+# - **The effort cadence is checked by its output, not by its run.** Every other row here asks
+#   whether a job produced a result; that one asks whether a file holds this week. A capture that
+#   ran and wrote nothing because the records had been pruned reads as live, because the file does
+#   hold the week. `script/effort`'s own `BUGS` carries that hole; nothing out here can see it.
 # - **It reports, and cannot fix.** That is the same boundary `script/audits` and the merge drain
 #   keep, and it is deliberate: red means "go look", never "an automation handled it".
 # - **The delivery inherits patagonia's gap.** `scripts/trunk-health.sh` runs under `launchd` on one
@@ -129,7 +141,48 @@ STALE_DAYS="${CADENCE_STALE_DAYS:-15}"
 quiet=""
 [ "$1" = "--quiet" ] && quiet=1
 
-command -v gh >/dev/null 2>&1 || { echo "script/cadence-check: needs the gh CLI" >&2; exit 2; }
+# # The one cadence that is not a workflow, and could not be
+#
+# Milestone 519 (what this project costs, tracked where it cannot rot) needs the week's machine
+# effort, and that number exists only in the agent harness's session records on the machine the
+# lanes ran on. A GitHub runner cannot see it, so `.github/workflows/metrics.yml` cannot capture it
+# and there is no scheduled run whose history would answer "did it happen". The capture is a person
+# typing `script/effort --update` and committing, which is rung four of AGENTS.md's ladder, and the
+# records are discarded, so a month of nobody remembering is a month permanently missing.
+#
+# This is where the reminder goes, because this file is already the answer to "a thing that is due
+# and has not happened" and `scripts/trunk-health.sh` already calls it every five minutes on
+# patagonia, which is the same machine that holds the records. The alternative was a new watcher,
+# which would be a new cadence that can itself lapse.
+#
+# It runs BEFORE the `gh` requirement below on purpose: this half needs no network and no
+# credentials, and a machine without `gh` should still be told its cost series has stopped.
+local_dead=0
+effort_row=""
+if [ -x script/effort ]; then
+	effort_say="$(script/effort --check 2>&1)" || local_dead=1
+	if [ "$local_dead" -eq 1 ]; then
+		effort_row="$(printf '%-32s %-24s %s' \
+			"effort capture" "not this week" "DEAD: ${effort_say#effort: }")"
+	else
+		effort_row="$(printf '%-32s %-24s %s' "effort capture" "current week" "live")"
+	fi
+fi
+
+# Printed with the workflow rows below rather than here, so the table has one header. A dead row
+# still prints under --quiet; a live one does not, which is the rule every row in this file follows.
+say_effort() {
+	[ -n "$effort_row" ] || return 0
+	if [ "$local_dead" -eq 1 ] || [ -z "$quiet" ]; then
+		printf '%s\n' "$effort_row"
+	fi
+}
+
+command -v gh >/dev/null 2>&1 || {
+	say_effort
+	echo "script/cadence-check: needs the gh CLI for the workflow half" >&2
+	exit $(( local_dead + 2 ))
+}
 command -v jq >/dev/null 2>&1 || { echo "script/cadence-check: needs jq" >&2; exit 2; }
 
 # Portable "15 days ago", because this runs on the dev Mac (BSD date) and could run on a Linux box
@@ -169,9 +222,10 @@ scheduled=$(grep -l '^  schedule:$' .github/workflows/*.yml | sort)
 [ -n "$scheduled" ] || { echo "script/cadence-check: no scheduled workflows found" >&2; exit 2; }
 
 oldest=$(printf '%s\n' "$runs" | cut -f3 | sort | head -1)
-dead=0
+dead=$local_dead
 
-[ -n "$quiet" ] || printf '%-32s %-24s %s\n' "workflow" "last scheduled success" "verdict"
+[ -n "$quiet" ] || printf '%-32s %-24s %s\n' "cadence" "last result" "verdict"
+say_effort
 
 for file in $scheduled; do
 	last_ok=$(printf '%s\n' "$runs" \
@@ -207,10 +261,11 @@ done
 
 if [ "$dead" -gt 0 ]; then
 	[ -n "$quiet" ] || echo
-	echo "$dead scheduled workflow(s) have produced no result in the last $STALE_DAYS days. Nobody is assigned to this."
+	echo "$dead cadence(s) have produced no result. Nobody is assigned to this."
 	exit 1
 fi
 
 [ -n "$quiet" ] || echo "
-every scheduled workflow has succeeded within the last $STALE_DAYS days."
+every cadence has produced a result: scheduled workflows within the last $STALE_DAYS days, and this
+week's machine effort captured."
 exit 0
