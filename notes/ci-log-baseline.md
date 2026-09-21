@@ -6,7 +6,9 @@ Naming is calef's (AGENTS.md); a lane ships a provisional name and says so.*
 This tree cannot currently answer "has this gate ever fired in CI?" GitHub Actions keeps a failed
 run's metadata forever, but a job conclusion alone says only "the job failed", not which of its
 sub-checks did. The one place that answer lives is the job's own log, and GitHub deletes those on a
-retention window. `design/roadmap/proposals/no-gate-records-when-it-fires.md` (a research lane's
+retention window; **there turn out to be two such windows, one per log endpoint, and they do not
+expire in step** (see "Two clocks" below).
+`design/roadmap/proposals/no-gate-records-when-it-fires.md` (a research lane's
 proposal, calef's to rule on, unedited by this record) mined that answer for the `clippy` job on
 2026-09-21 and found the window closing around 2026-10-21. This page and
 [`notes/project-metrics/ci-log-baseline.csv`](project-metrics/ci-log-baseline.csv) absorb that
@@ -105,19 +107,56 @@ record uses everywhere else, and is left as a `BUGS` entry rather than folded in
 | ...of which "ran, but not the check this job type is watched for" | 56 (bench, non-tripwire failures) |
 | Oldest date reached | 2026-07-23 (this repository's very first CI run; there is nothing older to reach) |
 | Newest date reached | 2026-09-21 |
-| Roughly how many GitHub API calls this lane made | ~260: 1 total-run-count probe, ~10 paginated pages to re-list all 909 failed runs with their branch, ~10 probe fetches to check log survival across the date range by hand, 232 fresh log fetches (14 supply chain + 213 cpu matrix + 5 verify), 7 re-verification fetches (5 clippy, 2 bench), plus the calls the discovery process above made while locating and reading the reused cache. The 309 clippy and 99 bench log fetches were **not** repeated; they were reused from a prior lane's cache and spot-checked live instead. |
+| Roughly how many GitHub API calls this lane made | ~275: 1 total-run-count probe, ~10 paginated pages to re-list all 909 failed runs with their branch, ~10 probe fetches to check log survival across the date range by hand, 232 fresh log fetches (14 supply chain + 213 cpu matrix + 5 verify), 7 re-verification fetches (5 clippy, 2 bench), ~10 fetches re-probing the three job ids calef flagged as expired (three attempts each, one with response headers, plus the run-level archive for the same run), plus the calls the discovery process above made while locating and reading the reused cache. The 309 clippy and 99 bench log fetches were **not** repeated; they were reused from a prior lane's cache and spot-checked live instead. |
 
-**Zero logs had expired at capture time, which is not what this lane was told to expect.** The brief
-that opened this work stated the oldest failed run's log already read as expired. Checked directly
-against the API: job 89101327085 (the run at 2026-07-23T02:13:08Z, the very first CI run this
-repository has ever recorded, confirmed by paging to the end of the unfiltered run list) still
-returns its full log, as does every job sampled from 2026-07-24 through 2026-08-01 and the specific
-`clippy` job the earlier proposal named as its oldest. This agrees with, rather than contradicts, the
-gate-audit proposal's own measurement made the same day: retention has not started deleting logs and
-is not expected to before roughly 2026-10-21. **Corrected here rather than silently worked around**,
-per this tree's own convention: the premise that urgency had already turned into loss was wrong: there
-is still a window, not a diminishing one already mid-collapse. The urgency is real (the window does
-close, and every day between now and 2026-10-21 is a day closer), just not as far along as stated.
+**Zero rows in this record are unattributable because of expiry, via the run-level archive, which is
+the endpoint `script/ci-log-baseline` now prefers to fall back to and which has not begun expiring
+as far as either measurement below can tell.** That qualification is new and load-bearing; read the
+next section before trusting the unqualified version of this sentence anywhere else.
+
+### Two clocks, and they disagreed with each other
+
+The brief that opened this work stated the oldest failed run's log already read as expired. This
+lane's first pass checked that directly against `/actions/jobs/{id}/logs` (the per-job endpoint,
+the only one this script used at the time) and could not reproduce it: job 89101327085 (the run at
+2026-07-23T02:13:08Z, the very first CI run this repository has ever recorded, confirmed by paging
+to the end of the unfiltered run list) returned its full log, as did every job sampled from
+2026-07-24 through 2026-08-01 and the specific `clippy` job the earlier proposal named as its
+oldest. That reading was written up as a correction to the brief and to the gate-audit proposal's
+own same-day measurement, which projects deletion starting around 2026-10-21: nothing had expired
+yet, full stop.
+
+**calef then measured the same three job ids directly** (89101327085, 89101327099, 89101327127, all
+from run 29973830663) and got `expired` at the job endpoint for all three, while the *run-level*
+archive (`/actions/runs/29973830663/logs`) for the same run still served its logs. Told this, this
+lane re-probed the identical three job ids immediately afterward, three times each with response
+headers, and got `200 OK` every time, with `Last-Modified` matching the run's own creation time
+(`Thu, 23 Jul 2026 02:13:47 GMT`) and a stable `ETag` across repeated requests. **Both readings are
+real; neither side mis-typed an id or misread a response.** The honest conclusion is that GitHub's
+per-job log endpoint is, at minimum, inconsistent near wherever its retention boundary actually
+sits: two probes of the identical id, close together in time, returned `200` and `410` respectively.
+Plausible mechanisms include a deletion sweep that has started but not finished, or a storage
+tier/CDN replica that has not caught up with one that has; nothing here can distinguish those, and
+nothing here re-derives which one it is.
+
+**What is not in dispute, and is the more important fact operationally: the run-level archive
+(`/actions/runs/{id}/logs`) returned every job's log intact, for every run and every job this lane
+tried, including the three the job endpoint failed on for calef.** `script/ci-log-baseline` was
+rewritten to use this as a fallback rather than a primary, because it is one larger fetch (a zip of
+every job in the run, `2_build + test (host + QEMU).txt`-style names) rather than one small one, but
+`fetch_log` now tries the per-job endpoint first and, on ANY failure there, pulls the matching entry
+out of the run zip. So: **the accounting above ("of which 'log expired': 0") is true of what this
+script can now reach, via whichever endpoint answers, and is not a claim that the job endpoint alone
+has never returned expired**: it plainly has, for calef, for the very ids this lane also checked.
+
+**This changes the date to watch.** The gate-audit proposal's 2026-10-21 estimate was for *a*
+retention window, not necessarily the one that matters now that the job endpoint has apparently
+already started misbehaving for the oldest logs. The date worth watching going forward is whether
+the **run-level archive** starts failing, since that is the endpoint this script now depends on and
+the one with no evidence of expiry yet. If it holds past 2026-10-21, the proposal's estimate was
+about the wrong clock; if it starts failing before or at that date, the two clocks were closer
+together than either measurement suggested. Either way, do not read "the window closes 2026-10-21"
+as settled for the endpoint this record actually uses.
 
 ## What this preserves from the gate-audit proposal, and what this record's own data says about it
 
@@ -165,3 +204,13 @@ caught anything."
 - **`architect hold` and `is an audit due` are gates over process state, not over code**, and were
   ruled out of this record for that reason; a "which check fired" question does not apply to a label
   or a cadence date the way it does to a script with named sub-checks.
+- **Which endpoint `script/ci-log-baseline` uses, stated plainly because a re-runner in November
+  needs it more than anything else here.** It tries `/actions/jobs/{id}/logs` first (smaller fetch)
+  and falls back to pulling the matching entry out of `/actions/runs/{id}/logs`'s zip on any
+  failure there, matched by the job's own name against the archive's `<index>_<job name>.txt`
+  filenames (safe only because no run in this record has ever carried two failed jobs of the same
+  attributable-type name; checked before relying on it, not assumed). **A future run of this script
+  that reports `log expired at both the job endpoint and the run archive` means the run archive
+  itself has started expiring**, which is the deadline actually worth watching (see "Two clocks"
+  above); a job-endpoint-only failure it now recovers from silently via the fallback and never
+  surfaces as expiry at all.

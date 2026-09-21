@@ -14,10 +14,14 @@
 # eighteen-row corpus, had to answer "has this gate ever fired?" for Kani harnesses by reading git
 # history one commit at a time. This
 # script answers the same question for CI jobs, from a source that expires: GitHub Actions keeps a
-# failed run's metadata forever but deletes its log at the retention window (measured against this
-# repository on 2026-09-21: still intact back to the oldest failed run this repository has ever had,
-# 2026-07-23; the existing gate-audit proposal projects deletion starting around 2026-10-21, and nothing
-# here re-derives that date, only checks it has not started early).
+# failed run's metadata forever but deletes its logs at the retention window. **There are two log
+# endpoints and they do not expire in step**: `/actions/jobs/{id}/logs` (one job) and
+# `/actions/runs/{id}/logs` (a zip of every job in the run). This script tries the job endpoint
+# first, since it is the smaller fetch, and falls back to pulling the matching entry out of the run
+# archive on any failure there, because on 2026-09-21 the two endpoints gave different answers for
+# the SAME job minutes apart (see notes/ci-log-baseline.md, "two clocks, and they disagreed with
+# each other"). Neither endpoint's expiry date is re-derived here; this script only checks, each
+# time it runs, whether either one still has the log.
 #
 #   script/ci-log-baseline --update           fetch anything new, attribute it, append to the CSV
 #   script/ci-log-baseline --report           print the honest accounting from the committed CSV
@@ -78,10 +82,16 @@
 # - **`coverage (host crates)`'s per-file attribution is left uncaptured**, see above. If it is
 #   wanted, it needs its own extraction (grep the `coverage: <file>:` lines, not the `==>` marker),
 #   which this script does not attempt.
-# - **A job whose log truly expires reads as `unattributable: log expired`**, and the row is
-#   still written; nothing here has exercised that path against a real expired log (none had expired
-#   as of 2026-09-21), so it is unverified against the real error text GitHub returns after
-#   2026-10-21 and may need adjusting when the window actually opens.
+# - **A job whose log is gone from both endpoints reads as `unattributable: log expired at both
+#   the job endpoint and the run archive`**, and the row is still written. Nothing here has
+#   exercised that path against a log genuinely gone from the run archive (as of 2026-09-21 every
+#   run archive this script tried still had its logs, even for jobs whose OWN endpoint already
+#   returned expired), so the error text is unverified against whatever the run-archive endpoint
+#   says once it, too, starts deleting.
+# - **The run-archive fallback is matched by job name, not job id**, since the archive's filenames
+#   are `<index>_<job name>.txt` and carry no id. This is safe only because no run in this record has
+#   ever carried two failed jobs of the same attributable-type name (checked against the whole
+#   dataset before relying on it); a job type that ever did would need the index disambiguated too.
 # - **`--verify` re-fetches; it does not compare against anything but the committed row**, so it
 #   catches drift or a wrong original attribution, never a log GitHub has already deleted (a deleted
 #   log fails with EXPIRED either way and that path only widens the record, it can't correct one).
@@ -103,41 +113,100 @@ usage() {
     exit 1
 }
 
-fetch_log() {
-    # $1 = job id; writes the raw log to $CACHE/$1.log (cached across runs), prints its path.
-    # A job whose log is gone is cached too, as an empty marker file, so a re-run does not retry a
-    # log that is not coming back.
-    jid=$1
-    f="$CACHE/$jid.log"
-    ef="$CACHE/$jid.err"
-    if [ -s "$f" ] || [ -f "$ef" ]; then
-        echo "$f"
+fetch_run_archive() {
+    # $1 = run id. GitHub's whole-run log archive (a zip of "<index>_<job name>.txt" files,
+    # one per job in the run), downloaded and unzipped once per run, cached under
+    # $CACHE/run-$1/. Prints the extracted directory on success, nothing on failure.
+    #
+    # **Why this exists at all, and not just the per-job endpoint.** This lane originally used only
+    # `/actions/jobs/{id}/logs`. calef reported (2026-09-21) that a direct probe of this
+    # repository's three oldest job ids (89101327085, 89101327099, 89101327127, all from run
+    # 29973830663) returned "expired" there, while the run-level zip for the same run did not. This
+    # lane's OWN repeated probe of those same three job ids, minutes later, got 200 with the log
+    # intact every time (response headers included, `Last-Modified` matching the run's own creation
+    # time) -- see notes/ci-log-baseline.md's "two clocks, and they disagreed with each other" for
+    # both readings side by side, since neither could be dismissed as wrong. Whatever the mechanism
+    # (a staged deletion sweep, a CDN/storage-replica inconsistency, a fleet not yet fully rolled to
+    # the same retention policy), a job-level 404/410 and a run-level 200 have both been observed for
+    # the same job minutes apart, so this script no longer trusts a job-level failure to mean the log
+    # is actually gone.
+    rid=$1
+    dir="$CACHE/run-$rid"
+    ef="$CACHE/run-$rid.err"
+    if [ -d "$dir" ]; then
+        echo "$dir"
         return
     fi
-    if gh api --allow-escape-sequences "repos/$REPO/actions/jobs/$jid/logs" >"$f" 2>"$ef"; then
-        : > "$ef" # success: keep an empty error file too, so "$ef exists" alone cannot be read as failure
-        rm -f "$ef.marker" 2>/dev/null || true
-        echo "SUCCESS:$f"
+    if [ -f "$ef" ]; then
+        return
+    fi
+    zf="$CACHE/run-$rid.zip"
+    if gh api "repos/$REPO/actions/runs/$rid/logs" >"$zf" 2>"$ef"; then
+        : > "$ef"
+        mkdir -p "$dir"
+        unzip -oq "$zf" -d "$dir" 2>/dev/null || true
+        rm -f "$zf"
+        echo "$dir"
     else
-        echo "FAIL:$ef"
+        rm -f "$zf"
     fi
 }
 
-# Extracts the attribution for one job. $1 = job name (as GitHub prints it), $2 = job id.
+fetch_log() {
+    # $1 = job id, $2 = run id, $3 = job name. Writes the raw log to $CACHE/$1.log (cached across
+    # runs), prints "SUCCESS:<path>" or "FAIL:<path to an error-detail file>". Tries the per-job
+    # endpoint first (cheap: one small file); on ANY failure there, falls back to the whole run's
+    # archive (fetch_run_archive above) and pulls this job's entry out of it by name. A job whose
+    # log is unreachable through both is cached as a marker file, so a re-run does not retry either
+    # endpoint for it again.
+    jid=$1; rid=$2; jname=$3
+    f="$CACHE/$jid.log"
+    ef="$CACHE/$jid.err"
+    if [ -s "$f" ]; then
+        echo "SUCCESS:$f"
+        return
+    fi
+    if [ -f "$ef" ]; then
+        echo "FAIL:$ef"
+        return
+    fi
+    if gh api --allow-escape-sequences "repos/$REPO/actions/jobs/$jid/logs" >"$f" 2>"$ef"; then
+        : > "$ef"
+        echo "SUCCESS:$f"
+        return
+    fi
+    job_errtxt=$(tr '\n' ' ' < "$ef" 2>/dev/null | cut -c1-100)
+    dir=$(fetch_run_archive "$rid")
+    if [ -n "$dir" ]; then
+        match=$(find "$dir" -maxdepth 1 -type f -name "*_${jname}.txt" 2>/dev/null | head -1)
+        if [ -n "$match" ] && [ -s "$match" ]; then
+            cp "$match" "$f"
+            : > "$ef"
+            echo "SUCCESS:$f"
+            return
+        fi
+    fi
+    printf 'job endpoint: %s | run archive: no matching entry or archive itself unavailable\n' "$job_errtxt" > "$ef"
+    echo "FAIL:$ef"
+}
+
+# Extracts the attribution for one job. $1 = job name (as GitHub prints it), $2 = job id,
+# $3 = run id (needed only for the run-archive fallback inside fetch_log).
 # Prints "STATUS<TAB>detail" on stdout. STATUS is one of MARKER / PREFLIGHT / MODELS / TRIPWIRE /
 # UNATTRIBUTABLE.
 attribute_job() {
     jname=$1
     jid=$2
-    res=$(fetch_log "$jid")
+    rid=$3
+    res=$(fetch_log "$jid" "$rid" "$jname")
     case "$res" in
         FAIL:*)
             errf=${res#FAIL:}
             errtxt=$(tr '\n' ' ' < "$errf" 2>/dev/null)
             if echo "$errtxt" | grep -qi "expired\|410"; then
-                printf 'UNATTRIBUTABLE\tlog expired (%s)\n' "$(echo "$errtxt" | cut -c1-100)"
+                printf 'UNATTRIBUTABLE\tlog expired at both the job endpoint and the run archive (%s)\n' "$(echo "$errtxt" | cut -c1-140)"
             else
-                printf 'UNATTRIBUTABLE\tlog unavailable (%s)\n' "$(echo "$errtxt" | cut -c1-100)"
+                printf 'UNATTRIBUTABLE\tlog unavailable at both the job endpoint and the run archive (%s)\n' "$(echo "$errtxt" | cut -c1-140)"
             fi
             return
             ;;
@@ -250,7 +319,7 @@ cmd_update() {
                 "cpu matrix (riscv64 across QEMU CPU models)"|"bench (icount regression tripwire)"| \
                 "verify (Kani proofs)")
                     if grep -qxF "$jid" "$have" 2>/dev/null; then continue; fi
-                    result=$(attribute_job "$jname" "$jid")
+                    result=$(attribute_job "$jname" "$jid" "$rid")
                     status=$(echo "$result" | cut -f1)
                     detail=$(echo "$result" | cut -f2-)
                     line=$(format_attribution "$jname" "$status" "$detail")
@@ -289,13 +358,13 @@ import csv, random, sys
 path, n = sys.argv[1], int(sys.argv[2])
 rows = list(csv.DictReader(open(path)))
 for r in random.sample(rows, min(n, len(rows))):
-    print(f"{r['job_id']}\t{r['job_name']}\t{r['date']}\t{r['attributed_check']}")
+    print(f"{r['job_id']}\t{r['run_id']}\t{r['job_name']}\t{r['date']}\t{r['attributed_check']}")
 PY
-    while IFS="$(printf '\t')" read -r jid jname date committed; do
+    while IFS="$(printf '\t')" read -r jid rid jname date committed; do
         echo "job $jid ($jname, $date)"
         echo "  committed: $committed"
         rm -f "$CACHE/$jid.log" "$CACHE/$jid.err"
-        result=$(attribute_job "$jname" "$jid")
+        result=$(attribute_job "$jname" "$jid" "$rid")
         status=$(echo "$result" | cut -f1)
         detail=$(echo "$result" | cut -f2-)
         live=$(format_attribution "$jname" "$status" "$detail")
