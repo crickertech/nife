@@ -61,6 +61,11 @@ use uefi_loader::efi::{
     self, ALLOCATE_ADDRESS, ALLOCATE_MAX_ADDRESS, BootServices, ConfigurationTable, Handle,
     SUCCESS, Status, SystemTable, memory_type,
 };
+#[cfg(target_arch = "x86_64")]
+use uefi_loader::efi::{
+    FILE_MODE_READ, FILE_POSITION_END, FileProtocol, LOADED_IMAGE_PROTOCOL_GUID, LoadedImage,
+    SIMPLE_FILE_SYSTEM_PROTOCOL_GUID, SimpleFileSystem,
+};
 use uefi_loader::image;
 
 mod arch;
@@ -129,8 +134,14 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     // --- 3. The userspace archive, if this build has one ---
     let module = place_archive(services)?;
 
-    // --- 4. The architecture's handover, which ends in the kernel or in an error ---
-    arch::hand_over(handle, table, services, found, &kernel, module)
+    // --- 4. This file's own bytes, so the running system can install itself ---
+    #[cfg(target_arch = "x86_64")]
+    let boot_file = place_boot_file(handle, table, services);
+    #[cfg(not(target_arch = "x86_64"))]
+    let boot_file = None;
+
+    // --- 5. The architecture's handover, which ends in the kernel or in an error ---
+    arch::hand_over(handle, table, services, found, &kernel, module, boot_file)
 }
 
 /// Place the embedded kernel by its physical addresses, zeroed first so every `.bss` and `NOLOAD`
@@ -202,6 +213,189 @@ fn place_archive(services: &BootServices) -> Result<Option<(u64, u64)>, &'static
         );
     }
     Ok(Some((base, embedded::INITRD.len() as u64)))
+}
+
+/// **The removable-media path the firmware found this image at**, which is the path its own file is
+/// still at.
+///
+/// One constant rather than a decoded device path, and the trade is recorded in
+/// [`place_boot_file`]'s own comment.
+#[cfg(target_arch = "x86_64")]
+const BOOT_FILE_PATH: &str = "\\EFI\\BOOT\\BOOTX64.EFI";
+
+/// The largest boot file this loader will read back. The tour build is about 9 MiB and the test
+/// build about 19; 64 refuses something that is not this file at all rather than spending the
+/// machine's RAM on it.
+#[cfg(target_arch = "x86_64")]
+const BOOT_FILE_MAX: u64 = 64 * 1024 * 1024;
+
+/// **Read this loader's own file off the volume it was started from, and place it for the kernel.**
+///
+/// Milestone 198 (a package manager, and the trivial install that makes a second customer
+/// possible)'s rung 2a, and the problem it solves is one nobody had written down until
+/// milestone 515 (a stick that puts itself on the machine's disk)
+/// looked: **the running system does not have its own file.** This loader places the kernel's
+/// segments and hands the archive over as a module, and then the PE file that contained both is
+/// gone. An installer has to write that file to the disk's EFI system partition, and it cannot be
+/// put inside the archive, because the file *contains* the archive.
+///
+/// So the file is read here, while the firmware is still up and can read a FAT volume in one call,
+/// and handed over as a second module. It costs two protocols and one allocation, and it keeps the
+/// property that matters most: **the kernel and the archive travel as a set**, because they travel
+/// as the single file that already seals them together (`uefi_loader/build.rs`'s
+/// `refuse_an_unsealed_pair`). An installer that copied one and not the other would produce a disk
+/// that halts at `MEASURED BOOT REFUSED`, and there is no way to express that mistake here.
+///
+/// **A failure is not a boot failure.** Every return of `None` says so on the console and carries
+/// on; what is lost is the ability to install, which is not what this stick is for on most boots.
+///
+/// # BUGS
+///
+/// - **The path is a constant**, not the image's own [`LoadedImage::file_path`]. Turning a device
+///   path into text needs `EFI_DEVICE_PATH_TO_TEXT_PROTOCOL` and a parser, and every boot this
+///   milestone is about is the removable-media fallback path, which is the constant. A loader
+///   started from some other path on the volume reads the wrong file or none, and says so.
+/// - **x86_64 only.** The device-tree architectures hand the kernel a tree rather than a module
+///   list, and `/chosen` has one initrd and no second slot; adding one is its own piece of work.
+///   The trivial install of §157 (a trivial install is a web page, a USB drive, and packages) is a
+///   PC, so this is where it is needed first. The gap is real, it is why rung 2a is an x86_64
+///   claim, and it is priced in
+///   `design/roadmap/proposals/the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md`.
+/// - **The file is read whole into RAM**, about 9 MiB for the tour build. Streaming it to the disk
+///   instead would mean keeping a firmware file handle past `ExitBootServices`, which there is no
+///   such thing as.
+#[cfg(target_arch = "x86_64")]
+fn place_boot_file(
+    handle: Handle,
+    table: &SystemTable,
+    services: &BootServices,
+) -> Option<(u64, u64)> {
+    let mut interface: *mut core::ffi::c_void = ptr::null_mut();
+    if (services.handle_protocol)(handle, &LOADED_IMAGE_PROTOCOL_GUID, &mut interface) != SUCCESS
+        || interface.is_null()
+    {
+        say(
+            table,
+            "uefi_loader: no loaded-image protocol; cannot install\r\n",
+        );
+        return None;
+    }
+    // SAFETY: the firmware answered `HandleProtocol` with a pointer to its own
+    // `EFI_LOADED_IMAGE_PROTOCOL` for this image handle, which outlives boot services.
+    let loaded = unsafe { &*interface.cast::<LoadedImage>() };
+
+    let mut interface: *mut core::ffi::c_void = ptr::null_mut();
+    if (services.handle_protocol)(
+        loaded.device_handle,
+        &SIMPLE_FILE_SYSTEM_PROTOCOL_GUID,
+        &mut interface,
+    ) != SUCCESS
+        || interface.is_null()
+    {
+        say(
+            table,
+            "uefi_loader: the boot volume has no filesystem protocol; cannot install\r\n",
+        );
+        return None;
+    }
+    // SAFETY: as above, now for the volume this image came from.
+    let filesystem = interface.cast::<SimpleFileSystem>();
+
+    let mut root: *mut FileProtocol = ptr::null_mut();
+    // SAFETY: `filesystem` is the firmware's own protocol interface, and `open_volume` is its
+    // first method.
+    if unsafe { ((*filesystem).open_volume)(filesystem, &mut root) } != SUCCESS || root.is_null() {
+        say(table, "uefi_loader: could not open the boot volume\r\n");
+        return None;
+    }
+
+    let mut path = [0u16; 64];
+    let units = utf16(BOOT_FILE_PATH, &mut path);
+    let mut file: *mut FileProtocol = ptr::null_mut();
+    // SAFETY: `root` is the firmware's open volume; `path` is NUL-terminated within its own buffer.
+    let opened =
+        unsafe { ((*root).open)(root, &mut file, path[..units].as_ptr(), FILE_MODE_READ, 0) };
+    if opened != SUCCESS || file.is_null() {
+        say(table, "uefi_loader: no ");
+        say(table, BOOT_FILE_PATH);
+        say(table, " on the boot volume; cannot install\r\n");
+        // SAFETY: `root` is open and `close` is its own method.
+        unsafe { ((*root).close)(root) };
+        return None;
+    }
+
+    // Seek to the end and ask where that was, which is the specification's own way of asking a
+    // file how long it is without decoding an `EFI_FILE_INFO` and its variable-length name.
+    let mut length = 0u64;
+    // SAFETY: `file` is open; both calls are its own methods and `length` is ours.
+    let sized = unsafe {
+        ((*file).set_position)(file, FILE_POSITION_END) == SUCCESS
+            && ((*file).get_position)(file, &mut length) == SUCCESS
+            && ((*file).set_position)(file, 0) == SUCCESS
+    };
+    if !sized || length == 0 || length > BOOT_FILE_MAX {
+        say(table, "uefi_loader: could not size the boot file\r\n");
+        // SAFETY: both handles are open.
+        unsafe {
+            ((*file).close)(file);
+            ((*root).close)(root);
+        }
+        return None;
+    }
+
+    let pages = length.div_ceil(PAGE) as usize;
+    let Some(base) = allocate_below(services, pages, memory_type::LOADER_DATA) else {
+        say(table, "uefi_loader: no memory for the boot file\r\n");
+        // SAFETY: both handles are open.
+        unsafe {
+            ((*file).close)(file);
+            ((*root).close)(root);
+        }
+        return None;
+    };
+
+    // One call is allowed to return short, so read until the file is in or the firmware stops
+    // making progress. A silent short read here would put a truncated boot file on somebody's disk.
+    let mut done = 0u64;
+    while done < length {
+        let mut want = (length - done) as usize;
+        // SAFETY: `pages` covers `length` bytes at `base`, granted exclusively above, and `done` is
+        // below `length`.
+        let status = unsafe { ((*file).read)(file, &mut want, (base + done) as *mut u8) };
+        if status != SUCCESS || want == 0 {
+            break;
+        }
+        done += want as u64;
+    }
+    // SAFETY: both handles are open and `close` is each one's own method.
+    unsafe {
+        ((*file).close)(file);
+        ((*root).close)(root);
+    }
+    if done != length {
+        say(
+            table,
+            "uefi_loader: the boot file read short; cannot install\r\n",
+        );
+        return None;
+    }
+
+    say_span(table, "uefi_loader: boot file at ", base, base + length);
+    Some((base, length))
+}
+
+/// Write `ascii` into `out` as NUL-terminated UTF-16, and answer how many units that took, the NUL
+/// included. Every character of a removable-media path is ASCII, so this is a widening and not an
+/// encoding.
+#[cfg(target_arch = "x86_64")]
+fn utf16(ascii: &str, out: &mut [u16; 64]) -> usize {
+    let mut n = 0;
+    for byte in ascii.bytes() {
+        out[n] = u16::from(byte);
+        n += 1;
+    }
+    out[n] = 0;
+    n + 1
 }
 
 /// `AllocatePages(AllocateMaxAddress)` under [`arch::ALLOCATION_CEILING`], which is the highest

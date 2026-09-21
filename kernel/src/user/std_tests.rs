@@ -200,9 +200,7 @@ pub(super) fn assert_attrs(attrs: u64) {
     );
 }
 
-pub(super) fn assert_fs_service_ready(
-    readiness: Option<(crate::sched::RendezvousId, crate::sched::RendezvousId)>,
-) {
+pub(super) fn assert_fs_service_ready(readiness: fs_service::Readiness) {
     // One copy, in `fs_service`, because draining these is **sequencing** and not only an
     // assertion: each server is parked inside its own blocking announcement until somebody
     // receives it, so nothing it serves can be answered first. The caretakers depend on that.

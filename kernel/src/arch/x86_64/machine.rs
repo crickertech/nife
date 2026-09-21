@@ -125,20 +125,48 @@ pub fn memory_map_entry(info: &BootInfo, index: usize) -> Option<MemoryEntry> {
 /// `/chosen/linux,initrd-start`, which is what both other architectures read.
 ///
 /// QEMU's PVH loader turns `-initrd FILE` into one entry in the module list `hvm_start_info` points
-/// at. **The first module is taken and any others ignored**, which is a decision rather than an
-/// oversight: PVH permits several, this kernel wants exactly one archive, and inventing a policy
-/// for a case the machine never produces would be code nobody could test. A second module would be
-/// left in RAM, unreserved and unread; if one ever appears, this is where it has to be handled.
+/// at, and `uefi_loader` writes the same entry. **Module 0 is the archive**, and it has been since
+/// milestone 87 (the bare-metal machine).
+///
+/// **There is a module 1 now**, read by [`boot_file`]: milestone 198 (a package manager, and the
+/// trivial install that makes a second customer possible)'s rung 2a has the loader hand over a copy
+/// of its own file. The old text here said a second module would be "left in RAM, unreserved and
+/// unread"; that is what changed, and the order is now a contract stated at both ends (see
+/// `uefi_loader/src/arch/x86_64/mod.rs`'s `hand_over`). A third module is still ignored.
 pub fn initrd(info: &BootInfo) -> Option<Module> {
-    if info.modules == 0 || info.module_count == 0 {
+    nth_module(info, 0)
+}
+
+/// **A copy of the file this machine was booted from**, if the loader could read one back.
+///
+/// Module 1, by the contract above. This is what lets an installer put `\EFI\BOOT\BOOTX64.EFI`
+/// on a disk's EFI system partition: the running system does not otherwise have its own file,
+/// because the loader placed the kernel's segments, handed the archive over, and then the PE file
+/// that contained both was gone.
+///
+/// **It carries the kernel and the archive as a set**, which is the property that matters most
+/// here: they are sealed together inside this one file at build time
+/// (`uefi_loader/build.rs`'s `refuse_an_unsealed_pair`), so an installer cannot copy one without
+/// the other and produce a disk that halts at `MEASURED BOOT REFUSED`.
+///
+/// `None` on every boot that did not come from a file a loader could re-read, which includes
+/// QEMU's own `-kernel` PVH path.
+pub fn boot_file(info: &BootInfo) -> Option<Module> {
+    nth_module(info, 1)
+}
+
+/// Module `index`, if the loader stated one with bytes in it.
+///
+/// A module with no bytes is not a payload, and reporting one as an archive would have the kernel
+/// parse an empty slice and report a corrupt filesystem rather than an absent one.
+fn nth_module(info: &BootInfo, index: usize) -> Option<Module> {
+    if info.modules == 0 || info.module_count as usize <= index {
         return None;
     }
-    let at = phys_to_virt(info.modules);
+    let at = phys_to_virt(info.modules) + (index * MODULE_ENTRY_LEN) as u64;
     // SAFETY: a physical address the loader gave us, reached through the direct map, for exactly one
-    // entry's worth of bytes. The count was checked above, so entry 0 exists.
+    // entry's worth of bytes at an index the stated count covers.
     let bytes = unsafe { core::slice::from_raw_parts(at as *const u8, MODULE_ENTRY_LEN) };
-    // A module with no bytes is not an archive, and reporting it as one would have the kernel parse
-    // an empty slice and report a corrupt filesystem rather than an absent one.
     module(bytes, 0).filter(|m| m.size > 0)
 }
 
@@ -763,7 +791,7 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
     // **The count is what the array is sliced to**, rather than the array being sized to the worst
     // case and passed whole: an all-zero `Region` is a reservation of nothing at address zero, and
     // `bring_up_page_frames` would dutifully take it.
-    let mut forbidden = [device_tree_blob::Region { start: 0, size: 0 }; 2];
+    let mut forbidden = [device_tree_blob::Region { start: 0, size: 0 }; 3];
     forbidden[0] = device_tree_blob::Region {
         start: crate::memory::image_start(),
         size: crate::memory::image_end() - crate::memory::image_start(),
@@ -776,6 +804,18 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
         };
         forbidden_count += 1;
         crate::memory::record_initrd(m.addr, m.size);
+    }
+    // The same pair of lines, one module along, and for the same reason: the frame allocator would
+    // otherwise hand out the bytes an installer is going to write to a disk. The loader asked for
+    // `LOADER_DATA`, which `handoff::e820_kind` reports as reserved, so this is belt and braces on
+    // the UEFI path and the whole of the reservation if a future loader is less careful.
+    if let Some(m) = boot_file(info) {
+        forbidden[forbidden_count] = device_tree_blob::Region {
+            start: m.addr,
+            size: m.size,
+        };
+        forbidden_count += 1;
+        crate::memory::record_boot_file(m.addr, m.size);
     }
 
     crate::memory::bring_up_page_frames(&ram[..count], &forbidden[..forbidden_count]);

@@ -114,6 +114,13 @@ pub fn hand_over(
     found: Found,
     kernel: &Placed,
     module: Option<(u64, u64)>,
+    // **Always `None` here**, and that is a recorded gap rather than an unused parameter.
+    // `main.rs`'s `place_boot_file` reads this loader's own file so the running system can install
+    // itself, and hands it over as a second PVH module. A device-tree handoff has `/chosen` with
+    // one initrd and no second slot, so there is nowhere to put it; see that function's BUGS and
+    // milestone 198 (a package manager, and the trivial install that makes a second customer
+    // possible)'s rung 2a, which is an x86_64 claim for this reason.
+    _boot_file: Option<(u64, u64)>,
 ) -> Result<(), &'static str> {
     if kernel.end > ALLOCATION_CEILING + 1 {
         return Err("the kernel is linked above what its own boot table reaches");

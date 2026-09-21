@@ -1465,7 +1465,11 @@ fn fs_read() {
     // the FS server mounts the image, then the client's timed loop reports. The bench boot is the
     // only caller, so it always gets the readiness endpoints (nothing wired the service first).
     if let Some((blk_ready, ready)) = readiness {
-        let _ = sched::ipc_recv(blk_ready);
+        // `blk_ready` is `None` when the block service was already running and its sentinel has
+        // been taken; a bench boot always wires it, so this arm is the one that runs here.
+        if let Some(blk_ready) = blk_ready {
+            let _ = sched::ipc_recv(blk_ready);
+        }
         let _ = sched::ipc_recv(ready);
     }
     let [ticks, iters, ..] = sched::ipc_recv(report);
@@ -1519,7 +1523,11 @@ fn fs_throughput() {
         return; // no RedoxFS disk on this run
     };
     if let Some((blk_ready, ready)) = readiness {
-        let _ = sched::ipc_recv(blk_ready);
+        // `blk_ready` is `None` when the block service was already running and its sentinel has
+        // been taken; a bench boot always wires it, so this arm is the one that runs here.
+        if let Some(blk_ready) = blk_ready {
+            let _ = sched::ipc_recv(blk_ready);
+        }
         let _ = sched::ipc_recv(ready);
     }
     let hz = crate::arch::timer::frequency();

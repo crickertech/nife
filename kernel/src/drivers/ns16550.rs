@@ -72,7 +72,8 @@ const LSR_DR: u8 = 0b0000_0001;
 const IER_ERBFI: u8 = 0b0000_0001;
 // Interrupt Enable bit: Enable Transmitter Holding Register Empty Interrupt. Asserts as soon as it is
 // set if LSR.THRE is already set, which on a polling console it always is. See `enable_tx_interrupt`.
-// Test builds only, because that is where its only caller is; milestone 41's removal of the crate-wide
+// Test builds only, because that is where its only caller is; the crate-wide removal in
+// milestone 41 (dead code: triage the suppressions) of the
 // riscv `allow(dead_code)` means an unused constant here is a build error, which is the point.
 #[cfg(test)]
 const IER_ETBEI: u8 = 0b0000_0010;
@@ -313,6 +314,28 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// Name provisional (milestone 249): calef names public items.
     pub fn rx_waiting(&self) -> bool {
         self.read(LSR) & LSR_DR != 0
+    }
+
+    /// **Take the byte, if one is waiting.** [`rx_waiting`](Self::rx_waiting) with the read that
+    /// consumes it, which is the pair milestone 41 deleted when the input path left the kernel and
+    /// milestone 198 (a package manager, and the trivial install that makes a second customer
+    /// possible)'s rung 2a needed back.
+    ///
+    /// **There is exactly one caller and it runs before userspace exists**: an installer's
+    /// confirmation, asked on the console the kernel is still the only holder of
+    /// (`kernel::console::read_line`). Once the progenitor has handed the UART to the input driver
+    /// this must not be called, because two readers of one FIFO lose bytes between them and neither
+    /// can tell.
+    ///
+    /// Name provisional (milestone 198's rung 2a): calef names public items.
+    ///
+    /// Dead on riscv64, which shares this driver and has no install offer: `install_service` is
+    /// `x86_64` only for the reasons stated at its declaration. Allowed rather than `cfg`-ed, so
+    /// the method still compiles in every configuration; a receive path that only type-checks where
+    /// it is called is one that rots everywhere else.
+    #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+    pub fn read_byte(&self) -> Option<u8> {
+        (self.read(LSR) & LSR_DR != 0).then(|| self.read(THR)) // THR on write is RBR on read.
     }
 
     /// **Throw away everything currently in the receive buffer**, so that what arrives after this

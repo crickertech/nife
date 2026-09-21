@@ -8,7 +8,11 @@
 //! allocate pages, get the memory map, exit boot services, print a line, locate one protocol, and
 //! the two ACPI configuration-table identifiers plus the graphics one. That is the whole of it, and
 //! it is written below in a few hundred lines that a reader can check against the specification
-//! without leaving the repository. (Six and two until milestone 243 asked where the screen is.)
+//! without leaving the repository. (Six and two until milestone 243 (a machine with no serial port
+//! has no way to say anything) asked where the screen is;
+//! eight and five since milestone 198 (a package manager, and the trivial install that makes a
+//! second customer possible)'s rung 2a asked the loader to read its own file, which adds
+//! `HandleProtocol` and the three small protocol tables at the end of this file.)
 //!
 //! The cost of getting it wrong is also unusually visible: a mis-numbered field in
 //! [`BootServices`] is a call to the wrong function pointer, which faults immediately and loudly at
@@ -262,7 +266,15 @@ pub struct BootServices {
     install_protocol_interface: usize,
     reinstall_protocol_interface: usize,
     uninstall_protocol_interface: usize,
-    handle_protocol: usize,
+    /// `HandleProtocol(handle, &guid, &mut interface)`.
+    ///
+    /// The one call milestone 198 (a package manager, and the trivial install that makes a second
+    /// customer possible)'s rung 2a added, and unlike [`Self::locate_protocol`] it asks about a
+    /// **named handle** rather than about the machine: which volume did *this image* come from.
+    /// That question is what lets the loader open its own file, and the loader's own file is the
+    /// only copy of the kernel-and-archive pair the running system has (`src/main.rs`'s
+    /// `place_boot_file`).
+    pub handle_protocol: extern "efiapi" fn(Handle, *const Guid, *mut *mut c_void) -> Status,
     reserved: usize,
     register_protocol_notify: usize,
     locate_handle: usize,
@@ -392,6 +404,104 @@ pub struct GraphicsOutput {
     blt: usize,
     /// The current mode, and the framebuffer's address.
     pub mode: *const GraphicsOutputMode,
+}
+
+/// `EFI_LOADED_IMAGE_PROTOCOL_GUID`.
+pub const LOADED_IMAGE_PROTOCOL_GUID: Guid = Guid {
+    a: 0x5b1b_31a1,
+    b: 0x9562,
+    c: 0x11d2,
+    d: [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
+};
+
+/// `EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID`.
+pub const SIMPLE_FILE_SYSTEM_PROTOCOL_GUID: Guid = Guid {
+    a: 0x964e_5b22,
+    b: 0x6459,
+    c: 0x11d2,
+    d: [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
+};
+
+/// `EFI_FILE_MODE_READ`.
+pub const FILE_MODE_READ: u64 = 0x0000_0000_0000_0001;
+
+/// **Seek here and the file protocol puts the position at the end**, which is the specification's
+/// own way of asking a file how long it is without decoding an `EFI_FILE_INFO`.
+pub const FILE_POSITION_END: u64 = u64::MAX;
+
+/// `EFI_LOADED_IMAGE_PROTOCOL`, truncated after the one field this loader reads.
+///
+/// **[`Self::device_handle`] is the whole reason it is here**: it names the volume the firmware
+/// loaded this image from, which is the volume the image's own file is on.
+///
+/// `image_base` and `image_size` are deliberately **not** read, and the reason is worth stating
+/// because they look like the easy answer. They describe the image as *loaded*: sections placed at
+/// their RVAs, with section alignment rather than file alignment between them. Writing those bytes
+/// to a disk would produce something that is not this file and that no firmware promises to start.
+#[allow(
+    dead_code,
+    reason = "the leading entries are the firmware's, present only to put `device_handle` at its \
+              specified offset"
+)]
+#[repr(C)]
+pub struct LoadedImage {
+    revision: u32,
+    parent_handle: Handle,
+    system_table: *mut SystemTable,
+    /// **The handle of the device this image was loaded from.** A `SimpleFileSystem` on it is the
+    /// volume the file lives on.
+    pub device_handle: Handle,
+    /// The image's own path on that volume, as a device path. Not decoded here: turning one into
+    /// text is `EFI_DEVICE_PATH_TO_TEXT_PROTOCOL`, a third protocol and a parser, and the removable
+    /// media path is a constant. See `src/main.rs`'s `place_boot_file` BUGS note.
+    pub file_path: *const c_void,
+    reserved: *const c_void,
+    load_options_size: u32,
+    load_options: *const c_void,
+    image_base: *const c_void,
+    image_size: u64,
+}
+
+/// `EFI_SIMPLE_FILE_SYSTEM_PROTOCOL`.
+#[repr(C)]
+pub struct SimpleFileSystem {
+    /// The protocol's own revision. Not checked: there has only ever been one.
+    pub revision: u64,
+    /// `OpenVolume(this, &mut root)`.
+    pub open_volume: extern "efiapi" fn(*mut SimpleFileSystem, *mut *mut FileProtocol) -> Status,
+}
+
+/// `EFI_FILE_PROTOCOL`, in specification order, truncated after `set_position`.
+///
+/// The same rule as [`BootServices`]: the entries are found by offset, so the unused ones are
+/// spelled out rather than collapsed, and their count is the ABI.
+#[allow(
+    dead_code,
+    reason = "the unused entries hold the used ones at their specified offsets; their COUNT is the \
+              ABI"
+)]
+#[repr(C)]
+pub struct FileProtocol {
+    revision: u64,
+    /// `Open(this, &mut new, name, open_mode, attributes)`. `name` is NUL-terminated UTF-16.
+    pub open: extern "efiapi" fn(
+        *mut FileProtocol,
+        *mut *mut FileProtocol,
+        *const u16,
+        u64,
+        u64,
+    ) -> Status,
+    /// `Close(this)`.
+    pub close: extern "efiapi" fn(*mut FileProtocol) -> Status,
+    delete: usize,
+    /// `Read(this, &mut size, buffer)`. **`size` is in/out**: the buffer's capacity going in, the
+    /// bytes actually read coming out, and a short read is success rather than an error.
+    pub read: extern "efiapi" fn(*mut FileProtocol, *mut usize, *mut u8) -> Status,
+    write: usize,
+    /// `GetPosition(this, &mut position)`.
+    pub get_position: extern "efiapi" fn(*mut FileProtocol, *mut u64) -> Status,
+    /// `SetPosition(this, position)`. [`FILE_POSITION_END`] seeks to the end.
+    pub set_position: extern "efiapi" fn(*mut FileProtocol, u64) -> Status,
 }
 
 /// One entry of the UEFI configuration table: a GUID and a pointer.

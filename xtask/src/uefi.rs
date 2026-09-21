@@ -67,7 +67,7 @@ pub(crate) fn uefi_image() -> bool {
 /// inside requires, returning the kernel's path. Split out of [`uefi_image`] by milestone 445 so
 /// that the screen gate can stage the same kernel behind a differently-built loader without
 /// duplicating that order, which is the one thing here nobody may get wrong.
-fn uefi_kernel() -> Option<String> {
+pub(crate) fn uefi_kernel() -> Option<String> {
     // **The archive FIRST, then the kernel, and the order is load-bearing.** Packing the archive
     // regenerates `target/init-measure-x86_64.txt`, the manifest `kernel/build.rs` compiles in as
     // the measured-boot trust root. Kernel-first builds a kernel vouching for the PREVIOUS archive,
@@ -134,7 +134,12 @@ fn uefi_test_esp_dir() -> std::path::PathBuf {
 /// and the loader's build script `include_bytes!`s both it and the archive. `what` is the phrase
 /// the size line uses, because "the loader, the kernel and the archive" and "the loader, the test
 /// kernel and the archive" are the one difference a reader of the transcript can act on.
-fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str, screen_hold: bool) -> bool {
+pub(crate) fn uefi_stage(
+    kernel: &str,
+    esp: &std::path::Path,
+    what: &str,
+    screen_hold: bool,
+) -> bool {
     // `screen_hold` is milestone 445's: it makes the loader write one more word on the kernel's
     // boot command line, and only `uefi_boot` passes it. See [`uefi_screen_esp_dir`].
     let features = if screen_hold {

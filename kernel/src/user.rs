@@ -2787,6 +2787,22 @@ pub mod entropy_service;
 #[cfg_attr(not(test), allow(dead_code))] // the tests are its callers
 pub mod non_volatile_memory_express_service;
 
+/// **The offer a booted stick makes** (milestone 198 (a package manager, and the trivial install
+/// that makes a second customer possible), rung 2a): ask whether to put this system on the
+/// machine's own disk, and wire the two confined programs that do it. Boot policy only; nothing in
+/// it holds a disk.
+///
+/// **`x86_64` only, and the gap is the loader's rather than this module's.** It needs two things
+/// the other two architectures do not have: a copy of the file this machine booted from
+/// (`memory::boot_file_region`, which is `None` wherever `uefi_loader` cannot hand over a second
+/// module, and a device-tree handoff has one initrd slot in `/chosen` and no second one), and a
+/// console it can read a line back from (`console::read_line`, which the aarch64 console's PL011
+/// driver has no receive path for). Both are recorded where they are, and both would have to move
+/// before this module could. Written as a `cfg` rather than as a no-op body on purpose: a module
+/// that compiled everywhere and could only ever decline on two of three would read as portable.
+#[cfg(target_arch = "x86_64")]
+pub mod install_service;
+
 /// **A confined EL0 process drives a real, non-virtio DMA device** (milestone 261).
 ///
 /// What these prove that nothing else would: that the NVMe queue mechanics work from ring 3 with

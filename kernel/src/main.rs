@@ -744,6 +744,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             },
         }
 
+        // **The boot file** (milestone 198 (a package manager, and the trivial install that makes a
+        // second customer possible)'s rung 2a), printed for the same reason the initrd is: it is
+        // the one fact that says whether this system can install itself, and a boot that cannot is
+        // not broken. `uefi_loader` reads its own file back off the volume it was started from and
+        // hands it over as the second PVH module; QEMU's `-kernel` path passes no such thing, so
+        // "none" is the normal answer on most of this tree's boots.
+        match memory::boot_file_region() {
+            None => println!("  boot file   : none (this boot did not come from a file)"),
+            Some((at, size)) => {
+                println!("  boot file   : {size} bytes at {at:#x}, from the PVH module list");
+            }
+        }
+
         // A test build runs the kernel suite right here and exits via semihosting, instead of the
         // rest of the tour. Everything the tests need is now up: the frame allocator, the fine page
         // tables, the scheduler and its idle thread, the timer and interrupts. The x86 equivalent of
@@ -774,6 +787,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // a silent machine to be read as a hang.
         #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         {
+            // **The install offer** (milestone 198 (a package manager, and the trivial install that
+            // makes a second customer possible), rung 2a), and it has to be here rather than after
+            // the handoff: it asks its question on the console, and the progenitor gives the
+            // console's UART to a userspace input driver. It is a no-op on every boot that did not
+            // come from a file the loader could read back, which is every boot but a UEFI one.
+            user::install_service::offer();
             x86_hand_over();
             arch::halt();
         }
