@@ -52,6 +52,7 @@ themselves. The last column is this milestone's result.
 | 27 | A thread holding no port capability cannot touch a port, and a holder's ports do not leak across a context switch (`x86_64`) | §121, milestone 299 | `kernel::user::x86_port_tests::port_holder_transmits_then_a_non_holder_faults` | **yes, milestone 313, and see below** |
 | 28 | A revoked port holder faults on its next `in`/`out` (`x86_64`) | §121, milestone 299 | `kernel::user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` | **yes, milestone 313** |
 | 29 | A thread that deletes its own port capability faults on its next `in`/`out` (`x86_64`) | §12, milestone 313 | `kernel::user::x86_port_tests::a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write` | **yes, milestone 313, and it was false in the tree** |
+| 30 | A revocation reaches a capability **in flight**, not only the ones sitting in capability tables | Nowhere until 2026-09-21; now `sched::delete_page_frame_caps_where` | `kernel::user::revocation_in_flight_tests::a_capability_revoked_while_it_is_in_flight_does_not_reach_the_receiver` | **yes, 2026-09-21, and it was false in the tree** |
 
 ## Five claims that are stated nowhere, which is what step 1 was for
 
@@ -502,6 +503,103 @@ The compositor test's vacuity guard, `neighbour_probe_phys(ATTACKER) == client[V
 compares two different allocation records and is a real fact about adjacency rather than a
 restatement. `reap_tests::assert_can_only_supervise` walks every slot and checks both directions.
 All of these fire as advertised.
+
+## What attacking them found (risk 7's adversarial pass, 2026-09-21)
+
+Every pass before this one read the claims and asked whether each was tested. This one took the
+other posture `design/fatal-risks.md`'s risk 7 has asked for since it was written: assume a claim is
+false and go looking for the case that makes it so. **One claim was false in the tree, on a path any
+two cooperating programs can take, and the tree had already written down the rule it broke.** The
+rest of this section is what was attacked and held, because a pass that reports only its hits is
+indistinguishable from one that stopped early.
+
+### A capability revoked while it is in flight was delivered anyway
+
+**The attack.** Ask where a capability can live that is not a capability-table slot, because every
+revocation sweep in the kernel walks tables. There is exactly one such place and it is not obscure:
+`Thread::outgoing_cap`, the hand-off slot `sched::ipc_send_cap` writes when a `SEND_CAP` finds no
+receiver waiting, and `sched::ipc_recv_cap` takes when one arrives.
+
+**It was false.** A sender parks `PageFrame(p, 1)` there and blocks. `PageFrame::REVOKE` then runs
+over that frame: `sched::delete_page_frame_caps_where` deletes the capability from every table
+including the sender's own, and `revoke::unmap_under_object` unmaps every page the log records. The
+hand-off slot is read by neither. The next `RECV_CAP` files the surviving capability in the
+receiver's table, and the receiver may `MAP` a page the revoker believes it took back. Measured, not
+argued: `kernel::user::revocation_in_flight_tests::
+a_capability_revoked_while_it_is_in_flight_does_not_reach_the_receiver` went red on the tree as it
+stood, on aarch64, with its vacuity guard and its premise check both green first.
+
+**`MemoryRegion::DESTROY` is the sharper case.** `revoke::revoke_region` sweeps capabilities by
+overlap precisely so that "no capability still names a page this allocator is about to hand out" is
+true before the region's pages go back, which is the hole milestone 142's review found and closed.
+An in-flight capability reopens it: DECISIONS §13's use-after-free, through the one slot nobody
+swept.
+
+**The tree had written the rule down, once, for a different object.**
+`sched::delete_reply_caps_naming` sweeps `outgoing_cap` beside the tables and its doc comment says
+why in exactly the words this defect needed: *"`outgoing_cap` goes too, and it is the half a second
+copy would forget ... a live `Reply` in a hand-off slot is the same forgery one step earlier."* The
+one sweep without the defect is the one that states the rule. That is the same shape as milestone
+307's row 12 finding, where a comment correctly explained a trap and then cited, as its precedent,
+the one harness still caught in it. **The failure is not that nobody knew; it is that knowing lived
+in a doc comment on one call site**, which is AGENTS.md's ladder rung four wearing the clothes of a
+design.
+
+**Fixed here**, in the three sweeps that lacked it (`delete_page_frame_caps_where`, which is both
+`PageFrame` policies; `delete_device_frame_caps_from_others`; and `x86_64`'s
+`delete_port_range_caps_impl`), by dropping the parked capability. Dropping rather than failing the
+send is the behaviour `ipc_send_cap` already documents for the other way a hand-off comes up empty,
+a receiver whose table is full: the data word still arrives and the receiver sees `NO_CAP`. No new
+error reaches userspace, so nothing about the syscall surface moves. The falsification is recorded
+and replayed red.
+
+**What it does not settle.** Only the `PageFrame` sweep is driven by a test; the other two carry the
+same two lines and nothing exercises them through a parked hand-off, so read those as reasoned from
+the code. And the test stops at delivery rather than at exploitation: it proves the receiver holds a
+capability naming the revoked run, not that it then read a page somebody else owns.
+
+### A mapping the kernel wires at boot is invisible to revocation
+
+**Recorded rather than fixed**, because it is latent and the fix is a decision about who owns those
+mappings. `user::AddressSpace::map_physical` does not call `revoke::record_mapping`, and every unmap
+sweep in `crate::revoke` is driven by that log. So a page placed by kernel wiring (the serial
+driver's UART registers, a `Spawn::maps` entry, a `DeviceRun`, the initrd, the `x86_64` timebase
+page) survives `DeviceFrame::REVOKE`, `PageFrame::REVOKE` and `MemoryRegion::DESTROY`: the
+capability would go and the mapping would stay, which is a take-back doing half its job.
+
+Nothing reaches it today, and the reason is worth stating so a later reader does not have to
+re-derive it. A driver a userspace supervisor builds gets its registers through `MAP_INTO`, which
+records, and that is the path `user::live_swap_tests` proves a revoked driver faults on. Every
+`map_physical` call site is boot wiring. The limitation is now in that function's own `BUGS`, where
+a reader meets it, rather than here alone; `map_physical`'s existing paragraph about not recording
+the frame *for freeing* is about `Drop`, and is easy to read as covering this.
+
+### What was attacked and held
+
+Stated one attack per line, because the misses are what make the hit worth believing.
+
+| # | The attack | Result |
+|---|---|---|
+| 1 | Is there any other authority-bearing field on `Thread` that a table sweep cannot see? | **Held.** `port_range_grant` (milestone 313's find, fixed) and `cycle_counter_grant` are the only two, both are cleared where they must be, and `mailbox` carries scalars. `outgoing_cap` was the third and is the finding above. |
+| 2 | Does a recycled TCB slot inherit a dead thread's authority? | **Held, structurally.** `Thread` has no `Default` and all four constructors (`boot`, `adopt_current`, `spawn_into`, `embryo`) write every field by name, so a new authority-bearing field cannot be added without four decisions. Rung one. |
+| 3 | Is the cycle-counter grant enforced on every architecture? | **Held, as a stated exception.** `x86_64`'s `set_cycle_counter_grant` is an empty function: `rdtsc` is ambient in ring 3 and DECISIONS 139 part 3 kept it that way, because `user_mode_runtime`'s `now()` *is* `rdtsc` there and closing it would take out `Instant`, `sleep`, the seed and the benchmark harness at once. It says so in its own doc, at length, and `notes/x86-port.md` carries it. Not a gap. |
+| 4 | Can a thread read another thread's FP/SIMD registers? | **Held.** `fp::hand_over` scrubs to `FpState::INITIAL` on the live-to-not-live switch, `sched::schedule` is the only switch site in the kernel, and the module header names `LazyFP` (CVE-2018-3665) as the reason it is eager rather than lazy. |
+| 5 | Can a name escape a directory capability's subtree? | **Held.** `fs_subtree_caretaker` performs no checks by design, so the whole claim rests on `redoxfs_server::check_component`, which refuses `.`, `..`, the attribute store's directory, and any name containing `/`, `\`, `:` or NUL. All twelve name-taking server verbs call it, `open_dir` and `make_dir` through `resolve_child_dir`. The cross-directory `rename` checks both names and both handles. |
+| 6 | Is `record_mapping`'s failure ignored anywhere, so that a mapping is unrecorded? | **Held.** Three call sites, all three check the return and unmap what they just mapped. The unrecorded mappings are the ones that never call it, which is the section above. |
+| 7 | Does a revocation reach the IOMMU's device domain? | **No, and it is a documented limit rather than a live defect.** `iommu::confine` has no inverse and its own doc says it runs once per device per boot. Only kernel drivers call it and the regions it maps are kernel-owned, so there is nothing a userspace revoke is failing to undo. It goes live the day a driver leaves the kernel and programs its own device, which is DECISIONS §86's question. |
+| 8 | Can an ELF segment whose `p_vaddr + p_memsz` overflows be laid over the kernel? | **Held.** `map_segments` maps page by page through `AddressSpace::map_new`, whose `Mapper` is built `Half::Low`, so the refusal is per page rather than per segment and a run that walks out of the low half is refused where it walks out. This is the defect class milestone 142's review found in the two syscall map paths, which check the run's last page as well as its first. |
+
+### What this pass could not reach
+
+- **`x86_64` and riscv64 for the finding above.** The falsification is aarch64's, which is the
+  architecture the lane booted. Nothing in `outgoing_cap`, the sweeps or the rendezvous is
+  architecture-specific, so the parity gate is met by the same test running on each; what is
+  aarch64-only is the *evidence*, which is milestone 313's distinction and this table inherits it.
+- **The claims whose enforcement is a userspace program rather than the kernel.** The caretakers
+  were read, not attacked from a hostile client. A hostile client is a fixture and a boot, and it is
+  the shape `design/fatal-risks.md` says wants outside eyes anyway.
+- **Anything needing hardware this project does not own.** MSI confinement stays exactly where
+  milestone 317 left it.
 
 ## BUGS
 
