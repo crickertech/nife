@@ -596,6 +596,123 @@ mod tests {
         assert!(cell(&pixels, 1, 1, ' '), "the rest of the new row is blank");
     }
 
+    /// `ScreenConsole::span` had no caller at all: every test either uses `Framebuffer::span`
+    /// directly (`screen`'s own assertion) or `Aperture::span` (a different method entirely).
+    #[test]
+    fn console_span_is_the_underlying_screens_span() {
+        let (found, _pixels) = screen(4, 2, 12, PixelOrder::Bgrx);
+        let console = ScreenConsole::new(found).expect("four by two cells");
+        assert_eq!(console.span(), found.span().unwrap());
+    }
+
+    /// Every other test's `clear()` call is immediately followed by writing text that covers the
+    /// whole grid, so nothing ever looked at the screen right after a clear and before a write,
+    /// which is the one moment a stubbed-out `clear` and the real one look different.
+    #[test]
+    fn clear_paints_the_whole_surface_in_the_background_colour() {
+        let (found, mut pixels) = screen(2, 2, 0, PixelOrder::Bgrx);
+        pixels.fill(0xa5); // poison: a no-op clear would leave this untouched
+        let mut console = ScreenConsole::new(found).expect("two by two cells");
+        console.clear(&mut pixels);
+        for y in 0..found.height {
+            for x in 0..found.width {
+                assert_eq!(
+                    pixel(&found, &pixels, x, y),
+                    ScreenConsole::BACKGROUND,
+                    "({x},{y})"
+                );
+            }
+        }
+    }
+
+    /// A carriage return resets the column without drawing anything, which is the one control
+    /// character `text_wraps_at_the_right_edge_and_scrolls_at_the_bottom` never sends.
+    #[test]
+    fn a_carriage_return_resets_the_column_without_drawing_a_glyph() {
+        let (found, mut pixels) = screen(3, 1, 0, PixelOrder::Bgrx);
+        let mut console = ScreenConsole::new(found).expect("three by one cells");
+        console.clear(&mut pixels);
+        console.write(&mut pixels, "a\rb");
+        let cell = |pixels: &[u8], col: u32, ch: char| {
+            (0..bitmap_font::GLYPH_H).all(|y| {
+                (0..bitmap_font::GLYPH_W).all(|x| {
+                    let want = bitmap_font::cell_pixel(
+                        ch,
+                        x,
+                        y,
+                        ScreenConsole::FOREGROUND,
+                        ScreenConsole::BACKGROUND,
+                    );
+                    pixel(&found, pixels, col * bitmap_font::GLYPH_W + x, y) == want
+                })
+            })
+        };
+        assert!(cell(&pixels, 0, 'b'), "'b' overwrote 'a' at column 0");
+        assert!(
+            cell(&pixels, 1, ' '),
+            "the carriage return must not have advanced the column or drawn anything"
+        );
+    }
+
+    /// A one-row console has nowhere to scroll to: `scroll`'s `band >= live` guard exists for
+    /// exactly this case, and no existing test has a console with only one row (every `screen()`
+    /// fixture that reaches `scroll` uses at least two).
+    #[test]
+    fn scrolling_a_one_row_console_leaves_it_alone_rather_than_blanking_it() {
+        let (found, mut pixels) = screen(3, 1, 0, PixelOrder::Bgrx);
+        let mut console = ScreenConsole::new(found).expect("three by one cells");
+        console.clear(&mut pixels);
+        console.write(&mut pixels, "abcd"); // the fourth character wraps and tries to scroll
+        let cell = |pixels: &[u8], col: u32, ch: char| {
+            (0..bitmap_font::GLYPH_H).all(|y| {
+                (0..bitmap_font::GLYPH_W).all(|x| {
+                    let want = bitmap_font::cell_pixel(
+                        ch,
+                        x,
+                        y,
+                        ScreenConsole::FOREGROUND,
+                        ScreenConsole::BACKGROUND,
+                    );
+                    pixel(&found, pixels, col * bitmap_font::GLYPH_W + x, y) == want
+                })
+            })
+        };
+        assert!(
+            cell(&pixels, 0, 'd'),
+            "'d' wrapped back to column 0, overwriting 'a'"
+        );
+        assert!(
+            cell(&pixels, 1, 'b'),
+            "a one-row console has nowhere to scroll; 'b' must survive"
+        );
+        assert!(cell(&pixels, 2, 'c'), "same for 'c'");
+    }
+
+    /// `scroll`'s `live > pixels.len()` guard, at the one point a `>` and an `==`/`>=` disagree: a
+    /// buffer exactly as long as the live region must still be scrolled, not refused. Every
+    /// `screen()` fixture's buffer (4096 * 16 bytes) is far larger than any `live` this crate's
+    /// tests compute, so this boundary has never been reached before.
+    #[test]
+    fn scroll_accepts_a_buffer_that_is_exactly_as_long_as_the_live_region() {
+        // A two-by-two `screen(2, 2, 0, ..)` geometry, with its `live` region as a compile-time
+        // constant so the buffer below can be sized to match it exactly (this crate is
+        // unconditionally `no_std`, so no `Vec` to size at runtime).
+        const STRIDE: usize = (2 * bitmap_font::GLYPH_W * 4) as usize;
+        const LIVE: usize = STRIDE * (2 * bitmap_font::GLYPH_H) as usize;
+        let (found, _big) = screen(2, 2, 0, PixelOrder::Bgrx);
+        assert_eq!(
+            found.stride as usize, STRIDE,
+            "the constant must match the fixture"
+        );
+        let mut console = ScreenConsole::new(found).expect("two by two cells");
+        let mut exact = [0xa5u8; LIVE];
+        console.scroll(&mut exact);
+        assert_ne!(
+            exact, [0xa5u8; LIVE],
+            "a buffer exactly as long as the live region must still be scrolled"
+        );
+    }
+
     /// The byte order is the one thing that cannot be seen by looking at the screen in a test, and
     /// is the one thing that makes the picture wrong on half the machines that could run this.
     #[test]
@@ -750,6 +867,15 @@ mod tests {
         assert_eq!(Aperture::from_words(10 | 10 << 32, 39), None);
         assert_eq!(Aperture::from_words(10 | 10 << 32, 40 | 2 << 32), None);
         assert_eq!(Aperture::from_words(0, 40), None);
+    }
+
+    /// Both `|`s in `to_words` survive being mutated to `^`, and this is why: each word packs a
+    /// `u32` in the low half and a value shifted left by 32 in the high half, and a left shift by
+    /// 32 zeroes exactly the low 32 bits it would otherwise collide with. Checked at the widest
+    /// each half can be; if the extremes do not collide, no narrower value can either.
+    #[test]
+    fn to_words_two_halves_share_no_bit_so_or_and_xor_agree() {
+        assert_eq!(u32::MAX as u64 & (u32::MAX as u64) << 32, 0);
     }
 
     /// An rgbx screen gets its red and blue exchanged on the way in, which is the byte-order half

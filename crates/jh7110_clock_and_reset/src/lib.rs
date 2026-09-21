@@ -541,6 +541,8 @@ mod tests {
     const CLKGEN_VENDOR: &[u8] = include_bytes!("../tests/fixtures/jh7110-clkgen-vendor.dtb");
     const CLKGEN_VENDOR_UNNAMED: &[u8] =
         include_bytes!("../tests/fixtures/jh7110-clkgen-vendor-unnamed.dtb");
+    const CLKGEN_VENDOR_MISMATCHED: &[u8] =
+        include_bytes!("../tests/fixtures/jh7110-clkgen-vendor-mismatched-names.dtb");
     /// The blob `crates/device_tree_blob`'s own tests boot-verify against, so a change to QEMU's
     /// `virt` board is caught here rather than surfacing as a mystery at the bench.
     const QEMU_RISCV64_VIRT: &[u8] =
@@ -593,6 +595,23 @@ mod tests {
     }
 
     #[test]
+    fn a_reg_names_entry_past_the_end_of_reg_is_refused_rather_than_read() {
+        // `reg-names` lists three names but `reg` has only two windows, with "stg" at index 2: an
+        // index `regions` was never filled at. `discover_as`'s `i < n` guard exists for exactly
+        // this: a tree this malformed must fall back to the corroborated constant rather than
+        // read the zeroed slot an off-by-one would land on. Kills the `i < n -> true` and
+        // `< -> <=` mutants, neither of which any other fixture reaches.
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(CLKGEN_VENDOR_MISMATCHED).unwrap();
+        let found = discover(&tree).unwrap();
+        assert!(
+            !found.from_tree,
+            "the named window does not exist; this must not be trusted"
+        );
+        assert_eq!(found.base, STG_BASE);
+        assert_eq!(found.compatible, None);
+    }
+
+    #[test]
     fn a_report_of_zeros_is_not_a_report_of_success() {
         // This is radon's 2026-09-04 shape, one level up: a window with nothing behind it accepts
         // every store and reads back zero, so `clocks_running` must be false on the *after*
@@ -613,6 +632,82 @@ mod tests {
         // `.iter().all()` would say. A plan that enabled nothing has proven nothing.
         assert!(!Report::default().clocks_running());
         assert!(!Report::default().was_already_up());
+    }
+
+    #[test]
+    fn clocks_running_does_not_imply_already_up_while_the_reset_is_still_asserted() {
+        // Every existing "clocks true" fixture also has the reset already released, so the
+        // `!self.had_reset || ...` clause in `was_already_up` never gets to matter: had_reset is
+        // true and the release check is true, and deleting the `!` leaves that OR true either
+        // way. Force the reset bit still SET in `reset_assert_before` (not yet deasserted) so the
+        // real answer is false and only the reset half of the OR can produce it.
+        let clocked_but_held = Report {
+            clock_before: [CLOCK_ENABLE, CLOCK_ENABLE, 0, 0],
+            clock_after: [CLOCK_ENABLE, CLOCK_ENABLE, 0, 0],
+            clocks: 2,
+            had_reset: true,
+            reset_assert_before: 1 << STGRST_SEC_AHB,
+            reset_assert_after: 0,
+            ..Report::default()
+        };
+        assert!(clocked_but_held.clocks_running());
+        assert!(
+            !clocked_but_held.was_already_up(),
+            "the reset bit was still asserted before this ran"
+        );
+    }
+
+    #[test]
+    fn an_unrelated_bit_in_the_before_word_does_not_defeat_the_release_check() {
+        // Complements the test above: here the target reset bit IS already clear (so the real
+        // answer is true), but `reset_assert_before` carries an unrelated bit the mask does not
+        // cover. `&` ignores it; `|` does not, which is what this catches.
+        let released_with_noise = Report {
+            clock_before: [CLOCK_ENABLE, CLOCK_ENABLE, 0, 0],
+            clock_after: [CLOCK_ENABLE, CLOCK_ENABLE, 0, 0],
+            clocks: 2,
+            had_reset: true,
+            reset_assert_before: 0x8000,
+            reset_assert_after: 0x8000 ^ (1 << STGRST_SEC_AHB),
+            ..Report::default()
+        };
+        assert_eq!(released_with_noise.reset_mask(), 1 << STGRST_SEC_AHB);
+        assert!(
+            released_with_noise.was_already_up(),
+            "the target bit was already clear; the noise bit must not matter"
+        );
+    }
+
+    #[test]
+    fn reset_mask_recovers_the_bit_that_changed_between_the_two_assert_words() {
+        let r = Report {
+            reset_assert_before: 0b1010,
+            reset_assert_after: 0b0010,
+            ..Report::default()
+        };
+        assert_eq!(
+            r.reset_mask(),
+            0b1000,
+            "the bit that differs, not 0 or 1 or their union"
+        );
+    }
+
+    #[test]
+    fn a_reset_word_past_the_first_multiplies_the_word_index_by_four() {
+        // STG has only 23 resets, so every id this crate ever asks for lands in word 0 and
+        // `* 4`/`/ 4` are indistinguishable there. A larger domain (SYS has 126, per this
+        // module's own doc comment) is the shape `reset_bit`'s arithmetic is written for, so
+        // construct one and ask for id 35, which is word 1.
+        let big = Domain {
+            reset_assert: 0x10,
+            reset_status: 0x20,
+            resets: 128,
+            clocks: 0,
+        };
+        let r = big.reset_bit(35).unwrap();
+        assert_eq!(r.assert_offset, 0x10 + 4, "word 1: (35 / 32) * 4 == 4");
+        assert_eq!(r.status_offset, 0x20 + 4);
+        assert_eq!(r.mask, 1 << 3, "35 % 32 == 3");
     }
 
     #[test]
