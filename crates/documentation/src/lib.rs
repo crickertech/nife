@@ -116,8 +116,8 @@
 //! - **A table that spills past [`TABLE_ROWS`] loses its header emphasis and its column alignment
 //!   in the second chunk.** Both are read off the delimiter row, which arrived in the first chunk
 //!   and is not carried across the flush that makes room. The rows themselves are never lost, which
-//!   is the failure mode that matters, and this repository's largest table (117 rows in
-//!   `design/roadmap/README.md`) hits it. Carrying them means keeping two more fields across a
+//!   is the failure mode that matters, and this repository's largest table (the decision index in
+//!   `design/decisions/README.md`, over 200 rows) hits it. Carrying them means keeping two more fields across a
 //!   flush that exists to reset state, and nobody has asked for it.
 //! - **Column alignment reached nothing at all until 2026-09-13**, which is worth recording rather
 //!   than quietly fixing: [`Renderer`] parsed `:---`, `---:` and `:---:` off the delimiter row from

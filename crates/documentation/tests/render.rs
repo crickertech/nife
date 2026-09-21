@@ -471,7 +471,8 @@ fn a_table_wider_than_the_terminal_shrinks_its_widest_column() {
 fn a_table_longer_than_the_buffer_spills_rather_than_losing_rows() {
     // Losing text is the one failure mode a documentation service cannot have, so a table past
     // `TABLE_ROWS` is emitted in chunks, each aligned to its own widths, with no blank line between
-    // them because they are one table. `design/roadmap/README.md` is 117 rows, so this is real.
+    // them because they are one table. `design/decisions/README.md` is over 200 rows, so this is
+    // real.
     let mut src = String::from("| n | v |\n|---|---|\n");
     let rows = documentation::TABLE_ROWS + 10;
     for i in 0..rows {
