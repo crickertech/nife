@@ -431,10 +431,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             );
 
             arch::timer::init_frequency(boot_info_pointer);
+            let calibration = arch::timer::calibration();
             println!(
-                "  clocks      : tsc {} MHz ({}), apic timer {} MHz (measured against the PIT)",
+                // The worst window is printed beside the chosen one on purpose. The chosen rate is
+                // the *smallest* of several timed windows, because a window's error is one-sided,
+                // so the gap between them is this boot's own evidence of how much the host was
+                // descheduling the vCPU mid-calibration. A quiet host prints two numbers a
+                // megahertz apart; the boot that measured 4330 MHz would have printed the gap that
+                // said so. See arch::x86_64::timer's CALIBRATION_WINDOWS.
+                "  clocks      : tsc {} MHz ({}, best of {} windows, worst {} MHz), apic timer {} MHz (measured against the PIT)",
                 arch::timer::frequency() / 1_000_000,
                 arch::timer::frequency_source(),
+                calibration.windows().len(),
+                calibration.worst() / 1_000_000,
                 arch::timer::apic_timer_frequency() / 1_000_000,
             );
 
