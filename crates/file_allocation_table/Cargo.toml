@@ -8,7 +8,8 @@ license.workspace = true
 # an EFI system partition holding one boot file, as pure computation. No I/O of any kind, the same
 # rule `globally_unique_identifier_partition_table` keeps: this crate says what every sector of the
 # volume must contain and the caller writes them. So it compiles for the host and its tests run in
-# milliseconds. It reads nothing; milestone 140's FAT32 stratum is the read half and is not this.
+# milliseconds. It reads nothing; the FAT32 stratum of milestone 140 (mount a drive this system did
+# not create) is the read half and is not this.
 # See notes/file-allocation-table.md.
 
 [lints]

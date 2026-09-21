@@ -634,18 +634,14 @@ pub fn read_line(out: &mut [u8], patience: core::time::Duration) -> Option<usize
                 crate::println!();
                 return Some(n);
             }
-            0x08 | 0x7f => {
-                if n > 0 {
-                    n -= 1;
-                    crate::print!("\u{8} \u{8}");
-                }
+            0x08 | 0x7f if n > 0 => {
+                n -= 1;
+                crate::print!("\u{8} \u{8}");
             }
-            b if b.is_ascii_graphic() || b == b' ' => {
-                if n < out.len() {
-                    out[n] = b;
-                    n += 1;
-                    crate::print!("{}", b as char);
-                }
+            b if (b.is_ascii_graphic() || b == b' ') && n < out.len() => {
+                out[n] = b;
+                n += 1;
+                crate::print!("{}", b as char);
             }
             _ => {}
         }

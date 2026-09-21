@@ -126,7 +126,7 @@ pub fn memory_map_entry(info: &BootInfo, index: usize) -> Option<MemoryEntry> {
 ///
 /// QEMU's PVH loader turns `-initrd FILE` into one entry in the module list `hvm_start_info` points
 /// at, and `uefi_loader` writes the same entry. **Module 0 is the archive**, and it has been since
-/// milestone 87 (booting x86_64 from real firmware).
+/// milestone 87 (the bare-metal machine).
 ///
 /// **There is a module 1 now**, read by [`boot_file`]: milestone 198 (a package manager, and the
 /// trivial install that makes a second customer possible)'s rung 2a has the loader hand over a copy

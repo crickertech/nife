@@ -1331,6 +1331,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
   the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
   bench steps for radon and argon**.
+- [Installing nife onto a disk](installing.md): milestone 515 (a stick that puts itself on the
+  machine's disk), which is milestone 198 (a package manager, and the trivial
+  install)'s rung 2a, built. `cargo xtask install-boot` boots a stick under OVMF, the installer
+  names the disk, asks, partitions, formats and copies, and the machine boots from that disk **with
+  the stick detached** and reads back a file written before the reboot. The three things the
+  building changed: the loader now hands the kernel a copy of its own file (the running system did
+  not otherwise have one, and the file contains the archive, so they travel sealed as a set); the
+  nife data partition goes **first** on the disk, which lets `redoxfs`'s own header scan mount it
+  off a whole-disk server and deletes a wire field, a caretaker and a partition-aware mount from
+  this rung; and FAT32 had to be written, where the cluster-count floor decides the partition size
+  and an unaligned data area put ten megabytes six sectors early on a real disk. What was measured
+  and by whom, including milestone 515's B1 (the firmware finding the file with its variable store
+  deleted first), and the three gaps that most want a lane.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload

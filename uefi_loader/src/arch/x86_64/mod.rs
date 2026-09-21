@@ -1,4 +1,5 @@
-//! **`x86_64`: an `hvm_start_info`, and leaving long mode** (milestone 87).
+//! **`x86_64`: an `hvm_start_info`, and leaving long mode** (milestone 87 (the x86_64 bare-metal
+//! machine)).
 //!
 //! The kernel's entry contract on this architecture is PVH's: 32-bit protected mode, paging off,
 //! `eax` = `0x336EC578`, `ebx` = the physical address of an `hvm_start_info`. Everything here

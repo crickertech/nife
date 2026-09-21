@@ -1,7 +1,7 @@
 //! **The offer a booted stick makes, and the two programs that carry it out** (milestone 198 (a
-//! package manager, and the trivial install that makes a second customer possible), rung 2a;
-//! [milestone 515 (the installer a stick runs to put itself on the
-//! disk)](../../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)).
+//! package manager, and the trivial install that makes a second customer possible), rung 2a).
+//!
+//! The proposal it follows is milestone 515 (a stick that puts itself on the machine's disk).
 //!
 //! # What this module is, and what it deliberately is not
 //!

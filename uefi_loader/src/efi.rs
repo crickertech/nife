@@ -8,7 +8,8 @@
 //! allocate pages, get the memory map, exit boot services, print a line, locate one protocol, and
 //! the two ACPI configuration-table identifiers plus the graphics one. That is the whole of it, and
 //! it is written below in a few hundred lines that a reader can check against the specification
-//! without leaving the repository. (Six and two until milestone 243 asked where the screen is;
+//! without leaving the repository. (Six and two until milestone 243 (a machine with no serial port
+//! has no way to say anything) asked where the screen is;
 //! eight and five since milestone 198 (a package manager, and the trivial install that makes a
 //! second customer possible)'s rung 2a asked the loader to read its own file, which adds
 //! `HandleProtocol` and the three small protocol tables at the end of this file.)

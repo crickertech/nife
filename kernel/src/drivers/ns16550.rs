@@ -72,7 +72,8 @@ const LSR_DR: u8 = 0b0000_0001;
 const IER_ERBFI: u8 = 0b0000_0001;
 // Interrupt Enable bit: Enable Transmitter Holding Register Empty Interrupt. Asserts as soon as it is
 // set if LSR.THRE is already set, which on a polling console it always is. See `enable_tx_interrupt`.
-// Test builds only, because that is where its only caller is; milestone 41's removal of the crate-wide
+// Test builds only, because that is where its only caller is; the crate-wide removal in
+// milestone 41 (dead code: triage the suppressions) of the
 // riscv `allow(dead_code)` means an unused constant here is a build error, which is the point.
 #[cfg(test)]
 const IER_ETBEI: u8 = 0b0000_0010;
@@ -327,6 +328,12 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// can tell.
     ///
     /// Name provisional (milestone 198's rung 2a): calef names public items.
+    ///
+    /// Dead on riscv64, which shares this driver and has no install offer: `install_service` is
+    /// `x86_64` only for the reasons stated at its declaration. Allowed rather than `cfg`-ed, so
+    /// the method still compiles in every configuration; a receive path that only type-checks where
+    /// it is called is one that rots everywhere else.
+    #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
     pub fn read_byte(&self) -> Option<u8> {
         (self.read(LSR) & LSR_DR != 0).then(|| self.read(THR)) // THR on write is RBR on read.
     }

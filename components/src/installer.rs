@@ -1,9 +1,12 @@
 //! **`installer`**: the program a booted stick runs to put this system on the machine's own disk
 //! (milestone 198 (a package manager, and the trivial install that makes a second customer
-//! possible), rung 2a; [milestone 515 (the installer a stick runs to put itself on the
-//! disk)](../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)).
+//! possible), rung 2a).
 //!
-//! Name: **provisional**, minted 2026-09-21 by the rung 2a lane. `crates/stick_maker`'s own header
+//! The proposal this follows is
+//! [milestone 515 (a stick that puts itself on the machine's disk)](../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md),
+//! under DECISIONS §157 (a trivial install is a web page, a USB drive, and packages).
+//!
+//! Name: provisional, minted 2026-09-21 by the rung 2a lane. `crates/stick_maker`'s own header
 //! set the word aside for exactly this program when it refused it for itself: *"DECISIONS §157's
 //! rung 2 installs nife onto a PC's own disk, and that is a different program."* calef names
 //! programs; expect this to change.
@@ -15,7 +18,8 @@
 //!
 //! - It holds **one disk**, as a `filesystem_protocol::blk` endpoint, and there is no path to type.
 //!   `parted /dev/sda` as root reaches every disk in the machine; this reaches the one it was
-//!   handed. That is `disk_partitioner`'s claim (milestone 57) and this program inherits it whole.
+//!   handed. That is `disk_partitioner`'s claim, from milestone 57 (partitioning and formatting a
+//!   real drive), and this program inherits it whole.
 //! - It holds an **entropy endpoint** and nothing else besides, so a GPT's unique ids are drawn
 //!   rather than invented, and a run with no entropy writes nothing at all.
 //! - **It is not spawned until a person has answered a question naming the disk.** The asking is
@@ -88,8 +92,8 @@
 //! # BUGS
 //!
 //! - **Whole disk only.** The table is replaced wholesale. Installing beside another operating
-//!   system means resizing a filesystem nife cannot read, which is milestone 140 (a FAT32
-//!   stratum)'s territory and a different order of risk to somebody's data.
+//!   system means resizing a filesystem nife cannot read, which is milestone 140 (mount a drive
+//!   this system did not create)'s territory and a different order of risk to somebody's data.
 //! - **The installed filesystem is not bounded by its partition**, for the reason the section above
 //!   gives. A filesystem server on the installed machine holds the whole disk. What keeps it inside
 //!   the partition today is that `mkfs` created it bounded, so its own allocator never learns about
@@ -110,8 +114,9 @@
 //!   refuses it needs `SetVariable`, which is a runtime service this kernel does not map.
 
 #![no_std]
-// Program entry points, not the crates/ library surface milestone 68's ratchet tracks
-// (DECISIONS §107).
+// Program entry points, not the crates/ library surface tracked by milestone 68 (code-quality
+// gates: one lint policy)'s ratchet
+// (DECISIONS §107 (`missing_docs` moves to `workspace.lints.rust`)).
 #![allow(missing_docs)]
 #![no_main]
 
@@ -138,7 +143,8 @@ const BUDGET: u64 = 3;
 const BLK_PAGE_FRAME: u64 = 4;
 
 /// Where this program puts the page it shares with the block server. Its own choice
-/// (milestone 108), so nothing on the kernel side names this address.
+/// (milestone 108 (the drivers move onto frame capabilities)), so nothing on the kernel side
+/// names this address.
 const BLK_PAGE: u64 = 0x5000_0000;
 
 /// **Where the kernel maps the boot file, read-only.** This one *is* named on the kernel side
@@ -198,7 +204,8 @@ const BOOT_FILE_NAME: &str = "BOOTX64.EFI";
 pub const R_INSTALLED: u64 = 0x_49_4E_53_54_44;
 /// **No entropy endpoint, so nothing was written.** The same refusal `disk_partitioner` makes, for
 /// the same reason: an id that is not random is not unique, and a made-up one is worse than none
-/// because it looks right (DECISIONS §42).
+/// because it looks right (DECISIONS §42 (a filesystem declares what it offers and must be
+/// truthful)).
 pub const R_NO_ENTROPY: u64 = 0x_4E_4F_52_4E_47;
 /// The disk is too small to hold the layout. The second word is its size in bytes.
 pub const R_TOO_SMALL: u64 = 0x_53_4D_41_4C_4C;
@@ -239,7 +246,8 @@ pub extern "C" fn _start(role: u64, boot_file_len: u64, _a2: u64) -> ! {
 }
 
 /// **Is nife already on this disk?** Read the primary table and look for a partition of the nife
-/// data type (DECISIONS §45). Never by name: on any disk a Mac has touched there are no partition
+/// data type (DECISIONS §45 (a nife partition is `EC5CC08B-D749-4434-AC38-A274C50385BA`)). Never by
+/// name: on any disk a Mac has touched there are no partition
 /// names at all.
 ///
 /// A disk this cannot read, or one with no table, is [`R_EMPTY`]: "there is no nife here" is the
@@ -587,7 +595,8 @@ fn write_at(first_lba: u64, data: &[u8]) -> bool {
 /// The entry-array buffer.
 ///
 /// # Safety
-/// One thread per address space here (DECISIONS §33), so there is no second reference. Taking the
+/// One thread per address space here (DECISIONS §33 (the compositor's authority is memory, not
+/// messages)), so there is no second reference. Taking the
 /// raw pointer first is what `static_mut_refs` asks for.
 fn array() -> &'static mut [u8] {
     let p = &raw mut ARRAY;

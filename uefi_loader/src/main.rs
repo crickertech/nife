@@ -233,7 +233,7 @@ const BOOT_FILE_MAX: u64 = 64 * 1024 * 1024;
 ///
 /// Milestone 198 (a package manager, and the trivial install that makes a second customer
 /// possible)'s rung 2a, and the problem it solves is one nobody had written down until
-/// [milestone 515 (the installer a stick runs to put itself on the disk)](../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)
+/// milestone 515 (a stick that puts itself on the machine's disk)
 /// looked: **the running system does not have its own file.** This loader places the kernel's
 /// segments and hands the archive over as a module, and then the PE file that contained both is
 /// gone. An installer has to write that file to the disk's EFI system partition, and it cannot be
@@ -257,7 +257,8 @@ const BOOT_FILE_MAX: u64 = 64 * 1024 * 1024;
 ///   started from some other path on the volume reads the wrong file or none, and says so.
 /// - **x86_64 only.** The device-tree architectures hand the kernel a tree rather than a module
 ///   list, and `/chosen` has one initrd and no second slot; adding one is its own piece of work.
-///   §157's trivial install is a PC, so this is where it is needed first. The gap is real and is
+///   The trivial install of §157 (a trivial install is a web page, a USB drive, and packages) is a
+///   PC, so this is where it is needed first. The gap is real and is
 ///   why rung 2a is an x86_64 claim.
 /// - **The file is read whole into RAM**, about 9 MiB for the tour build. Streaming it to the disk
 ///   instead would mean keeping a firmware file handle past `ExitBootServices`, which there is no

@@ -3,7 +3,7 @@
 //! computation (milestone 198 (a package manager, and the trivial install that makes a second
 //! customer possible), rung 2a).
 //!
-//! Name: **provisional**, minted 2026-09-21 by the rung 2a lane. It follows the tree's
+//! Name: provisional, minted 2026-09-21 by the rung 2a lane. It follows the tree's
 //! expand-the-acronym rule, the one
 //! `crates/globally_unique_identifier_partition_table` and `crates/non_volatile_memory_express`
 //! already keep: FAT is the File Allocation Table, and a reader who greps `fat` and finds nothing
@@ -13,13 +13,13 @@
 //!
 //! An installer has to put `\EFI\BOOT\BOOTX64.EFI` somewhere the firmware will look, and the UEFI
 //! specification says that somewhere is a FAT volume. Nothing in this tree could write one:
-//! [milestone 515 (the installer a stick runs to put itself on the disk)](../../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)
+//! milestone 515 (a stick that puts itself on the machine's disk)
 //! records the hole, and every existing path around it is a host tool (QEMU's `vvfat`, macOS's
 //! `diskutil`, Linux's `mkfs.vfat`) that the target cannot reach.
 //!
 //! **This is a `mkfs` and not a filesystem.** It creates one volume, in one shape, containing one
 //! file at one path, and then it is finished. It cannot open, read, extend, delete or rename
-//! anything, and it never will: [milestone 140 (a FAT32 stratum)](../../../design/roadmap/140-a-fat32-stratum.md)
+//! anything, and it never will: milestone 140 (mount a drive this system did not create)
 //! is the read half and is a different piece of work. The shape below is chosen to be the most
 //! boring FAT32 volume a firmware could be handed, because the reader is somebody else's driver.
 //!
@@ -366,7 +366,7 @@ impl Volume {
     /// `FSInfo`, whose two counts are hints a driver is allowed to ignore or disbelieve.
     fn fs_info(&self, out: &mut [u8]) {
         put32(out, 0, 0x4161_5252); // FSI_LeadSig, "RRaA"
-        put32(out, 484, 0x6141_7272); // FSI_StrucSig, "rrAa"
+        put32(out, 484, 0x6141_7272); // `FSI_StrucSig`, "rrAa"
         // Three directories and the file. Written once; see this crate's BUGS.
         let used = (FILE_CLUSTER - ROOT_CLUSTER) + self.file_clusters;
         put32(out, 488, self.clusters - used); // FSI_Free_Count

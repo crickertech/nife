@@ -722,6 +722,12 @@ pub fn record_boot_file(start: u64, size: u64) {
 /// that did not: QEMU's `-kernel` PVH path, the device-tree architectures, and a UEFI boot whose
 /// volume did not hold the removable-media path. A system that cannot answer this cannot install
 /// itself, which is a limitation rather than a failure.
+///
+/// Only `user::install_service` reads it, and that module is `x86_64` only for the reasons stated
+/// at its declaration, so on the other two architectures this is dead. Saying so here is cheaper
+/// than a `cfg` that would make a portable fact look like an x86 detail, which is
+/// [`record_initrd`]'s own reasoning for the same attribute.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub fn boot_file_region() -> Option<(u64, u64)> {
     let start = BOOT_FILE_START.load(core::sync::atomic::Ordering::Relaxed) as u64;
     let size = BOOT_FILE_SIZE.load(core::sync::atomic::Ordering::Relaxed) as u64;

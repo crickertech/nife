@@ -753,7 +753,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         match memory::boot_file_region() {
             None => println!("  boot file   : none (this boot did not come from a file)"),
             Some((at, size)) => {
-                println!("  boot file   : {size} bytes at {at:#x}, from the PVH module list")
+                println!("  boot file   : {size} bytes at {at:#x}, from the PVH module list");
             }
         }
 
