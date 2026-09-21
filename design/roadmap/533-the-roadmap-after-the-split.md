@@ -77,7 +77,8 @@ $ old=da2330141b76219ba91a9fcaac42719d689d9993   # 2026-08-01
 $ git show $old:design/roadmap.md | grep '^### 39\.'
 ### Repository structure for a loosely-coupled OS, and the road to a distribution
 $ git show $old:design/roadmap.md | grep -oE '^#{2,3} [0-9]+\.' | tail -1
-### ```
+### 57.
+```
 
 At that commit the tree knows what it meant by milestone 39 (repository structure for a
 loosely-coupled OS) and knows that 443 does not exist. An
