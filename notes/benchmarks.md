@@ -3750,3 +3750,34 @@ up heads there yet. The per-preemption prices for aarch64 and riscv64 are lower 
   seven. Read them as orders of magnitude.
 - **Nothing sweeps the phase.** "One in forty" is the ratio of two measured durations, not a
   measured failure rate.
+
+### The counter cost 150 bytes of IPC fastpath, and the increment was not why
+
+`script/fastpath-footprint` was not on this lane's gate list and caught this after the fact:
+riscv64 `ipc_send_recv` at 5.4% over a 5% bound, `syscall_entry` at 6.8%. Three plausible causes
+were all wrong, which is the reason this is written down.
+
+| what was changed | riscv64 `ipc_send_recv` |
+|---|---|
+| base | 4,734 |
+| the milestone as first written | 4,884 |
+| ...with the `fetch_add` deleted, the field kept | **4,884** |
+| ...with the field moved to the end of the struct | **4,884** |
+| base plus the `cpu::PerCpu` field and nothing else | **4,884** |
+| the counter in its own array, `PerCpu` untouched | **4,734** |
+
+It was `size_of::<PerCpu>()` going from **128 to 136**. `PERCPU[id]` indexes an array of that
+struct, so the address is `base + id * size_of`: at 128 that is a shift and `cpu::current()`
+inlines to a couple of instructions at each of its many call sites, several on the IPC fastpath,
+and at 136 every one of them grows. The counter moved to its own array and the fastpath is
+byte-identical to base on all three architectures.
+
+**The instrument lesson, which is why this sits in this file.** Between the two shapes every row
+of `script/bench` moved by at most **0.12%**. A tripwire on time could not see a change a tripwire
+on size failed on. Neither is a substitute for the other, and `map_new`'s own defect was the
+mirror image: a row that moved 26.4% while the code was byte-identical.
+
+`kernel/src/cpu.rs` now asserts the size is a power of two, exempt on x86_64, where the struct
+already carries `x86_trap`, is already 152 bytes, and whose gate is green with room (+1.0%, +1.4%,
++3.9%). The exemption is measured; asserting a property the tree does not hold is how a gate
+teaches people to route around it.

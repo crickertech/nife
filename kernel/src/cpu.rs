@@ -66,17 +66,6 @@ pub struct PerCpu {
     /// core's tick cannot make another core reschedule. See DECISIONS §9's record-and-defer.
     pub need_resched: AtomicBool,
 
-    /// How many times **this core** has taken the CPU away from a thread, the per-core half of
-    /// `sched::PREEMPTIONS`, added by milestone 541 (a timed window that excludes preemption).
-    ///
-    /// The global counter cannot answer "was I preempted", only "was anyone", and on a multi-core
-    /// kernel those are different questions: another core ticking its own thread moves the global
-    /// number while this core sits in a window with interrupts masked. That difference is not
-    /// academic, it is what `kernel/src/preemption_window_tests.rs` has to assert on, and the
-    /// global counter reported nine preemptions inside a masked window on the first attempt.
-    /// Written only by the owning core, in `sched::count_preemption`; read by anyone.
-    pub preemptions: AtomicU64,
-
     /// The thread this core just switched **away from**, to be finished up by the thread this
     /// core switched **to** (`NO_TID` between switches). See `sched::finish_switch`.
     ///
@@ -231,7 +220,6 @@ impl PerCpu {
             current: AtomicU64::new(NO_TID),
             idle: AtomicU64::new(NO_TID),
             need_resched: AtomicBool::new(false),
-            preemptions: AtomicU64::new(0),
             switched_from: AtomicU64::new(NO_TID),
             runq: UnsafeCell::new(Fifo::new()),
             inbox: IrqSafeMutex::new(rank::INBOX, Fifo::new()),
@@ -323,6 +311,41 @@ impl PerCpu {
 /// Statically allocated on purpose: a core's block must be reachable from its first instruction
 /// of Rust, long before any allocator exists. `TPIDR_EL1` points at one element of this array.
 static PERCPU: [PerCpu; MAX_CPUS] = [const { PerCpu::new() }; MAX_CPUS];
+
+/// **`PerCpu`'s size must stay a power of two, and this is the check that says so.**
+/// Added by milestone 541 (a timed window that excludes preemption).
+///
+/// `PERCPU[id]` is an index into an array of these, so the address is `base + id * size_of`. When
+/// the size is a power of two that multiply is a shift, and `cpu::current()` inlines into a couple
+/// of instructions at every one of its many call sites, several of which are on the IPC fastpath.
+/// When it is not, every one of those sites grows.
+///
+/// **The cost is measured, not feared.** Adding one `AtomicU64` field took this struct from 128
+/// bytes to 136 and cost **150 bytes on the riscv64 `ipc_send_recv` closure and 38 on
+/// `syscall_entry`**, taking the first from +2.2% to +5.4% against `script/fastpath-footprint`'s
+/// 5% bound and turning a green gate red. The field was never read on that path and the increment
+/// that wrote it cost nothing measurable: removing the `fetch_add` and keeping the field left every
+/// figure byte-identical. It was the size, and nothing in this file had ever said the size
+/// mattered.
+///
+/// So a field added here is not free even when the fastpath never reads it. The cheap place for
+/// per-core state that the fastpath does not need is its own array, which is what
+/// `sched::PREEMPTIONS_PER_CPU` is and why. This assertion is here so the next person learns that
+/// from a failing build rather than from a CI gate they did not run.
+///
+/// **`x86_64` is exempt, and the exemption is measured rather than assumed.** There this struct
+/// carries `x86_trap` and is already **152 bytes**, so it has never indexed with a shift, and
+/// `script/fastpath-footprint --arch x86_64` is green with room: +1.0% on `ipc_send_recv`, +1.4%
+/// on `ipc_call_reply`, +3.9% on `syscall_entry`. Writing the assertion unconditionally would
+/// assert a property this tree does not hold, which is how a gate teaches people to route around
+/// it. If the cost ever shows up there, the fix is padding this struct to 256 rather than deleting
+/// the check.
+#[cfg(not(target_arch = "x86_64"))]
+const _: () = assert!(
+    core::mem::size_of::<PerCpu>().is_power_of_two(),
+    "PerCpu's size must be a power of two so PERCPU[id] indexes with a shift; see the note above \
+     this assertion for the 150 bytes of IPC fastpath the last violation cost",
+);
 
 /// Point this core's `TPIDR_EL1` at its `PerCpu` block.
 ///

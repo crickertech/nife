@@ -17,24 +17,33 @@
 #     left the timer in, a 26.4% swing over a byte-identical map path. It now reads the same number
 #     either way. See design/roadmap/541-a-timed-window-that-excludes-preemption.md.
 #   - **Every other row moved because the kernel grew**, not because anything on its path changed:
-#     this milestone adds a per-core preemption counter (`cpu::PerCpu::preemptions`) and one relaxed
-#     increment in `sched::count_preemption`, and icount counts drift across builds when live code
-#     is added at all (the module header in kernel/src/bench.rs says why). The moves are 0.0% to
-#     0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and inside the
-#     tripwire on all three. Nothing here is a claim that a path got faster or slower.
+#     this milestone adds a per-core preemption counter (`sched::PREEMPTIONS_PER_CPU`) and one
+#     relaxed increment in `sched::count_preemption`, and icount counts drift across builds when
+#     live code is added at all (the module header in kernel/src/bench.rs says why). The moves are
+#     0.0% to 0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and
+#     inside the tripwire on all three. Nothing here is a claim that a path got faster or slower.
+#
+# These numbers are the SECOND save of this milestone, and the first is worth knowing about because
+# it is a hazard rather than a mistake. The counter began as a field on `cpu::PerCpu`, which took
+# that struct from 128 bytes to 136 and so from indexing with a shift to indexing with a multiply;
+# that cost 150 bytes on the riscv64 IPC fastpath and failed `script/fastpath-footprint`, while the
+# increment itself cost nothing measurable. The counter now has its own array and the fastpath is
+# byte-identical to before this milestone. The rows above moved by at most 0.12% between the two
+# shapes, which is the point: **`script/bench` could not see a change that `fastpath-footprint`
+# failed on**, so a green tripwire here is not evidence about code size.
 #
 yield_switch 188573 2000
 ipc_rtt 172376 1000
 relay_rtt 344272 1000
 call_reply 177982 1000
 broker_rtt 355476 1000
-spawn_reap 34471 64
+spawn_reap 34443 64
 map_new 2410 64
-rfence_self 6477 512
+rfence_self 6476 512
 coremark 3654374 256
-null_syscall 73031 20000
-ctx_switch 504961 5000
-ipc_rtt_el0 1849225 5000
-sink_throughput 753644 80000
-map_el0 62545 500
-spawn_el0 204608 100
+null_syscall 73030 20000
+ctx_switch 504860 5000
+ipc_rtt_el0 1847074 5000
+sink_throughput 753729 80000
+map_el0 62544 500
+spawn_el0 204518 100

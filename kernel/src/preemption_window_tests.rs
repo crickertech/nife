@@ -75,14 +75,10 @@ fn a_masked_window_takes_no_preemption() {
 fn unmasking_delivers_the_tick_that_was_held() {
     // **Which core is read is fixed before the mask, not after.** The preemption this asserts on
     // may migrate this thread, and `preemptions_here()` would then read whichever core it landed
-    // on: a counter that was never the one being watched. `cpu::of` pins it to the core that held
-    // the tick.
+    // on: a counter that was never the one being watched. `preemptions_on` pins it to the core
+    // that held the tick.
     let core = crate::cpu::id();
-    let count = || {
-        crate::cpu::of(core)
-            .preemptions
-            .load(core::sync::atomic::Ordering::Relaxed)
-    };
+    let count = || sched::preemptions_on(core);
     let before = count();
 
     let was_enabled = crate::arch::interrupts::disable();

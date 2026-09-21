@@ -45,6 +45,19 @@ use crate::thread::{Context, QuotaToken, State, Thread, ThreadId, WaitRole, swit
 /// preemption is real.
 static PREEMPTIONS: AtomicU64 = AtomicU64::new(0);
 
+/// The same count, **per core**, which is the question the global one cannot answer.
+///
+/// **Its own array rather than a `cpu::PerCpu` field, and that is a measurement rather than a
+/// preference.** `PerCpu` is exactly 128 bytes, so `PERCPU[id]` indexes with a shift; one more
+/// `AtomicU64` field took it to 136 and cost 150 bytes on the riscv64 `ipc_send_recv` closure,
+/// over `script/fastpath-footprint`'s bound. See the assertion beside `cpu::PERCPU`. Nothing on
+/// the IPC fastpath reads this, so it has no business sharing a cache line budget with what does.
+///
+/// Written only by the owning core, in [`count_preemption`], which runs on the timer preemption
+/// path and not on any IPC path. Read by anyone.
+static PREEMPTIONS_PER_CPU: [AtomicU64; cpu::MAX_CPUS] =
+    [const { AtomicU64::new(0) }; cpu::MAX_CPUS];
+
 /// The thread running on **this core** right now.
 ///
 /// Per-CPU as of §11 step 3b (`cpu::PerCpu::current`); it used to be one field on the global
@@ -4720,7 +4733,7 @@ pub fn preemptions() -> u64 {
 
 pub fn count_preemption() {
     PREEMPTIONS.fetch_add(1, Ordering::Relaxed);
-    cpu::current().preemptions.fetch_add(1, Ordering::Relaxed);
+    PREEMPTIONS_PER_CPU[cpu::id()].fetch_add(1, Ordering::Relaxed);
 }
 
 /// Preemptions taken **on this core**, which is the question the global counter cannot answer.
@@ -4737,7 +4750,17 @@ pub fn count_preemption() {
 /// so no configuration can make the number stale.
 #[cfg_attr(not(any(test, feature = "bench")), allow(dead_code))]
 pub fn preemptions_here() -> u64 {
-    cpu::current().preemptions.load(Ordering::Relaxed)
+    preemptions_on(cpu::id())
+}
+
+/// Preemptions taken on **a named** core, for a reader that must not follow a migrating thread.
+///
+/// [`preemptions_here`] reads whichever core is running *now*, which is the wrong counter for any
+/// observation that straddles a preemption: the preemption is exactly what may move the reader.
+/// `kernel/src/preemption_window_tests.rs` samples one core across an unmask for that reason.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn preemptions_on(id: usize) -> u64 {
+    PREEMPTIONS_PER_CPU[id].load(Ordering::Relaxed)
 }
 
 /// **The deferred half of preemption**: switch away if this core's tick asked for it.

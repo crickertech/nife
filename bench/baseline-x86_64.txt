@@ -39,20 +39,29 @@
 #     left the timer in, a 26.4% swing over a byte-identical map path. It now reads the same number
 #     either way. See design/roadmap/541-a-timed-window-that-excludes-preemption.md.
 #   - **Every other row moved because the kernel grew**, not because anything on its path changed:
-#     this milestone adds a per-core preemption counter (`cpu::PerCpu::preemptions`) and one relaxed
-#     increment in `sched::count_preemption`, and icount counts drift across builds when live code
-#     is added at all (the module header in kernel/src/bench.rs says why). The moves are 0.0% to
-#     0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and inside the
-#     tripwire on all three. Nothing here is a claim that a path got faster or slower.
+#     this milestone adds a per-core preemption counter (`sched::PREEMPTIONS_PER_CPU`) and one
+#     relaxed increment in `sched::count_preemption`, and icount counts drift across builds when
+#     live code is added at all (the module header in kernel/src/bench.rs says why). The moves are
+#     0.0% to 0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and
+#     inside the tripwire on all three. Nothing here is a claim that a path got faster or slower.
 #
-yield_switch 19288787 2000
-tss_iomap_switch 24037905 2000
-tss_iomap_lazy_switch 23695902 2000
-tss_iomap_lazy_nop 19719724 2000
-ipc_rtt 17249316 1000
-relay_rtt 34430872 1000
-call_reply 17786313 1000
-broker_rtt 35525938 1000
-spawn_reap 2894729 64
+# These numbers are the SECOND save of this milestone, and the first is worth knowing about because
+# it is a hazard rather than a mistake. The counter began as a field on `cpu::PerCpu`, which took
+# that struct from 128 bytes to 136 and so from indexing with a shift to indexing with a multiply;
+# that cost 150 bytes on the riscv64 IPC fastpath and failed `script/fastpath-footprint`, while the
+# increment itself cost nothing measurable. The counter now has its own array and the fastpath is
+# byte-identical to before this milestone. The rows above moved by at most 0.12% between the two
+# shapes, which is the point: **`script/bench` could not see a change that `fastpath-footprint`
+# failed on**, so a green tripwire here is not evidence about code size.
+#
+yield_switch 19288797 2000
+tss_iomap_switch 24037925 2000
+tss_iomap_lazy_switch 23695922 2000
+tss_iomap_lazy_nop 19719744 2000
+ipc_rtt 17249336 1000
+relay_rtt 34430912 1000
+call_reply 17786333 1000
+broker_rtt 35525968 1000
+spawn_reap 2894739 64
 map_new 180537 64
-coremark 306216311 256
+coremark 306216611 256
