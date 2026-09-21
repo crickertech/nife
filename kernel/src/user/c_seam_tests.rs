@@ -54,6 +54,7 @@ fn spawn_confiner() -> sched::RendezvousId {
         .sum::<u64>()
         + 1
         + initrd_pages / 512
+        + crate::revoke::log_pages_for(initrd_pages)
         + INIT_STACK_PAGES
         + 8;
     let mut space = AddressSpace::new(content).expect("no memory for c_confiner");
@@ -71,6 +72,7 @@ fn spawn_confiner() -> sched::RendezvousId {
                 INITRD_VA + i * FRAME_SIZE,
                 initrd_start + i * FRAME_SIZE,
                 Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
             )
             .expect("could not map the initrd");
     }

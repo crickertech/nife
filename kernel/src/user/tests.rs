@@ -996,10 +996,20 @@ fn map_physical_maps_a_shared_frame_and_a_device_page() {
     let frame = crate::memory::alloc().expect("no frame").addr();
 
     space
-        .map_physical(DATA_VA, frame, Flags::user_data())
+        .map_physical(
+            DATA_VA,
+            frame,
+            Flags::user_data(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
         .expect("shared map failed");
     space
-        .map_physical(DEV_VA, device_phys, Flags::user_device())
+        .map_physical(
+            DEV_VA,
+            device_phys,
+            Flags::user_device(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
         .expect("device map failed");
 
     // SAFETY: nothing is at EL0; we are a kernel thread mid-test.

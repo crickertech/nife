@@ -562,19 +562,50 @@ capability naming the revoked run, not that it then read a page somebody else ow
 
 ### A mapping the kernel wires at boot is invisible to revocation
 
-**Recorded rather than fixed**, because it is latent and the fix is a decision about who owns those
-mappings. `user::AddressSpace::map_physical` does not call `revoke::record_mapping`, and every unmap
-sweep in `crate::revoke` is driven by that log. So a page placed by kernel wiring (the serial
-driver's UART registers, a `Spawn::maps` entry, a `DeviceRun`, the initrd, the `x86_64` timebase
-page) survives `DeviceFrame::REVOKE`, `PageFrame::REVOKE` and `MemoryRegion::DESTROY`: the
-capability would go and the mapping would stay, which is a take-back doing half its job.
+`user::AddressSpace::map_physical` did not call `revoke::record_mapping`, and every unmap sweep in
+`crate::revoke` is driven by that log. So a page placed by kernel wiring (the serial driver's UART
+registers, a `Spawn::maps` entry, a `DeviceRun`, the initrd, the `x86_64` timebase page) survived
+`DeviceFrame::REVOKE`, `PageFrame::REVOKE` and `MemoryRegion::DESTROY`: the capability went and the
+mapping stayed, which is a take-back doing half its job.
 
-Nothing reaches it today, and the reason is worth stating so a later reader does not have to
-re-derive it. A driver a userspace supervisor builds gets its registers through `MAP_INTO`, which
-records, and that is the path `user::live_swap_tests` proves a revoked driver faults on. Every
-`map_physical` call site is boot wiring. The limitation is now in that function's own `BUGS`, where
-a reader meets it, rather than here alone; `map_physical`'s existing paragraph about not recording
-the frame *for freeing* is about `Drop`, and is easy to read as covering this.
+**This was first recorded here as latent, and that was wrong.** The paragraph this replaces said
+nothing reached it, on the grounds that every `map_physical` call site is boot wiring and a driver a
+userspace supervisor builds takes `MAP_INTO`, which records. Both halves of that are true and the
+conclusion does not follow, because it asks only where the *mapping* comes from and never asks
+whether anything holds a *capability* to the same page. Something does, in an ordinary boot, and the
+two halves are wired by different modules, which is why nobody had put them side by side:
+`user::fs_service::spawn_fs_server` puts the file channel's shared pages into the FS server through
+`Spawn::maps`, and `user::boot_progenitor` hands the progenitor `PageFrame(file_shared, 1)` with
+`GRANT` over the first of exactly those pages. `PageFrame::REVOKE` on that slot is a syscall the
+progenitor may make: it deleted every capability naming the run and unmapped every mapping recorded
+under it, and the FS server kept its writable mapping of a page the progenitor had just un-shared.
+
+**Fixed, by making the record a required argument rather than a call to remember.** `map_physical`
+now takes `revoke::PageMapSource` and records, exactly as `record_mapping` has required an answer
+since §132 (what `PageFrame::REVOKE` owes an overlapping run); it was the one mapping site
+in the kernel that never had to answer, because it never recorded. Every kernel-wiring caller passes
+`NoCapability`, truthfully, so the page stands as its own object and a single-page revoke of it
+finds the record. `user_address_space_map` was the one caller that remembered to record, and is now
+the one caller with nothing extra to remember. Nothing about the syscall surface moves.
+`kernel::user::spawn_mapping_revocation_tests::a_page_the_kernel_wired_is_unmapped_when_its_frame_is_revoked`
+is the falsification, replayed red on aarch64 with its vacuity guard and premise check green first.
+
+**What it costs, since a record is not free and these are boot paths.** One `LogEntry` per mapping,
+170 to a page, paid out of the mapped space's own backing region. Every caller but one maps a
+handful of pages; the exception is the initrd read-only window, 2837 pages on aarch64 today, which
+is 17 log pages per space that maps it. The suite was green before those budgets were widened, which
+means the existing slack absorbed it with roughly 8% to spare, which is the reason the term is now
+explicit (`revoke::log_pages_for`) rather than a reason it did not need to be: the archive grows
+every milestone and the first budget to blow would have done it on an unrelated change.
+
+**What it does not settle.** The test drives the `PageFrame` sweep. `revoke_device_from_others` and
+`revoke_region` read the same log and are fixed by the same record, but nothing drives a wired
+mapping through either, so read those as reasoned from the code. `revoke_region`'s limb is the
+narrower one and worth stating as a genuine "narrower than recorded": no `map_physical` call site in
+the tree maps a page that came from a `MemoryRegion` (they come from `memory::alloc`, from MMIO, or
+from the initrd), so `MemoryRegion::DESTROY` never had a wired mapping to walk past. And
+`AddressSpace::map_new` still records nothing, deliberately: its frames are retyped from the space's
+own region and freed with it, so no capability names them.
 
 ### What was attacked and held
 

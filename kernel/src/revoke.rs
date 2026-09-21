@@ -102,6 +102,23 @@ struct LogEntry {
 /// benchmarks with it and should expect to re-record them.
 const LOG_ENTRIES: usize = 170;
 
+/// **How many log pages `n` recorded mappings cost**, for a caller sizing an address space's
+/// backing region.
+///
+/// Every mapping is recorded ([`record_mapping`]), and the record is paid for out of the mapped
+/// space's own region, so a caller that carves a budget and then maps a large window has to pay for
+/// the window's records as well as for the page tables reaching it. That was free until 2026-09-21,
+/// because [`crate::user::AddressSpace::map_physical`] recorded nothing; it is not free now, and
+/// the callers that map a whole initrd (thousands of pages) are the ones where the difference is
+/// visible rather than lost in `AS_OVERHEAD`'s slack.
+///
+/// Exported rather than left as arithmetic at each call site because `LOG_ENTRIES` is this
+/// module's own business: a caller that spelled `n / 170` would be a copy of a constant that moves
+/// (its own doc prices a fourth `LogEntry` word at 127 entries per page).
+pub fn log_pages_for(n: u64) -> u64 {
+    n.div_ceil(LOG_ENTRIES as u64)
+}
+
 /// **What authority a mapping was made under**, which is the question [`record_mapping`] now
 /// requires an answer to (DECISIONS §132).
 ///
@@ -737,19 +754,21 @@ mod tests {
         let (va_a, va_b) = (0x40_0000u64, 0x80_0000u64);
         for (k, phys) in run[..2].iter().enumerate() {
             let va = va_a + k as u64 * page_frames::FRAME_SIZE;
-            a.map_physical(va, *phys, Flags::user_data())
-                .expect("map A");
-            assert!(
-                record_mapping(*phys, a.root(), va, PageMapSource::Capability(run[0])),
-                "record A",
-            );
+            a.map_physical(
+                va,
+                *phys,
+                Flags::user_data(),
+                PageMapSource::Capability(run[0]),
+            )
+            .expect("map A");
         }
-        b.map_physical(va_b, run[2], Flags::user_rodata())
-            .expect("map B");
-        assert!(
-            record_mapping(run[2], b.root(), va_b, PageMapSource::Capability(run[0])),
-            "record B",
-        );
+        b.map_physical(
+            va_b,
+            run[2],
+            Flags::user_rodata(),
+            PageMapSource::Capability(run[0]),
+        )
+        .expect("map B");
 
         let slot = crate::sched::grant(page_frame_run_cap(
             run[0],
@@ -817,29 +836,21 @@ mod tests {
 
         let (va_driver, va_client) = (0x40_0000u64, 0x80_0000u64);
         driver
-            .map_physical(va_driver, run[1], Flags::user_data())
-            .expect("map driver");
-        assert!(
-            record_mapping(
-                run[1],
-                driver.root(),
+            .map_physical(
                 va_driver,
-                PageMapSource::Capability(run[0]),
-            ),
-            "record driver",
-        );
-        client
-            .map_physical(va_client, run[1], Flags::user_data())
-            .expect("map client");
-        assert!(
-            record_mapping(
                 run[1],
-                client.root(),
+                Flags::user_data(),
+                PageMapSource::Capability(run[0]),
+            )
+            .expect("map driver");
+        client
+            .map_physical(
                 va_client,
+                run[1],
+                Flags::user_data(),
                 PageMapSource::Capability(run[1]),
-            ),
-            "record client",
-        );
+            )
+            .expect("map client");
 
         // The client hands its surface back.
         revoke_page_frame_run(run[1], 3);
@@ -891,29 +902,21 @@ mod tests {
 
         let (va_keeper, va_loser) = (0x40_0000u64, 0x80_0000u64);
         keeper
-            .map_physical(va_keeper, shared, Flags::user_data())
-            .expect("map keeper");
-        assert!(
-            record_mapping(
-                shared,
-                keeper.root(),
+            .map_physical(
                 va_keeper,
-                PageMapSource::Capability(run[0]),
-            ),
-            "record keeper",
-        );
-        loser
-            .map_physical(va_loser, shared, Flags::user_data())
-            .expect("map loser");
-        assert!(
-            record_mapping(
                 shared,
-                loser.root(),
+                Flags::user_data(),
+                PageMapSource::Capability(run[0]),
+            )
+            .expect("map keeper");
+        loser
+            .map_physical(
                 va_loser,
+                shared,
+                Flags::user_data(),
                 PageMapSource::Capability(shared),
-            ),
-            "record loser",
-        );
+            )
+            .expect("map loser");
 
         unmap_everywhere(shared, keeper.root());
 
@@ -953,12 +956,13 @@ mod tests {
 
         let va = 0x40_0000u64;
         space
-            .map_physical(va, run[0], Flags::user_data())
+            .map_physical(
+                va,
+                run[0],
+                Flags::user_data(),
+                PageMapSource::Capability(run[0]),
+            )
             .expect("map");
-        assert!(
-            record_mapping(run[0], space.root(), va, PageMapSource::Capability(run[0])),
-            "record",
-        );
 
         let run_slot = crate::sched::grant(page_frame_run_cap(
             run[0],
@@ -996,18 +1000,20 @@ mod tests {
         let shared = crate::memory::alloc().expect("no frame").addr();
         let (va_a, va_b) = (0x40_0000u64, 0x80_0000u64);
 
-        a.map_physical(va_a, shared, Flags::user_data())
-            .expect("map A");
-        b.map_physical(va_b, shared, Flags::user_rodata())
-            .expect("map B");
-        assert!(
-            record_mapping(shared, a.root(), va_a, PageMapSource::NoCapability),
-            "record A",
-        );
-        assert!(
-            record_mapping(shared, b.root(), va_b, PageMapSource::NoCapability),
-            "record B",
-        );
+        a.map_physical(
+            va_a,
+            shared,
+            Flags::user_data(),
+            PageMapSource::NoCapability,
+        )
+        .expect("map A");
+        b.map_physical(
+            va_b,
+            shared,
+            Flags::user_rodata(),
+            PageMapSource::NoCapability,
+        )
+        .expect("map B");
 
         assert!(
             mmu::translate_at(a.root(), va_a).is_some(),
@@ -1044,12 +1050,8 @@ mod tests {
         let phys = crate::memory_region::retype_page(region).expect("retype");
         let va = 0x40_0000u64;
         space
-            .map_physical(va, phys, Flags::user_data())
+            .map_physical(va, phys, Flags::user_data(), PageMapSource::NoCapability)
             .expect("map");
-        assert!(
-            record_mapping(phys, space.root(), va, PageMapSource::NoCapability),
-            "record",
-        );
         assert!(
             mmu::translate_at(space.root(), va).is_some(),
             "the page was not mapped"
@@ -1082,17 +1084,22 @@ mod tests {
         // refusal certain: a 0-content space has ~15 spendable pages, and 4096 mappings need
         // ~16 log pages plus ~8 table pages, so the budget must run out mid-loop. (2048 was
         // tried first and fit EXACTLY: 6 tables + 9 log pages = 15. Off by nothing.)
+        //
+        // The map and the record are one call since 2026-09-21 (`AddressSpace::map_physical`'s own
+        // docs), so the two ways the budget can end are now one `Err`: an exhausted region refuses
+        // a table page or a log page and the caller cannot tell which, which is the same answer.
         let mut refused = false;
         for i in 0..4096u64 {
             let va = 0x40_0000 + i * page_frames::FRAME_SIZE;
             if space
-                .map_physical(va, shared, Flags::user_rodata())
+                .map_physical(
+                    va,
+                    shared,
+                    Flags::user_rodata(),
+                    PageMapSource::NoCapability,
+                )
                 .is_err()
             {
-                refused = true; // ran out mapping: also a fine way for the budget to end
-                break;
-            }
-            if !record_mapping(shared, space.root(), va, PageMapSource::NoCapability) {
                 refused = true;
                 break;
             }
