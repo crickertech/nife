@@ -17,7 +17,13 @@ widened wire contract, and then a program that reads it.
 
 1. **A `u64` per `Thread`**, incremented by one tick in `sched::on_tick()` for the thread running on
    that core. One branch and one increment in code that already runs every tick on every core.
-2. **A fourth word on `abi::rendezvous::SURVEY`'s return**, beside `next_cursor`, `tid` and `state`,
+2. ~~**A fourth word on `abi::rendezvous::SURVEY`'s return**~~, **superseded 2026-09-21 by §204 (how
+   userspace asks where a thread runs)**: `SURVEY` now takes a **selector** naming which record the
+   caller wants, so CPU time becomes a new record value rather than a new return register. What this
+   milestone adds is one constant, one arm in the kernel's match, and one line in the known-record
+   check; nothing that reads an existing record is touched. §150 (a thread's CPU time)'s ruling on *what* is measured
+   (tick-sampled, per-thread, scheduled on-CPU time) is unchanged; only how it reaches a reader moved,
+   inside the window §150 named for overturning it. The reasoning below still applies,
    gated by the `ENUMERATE` right `SURVEY` already requires. This widens an existing method rather
    than adding a syscall number, the shape §114 used for `pmap`.
 3. **The consumers.** `crates/ps` gains the column and `ps` prints it. The live-refresh view
@@ -61,6 +67,6 @@ is not `%CPU`, and a sampled estimate is not a measurement.
 Minted 2026-09-13 when calef ruled milestone 126's eighteen-day-old fork; the decision is §150.
 There is no per-thread CPU accounting anywhere in this kernel, dead or live: `Thread` carries no
 time-on-CPU field, `on_tick()` touches no per-thread state, and the only counter is a machine-wide `preemptions()`. Build a `u64` per `Thread` incremented one tick at a time in `on_tick()`, a
-fourth word on `SURVEY`'s return gated by the `ENUMERATE` right it already requires (widening a
+selector record on `SURVEY`'s return gated by the `ENUMERATE` right it already requires (widening a
 method rather than adding a syscall, §114's `pmap` shape), then the `ps` column. `top` is *earned*
 by this rather than assumed: the name means ranking by resource use and today's table is `TID` and `STATE`, so under the two refused options the name would have overclaimed.
