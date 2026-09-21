@@ -76,6 +76,20 @@
 //!   human typing four commands into U-Boot) has just changed which of those a card should carry.
 //! - **Nothing forces anyone to run it**, on a card written by hand. Where the pair is built rather
 //!   than copied, `uefi_loader/build.rs` makes it a build failure instead, which is the rung above.
+//! - **It asks whether the digest is present, not whether the kernel checks it, and on three
+//!   builds those are different questions** (measured 2026-09-21, the lane of milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need)). Since milestone 268 (every architecture boots the same way: describe the machine, test yourself, hand over) the refusal lives in `user::boot_progenitor`, and
+//!   `kernel/src/main.rs` reaches it only under
+//!   `#[cfg(not(any(feature = "soak_test", feature = "job_mix")))]`; `bench` diverts the tour at
+//!   the same sites. **So a `--soak`, `--job-mix` or `--bench` card verifies nothing**, its trust
+//!   root is unreferenced, and the linker drops it along with the message. Deterministic: a
+//!   riscv64 release kernel built `board` carries `MEASURED BOOT REFUSED` three times and one
+//!   built `board,job_mix` carries it zero times. This crate then scans, finds nothing, and prints
+//!   a sentence that is false twice over: that the two files are from different builds, and that
+//!   the pair will halt after the power cycle. It cost an hour of rebuilding an hour before a
+//!   bench evening, because nothing in the message points at a cargo feature. The inverse is the
+//!   case to fear: a build that carried the digest without reaching the check would read as
+//!   **sealed** while verifying nothing. Options are priced in
+//!   `design/roadmap/proposals/a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
 //!
 //! Name: provisional. Minted 2026-09-19 by the lane that built it. A kernel and the archive it
 //! vouches for are one sealed set, and this crate is the one place that says whether two given
