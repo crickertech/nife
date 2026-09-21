@@ -77,6 +77,13 @@ will actually meet it.
    `the_secondary_stack_region_is_the_size_the_linker_reserved` in a real build instead.
 6. **MMIO and fixed physical addresses** are raw pointers to nothing under a model checker. The same
    argument applies: stub the boundary, do not pretend.
+
+   **Measured 2026-09-20, and it is louder than this wording suggests** (the `maintainer/verus-versus-kani`
+   lane, `notes/verus.md`). A harness doing `read_volatile` on `0x0800_0000`, QEMU `virt`'s GICv2
+   distributor, does not quietly reason about a fiction: CBMC has no object at that address and
+   reports `dereference failure: pointer NULL`, `pointer outside object bounds` and
+   `invalid integer address`. So this is a hard boundary like item 2 rather than a soft one, which is
+   the good direction. Stub it anyway; the point of the item stands.
 7. **`script/lint`'s harness-clippy pass excludes `kernel`**, so clippy lints do not fire inside
    these harnesses. That pass's own comment carries the two tooling reasons and what still covers
    them. Practical consequence: **keep kernel harnesses free of `unsafe`.**
@@ -295,9 +302,13 @@ place rather than an assertion that they are.
   but whether the properties are ones a defect would violate. The two here were chosen because a
   defect *did* violate them.
 - **`--ignore-global-asm` is a global switch, not a per-item one.** A future `global_asm!` block that
-  a harness genuinely needs would be skipped silently rather than refused. Nothing detects that; the
-  reason it is acceptable today is that Kani's `asm!` restriction makes any such harness fail for a
-  second, louder reason.
+  a harness genuinely needs would be skipped silently rather than refused. The reason it is
+  acceptable today is that Kani's `asm!` restriction makes any such harness fail for a second, louder
+  reason. **"Nothing detects that" was too strong** (measured 2026-09-20 by the
+  `maintainer/verus-versus-kani` lane): every run prints
+  `warning: Ignoring global ASM in crate kernel. Verification results may be impacted.` That is
+  per-run rather than per-item, so it cannot say *which* block was skipped or whether anyone cared,
+  which is the substance of the entry; but the run is not silent about having done it.
 - **`user/` and `xtask` are still out of reach**, for exactly the reason the kernel was. `user/`
   holds real parsers over untrusted input and has at least as good a claim on the prover as the
   kernel does. Not attempted here.

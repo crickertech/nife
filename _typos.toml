@@ -138,3 +138,8 @@ ANDD = "ANDD"
 # strength of that claim differs from the retrospective's summary of it, which is the whole point of
 # the quotation. Correcting a source inside quotation marks would be worse than the typo.
 architecure = "architecure"
+# The name of a verified OS kernel (Yale's certified kernel, "CertiKOS"), quoted from Atmosphere's
+# proof-effort comparison table in notes/verus.md. The checker splits the compound and reads the
+# first half as a misspelling of "Certificate". It is somebody else's product name, so correcting it
+# would be wrong in the same way `architecure` above is wrong to correct.
+CertiKOS = "CertiKOS"
