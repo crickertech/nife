@@ -644,6 +644,12 @@ impl Vt {
     /// is not what is on screen when `view_offset` is nonzero; drawing it there would put the block
     /// on whatever history cell happens to share its `(col, row)`, which is not the cursor's
     /// position and would be actively misleading.
+    ///
+    /// **`col < self.cols` is checked after `col == self.col`, and by then it is redundant.**
+    /// `self.col` is never `>= self.cols` (the same cursor-in-bounds invariant [`Vt::erase_display`]'s
+    /// doc comment names), so `col == self.col` already implies `col < self.cols`; relaxing the
+    /// comparison to `<=` cannot change which branch is taken. It stays written out because a reader
+    /// should not have to chase that invariant to see the guard is safe.
     pub fn pixel(&self, x: u32, y: u32) -> u32 {
         let (col, row) = (x / bitmap_font::GLYPH_W, y / bitmap_font::GLYPH_H);
         let cell = self.cell(col, row);
@@ -790,6 +796,11 @@ impl Vt {
         if self.utf8_need > 0 {
             if b & 0xc0 == 0x80 {
                 // A well-formed continuation byte.
+                //
+                // **The `|` cannot be distinguished from `^` here.** `self.utf8_code << 6` always has
+                // its low six bits zero (a left shift by six fills them with zero), and `b & 0x3f` is
+                // exactly six bits, so the two operands never share a set bit; OR and XOR agree on
+                // every input for that reason alone, not because of anything this loop's callers do.
                 self.utf8_code = (self.utf8_code << 6) | (b & 0x3f) as u32;
                 self.utf8_need -= 1;
                 if self.utf8_need == 0 {
@@ -902,6 +913,12 @@ impl Vt {
     /// loop, and [`Vt::feed`] resets `view_offset` to `0` before that loop runs (see its own doc).
     /// So a push never happens while the caller is looking at history, and this does not need to
     /// (and does not) adjust `view_offset` to compensate for the shift a push would otherwise cause.
+    ///
+    /// **`row` is always `0`.** This is a private method with one call site, which passes the
+    /// literal `0` (see [`Vt::line_feed`]): the row about to scroll off the top is always the grid's
+    /// first row, because scrolling is what makes room at the bottom, not a copy from elsewhere. So
+    /// the source index's `row * cols` is always `0 * cols`, and a mutant reading it as `row / cols`
+    /// computes the same `0` on the only input this function is ever given.
     fn push_scrollback_row(&mut self, row: u32) {
         let cols = self.cols;
         let capacity = SCROLLBACK_ROWS as u32;
@@ -956,6 +973,13 @@ impl Vt {
             // A private-use introducer (`?`, `<`, `=`, `>`) or an intermediate byte: this engine
             // implements none of those sequences, so it swallows the whole thing rather than acting
             // on a parameter list that means something else.
+            //
+            // **Deleting this arm changes nothing**: `0x20..=0x2f` and `0x3c..=0x3f` are not matched
+            // by `b'0'..=b'9'`, `b';'`, or `0x40..=0x7e`, so removing the arm routes those bytes to
+            // the catch-all below, which sets `self.ignore = true` too. Kept written out rather than
+            // folded into `_` because a reader needs to see the two families of swallowed byte (the
+            // sequences this engine chose not to implement, versus a stray control code) named
+            // separately, even though the code they run is identical.
             0x20..=0x2f | 0x3c..=0x3f => self.ignore = true,
             0x40..=0x7e => {
                 let ignore = self.ignore;
@@ -1020,6 +1044,15 @@ impl Vt {
     /// `CSI n J`: 0 erases from the cursor to the end of the screen, 1 to its start, 2 all of it.
     /// Note that `CSI 2 J` does **not** move the cursor; that is why a line discipline's ^L sends
     /// `CSI 2J` followed by `CSI H`.
+    ///
+    /// **`to > from` always holds here**, given two invariants this type maintains everywhere else:
+    /// `cols >= 1` and `rows >= 1` ([`Vt::clamp_cols`]/[`Vt::clamp_rows`], the only places `cols`/
+    /// `rows` are ever set), and `col < cols`, `row < rows` (every cursor-moving path clamps with
+    /// `.min(self.cols - 1)`/`.min(self.rows - 1)`, so the cursor is never parked on or past the
+    /// margin). Mode 0's `end - here = (rows - row) * cols - col >= cols - col >= 1`; mode 1's
+    /// `here + 1 >= 1`; the default's `end = rows * cols >= 1`. So the guard below can never see
+    /// `to == from`, which is why a mutant relaxing `>` to `>=` survives: there is no reachable
+    /// input on which the two disagree.
     fn erase_display(&mut self, mode: u32) {
         let here = self.row * self.cols + self.col;
         let end = self.rows * self.cols;
@@ -1774,5 +1807,218 @@ mod tests {
             (0..t.rows()).any(|r| (0..t.cols()).any(|c| t.cell(c, r).ch != ' ')),
             "the script drew nothing",
         );
+    }
+
+    /// **The size clamp is exact at the boundary.** `MAX_COLS`/`MAX_ROWS` themselves are legal, one
+    /// past either is clamped down, and zero clamps up to one rather than producing an empty grid no
+    /// cursor could ever occupy. Milestone 326's mutation triage.
+    #[test]
+    fn geometry_clamps_exactly_at_the_boundary_not_one_off_it() {
+        let t = Vt::new(MAX_COLS as u32, MAX_ROWS as u32);
+        assert_eq!(
+            (t.cols(), t.rows()),
+            (MAX_COLS as u32, MAX_ROWS as u32),
+            "the boundary value itself must not be clamped"
+        );
+
+        let t = Vt::new(MAX_COLS as u32 + 1, MAX_ROWS as u32 + 1);
+        assert_eq!(
+            (t.cols(), t.rows()),
+            (MAX_COLS as u32, MAX_ROWS as u32),
+            "one past the boundary must be clamped"
+        );
+
+        let t = Vt::new(0, 0);
+        assert_eq!(
+            (t.cols(), t.rows()),
+            (1, 1),
+            "a zero-sized grid has nowhere for the cursor to be"
+        );
+    }
+
+    /// **`reset_to` clears the grid, the scrollback and the geometry, in place.** Nothing before this
+    /// test called it at all: every other test either builds a `Vt` at its final size with `Vt::new`
+    /// or never resizes, so the whole function was dead as far as the suite could tell. Milestone
+    /// 326's mutation triage.
+    #[test]
+    fn reset_to_clears_everything_and_retargets_the_geometry() {
+        let mut t = Vt::new(4, 2);
+        t.feed(b"one\r\ntwo\r\nthree\r\n"); // scrolls at least once, building real scrollback
+        assert!(
+            t.scrollback_len() > 0,
+            "test setup: something must have scrolled into history"
+        );
+        t.take_damage();
+
+        t.reset_to(3, 5);
+        assert_eq!(
+            (t.cols(), t.rows()),
+            (3, 5),
+            "the geometry actually changed"
+        );
+        assert_eq!(t.cursor(), (0, 0), "the cursor went home");
+        for r in 0..t.rows() {
+            let mut buf = [0u8; 3];
+            let n = t.row_bytes(r, &mut buf);
+            assert_eq!(&buf[..n], b"   ", "row {r} carried old content forward");
+        }
+        assert_eq!(
+            t.take_damage(),
+            Some(CellRect {
+                col: 0,
+                row: 0,
+                cols: 3,
+                rows: 5
+            }),
+            "a retarget is damage across the whole new grid",
+        );
+        assert_eq!(
+            t.scrollback_len(),
+            0,
+            "reset_to must clear the old grid's history, not just the live view"
+        );
+    }
+
+    /// **Multi-byte UTF-8 decodes to the right code point**, exercising the shift-and-accumulate
+    /// arithmetic and the lead-byte masks for all three lengths this engine understands, plus the two
+    /// ways a sequence can go wrong: truncation (a non-continuation byte arrives early) and a byte
+    /// that can never start a sequence. Nothing before this test fed a non-ASCII byte at all.
+    /// Milestone 326's mutation triage.
+    #[test]
+    fn utf8_decodes_every_sequence_length_and_recovers_from_a_bad_one() {
+        // An accented Latin letter: two bytes, one continuation.
+        let mut t = vt(8, 1);
+        t.feed("é".as_bytes());
+        assert_eq!(t.cell(0, 0).ch, 'é');
+
+        // A CJK character: three bytes, two continuations.
+        let mut t = vt(8, 1);
+        t.feed("日".as_bytes());
+        assert_eq!(t.cell(0, 0).ch, '日');
+
+        // An astral character outside the BMP: four bytes, three continuations.
+        let mut t = vt(8, 1);
+        t.feed("🎉".as_bytes());
+        assert_eq!(t.cell(0, 0).ch, '🎉');
+
+        // A truncated sequence: the lead byte of a two-byte character, then a byte that is not a
+        // continuation byte. The truncated character draws the replacement, and the byte that
+        // interrupted it is reprocessed as its own character rather than eaten.
+        let mut t = vt(8, 1);
+        t.feed(b"\xc3Z");
+        assert_eq!(t.cell(0, 0).ch, '\u{fffd}', "truncated sequence");
+        assert_eq!(t.cell(1, 0).ch, 'Z', "the interrupting byte must still be typed");
+
+        // A byte that can never start a sequence (a bare continuation byte): the replacement,
+        // immediately, with nothing held waiting for continuation bytes that were never coming.
+        let mut t = vt(8, 1);
+        t.feed(b"\x80A");
+        assert_eq!(t.cell(0, 0).ch, '\u{fffd}', "a lone continuation byte");
+        assert_eq!(t.cell(1, 0).ch, 'A');
+    }
+
+    /// **Scrollback survives the ring's wrap, and `Vt::cell` reads it back in the right order.**
+    /// Feeding 350 lines through a two-row grid scrolls 349 times, comfortably past
+    /// [`SCROLLBACK_ROWS`] (300): the ring overwrites its oldest 49 pushes, and this is the test that
+    /// the retained 300 are the right ones, at the right ages, at both edges of the ring rather than
+    /// only near where it happens to start. It doubles as the test for [`SCROLLBACK_CELLS`] itself:
+    /// that constant sizes the `scrollback` array, nothing else in this suite pushes past
+    /// `SCROLLBACK_CELLS / cols` rows, and a wrong constant here is an index past a too-small array,
+    /// which panics rather than silently misdrawing a pixel. Milestone 326's mutation triage: before
+    /// this test, nothing in the suite called `scroll_up`, `scroll_down`, `view_offset`, or
+    /// `scrollback_len`, and nothing scrolled far enough to read scrollback at all.
+    #[test]
+    fn scrollback_survives_the_rings_wrap_and_reads_back_in_order() {
+        const LINES: u32 = 350;
+        let mut t = vt(4, 2);
+        for i in 0..LINES {
+            t.feed(std::format!("L{i:03}\r\n").as_bytes());
+        }
+
+        // 349 scrolls happened (every line after the first fills the grid and pushes one row), and
+        // the ring caps at SCROLLBACK_ROWS.
+        assert_eq!(t.scrollback_len(), SCROLLBACK_ROWS as u32);
+
+        // The live grid holds the last line printed; nothing was fed after it, so the bottom row is
+        // still blank.
+        assert_eq!(rows(&t), ["L349", "    "]);
+
+        // Scrolling clamps at the ring's true depth, not at whatever was asked for.
+        t.scroll_up(u32::MAX);
+        assert_eq!(t.view_offset(), SCROLLBACK_ROWS as u32);
+
+        // Six checkpoints spanning the ring, including both edges: age 0 (the row pushed right
+        // before the wrap stopped, where `sb_tail` last wrote) and age SCROLLBACK_ROWS - 1 (the
+        // oldest survivor, on the far side of the ring from where it is currently writing). A wrong
+        // `+`/`*`/`%` in the ring's index arithmetic is very unlikely to agree with the right one at
+        // all six. Both display rows are checked, not just the top one: at row 0, `Vt::cell`'s
+        // `age = view_offset - 1 - row` has `row == 0`, so a `-row` mutated to `+row` is invisible
+        // there and needs row 1 (and, at `offset == 1`, row 1 comes from the *live* half of
+        // `Vt::cell` instead, which is what exercises `live_row = row - view_offset`).
+        for offset in [1u32, 2, 50, 150, 299, 300] {
+            t.scroll_down(u32::MAX);
+            t.scroll_up(offset);
+            assert_eq!(t.view_offset(), offset, "view_offset did not reach what was asked for");
+            let seen = rows(&t);
+            assert_eq!(
+                seen[0],
+                std::format!("L{:03}", LINES - 1 - offset),
+                "view_offset {offset}: wrong row surfaced from the ring at row 0"
+            );
+            assert_eq!(
+                seen[1],
+                std::format!("L{:03}", LINES - offset),
+                "view_offset {offset}: wrong row surfaced from the ring at row 1"
+            );
+        }
+
+        // Scrolling back down reaches live ground exactly at zero, not before or after it.
+        t.scroll_down(u32::MAX);
+        assert_eq!(t.view_offset(), 0);
+        assert_eq!(rows(&t), ["L349", "    "]);
+
+        // Typing snaps the view back to live even from deep in history.
+        t.scroll_up(200);
+        assert_ne!(t.view_offset(), 0);
+        t.feed(b"!");
+        assert_eq!(t.view_offset(), 0, "new output must snap the view back to live");
+    }
+
+    /// **`put` and `damage_cell` refuse a coordinate where only one axis is out of range.** Nothing
+    /// in this crate ever calls either with such a coordinate (every caller clamps first: `print`
+    /// always writes at the cursor, which is always in range, and `erase_line` bounds its column with
+    /// `.min(self.cols)`), so this reaches them directly, the way this module already can
+    /// (`use super::*` at the top of `mod tests`, which is the same crate as the private methods
+    /// under test). Milestone 326's mutation triage.
+    #[test]
+    fn put_and_damage_cell_reject_a_partly_out_of_range_coordinate() {
+        let mut t = vt(4, 3);
+        let mark = Cell {
+            ch: 'X',
+            attr: Attr::DEFAULT,
+        };
+
+        // Column out of range, row in range.
+        t.put(t.cols(), 1, mark);
+        assert_eq!(
+            t.cells,
+            [Cell::default(); MAX_CELLS],
+            "a partly out-of-range put must be a no-op"
+        );
+        assert_eq!(t.damage(), None);
+
+        // Row out of range, column in range.
+        t.put(1, t.rows(), mark);
+        assert_eq!(t.cells, [Cell::default(); MAX_CELLS]);
+        assert_eq!(t.damage(), None);
+
+        t.damage_cell(t.cols(), 1);
+        assert_eq!(
+            t.damage(),
+            None,
+            "a partly out-of-range damage_cell must be a no-op"
+        );
+        t.damage_cell(1, t.rows());
+        assert_eq!(t.damage(), None);
     }
 }
