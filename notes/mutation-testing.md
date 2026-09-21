@@ -2208,7 +2208,8 @@ recorded gap was needed: every one closed as a killed test or a demonstrated equ
 **Five tests were added, each closing coverage this crate never had before it, for 63 survivors.**
 
 **Multi-byte UTF-8 decoding had never been tested at all (18 survivors, 17 closed here; the
-eighteenth is equivalent, below).** Milestone 142 increment 2 added it, and every mutant in
+eighteenth is equivalent, below).** Milestone 142 (a text display good enough that people use it
+instead of a GUI) increment 2 added it, and every mutant in
 `Vt::ground`'s continuation-byte branch, its shift-and-accumulate arithmetic, and all three
 lead-byte masks (two-, three-, and four-byte sequences) survived because nothing in the suite had
 ever fed a non-ASCII byte to `feed`. `utf8_decodes_every_sequence_length_and_recovers_from_a_bad_
@@ -2218,10 +2219,11 @@ checking the exact `char` landed rather than just that something non-blank did. 
 decoder itself is correct RFC 3629 (the lead-byte ranges, the overlong-form exclusion, the
 replacement-character fallback all match); this was a coverage gap, not a defect.
 
-**Scrollback (milestone 142 increment 2, a text display worth living in) had no test at all: not
-`scroll_up`, not `scroll_down`, not `view_offset`, not `scrollback_len`, and nothing scrolled far
-enough to read history back (42 survivors across [`SCROLLBACK_CELLS`] itself, `Vt::cell`'s history
-branch, `scrollback_cell`, `push_scrollback_row`, the two getters, and both scroll methods; 41
+**Scrollback (milestone 142 increment 2, a text display good enough that people use it instead of a
+GUI) had no test at all: not `scroll_up`, not `scroll_down`, not `view_offset`, not
+`scrollback_len`, and nothing scrolled far enough to read history back (42 survivors across
+[`SCROLLBACK_CELLS`] itself, `Vt::cell`'s history branch, `scrollback_cell`,
+`push_scrollback_row`, the two getters, and both scroll methods; 41
 closed here, and the forty-second, `push_scrollback_row`'s source index, is equivalent, below).**
 `scrollback_survives_the_rings_wrap_and_reads_back_in_order` feeds 350 lines through a two-row grid,
 349 scrolls, comfortably past [`SCROLLBACK_ROWS`]'s 300-row cap: the ring wraps and its oldest 49

@@ -1811,7 +1811,7 @@ mod tests {
 
     /// **The size clamp is exact at the boundary.** `MAX_COLS`/`MAX_ROWS` themselves are legal, one
     /// past either is clamped down, and zero clamps up to one rather than producing an empty grid no
-    /// cursor could ever occupy. Milestone 326's mutation triage.
+    /// cursor could ever occupy. Milestone 326 (turn a mutation score upward)'s mutation triage.
     #[test]
     fn geometry_clamps_exactly_at_the_boundary_not_one_off_it() {
         let t = Vt::new(MAX_COLS as u32, MAX_ROWS as u32);
