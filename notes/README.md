@@ -1309,6 +1309,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   `arch/` (42 missing names and four `cfg` arms; `crates/paging` needed nothing), the three things
   that genuinely do not fit the seam, the segment-reload bug that zeroes the per-CPU pointer, and an
   honest account of what the gates cover.
+- [Does the TSC tick at a constant rate under TCG?](tsc-under-tcg.md): the measurement milestone 524 (the
+  three x86_64 boot gates: NX, SYSCALL, and the invariant TSC) asked for, after it established that TCG refuses to advertise the invariant-TSC bit on any machine
+  this project runs. The reference clock that is not circular (the CMOS RTC, which QEMU drives from
+  host wall time) and the two that are, the experiment that separates a host-time-derived clock from
+  an instruction-derived one, and three answers: the counter is exactly 1.000 GHz and constant to
+  within 42 ppm whatever the host or guest does; under `-icount`, which `script/bench --x86` uses by
+  default, its rate against real time moves 37% with the workload; and the rate the boot actually
+  stores has been measured **4.3x too high**, always high and never low. Name provisional.
 - [Booting x86_64 from real firmware](x86-uefi-boot.md): milestone 87's answer to the `BUGS` entry
   above (PVH is a hypervisor protocol and no machine speaks it). The fork priced by two commands
   rather than argued (OVMF ships with the pinned QEMU; `brew info grub` has no formula at all), the

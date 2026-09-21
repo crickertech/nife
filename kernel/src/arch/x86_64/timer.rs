@@ -31,6 +31,32 @@
 //!   instant it is measured on a varying part too, so nothing in this file could have detected the
 //!   problem however carefully it measured. The bit is still untested on real silicon, and
 //!   milestone 87 (the `x86_64` bare-metal machine) is where that happens.
+//!
+//!   **Under QEMU the assumption is now measured rather than assumed, and it holds.** The
+//!   `tscdrift` lane compared the TSC against the CMOS RTC, which QEMU drives from host wall time
+//!   rather than from the vCPU's clock, over thirty-two-second windows: the rate is exactly
+//!   1,000,000,000 Hz and constant to within 42 ppm whatever the host or the guest is doing,
+//!   because on an aarch64 host QEMU's guest TSC *is* the host's monotonic nanosecond count. On an
+//!   `x86_64` host it is the host's own `rdtsc` instead, so that number does not carry to xenon or
+//!   to an x86 CI runner. See notes/tsc-under-tcg.md.
+//! - **The rate this file stores has been measured 4.3x too high, and the error has no bound.**
+//!   This is the calibration below rather than the counter, and it is a much larger effect than
+//!   the invariant-TSC question above. `init_frequency` times one 10 ms PIT window by polling; the
+//!   poll can only ever notice the terminal count *late*, and the whole resulting TSC delta is
+//!   then attributed to 10 ms, so one descheduling of the QEMU thread inside that window inflates
+//!   the answer without bound. Measured over twenty-two boots against a counter known to tick at
+//!   1000.000 MHz, this file reported 1001 MHz to **4330 MHz**, every single boot high and none
+//!   ever low. `bench --x86 --real`'s ns/iter, `Instant` and `uptime` through
+//!   `counter_frequency_protocol`'s page, and `coremark`'s self-reported rate all read it;
+//!   `wait_for`'s deadlines fail safe, which is why nothing has ever gone red over this. The error
+//!   being one-sided is also the fix: the minimum of several windows converges from above. See
+//!   design/roadmap/proposals/the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md.
+//! - **Under `-icount shift=0,sleep=off` the TSC is not a clock with respect to real time at all**,
+//!   and `script/bench --x86` uses that flag by default. Measured against the RTC in one boot, its
+//!   rate moved 37% between two workloads (662 MHz while running a register loop, 486 MHz while
+//!   running port I/O), because virtual time there is a function of the instruction stream. That is
+//!   `-icount` working as designed and nothing here should change to "fix" it; it is a trap only
+//!   for a reader who takes those nanoseconds for wall time.
 //! - **`now()` is the *calling core's* TSC, and nothing synchronizes or checks the cores against
 //!   each other.** This is the one place the three ports are not interchangeable and it is worth
 //!   saying out loud: aarch64's `CNTPCT_EL0` and RISC-V's `time` are *system* counters, so a
@@ -50,7 +76,8 @@
 //!   `wait_for` call sites passed in the same run; the asymmetry is recorded because it is real and
 //!   undocumented, not because it is known to have broken anything.
 //! - **One calibration, no averaging.** A single 10 ms window on a busy host under TCG can be off by
-//!   a per cent or so. The other two architectures read an exact number, so nothing above this has
+//!   a per cent or so, and the bullet above is the measurement that says a per cent is the *good*
+//!   case. The other two architectures read an exact number, so nothing above this has
 //!   ever had to think about calibration error; anything that benchmarks on x86 will.
 //! - **`init` panics if the local APIC is not up.** The ordering (APIC, then timer) is a real
 //!   constraint and is enforced loudly rather than producing a timer that never fires.
