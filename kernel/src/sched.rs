@@ -243,6 +243,17 @@ impl Threads {
         Some(unsafe { &mut *p })
     }
 
+    /// **The raw pointer the table stores, which is the start of the thread's TCB page.**
+    ///
+    /// `get` and `get_mut` narrow it to a reference over `size_of::<Thread>()` bytes, and that is
+    /// exactly what the caller must not have when it wants the FP register file: that lives in the
+    /// same page, past the end of the struct, so a pointer derived from a reference would be
+    /// reaching outside its own provenance (`thread::fp_state_of`'s safety note). This hands back
+    /// the pointer the page cast produced, unnarrowed.
+    fn pointer(&self, tid: ThreadId) -> Option<*mut Thread> {
+        Some(self.table.get(tid)?.0)
+    }
+
     /// Insert: claim a page from the kernel budget, build the `Thread` (carrying its own minted
     /// name) into it, and store the pointer under that name. `None` (page recycled, `f` never
     /// run) if the budget or the table is exhausted.
@@ -300,6 +311,16 @@ impl Threads {
         let mut built = false;
         let name = self.table.insert_with(|tid| {
             built = build(tid, ptr);
+            if built {
+                // The register file beside the struct, in the same page (milestone 447). Here
+                // rather than in a `Thread` constructor because a constructor builds a value and
+                // this is a fact about a *place*: `kmem` pages are not zeroed, so the `live` flag
+                // has to be written before anything reads it. See `thread::init_fp_state`.
+                //
+                // SAFETY: `ptr` is the start of a page this insert exclusively owns, and `build`
+                // has just written a live `Thread` at it.
+                unsafe { crate::thread::init_fp_state(ptr) };
+            }
             ThreadControlBlockPointer(ptr)
         })?;
         if !built {
@@ -325,6 +346,11 @@ impl Threads {
             // SAFETY: a fresh, exclusively-ours page; `write` moves the Thread in, no drop of
             // uninitialized bytes.
             unsafe { ptr.write(f(tid)) };
+            // And its register file beside it in the same page; see `insert_at_in_place` for why
+            // this is here rather than in a `Thread` constructor.
+            //
+            // SAFETY: as above, with the `Thread` now live at `ptr`.
+            unsafe { crate::thread::init_fp_state(ptr) };
             ThreadControlBlockPointer(ptr)
         });
         if name.is_some() {
@@ -1159,6 +1185,22 @@ pub fn canary_disarm() {
 /// that in**, which is why the boot thread needs no special case: a thread's context is written
 /// by the act of leaving it.
 pub fn init() {
+    // **The floating-point unit is shut on this core before any thread exists**
+    // (milestone 447 (a thread's vector registers are its own)).
+    //
+    // Here rather than in `arch::init`, and the reason is a real trap rather than taste. What the
+    // invariant is *about* is threads: `crate::fp` marks a thread `live` when it takes the first-use
+    // trap, and a core that started with the unit already open never produces one, so every thread
+    // on it stays `live == false` and two of them quietly share a register file. This is the
+    // function where threads begin to exist, so the property and the mechanism are in the same
+    // place. `arch::init` looked like the obvious home and is not one: **RISC-V's boot hart never
+    // calls it.** `main`'s RISC-V tour installs `stvec` with `arch::exceptions::init()` directly,
+    // reaches `sched::init` and never passes through `arch::init` at all, and OpenSBI hands the
+    // kernel a hart with `sstatus.FS` already set. That cost this milestone a red suite and is
+    // exactly the shape of failure AGENTS.md's ladder is about: it worked on two architectures and
+    // was invisible on the third.
+    crate::arch::fp::init();
+
     let mut sched = IPC_TABLES.lock();
 
     // **Install the empty tables FIRST, then name the boot thread through them**, rather than
@@ -1230,6 +1272,9 @@ pub fn init() {
 ///
 /// Interrupts must be masked (the caller has not enabled them yet), which is what `with_runq` needs.
 pub fn adopt_secondary_idle() {
+    // This core's turn at the line in `init` above: it is about to own threads.
+    crate::arch::fp::init();
+
     let idle = Thread::adopt_current();
 
     let id = {
@@ -1995,36 +2040,61 @@ pub fn schedule() {
             next_cycle_counter = sched.threads.get(next).unwrap().cycle_counter_grant;
         }
 
-        // Copy the two raw pointers out before the lock drops. The assembly writes through the
-        // first and reads the second, and both threads' `Box`es keep their contents pinned.
-        let prev_slot: *mut *mut Context = &mut sched.threads.get_mut(current).unwrap().context;
-
-        // `next_ctx`, and on x86 the incoming thread's port grant (milestone 299) beside it, out of
-        // ONE `threads.get(next)`. The two arms are byte-identical bar the port read, and the split
-        // is deliberate: the other two architectures must keep the exact `get(next).unwrap().context`
-        // their deterministic-icount baseline was measured on (introducing a `next_thread` binding
-        // there shifted it, tiny but not zero), while x86 reuses the one lookup rather than paying a
-        // second map probe for the port grant. The port read goes into the `x86_64`-only variable
-        // declared above the block, not the switch tuple, so it costs the other two nothing at all.
-        // The cycle-counter grant is carried the same way now (milestone 300), so neither grant
-        // widens this tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on
-        // every shipping build.
-        #[cfg(not(target_arch = "x86_64"))]
-        let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
-        #[cfg(target_arch = "x86_64")]
-        let next_ctx: *mut Context = {
-            let next_thread = sched.threads.get(next).unwrap();
-            next_port_grant = next_thread.port_range_grant;
-            next_thread.context
+        // Copy the raw pointers out before the lock drops. The assembly writes through the
+        // context slot and reads the incoming context, and both threads' TCB pages keep their
+        // contents pinned.
+        //
+        // **The TCB page pointer rather than `get_mut`** (milestone 447), and it is one probe per
+        // side rather than the two the obvious shape would cost. Each thread's FP register file
+        // lives in the free space of the same page, past the end of the struct, so a `&mut Thread`
+        // is exactly the wrong thing to hold: its provenance stops at the struct.
+        // `Threads::pointer` hands back the page cast unnarrowed and both addresses fall out of it.
+        let prev_ptr = sched.threads.pointer(current).unwrap();
+        // SAFETY: a live thread's TCB page, held under IPC_TABLES. Field projection through a raw
+        // pointer, and `fp_state_of`'s contract is exactly what `pointer` returns.
+        let (prev_slot, prev_fp): (*mut *mut Context, *mut crate::arch::fp::FpState) = unsafe {
+            (
+                &raw mut (*prev_ptr).context,
+                crate::thread::fp_state_of(prev_ptr),
+            )
         };
 
-        Some((prev_slot, next_ctx, next_root))
+        // `next_ctx`, and on x86 the incoming thread's port grant (milestone 299) beside it, out of
+        // ONE lookup. The two arms are byte-identical bar the port read, and the split is
+        // deliberate: the port read goes into the `x86_64`-only variable declared above the block,
+        // not the switch tuple, so it costs the other two architectures nothing at all. The
+        // cycle-counter grant is carried the same way, by milestone 300 (decompose the icount
+        // baseline drift, and re-baseline only what is proven), so neither grant widens this
+        // tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on every
+        // shipping build, plus milestone 447's two register-file pointers.
+        #[cfg(not(target_arch = "x86_64"))]
+        // SAFETY: as `prev_ptr`; `next` was popped off this core's run queue and marked `Running`
+        // inside this same locked block.
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = unsafe {
+            let next_ptr = sched.threads.pointer(next).unwrap();
+            (
+                (*next_ptr).context,
+                crate::thread::fp_state_of(next_ptr).cast_const(),
+            )
+        };
+        #[cfg(target_arch = "x86_64")]
+        // SAFETY: as the arm above, plus the port grant, which is a plain field read.
+        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = unsafe {
+            let next_ptr = sched.threads.pointer(next).unwrap();
+            next_port_grant = (*next_ptr).port_range_grant;
+            (
+                (*next_ptr).context,
+                crate::thread::fp_state_of(next_ptr).cast_const(),
+            )
+        };
+
+        Some((prev_slot, next_ctx, next_root, prev_fp, next_fp))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root)) = switch {
+    if let Some((prev_slot, next_ctx, next_root, prev_fp, next_fp)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -2055,6 +2125,17 @@ pub fn schedule() {
         // crosses a holder. `#[cfg]`-gated, not folded: it exists on no other architecture's switch.
         #[cfg(target_arch = "x86_64")]
         install_port_grant(next_port_grant);
+
+        // And the register file the two threads are about to share a core over (milestone 447).
+        // This is beside `switch_to` rather than inside it because the two save different
+        // quantities for different reasons: `switch_to` saves what a *function call* may destroy,
+        // and this moves what a *thread* owns. It runs here, as the outgoing thread, with the lock
+        // released and interrupts masked, so the register file is already right when the switch
+        // lands. `crate::fp::hand_over` has the four cases and the CVE that decided them.
+        //
+        // SAFETY: `prev_fp` and `next_fp` name the `FpState`s of the outgoing and incoming threads,
+        // pinned by the same argument the two lines below make for their contexts.
+        unsafe { crate::fp::hand_over(prev_fp, next_fp) };
 
         // SAFETY: both pointers name live `Context`s owned by boxed `Thread`s in the map, and
         // interrupts are masked so nothing can reorder underneath us.
@@ -3976,6 +4057,35 @@ pub fn grant_cycle_counter_to_current() {
             .cycle_counter_grant = true;
     }
     crate::arch::timer::set_cycle_counter_grant(true);
+}
+
+/// **Record that the running thread has started using the floating-point unit** (milestone 447).
+///
+/// The scheduler half of [`crate::fp::enable_for_current`], and the only thing that ever sets the
+/// flag. Returns false when there is no scheduler or no current thread, which is a trap the caller
+/// must turn into a fault rather than return from: the flag is what stops the same instruction
+/// taking the same trap forever.
+///
+/// **Taking `IPC_TABLES` inside a trap handler is ordinary here**, not a liberty. Every syscall
+/// does it from the same place, through `syscall::dispatch`, and the argument is the same: this
+/// trap came from a thread that was *running*, so this core cannot already hold the lock. What
+/// would break that is kernel code executing an FP instruction while holding it, and the kernel is
+/// built `softfloat` and executes none.
+pub fn mark_current_fp_live() -> bool {
+    let mut guard = IPC_TABLES.lock();
+    let Some(sched) = guard.as_mut() else {
+        return false;
+    };
+    let current = current_thread_id();
+    let Some(pointer) = sched.threads.pointer(current) else {
+        return false;
+    };
+    // The register file is in the TCB page beside the struct, so this goes through the page pointer
+    // rather than through a `&mut Thread`; see `Threads::pointer`.
+    //
+    // SAFETY: a live thread's TCB page, held under IPC_TABLES.
+    unsafe { (*crate::thread::fp_state_of(pointer)).set_live() };
+    true
 }
 
 /// **Install a capability into an embryo's capability table** (milestone 19c.3): the child's initial
