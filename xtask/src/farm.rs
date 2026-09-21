@@ -113,8 +113,10 @@ pub(crate) fn std_inputs_stamp() -> u64 {
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
         root.join("targets/x86_64-unknown-nife.json"),
-        // The x86_64 timebase page (milestone 184): `rt::cntfrq` reads it on that architecture, and
-        // its layout is generated verbatim into the PAL like every contract above.
+        // The timebase page, from milestone 184 (extend the `std` port to x86_64); riscv64 joined
+        // 2026-09-21. `rt::cntfrq` reads it on
+        // the two architectures with no register stating the rate, and its layout is generated
+        // verbatim into the PAL like every contract above.
         root.join("crates/counter_frequency_protocol/src/lib.rs"),
     ];
     collect_files(&root.join("patches/std-nife/overlay"), &mut files);
@@ -420,10 +422,10 @@ fn std_generate_modules() -> bool {
             root.join("crates/byte_sink_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/sinkproto.rs"),
         ),
-        // The x86_64 timebase page (milestone 184), so `rt::cntfrq` reads the TSC's rate at the
+        // The timebase page (milestone 184), so `rt::cntfrq` reads the machine's rate at the
         // address and with the magic the kernel writes it with. Generated for every farm and
-        // compiled only on x86_64 (`sys/pal/nife/mod.rs` gates the module), because the farm is
-        // one source tree for all three targets.
+        // compiled only on x86_64 and riscv64 (`sys/pal/nife/mod.rs` gates the module), because the
+        // farm is one source tree for all three targets and aarch64 reads a register instead.
         (
             root.join("crates/counter_frequency_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/counterfreqproto.rs"),

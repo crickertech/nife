@@ -1,38 +1,56 @@
-//! **The `x86_64` timebase page** (milestone 161's `cntfrq` follow-up).
+//! **The timebase page**, from milestone 161 (the `x86_64` kernel port) and its `cntfrq` follow-up;
+//! widened to `riscv64` 2026-09-21.
 //!
 //! aarch64 answers "how many [`user_mode_runtime::now`](../user_mode_runtime/fn.now.html) ticks make a second" by
-//! reading `CNTFRQ_EL0`, a register the machine states. `x86_64` has no such register: the TSC's
-//! rate is either reported by `CPUID` leaf `0x15` (on parts that implement it) or has to be
-//! measured against a timer the kernel already trusts, and either way the number is known **once,
-//! at boot, in ring 0**, then never again. This crate is the one definition of the page that
-//! carries that number to every process, so the kernel (the one writer) and `user_mode_runtime::cntfrq`
+//! reading `CNTFRQ_EL0`, a register the machine states. **Neither other architecture has one.**
+//! `x86_64`'s TSC rate is either reported by `CPUID` leaf `0x15` (on parts that implement it) or has
+//! to be measured against a timer the kernel already trusts. `riscv64`'s rate is stated by the
+//! device tree, at `/cpus/timebase-frequency`, which a process cannot read: it has no pointer to the
+//! blob and no capability naming the memory it sits in. Either way the number is known **once, at
+//! boot, in the privileged mode**, then never again. This crate is the one definition of the page
+//! that carries that number to every process, so the kernel (the one writer) and
+//! `user_mode_runtime::cntfrq`
 //! (every reader) cannot drift on its layout or its fixed address. The same split `clock_protocol`
 //! makes for the wall clock and `environment_protocol` makes for `TZ`/`LANG`/`TERM`.
+//!
+//! **`riscv64` used to answer from a hardcoded 10 MHz**, QEMU `virt`'s number, compiled into
+//! `user_mode_runtime::cntfrq` with a comment proposing an aux-vector as the eventual fix. radon (the
+//! VisionFive 2) runs its `time` CSR at **4 MHz**, so every userspace self-timing measurement on
+//! real RISC-V silicon read **2.5x high** and said nothing. calef ruled on 2026-09-21: *"We should
+//! ensure that the program only returns accurate numbers versus leveraging hard coded ones."* The
+//! aux-vector was never needed; this page, already built and working for `x86_64`, was the answer
+//! the tree already had. That is the shape of §19 (architectural parity is a tenet; the targets are
+//! aarch64, riscv64 and `x86_64`): a capability ships
+//! on every architecture that needs it, and the plan for the gap was a mechanism sitting one
+//! directory away.
 //!
 //! # Why a page, and why unconditional
 //!
 //! `clock_protocol`'s page is capability-gated: a process either holds a mapping or it does not, and
 //! not knowing the wall clock is a real, representable state. The timebase page is not like that.
-//! Every `x86_64` process that calls [`now`](../user_mode_runtime/fn.now.html) needs a rate to turn ticks
-//! into seconds, ambiently, with no capability to ask for (aarch64 and RISC-V both give this for
-//! free: a register read and a build-time constant respectively, neither gated on anything). So
+//! Every `x86_64` and every `riscv64` process that calls
+//! [`now`](../user_mode_runtime/fn.now.html) needs a rate to turn ticks
+//! into seconds, ambiently, with no capability to ask for (aarch64 gets this for free from
+//! `CNTFRQ_EL0`, gated on nothing, which is why that architecture maps no page). So
 //! `kernel::user::load` (the arch-neutral function every ordinary ELF-loaded test fixture passes
 //! through) and every kernel-side function that builds a top-level process's space by hand instead
 //! (`spawn_init` and the handful of `spawn_<program>`-shaped test harnesses; see
-//! `kernel::user::map_x86_timebase_page`, the one place that logic lives) map this page
+//! `kernel::user::map_timebase_page`, the one place that logic lives) map this page
 //! **unconditionally** into the process they build, the same "grant is unconditional, a zeroed page
 //! reads as unknown" shape `kernel::user::boot_clock_page` already uses for init's clock page: a
-//! boot on which calibration somehow has not run yet (never observed in practice; the kernel
-//! measures the TSC well before the first process is loaded) still hands out a page, and
-//! [`TimebasePage::hz`] reads that as `None` rather than a fabricated number.
+//! boot on which the rate somehow has not been learned yet (never observed in practice; the kernel
+//! measures the TSC, or reads the device tree, well before the first process is loaded) still hands
+//! out a page, and [`TimebasePage::hz`] reads that as `None` rather than a fabricated number.
 //!
 //! **A process built by the userspace ELF loader instead** (`supervision_protocol::build_child_space`,
 //! which every `root_supervisor`/`spawner`/`system_initializer`/`hello`-role child, `coremark`
-//! included, actually goes through) cannot reach the kernel's real page at all: nothing hands that
-//! crate a capability naming the kernel's specific physical frame, so it maps a *freshly retyped,
-//! zeroed* placeholder from the child's own budget instead, exactly the amount of forwarding a
-//! userspace crate can do without one. See `user_mode_runtime::cntfrq`'s own `BUGS` section for what that
-//! means for the number such a process reads back.
+//! included, actually goes through) gets a page the **parent fills from its own**. That crate holds
+//! no capability naming the kernel's physical frame and needs none: its own process already has the
+//! real page mapped read-only, so it reads the rate with `user_mode_runtime::cntfrq_checked` and
+//! writes a fresh page for the child out of the child's own budget, exactly the way it already fills
+//! every other blob it hands down. The truth therefore propagates down every generation of the
+//! supervision tree, and so does its absence: a parent that does not know the rate writes a zeroed
+//! page, and the child reads "unknown" rather than inheriting a number nobody measured.
 //!
 //! # One writer, then read-only, no seqlock
 //!
@@ -73,19 +91,20 @@
 //!   boot and never revisited, so a part that does not hold that bit and later changes its TSC
 //!   rate would leave every process reading a stale number. QEMU's TSC is invariant. Checking the
 //!   bit is milestone 87's, the same note `arch::x86_64::timer`'s own `BUGS` section carries.
-//! - **A process built by `supervision_protocol::build_child_space` reads a placeholder, not the
-//!   kernel's real number**, for the reason the crate docs above state: no capability carries the
-//!   real frame down into that crate. This is the honest residue of this milestone's scope, not an
-//!   oversight; closing it needs a capability handed from whoever built the calling process,
-//!   forwarded through every generation of the supervision tree, which is real plumbing across
-//!   `spawn_init` and every builder role this milestone did not reach.
-//! - **A process spawned any way other than those two paths** (there is currently exactly one on
-//!   this architecture: `kernel::user::x86_userspace_demo`'s hand-assembled children, which run raw
+//! - **A process spawned any way other than those two paths** (`kernel::user::x86_userspace_demo`'s
+//!   hand-assembled children, and the equivalent hand-built demo spaces on `riscv64`, which run raw
 //!   machine code and never call `user_mode_runtime::cntfrq`) does not get this page mapped at all, and a
 //!   call to [`user_mode_runtime::cntfrq`](../user_mode_runtime/fn.cntfrq.html) from such a process would fault on the
 //!   unmapped read. A future spawn path that does not go through `kernel::user::load`,
-//!   `kernel::user::map_x86_timebase_page`, or `supervision_protocol::build_child_space` must map this
-//!   page too (real or placeholder), or must not link anything that calls `cntfrq`.
+//!   `kernel::user::map_timebase_page`, or `supervision_protocol::build_child_space` must map this
+//!   page too, or must not link anything that calls `cntfrq`. **The fault is the honest outcome
+//!   here** and is deliberately not softened: a process that cannot find the page does not know how
+//!   fast its own counter runs, and dying on the read says so where returning a plausible number
+//!   would not.
+//! - **The rate is read once per process rather than watched.** Nothing re-reads the page, so a
+//!   kernel that ever learned a *better* number after a process started (recalibration, a second
+//!   device tree, a part whose TSC is not invariant) could not tell it. No architecture here does
+//!   that today; the page is written once at boot and never again.
 //!
 //! Name: provisional, and ruled: calef ruled **`counter_frequency_proto`** on 2026-09-13, working
 //! the unratified worklist. Minted by milestone 161's `cntfrq` follow-up lane as `timebase_proto`.
@@ -191,10 +210,18 @@ const OFF_HZ: usize = OFF_MAGIC + 8;
 /// (4096 bytes), which is the unit this is mapped as.
 pub const PAGE_BYTES: usize = OFF_HZ + 8;
 
-/// **The fixed virtual address `kernel::user::load` maps this page at**, in every `x86_64`
-/// process. Both sides of the page (the kernel's writer, `user_mode_runtime::cntfrq`'s reader) agree on
+/// **The fixed virtual address `kernel::user::load` maps this page at**, in every `x86_64` and
+/// every `riscv64` process. Both sides of the page (the kernel's writer,
+/// `user_mode_runtime::cntfrq`'s reader) agree on
 /// this number through this crate rather than through two copies of a magic constant (CLAUDE.md
 /// rule 7).
+///
+/// **`riscv64` gets its own address, because Sv39's low half is not big enough for this one.**
+/// `x86_64` splits at bit 47 and the value below sits comfortably inside the low half; RISC-V under
+/// Sv39 splits at bit 38 (`crates/paging/src/sv39.rs`), so every address at or above
+/// `0x40_0000_0000` is not a user address at all and a mapping at the `x86_64` value would be
+/// refused rather than merely unusual. See the `riscv64` arm's own comment for where its number
+/// comes from.
 ///
 /// **Deliberately far above every other low-half address this tree hands out**, rather than
 /// beside the boot tour's own small demo addresses (`kernel::user::X86_DEMO_CODE_VA` = `0x40_0000`,
@@ -209,7 +236,20 @@ pub const PAGE_BYTES: usize = OFF_HZ + 8;
 /// (`x86_64`'s `SPLIT_SHIFT` is 47, so the low half is every address under `0x0000_8000_0000_0000`;
 /// see `crates/paging/src/x86_64.rs`), leaving roughly 26 TiB of headroom below the boundary and
 /// none of this tree's other conventions anywhere near it.
+#[cfg(not(target_arch = "riscv64"))]
 pub const PAGE_VA: u64 = 0x0000_7000_0000_0000;
+
+/// The same page's fixed address under Sv39, where the low half ends at `0x40_0000_0000` and the
+/// value above is not addressable. `0x38_0000_0000` is seven-eighths of that ceiling, which is the
+/// same rule the `x86_64` arm follows one address width down: 224 GiB in, with 8 GiB of headroom
+/// below the boundary and every other user address this tree hands out (the highest is
+/// `disk_service::ROSTER_VA` at `0x5001_0000`, plus `supervision_protocol`'s ever-advancing scratch
+/// window from `0x1000_0000`) more than a hundred gigabytes below it.
+///
+/// The host build of this crate takes the `x86_64` arm, which is harmless: nothing in the `cfg(test)`
+/// suite below depends on the value, only on the layout.
+#[cfg(target_arch = "riscv64")]
+pub const PAGE_VA: u64 = 0x0000_0038_0000_0000;
 
 /// Build a timebase page's bytes for `hz`, the calibrated (or `CPUID`-reported) TSC rate in
 /// hertz. The kernel writes the result into a fresh frame before mapping it read-only into any

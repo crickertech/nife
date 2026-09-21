@@ -400,40 +400,38 @@ pub fn build_child_space(
         cap_delete(stack_frame);
     }
 
-    // The x86_64 timebase page (milestone 161's `cntfrq` follow-up). This is the tree's only
+    // The timebase page, from milestone 161 (the x86_64 kernel port) and its `cntfrq` follow-up;
+    // riscv64 joined on 2026-09-21. This is
+    // the tree's only
     // userspace ELF loader, so it is the one place that reaches every child any program here
     // builds (`root_supervisor`, `spawner`, `hello`'s roles, `system_initializer`, ...) without
     // every individual caller needing to know about it.
     //
-    // **This maps a freshly retyped, zeroed placeholder, not the real page.** `retype_page_frame_from`
-    // gives back memory out of `build_ut` (the child's own budget, exactly like the stack pages
-    // just above), which this process can always afford and which carries no capability from the
-    // kernel to forward. A zeroed page fails `counter_frequency_protocol::TimebasePage`'s magic check and
-    // reads as "unknown," so `user_mode_runtime::cntfrq` here falls back to its own constant instead of
-    // faulting on an unmapped read, which is what happened before this existed: `coremark`, built
-    // this way by `hello`'s `init_coremark` role, paged-faulted reading a VA `kernel::user::load`
-    // never had reason to map into it. The kernel-computed *real* number only reaches a process
-    // `kernel::user::load` builds directly; see `user_mode_runtime::cntfrq`'s own `BUGS` section for the
-    // honest gap this leaves and why closing it needs more than this crate can do on its own
-    // (the real number would have to ride a capability from whoever built *us*, and nothing here
-    // is handed one).
-    #[cfg(target_arch = "x86_64")]
+    // **The child inherits our rate, and this needs no capability from the kernel.** The first
+    // version of this mapped a freshly retyped, *zeroed* page, on the reasoning that nothing hands
+    // this crate a capability naming the kernel's physical frame, so it could not forward the real
+    // number; a child then read "unknown" and `user_mode_runtime::cntfrq` substituted 1 GHz. The
+    // premise was true and the conclusion did not follow. The real frame is not what a child needs:
+    // the *number* is, and this process already has it, mapped read-only at the same VA by whoever
+    // built us. So we read it (`cntfrq_checked`, no syscall) and write a fresh page for the child out
+    // of `build_ut`, the child's own budget, exactly the way `fill_and_map` already fills every
+    // other blob we hand down.
+    //
+    // **A parent that does not know the rate writes a zeroed page**, deliberately, and the child
+    // then refuses rather than inheriting a number nobody measured (calef, 2026-09-21: only
+    // accurate numbers, never hardcoded ones). Truth propagates down the supervision tree and so
+    // does its absence, which is the honest shape: a subtree cannot know more than its root did.
+    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
     {
-        let timebase_frame = retype_page_frame_from(build_ut)?;
-        // SAFETY: as above: the kernel validates the capability and the method.
-        if unsafe {
-            invoke(
-                aspace,
-                abi::address_space::MAP_INTO,
-                counter_frequency_protocol::PAGE_VA,
-                timebase_frame,
-                abi::address_space::MAP_RO,
-            )
-        } != 0
-        {
-            return Err(());
-        }
-        cap_delete(timebase_frame);
+        let page = user_mode_runtime::cntfrq_checked().map(counter_frequency_protocol::build_page);
+        fill_and_map(
+            own_ut,
+            build_ut,
+            aspace,
+            counter_frequency_protocol::PAGE_VA,
+            page.as_ref().map(|bytes| (0usize, &bytes[..])),
+            abi::address_space::MAP_RO,
+        )?;
     }
 
     // The blobs: fresh read-only pages carrying bytes we chose. Read-only because a program image
