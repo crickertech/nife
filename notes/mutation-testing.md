@@ -1763,6 +1763,36 @@ DMAR entry walks' `len < 2` and `len < 4` under `==` and `>` and their `||` unde
 zero that the walk accepts never advances. That is the tests noticing rather than missing, which is
 this file's standing reading of a timeout whose mutant can hang.
 
+#### 2026-09-20 re-derivation: two more pull requests touched this crate, and neither left a survivor
+
+A lane assigned this crate for triage found it already at the state above: this section's own
+`before`/`after` accounting is what `milestone/326-machine-discovery-truncation` produced, merged to
+`main` on 2026-09-19 (`fdc51e8a` and neighbours, via the `maintainer/drain-the-proposal-pile`
+integration). **The 2026-09-19 census row this crate was assigned under (622 viable, 77 missed,
+86.2% caught) is that lane's own `before` column**, already closed by the time a second lane was
+briefed on it; briefing from a week-old census without checking the tree first is exactly the trap
+milestone 326's own `BUGS` section warns about, and this is that trap sprung a third time.
+
+Two pull requests landed after the triage and before this re-check: #976 (`b5fe8c5a`, `TGran4
+0b0001` is a 4 KiB granule, widening the aarch64 granule decode) and #977 (`b69e0ffa`, milestone
+227's GICv3 driver, which added the whole of `src/gic.rs`, 242 lines with its own `discover` and
+`confirm`). Both grew the crate rather than shrinking it, so re-running `script/mutation -p
+machine_discovery` was the only way to know whether they had, since they landed on their own tests
+were not checked against a mutation sweep first.
+
+**Re-run: 714 mutants tested (up from 693), 612 caught (up from 594), 19 missed, 9 timeouts, 74
+unviable (up from 71). 95.6% of viable (612 of 640).** Every one of the 19 missed and 9 timeout
+mutants is at the same file, line and operator this section already argues above (the eleven
+equivalents, the eight recorded gaps, the nine noticing timeouts); none is new. The 21 new mutants
+(18 caught, 3 unviable) all belong to the TGran4 widening and to `gic.rs`, and every one of them was
+caught. `gic.rs` in particular shipped with `tests/gic_versions.rs` covering both bindings, both
+refusal shapes, the redistributor-region gap and the hardware cross-check, so cargo-mutants found
+nothing there to survive on.
+
+**No untriaged survivor is left in this crate.** The milestone 326 roadmap block's follow-on entry
+for this crate is current and needs no correction beyond noting this re-check; there is no code
+change to land.
+
 ## 2026-09-20: milestone 326 part 3, the new-crate backlog
 
 Part 3 is the rest of the 1.9-point gap between the like-for-like 93.6% and the corpus 91.7%: the
