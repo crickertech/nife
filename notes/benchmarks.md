@@ -263,6 +263,47 @@ A floor that tracks the compiler by construction moves by exactly as much as a n
 kernel, so a nightly that genuinely made this kernel slower would report nothing, and catching that
 is most of what the tripwire is for.
 
+### The emulator is the other half of the same fact (2026-09-21)
+
+**An icount count is a function of two things: the compiler that emitted the instructions and the
+emulator that counted them.** The section above made the first a record. The second was worse off,
+and the `rfence` lane found it while chasing a benchmark that had apparently got 7.49% faster:
+**`.qemu-version` pins 11.0.2, this machine has had 11.1.1 installed since 2026-08-28, and
+`script/bench` never checked.** Every committed baseline in this tree was measured against an
+emulator nobody recorded and nothing verified. `script/qemu-check`'s own warning text asserted the
+baselines "were recorded against" the pin, which is the assumption wearing a fact's clothes in the
+one place a reader goes to ask.
+
+**The stamp records the emulator that RAN, not the pin, and the asymmetry with the toolchain stamp
+is the argument rather than an inconsistency.** `rustup` *resolves* the compiler from
+`rust-toolchain.toml`, so there the pin and the thing that ran are one fact by construction (the one
+escape, `RUSTUP_TOOLCHAIN`, is named in the code). **Nothing resolves QEMU from `.qemu-version`.** It
+is a wish about the machine, and on 2026-08-28 the machine stopped granting it. Writing the pin into
+the baseline would file intent under the heading of provenance, which is precisely the defect being
+closed. So `cargo xtask bench --save` asks the binary, and when the answer differs from the pin the
+line says both, because that disagreement is a fact about the numbers rather than something to tidy.
+
+**The check compares the stamp against the emulator in front of it, and lives in `--check` rather
+than in `script/lint`.** A static lint cannot ask this: there is no emulator in a repository. Two
+comparisons were available and only one is honest.
+
+| compared against | what it would do |
+|---|---|
+| `.qemu-version` | fails any baseline truthfully recorded off-pin, so it forbids the file from stating the truth, and still passes a comparison run on a third version |
+| **the emulator this run used** | asks the only apples-to-apples question there is: is the counter reading this floor the counter that produced it |
+
+**`unrecorded` is a truthful answer and does not fail**, the posture
+milestone 115 (the names that were refused) already takes for names. Every baseline carries it today, because
+nobody wrote down which QEMU produced those counts and inventing a version now would be worse than
+the gap. The check therefore fires at full strength from the first honest `--save` onward and never
+on a number nobody stamped.
+
+**What a failure means is not "upgrade something".** A re-record and the pin have to be settled in
+the same commit, because CI builds the pinned emulator (`script/ci-qemu`) and will then read these
+floors on it. **Which version this project should run is calef's, and is deliberately not decided
+here**: the divergence has already reached published figures, so it wants stating rather than
+tidying.
+
 ## Compute vs. OS primitives: two benchmarks that measure different things (milestone 19e)
 
 The microbenchmarks above are the *right* kind for a microkernel: IPC, context switch, the paths a

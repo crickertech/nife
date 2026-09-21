@@ -14,9 +14,17 @@
 #      degradation the CRICKER_DISK check exists to prevent.
 #
 #   2. *Is it the exact pinned version?* A warning. Benchmark numbers are icount instruction counts,
-#      so a different QEMU can legitimately shift them, and `bench/baseline-aarch64.txt` was recorded against
-#      the pinned one. But Homebrew cannot install an arbitrary older QEMU, so demanding an exact
-#      match locally would be a rule nobody could follow. Loud and non-fatal is the honest setting.
+#      so a different QEMU can legitimately shift them. But Homebrew cannot install an arbitrary
+#      older QEMU, so demanding an exact match locally would be a rule nobody could follow. Loud and
+#      non-fatal is the honest setting.
+#
+#      **This paragraph used to say `bench/baseline-aarch64.txt` "was recorded against the pinned
+#      one", and nothing in the tree supported that** (corrected 2026-09-21). No baseline recorded
+#      which emulator produced it, and this machine has run 11.1.1 against a pinned 11.0.2 since
+#      2026-08-28, so the claim was an assumption wearing a fact's clothes in the one place a reader
+#      goes to ask the question. The baselines now carry a `# qemu:` line, `cargo xtask bench --save`
+#      writes it from the binary it ran, and `--check` compares it against the emulator in front of
+#      it; the existing files say `unrecorded`, which is the truth about them.
 #
 # Run it directly any time; `script/bootstrap` calls it after installing.
 #
@@ -72,8 +80,10 @@ fi
 if [ "$have" != "$want" ]; then
     echo "qemu-check: WARNING: QEMU $have on PATH, but .qemu-version pins $want."
     echo "  Every device this project needs is present, so the tests will run."
-    echo "  What can differ is the BENCHMARKS: bench/baseline-aarch64.txt holds icount instruction counts"
-    echo "  recorded against $want, and a different QEMU can move them (the check has a 10% tolerance)."
+    echo "  What can differ is the BENCHMARKS: bench/baseline-aarch64.txt holds icount instruction counts,"
+    echo "  and a different QEMU can move them (the check has a 10% tolerance). Which emulator actually"
+    echo "  produced a baseline is in its own '# qemu:' line; 'unrecorded' means it predates that record,"
+    echo "  and 'cargo xtask bench --check' says so rather than assuming this QEMU is the right one."
     echo
     echo "  Pick one, deliberately:"
     echo "    - keep this QEMU and update the pin:  echo $have > .qemu-version   (commit it; CI"

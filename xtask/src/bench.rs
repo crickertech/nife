@@ -163,6 +163,7 @@ pub(crate) fn bench() -> bool {
         check,
         save,
         workspace_root().join("bench/baseline-aarch64.txt"),
+        "qemu-system-aarch64",
     )
 }
 
@@ -216,6 +217,7 @@ fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
         check,
         save,
         workspace_root().join("bench/baseline-riscv64.txt"),
+        "qemu-system-riscv64",
     )
 }
 
@@ -286,6 +288,7 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
         check,
         save,
         workspace_root().join("bench/baseline-x86_64.txt"),
+        "qemu-system-x86_64",
     )
 }
 
@@ -301,6 +304,32 @@ fn pinned_nightly() -> Option<String> {
         .and_then(|l| l.split('"').nth(1).map(str::to_owned))
 }
 
+/// The QEMU version `.qemu-version` pins, or `None` if the file is unreadable.
+fn pinned_qemu() -> Option<String> {
+    std::fs::read_to_string(workspace_root().join(".qemu-version"))
+        .ok()
+        .map(|s| s.trim().to_owned())
+}
+
+/// The version of the emulator that is actually going to run, asked of the binary itself.
+///
+/// **Not `.qemu-version`, and the asymmetry with `pinned_nightly` above is the whole point.**
+/// `rustup` RESOLVES the compiler from `rust-toolchain.toml`, so the pin and the thing that ran are
+/// one fact by construction. Nothing resolves QEMU from `.qemu-version`: it is a wish about the
+/// machine, and on 2026-08-28 this machine stopped granting it (11.1.1 installed against a pinned
+/// 11.0.2) with nothing to say so. An icount count is a function of the compiler that produced the
+/// instructions AND the emulator that counted them, so recording the pin here would file intent
+/// under the heading of provenance, which is the defect this whole mechanism exists to close.
+fn running_qemu(binary: &str) -> Option<String> {
+    let out = Command::new(binary).arg("--version").output().ok()?;
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()?
+        .split_whitespace()
+        .nth(3)
+        .map(str::to_owned)
+}
+
 /// Run a bench kernel through `cmd`, read its `bench:` lines until `bench: done`, and report the
 /// table (and, off the deterministic icount instrument, save or check against `baseline`). Shared by
 /// the aarch64 and RISC-V bench paths so the parsing, the table, and the regression gate are one
@@ -311,6 +340,9 @@ fn run_bench(
     check: bool,
     save: bool,
     baseline_path: std::path::PathBuf,
+    // The emulator that will count these instructions, named so the baseline can record which one
+    // did. Per architecture, because the three legs run three different binaries.
+    qemu_binary: &str,
 ) -> bool {
     cmd.stdout(std::process::Stdio::piped());
 
@@ -425,8 +457,19 @@ fn run_bench(
         // the pin, which is a lie only if the override was deliberate and then committed without
         // raising the pin, and that is the case `script/lint` catches from the other side.
         let pinned = pinned_nightly().unwrap_or_else(|| "unrecorded".into());
+        // **The emulator that counted these instructions, read from the binary rather than from
+        // the pin.** See `running_qemu` for why this one is asked and the toolchain one is not.
+        // When the machine disagrees with `.qemu-version` the line says both, because that
+        // disagreement is a fact about the numbers below and not a thing to tidy away: it is how
+        // this project spent a month comparing counts from an emulator nobody had recorded.
+        let ran = running_qemu(qemu_binary).unwrap_or_else(|| "unrecorded".into());
+        let qemu = match pinned_qemu() {
+            Some(pin) if pin != ran => format!("{ran} (run; .qemu-version pins {pin})"),
+            _ => ran,
+        };
         let mut out = format!(
             "# toolchain: {pinned}
+# qemu: {qemu}
 # bench/{stem}: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -460,6 +503,62 @@ fn run_bench(
             return false;
         };
         let mut ok = true;
+
+        // **Is this the emulator that produced the floors?** An icount count is a function of two
+        // things, the compiler that emitted the instructions and the emulator that counted them,
+        // and until 2026-09-21 this tree recorded neither. The compiler half is answered
+        // statically by `script/lint`, because the pin is in the repository. This half cannot be:
+        // nothing resolves QEMU from `.qemu-version`, so the only moment the question can be asked
+        // is the moment an emulator is actually being run, which is here.
+        //
+        // **Compared against the emulator this run used, NOT against `.qemu-version`.** A check
+        // against the pin would fail any baseline honestly recorded off-pin, which is to say it
+        // would forbid the file from stating the truth; and it would still pass a comparison run
+        // on a third version. The apples-to-apples question is whether the counter that produced
+        // the floor is the counter reading it now.
+        //
+        // **`unrecorded` is a truthful answer and does not fail**, the posture
+        // milestone 115 (the names that were refused) already takes for names. Every baseline in
+        // the tree carries it today, because the emulator that produced those counts was never
+        // written down and inventing one now would be worse than the gap. So this fires at full
+        // strength from the first honest `--save` onward and never on a number nobody stamped.
+        //
+        // **What it means when it does fire**, and it is not "upgrade something": a re-record and
+        // the pin have to be decided together, since CI builds the pinned emulator
+        // (`script/ci-qemu`) and would then read these floors on it.
+        let stamped_qemu = text
+            .lines()
+            .filter_map(|l| l.trim_start().strip_prefix("# qemu:"))
+            .next()
+            .and_then(|v| v.split_whitespace().next())
+            .map(str::to_owned);
+        match (stamped_qemu.as_deref(), running_qemu(qemu_binary)) {
+            (None, _) | (Some("unrecorded"), _) => eprintln!(
+                "bench: {} does not say which emulator produced it, so this comparison is \
+                 assumed rather than known. The next --save records it.",
+                baseline_path.display()
+            ),
+            (Some(want), Some(have)) if want != have => {
+                let f = baseline_path.display();
+                eprintln!(
+                    "bench: CHECK FAIL: {f} was recorded on QEMU {want}; this run used {have}."
+                );
+                eprintln!(
+                    "  icount counts guest instructions and a different emulator counts them \
+                     differently, so a pass here would be evidence of nothing."
+                );
+                eprintln!(
+                    "  Either run the emulator these floors were recorded on, or re-record them \
+                     deliberately with --save and settle .qemu-version in the same commit."
+                );
+                ok = false;
+            }
+            (Some(want), Some(_)) => eprintln!("bench: emulator matches the baseline's ({want})"),
+            (Some(_), None) => eprintln!(
+                "bench: cannot ask {qemu_binary} its version; the emulator check is skipped."
+            ),
+        }
+
         // `trim_start` matters: this file's own header has INDENTED comment lines, which a
         // column-0-only check treats as data. They survive today only because they happen to split
         // into more than three tokens and fall through the destructure below. A three-word indented

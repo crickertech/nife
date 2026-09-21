@@ -1,4 +1,4 @@
-# 542. Two gates that stopped meaning what they measure: a bump-time mechanism and a footprint reported against its budget
+# 542. Gates that stopped meaning what they measure: both inputs to an icount number recorded, and a footprint reported against its budget
 
 **Status: BUILT 2026-09-21.** *(Renumbered from 541 by the integrator on 2026-09-21: 541 had already been minted for the `map_new` window while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 524 to 540 were
 claimed on in-flight branches when this was written.)*
@@ -73,6 +73,57 @@ cases, run against this tree:
 And the live case exists today: `origin/toolchain/nightly-bump` (pull request #1054) raises the pin
 to `nightly-2026-09-21` and changes **nothing else**, so once this lands, that branch's CI fails
 this check with exactly the second row's message.
+
+## Part 1b: the emulator is the other half of the same fact
+
+**An icount count is a function of two things and this milestone had made only one of them a
+record.** The `rfence` lane found the other while chasing a benchmark that had apparently got 7.49%
+faster: **`.qemu-version` pins 11.0.2, this machine has had 11.1.1 installed since 2026-08-28, and
+`script/bench` never checked.** So every committed baseline in the tree was measured against an
+emulator nobody recorded and nothing verified, and `script/qemu-check`'s own warning text asserted
+that the baselines "were recorded against" the pin, with nothing in the tree supporting it. That
+sentence is corrected in this milestone; it was an assumption wearing a fact's clothes in the one
+place a reader goes to ask the question.
+
+**The stamp records the emulator that RAN, not the pin**, which reads as an inconsistency with the
+toolchain stamp and is the argument instead. `rustup` **resolves** the compiler from
+`rust-toolchain.toml`, so there the pin and the thing that ran are one fact by construction, and the
+single escape (`RUSTUP_TOOLCHAIN`) is named in the code. **Nothing resolves QEMU from
+`.qemu-version`**: it is a wish about the machine, and on 2026-08-28 the machine stopped granting
+it. Writing the pin into a baseline would file intent under the heading of provenance, which is the
+exact defect this milestone exists to close. `cargo xtask bench --save` asks the binary it is about
+to run, and when the answer differs from the pin the line says both, because the disagreement is a
+fact about the numbers rather than something to tidy.
+
+**The check lives in `--check`, not in `script/lint`, and compares the stamp against the emulator in
+front of it.** A static lint cannot ask this question, because there is no emulator in a repository.
+Of the two available comparisons only one is honest:
+
+| compared against | what it would do |
+|---|---|
+| `.qemu-version` | fails any baseline truthfully recorded off-pin, so it forbids the file from stating the truth, and still passes a comparison run on some third version |
+| **the emulator this run used** | asks the only apples-to-apples question there is: is the counter reading this floor the counter that produced it |
+
+**`unrecorded` is a truthful answer and does not fail**, the posture
+milestone 115 (the names that were refused) already takes for names. Every baseline in the tree carries it
+today, because nobody wrote down which QEMU produced those counts and inventing a version now would
+be worse than the gap. So the check fires at full strength from the first honest `--save` and never
+on a number nobody stamped. **When it does fire, the remedy is not "upgrade something"**: a
+re-record and the pin have to be settled in one commit, because CI builds the pinned emulator
+(`script/ci-qemu`) and will read these floors on it.
+
+**Proved firing, three cases, each a real `script/bench --check` run on this machine:**
+
+| case | result |
+|---|---|
+| `# qemu: unrecorded`, as every baseline stands today | passes, saying the comparison is assumed rather than known |
+| stamp `11.0.2`, machine running `11.1.1` | **fails**: *"a pass here would be evidence of nothing"* |
+| stamp `11.1.1`, matching the machine | passes, `emulator matches the baseline's (11.1.1)` |
+
+**Nothing was fixed by changing either version.** The pin stays 11.0.2, the machine stays 11.1.1,
+and what is true is written down in the baselines themselves and in `notes/benchmarks.md`. **Which
+version this project should run is calef's call**, and it is the more urgent half: the divergence
+has already reached published figures.
 
 ## Part 2: the footprint gate measured drift when it should measure distance
 
@@ -166,17 +217,31 @@ would fail on the day it was written and be turned off on the next.
 - **Recorded.** §144 (a delta and a ceiling) remains DECIDED and not built. This milestone prints
   its ceiling as a fraction and enforces nothing, and the delta-against-`main` half is untouched.
 - **Recorded.** `NIFE_BUMP_IN_PROGRESS` is a provisional name, like every name a lane coins.
+- **Recorded.** The most urgent item here, and calef's call. It is deliberately not written up
+  as a `design/decisions/` section, because a lane does not mint them; the maintainer holds it.
+  `.qemu-version` pins QEMU 11.0.2 and the development
+  machine has run 11.1.1 since 2026-08-28. Which one this project should run is not decided by this
+  milestone, and it is not a tidying job: the divergence has already reached published figures, and
+  the first deliberate `--save` of any baseline forces the answer, because CI builds the pinned
+  emulator and will read that floor on it.
+- **Recorded.** Every baseline's `# qemu:` line says `unrecorded`, truthfully, and will keep saying
+  so until somebody re-records deliberately. Re-recording was out of scope here.
 
 ## Index row
 
 **Built:** 2026-09-21
 
-Two gates had stopped making claims about this kernel. The icount floors in `bench/baseline-*.txt`
+Two gates had stopped making claims about this kernel, and one of them for two reasons. The icount floors in `bench/baseline-*.txt`
 are revalued by any toolchain bump, which happened unremarked on 2026-09-15 and eroded most of the
 tripwire's headroom; they now carry the nightly they were read against, `script/lint` fails when
 that disagrees with the pin (which can only happen on a branch that raises it), and both
 `script/toolchain-bump` and the proposing workflow say the re-record is a human's while recording
-why auto-re-saving is refused. `script/fastpath-footprint` reported drift from an old binary rather
+why auto-re-saving is refused. The emulator is the other half of the same fact and was in worse
+shape: `.qemu-version` pins 11.0.2, this machine has run 11.1.1 since 2026-08-28, nothing checked,
+and `script/qemu-check` asserted the baselines had been recorded against the pin. The baselines now
+carry the emulator that ran (`unrecorded` for every existing file, which is the truth about them),
+`--check` compares it against the emulator in front of it, and neither version was changed to make
+anything pass. `script/fastpath-footprint` reported drift from an old binary rather
 than distance to a budget; it now prints bytes against the 4 KiB target and the 32 KB L1i that
 binds, plus §144's undelivered 16 KiB ceiling, with drift demoted to the secondary check that still
 fails. Nothing was shrunk and no footprint baseline was re-saved.
