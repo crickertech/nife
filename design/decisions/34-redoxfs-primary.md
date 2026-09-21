@@ -74,6 +74,8 @@ filesystem are different jobs, and the initrd wants exactly what nifefs is. It s
   wear levelling rather than a block device, at microcontroller scale, and it is C, so it would put a
   foreign component in the storage path for no thesis gain.
 - **btrfs / ZFS / F2FS.** No no_std Rust implementation, and a size that would dominate the project.
+  **The `no_std` half of this expired on 2026-09-14**; see the 2026-09-20 amendment below, which also
+  says why bundling btrfs with ZFS was the bigger mistake.
 - **Build on a proven transactional store** (SQLite being the most battle-tested crash-consistency
   implementation in existence, needing only a VFS shim, which is precisely the seam §31 built).
   Interesting and not recommended: file-data performance would be poor and the novelty would need
@@ -296,3 +298,44 @@ tooling for an image the checksums *do* reject, which "What would reverse this" 
 unchecked, and which this milestone sharpens rather than answers: we can now produce such an image
 deliberately, and there is still nothing to hand a user who has one. Condition 2 (throughput,
 milestone 38) is untouched.
+
+## Amendment (2026-09-20): the `no_std` clause expired, and it was doing work it should not have been
+
+calef asked whether btrfs needs `no_std` at all, given a filesystem server runs in userspace. **It
+does not, and this section has been saying otherwise for seven weeks.**
+
+**What changed.** This section was decided 2026-07-29, when nothing in this tree had `std`. The
+alternatives list above dismisses "btrfs / ZFS / F2FS" in one line, and the first half of that line
+is *"No `no_std` Rust implementation"*. Milestone 27 (Rust `std` on the native ABI) and milestone 184
+(extend the `std` port to x86_64, BUILT 2026-09-14) retired that premise: all three targets now
+declare `"std": true`, the `nife-dev` farm builds it, and an `fs_server` is an ordinary EL0 program
+exactly as `redoxfs_server` is. **A userspace filesystem may use `std` here, so `no_std` is no longer
+a filter on anything.**
+
+**What replaces it, because the bullet should not simply be deleted.** Three questions, none of
+which is the one that was asked:
+
+1. **Does a usable Rust implementation exist**, and at what completeness: read-only, read-write,
+   maintained? This is now the live question and it is unanswered. It should be **measured against
+   `targets/*-unknown-nife.json`** rather than looked up, which is the lesson milestone 442 (a crypto
+   provider `rustls` can use on all three bare-metal targets) paid for: DECISIONS §196's table was
+   measured against stock `-none` targets and every row of it was wrong about ours.
+2. **Our `std` is not Linux's.** The targets are `singlethread = true` with `panic-strategy = abort`,
+   so a crate that spawns threads or expects unwinding fails here whatever its filesystem logic is.
+   That is a sharper filter than `no_std` ever was, and it is the one a probe actually hits.
+3. **Read-only against read-write**, which the original bullet never separated. Reading a foreign
+   btrfs volume belongs to milestone 140 (mount a drive this system did not create), and a read-only
+   implementation is a fraction of a read-write one. btrfs appears nowhere in 140's ordering, which
+   is FAT32, exFAT, NTFS and ext4.
+
+**The ZFS half of that bullet survives**, and for a reason the 2026-07-30 amendment above already
+gives rather than for the one written here: OpenZFS is not a component you confine, it is a subsystem
+you host, needing a Solaris Porting Layer against a seam built to confine a narrow interface. That
+argument is untouched by userspace `std`. **btrfs was bundled into a one-line dismissal with it and
+should not have been**, which is the more useful half of this correction: a shared bullet let one
+crate's disqualifier stand in for another's.
+
+**What this does not do.** It does not recommend btrfs, or reopen the primary-filesystem question,
+which the conditions at the top of this section already govern. It removes a false reason and names
+the true questions, and the probe that would answer them is filed in
+`design/roadmap/proposals/a-foreign-filesystem-probe-against-our-own-targets.md`.
