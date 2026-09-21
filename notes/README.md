@@ -1239,6 +1239,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   this tree runs unmodified `ripgrep`). Where RedLeaf is ahead, stated without hedging. The four
   places the briefing sketch was wrong, including that the paper is UC Irvine and not Utah. And the
   finding that this tree cannot state its own trusted-core size in anyone else's units.
+- [The incremental path to a safer kernel, and why nife is not on it](incremental-path.md): the
+  HotOS '21 paper (Li, Miller, Zhuo, Chen, Howell, Anderson) that argues for evolving Linux into a
+  safe kernel module by module rather than starting over, read from the PDF. Its argument at full
+  strength first: 1475 CVEs bucketed, 42% reachable by type and ownership safety and 35% more by
+  verification, and the ext4 finding that 50% of its CVEs arrived after seven or more years of use,
+  so maturity is not convergence. Then the answer, which concedes the premise: the incremental path
+  needs an actor who can move an existing system, and the deficiencies it names are already
+  `design/fatal-risks.md` risks 1 and 8, written before anyone here read it. Plus the empirical
+  check of whether Linux is actually walking the path, with line counts, policy text and the
+  maintainer friction on the record. Name provisional.
 - [What each system makes you trust, measured](trusted-base.md): the companion to the RedLeaf note,
   and the one that supplies the units. Three incompatible definitions of "trusted" (nife's is the
   kernel plus the hardware; Tock's is the `unsafe` part of one address space; RedLeaf's adds the
