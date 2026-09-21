@@ -79,6 +79,13 @@ else's kernel:
   and in Zig, which makes it the strongest candidate anywhere for milestone 23's full claim (a
   confined vendor component in a foreign language). Named in milestone 29; API still in flux,
   so any adoption pins a version. The single-toolchain fallback is `vte`.
+- **RedLeaf, and the language-isolation line it belongs to.** Not a donor of anything: x86_64 only,
+  no license declared, and last touched in January 2022. It is on this list because it is the
+  closest academic relative nife has and it makes the *opposite* bet about where isolation comes
+  from, which is the only reason worth putting a system here that we will never take code from.
+  notes/redleaf.md has it, together with the 2017 Tock-founding paper the argument descends from and
+  what the same authors built afterwards, which is a hardware-isolated Verus-verified Rust
+  microkernel rather than more of RedLeaf.
 - **Fuchsia.** The closest general-purpose capability OS. Design prior art for milestone 23
   (capability routing, component manifests) and for the "what would growing up look like"
   question in notes/why-not-general-purpose.md.
