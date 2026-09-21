@@ -21,6 +21,7 @@ automated fetch was refused, the caveat lives in that note and is not repeated h
 | Elphinstone, Zarrabi, Danis, Shen and Heiser, *An Evaluation of Coarse-Grained Locking for Multicore Microkernels*, arXiv 1609.08372 | [§138 (how a saturated workload is made to hand threads across cores)](../design/decisions/138-cross-core-handoff-under-load.md) | that seL4 does not migrate threads between cores at all, which reframed a measured nife behaviour from a defect into somebody else's deliberate design |
 | Watson, Anderson, Laurie and Kennaway, *Capsicum: practical capabilities for UNIX*, USENIX Security 2010 | [capsicum-and-the-retrofit-question.md](../design/capsicum-and-the-retrofit-question.md) | what a capability system retrofitted onto Unix can and cannot reach, as the control for what building from the first instruction buys |
 | Baumann, Appavoo, Krieger and Roscoe, *A fork() in the road*, HotOS 2019 | [milestone 52 (subshells without `fork`)](../design/roadmap/52-subshells.md) | the case that `fork` is a poor abstraction rather than an expensive one, which is why subshells are not getting one |
+| Li, Miller, Zhuo, Chen, Howell, Anderson, *An Incremental Path Towards a Safer OS Kernel*, HotOS '21 | [incremental-path.md](incremental-path.md) | the case that memory safety should reach the kernel people already run rather than a new one, which is risks 1 and 8 argued by strangers, plus the check of whether Linux is actually walking it |
 
 ## The opposite bet: isolation from the language, not the hardware
 
@@ -62,11 +63,6 @@ would want, and they are listed because `README.md` used to list them.
   numbered records and cannot check a bibliography; a note that stops citing a work leaves a row here
   pointing at nothing. The same caveat `notes/redleaf.md` states about its own source table applies
   to this one: the discipline is the author's alone.
-- **A paper read in conversation on 2026-09-21 is missing from this list**, a HotOS '21 argument for
-  an incremental path to memory safety that calef supplied and that was discussed against risk 4 and
-  never written down anywhere in the tree. It is absent here rather than cited from memory, because
-  the rule at the top is what makes the rest of the page trustworthy. Landing it is real work: it
-  belongs in `notes/` first, and this row goes away when it does.
 - **Second-hand readings are marked in the notes, not here.** `notes/verus.md` takes one SOSP '25
   table from `notes/redleaf.md` rather than from the paper, and says so; a reader who needs to know
   which claims are first-hand has to open the note.

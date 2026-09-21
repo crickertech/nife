@@ -99,6 +99,11 @@ FS server stamps a per-mount counter (notes/std.md; proposed as
 design/roadmap/497-a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
 lane, which does not normally edit this file; the status check requires the entry to know.
 
+**The same published argument that sharpens risk 8 sharpens this one**, and it is the same paper:
+Li et al.'s case for an incremental path rests on clean-slate kernels having *"significantly fewer
+features than Linux ... impeding adoption"*, which is this entry's claim written by people who do
+not work here. `notes/incremental-path.md` has it and the answer.
+
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach
 
 **The claim:** the verification half of DECISIONS §14 is real but narrow, and narrow in the direction
@@ -654,8 +659,16 @@ claim; and the two new machine classes, radon and xenon.
 
 **Three things this does not settle.** The syscall surface and IPC model are the remaining untaken
 lens and want their own audit. The adversarial half this entry has always called for, an outsider
-trying to escape rather than us demonstrating a planned escape fails, is still unbuilt and still
-gated behind milestone 198. And one window was **accepted rather than closed**: `PortRange::REVOKE`
+trying to escape rather than us demonstrating a planned escape fails, is now **partly built** and
+still gated behind milestone 198 (the trivial install that makes a second customer possible). An adversarial pass on 2026-09-21 asked where authority lives
+outside a cspace and **found a claim false**: every revocation sweep walked a thread's capability
+table and stopped, so a capability parked in `Thread::outgoing_cap` (the hand-off slot a `SEND_CAP`
+writes when no receiver waits) survived the sweep and was delivered afterwards. `MemoryRegion::DESTROY`
+sweeps capabilities precisely so that no capability still names a page the allocator is about to hand
+out, and an in-flight one reopened that. Fixed in the three sweeps that lacked it, with a test red
+first on all three architectures; `notes/confinement-claims.md` carries it and the eight attacks that
+held. **The caveat is the one that keeps the gate closed**: it was us attacking our own system, which
+is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And one window was **accepted rather than closed**: `PortRange::REVOKE`
 reaches one core, so a revoked holder on another core keeps its bitmap for at most one tick
 (DECISIONS §152's `BUGS`, corrected the same day, and
 [milestone 315](roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and calef
@@ -718,6 +731,22 @@ principle working exactly as designed, and it is evidence rather than failure.
 things a home system can be asked to be. **A first customer should be something nife can plausibly be
 adequate at within a milestone or two.** The customer path is currently vacant, and it should be
 recorded as vacant rather than implied by a roadmap that still names one.
+
+**The counter-thesis here is published too, and it is a different argument from risk 4's.** *An
+Incremental Path Towards a Safer OS Kernel* (Li, Miller, Zhuo, Chen, Howell, Anderson, HotOS '21,
+DOI 10.1145/3458336.3465277) argues that memory safety should be brought to the kernel people
+already run, module by module, because clean-slate kernels *"have significantly fewer features than
+Linux ... impeding adoption"* and *"the cost of switching from Linux to these clean-slate designs is
+prohibitive due to the established Linux and Android ecosystems."* That is this entry and risk 1,
+stated by strangers, with a measurement behind it: 1475 Linux CVEs bucketed, 42% reachable by type
+and ownership safety and 35% more by verification, and ext4 still minting CVEs after seven years of
+use. **It takes no position on capabilities or on what a crossing costs**, which is why it belongs
+here and not in risk 4: no benchmark decides it, and a microkernel that wins every crossing number
+and that nobody runs has lost this argument anyway. `notes/incremental-path.md` has the paper, the
+answer (the incremental path is only available to an actor who can move an existing system, which
+this project is not), and the check of whether Linux is walking it: at Linux 7.2.4, five years on,
+0.166% of the tree is first-party Rust, all of it new leaf code, with no existing C subsystem
+replaced and functional correctness not begun.
 
 **There is no experiment here**, which is why it is last in the numbering and not in the running
 order at all. It is the question the other eight are in service of.
