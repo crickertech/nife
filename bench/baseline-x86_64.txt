@@ -28,14 +28,31 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 19288726 2000
-tss_iomap_switch 24037783 2000
-tss_iomap_lazy_switch 23695780 2000
-tss_iomap_lazy_nop 19719602 2000
-ipc_rtt 17252344 1000
-relay_rtt 34430628 1000
-call_reply 17786191 1000
-broker_rtt 35529058 1000
-spawn_reap 2830510 64
-map_new 180604 64
-coremark 306259744 256
+#
+# 2026-09-21, milestone 541 (a timed window that excludes preemption). Every row here moved, and
+# two different causes are mixed in this save, which is why they are separated rather than left to
+# a reader to guess at:
+#
+#   - `map_new` is the intended change. It masks interrupts across its timed window, so the row no
+#     longer records whether a scheduler tick happened to land in 250 microseconds. Before this it
+#     read 180,604 or 228,356 on x86_64 depending only on the phase an unrelated code-size change
+#     left the timer in, a 26.4% swing over a byte-identical map path. It now reads the same number
+#     either way. See design/roadmap/541-a-timed-window-that-excludes-preemption.md.
+#   - **Every other row moved because the kernel grew**, not because anything on its path changed:
+#     this milestone adds a per-core preemption counter (`cpu::PerCpu::preemptions`) and one relaxed
+#     increment in `sched::count_preemption`, and icount counts drift across builds when live code
+#     is added at all (the module header in kernel/src/bench.rs says why). The moves are 0.0% to
+#     0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and inside the
+#     tripwire on all three. Nothing here is a claim that a path got faster or slower.
+#
+yield_switch 19288787 2000
+tss_iomap_switch 24037905 2000
+tss_iomap_lazy_switch 23695902 2000
+tss_iomap_lazy_nop 19719724 2000
+ipc_rtt 17249316 1000
+relay_rtt 34430872 1000
+call_reply 17786313 1000
+broker_rtt 35525938 1000
+spawn_reap 2894729 64
+map_new 180537 64
+coremark 306216311 256

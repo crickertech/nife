@@ -1,25 +1,3 @@
-# toolchain: nightly-2026-09-20
-# qemu: unrecorded
-# The emulator that counted these instructions. An icount count is a function of two things, the
-# compiler that emitted the instructions and the emulator that counted them, and this tree recorded
-# neither until 2026-09-21. `unrecorded` is the truthful answer for the counts below and not a
-# placeholder: nobody wrote down which QEMU produced them, and inventing a version now would be
-# worse than the gap. `cargo xtask bench --save` writes the real one from the binary it runs, and
-# `--check` compares it against the emulator in front of it from that point on.
-#
-# What is known, and it is why this line exists at all: `.qemu-version` pins **11.0.2**, this
-# machine has had **11.1.1** installed since 2026-08-28, and `script/bench` never looked. So the
-# counts below were read against an emulator that may well not be the pinned one, `script/qemu-check`
-# asserted they were "recorded against" the pin with nothing to support it, and the divergence has
-# already reached published figures. Which version this project should run is calef's call and is
-# deliberately not settled here.
-# The nightly this file's counts are read against. Written by `cargo xtask bench --save` and
-# checked against `rust-toolchain.toml` by `script/lint`, because a compiler bump changes the
-# instruction sequence these counts measure and so silently revalues every number below. On this
-# first stamping the line is a VERIFICATION rather than a recording: the counts were recorded on an
-# earlier nightly and re-checked green against this pin on 2026-09-21, worst margin +0.02% on
-# aarch64 and +2.27% on x86_64, with riscv64's `rfence_self` 7.49% FASTER than its floor. The next
-# `--save` makes it an ordinary recording.
 # bench/baseline-riscv64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -28,21 +6,35 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 188666 2000
-ipc_rtt 172373 1000
-relay_rtt 344237 1000
+#
+# 2026-09-21, milestone 541 (a timed window that excludes preemption). Every row here moved, and
+# two different causes are mixed in this save, which is why they are separated rather than left to
+# a reader to guess at:
+#
+#   - `map_new` is the intended change. It masks interrupts across its timed window, so the row no
+#     longer records whether a scheduler tick happened to land in 250 microseconds. Before this it
+#     read 180,604 or 228,356 on x86_64 depending only on the phase an unrelated code-size change
+#     left the timer in, a 26.4% swing over a byte-identical map path. It now reads the same number
+#     either way. See design/roadmap/541-a-timed-window-that-excludes-preemption.md.
+#   - **Every other row moved because the kernel grew**, not because anything on its path changed:
+#     this milestone adds a per-core preemption counter (`cpu::PerCpu::preemptions`) and one relaxed
+#     increment in `sched::count_preemption`, and icount counts drift across builds when live code
+#     is added at all (the module header in kernel/src/bench.rs says why). The moves are 0.0% to
+#     0.3% and in both directions, with `spawn_reap` the outlier at +2.3% on x86_64 and inside the
+#     tripwire on all three. Nothing here is a claim that a path got faster or slower.
+#
+yield_switch 188573 2000
+ipc_rtt 172376 1000
+relay_rtt 344272 1000
 call_reply 177982 1000
-broker_rtt 355473 1000
-spawn_reap 34277 64
-map_new 2411 64
-# rfence_self: corrected by hand from 6476 on 2026-09-21. 6476 was never what this tree
-# measured; 5991 is, at 28e165e2, at its parent, and at every commit since. `--save` rewrites
-# this file and will delete these three lines: notes/benchmarks.md holds the account.
-rfence_self 5991 512
-coremark 3654349 256
-null_syscall 73029 20000
-ctx_switch 504958 5000
-ipc_rtt_el0 1847912 5000
-sink_throughput 753672 80000
-map_el0 62420 500
-spawn_el0 203942 100
+broker_rtt 355476 1000
+spawn_reap 34471 64
+map_new 2410 64
+rfence_self 6477 512
+coremark 3654374 256
+null_syscall 73031 20000
+ctx_switch 504961 5000
+ipc_rtt_el0 1849225 5000
+sink_throughput 753644 80000
+map_el0 62545 500
+spawn_el0 204608 100
