@@ -9,13 +9,13 @@
 //!
 //! calef ruled on 2026-09-21: *"Yes, write the tries and priority attributes in 2b."*
 //!
-//! Name: provisional, minted 2026-09-21 by the rung 2b lane. A noun for the thing on the disk,
+//! Name: ratified 2026-09-21 by calef, minted the same day by the rung 2b lane. A noun for the thing on the disk,
 //! singular like `page_frames`' members and `grant_plan`, rather than for the mechanism over it.
 //! Refused `ab_boot`, which is the industry's word for this (A/B partitions) and which says
 //! *two* when nothing in here does; refused `boot_slot_attributes`, which names the byte layout
 //! rather than the concept and would have to change the day the state moved. `slot` alone was
 //! refused as ambiguous in a capability system, where a slot is a place in a cspace. calef names
-//! crates; expect this to change.
+//! crates; he took this one as minted, and the refusals above are the valuable half of that record.
 //!
 //! # Where the state lives, and why it is allowed to live there
 //!
@@ -55,8 +55,9 @@
 //!
 //! # The bit layout, which is a format two programs agree on
 //!
-//! **Provisional, pending calef's ratification**, and written here because this is where a reader
-//! meets it. The positions are ChromeOS's own, verified against the ChromiumOS disk-format
+//! **Ratified by calef on 2026-09-21** ("Ratify the GUID and bit positions"), and written here
+//! because this is where a reader meets it. Before that date it was provisional; it is now a format
+//! this project has committed to, and changing it is a decision about disks that already exist. The positions are ChromeOS's own, verified against the ChromiumOS disk-format
 //! reference rather than recalled, so that anyone who has run `cgpt show` can read a nife disk:
 //!
 //! | bits | field | meaning |
@@ -123,10 +124,11 @@
 //!
 //! # BUGS
 //!
-//! - **The bit layout and [`SlotHeader`]'s bytes are provisional.** They are a format two programs
-//!   agree on, which `AGENTS.md` puts in the irreversible category, and calef has not ratified
-//!   either. A disk written by a version of nife before that ratification may not be readable by
-//!   one after it.
+//! - **The bit layout and [`SlotHeader`]'s bytes are ratified, which makes them expensive rather
+//!   than safe.** They are a format two programs agree on, which `AGENTS.md` puts in the
+//!   irreversible category; calef ratified both on 2026-09-21, so the cost of changing them is now
+//!   paid in disks rather than in code. [`SlotHeader`] carries a version field for exactly that
+//!   reason, and any future change should use it rather than redefining the bits.
 //! - **Nothing in this crate marks a slot successful on its own.** [`State::confirmed`] exists and
 //!   is exercised by the tests; the program that calls it on a running machine does not, so today
 //!   only `installer` sets the bit, at install time, on the slot it just wrote. The consequence is

@@ -295,8 +295,10 @@ pub mod types {
     /// which image boots (`crates/boot_slot`), and they are ours to define **because this GUID is
     /// ours**. On a partition of somebody else's type they would be somebody else's bits.
     ///
-    /// Provisional: calef names what the tree calls things, and a type GUID is a value two
-    /// programs agree on.
+    /// **Ratified by calef on 2026-09-21** ("Ratify the GUID and bit positions"), the same day it
+    /// was minted. A type GUID is a value two programs agree on, so ratification is what moves it
+    /// from a lane's proposal to a number this project has committed to; from here it changes only
+    /// the way [`NIFE_DATA`] would, which is to say not at all.
     pub const NIFE_BOOT: Guid = Guid::from_fields(
         0x1163_1EE3,
         0xE18F,
