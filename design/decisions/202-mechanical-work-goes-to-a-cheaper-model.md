@@ -124,6 +124,39 @@ loom model, so it carried none of the "the mutant was never the crate's code" ar
 earlier sweeps, and its before-numbers matched the census row for row. It is a cleaner crate to
 triage than average.
 
+## Trial 3, `machine_discovery`, 2026-09-21: the brief was wrong and the lane caught it
+
+**The maintainer picked the crate badly.** It was chosen off the census record as the hardest
+remaining case, a boot-path parser with 77 survivors whose callers are three kernels. **It had
+already been triaged**, on 2026-09-19, by a lane that landed through an integration branch and so
+left no obvious pull request: 58 killed, 11 equivalent, 8 recorded gaps, all accounted for in
+`notes/mutation-testing.md`'s `### machine_discovery` section, which the maintainer did not read
+before briefing.
+
+**That is the third crate in a row whose census row did not mean what it appeared to**, after
+`work_steal_slot`'s 54.2% (a loom model) and `multicast_dns_protocol`'s 82 survivors (a crate
+deleted the day after the census measured it). The lesson is not about models: **pick a triage crate
+from the ledger and recent history, not from the census.**
+
+**What the lane did with a bad brief is the actual result.** It did not redo the work. It identified
+the earlier lane by commit, re-derived the sweep against the current tree, and checked whether two
+pull requests that landed *after* that triage had introduced anything: 714 mutants, 612 caught, **19
+missed and 9 timeouts, every one matching an already-argued equivalent, recorded gap or
+noticing-timeout by file, line and operator**, and the 21 new mutants from those later pull requests
+all caught. It concluded that nothing was owed and wrote a 30-line dated addendum rather than a
+milestone's worth of redundant tests.
+
+**Refusing to manufacture work is the behaviour this routing most needed to demonstrate**, and no
+gate would have caught the opposite. A lane that had written 19 tests against already-argued
+equivalents would have produced a green pull request full of waste.
+
+**The one genuine lapse, and it is an instruction-adherence one.** The lane **ended its turn to wait
+for its own background mutation run**, which `AGENTS.md` names as the failure mode rather than
+patience. Neither frontier lane that day did this. It cost one resume message and no wrong work, and
+the two earlier trials could not have surfaced it because their sweeps were short enough to run in
+the foreground. **That is where a cheaper model drifts: long-running jobs and the discipline around
+them**, which is a briefing problem before it is a model problem.
+
 ## Where the two trials leave this
 
 **The routing works for this class, and the class is now well defined**: machine-checkable outcomes,
