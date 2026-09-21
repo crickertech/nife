@@ -108,11 +108,12 @@ back. The cost of not failing is in BUGS below, named rather than hidden.
 ## Follow-on
 
 - **Recorded.** The committed table can lag the blocks between a merge and a regeneration; detection
-  is rung two and the action is rung four. Recorded in this block's `BUGS` and in
-  `design/roadmap/README.md` where a reader meets the table.
+  is rung two and the action is rung four. Recorded in this block's `BUGS` and, while the table
+  existed, beside it in `notes/roadmap.md`'s predecessor; the table was retired on 2026-09-21 and
+  the staleness went with it.
 - **Recorded.** `## Index row` is a provisional name, like every name a lane ships. It sits beside
   `## Follow-on` and `## BUGS` as a section `script/roadmap` reads, and the refusals are in
-  `notes/roadmap-index.md`.
+  `notes/roadmap.md`.
 - **Milestone 412.**
   This lane's first `script/test` failed on `uefi-boot`'s `smp: 2 core(s) online` assertion, from a
   tree whose diff `cargo xtask` does not read, and passed on the next two runs. The tree already

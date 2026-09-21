@@ -138,8 +138,9 @@ one because the two have different readers: a person wants the lens and the find
 audits, which is what stops them drifting apart.
 
 Every number is **counted, not remembered**, by `script/audits --baseline` at the commit that landed
-the report. Milestones built is the `BUILT` rows in
-[design/roadmap/README.md](../roadmap/README.md); components is `crates/*/` plus `[[bin]]` targets in
+the report. Milestones built is the `BUILT` rows of
+`script/roadmap --index`, which assembles them from the blocks in
+[design/roadmap/](../roadmap/); components is `crates/*/` plus `[[bin]]` targets in
 `components/Cargo.toml` **and** `fixtures/Cargo.toml`; ABI constants is the `pub const NAME: u64`
 surface of `crates/abi`; external
 packages is the distinct registry packages across every committed lockfile but the vendored one.
@@ -162,8 +163,9 @@ must not err in. So the count spans both, and it stays continuous across the spl
 | 2026-08-17 | security | 76 | 110 | 50 | 108 |
 | 2026-09-17 | security | 190 | 155 | 52 | 108 |
 
-The two `-` cells are honest rather than lazy: `design/roadmap/README.md` did not exist until
-milestone 76 split it out on 2026-08-03, and milestones 1 to 11 were backfilled the same day, so
+The two `-` cells are honest rather than lazy: the roadmap was a single file with no status column
+until milestone 76 (split the roadmap: `design/roadmap/README.md` as index, one file per milestone) split it into `design/roadmap/` on 2026-08-03, and milestones 1 to 11 were
+backfilled the same day, so
 there is no contemporaneous count to take. `script/audits` refuses to compute a delta from a `-` and
 says which trigger it therefore cannot evaluate. It only ever reads the newest row per kind, so the
 gap costs nothing today.

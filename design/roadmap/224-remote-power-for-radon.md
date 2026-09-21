@@ -7,7 +7,7 @@ Originally NOT-STARTED. Minted 2026-09-02 by the maintainer, from milestone 221'
 crosses cores, so build the hook that makes it) lane, which named it as the soak's remaining gap.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** In the second sense `design/roadmap/README.md` names, which is the one that
+**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names, which is the one that
 never discharges by waiting: the plug is here, the board is here, and every option left below needs
 a person at the router or at the outlet. Reading the access point's configuration, moving the
 board's outlet, putting patagonia's radio on the plug's network and writing one firewall rule are

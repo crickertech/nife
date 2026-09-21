@@ -15,7 +15,7 @@
 >   so does xenon, since 2026-09-05. See `notes/target-hardware.md`.
 > - **`std::fs::write`.** Item 3 says it "stays Unsupported" for want of a `CREATE`/`TRUNCATE`
 >   verb. Both verbs exist and it works; see `notes/std.md`.
-> - **"What's next".** Its wave-3 list is six weeks old. `design/roadmap/README.md` is the queue.
+> - **"What's next".** Its wave-3 list is six weeks old. `script/roadmap --ready` is the queue.
 >
 > What is still worth reading is the account of what landed on 2026-07-29 and why, which is the
 > only place several of those decisions are narrated. Read it in the past tense throughout.

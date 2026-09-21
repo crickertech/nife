@@ -8,7 +8,7 @@ pile**, and what is left is smaller and sharper than the file describes.
 **Gate: HARDWARE.** Of the second kind: the machine exists and somebody has to be at it. The one
 thing left that cannot be done on patagonia is reading the `iommu` line off a xenon boot, which is
 one boot of a stick that already exists. The other two outstanding items below need no board at
-all, which is the case design/roadmap/README.md describes as a startable piece behind a gated
+all, which is the case notes/roadmap.md describes as a startable piece behind a gated
 headline.
 
 **Built, and by whom.** Milestone 161 gave `crates/machine_discovery`'s `parse_dmar` and

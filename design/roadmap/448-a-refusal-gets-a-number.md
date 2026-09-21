@@ -180,7 +180,7 @@ to cheap by saying out loud that it is not settled.
   cites a milestone number, which is 1 of 42 today. Every other condition in this backfill is
   phrased as a workload, a measurement, a customer or a piece of hardware, and nothing mechanical
   can read those. The two counts print on every run so the reach is visible rather than assumed.
-- **Recorded.** In `design/roadmap/README.md`: the status vocabulary table did not list `SUPERSEDED`
+- **Recorded.** In the status vocabulary, now `notes/roadmap.md`: the table did not list `SUPERSEDED`
   either, seven blocks after the word was minted. `REFUSED` was added with its own row and its own
   paragraph; `SUPERSEDED`'s row is still missing, and writing it means putting words in the mouth of
   a decision this lane did not make.

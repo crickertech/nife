@@ -24,7 +24,9 @@ lane's, and none of them has a rule attached.
 The day this was raised produced at least these, none of which reached the tree until calef asked:
 
 - `script/roadmap --write` emits an index row that `script/roadmap --check` rejects, and refuses to
-  run at all while the bad row is present, so the fixer cannot fix its own output.
+  run at all while the bad row is present, so the fixer cannot fix its own output. (Moot since
+  2026-09-21: calef retired the index and `--write` went with it. The point it illustrates does
+  not depend on the defect surviving.)
 - `script/metrics --check` reports stale immediately after any commit, because the current week's
   row records HEAD's sha.
 - Milestone 447 (a thread's vector registers are its own) found that RISC-V's boot hart never calls

@@ -39,7 +39,7 @@ into the readiness report a maintainer uses to brief lanes.
 ## BUGS
 
 - **The gate for `NOT-STARTED` may not exist.** If the honest answer is that only a person can tell,
-  this proposal ends with 75 fixed and a sentence in `design/roadmap/README.md` saying so, and that
+  this proposal ends with 75 fixed and a sentence in `notes/roadmap.md` saying so, and that
   is a legitimate outcome rather than a failure. Milestone 252's own block reserves the same right.
 - **`OPTIONAL` and `RECORDED` are deliberately off the work list**, so a stale one costs less than a
   stale `NOT-STARTED`, which is offered to lanes as ready work.

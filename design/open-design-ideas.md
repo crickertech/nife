@@ -2,7 +2,7 @@
 
 Not decisions yet. Proposals with real open questions, parked deliberately.
 
-The [post-v1 milestone roadmap](roadmap/README.md) sequences the buildable ones below into
+The [post-v1 milestone roadmap](roadmap/) sequences the buildable ones below into
 proposed numbered milestones (12+) and names the two decisions they force (the verification
 endgame, and POSIX posture). The entries here remain the detailed source for each.
 

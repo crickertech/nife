@@ -308,12 +308,12 @@ done here.
 - **Recorded.** *The `**Proposed.**` check is path-shaped and cannot tell whether the file it names
   holds the work the bullet describes.* Two bullets in this pass were wrong in exactly that way
   (milestones 290 and 265) and both passed every build for weeks. Recorded in
-  `design/roadmap/README.md`'s disposition table, beside the check it limits, and in this block's
+  the disposition table beside the check it limits, now in `notes/roadmap.md`, and in this block's
   section above. A gate that could tell would have to read prose, which is the thing milestone 247
   already refused to try.
 - **Recorded.** *About thirty citations of proposals deleted by earlier promotions still dangle*,
   because those slugs have no numbered file: the work was folded into a cluster block rather than
-  promoted one to one. Recorded in `design/roadmap/README.md` beside the promotion rule, which is
+  promoted one to one. Recorded beside the promotion rule, now in `notes/roadmap.md`, which is
   now "keep the slug" precisely so this cannot recur. Mapping the older ones wants a reading of each
   cluster block and is not mechanical.
 - **Decision.** *Whether `**Proposed.**` should survive as a disposition word at all.* A follow-on
@@ -324,7 +324,7 @@ done here.
 - **Recorded.** *Nothing stops the pile refilling*, and this block's `BUGS` says the assumed steady
   state (an integrator drains it at every merge) is rung four. The measurement above weakens that
   further: the answer usually arrives before the next merge, so the habit that would work is the
-  lane closing the proposal it just answered. Recorded in `design/roadmap/README.md`.
+  lane closing the proposal it just answered. Recorded in `notes/roadmap.md`.
 - **Milestone 326.** The two mutation-testing proposals in the pile (354 and 418) were both checked
   against milestone 326's live triage rather than assumed either way, and neither is covered by it:
   354 is about a mutant that never built, and 418 is about a constant `cargo mutants` cannot mutate.

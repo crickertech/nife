@@ -6,7 +6,7 @@ unmeasured, and referenced but not answered by milestone 186 (derive the archite
 whose only claim on it is that the bench-tooling caller for the x86 baseline is one of its eleven
 silent gaps. *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** In the second sense `design/roadmap/README.md` names: xenon is here and this
+**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names: xenon is here and this
 needs an evening at it. PCID's whole benefit is a TLB that survives a `mov cr3`, and the only
 instrument this tree points at x86_64 counts instructions. QEMU's softmmu TLB is not tagged, so it
 charges for the added gate and credits nothing for the removed flush, which is not a prediction: it
