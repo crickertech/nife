@@ -183,6 +183,32 @@ _start:
     mov [edi + 273 * 8], eax
     mov dword ptr [edi + 273 * 8 + 4], 0
 
+    # --- 2f. NX, checked HERE because the next step is what would fault ---
+    #
+    # The first of three boot gates (design/roadmap/524-the-three-x86-64-boot-gates.md). The other
+    # two are checked in Rust by arch::x86_64::isa::init, where the console exists and a refusal
+    # can be read. This one cannot wait for that: step 3 below sets EFER.NXE, and on a part without
+    # NX that bit is reserved, so `wrmsr` raises #GP with no IDT installed, which escalates to a
+    # double fault with no IDT and then triple-faults. On QEMU that is a machine reset with no
+    # output whatsoever, which is the least informative failure this file can produce.
+    #
+    # So the check is here and the report is four bytes over a UART nobody has configured. That is
+    # a deliberate exception to "a refusal a reader cannot act on is half a gate" and it is worth
+    # naming as one: the alternative at this point in the boot is silence. See `no_nx` below.
+    #
+    # Only the boot CPU checks. `secondary_boot` replays this same EFER write without the check,
+    # because a secondary is another core of the part this one just interrogated; a hybrid part
+    # where that stops being true is in arch/x86_64/isa.rs's BUGS.
+    mov eax, 0x80000000                 # the maximum EXTENDED leaf, a separate space from leaf 0's
+    cpuid
+    cmp eax, 0x80000001
+    jb no_nx                            # a part that does not answer the leaf at all: CPUID would
+                                        # reply with some other leaf's bits, so this is absence
+    mov eax, 0x80000001
+    cpuid
+    test edx, 1 << 20                   # EDX[20]: NX. AMD published it in 2003; Intel calls it XD
+    jz no_nx
+
     # --- 3. PAE, CR3, LME, PG, in that order ---
     mov eax, cr4
     or eax, 1 << 5                      # CR4.PAE: 4-level paging needs it, and long mode needs it
@@ -218,6 +244,63 @@ _start:
     .byte 0xEA
     .long long_mode_entry
     .word 0x08                          # boot_gdt entry 1: 64-bit code, DPL 0
+
+# ---------------------------------------------------------------------------------------------
+# The NX refusal. Reached only from the check above, and it never returns.
+#
+# This is the earliest code in the kernel that has anything to say, and it says it the only way
+# available at this point: bytes out of a 16550's transmit register at the fixed legacy COM1 base,
+# which is the same UART `kernel/src/arch/x86_64/mod.rs`'s console driver later uses. Nothing has
+# configured it, so this does the five writes that make it send (8N1 at 115200, interrupts off) and
+# then polls the line-status register for each byte. `console::init` is never reached from here, so
+# there is no state to hand back and nothing to conflict with.
+#
+# BUGS, and it is the same one the comment at the check states: on a machine with no COM1 at all
+# (a modern laptop, a server whose serial is behind a BMC) these `out` instructions go nowhere and
+# the halt below is the entire report. That is still strictly better than the triple-fault reset
+# the check exists to prevent, because a halted machine can be attached to with a debugger and a
+# reset machine cannot, but a reader at a blank screen learns nothing. A refusal this early has no
+# better medium available.
+# ---------------------------------------------------------------------------------------------
+.type no_nx, @function
+no_nx:
+    mov dx, 0x3f9                       # IER: no interrupts, we poll
+    xor eax, eax
+    out dx, al
+    mov dx, 0x3fb                       # LCR: DLAB, so the next two writes are the divisor
+    mov al, 0x80
+    out dx, al
+    mov dx, 0x3f8
+    mov al, 1                           # divisor 1 = 115200 baud, which QEMU ignores and a real
+    out dx, al                          # 16550 needs
+    mov dx, 0x3f9
+    xor eax, eax
+    out dx, al
+    mov dx, 0x3fb                       # LCR: 8 bits, no parity, 1 stop, DLAB back off
+    mov al, 0x03
+    out dx, al
+
+    mov esi, offset no_nx_message
+1:  movzx ebx, byte ptr [esi]
+    test bl, bl
+    jz 3f
+2:  mov dx, 0x3fd                       # LSR bit 5: the transmit holding register is empty
+    in al, dx
+    test al, 0x20
+    jz 2b
+    mov eax, ebx
+    mov dx, 0x3f8
+    out dx, al
+    inc esi
+    jmp 1b
+3:  hlt                                 # and stay stopped: there is nothing this kernel can do
+    jmp 3b                              # on a part whose page tables cannot say "not executable"
+.size no_nx, . - no_nx
+
+# In `.text.boot` with the code that reads it, because `offset no_nx_message` above is a 32-bit
+# absolute address and only this section is linked at VA == PA.
+no_nx_message:
+    .asciz "\r\nnife cannot run on this machine:\r\n  cpu feature : nx is absent (the hardware bit W^X is made of; without it the page tables' no-execute is a comment)\r\n                CPUID.80000001H:EDX[20] reads 0\r\nhalted before enabling paging, because EFER.NXE would #GP here.\r\n"
 
 .code64
 .type long_mode_entry, @function

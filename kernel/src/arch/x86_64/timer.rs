@@ -23,20 +23,23 @@
 //!
 //! # BUGS
 //!
-//! - **The TSC is assumed invariant and this does not check.** `CPUID.80000007H:EDX[8]` says whether
-//!   the TSC keeps a constant rate across frequency and idle-state changes; on anything older, or on
-//!   a machine that lies, `now()` drifts against wall time when the CPU idles. QEMU's TSC is
-//!   invariant. A real machine must have the bit checked, and milestone 87's is where that gets
-//!   tested rather than argued.
+//! - **The TSC is assumed invariant, and the boot now refuses a part where that is false.**
+//!   `CPUID.80000007H:EDX[8]` says whether the TSC keeps a constant rate across frequency and
+//!   idle-state changes, and it is one of the three gates `arch::x86_64::isa::init` checks before
+//!   this file runs. What remains a limitation is the shape of the answer rather than its absence:
+//!   a gate is all that is available here, because the single rate measured below is correct at the
+//!   instant it is measured on a varying part too, so nothing in this file could have detected the
+//!   problem however carefully it measured. The bit is still untested on real silicon, and
+//!   milestone 87 (the `x86_64` bare-metal machine) is where that happens.
 //! - **`now()` is the *calling core's* TSC, and nothing synchronizes or checks the cores against
 //!   each other.** This is the one place the three ports are not interchangeable and it is worth
 //!   saying out loud: aarch64's `CNTPCT_EL0` and RISC-V's `time` are *system* counters, so a
 //!   reading taken on one core and compared against a reading taken on another is meaningful by
 //!   construction. `rdtsc` is per-core hardware. Firmware sets each core's TSC at reset and modern
 //!   single-socket parts are usually close, but "usually" is the whole of the guarantee here: this
-//!   kernel neither measures the skew nor corrects it, and `CPUID.80000007H:EDX[8]` (checked
-//!   nowhere, see above) is about rate constancy over *time* and says nothing about agreement
-//!   *between* cores. Under QEMU every vCPU derives the TSC from one host clock, so the skew is
+//!   kernel neither measures the skew nor corrects it, and `CPUID.80000007H:EDX[8]` (checked at
+//!   boot since the bullet above, and reported absent under TCG) is about rate constancy over
+//!   *time* and says nothing about agreement *between* cores. Under QEMU every vCPU derives the TSC from one host clock, so the skew is
 //!   exactly zero and no test here can see it.
 //!
 //!   **What that costs today is a deadline that spans a migration.** `kernel::user::wait_for`

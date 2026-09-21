@@ -564,7 +564,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             Some(v) => {
                 println!("  entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew {v:#018x}");
             }
-            None if arch::isa::get().rdseed => {
+            None if arch::isa::get().rdseed() => {
                 println!("  entropy     : rdseed supported but stayed dry across every retry");
             }
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
