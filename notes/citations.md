@@ -479,6 +479,14 @@ proximity rather than by parsing prose, it is cheap to pay once you know, and kn
 entry is for. It bites hardest in a long table row and in markdown wrapped at 100 columns, which is
 most of this tree.
 
+**A tool that reads only stdout can report this gate as clean while it is failing.** `script/citations`
+writes some findings to stderr, so a script that captures `stdout` alone and looks for
+`cited with no gloss` sees nothing and concludes the tree is clean. A maintainer's gloss-fixing loop
+did exactly that on 2026-09-20: it printed `clean`, and `script/lint` failed on the same tree
+seconds later. **This is the same family as the entries above** and the fix is one flag: capture
+both streams, or check the exit code rather than the text. The exit code is right; it was the
+transcript that lied.
+
 ## See also
 
 - [Naming things](../design/naming.md): why `§N` and `milestone N` are different numbers over the same

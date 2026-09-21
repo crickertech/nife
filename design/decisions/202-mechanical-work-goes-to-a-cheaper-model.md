@@ -59,6 +59,46 @@ So the trial is bounded and measured rather than assumed:
 - **What would reverse this**: cleanup costing more attention than the routing saves. That is a
   judgment calef makes on the record above, not a number a script returns.
 
+## Trial 1, `board_console`, 2026-09-20: passed, and the prediction was wrong
+
+**The work.** 43 mutation survivors in `crates/board_console`, briefed identically to a frontier
+lane (same hazards, same gates, same stopping rule), so that the comparison measures the model
+rather than the brief.
+
+**The result, re-derived by the maintainer rather than relayed.** `script/mutation -p
+board_console` reports **324 mutants, 4 missed, 283 caught, 31 unviable, 6 timeouts**, which
+reproduces the lane's own report to the unit: 43 survivors to 4, 83.2% to 96.6%. Thirty-nine killed
+by a test with each kill verified by re-running the sweep, one argued equivalent, three recorded as
+gaps needing a real tty, six timeouts unchanged under the file's own convention.
+
+| | trial | frontier lanes the same day |
+|---|---|---|
+| tokens | 369k | 184k to 641k |
+| tool calls | 152 | 120 to 593 |
+| wall clock | about an hour | 28 to 70 minutes |
+| maintainer repair | **none** | -- |
+
+**The maintainer predicted where it would fail and was wrong**, which is worth recording because the
+prediction was written before the lane reported. The expectation was competent kills and weak ledger
+prose, with equivalence arguments that assert rather than demonstrate. The one equivalence claim
+does the opposite: it names the mutation (`BootProgress::reach`'s `>` becoming `>=`), the only
+variant that can reach the extra branch, the invariant that makes the two rungs the same
+(`every_profiles_depths_count_from_one_without_gaps`), and therefore why the reassignment is
+unobservable. It also recorded that at the function, per this file's own convention, rather than
+only in the ledger.
+
+**One judgment call above a triage lane's obvious remit**, recorded because the next such lane will
+face it. It refactored production code: `candidates()` now delegates to a new `scan(dir: &Path)` so
+the directory walk can be tested against a temporary directory instead of whatever is plugged into
+the machine. The maintainer allowed it: it mirrors the crate's existing `choose`/`pick` split and is
+documented at both the function and the test. A stricter reading of the brief would have recorded a
+gap instead, and **the brief should say which reading it wants** rather than leaving a lane to guess.
+
+**What this does not yet establish.** One trial, on a crate chosen to be favourable: host-side, small,
+uncontended, with every outcome machine-checkable. Two or three more before the routing is settled,
+and **external research stays on the frontier model**, because it is the one category this tree has
+no gate behind: a fabricated summary passes every check green.
+
 ## The note this supersedes
 
 A standing maintainer note says to omit the `Agent` tool's model parameter so a lane inherits the

@@ -88,6 +88,12 @@
 #
 # BUGS
 #
+# - **`--check` is stale for the length of a commit, by construction.** The current week's row
+#   records HEAD's sha in its `commit` column, so committing anything, including the CSV this
+#   command just wrote, changes what the next run computes. A working tree that has just committed
+#   therefore reports `weekly.csv is stale` and is not. It matters less than it reads: this check is
+#   run by the weekly workflow rather than by `script/lint` or CI, so nothing gates on it, and the
+#   next scheduled run heals it. Noted 2026-09-20 after a maintainer chased it twice in one session.
 # - **Which files carry a name is written twice**: here in `name_surfaces`, and in `script/names`'
 #   SURFACES table. The parse is shared (`scripts/name_provenance.py`); the enumeration is not,
 #   because this script reads a historical `git ls-tree` and that one reads the working tree. The
