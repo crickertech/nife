@@ -66,6 +66,17 @@ pub struct PerCpu {
     /// core's tick cannot make another core reschedule. See DECISIONS §9's record-and-defer.
     pub need_resched: AtomicBool,
 
+    /// How many times **this core** has taken the CPU away from a thread, the per-core half of
+    /// `sched::PREEMPTIONS` (milestone 541).
+    ///
+    /// The global counter cannot answer "was I preempted", only "was anyone", and on a multi-core
+    /// kernel those are different questions: another core ticking its own thread moves the global
+    /// number while this core sits in a window with interrupts masked. That difference is not
+    /// academic, it is what `kernel/src/preemption_window_tests.rs` has to assert on, and the
+    /// global counter reported nine preemptions inside a masked window on the first attempt.
+    /// Written only by the owning core, in `sched::count_preemption`; read by anyone.
+    pub preemptions: AtomicU64,
+
     /// The thread this core just switched **away from**, to be finished up by the thread this
     /// core switched **to** (`NO_TID` between switches). See `sched::finish_switch`.
     ///
@@ -220,6 +231,7 @@ impl PerCpu {
             current: AtomicU64::new(NO_TID),
             idle: AtomicU64::new(NO_TID),
             need_resched: AtomicBool::new(false),
+            preemptions: AtomicU64::new(0),
             switched_from: AtomicU64::new(NO_TID),
             runq: UnsafeCell::new(Fifo::new()),
             inbox: IrqSafeMutex::new(rank::INBOX, Fifo::new()),

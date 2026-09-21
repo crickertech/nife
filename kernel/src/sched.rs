@@ -4720,6 +4720,17 @@ pub fn preemptions() -> u64 {
 
 pub fn count_preemption() {
     PREEMPTIONS.fetch_add(1, Ordering::Relaxed);
+    cpu::current().preemptions.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Preemptions taken **on this core**, which is the question the global counter cannot answer.
+///
+/// A window with interrupts masked takes none of these however long it lasts, and that property is
+/// what `kernel/src/bench.rs`'s `map_new` is built on; see milestone 541 and
+/// `kernel/src/preemption_window_tests.rs`.
+#[cfg_attr(feature = "shell", allow(dead_code))]
+pub fn preemptions_here() -> u64 {
+    cpu::current().preemptions.load(Ordering::Relaxed)
 }
 
 /// **The deferred half of preemption**: switch away if this core's tick asked for it.

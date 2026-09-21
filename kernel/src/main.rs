@@ -48,6 +48,8 @@ mod ipc_stack_depth;
 mod kmem;
 mod memory;
 mod panic;
+#[cfg(test)]
+mod preemption_window_tests;
 // PCIe enumeration + virtio-pci bring-up (the PCIe transport, DECISIONS §18). Portable: the
 // decode logic is crates/pci, and each arch supplies its window/irq constants. See
 // kernel/src/pci.rs.
