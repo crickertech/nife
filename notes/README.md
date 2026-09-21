@@ -140,6 +140,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The device tree](device-tree.md): the machine describing itself. Everything in it is
   big-endian, and the width of an address is declared by the *parent* node. Those are the
   two things most likely to be silently wrong.
+- [How this is built](how-this-is-built.md): the method as a claim, with the caveats that make it one.
 - [ISA discovery](isa-discovery.md): milestone 60, one record per architecture for what the machine
   actually is, populated once at boot and printed at boot. Why RISC-V needs a parser and aarch64
   needs only a decoder (ARM never removed the CPU's self-description; RISC-V did, on purpose), how
