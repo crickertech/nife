@@ -305,7 +305,7 @@ def blank_fenced_blocks(raw):
 #    every later unglossed mention in that file passes, including one that means something else.
 #    That is the price of the per-file rule above and it is the right price: the reader has the
 #    name in front of them.
-# 4. **Prose inside a fenced code block, and the generated roadmap index**, both skipped, for the
+# 4. **Prose inside a fenced code block**, skipped, for the
 #    reasons `--check` skips them (a page documenting this convention has to be able to show a bad
 #    citation; a generated table is not written by a person).
 # A record does not have to gloss its own number: design/roadmap/444-*.md saying "milestone 444" is
@@ -381,11 +381,13 @@ if mode == "--ratchet":
 
     # `*.log` and design/roadmap/README.md are here for one reason: **nobody wrote those lines as
     # prose.** A captured console log under crates/board_console/tests/fixtures/captured/ is a
-    # recording of what a machine printed, and the roadmap index has been generated from the blocks
-    # since milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained).
-    # Asking either to carry a gloss asks a lane to edit a transcript, which is the one thing a
-    # fixture must not have done to it. This measured itself: the first run over history flagged two
-    # citations inside a captured QEMU log.
+    # recording of what a machine printed, and the roadmap index was generated from the blocks from
+    # milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) until
+    # calef retired it on 2026-09-21. Asking either to carry a gloss asks a lane to edit a
+    # transcript, which is the one thing a fixture must not have done to it. This measured itself:
+    # the first run over history flagged two citations inside a captured QEMU log. The index
+    # pathspec stays although the file is gone, because this walks a range and the range can reach
+    # back past the deletion.
     EXCLUDE = (":!vendor/", ":!patches/", ":!*.lock", ":!*.log", ":!script/citations",
                ":!design/roadmap/README.md")
     diff = subprocess.run(
@@ -483,9 +485,10 @@ if mode == "--ratchet":
 # keeps writing those.
 if mode == "--census":
     # Ordered, and the first prefix that matches wins, so design/roadmap/proposals/ is tested before
-    # design/roadmap/. `design/roadmap/README.md` is generated (milestone 294,
-    # `design/roadmap/README.md`'s index is generated, not hand-maintained) and `*.log` is a
-    # recording, so both are out for the reason the ratchet leaves them out.
+    # design/roadmap/. `design/roadmap/README.md` was generated (milestone 294,
+    # `design/roadmap/README.md`'s index is generated, not hand-maintained) until it was retired on
+    # 2026-09-21, and `*.log` is a recording, so both are out for the reason the ratchet leaves them
+    # out; the pathspec costs nothing now that the file is gone and keeps an older checkout honest.
     AREAS = [
         ("roadmap proposals", lambda p: p.startswith("design/roadmap/proposals/")),
         ("roadmap blocks", lambda p: p.startswith("design/roadmap/")),

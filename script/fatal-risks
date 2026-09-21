@@ -406,15 +406,16 @@ def built_dates(broken):
     every BUILT and REMOVED row and on no other), so this reads a validated column rather than
     deriving a status of its own.
 
-    **It reads `script/roadmap --index`, which is generated from the blocks, and not the committed
-    `design/roadmap/README.md`, which is a rendering of that** (milestone 443). Until 2026-09-19
-    this opened the committed file, and that one `open()` was the coupling that jammed four pull
-    requests in a day: milestone 294 made the index derived and deliberately made a stale row a
-    report rather than a failure, so a lane never regenerates it and `main`'s table lags between a
-    merge and the integrator's `--write`. This check then read the lag as a fact. Risk 9's citation
-    of milestone 177 "looked current only while 177's row was not BUILT", which is a truthful record
-    failing a gate because a derived file had not caught up. The blocks are per-milestone files, so
-    two lanes on different milestones cannot collide in them at all.
+    **It reads `script/roadmap --index`, which is assembled from the blocks.** Until 2026-09-19 it
+    opened the committed `design/roadmap/README.md`, and that one `open()` was the coupling that
+    jammed four pull requests in a day: milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) made the index derived and deliberately made
+    a stale row a report rather than a failure, so a lane never regenerated it and `main`'s table
+    lagged. This check then read the lag as a fact. Risk 9's citation of milestone 177 (wire the graphical terminal stack into the real interactive boot) "looked
+    current only while 177's row was not BUILT", which is a truthful record failing a gate because
+    a derived file had not caught up. Moved upstream by milestone 443 (lanes wait on each other for
+    three reasons, and none of them is the work); calef retired the file itself on 2026-09-21 and
+    this needed no further change. The blocks are per-milestone files, so two lanes on different
+    milestones cannot collide in them at all.
 
     The column, the parse and the meaning are unchanged; only where the five cells come from moved
     one step upstream to their source."""

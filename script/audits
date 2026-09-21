@@ -159,14 +159,13 @@ problems = []
 # same four numbers as of each audit, taken the same way, and the deltas are the triggers.
 
 def current():
-    # **The rows come from `script/roadmap --index`, which generates them from the per-milestone
-    # blocks, not from the committed `design/roadmap/README.md`, which is a rendering of that**
-    # (milestone 443). Milestone 294 made the table derived and made a stale row a report rather
-    # than a failure, precisely so that no lane has to edit the tree's worst merge hotspot. The
-    # consequence is that `main`'s committed table lags between a merge and the integrator's
-    # `--write`, and this trigger would have read the lag as "fewer milestones are built than are",
-    # which is the one direction an audit signal must not err in. The regular expression, the
-    # column and the number are unchanged; only the source moved one step upstream.
+    # **The rows come from `script/roadmap --index`, which assembles them from the per-milestone
+    # blocks.** It used to read the committed `design/roadmap/README.md`, a rendering of those same
+    # blocks that lagged them between a merge and the integrator's regeneration, and this trigger
+    # read the lag as "fewer milestones are built than are", which is the one direction an audit
+    # signal must not err in. Moved upstream by milestone 443 (lanes wait on each other for three
+    # reasons, and none of them is the work); the file itself was retired on 2026-09-21 and this needed no
+    # further change, which is what moving upstream bought.
     index = subprocess.run([os.path.join(root, "script", "roadmap"), "--index"],
                            capture_output=True, text=True, cwd=root)
     if index.returncode != 0:
