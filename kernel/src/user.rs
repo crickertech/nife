@@ -511,12 +511,29 @@ pub enum LoadError {
 ///
 /// Split out from [`run`] on purpose: this is the part that can fail, so it is the part a test can
 /// call without dying (`run` diverges into the new process, or into `exit`).
-pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
+///
+/// **`windowed` is how many pages the caller is about to map into the new space itself**, and a
+/// caller that maps nothing passes zero.
+///
+/// **A `Spawn::maps` page is not free**, and since 2026-09-21 it is less free than it was: it costs
+/// a share of an intermediate table and, now that `map_physical` records, a share of a log page,
+/// both out of this space's own region. `AS_OVERHEAD`'s sixteen pages absorb that for the handful
+/// of pages most callers map and do not absorb it for the two that map thousands: the progenitor's
+/// archive window, which pays for itself at its own call site, and the installer's copy of the boot
+/// file, which did not and could not, because it goes through [`run`] and [`run`] had nowhere to
+/// put the number.
+///
+/// So the accounting is done **here**, from `spawn.maps` itself, rather than asked of every caller.
+/// That is AGENTS.md's ladder read downward: a budget a caller must remember to widen is a budget
+/// that is wrong the first time somebody maps a bigger window, and the failure it produces is an
+/// `OutOfPageFrames` panic in a spawn three frames away from anything that mentions memory.
+pub fn load(image: &[u8], windowed: u64) -> Result<(AddressSpace, u64), LoadError> {
     let elf = Elf::parse(image).map_err(LoadError::NotLoadable)?;
 
     // The budget, counted from the file before anything is carved: every segment's pages, plus
-    // one for the stack. (AS_OVERHEAD covers the tables.) A binary that lies about its size
-    // simply exhausts its own region and fails to map, spending nobody else's memory.
+    // one for the stack, plus what the caller's own windows will cost. (AS_OVERHEAD covers the
+    // tables for everything else.) A binary that lies about its size simply exhausts its own
+    // region and fails to map, spending nobody else's memory.
     let content: u64 = elf
         .segments()
         .map(|seg| {
@@ -524,7 +541,9 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
             (end - start) / FRAME_SIZE
         })
         .sum::<u64>()
-        + 1;
+        + 1
+        + windowed / 512
+        + crate::revoke::log_pages_for(windowed);
 
     let mut space =
         AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfPageFrames))?;
@@ -1146,7 +1165,11 @@ pub fn run_with_device_run(image: &[u8], spawn: Spawn, device: DeviceRun) -> ! {
 }
 
 fn run_with(image: &[u8], spawn: Spawn, device: Option<DeviceRun>) -> ! {
-    let (mut space, entry) = match load(image) {
+    // What this process is about to have mapped into it beyond its own image: the `Spawn` windows
+    // and a device run. See [`load`] for why the number is taken here rather than asked of
+    // each caller.
+    let windowed = spawn.maps.len() as u64 + device.as_ref().map_or(0, |d| d.pages);
+    let (mut space, entry) = match load(image, windowed) {
         Ok(v) => v,
         Err(e) => {
             crate::println!();
@@ -1595,7 +1618,7 @@ fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_least_authority_demo(least_authority_demo: &[u8], n: u64) -> Result<u64, LoadError> {
     // The kernel's real loader: parse, build the address space, map the W^X segments and a stack.
-    let (space, entry) = load(least_authority_demo)?;
+    let (space, entry) = load(least_authority_demo, 0)?;
     // `load` returns an owned AddressSpace; the TCB path binds one by registry name, so register it.
     let aspace_name = readopt_user_address_space(space).expect("register the loaded address space");
 
