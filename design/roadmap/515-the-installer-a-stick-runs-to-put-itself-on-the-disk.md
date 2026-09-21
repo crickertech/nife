@@ -35,9 +35,11 @@ than assumed:
   service the boot builds mounts a whole block device and has no NVMe arm
   (`kernel/src/user/fs_service.rs` names neither). An installed system has to mount the nife data
   partition off the NVMe server's endpoint, or it boots to a prompt with no disk.
-- **The installer has to find the disk.** `block_roster` cannot name an NVMe disk; that is already
-  proposed (`a-block-roster-that-can-name-an-nvme-disk.md`) and this proposal depends on it rather
-  than duplicating it.
+- **The installer has to find the disk.** ~~`block_roster` cannot name an NVMe disk, so this
+  proposal depends on `a-block-roster-that-can-name-an-nvme-disk.md`.~~ **It did not.** Rung 2a was
+  built on 2026-09-21 without it: the kernel hands the installer the NVMe endpoint directly and
+  never consults the roster. The roster proposal stands on its own merits and is unaffected; what
+  was wrong was this line, which assumed the only way to reach a disk was to look it up by name.
 
 ## The problem nobody had written down: the running system does not have its own file
 
@@ -122,7 +124,8 @@ firmware), which milestone 261 already names as the reason xenon's AHCI setting 
 One milestone for the QEMU half: a computed layout in place of the fixture, R1's handoff and blob
 grant, the ESP template tool, the installer program, the boot mount of a partition off NVMe, and the
 gate. The bench half is milestone 261's remaining step plus one boot. **It depends on**
-`a-block-roster-that-can-name-an-nvme-disk.md` and on milestone 261's bench step. It does not depend
+milestone 261 (the NVMe driver leaves the kernel)'s bench step, and no longer on `a-block-roster-that-can-name-an-nvme-disk.md`, which
+rung 2a proved unnecessary by handing the endpoint over directly. It does not depend
 on the network, on packages, or on milestone 242: an installer that asks for confirmation over the
 serial console is rung 2 on xenon, and the same installer at a USB keyboard is rung 2 on a stranger's
 PC once rung 1 has one.
