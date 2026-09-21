@@ -1,16 +1,17 @@
-# `map_new` times a window too short to mean anything
+# 541. A timed window that excludes preemption
 
-**Status: PROPOSED 2026-09-21.** Found by the lane attributing the x86_64 `map_new` regression,
-which established that the whole of a 26.4% benchmark failure was a fixed 47,752-tick lump landing
-inside the timed window, and nothing at all on the path the row claims to measure. The measurements
-are in notes/benchmarks.md under this date; this is the fix they hand off.
+**Status: BUILT 2026-09-21.** *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Either shape of the fix re-saves `map_new` on all three baselines, and a
-baseline save is a statement that a performance change is intended and understood, which is calef's
-to make rather than a lane's. The gate is that ruling, not the measurement: `script/bench --x86
---check` and the two legs beside it are what a lane runs afterwards.
+**Promoted from a proposal on calef's instruction of 2026-09-21**, which was to promote the
+`map_new` proposal and launch a lane on it. It was written the same day as
+`design/roadmap/proposals/map-new-times-a-window-too-short-to-mean-anything.md` by the lane
+attributing the x86_64 `map_new` regression (milestone 540's neighbour on
+`mapnew/attribute-the-x86-map-new-regression`), and its gate was `DECISION`, because either shape
+of the fix re-saves `map_new` on all three baselines and a baseline save is a statement that a
+performance change is intended and understood. That ruling is now given, so the save is in scope
+and the block below records what was chosen and why the alternatives lost.
 
-## The defect, in one table
+## The defect
 
 | `MAP_ITERS` | `schedule()` spelled one way | spelled the other | delta | reads as |
 |---|---|---|---|---|
@@ -18,44 +19,106 @@ to make rather than a lane's. The gate is that ruling, not the measurement: `scr
 | 192 | 529,532 | 577,284 | 47,752 | +9.0%, green |
 
 The two spellings are semantically identical and the map path's object code is byte-identical
-between them. The marginal cost of one map is 2,726 ticks in both. The delta is a constant, so what
-`map_new` reports is dominated by a term that has nothing to do with mapping, and the 10% tripwire
-fires or does not depending only on how many iterations the row happens to run.
+between them. The marginal cost of one map is 2,726 ticks in both. So `map_new` reported a
+quarter-sized regression in a path that had not changed, and the 10% tripwire fired or did not
+depending only on how many iterations the row happens to run.
 
-`map_new` is 180,604 ticks. The next smallest row that is not `spawn_reap` is `ipc_rtt` at
-17,252,344, ninety-five times larger. This row is the only one short enough for a few preemptions
-to be a quarter of it.
+**What the window actually is, which the proposal did not have.** `map_new` is roughly **250
+microseconds of guest time on every architecture** (15,870 ticks at 62.5 MHz on aarch64, 2,410 at
+10 MHz on riscv64, 180,537 TSC ticks on x86_64), against a scheduler tick period of **10 ms**
+(`arch::timer::TICK_HZ` is 100 on all three). **The window is about 2.5% of a tick period**, so
+whether a timer interrupt lands inside it is a one-in-forty coin flip on the phase the boot left
+the timer in, and that phase moves when any unrelated kernel code changes size. x86_64 is not
+fragile where the other two are sound; it is where the coin came up heads.
 
-## What to do, and the order to consider it in
+## What was chosen: option 1, and it is achievable under `-icount`
 
-1. **Take the lump out of the window.** The right fix if it can be had: a benchmark that times a
-   map loop should not be timing the scheduler. Whether the window can exclude preemption at all is
-   the open question, and answering it is most of this work. `-icount` gives every vCPU one shared
-   virtual clock, so a timed window that disables interrupts is a different measurement rather than
-   a cleaner one, and that trade has to be made explicitly.
-2. **Failing that, make the lump small relative to the row.** Raising `MAP_ITERS` from 64 to 192
-   takes the same disturbance from 26.4% to 9.0%; 512 would take it under 3%. This is cheap, and it
-   is the option that is honest about being a mitigation: the lump is still in there.
-3. **Whatever is chosen, print the marginal cost.** `(ticks(2n) - ticks(n)) / n` is 2,726 on both
-   builds where the total differs by a quarter. A row that reported the marginal number would have
-   been flat through this entire episode. That is the measurement the benchmark was always trying
-   to make.
+`kernel/src/bench.rs`'s `map_new` masks interrupts across the timed window
+(`arch::interrupts::disable` / `restore`, the contract all three architectures already implement
+with `PSTATE.DAIF`, `sstatus.SIE` and `RFLAGS.IF`). **The open question the proposal could not
+answer was whether a preemption-free window was possible at all under `-icount`. It is**, and the
+measurement is the same perturbation applied to both builds:
 
-Option 1 is the elegant one and option 2 is the cheap one, and this proposal deliberately does not
-recommend between them, because the answer depends on whether a preemption-free window is
-achievable under `-icount` and nobody has established that.
+| | old chain | the `match` | delta |
+|---|---|---|---|
+| before, x86_64 | 180,604 | 228,356 | **47,752** |
+| after, x86_64 | 180,537 | 180,537 | **0** |
 
-## Why this is not urgent and should still happen
+The row is now **byte-identical across the perturbation that used to move it by a quarter**, and
+the 67-tick difference from the old baseline is the mask instruction pair, not the map path.
 
-Nothing is currently mismeasured on `main`: the committed baseline of 180,604 reproduces exactly.
-The cost is paid by the next person, who will read a red `map_new` as a regression in the mapping
-path and go looking for it in the mapping path, which is where this proposal's lane spent most of
-its time before the iteration sweep ruled it out.
+**The `-icount` caveat, stated rather than skipped, because it is a real trade.** All vCPUs share
+one virtual clock, so a window that masks interrupts is a window that *excludes whatever the rest
+of the machine would have done inside it*. That is a different measurement, and here it is the
+wanted one: the row's job is the cost of mapping a page, not the cost of being descheduled while
+mapping one. Rows that mean to measure scheduling (`yield_switch`, `spawn_reap`) do not mask and
+must not. It is available only to a row whose body cannot block; `map_new` retypes from a region,
+walks the table and writes a leaf, taking spin locks only.
+
+**The interrupt is deferred, not lost.** It is pending at `restore` and taken there, which is why
+`map_new`'s own probe can report one preemption for a window that took none.
+`kernel/src/preemption_window_tests.rs` asserts both halves: a masked window takes no preemption on
+this core however long it runs, and unmasking delivers the tick that was held rather than dropping
+it. The second is the one a reader is right to doubt, because a fix that bought a stable number by
+starving the scheduler would be worse than the defect.
+
+## Why the other two lost, and one of them lost to a measurement the proposal did not have
+
+**Option 2, raise `MAP_ITERS` so the lump is small against the window.** It loses because
+**the lump is not a constant, so the dilution factor is not predictable.** The proposal's table
+showed the same 47,752 at 64 and at 192 iterations and read it as a fixed quantity, but that is
+one preemption measured twice; at 4,096 iterations the identical event cost **6,670** ticks on
+x86_64, a factor of seven less. The cost of an in-window preemption is bounded below by the trap
+and switch and above by however much of a quantum another runnable thread takes, so raising the
+iteration count buys an unknown number of somethings rather than a smaller fraction of one known
+thing. It is also the option that hides the noise instead of removing it, and it costs run time in
+proportion: 4,096 iterations is a 62-fold longer window on a row that CI runs on every push.
+
+**Option 3, report the marginal cost `(ticks(2n) - ticks(n)) / n`.** It was the most attractive of
+the two, because 2,726 was stable across the whole episode. It loses on two counts. It needs **two
+windows instead of one**, each still individually preemptible, and the subtraction cancels the lump
+only if the same number of preemptions land in both, which nothing arranges: at 4,096 iterations
+the unmasked aarch64 window took two preemptions and the riscv64 one took one, so the arithmetic
+that was meant to cancel the noise would have been differencing two different amounts of it.
+And it is **redundant against option 1**, which is the honest reason: with the window masked the
+total is already stable to 0.04% across the perturbation, so the marginal number would buy a second
+derivation of a number that no longer moves.
+
+**Would option 1 still win if all three cost the same?** Yes, and by more. It is the only one of
+the three that makes the row measure what its name says; the other two make a row that measures
+mapping *and scheduling* easier to live with.
+
+## The other two architectures, which were unmeasured and are not sound
+
+The proposal's second `BUGS` entry was that only x86_64 had been swept. Measured here:
+
+- **The perturbation does not trip them.** The `schedule()` shape change moves aarch64 by 1 tick
+  (15,874 to 15,873) and riscv64 by 1 tick (2,412 to 2,411), and both take zero preemptions in the
+  window. That is phase, not immunity.
+- **One preemption would trip aarch64 on its own.** Pricing it at 4,096 iterations, where two
+  preemptions land in the unmasked aarch64 window and none in the masked one, gives **~1,759 ticks
+  per preemption against a shipping window of 15,870: 11.1%, over the tripwire.** riscv64's is
+  ~112 ticks against 2,410, **4.6%**, which would not fire alone but would turn any real 6%
+  regression into a failure or any real 15% one into a pass.
+
+So the fix ships on all three, and the three baselines are saved in their own commit with the
+attribution beside the numbers (milestone 415's requirement of any save).
 
 ## BUGS
 
-- **The composition of the lump is inferred, not counted.** `47,752 / 9,594` is 4.98 `yield_switch`
-  iterations, which is why "about five preemptions" is the reading. Nothing counts them directly,
-  and a lane taking this should instrument rather than inherit the arithmetic.
-- **Only the x86_64 leg has been swept this way.** `map_new` is 64 iterations on all three
-  architectures, so the same fragility is likely on aarch64 and riscv64 and is unmeasured here.
+- **`map_el0` has the same shape and is not fixed.** It times a mapping loop from EL0, so the
+  kernel cannot mask interrupts around a window it does not own, and this milestone's mechanism
+  does not reach it. It has not been measured for the same fragility. Fixing it needs a different
+  instrument (a syscall that brackets the window, or reporting the marginal cost after all), and
+  that is a design fork rather than a lane's call.
+- **The masked window is not the benchmark's own claim, and cannot be.** `--features bench`
+  compiles the tour out and runs no tests, so nothing in the suite ever executes `map_new`'s
+  window. The tests assert the primitive it rests on, one level down. A future change that removed
+  the masking from `map_new` while leaving `arch::interrupts` correct would pass every test here.
+- **`cpu::PerCpu::preemptions` is written on every preemption on every core**, one relaxed
+  increment beside the global one, in a build with no `bench` or `test` feature. It is off the IPC
+  fastpath and was not measured; `script/bench --check` is green on all three, which bounds it at
+  under 10% of every row rather than at zero.
+- **The 2.5% window-to-tick ratio is arithmetic over one measurement of each architecture**, not a
+  distribution. Nothing here sweeps the phase, so "one in forty" is the shape of the exposure and
+  not a measured rate.
