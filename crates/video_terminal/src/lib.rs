@@ -1907,7 +1907,11 @@ mod tests {
         let mut t = vt(8, 1);
         t.feed(b"\xc3Z");
         assert_eq!(t.cell(0, 0).ch, '\u{fffd}', "truncated sequence");
-        assert_eq!(t.cell(1, 0).ch, 'Z', "the interrupting byte must still be typed");
+        assert_eq!(
+            t.cell(1, 0).ch,
+            'Z',
+            "the interrupting byte must still be typed"
+        );
 
         // A byte that can never start a sequence (a bare continuation byte): the replacement,
         // immediately, with nothing held waiting for continuation bytes that were never coming.
@@ -1958,7 +1962,11 @@ mod tests {
         for offset in [1u32, 2, 50, 150, 299, 300] {
             t.scroll_down(u32::MAX);
             t.scroll_up(offset);
-            assert_eq!(t.view_offset(), offset, "view_offset did not reach what was asked for");
+            assert_eq!(
+                t.view_offset(),
+                offset,
+                "view_offset did not reach what was asked for"
+            );
             let seen = rows(&t);
             assert_eq!(
                 seen[0],
@@ -1981,7 +1989,11 @@ mod tests {
         t.scroll_up(200);
         assert_ne!(t.view_offset(), 0);
         t.feed(b"!");
-        assert_eq!(t.view_offset(), 0, "new output must snap the view back to live");
+        assert_eq!(
+            t.view_offset(),
+            0,
+            "new output must snap the view back to live"
+        );
     }
 
     /// **`put` and `damage_cell` refuse a coordinate where only one axis is out of range.** Nothing
