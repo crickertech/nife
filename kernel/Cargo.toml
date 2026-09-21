@@ -210,6 +210,13 @@ bench = []
 # untouched either way, which is the property that actually mattered: a baseline forced to be
 # re-saved by an unrelated instrument is a tripwire that just lost its history.
 icount = ["bench"]
+# The TSC-vs-RTC measurement (the `tscdrift` lane, 2026-09-21): boot, measure the time-stamp
+# counter against the CMOS RTC for half a minute, print the implied rate and halt. Off by default
+# and in no gate. It is an instrument rather than a test, for the same reason `bench` is: the
+# question it answers takes thirty-five seconds of wall clock and has no pass/fail. Its owner and
+# its results are notes/tsc-under-tcg.md; the calibration fix that note proposes is what it exists
+# to be measured against. Name provisional. See kernel/src/arch/x86_64/tsc_probe.rs.
+tsc_probe = []
 # The soak boot (milestone 219): the tour does not halt, it builds a pool of user-mode IPC workers
 # and watches them forever, so `design/fatal-risks.md` risk 5's decisive experiment has something to
 # run. Off by default; every ordinary boot still halts. See kernel/src/soak.rs and script/soak-test.

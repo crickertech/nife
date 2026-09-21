@@ -62,6 +62,9 @@ pub mod rtc;
 pub mod segments;
 pub mod semihosting;
 pub mod timer;
+/// The TSC-vs-RTC measurement instrument. Off by default; see notes/tsc-under-tcg.md.
+#[cfg(feature = "tsc_probe")]
+pub mod tsc_probe;
 
 // The saved thread context and how a new one is faked (the Rust half of context.s). Re-exported
 // flat so `crate::arch::{Context, switch_to}` names them regardless of architecture.
