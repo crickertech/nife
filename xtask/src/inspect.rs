@@ -72,7 +72,21 @@ pub(crate) fn image() -> bool {
 
     let elf = kernel_elf();
     let img = format!("{elf}.img");
-    if !run(&objcopy, &["-O", "binary", &elf, &img]) {
+    // --remove-section: see the matching comment in scripts/qemu-runner-aarch64.sh. The ELF keeps
+    // `.eh_frame`/`.eh_frame_hdr` (milestone: CFI in hand-written asm) for a debugger to read;
+    // this flat Image, the thing a bootloader actually loads, does not need them along for the
+    // ride.
+    if !run(
+        &objcopy,
+        &[
+            "-O",
+            "binary",
+            "--remove-section=.eh_frame",
+            "--remove-section=.eh_frame_hdr",
+            &elf,
+            &img,
+        ],
+    ) {
         return false;
     }
 

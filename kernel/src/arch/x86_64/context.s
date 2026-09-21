@@ -18,23 +18,59 @@
 # The last instruction returns to a DIFFERENT thread: `ret` pops the return address that thread
 # pushed when it was switched away from (or, for a thread that has never run, the trampoline address
 # context.rs put there).
+# CFI (see notes/cfi-unwind.md, and arch/aarch64/context.s's CFI note for the full argument, which
+# applies unchanged here). One continuous frame description, no special handling at the `mov rsp,
+# rsi` stack swap: the CFA formula is in terms of the CURRENT rsp, and `next_context` (rsi) is by
+# construction the exact rsp another thread's own earlier call to this function (or
+# `Context::for_*_thread`'s synthetic frame, context.rs) left after these same six pushes. The
+# return address needs no special rule either: it is always at CFA-8 by the ordinary x86-64
+# convention, which stays true across the swap for the same reason the six GP-register offsets do.
 .global switch_to
+.type switch_to, @function
 switch_to:
+    .cfi_startproc
+    .cfi_def_cfa_offset 8
     push rbp
+    .cfi_def_cfa_offset 16
+    .cfi_offset rbp, -16
     push rbx
+    .cfi_def_cfa_offset 24
+    .cfi_offset rbx, -24
     push r12
+    .cfi_def_cfa_offset 32
+    .cfi_offset r12, -32
     push r13
+    .cfi_def_cfa_offset 40
+    .cfi_offset r13, -40
     push r14
+    .cfi_def_cfa_offset 48
+    .cfi_offset r14, -48
     push r15
+    .cfi_def_cfa_offset 56
+    .cfi_offset r15, -56
     mov [rdi], rsp                  # our context pointer is our stack pointer
-    mov rsp, rsi                    # adopt theirs
+    mov rsp, rsi                    # adopt theirs. No CFI directive belongs here; see the note above.
     pop r15
+    .cfi_restore r15
+    .cfi_def_cfa_offset 48
     pop r14
+    .cfi_restore r14
+    .cfi_def_cfa_offset 40
     pop r13
+    .cfi_restore r13
+    .cfi_def_cfa_offset 32
     pop r12
+    .cfi_restore r12
+    .cfi_def_cfa_offset 24
     pop rbx
+    .cfi_restore rbx
+    .cfi_def_cfa_offset 16
     pop rbp
+    .cfi_restore rbp
+    .cfi_def_cfa_offset 8
     ret
+    .cfi_endproc
+.size switch_to, . - switch_to
 
 # The first-run landing pad for a KERNEL thread.
 #
@@ -44,8 +80,17 @@ switch_to:
 #
 # rsp is 16-byte aligned here by construction (see context.rs's alignment note), which is what the
 # `call` below requires.
+# CFI: never reached by `call`, this is the fake return address `Context::for_kernel_thread`
+# writes into a synthetic switch frame, so `switch_to`'s `ret` lands here the first time this
+# thread runs; the return address `ret` used is this function's own, not a real caller.
+# `.cfi_undefined` on the return column (rip) says so; the `xor rbp, rbp` below is the same fact
+# again, in the frame-pointer convention this ISA also has ("the bottom of the backtrace").
 .global thread_trampoline
+.type thread_trampoline, @function
 thread_trampoline:
+    .cfi_startproc
+    .cfi_undefined rip
+    .cfi_def_cfa_offset 8
     mov rdi, rbx                    # closure_at
     mov rsi, rbp                    # call_shim
     xor rbp, rbp                    # the bottom of the backtrace
@@ -53,6 +98,8 @@ thread_trampoline:
     # thread_entry is `-> !`. If it ever returns, stop rather than run on.
 1:  hlt
     jmp 1b
+    .cfi_endproc
+.size thread_trampoline, . - thread_trampoline
 
 # The first-run landing pad for a USER thread. rbx = entry, rbp = user stack pointer,
 # r13..r15 = the child's first three arguments.
@@ -75,9 +122,15 @@ thread_trampoline:
 # frames start at the same top and overlap the region `frame.write` is about to fill. 176 is
 # size_of::<TrapFrame>(), asserted in exceptions.rs, and a multiple of 16 so rsp stays aligned for
 # the `call` below.
+# CFI: same fake-frame reasoning as thread_trampoline above.
 .global user_entry_trampoline
+.type user_entry_trampoline, @function
 user_entry_trampoline:
+    .cfi_startproc
+    .cfi_undefined rip
+    .cfi_def_cfa_offset 8
     sub rsp, 176                    # reserve [top-176, top) for this thread's TrapFrame
+    .cfi_def_cfa_offset 184
     mov rdi, rbx
     mov rsi, rbp
     mov rdx, r13
@@ -87,3 +140,5 @@ user_entry_trampoline:
     call user_thread_entry
 1:  hlt
     jmp 1b
+    .cfi_endproc
+.size user_entry_trampoline, . - user_entry_trampoline

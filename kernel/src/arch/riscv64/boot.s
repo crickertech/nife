@@ -15,6 +15,12 @@
 # satp` fetches the next instruction through a broken mapping and the machine vanishes with no
 # output. See notes/riscv-port.md and arch/riscv64/mmu.rs (BOOT_PAGE_TABLE).
 
+# CFI (call-frame information): see notes/cfi-unwind.md. No directives on `_start` itself below:
+# like kernel/src/arch/aarch64/image_header.s, it is a data structure (the RISC-V Image header)
+# with one instruction grafted onto its front so the entry point can also be byte 0 of it; function
+# directives on it would claim it is a function, which it is not. `_start_kernel` (the real code)
+# gets them instead.
+
 .section ".text.boot", "ax"
 .global _start
 _start:
@@ -48,7 +54,13 @@ _start:
     .ascii  "RSC\x05"               # magic2 (u32): the field bootloaders actually check
     .word   0                       # res3
 
+.type _start_kernel, @function
 _start_kernel:
+    .cfi_startproc
+    # No caller: OpenSBI jumps here directly, paging off, no stack yet. Spans through
+    # `_start_high` below (one continuous flow, no `call`/`jalr` in between); see the file
+    # header's CFI note.
+    .cfi_undefined ra
     # a0 = hart id, a1 = DTB (both must survive to the high half; we touch only t0-t2 below).
 
     # --- turn Sv39 on ---
@@ -96,6 +108,8 @@ _start_high:
     # kernel_main is `-> !`. If it ever returns, stop rather than run off into whatever follows.
 3:  wfi
     j       3b
+    .cfi_endproc
+.size _start_kernel, . - _start_kernel
 
 # The secondary-hart entry (SMP). SBI HSM `sbi_hart_start` (arch::psci_cpu_on) starts a hart HERE, at
 # this PHYSICAL address, with paging off, in S-mode, a0 = its hart id and a1 = the opaque word core 0
@@ -103,7 +117,11 @@ _start_high:
 # and the fine map), so we only replay the satp/high-half transition, exactly like `_start`, then jump
 # to `secondary_main`. It adopts the fine map, sets its own trap vector and per-CPU state, and idles.
 .global secondary_boot
+.type secondary_boot, @function
 secondary_boot:
+    .cfi_startproc
+    # No caller: SBI HSM starts a hart here directly, same reasoning as `_start_kernel`.
+    .cfi_undefined ra
     # Turn Sv39 on via the boot table (same three steps as _start). a0 (hart id) and a1 (stack top)
     # must survive, so touch only t0/t1.
     lla     t0, BOOT_PAGE_TABLE
@@ -127,3 +145,5 @@ secondary_high:
     # secondary_main is `-> !`. If it ever returns, park rather than run on.
 1:  wfi
     j       1b
+    .cfi_endproc
+.size secondary_boot, . - secondary_boot

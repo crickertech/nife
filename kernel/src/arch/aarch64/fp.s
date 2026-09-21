@@ -31,8 +31,13 @@
 // x0 = the state block. `q0`-`q31` go at offset 16 (see `FpState` in fp.rs: the first sixteen
 // bytes are the `live` flag and its padding, which keeps the vector area 16-byte aligned without
 // the caller having to think about it). `FPCR` and `FPSR` follow at 528.
+// CFI: see notes/cfi-unwind.md. Both routines below are ordinary leaf functions reached by `bl`
+// and returning by `ret`; sp never moves, so the default frame (CFA = sp, return address in lr)
+// is already correct and no directive needs restating it.
 .global fp_save
+.type fp_save, @function
 fp_save:
+    .cfi_startproc
     add     x1, x0, #16
     stp     q0,  q1,  [x1, #0]
     stp     q2,  q3,  [x1, #32]
@@ -56,6 +61,8 @@ fp_save:
     str     x2, [x0, #528]
     str     x3, [x0, #536]
     ret
+    .cfi_endproc
+.size fp_save, . - fp_save
 
 // void fp_restore(const FpState *state)
 //
@@ -63,7 +70,9 @@ fp_save:
 // `fp.rs` guarantees: a `ldp q0, q1` under a trapping `FPEN` would take the very trap this whole
 // mechanism exists to serve, from inside the scheduler, on a path that cannot afford it.
 .global fp_restore
+.type fp_restore, @function
 fp_restore:
+    .cfi_startproc
     add     x1, x0, #16
     ldp     q0,  q1,  [x1, #0]
     ldp     q2,  q3,  [x1, #32]
@@ -86,6 +95,8 @@ fp_restore:
     msr     fpcr, x2
     msr     fpsr, x3
     ret
+    .cfi_endproc
+.size fp_restore, . - fp_restore
 
 .arch_extension nosimd
 .arch_extension nofp

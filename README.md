@@ -10,9 +10,9 @@ x86_64**, on real silicon as well as under emulation, and it runs software nobod
 unmodified `ripgrep` 14.1.1 from crates.io, **zero patches**, with byte-identical transcripts from
 three separately built binaries.
 
-It is a **demonstrator** (DECISIONS §14, the project's direction): built to stand next to Linux,
-macOS and seL4 on the primitives that define an operating system, and to win where a minimal kernel
-should.
+It is a **demonstrator**, which is what §14 (the project's direction) committed it to: built to
+stand next to Linux, macOS and seL4 on the primitives that define an operating system, and to win
+where a minimal kernel should.
 
 **And it was built in about ten weeks by one person who does not write the lines.** Many machine
 agents work in parallel lanes; one architect reviews architecture and outcomes. What makes that
