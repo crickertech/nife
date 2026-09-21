@@ -236,6 +236,9 @@ pub fn enable_software_interrupts() {
 const CAUSE_ECALL_U: u64 = 8;
 /// `scause` exception code for a breakpoint (`ebreak`).
 const CAUSE_BREAKPOINT: u64 = 3;
+/// `scause` exception code for an illegal instruction, which is **also** what an FP instruction
+/// raises while `sstatus.FS` is Off. See the arm that reads it in [`riscv_trap_body`].
+const CAUSE_ILLEGAL_INSTRUCTION: u64 = 2;
 /// `scause` exception code for a page fault on an instruction fetch.
 const CAUSE_INSTRUCTION_PAGE_FAULT: u64 = 12;
 /// `scause` exception code for a page fault on a load.
@@ -451,6 +454,35 @@ extern "C" fn riscv_trap_body(frame: &mut TrapFrame) -> bool {
             frame.sepc += 4;
             crate::syscall::dispatch(frame);
         }
+        // **A thread asked for the FP unit for the first time**
+        // (milestone 447 (a thread's vector registers are its own)), and RISC-V does not
+        // say so: an FP instruction under `sstatus.FS == Off` is reported as an ordinary illegal
+        // instruction, with nothing in `scause` or `stval` to separate it from a genuinely bad
+        // opcode. aarch64 has its own exception class for this and x86 has its own vector.
+        //
+        // **So this does not decode the instruction; it retries it.** `FS == Off` in the frame is
+        // the whole guard: open the unit, leave `sepc` where it is, and let the `sret` re-execute
+        // whatever trapped. An instruction that was genuinely illegal traps a second time, this
+        // time with `FS` no longer Off, and falls through to `user_fault` or the panic below. The
+        // cost of being wrong is one extra trap on a path that is already killing a thread; the
+        // alternative was reading the faulting instruction out of user memory (`stval` is permitted
+        // to be zero for this cause, and is on some parts) and decoding seven major opcodes plus
+        // the compressed forms, to answer a question the retry answers for free.
+        //
+        // **The frame's `sstatus`, not just the live CSR**, and this is the RISC-V-only trap:
+        // `trap.s` writes the frame's copy back on the way out, so an enable that only touched the
+        // live register would be undone by its own return. `crate::fp::enable_for_current` has just
+        // loaded a register file, so the hardware's `FS` is Dirty and that is what the frame gets.
+        //
+        // Like the aarch64 arm, it serves S-mode as well as U-mode: milestone 447's concurrency
+        // proof is written as kernel threads, because every userspace target in `targets/` is
+        // soft-float and cannot ask.
+        CAUSE_ILLEGAL_INSTRUCTION
+            if frame.sstatus & super::fp::SSTATUS_FS == 0 && crate::fp::enable_for_current() =>
+        {
+            frame.sstatus = (frame.sstatus & !super::fp::SSTATUS_FS) | super::fp::SSTATUS_FS_DIRTY;
+        }
+
         // A breakpoint from S-mode is the trap self-test: count it and step over. From U-mode it
         // falls through to `user_fault` below, because every userspace panic handler ends in
         // `ebreak` *expecting to die* ("a driver bug is a dead driver"); stepping over it would

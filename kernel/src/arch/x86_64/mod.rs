@@ -44,6 +44,7 @@ use core::arch::{asm, global_asm};
 pub mod ap_boot;
 pub mod context;
 pub mod exceptions;
+pub mod fp;
 pub mod interrupts;
 pub mod iommu;
 pub mod irq;
@@ -75,6 +76,11 @@ global_asm!(include_str!("boot.s"));
 
 // The context switch and the two first-run trampolines (the asm half of context.rs).
 global_asm!(include_str!("context.s"));
+
+// Saving and restoring the `FXSAVE` area (milestone 447 (a thread's vector registers are its own)).
+// Separate from context.s because it moves
+// a register file rather than a calling convention's callee-saved set; see fp.rs.
+global_asm!(include_str!("fp.s"));
 
 // The 256 trap stubs, the shared restore path, the `syscall` entry, and the door into ring 3
 // (the asm half of exceptions.rs). The constants are substituted rather than duplicated: a 64-bit

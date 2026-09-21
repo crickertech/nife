@@ -652,6 +652,10 @@ impl BootProgress {
         // its first, so reaching this rung means the whole block printed.
         if let Some(at) = line.find(boot_ladder::MACHINE) {
             self.reach(Stage::Machine);
+            // `&&`, not `||`: kept the same way `banner_line` is, from first arrival only. A
+            // second machine line in one session is not expected, but the field's own doc says
+            // "the machine description's summary line", singular, and this is what keeps that
+            // true rather than accidental.
             if complete && self.machine_line.is_none() {
                 self.machine_line = Some(line[at..].to_string());
             }
@@ -885,6 +889,18 @@ impl BootProgress {
             self.reached = stage;
         }
     }
+
+    // `>` rather than `>=` above is deliberately not load-bearing, and that is worth recording
+    // rather than leaving for the next reader to wonder about. `stage == self.reached` can only
+    // hold two ways: same variant with no data, where reassigning changes nothing observable;
+    // or two `Stage::Firmware` values whose rungs compare equal, which (per `board::Rung`'s own
+    // `PartialEq`, depth alone) means same depth. Within one session every `Stage::Firmware` is
+    // drawn from the one profile `BootProgress::new` was given, and
+    // `every_profiles_depths_count_from_one_without_gaps` (in `board`) is what makes a depth
+    // point at exactly one rung in that profile. So an "equal" `Stage::Firmware` is the *same*
+    // `&'static Rung`, and reassigning it to itself is not observable either. `>=`'s extra
+    // branch (firing when `stage == self.reached`) is therefore equivalent to `>`'s here, and a
+    // mutant that makes this `>=` is expected to survive.
 }
 
 /// The decimal run after `name=` in `text`, if there is one.
@@ -1090,6 +1106,21 @@ mod tests {
             );
             assert_eq!(progress.machine_line(), Some(machine));
         }
+    }
+
+    /// **The machine line is kept from its first arrival, not overwritten by a later one**, the
+    /// same rule `banner_line` follows and for the same reason: `&&` rather than `||` in the
+    /// guard that captures it.
+    #[test]
+    fn the_machine_line_is_kept_from_first_arrival_only() {
+        let mut progress = BootProgress::default();
+        progress.observe_line("nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz");
+        progress.observe_line("nife machine: aarch64, 8 processor(s), 512 MiB, 200 Hz");
+        assert_eq!(
+            progress.machine_line(),
+            Some("nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz"),
+            "the first machine line is kept, not replaced by a second"
+        );
     }
 
     /// **A red verdict is a failure and not a stage.** Milestone 268's item 5: a degraded board on
@@ -1765,5 +1796,56 @@ mod tests {
     fn a_firmware_rung_is_only_offered_by_a_board_that_has_one() {
         assert!(board::RADON.rung("spl").is_some());
         assert!(board::XENON.rung("spl").is_none());
+    }
+
+    /// Every stage's label, which every report reads through [`fmt::Display`] rather than
+    /// through this function directly, so nothing else in the suite pins the exact wording down.
+    #[test]
+    fn every_stage_has_its_own_label() {
+        assert_eq!(Stage::Cold.label(), "nothing recognisable");
+        assert_eq!(Stage::Banner.label(), "kernel banner");
+        assert_eq!(Stage::Machine.label(), "machine described");
+        assert_eq!(Stage::SelfTest.label(), "self-test verdict");
+        assert_eq!(Stage::Tour.label(), "boot tour complete");
+        assert_eq!(Stage::Prompt.label(), "shell prompt");
+        assert_eq!(Stage::Soak.label(), "soak running");
+        assert_eq!(Stage::Sweep.label(), "job-mix sweep running");
+        assert_eq!(Stage::SweepDone.label(), "job-mix sweep complete");
+        let rung = board::RADON.rung("spl").expect("radon has an spl rung");
+        assert_eq!(Stage::Firmware(rung).label(), "U-Boot SPL");
+    }
+
+    /// `Display` writes the label into the formatter; a mutant that turned this into a no-op
+    /// would still return `Ok`, and only reading what actually landed in the string catches it.
+    #[test]
+    fn displaying_a_stage_writes_its_label() {
+        assert_eq!(Stage::Tour.to_string(), "boot tour complete");
+    }
+
+    /// `Failure::describe`'s one match guard, both ways: with a reason, the diagnosis and the
+    /// reason both appear; without one, only the diagnosis does.
+    #[test]
+    fn firmware_refused_describes_with_and_without_a_reason() {
+        let with_reason = Failure::FirmwareRefused {
+            diagnosis: "U-Boot gave up",
+            reason: "the line before it".to_string(),
+        };
+        assert_eq!(with_reason.describe(), "U-Boot gave up: the line before it");
+
+        let without_reason = Failure::FirmwareRefused {
+            diagnosis: "U-Boot gave up",
+            reason: String::new(),
+        };
+        assert_eq!(without_reason.describe(), "U-Boot gave up");
+    }
+
+    /// [`LineFeeder::tail`] reads back exactly the bytes still pending, which is the only thing
+    /// this accessor promises.
+    #[test]
+    fn line_feeder_tail_reads_back_the_pending_bytes() {
+        let mut feeder = LineFeeder::new();
+        let feeding = feeder.feed(b"a partial line, no terminator yet");
+        assert_eq!(feeding.tail, "a partial line, no terminator yet");
+        assert_eq!(feeder.tail(), "a partial line, no terminator yet");
     }
 }

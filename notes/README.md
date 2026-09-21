@@ -854,6 +854,17 @@ in the code or the conversation doesn't make sense, it belongs here.
   calibration verdict on the exhaustive crates (`network_time_protocol`, `globally_unique_identifier_partition_table`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
+- [The mutation census record](mutation-census.md): milestone 518 (a census that cannot be attributed is a number nobody can act on), the time series the page above is
+  not. `script/mutation --report` prints a per-crate table and throws the run output away, so the
+  tree kept **one** per-crate record in its life and every comparison was made against it whether or
+  not it was the right comparand. One row per crate per census in
+  `notes/project-metrics/mutation-census.csv`, backfilled to all four censuses that have ever
+  completed, and a `--compare` whose `points` column attributes the corpus-level move to crates
+  exactly rather than ranking them. Carries the rename table a like-for-like join needs, derived
+  from `lib.rs` rather than `Cargo.toml` because git pairs identical `Cargo.toml` files across a
+  multi-crate sweep and answers confidently wrong. The first finding: the fall
+  `design/fatal-risks.md`'s risk 3 stands on is an artifact of two rows counting a timeout two
+  different ways, and read consistently the rate went up. Names provisional.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
   to the question milestone 191 raised: **can each of these harnesses actually be made to fail?**
   Opens with the check §134 asked for first, whether Kani or CBMC can produce an Inductive Validity
@@ -1327,6 +1338,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   suite against `sifive-u54`, the RVA profiles and `thead-c906` (211 tests, all five green), the
   preflight that proves `-cpu` is enforced rather than merely advertised, what the narrow models
   would have caught, and the one test written for the board that no CPU model can exercise.
+- [RISC-V Summit Europe 2026, read for what it changes here](riscv-summit-2026.md): the most recent
+  summit that has happened and published anything (Bologna, 2026-06-08 to 11; North America and
+  China are both still ahead). Nine talks that touch this tree, each labelled **claim**, **ratified**
+  or **shipping**, because conference talks blur the three and the difference is the value. The
+  Server Platform specification ratified in May 2026 and mandates **UEFI and ACPI** on riscv64, which
+  this kernel cannot boot; CHERI became a new base ISA family (`RV32Y`/`RV64Y`), still a draft, which
+  makes "capability" an ambiguous word this project spent its thesis on; nothing announced a shipping
+  RISC-V IOMMU, so the gate on
+  milestone 143 (silicon IOMMU) has not moved. Also what was judged irrelevant and why, and a
+  `BUGS` section honest that no video was watched.
 - [The HVF leg](hvf-leg.md): the aarch64 suite on the physical Apple Silicon core, added to
   `script/ci-build`'s local tier as its final check (and skipped loudly where HVF does not exist, so a Linux CI
   transcript cannot be misread as silicon coverage). What `--hvf` does and does not re-run, the
