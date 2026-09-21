@@ -224,16 +224,30 @@ pub fn init_frequency(boot_info_pointer: usize) {
     let per_second = 1000 / CALIBRATION_MS;
     APIC_TIMER_HZ.store(apic_delta as u64 * per_second, Ordering::Relaxed);
 
-    match super::isa::tsc_crystal_hz() {
-        Some(hz) => {
-            TSC_HZ.store(hz, Ordering::Relaxed);
-            TSC_HZ_FROM_CPUID.store(true, Ordering::Relaxed);
+    let (hz, from_cpuid) = match super::isa::tsc_crystal_hz() {
+        Some(hz) => (hz, true),
+        None => (tsc_delta * per_second, false),
+    };
+
+    // **The weakest of the three checks became the same check as the other two** (2026-09-21). This
+    // number had no validation at all: `frequency` asserted only that it was nonzero, which a
+    // calibration that came back garbage passes. Calibration is a *measurement*, against a PIT, on a
+    // vCPU the host may deschedule mid-window, so this is the one of the three rates that can be
+    // wrong without anything being broken. A rate outside the band is not a machine this kernel can
+    // time anything on; see `counter_frequency_protocol::is_plausible` for where the bounds come
+    // from.
+    assert!(
+        counter_frequency_protocol::is_plausible(hz),
+        "the TSC rate came back as {hz} Hz ({}), which no real part runs at",
+        if from_cpuid {
+            "CPUID leaf 0x15"
+        } else {
+            "PIT calibration"
         }
-        None => {
-            TSC_HZ.store(tsc_delta * per_second, Ordering::Relaxed);
-            TSC_HZ_FROM_CPUID.store(false, Ordering::Relaxed);
-        }
-    }
+    );
+
+    TSC_HZ.store(hz, Ordering::Relaxed);
+    TSC_HZ_FROM_CPUID.store(from_cpuid, Ordering::Relaxed);
 }
 
 /// **Start PIT channel 0 pulsing its interrupt line at about `hz`**, and report the rate actually

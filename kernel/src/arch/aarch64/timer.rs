@@ -139,7 +139,11 @@ static COUNTER_OPEN: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) };
 /// The GIC must already be up: we ask it to deliver INTID 30, and it has to exist to be asked.
 pub fn init() {
     let freq = CNTFRQ_EL0.get();
-    assert!(freq > 0, "firmware left CNTFRQ_EL0 at zero: no clock");
+    assert!(
+        counter_frequency_protocol::is_plausible(freq),
+        "CNTFRQ_EL0 reports {freq} Hz, which no real part does: firmware never wrote it, or wrote \
+         nonsense"
+    );
 
     // Let EL0 read the virtual counter (`CNTVCT_EL0`) and `CNTFRQ_EL0`, so a userspace program can
     // time *itself*, the way Linux exposes the counter to its vDSO. Without this the read traps.

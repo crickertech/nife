@@ -140,6 +140,50 @@
 /// unpadded, the same shape `clock_protocol::MAGIC` and `environment_protocol::MAGIC` use.
 pub const MAGIC: [u8; 8] = *b"TIMEBAS1";
 
+/// **The slowest counter this tree will believe**, 100 kHz.
+///
+/// Every rate check in this tree used to validate against *zero* and nothing else: aarch64 asserted
+/// `freq > 0`, riscv64 asserted `hz > 0`, and `x86_64`'s PIT calibration had no band at all. A
+/// firmware that reports 1 Hz, or a calibration that returns garbage because the host descheduled
+/// the vCPU mid-measurement, passes all three and then poisons every number derived from it,
+/// silently, which is the failure this whole file exists to prevent one layer up.
+///
+/// **The bound is deliberately far below anything real**, because a false refusal on somebody's
+/// silicon is worse than the failure it prevents: it turns a machine that would have run into a
+/// machine that will not boot. The slowest counter in this tree's world is radon's 4 MHz `time`
+/// CSR; the 32.768 kHz watch crystal is the slowest thing anyone drives a timer from anywhere, and
+/// 100 kHz sits above it on purpose, because nothing here is a watch. Anything under this is a
+/// measurement that failed, not a part that is slow.
+pub const MIN_PLAUSIBLE_HZ: u64 = 100_000;
+
+/// **The fastest counter this tree will believe**, 100 GHz, and the same reasoning as
+/// [`MIN_PLAUSIBLE_HZ`] read from the other end. No part ticks a counter at 100 GHz and none will
+/// for a long time (the fastest here is a few GHz of TSC), so a number above this came from a
+/// division that went the wrong way or a register that was never written. Generous by two orders of
+/// magnitude on purpose: this band exists to catch nonsense, not to police hardware.
+pub const MAX_PLAUSIBLE_HZ: u64 = 100_000_000_000;
+
+/// Is `hz` a rate a real machine could plausibly have? See [`MIN_PLAUSIBLE_HZ`] and
+/// [`MAX_PLAUSIBLE_HZ`] for where the bounds come from and why they are so wide.
+///
+/// One definition rather than three, because a band copied into each architecture's timer is a band
+/// that drifts: the kernel's aarch64, riscv64 and `x86_64` boot paths all call this, at the point
+/// each first learns its number.
+///
+/// # Examples
+///
+/// ```
+/// use counter_frequency_protocol::is_plausible;
+///
+/// assert!(is_plausible(4_000_000)); // radon's `time` CSR
+/// assert!(is_plausible(62_500_000)); // QEMU's aarch64 virtual counter under TCG
+/// assert!(!is_plausible(0)); // firmware never wrote it
+/// assert!(!is_plausible(1)); // firmware wrote nonsense, and `> 0` would have believed it
+/// ```
+pub fn is_plausible(hz: u64) -> bool {
+    (MIN_PLAUSIBLE_HZ..=MAX_PLAUSIBLE_HZ).contains(&hz)
+}
+
 const OFF_MAGIC: usize = 0;
 const OFF_HZ: usize = OFF_MAGIC + 8;
 
@@ -264,6 +308,26 @@ mod tests {
         // SAFETY: as above.
         let page = unsafe { TimebasePage::new(bytes.as_ptr() as u64) };
         assert_eq!(page.hz(), None);
+    }
+
+    /// The band accepts every rate this tree has actually met and refuses the two shapes the old
+    /// `> 0` assertions let through: a register firmware never wrote, and a register firmware wrote
+    /// nonsense into. The real rates are pinned by value so that a later reader narrowing the band
+    /// for tidiness fails here rather than on somebody's board.
+    #[test]
+    fn the_band_accepts_real_rates_and_refuses_nonsense() {
+        for hz in [
+            4_000_000,     // radon, the VisionFive 2's `time` CSR
+            10_000_000,    // QEMU virt, riscv64
+            62_500_000,    // QEMU virt, aarch64 under TCG
+            24_000_000,    // a common ARM board crystal
+            3_000_000_000, // a TSC
+        ] {
+            assert!(is_plausible(hz), "{hz} Hz is a rate a real machine has");
+        }
+        for hz in [0, 1, 1_000, u64::MAX] {
+            assert!(!is_plausible(hz), "{hz} Hz is a measurement that failed");
+        }
     }
 
     /// The layout constants do not overlap and the page fits in one frame, pinned so a mutant

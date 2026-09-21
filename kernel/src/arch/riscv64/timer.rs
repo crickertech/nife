@@ -75,7 +75,11 @@ pub fn init_frequency(dtb_ptr: usize) {
     let hz = list
         .timebase_hz
         .expect("the device tree states no /cpus/timebase-frequency, and RISC-V has no CNTFRQ_EL0");
-    assert!(hz > 0, "a counter that never advances cannot drive a tick");
+    assert!(
+        counter_frequency_protocol::is_plausible(hz),
+        "the device tree states a timebase of {hz} Hz, which no real part runs at: a counter that \
+         slow cannot drive a tick, and one that fast was never measured"
+    );
     TIMEBASE_HZ.store(hz, Ordering::Relaxed);
 }
 
