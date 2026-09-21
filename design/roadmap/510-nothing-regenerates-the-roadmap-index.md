@@ -1,13 +1,17 @@
 # 510. Regenerating the index is nobody's job
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+**Status: REFUSED 2026-09-21.** *(Number provisional until the merge queue lands it.)* **Retired
+unbuilt**: calef deleted the artifact this milestone existed to keep current, ruling that the index
+table was no longer worth building. The staleness this block describes was real, and it is now
+**unrepresentable** rather than fixed, which is the strongest way for a problem to end. REFUSED
+rather than REMOVED, because nothing here was ever built to remove. The argument below stands as
+written and is kept because it was correct; what changed is the world it described. Promoted from the
 proposal `nothing-regenerates-the-roadmap-index`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Filed by milestone 443 (lanes wait on each other for three)'s lane, which took every gate off the generated index and found the last
 thing holding it together is a sentence.
 
-**Gate: NONE.** Everything it touches is in this tree, except the identity, which is milestone 128.
 
 ## What is left after 443
 
@@ -63,6 +67,13 @@ already made and this proposal does not reopen it.
 - **Nothing here bounds how stale is too stale.** Three rows was tolerable and invisible; the failure
   mode is that it is still tolerable at thirty and still invisible. A staleness number is printed on
   every `script/roadmap` run and read by whoever happens to be looking, which is rung zero.
+
+## Revisit
+
+- **Condition.** Nothing, and that is the point rather than an omission. This milestone's work was
+  keeping a generated table current; the table is gone, so the work cannot recur. The bell would be
+  the reintroduction of any generated artifact that a human is expected to regenerate by hand, at
+  which point this block's argument applies again to that artifact rather than to this one.
 
 ## Index row
 
