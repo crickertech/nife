@@ -752,7 +752,11 @@ fn timebase_page_phys() -> Option<u64> {
         return Some(cached);
     }
 
-    let phys = crate::memory::alloc()?.addr();
+    // `alloc_zeroed`, not `alloc`: only the first 16 bytes of this frame are written below, and
+    // the WHOLE frame is then mapped read-only into every process on this architecture. An
+    // unzeroed frame would carry whatever its last owner left in it across that boundary. Found
+    // 2026-09-21 by the lane that built the current-CPU page on this function's shape.
+    let phys = crate::memory::alloc_zeroed()?.addr();
     // `phys_to_virt` is a plain address computation (a `const fn`, no memory access), so nothing
     // below this line needs a safety comment for naming `dst`; the comments that follow cover the
     // two places `dst` is actually written through.
