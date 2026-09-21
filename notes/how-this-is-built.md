@@ -21,8 +21,8 @@ someone who is not building an operating system, and it is the one nobody had wr
 
 ## The numbers, measured on 2026-09-21
 
-From a first commit on 2026-07-12: **71 days**, 5,039 commits, **228 milestones built** of 515
-recorded, 203 architecture decisions, 72 crates, 50 user programs, **178 Kani proof harnesses**,
+From a first commit on 2026-07-12: **71 days**, 5,039 commits, **228 milestones built**, 203
+architecture decisions, 72 crates, 50 user programs, **178 Kani proof harnesses**,
 39,892 lines of kernel code and 88,334 elsewhere, on **three architectures**, with a booting kernel
 on real RISC-V silicon, a shell, a filesystem, a network stack, a compositor, and an unmodified
 third-party program (`ripgrep`, zero patches) running on all three.
@@ -44,6 +44,12 @@ microkernel that boots on silicon and runs unmodified third-party software**, an
 buy is a verified kernel.
 
 ## Five caveats, because the numbers are worthless without them
+
+**There is deliberately no denominator here.** An earlier draft said "228 built of 515 recorded",
+and that ratio means nothing: the roadmap holds refusals, proposals promoted to numbers, and
+decisions recorded as milestones, so it grew by 68 entries in a single day without anyone building
+anything. A reader would have computed a completion percentage and been wrong, and that would have
+been this page's fault rather than theirs.
 
 **This is size and rate, not quality.** A count of milestones marked BUILT is a count of blocks
 marked BUILT. This tree found nine of them misrecorded in a single sweep, and a whole risk register

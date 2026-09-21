@@ -54,11 +54,36 @@ here; the ordering is the maintainer's reading of adequacy distance, closest fir
   precondition calef set for that: a package manager and a trivial install must exist before a
   second customer can be accepted at all.
 
-## What is being asked
+## calef's answer, 2026-09-21: the path stays vacant, and it is blocked rather than empty
 
-**Name one, or record that the path stays vacant and why.** Both are answers. What the tree should
-not keep doing is carrying a ranking function whose top entry is blank, because that quietly hands
-the ordering to whatever is most interesting that week.
+**No customer is named, and that is a decision rather than a deferral.** The reason is a precondition
+calef set himself and which this proposal had listed as one candidate's caveat rather than as the
+governing fact: **no third party may be accepted until a package manager and a trivial install
+exist.** Every external customer is therefore blocked on milestone 198 (the package manager) and
+DECISIONS §157 (a trivial install is a web page, a USB drive and packages).
 
-If one is named, the roadmap owes it a milestone and the fatal-risks file owes risk 8 an update,
-since its current text ends with the path vacant.
+**So the ranking function is not idling through neglect.** It is waiting on a gate calef already
+closed, and writing that down converts a gap into a gate: a reader who finds the customer path empty
+now finds the reason beside it, and `design/fatal-risks.md` doing the ranking meanwhile is the
+designed behaviour rather than a drift.
+
+**The candidate that came closest was refused for the reason that matters.** A measurement appliance
+scores well on every stated criterion: adequate within a milestone or two, failure survivable,
+somebody notices when the numbers stop, and it exercises isolation, drivers and real hardware rather
+than avoiding them. **It fails the distinction principle 1 exists to draw.** calef's own correction
+is that he is the first customer and not the audience, which separates *the architect runs it* from
+*a customer runs it*; an appliance serving this project is the architect again in a different hat,
+and naming it would let the ranking resume without resolving what made it vacant.
+
+**What this makes of the package manager.** If no customer can be named until it exists, then the
+work that unblocks the customer path **is** the customer path, and milestone 198 inherits the
+ranking function's top slot without being a customer itself. That is the strongest available reading
+of principle 1 while the path is blocked, and it is what the roadmap should act on.
+
+## What would reopen this
+
+- **Milestone 198 and §157 landing**, at which point a third party becomes acceptable and this
+  proposal's criteria apply again to whoever is named.
+- **A workload arriving that meets the criteria without a package manager**, which is possible and
+  should not be ruled out by this decision: the criteria are the test, and the precondition binds
+  only third parties.
