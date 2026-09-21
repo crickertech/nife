@@ -1,7 +1,12 @@
 # 150. How does a thread's CPU time reach userspace?
 
-**Status: DECIDED.** calef, 2026-09-13. Raised as a fork in milestone 126 on 2026-08-26 by that
-milestone's lane, investigated rather than built because it crosses the syscall surface. Ruled
+**Status: DECIDED.** calef, 2026-09-13. **Sub-choice 3 was overturned on 2026-09-21, inside the
+window this section named**, by §204 (how userspace asks where a thread runs), which replaces the
+widened `SURVEY` return with a selector. Everything else here stands: tick-sampled, per-thread,
+scheduled on-CPU time is unchanged, and only how the figure reaches a reader moved.
+
+Raised as a fork on 2026-08-26 by the lane of milestone 126 (who else is running, and who is
+allowed to ask), investigated rather than built because it crosses the syscall surface. Ruled
 **option 2, scheduled on-CPU time**, when the maintainer surfaced the fork while ratifying names.
 *(Number provisional until the merge queue lands it.)*
 
