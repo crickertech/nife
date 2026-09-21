@@ -39,6 +39,32 @@ nife produces about itself, on any real silicon.
 developed and tested under QEMU; what needs silicon is the *number*, not the code. A lane may build
 this today and leave the measurement to a bench evening, which is how this milestone was launched.
 
+## What this number will be compared against, written before it exists
+
+**Recorded 2026-09-21, deliberately in advance.** When this milestone produces a multi-tasking
+number it will be read against the language-isolation line of work, by anyone who knows the
+literature: *The Case for Writing a Kernel in Rust* (APSys '17, DOI 10.1145/3124680.3124717) and
+RedLeaf (OSDI '20). Writing down now what makes that comparison honest is what stops it being a
+defence afterwards.
+
+**Three things the comparison has to say, or it is not one.**
+
+- **The guarantee differs.** A language-isolated crossing trusts the compiler and the absence of
+  `unsafe` in the isolated code; a capability crossing trusts the hardware and a kernel small enough
+  to prove things about. A faster number under a weaker guarantee is not a better result, and a
+  slower one under a stronger guarantee is not an excuse. Say which was bought.
+- **The hardware and the baseline are part of the number.** This tree's own rule already: state what
+  each number means and where it is not apples-to-apples, the way milestone 25 (cross-OS performance
+  comparison) records the map "tie" as zeroing-bound and the spawn caveat as a lighter object than a
+  Unix process.
+- **What each system can isolate is not the same set.** nife runs an unmodified `ripgrep` with zero
+  patches and confines C behind DECISIONS §31 (the foreign-language seam)'s narrow interface; a
+  language-isolated system isolates code it compiled. That is a difference in what the crossing is
+  *for*, and it belongs beside the timing rather than after it.
+
+**This section does not say who wins.** That is a claim that leaves the machine, and
+`AGENTS.md` puts it in calef's hands along with every other published fact.
+
 ## What this is for
 
 DECISIONS §96 asks whether nife should stay a process kernel (what it is today: every thread gets its own kernel stack) or move to an event kernel (one stack per core, explicit continuations), the model seL4, OKL4 and NOVA all eventually adopted. §96 found three of the four inputs to that question already settled by measurement (memory savings are negligible at this project's scale; stack-shrinking is closed off, no slack remains; the verification argument doesn't transfer, since Kani never reaches `kernel/src` here). The fourth input, performance, is the one live, unmeasurable argument: the paper §96 cites (Warton, on Pistachio) found event kernels roughly tied with process kernels on micro-benchmarks but **20% better on a real multi-tasking workload (AIM7)**. Every instrument this project currently owns (`ipc_rtt`, `ipc_rtt_el0`, the icount tripwire, milestone 132's footprint gate) is a micro-benchmark, and would show approximately nothing for this question.

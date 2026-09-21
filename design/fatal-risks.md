@@ -413,6 +413,30 @@ Linux and macOS with the honest ties recorded.
 benchmark), whose own block calls it *"the number that would decide the event-kernel question."*
 Milestone 188 (the IPC fastpath) is the follow-on if the number is bad.
 
+**The counter-thesis is published, and it is more specific than "microkernels are slow."** Two papers
+argue that the per-crossing cost is avoidable by removing the crossing: *The Case for Writing a
+Kernel in Rust* (Levy, Campbell, Ghena, Pannuto, Dutta, Levis, APSys '17, DOI
+10.1145/3124680.3124717), which proposes to *"entirely throw away hardware protection within the
+kernel and, instead, write the kernel in a memory-safe programming language"*, and RedLeaf (OSDI
+'20), which builds a whole system on that bet. **If they are right, a capability crossing is a cost
+this project chose rather than inherited**, and that is precisely what this risk says would be
+fatal.
+
+**Their own stated limits are the strongest thing in this entry's favour, and they are quoted rather
+than asserted.** The 2017 paper evaluates Rust *"in a single-threaded setting"* on low-power
+uniprocessors, leaves on-disk and in-hardware structures *"e.g. the page table"* to future work, and
+says of information-flow control that *"it is not yet clear if such implementations would be
+sound."* **Their open problem is risk 5 below**, which is this project's own hardest entry, so
+neither side gets to treat multicore as settled.
+
+**What this obliges when milestone 168's number arrives.** It will be read against theirs by anyone
+who knows the literature, and a comparison is only honest if it says what differs: a language-
+isolated crossing trusts the compiler and the absence of `unsafe` in the isolated code, where a
+capability crossing trusts the hardware and a kernel small enough to prove things about. Those are
+different guarantees at different prices, and the number alone does not say which was bought. This
+entry carries the obligation; the reading of both papers is a lane's, and its note will be cited
+here once it lands rather than promised from here.
+
 **Ranked fourth on purpose.** This is where a skeptic expects the project to die and it is where the
 project has the most evidence that it will not.
 
