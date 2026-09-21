@@ -21,10 +21,16 @@
 # `FpState` is (see fp.rs). `fxsave64` rather than `fxsave`: the 64-bit form records the full
 # 64-bit instruction and data pointers instead of the 32-bit ones, which is the only difference and
 # is the truthful one on this architecture.
+# CFI: see notes/cfi-unwind.md. Ordinary leaf functions, `call`ed and `ret`urning; rsp never
+# moves, so the default frame (CFA = rsp + 8, return address at CFA - 8) is already correct.
 .global fp_save
+.type fp_save, @function
 fp_save:
+    .cfi_startproc
     fxsave64 [rdi + 16]
     ret
+    .cfi_endproc
+.size fp_save, . - fp_save
 
 # void fp_restore(const FpState *state)
 #
@@ -33,6 +39,10 @@ fp_save:
 # exceptions masked, round to nearest) rather than leaving the block all zeros the way the other
 # two architectures can.
 .global fp_restore
+.type fp_restore, @function
 fp_restore:
+    .cfi_startproc
     fxrstor64 [rdi + 16]
     ret
+    .cfi_endproc
+.size fp_restore, . - fp_restore

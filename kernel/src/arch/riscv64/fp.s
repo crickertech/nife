@@ -23,8 +23,12 @@
 #
 # a0 = the state block. `f0`-`f31` at offset 16 (the `live` flag and `fcsr` are the first sixteen
 # bytes; see `FpState` in fp.rs).
+# CFI: see notes/cfi-unwind.md. Ordinary leaf functions, `call`ed and `ret`urning; sp never moves,
+# so the default frame (CFA = sp, return address in ra) is already correct.
 .global fp_save
+.type fp_save, @function
 fp_save:
+    .cfi_startproc
     .option push
     .option arch, +d
     fsd  f0,   16(a0)
@@ -63,6 +67,8 @@ fp_save:
     sd   t0, 8(a0)
     .option pop
     ret
+    .cfi_endproc
+.size fp_save, . - fp_save
 
 # void fp_restore(const FpState *state)
 #
@@ -73,7 +79,9 @@ fp_save:
 # Called with `sstatus.FS != Off`, which `fp.rs` guarantees: an `fld` under `FS == Off` raises the
 # illegal-instruction trap this whole mechanism exists to serve, from inside the scheduler.
 .global fp_restore
+.type fp_restore, @function
 fp_restore:
+    .cfi_startproc
     .option push
     .option arch, +d
     ld   t0, 8(a0)
@@ -112,3 +120,5 @@ fp_restore:
     fld  f31, 264(a0)
     .option pop
     ret
+    .cfi_endproc
+.size fp_restore, . - fp_restore

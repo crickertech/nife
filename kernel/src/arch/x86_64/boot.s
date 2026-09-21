@@ -80,6 +80,15 @@
 3:  .long _start                        # the 32-bit entry, a physical address (`.boot` is linked low)
 4:  .align 4
 
+# CFI (call-frame information): see notes/cfi-unwind.md. No directives anywhere in the 16-bit and
+# 32-bit stretches of this file (`_start` through `long_mode_entry`, and the whole of
+# `secondary_boot` through `ap_long_mode_entry`): these modes have no valid stack for most of their
+# length (no caller, no `sp` worth describing) and DWARF call-frame information is specified and
+# consumed as this ELF's own 64-bit format throughout, so annotating a 16- or 32-bit instruction
+# stream inside it would be describing a frame in a format nothing downstream reads the same way
+# real 64-bit code is read here. `long_mode_entry`/`_start_high` and `ap_long_mode_entry` (both
+# `.code64`) get real CFI once execution is running in the width the rest of this file is.
+
 # ---------------------------------------------------------------------------------------------
 # The 32-bit trampoline. Linked low; every `offset` below is therefore a physical address.
 # ---------------------------------------------------------------------------------------------
@@ -211,7 +220,14 @@ _start:
     .word 0x08                          # boot_gdt entry 1: 64-bit code, DPL 0
 
 .code64
+.type long_mode_entry, @function
 long_mode_entry:
+    .cfi_startproc
+    # No caller: falls out of the 32-bit trampoline above with no stack yet. A SEPARATE region from
+    # `_start_high` below despite being one continuous control-flow: they land in different output
+    # sections (`.text.boot` here, `.text` there), and `.size`'s `. - symbol` cannot cross a section
+    # boundary, so each needs its own `.cfi_startproc`/`.cfi_endproc`/`.size`.
+    .cfi_undefined rip
     # Load the flat data descriptor everywhere. In 64-bit mode the base and limit of these are
     # ignored, but the segment registers still have to hold something loadable, and a stale 32-bit
     # descriptor from the loader's own GDT is not it once we have replaced the GDT.
@@ -226,13 +242,19 @@ long_mode_entry:
     # register, and this is the first instruction in the kernel that names a high address.
     movabs rax, offset _start_high
     jmp rax
+    .cfi_endproc
+.size long_mode_entry, . - long_mode_entry
 
 # ---------------------------------------------------------------------------------------------
 # The 64-bit, high-half world. From here every absolute symbol resolves correctly.
 # ---------------------------------------------------------------------------------------------
 .section .text, "ax"
 .code64
+.type _start_high, @function
 _start_high:
+    .cfi_startproc
+    # No caller either, same reasoning as `long_mode_entry` just above (which jumps here).
+    .cfi_undefined rip
     movabs rsp, offset __stack_top      # the high boot stack
 
     # Zero .bss by hand (it occupies no bytes in the ELF). Both bounds are page-aligned, so the
@@ -269,6 +291,8 @@ _start_high:
     # kernel_main is `-> !`. If it ever returns, stop rather than run off into whatever follows.
 3:  hlt
     jmp 3b
+    .cfi_endproc
+.size _start_high, . - _start_high
 
 # ---------------------------------------------------------------------------------------------
 # The boot GDT: the minimum that makes a far jump into 64-bit mode legal.
@@ -421,7 +445,12 @@ ap_pmode32:
     .word 0x08                          # boot_gdt entry 1: 64-bit code, DPL 0, L=1
 
 .code64
+.type ap_long_mode_entry, @function
 ap_long_mode_entry:
+    .cfi_startproc
+    # No caller: falls out of the AP's own 16/32-bit trampoline above. Same reasoning as
+    # `long_mode_entry`.
+    .cfi_undefined rip
     mov ax, 0x10                        # boot_gdt entry 2: flat data
     mov ds, ax
     mov es, ax
@@ -447,6 +476,8 @@ ap_long_mode_entry:
 
     movabs rax, offset secondary_main
     jmp rax
+    .cfi_endproc
+.size ap_long_mode_entry, . - ap_long_mode_entry
 
 # ---------------------------------------------------------------------------------------------
 # This trampoline's own data: a tiny GDT good only for the 16->32 step (this file's real one,

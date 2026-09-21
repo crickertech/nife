@@ -1,5 +1,10 @@
 // The arm64 Linux Image header.
 //
+// CFI-EXEMPT: this file is a data structure (a 64-byte header the bootloader reads), not code,
+// even though `_start` below is technically entered by hardware. `.cfi_startproc`/`.type ...,
+// @function` would claim it is a function with a frame, which would be lying about what it is;
+// see notes/cfi-unwind.md. `script/lint`'s CFI check looks for this exact marker.
+//
 // This 64-byte struct is the difference between QEMU treating us as an anonymous
 // blob and QEMU treating us as a kernel.
 //
