@@ -526,9 +526,33 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// closing paragraph stranded between the two copies. One copy is kept, the closing paragraph is
 /// back at the end, and no wording changed.
 ///
+/// **`22_384` (2026-09-21): one frame per live address space, and it is a design cost rather than a
+/// leak.** The current-CPU page (calef's ruling that a thread observing itself reads a page) gives
+/// every `AddressSpace` one frame of its own, mapped read-only into the process and written by the
+/// context switch. `Drop` frees it, and the test
+/// `current_cpu_tests::the_page_is_returned_when_the_space_is_dropped` exists to prove that
+/// specifically, because this frame is the only one an address space owns that its region does not
+/// pay for and so the only one `memory_region::destroy` does not cover.
+///
+/// So what this reading counts is **address spaces the suite deliberately keeps alive**: the
+/// services a test spawns and hands off rather than reclaims. aarch64 read **22352** against the
+/// 22249 above, and 103 frames is 103 long-lived spaces, which is the same population every
+/// service-shaped entry in this ledger is already talking about. It is not a per-test cost and does
+/// not grow with the suite; it grows with the number of processes alive at the end, one page each.
+///
+/// The frame could have come out of the space's own region instead, and then no ledger entry would
+/// have been needed because the region already accounts for it. That was refused: a lent region is
+/// sized by whoever lent it, and unconditionally spending one more page of it is exactly what cost
+/// two regressions when the timebase page tried it in `user_address_space_create`. Paying for it
+/// here, visibly, is the honest version of the same frame.
+///
+/// **+32 headroom**, following the two entries above rather than this ledger's more common +15, for
+/// the reason the entry above gives: a margin that only just clears a local reading has not
+/// accounted for the two-frame local-against-CI divergence that entry measured. 22352 + 32 = 22384.
+///
 /// Raising or lowering it is a decision, not a formality: read the `[that test kept N frames]`
 /// lines the run prints, find who grew or shrank, and be able to say why.
-const SUITE_PAGE_FRAME_BUDGET: usize = 22_249;
+const SUITE_PAGE_FRAME_BUDGET: usize = 22_384;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

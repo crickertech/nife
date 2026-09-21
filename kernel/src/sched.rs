@@ -2042,14 +2042,22 @@ pub fn schedule() {
 
         // The incoming thread's low half. A kernel thread gets the empty reserved table, which
         // makes every low address fault, which is exactly right: it has no business down there.
-        let next_root = sched
-            .threads
-            .get(next)
-            .unwrap()
-            .space
-            .as_ref()
-            .map(|s| s.ttbr0())
-            .unwrap_or_else(crate::arch::mmu::reserved_root);
+        //
+        // **And its current-CPU page, off the same borrow**, which is the whole of this kernel's
+        // half of calef's 2026-09-21 ruling that a thread observing itself is a page rather than a
+        // crossing. Here rather than at any wake or placement site for `last_cpu`'s reason one
+        // field over: this is the one point every path to a CPU passes through, whatever moved the
+        // thread. And on this core rather than the one that queued it, which is what makes writer
+        // and reader the same hardware thread and the ordering argument a short one
+        // (`crates/current_cpu_protocol`). A kernel thread has no space and needs no page: it has
+        // no userspace to read one from.
+        let next_root = match sched.threads.get(next).unwrap().space.as_ref() {
+            Some(space) => {
+                space.publish_current_cpu(cpu::id() as u64);
+                space.ttbr0()
+            }
+            None => crate::arch::mmu::reserved_root(),
+        };
 
         // The incoming thread's cycle-counter grant (milestone 229, DECISIONS §139 option 4), read
         // here for the same reason the root is: this is the last point the lock is held. A kernel
@@ -4077,7 +4085,17 @@ pub fn configure_thread_control_block(
             return Err(abi::Error::WrongObject); // only an unstarted TCB may be configured
         }
     }
-    let space = crate::user::take_user_address_space(aspace_name).ok_or(abi::Error::NoSuchSlot)?;
+    let mut space =
+        crate::user::take_user_address_space(aspace_name).ok_or(abi::Error::NoSuchSlot)?;
+
+    // **This is the moment a bare address space becomes a thread's**, so it is the moment the
+    // current-CPU page belongs in it (calef's 2026-09-21 ruling on a thread observing itself; the
+    // decision's section is on another branch and is named here rather than cited). A space the
+    // kernel built already has one and this does nothing; a space userspace built gets one here,
+    // which is the only way `supervision_protocol::build_child_space`'s children ever get a real
+    // one rather than a placeholder the kernel cannot write. Silent on failure by design: see
+    // `AddressSpace::attach_current_cpu_page`.
+    space.attach_current_cpu_page();
 
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
@@ -4304,6 +4322,16 @@ pub fn start_thread_control_block(tid: ThreadId, args: [u64; 3]) -> Result<(), a
 /// every context switch back to this thread will re-install it.
 pub fn adopt_address_space(space: crate::user::AddressSpace) {
     let ttbr = space.ttbr0();
+
+    // **The current-CPU page is written here as well as at switch-in**, and the test that found
+    // this is the reason it is not obvious. `schedule()` writes the page of the thread it is
+    // switching TO, which covers every thread that has a space before it first runs. A thread that
+    // adopts one *while already running* (the `sched::spawn(|| run(image, ...))` shape every
+    // kernel-side spawn uses) was switched in before it had a space at all, so its first user
+    // instruction ran against a page nobody had touched and `current_cpu` answered `None` until the
+    // next preemption. This is that thread's switch-in, arriving late; `cpu::id()` is the core it
+    // is standing on right now, which is exactly what the switch would have written.
+    space.publish_current_cpu(cpu::id() as u64);
 
     {
         let mut guard = IPC_TABLES.lock();

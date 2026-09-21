@@ -351,6 +351,15 @@ path = "src/cycle_counter_reader.rs"
 test = false
 bench = false
 
+# The current-CPU reader (calef's 2026-09-21 ruling that a thread observing itself reads a page):
+# reads its own core twice across a yield, with no syscall, and reports both plus the id bound the
+# kernel and userspace have to agree on.
+[[bin]]
+name = "current_cpu_reader"
+path = "src/current_cpu_reader.rs"
+test = false
+bench = false
+
 [dependencies]
 abi = { version = "0.1.0", path = "../crates/abi" }
 # The words the milestone 7-19 capability demonstrations agree on, now that each is its own
@@ -391,6 +400,9 @@ byte_sink_protocol = { version = "0.1.0", path = "../crates/byte_sink_protocol" 
 # manifest format neither `timetable` nor `filesystem_protocol` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
+# The current-CPU page's layout and its `CPU_ID_BOUND`, which `current_cpu_reader` reports back so
+# the kernel's test can check that the two binaries still agree on it.
+current_cpu_protocol = { version = "0.1.0", path = "../crates/current_cpu_protocol" }
 # The three crates `network_time_test_server` and `unwritable_clock_witness` need (milestone 290),
 # which arrived with them when the `ntp` binary's test-only roles moved out of `components/`. All
 # three are already in the shipping graph through `components`; nothing external was taken.

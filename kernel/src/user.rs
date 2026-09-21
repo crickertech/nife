@@ -79,6 +79,26 @@ pub struct AddressSpace {
     /// It carries the owner rather than just the name because **two different things build an
     /// address space and only one of them owns its memory**. See [`Backing`].
     backing: Backing,
+
+    /// **The frame this space's thread reads its own CPU out of**, or `None` if it has none.
+    ///
+    /// calef ruled on 2026-09-21 that a thread observing *itself* is a per-thread page rather than
+    /// a crossing, because the consumer is a memory allocator asking on every allocation. (That
+    /// ruling's `design/decisions/` section is on another branch and not on `main` yet, so it is
+    /// named here rather than cited.) `crates/current_cpu_protocol` holds the layout and the
+    /// argument; this field is the kernel's end of it.
+    ///
+    /// **Per address space is per thread only because of §105 (`std::thread::spawn` stays
+    /// declined)**: `Tcb::CONFIGURE` consumes the address-space capability, so no two TCBs name one
+    /// space. The crate's `BUGS` section carries what has to change if that ever stops being true.
+    ///
+    /// Allocated from the global frame allocator rather than retyped from `backing`'s region, which
+    /// is the one place this differs from every other page a space owns. A lent region is sized by
+    /// whoever lent it, and spending one more page of it unconditionally is exactly what cost two
+    /// regressions when the timebase page tried it in `user_address_space_create`; the comment
+    /// recording that is still beside that function. So `Drop` frees this frame by hand, the one
+    /// thing in this struct that `memory_region::destroy` does not cover.
+    current_cpu_page: Option<PageFrame>,
 }
 
 /// **Who returns the region an [`AddressSpace`] spends, and the reason this is a type rather
@@ -175,11 +195,102 @@ impl AddressSpace {
             return None;
         };
 
-        Some(AddressSpace {
+        let mut space = AddressSpace {
             root: PageFrame::from_addr(root),
             asid,
             backing: Backing::Owned(region),
-        })
+            current_cpu_page: None,
+        };
+
+        // Unconditional, here rather than at the six places that build a process by hand, for the
+        // reason `map_timebase_page` learned empirically: `load`'s own coverage misses every
+        // kernel-built spawn, and each one found that out as a page fault. Every space this
+        // function returns is a space a thread will run in, so this is the one place that covers
+        // all of them and cannot be forgotten by a seventh.
+        space.attach_current_cpu_page();
+
+        Some(space)
+    }
+
+    /// **Give this space the page its thread reads its own CPU from**, if it has not got one.
+    ///
+    /// Idempotent, because two paths reach it: `new` for the spaces the kernel builds, and
+    /// `sched::configure_thread_control_block` for the ones userspace builds and hands over. A
+    /// space that goes through both gets one page.
+    ///
+    /// **Every failure is silent and leaves the space without a page**, which is deliberate and is
+    /// the honest shape rather than the convenient one: a thread with no page reads an unmapped
+    /// address, and a thread with a page reads the truth, but a `load` that failed outright because
+    /// one frame was unavailable would turn a diagnostic convenience into a reason a program will
+    /// not start. The states are told apart at the reader (`current_cpu_protocol::CurrentCpuPage`
+    /// answers `None`), which is where somebody can act on it.
+    pub fn attach_current_cpu_page(&mut self) {
+        if self.current_cpu_page.is_some() {
+            return;
+        }
+        let Some(frame) = crate::memory::alloc_zeroed() else {
+            return;
+        };
+
+        // Zeroed above, then stamped: the magic makes a prepared page tell itself from a frame
+        // nobody wrote, and the sentinel makes "this thread has never run" a state rather than
+        // CPU 0. `alloc_zeroed` rather than `alloc` because the *rest* of this frame is mapped
+        // into the process too, and whatever the last owner left in it would go with it.
+        let bytes = current_cpu_protocol::build_page();
+        // SAFETY: `frame` is freshly allocated and owned by nobody else yet, the direct map is
+        // valid for it, and `PAGE_BYTES` (16) is far under `FRAME_SIZE`, so the copy stays inside
+        // the frame.
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                mmu::phys_to_virt(frame.addr()) as *mut u8,
+                bytes.len(),
+            );
+        };
+
+        // Read-only to the process, which is what keeps this out of Tock's necessarily-unsafe
+        // kernel category (notes/trusted-base.md): the kernel writes a frame it owns and lends the
+        // process a view, rather than writing into memory the process supplied.
+        if self
+            .map_physical(
+                current_cpu_protocol::PAGE_VA,
+                frame.addr(),
+                Flags::user_rodata(),
+                crate::revoke::PageMapSource::NoCapability,
+            )
+            .is_err()
+        {
+            crate::memory::free(frame);
+            return;
+        }
+        self.current_cpu_page = Some(frame);
+    }
+
+    /// **Publish the core this space's thread is about to run on.** Called from the context
+    /// switch, on the core doing the switching, which is the core the thread will execute on.
+    ///
+    /// One branch and one relaxed store when the space has a page, one branch when it has not. The
+    /// ordering argument is `current_cpu_protocol`'s and is not repeated here; its short form is
+    /// that writer and reader are the same hardware thread, and that two successive writers are
+    /// ordered by the scheduler's own release/acquire handoff rather than by anything this adds.
+    #[inline]
+    pub fn publish_current_cpu(&self, cpu: u64) {
+        if let Some(frame) = self.current_cpu_page {
+            // SAFETY: the frame is this space's own, allocated by `attach_current_cpu_page` and
+            // freed only by `Drop`, so the direct-map view is live and 16 bytes wide here. The
+            // caller is the one core switching this thread in, and a thread is on one core, so
+            // this is the only writer for as long as the store takes.
+            unsafe { current_cpu_protocol::publish(mmu::phys_to_virt(frame.addr()), cpu) };
+        }
+    }
+
+    /// **The kernel's own view of this space's current-CPU page**, for the tests that read it from
+    /// the side the thread cannot: the unset state is unobservable from inside a thread, because a
+    /// thread that can ask has already been switched in. `None` if the space has no page.
+    #[cfg(test)]
+    pub fn current_cpu_page_kernel_va(&self) -> Option<u64> {
+        self.current_cpu_page
+            .map(|frame| mmu::phys_to_virt(frame.addr()))
     }
 
     /// Map one fresh, zeroed page at `va`, and hand back a **kernel** view of it.
@@ -353,6 +464,13 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
         // Lent, not owned: the caller holds the `MemoryRegion` capability to this region and reclaims
         // it with `DESTROY`. See `Backing` for the double free that taught us to say so.
         backing: Backing::Lent(region),
+        // **Not attached here**, for the same reason the timebase page is not mapped here (the
+        // comment below): this syscall serves every purpose that wants a bare address-space
+        // object, most of which never run a thread and some of which are sized to the page. The
+        // space gets its page when a TCB binds it, in `sched::configure_thread_control_block`,
+        // which is the moment it becomes a thread's space and therefore the moment the question
+        // "which CPU am I on" starts having an answer.
+        current_cpu_page: None,
     };
 
     // The timebase page is **not** mapped unconditionally here (an earlier version of this
@@ -495,6 +613,14 @@ impl Drop for AddressSpace {
         // whole argument.
         if let Backing::Owned(region) = self.backing {
             crate::memory_region::destroy(region);
+        }
+
+        // The current-CPU page is the one frame this space owns that did NOT come out of its
+        // region, so `destroy` above does not cover it and ownership has to do the work by hand.
+        // Safe to do here, after the root is no longer live: nothing can read the mapping any
+        // more, and the only writer was the context switch of a thread that is gone.
+        if let Some(frame) = self.current_cpu_page.take() {
+            crate::memory::free(frame);
         }
 
         // The ASID contract (crates/address_space_identifier): invalidate every TLB entry wearing our tag, THEN
@@ -2890,6 +3016,17 @@ mod entropy_tests;
 /// stated") is the same on all three, so the assertion is too.
 #[cfg(all(test, initrd))]
 mod counter_frequency_tests;
+
+/// **A thread's own CPU, read from a page with no syscall** (calef's 2026-09-21 ruling that
+/// observing yourself is a page and observing another thread is a selector; that decision's
+/// section is on another branch and is named here rather than cited).
+///
+/// Its own file rather than a case in `tests.rs`, and arch-neutral on purpose: all three
+/// architectures run literally these tests (§19 (architectural parity is a tenet)), and here that
+/// is more than a convention. The page exists *because* the register that would answer this is
+/// x86_64-only, so a suite that proved it on one ISA would prove the wrong thing.
+#[cfg(all(test, initrd))]
+mod current_cpu_tests;
 
 /// **The credential service, its provisioner, and its clients** (milestone 56, the credential half;
 /// notes/credentials.md).
