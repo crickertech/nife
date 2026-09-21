@@ -1338,6 +1338,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   suite against `sifive-u54`, the RVA profiles and `thead-c906` (211 tests, all five green), the
   preflight that proves `-cpu` is enforced rather than merely advertised, what the narrow models
   would have caught, and the one test written for the board that no CPU model can exercise.
+- [RISC-V Summit Europe 2026, read for what it changes here](riscv-summit-2026.md): the most recent
+  summit that has happened and published anything (Bologna, 2026-06-08 to 11; North America and
+  China are both still ahead). Nine talks that touch this tree, each labelled **claim**, **ratified**
+  or **shipping**, because conference talks blur the three and the difference is the value. The
+  Server Platform specification ratified in May 2026 and mandates **UEFI and ACPI** on riscv64, which
+  this kernel cannot boot; CHERI became a new base ISA family (`RV32Y`/`RV64Y`), still a draft, which
+  makes "capability" an ambiguous word this project spent its thesis on; nothing announced a shipping
+  RISC-V IOMMU, so the gate on
+  milestone 143 (silicon IOMMU) has not moved. Also what was judged irrelevant and why, and a
+  `BUGS` section honest that no video was watched.
 - [The HVF leg](hvf-leg.md): the aarch64 suite on the physical Apple Silicon core, added to
   `script/ci-build`'s local tier as its final check (and skipped loudly where HVF does not exist, so a Linux CI
   transcript cannot be misread as silicon coverage). What `--hvf` does and does not re-run, the
