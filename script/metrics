@@ -1229,10 +1229,7 @@ CHARTS = [
       ('unfalsified', 'harnesses_unfalsified')], 1.0, None, None),
     ('unsafe.svg', 'unsafe blocks per 10,000 lines outside kernel/src/arch/',
      'the direction is down; the ceiling is script/lint’s',
-<<<<<<< HEAD
      [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88, None),
-=======
-     [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88),
     ('unsafe-trust.svg', 'The same unsafe blocks, by trust boundary',
      'kernel: no confinement over it. userspace: confined like any other program. see notes/'
      'project-metrics.md for shared/boot chain/unclassified and why this is not the chart above',
@@ -1240,8 +1237,7 @@ CHARTS = [
       ('userspace (confined)', 'unsafe_trust_userspace'),
       ('shared (both, unresolved)', 'unsafe_trust_shared'),
       ('boot chain (uefi_loader)', 'unsafe_trust_boot_chain'),
-      ('unclassified', 'unsafe_trust_unclassified')], 1.0, None),
->>>>>>> origin/main
+      ('unclassified', 'unsafe_trust_unclassified')], 1.0, None, None),
     ('fatal-risks.svg', 'The nine things that would kill nife',
      'design/fatal-risks.md; tested means an experiment has been run, not that it came back green',
      [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],
