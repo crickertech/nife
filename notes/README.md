@@ -1183,6 +1183,26 @@ in the code or the conversation doesn't make sense, it belongs here.
   Hubris, seL4, Fuchsia) and the rule that decides build-vs-reuse: the reuse boundary is the
   TCB boundary. Inside it, always build; userspace components, actively prefer porting,
   because a confined foreign component is evidence for the milestone-23 thesis.
+- [RedLeaf, and the opposite bet about where isolation comes from](redleaf.md): the closest academic
+  relative this project has, read from the papers rather than recalled, plus the 2017 Tock-founding
+  argument it descends from. Organised by the bets rather than by feature: what each system has to
+  trust and what happens when that trust is misplaced, what a crossing costs (their 124 cycles
+  against seL4's 834 on one machine, and their own later kernel's 1,058 with hardware isolation),
+  and what each can isolate (they refused a measured speedup rather than allow `unsafe` in a domain;
+  this tree runs unmodified `ripgrep`). Where RedLeaf is ahead, stated without hedging. The four
+  places the briefing sketch was wrong, including that the paper is UC Irvine and not Utah. And the
+  finding that this tree cannot state its own trusted-core size in anyone else's units.
+- [What each system makes you trust, measured](trusted-base.md): the companion to the RedLeaf note,
+  and the one that supplies the units. Three incompatible definitions of "trusted" (nife's is the
+  kernel plus the hardware; Tock's is the `unsafe` part of one address space; RedLeaf's adds the
+  compiler, an IDL compiler and a signing build environment), with seL4 as the reference point that
+  draws the boundary where this project does. The tree's own numbers re-derived, including the split
+  the headline metric hides: 824 `unsafe` blocks outside `kernel/src/arch/`, but **561 of them are in
+  userspace and outside the trusted base**, so the kernel's own count is 577. The 2017 paper's six
+  unsafe categories run against this tree file by file: two of them do not exist here, because a
+  kernel that cannot allocate has no allocator to write unsafely and a kernel that follows no user
+  pointer has no buffer to validate. And why this tree needs no `TakeCell`: it has threads and a
+  lock, and Tock has neither.
 - [Deadlock](deadlock.md): the four Coffman conditions, and why breaking *any one* makes
   deadlock impossible. Every rule in our locking discipline is "pick a condition and destroy
   it." Also: Rust does not save you from this, and the reason why is worth knowing.
