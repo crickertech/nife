@@ -17,7 +17,7 @@ exits, one is refused by the page tables and its death is delivered to its super
 regions back leaving the frame count where it found it, and runs a userspace built from **real ELF
 programs**, read out of an initrd it found in PVH's module list, before it halts.**
 `script/test --arch x86_64` runs
-**170 of the kernel's own tests and skips 67**, every skip naming its missing fixture. What is built
+**170 of the kernel's own tests and skips 67** (~~stale~~: 226 and 72 as of 2026-09-21, counted by the `x86-gates` lane; the suite grows and this number was not re-derived), every skip naming its missing fixture. What is built
 and what is still open are spelled out at the bottom of this block; `notes/x86-port.md` is the
 working record. The scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U
 process, and run the test suite") is **met** as of 2026-08-24, on QEMU. **What keeps this milestone
