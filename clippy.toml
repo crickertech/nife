@@ -22,6 +22,10 @@ doc-valid-idents = [
     "..",
     # Projects, products and vendors.
     "RedoxFS",
+    # Google's operating system, and the source of this tree's boot-slot attribute layout
+    # (`crates/boot_slot`). A proper noun: backticking it would say "an identifier you could type".
+    "ChromeOS",
+    "ChromiumOS",
     "CoreMark",
     "OpenSBI",
     "VisionFive",
