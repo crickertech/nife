@@ -734,6 +734,25 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
             BRK_COUNT.fetch_add(1, Ordering::Relaxed);
             false
         }
+        // **A thread asked for the FP unit for the first time**
+        // (milestone 447 (a thread's vector registers are its own)). Vector 7 is `#NM`,
+        // "device not available", which `CR0.TS` raises on the first FP or SSE instruction a thread
+        // executes. Enabling is the whole handler: `#NM` is a fault, so `rip` already points at the
+        // instruction that trapped and the `iret` re-executes it with the unit open.
+        //
+        // **This is the bit LazyFP was about** (CVE-2018-3665), and `crate::fp`'s header says why
+        // using it this way is not that: `TS` answers "has this thread ever wanted the unit", and
+        // the registers themselves are always either the running thread's or the initial state.
+        //
+        // Like the other two architectures' arms it serves ring 0 as well as ring 3, because every
+        // userspace target in `targets/` is soft-float and milestone 447's concurrency proof is
+        // therefore written as kernel threads.
+        //
+        // `enable_for_current` returning false means there is no thread to record it against;
+        // falling through to the handler below is better than an `iret` that retakes the same fault
+        // forever.
+        7 if crate::fp::enable_for_current() => false,
+
         // The local APIC timer. Counted, then acknowledged below with every other interrupt.
         //
         // **Record and defer** (DECISIONS §9): `on_tick` marks a reschedule due and this function

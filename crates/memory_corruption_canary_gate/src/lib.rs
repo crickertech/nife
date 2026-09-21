@@ -275,56 +275,132 @@ impl Drop for CheckGuard<'_> {
 // *interleavings* are the loom module below, which is a different question and a different tool.
 #[cfg(all(test, not(loom)))]
 mod tests {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::thread;
+    use std::time::Duration;
+
     use super::*;
+
+    /// **Every test body runs on a worker with a deadline, and that is the point rather than
+    /// housekeeping.**
+    ///
+    /// Two of the three entry points here are spin loops: `arm` and `disarm` keep looking until
+    /// they win. So the way to break one is not to make it return the wrong thing, it is to make
+    /// it never return, and a suite that calls it directly does not fail on that, it *hangs*.
+    /// Milestone 326 (nobody has been assigned to turn a mutation score upward) measured the cost:
+    /// four mutants of this crate (both halves of `arm`'s
+    /// acceptance condition, `disarm`'s, and deleting `ArmGuard`'s `Drop`) produced a deadlock
+    /// rather than a failed assertion, and `cargo mutants` can only report a suite that never
+    /// finished as a timeout, which is indistinguishable from a slow one. Liveness is the
+    /// property, this is what states it, and the kernel cares about it more than the host does:
+    /// `arm` spins on a core that cannot be preempted by the owner.
+    ///
+    /// A panic inside the body drops the sender, so the two failures are told apart rather than
+    /// both reading as a hang. See notes/mutation-testing.md's `## 2026-09-20` section.
+    fn bounded(what: &str, body: impl FnOnce() + Send + 'static) {
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            body();
+            let _ = tx.send(());
+        });
+        match rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(()) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                panic!("{what}: the body panicked; its own message is above")
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                panic!("{what}: a spin loop never made progress, so the gate deadlocked")
+            }
+        }
+    }
 
     #[test]
     fn a_disarmed_gate_refuses_a_check() {
-        let gate = Gate::new();
-        assert!(gate.try_check().is_none());
-        assert!(!gate.armed_hint());
+        bounded("a disarmed gate refuses a check", || {
+            let gate = Gate::new();
+            assert!(gate.try_check().is_none());
+            assert!(!gate.armed_hint());
+        });
     }
 
     #[test]
     fn arming_publishes_only_when_the_guard_drops() {
-        let gate = Gate::new();
-        let guard = gate.arm();
-        assert!(!gate.armed_hint(), "mid-arm must not read as armed");
-        assert!(
-            gate.try_check().is_none(),
-            "a check must not see a torn plan"
-        );
-        drop(guard);
-        assert!(gate.armed_hint());
-        assert!(gate.try_check().is_some());
+        bounded("arming publishes only when the guard drops", || {
+            let gate = Gate::new();
+            let guard = gate.arm();
+            assert!(!gate.armed_hint(), "mid-arm must not read as armed");
+            assert!(
+                gate.try_check().is_none(),
+                "a check must not see a torn plan"
+            );
+            drop(guard);
+            assert!(gate.armed_hint());
+            assert!(gate.try_check().is_some());
+        });
     }
 
     #[test]
     fn a_pass_is_single_flight_and_the_gate_reopens_after_it() {
-        let gate = Gate::new();
-        drop(gate.arm());
-        let pass = gate.try_check().expect("armed gate admits a pass");
-        assert!(gate.try_check().is_none(), "one pass at a time");
-        drop(pass);
-        assert!(gate.try_check().is_some(), "the gate reopens");
+        bounded("a pass is single flight", || {
+            let gate = Gate::new();
+            drop(gate.arm());
+            let pass = gate.try_check().expect("armed gate admits a pass");
+            assert!(gate.try_check().is_none(), "one pass at a time");
+            drop(pass);
+            assert!(gate.try_check().is_some(), "the gate reopens");
+        });
     }
 
     #[test]
     fn disarm_closes_the_gate_and_is_idempotent() {
-        let gate = Gate::new();
-        drop(gate.arm());
-        gate.disarm();
-        assert!(gate.try_check().is_none());
-        gate.disarm(); // already disarmed: returns at once, changes nothing
-        assert!(gate.try_check().is_none());
+        bounded("disarm closes the gate and is idempotent", || {
+            let gate = Gate::new();
+            drop(gate.arm());
+            gate.disarm();
+            assert!(gate.try_check().is_none());
+            gate.disarm(); // already disarmed: returns at once, changes nothing
+            assert!(gate.try_check().is_none());
+        });
     }
 
     #[test]
     fn rearming_a_disarmed_gate_works() {
-        let gate = Gate::new();
-        drop(gate.arm());
-        gate.disarm();
-        drop(gate.arm());
-        assert!(gate.try_check().is_some());
+        bounded("rearming a disarmed gate works", || {
+            let gate = Gate::new();
+            drop(gate.arm());
+            gate.disarm();
+            drop(gate.arm());
+            assert!(gate.try_check().is_some());
+        });
+    }
+
+    /// **Re-arming an *armed* gate takes it out of `ARMED` first**, which is the transition the
+    /// suite had no test for: every other path reaches `arm` from `DISARMED`, and the two states
+    /// differ in exactly the way the torn-plan bug was about.
+    ///
+    /// An `arm` that returned its guard without winning the compare-exchange would leave the gate
+    /// readable as armed and admit a check pass *while the plan is being rewritten*, which is the
+    /// hole the module documentation calls the torn plan. From `DISARMED` that mistake is
+    /// invisible (the state is not `ARMED` either way), so it takes a re-arm to see it.
+    #[test]
+    fn rearming_an_armed_gate_takes_it_out_of_armed() {
+        bounded("rearming an armed gate takes it out of armed", || {
+            let gate = Gate::new();
+            drop(gate.arm());
+            assert!(gate.armed_hint(), "the first arm published a plan");
+
+            let guard = gate.arm();
+            assert!(
+                !gate.armed_hint(),
+                "a re-arm must take the gate out of ARMED, not leave the old plan readable"
+            );
+            assert!(
+                gate.try_check().is_none(),
+                "a check must not run against a plan being rewritten"
+            );
+            drop(guard);
+            assert!(gate.try_check().is_some(), "the re-armed plan is published");
+        });
     }
 }
 

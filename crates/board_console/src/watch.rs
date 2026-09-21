@@ -612,6 +612,13 @@ mod tests {
         assert_eq!(session.outcome, Outcome::Reached(Stage::Tour));
         assert_eq!(session.exit_code(), 0);
         assert!(!sink.is_empty());
+        // The tally is the byte count, not merely "some bytes arrived": every byte that reaches
+        // the sink is counted, once, on the way past.
+        assert_eq!(
+            session.bytes,
+            sink.len() as u64,
+            "the byte tally must match what actually reached the log"
+        );
     }
 
     /// The evidence has to be on disk whatever happened, and this is the case where it matters
@@ -870,5 +877,83 @@ mod tests {
             session.outcome,
             Outcome::Announced(crate::progress::Failure::FirmwareRefused { .. })
         ));
+    }
+
+    /// **`Session::summary`, read directly.** Every other test reaches it only through
+    /// `exit_code` or `outcome`, never through the one line a person at a bench actually reads
+    /// last; constructed rather than watched through, since every field here is `pub` for
+    /// exactly this reason.
+    #[test]
+    fn the_summary_names_the_outcome_and_the_tally() {
+        let session = Session {
+            outcome: Outcome::Reached(Stage::Banner),
+            progress: BootProgress::default(),
+            bytes: 42,
+            elapsed: Duration::from_millis(3_500),
+            wanted: Some(Stage::Banner),
+            stop: None,
+        };
+        let summary = session.summary();
+        assert!(summary.contains("reached kernel banner"), "{summary}");
+        assert!(summary.contains("42 bytes"), "{summary}");
+        assert!(summary.contains("3.5s"), "{summary}");
+    }
+
+    /// **The last line, printed without a trailing newline, is still read.** This is the case
+    /// the module header names outright: a panic followed by a halted machine. The tail-flush
+    /// after the loop is the only thing that catches it, and nothing before this test called it.
+    #[test]
+    fn a_last_line_with_no_trailing_newline_is_still_read() {
+        let log = "Starting kernel ...\nnife on RISC-V (rv64, S-mode, Sv39)\n\
+                   [PANIC] hart 3 took a load fault";
+        let mut sink = Vec::new();
+        let session = watch(
+            SpeaksThenStops::new(log),
+            &mut sink,
+            &quick(None, Some(Duration::from_millis(50))),
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            session.outcome,
+            Outcome::Announced(Failure::KernelPanic("hart 3 took a load fault".to_string())),
+            "the unterminated last line must be read once the session ends"
+        );
+    }
+
+    /// **`reader`'s one distinction: `Interrupted` is retried, and any other error is not.**
+    /// Nothing else in the suite hands the source a real `io::Error`, so this is the only test
+    /// that exercises the `Err` arm of the reader loop at all.
+    #[test]
+    fn an_interrupted_read_is_retried_and_a_real_error_is_not() {
+        struct FlakyThenFails {
+            interrupted_once: bool,
+        }
+        impl Read for FlakyThenFails {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                if !self.interrupted_once {
+                    self.interrupted_once = true;
+                    return Err(io::Error::from(io::ErrorKind::Interrupted));
+                }
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            }
+        }
+
+        let mut sink = Vec::new();
+        let err = watch(
+            FlakyThenFails {
+                interrupted_once: false,
+            },
+            &mut sink,
+            &quick(None, None),
+            true,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.kind(),
+            io::ErrorKind::PermissionDenied,
+            "the interrupted read must have been retried rather than reported, and the real \
+             error after it must have been reported rather than retried"
+        );
     }
 }

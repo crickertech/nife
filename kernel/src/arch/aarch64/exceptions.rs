@@ -221,6 +221,11 @@ pub fn self_test() -> usize {
 mod ec {
     pub const UNKNOWN: u64 = 0x00;
     pub const TRAPPED_WFI_WFE: u64 = 0x01;
+    /// Access to SVE, Advanced SIMD or floating-point functionality, trapped by
+    /// `CPACR_EL1.FPEN`. The first-use trap milestone 447 (a thread's vector registers are its
+    /// own) turns into an enable; see
+    /// `arch::aarch64::fp`.
+    pub const FP_SIMD_ACCESS: u64 = 0x07;
     pub const ILLEGAL_EXECUTION_STATE: u64 = 0x0e;
     pub const SVC64: u64 = 0x15;
     pub const TRAPPED_MSR_MRS: u64 = 0x18;
@@ -389,6 +394,25 @@ extern "C" fn exception_body(frame: &mut TrapFrame, index: u64) -> bool {
             BRK_COUNT.fetch_add(1, Ordering::Relaxed);
             frame.elr += 4;
         }
+
+        // **A thread asked for the FP unit for the first time** (milestone 447).
+        //
+        // `CPACR_EL1.FPEN` is `0b00` for every thread until it executes an FP or SIMD instruction,
+        // which is what produces this class. Enabling is the whole handler: `elr` is not advanced,
+        // so the `eret` below re-executes the instruction that trapped, this time with the unit
+        // open and a defined initial register file under it.
+        //
+        // **It serves EL1 as well as EL0, deliberately.** The kernel is built `softfloat` and emits
+        // no FP of its own, so nothing in a shipping build reaches this from EL1; what does is a
+        // kernel thread that asked for the unit on purpose, which is how milestone 447's
+        // concurrency proof is written and is the only honest way to exercise the save path while
+        // every userspace target in `targets/` is soft-float. Refusing EL1 here would have meant a
+        // mechanism whose test had to be a different mechanism.
+        //
+        // `enable_for_current` returning false means there is no thread to record the fact
+        // against, and returning from the trap would retake it forever. Fall through: from EL0 that
+        // kills the thread, from EL1 it is `fatal`, and both are better than a livelock.
+        ec::FP_SIMD_ACCESS if crate::fp::enable_for_current() => {}
 
         // `svc` from EL0. **The syscall.**
         //

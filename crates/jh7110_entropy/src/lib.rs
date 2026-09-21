@@ -995,6 +995,148 @@ mod tests {
         assert_eq!(pool.take(64, &mut generate), (8, 0x1111_1111_1111_1111));
     }
 
+    /// **Every named bit is the bit its own documentation says it is, and no two bits in a
+    /// register are the same bit.**
+    ///
+    /// This is a transcription check and says so: the constants came off \[trm\]'s register tables
+    /// by hand, one line at a time, and the failure a hand transcription produces is not a clever
+    /// one. It is a bit copied to the wrong line, which reads as a device that is permanently in
+    /// mission mode, or never seeded, or that reports a lockup the silicon never raised. Fifteen
+    /// of this crate's mutation survivors were exactly this shape: a `<<` becoming
+    /// a `>>`, which takes a named bit to **zero**, at which point `stat & STAT_SEEDED` is false
+    /// forever and every test that samples [`interpret`] still passes, because none of them names
+    /// the bit it is exercising. Found by milestone 326 (nobody has been assigned to turn a mutation score upward).
+    ///
+    /// The distinctness half is the one a reader should care about more. A duplicated bit inside a
+    /// register is the copy-and-paste mistake this table invites, and it is invisible in the
+    /// source: two constants twenty lines apart, both `1 << 3`, look correct individually.
+    #[test]
+    fn every_named_bit_is_the_bit_the_datasheet_names() {
+        // One row per named bit: (register, name, bit index, constant). The indices are \[trm\]'s
+        // own numbering, repeated from each constant's doc comment so the two cannot drift apart
+        // silently. Flat rather than grouped by register, so the table reads down the page the way
+        // the datasheet's own does.
+        let named: [(&str, &str, u32, u32); 20] = [
+            ("MODE", "R256", 3, MODE_R256),
+            ("SMODE", "MISSION_MODE", 8, SMODE_MISSION_MODE),
+            ("STAT", "NONCE_MODE", 2, STAT_NONCE_MODE),
+            ("STAT", "R256", 3, STAT_R256),
+            ("STAT", "MISSION_MODE", 8, STAT_MISSION_MODE),
+            ("STAT", "SEEDED", 9, STAT_SEEDED),
+            ("STAT", "SRVC_RQST", 27, STAT_SRVC_RQST),
+            ("STAT", "RAND_GENERATING", 30, STAT_RAND_GENERATING),
+            ("STAT", "RAND_SEEDING", 31, STAT_RAND_SEEDING),
+            ("IE", "RAND_RDY_EN", 0, IE_RAND_RDY_EN),
+            ("IE", "SEED_DONE_EN", 1, IE_SEED_DONE_EN),
+            ("IE", "AGE_ALARM_EN", 2, IE_AGE_ALARM_EN),
+            ("IE", "RQST_ALARM_EN", 3, IE_RQST_ALARM_EN),
+            ("IE", "LFSR_LOCKUP_EN", 4, IE_LFSR_LOCKUP_EN),
+            ("IE", "GLBL_EN", 31, IE_GLBL_EN),
+            ("ISTAT", "RAND_RDY", 0, ISTAT_RAND_RDY),
+            ("ISTAT", "SEED_DONE", 1, ISTAT_SEED_DONE),
+            ("ISTAT", "AGE_ALARM", 2, ISTAT_AGE_ALARM),
+            ("ISTAT", "RQST_ALARM", 3, ISTAT_RQST_ALARM),
+            ("ISTAT", "LFSR_LOCKUP", 4, ISTAT_LFSR_LOCKUP),
+        ];
+        // The `CTRL_*` constants are deliberately absent: they are an enumerated command value
+        // (0, 1, 2, 3) written to one field, not bits in a mask, so neither assertion below is
+        // true of them and neither would mean anything if it were.
+
+        for &(register, name, index, value) in &named {
+            assert_eq!(
+                value.count_ones(),
+                1,
+                "{register}.{name} is not one bit: {value:#010x}"
+            );
+            assert_eq!(
+                value.trailing_zeros(),
+                index,
+                "{register}.{name} is at bit {}, and its own documentation says {index}",
+                value.trailing_zeros()
+            );
+        }
+
+        for (a, &(register_a, name_a, _, value_a)) in named.iter().enumerate() {
+            for &(register_b, name_b, _, value_b) in &named[a + 1..] {
+                if register_a == register_b {
+                    assert_ne!(
+                        value_a, value_b,
+                        "{register_a}.{name_a} and {register_b}.{name_b} are the same bit"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **[`ISTAT_ALL`] is five distinct bits**, which is what makes the write-1-to-clear an
+    /// acknowledgement of exactly the bits this crate can name rather than a `!0` that swallows
+    /// whatever else the block latched. Disjointness is the reason it may be written with either
+    /// `|` or `^`, which milestone 326 had to argue for four surviving mutants and would rather a
+    /// reader could simply check.
+    #[test]
+    fn the_clear_mask_is_every_named_istat_bit_and_nothing_else() {
+        assert_eq!(ISTAT_ALL.count_ones(), 5, "{ISTAT_ALL:#010x}");
+        for bit in [
+            ISTAT_RAND_RDY,
+            ISTAT_SEED_DONE,
+            ISTAT_AGE_ALARM,
+            ISTAT_RQST_ALARM,
+            ISTAT_LFSR_LOCKUP,
+        ] {
+            assert_eq!(ISTAT_ALL & bit, bit, "{bit:#010x} is not in the clear mask");
+        }
+    }
+
+    /// **`take` returns**, and what this asserts is that it returns at all rather than what it
+    /// returns.
+    ///
+    /// Every pass of the gather loop ends by making progress: it refills a spent buffer, copies a
+    /// run, and advances both the cursor and the count. Break any one of those and the function
+    /// does not give a wrong answer, it gives none. Milestone 326 found four mutants here (a
+    /// `refill` reporting success without filling, `got < n` widened to `got <= n`, the
+    /// spent-buffer test inverted, and `got += run` turned into a multiply) and every one of them
+    /// spun, with the suite above answering by hanging, which `cargo mutants` can only report as a
+    /// timeout. The same shape `memory_corruption_canary_gate`'s own tests carry, and for the same
+    /// reason: a loop that waits is broken by making it wait forever.
+    #[test]
+    fn take_returns_rather_than_spinning() {
+        assert_eq!(
+            take_within_a_deadline(4, || Some([0xab; 32])),
+            (4, 0xabab_abab)
+        );
+        assert_eq!(take_within_a_deadline(8, || None), (0, 0));
+
+        // One answer and then nothing, so a single call crosses from "has bytes" to "dry".
+        let mut answers = 1;
+        assert_eq!(
+            take_within_a_deadline(8, move || {
+                if answers > 0 {
+                    answers -= 1;
+                    Some([0x5a; 32])
+                } else {
+                    None
+                }
+            })
+            .0,
+            8
+        );
+    }
+
+    /// The deadline itself. A fresh [`Pool`] per call, because the point is the call and not the
+    /// history; a panic inside is reported by the worker's own default hook.
+    fn take_within_a_deadline(
+        n: u64,
+        mut generate: impl FnMut() -> Option<[u8; 32]> + Send + 'static,
+    ) -> (u64, u64) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut pool = Pool::new();
+            let _ = tx.send(pool.take(n, &mut generate));
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(5))
+            .expect("take never returned: its gather loop made no progress")
+    }
+
     #[test]
     fn discover_finds_nothing_on_qemus_virt_board() {
         let tree = device_tree_blob::DeviceTreeBlob::from_bytes(QEMU_RISCV64_VIRT)
