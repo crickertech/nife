@@ -41,11 +41,34 @@ workflow, no `script/ci-build` row, no ruleset entry.
   is a genuine regression. Adoption would have meant 62 of 761 pull requests (8.1%) carrying
   untriaged survivors, median 6 each.
 
-  **Lifting the refusal is calef's and has not been done.** The measurement answers the evidential
-  objection this condition names; it does not answer the other two 438 raised, which are that the
-  gate is blind to `kernel/**` and `components/**` by construction, and that its first act on the
-  sampled window would have been to block a pull request adding machine-checked proofs. Those are
-  arguments about what the gate is worth, not about whether the story behind it was true.
+  **calef ruled on 2026-09-21: it stays refused**, with the condition met and the measurement in
+  hand. The evidential objection this condition named is answered; the other two that milestone 438
+  (would a diff-scoped mutation check have caught the 55) raised are not, and they are what the
+  refusal now rests on.
+
+- **Condition.** *(Restated 2026-09-21, for what is actually missing now that the evidence question
+  is settled.)* Two things, either of which alone leaves this gate worth less than it costs.
+
+  **The corpus does not contain the kernel.** `kernel/**` and `components/**` generate no mutants,
+  so a kernel change passes this gate by construction, and it would be strictest exactly where the
+  tree's risk is smallest. Milestone 517 (what fraction of survivor growth arrives on lines a pull
+  request touched) priced closing that at roughly 500 runner-hours per census against 52 minutes
+  today, so a kernel *census* is refused on arithmetic. A kernel *diff-scoped* check is minutes per
+  pull request and is blocked on scaffolding, because `cargo test -p kernel` cannot run from a
+  cargo-mutants build directory: `xtask/src/suite.rs` builds the initrd, the images and the disks
+  before the boot.
+
+  **And it has no rule for an artifact of the exclusion mechanism.** In milestone 438 (would a
+  diff-scoped mutation check have caught the 55)'s own sample, two of six survivors were artifacts
+  rather than missing tests, on the pull request that added machine-checked proofs to that crate.
+  **A gate whose first act is to block a proof lane teaches the wrong thing about proofs**, and
+  nothing in the mechanism tells the two cases apart today.
+
+  **What does not reopen it: more evidence that survivors arrive on touched lines.** That is settled
+  at 629 against one, and `design/fatal-risks.md`'s risk 3 carries a green condition built on it
+  which was deliberately written so the verdict does not depend on this gate existing. The triage it
+  asks for is measurable after the merge, weekly, without blocking anybody. **What this gate would
+  change is when the triage happens, not whether.**
 
 ## Index row
 
