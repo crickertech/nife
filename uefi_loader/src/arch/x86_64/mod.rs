@@ -55,10 +55,15 @@ const AP_TRAMPOLINE_PHYS: u64 = 0x8000;
 
 /// Where the boot command line sits inside page 0 of the handoff block.
 ///
-/// 128 rather than 88 (the `hvm_start_info` plus the one-entry module list) so that a field added
-/// to either does not silently start overwriting the command line; the page has four kilobytes and
-/// there is nothing else to spend them on.
-const CMDLINE_OFFSET: u64 = 128;
+/// 256 rather than 120 (the `hvm_start_info` plus the **two**-entry module list) so that a field
+/// added to either does not silently start overwriting the command line; the page has four
+/// kilobytes and there is nothing else to spend them on.
+///
+/// **It was 128 against a one-entry list**, which left exactly eight bytes of slack, and milestone
+/// 198 (a package manager, and the trivial install that makes a second customer possible)'s rung 2a
+/// added the second entry (this loader's own file). Doubling it costs nothing and puts the slack
+/// back.
+const CMDLINE_OFFSET: u64 = 256;
 
 /// What this architecture reads from the firmware before anything is placed.
 pub struct Found {
@@ -110,6 +115,7 @@ pub fn hand_over(
     found: Found,
     kernel: &Placed,
     module: Option<(u64, u64)>,
+    boot_file: Option<(u64, u64)>,
 ) -> Result<(), &'static str> {
     // --- The page the kernel's AP bring-up needs, asked for by name ---
     //
@@ -293,20 +299,37 @@ pub fn hand_over(
         cmdline_at
     });
 
+    // **Module 0 is the archive and module 1 is this loader's own file, in that order, and the
+    // order is the contract.** `arch::x86_64::machine::initrd` reads module 0 and has since
+    // milestone 87; `machine::boot_file` reads module 1 and is milestone 198 (a package manager,
+    // and the trivial install that makes a second customer possible)'s rung 2a. A boot with no
+    // archive therefore hands over **no** modules at all rather than sliding the boot file into
+    // slot 0, which would be read as an archive and fail the measurement that protects it.
+    let modules: [Option<(u64, u64)>; 2] = match module {
+        Some(_) => [module, boot_file],
+        None => [None, None],
+    };
+    let module_count = modules.iter().filter(|m| m.is_some()).count() as u32;
+
     let info = StartInfo {
         rsdp: found.rsdp,
-        modules: if module.is_some() { module_list_at } else { 0 },
-        module_count: u32::from(module.is_some()),
+        modules: if module_count > 0 { module_list_at } else { 0 },
+        module_count,
         memmap: memmap_at,
         memmap_entries: written as u32,
         cmdline,
     };
-    if let Some((addr, size)) = module {
+    for (index, entry) in modules.iter().enumerate() {
+        let Some((addr, size)) = *entry else { continue };
         let bytes = encode_module(addr, size);
         // SAFETY: the module list sits inside page 0 of the handoff block, after the 56-byte
-        // structure, and is 32 bytes long.
+        // structure, and is two 32-byte entries ending well before `CMDLINE_OFFSET`.
         unsafe {
-            ptr::copy_nonoverlapping(bytes.as_ptr(), module_list_at as *mut u8, MODULE_ENTRY_LEN)
+            ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                (module_list_at + (index * MODULE_ENTRY_LEN) as u64) as *mut u8,
+                MODULE_ENTRY_LEN,
+            )
         };
     }
     let bytes = info.encode();

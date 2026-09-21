@@ -702,6 +702,38 @@ pub fn initrd_region() -> Option<(u64, u64)> {
     (size > 0).then_some((start, size))
 }
 
+/// **Where the loader left a copy of its own file**, from the second PVH module
+/// (`arch::x86_64::machine::boot_file`). Milestone 198 (a package manager, and the trivial install
+/// that makes a second customer possible)'s rung 2a.
+///
+/// Recorded exactly the way [`record_initrd`] is, and for the same reason: the caller is already
+/// building the `forbidden` slice, so this stores the fact and reserves nothing.
+///
+/// **What it is for, in one sentence**: the running system does not otherwise have its own file,
+/// and an installer has to write that file to a disk's EFI system partition. `uefi_loader`'s
+/// `place_boot_file` has the argument.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_boot_file(start: u64, size: u64) {
+    BOOT_FILE_START.store(start as usize, core::sync::atomic::Ordering::Relaxed);
+    BOOT_FILE_SIZE.store(size as usize, core::sync::atomic::Ordering::Relaxed);
+}
+
+/// **The boot file, if this boot came from one a loader could read back.** `None` on every boot
+/// that did not: QEMU's `-kernel` PVH path, the device-tree architectures, and a UEFI boot whose
+/// volume did not hold the removable-media path. A system that cannot answer this cannot install
+/// itself, which is a limitation rather than a failure.
+pub fn boot_file_region() -> Option<(u64, u64)> {
+    let start = BOOT_FILE_START.load(core::sync::atomic::Ordering::Relaxed) as u64;
+    let size = BOOT_FILE_SIZE.load(core::sync::atomic::Ordering::Relaxed) as u64;
+    (size > 0).then_some((start, size))
+}
+
+/// Where [`record_boot_file`] puts the boot file's base. See [`INITRD_START`] for why this is an
+/// atomic written once at boot rather than a lock.
+static BOOT_FILE_START: AtomicUsize = AtomicUsize::new(0);
+/// How many bytes of it there are; zero means there is none.
+static BOOT_FILE_SIZE: AtomicUsize = AtomicUsize::new(0);
+
 use core::sync::atomic::AtomicUsize;
 
 /// The RAM map, kept so the MMU can map it.

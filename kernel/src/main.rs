@@ -744,6 +744,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             },
         }
 
+        // **The boot file** (milestone 198 (a package manager, and the trivial install that makes a
+        // second customer possible)'s rung 2a), printed for the same reason the initrd is: it is
+        // the one fact that says whether this system can install itself, and a boot that cannot is
+        // not broken. `uefi_loader` reads its own file back off the volume it was started from and
+        // hands it over as the second PVH module; QEMU's `-kernel` path passes no such thing, so
+        // "none" is the normal answer on most of this tree's boots.
+        match memory::boot_file_region() {
+            None => println!("  boot file   : none (this boot did not come from a file)"),
+            Some((at, size)) => {
+                println!("  boot file   : {size} bytes at {at:#x}, from the PVH module list")
+            }
+        }
+
         // A test build runs the kernel suite right here and exits via semihosting, instead of the
         // rest of the tour. Everything the tests need is now up: the frame allocator, the fine page
         // tables, the scheduler and its idle thread, the timer and interrupts. The x86 equivalent of
