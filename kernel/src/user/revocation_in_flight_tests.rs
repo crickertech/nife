@@ -1,21 +1,28 @@
 //! **Revocation against a capability that is in flight** (risk 7's adversarial pass, 2026-09-21).
 //!
-//! Every revocation sweep in this kernel walks `Thread::capability_table` and stops there. A
+//! **The defect this module was written to demonstrate was live in the tree and is fixed here.**
+//! What follows describes the tree as it stood on 2026-09-21; the three sweeps now clear the
+//! hand-off slot too, and `kernel/falsifications/` carries the patch that puts the defect back and
+//! turns this test red.
+//!
+//! Every revocation sweep in this kernel walked `Thread::capability_table` and stopped there. A
 //! capability handed to a rendezvous whose receiver has not arrived yet is not in any table: it is
 //! parked in `Thread::outgoing_cap`, the hand-off slot `sched::ipc_send_cap` writes and
 //! `sched::ipc_recv_cap` takes. So a `PageFrame::REVOKE` that runs in that window deletes every
 //! capability the sweep can see, unmaps every page the log records, and leaves a live capability
-//! naming the revoked run sitting in a slot no sweep reads. The next `RECV_CAP` files it in the
-//! receiver's own table, and the receiver may then `MAP` a page the revoker believes it took back.
+//! naming the revoked run sitting in a slot no sweep read. The next `RECV_CAP` filed it in the
+//! receiver's own table, and the receiver could then `MAP` a page the revoker believed it took
+//! back.
 //!
 //! **The tree already wrote this lesson down, once, for a different object.**
 //! `sched::delete_reply_caps_naming` sweeps `outgoing_cap` beside the tables and says why in its own
 //! doc comment: *"`outgoing_cap` goes too, and it is the half a second copy would forget ... a live
 //! `Reply` in a hand-off slot is the same forgery one step earlier."* That is exactly this defect,
-//! stated by the one sweep that does not have it. The four sweeps that do
-//! (`sched::delete_page_frame_caps_where` for both `PageFrame` policies,
-//! `sched::delete_device_frame_caps_from_others`, `sched::delete_port_range_caps_impl`) each read
-//! `t.capability_table` alone.
+//! stated by the one sweep that did not have the defect. The three that did
+//! (`sched::delete_page_frame_caps_where`, which is both `PageFrame` policies,
+//! `sched::delete_device_frame_caps_from_others`, and `x86_64`'s
+//! `sched::delete_port_range_caps_impl`) each read `t.capability_table` alone. All three clear the
+//! hand-off slot now.
 //!
 //! **Why this is a confinement claim and not a tidiness one.** `notes/confinement-claims.md` row 4
 //! is DECISIONS §12's *a consumed capability cannot be used again*, and the same note's opening says
@@ -30,10 +37,12 @@
 //!
 //! # BUGS
 //!
-//! - **One object, one sweep, one architecture.** The test below drives the `PageFrame` sweep on
-//!   whatever architecture the suite is booted on. `DeviceFrame` and `x86_64`'s `PortRange` have the
-//!   same shape by reading, not by measurement, and the `PortRange` case fails in a second way that
-//!   is not tested here: `ipc_recv_cap` files the delivered capability with
+//! - **One object, one sweep.** The test below drives the `PageFrame` sweep. The `DeviceFrame` and
+//!   `PortRange` sweeps carry the same two lines and no test drives either through a parked
+//!   hand-off, so their correctness is reasoned from the code rather than measured, which is the
+//!   grade `notes/confinement-claims.md` already asks a reader to apply to an unmeasured verdict.
+//!   The `PortRange` case has a second limb that is not tested here either:
+//!   `ipc_recv_cap` files the delivered capability with
 //!   `CapabilityTable::insert` directly rather than through
 //!   `sched::thread_control_block_insert_cap`, so the receiver holds a `PortRange` capability whose
 //!   `Thread::port_range_grant` was never set. That direction fails closed.
@@ -64,6 +73,8 @@ use crate::sched;
 /// slot and both are inspected. The assertions above it are a vacuity guard (the sender really did
 /// park) and a premise check (the revoke really did reach the sender's table); either failing means
 /// this test proved nothing, which is why they say that rather than stating the claim a second time.
+///
+/// Falsification: replayable `kernel/falsifications/user.revocation_in_flight_tests.a_capability_revoked_while_it_is_in_flight_does_not_reach_the_receiver.patch`
 #[test_case]
 fn a_capability_revoked_while_it_is_in_flight_does_not_reach_the_receiver() {
     static PARKED: AtomicBool = AtomicBool::new(false);

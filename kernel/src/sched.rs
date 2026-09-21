@@ -3177,6 +3177,22 @@ pub fn delete_page_frame_caps_overlapping(base: u64, size: u64) {
 /// The body both `PageFrame` sweeps share: walk every thread's table and delete every slot whose
 /// object satisfies `matches`. The caller's own capability goes too, which is intended in both
 /// cases: a revoke destroys all access to the page(s), including the revoker's.
+///
+/// **[`Thread::outgoing_cap`] goes too**, and until 2026-09-21 it did not. A capability handed to a
+/// rendezvous nobody is receiving on yet is in no capability table at all: `ipc_send_cap` parks it
+/// in the hand-off slot and blocks the sender, and the next `RECV_CAP` files it in the receiver's
+/// own table. So a sweep that reads tables alone left a live capability naming a revoked run in the
+/// one place it could not see, and `MemoryRegion::DESTROY` then returned those pages to an allocator
+/// while that capability was still on its way to somebody. That is DECISIONS §13's use-after-free
+/// through the slot [`delete_reply_caps_naming`] already sweeps for `Reply`, whose doc comment states
+/// the rule this had not been applied to: a live capability in a hand-off slot is the same forgery
+/// one step earlier. Found by risk 7's adversarial pass;
+/// `kernel::user::revocation_in_flight_tests` is the falsification.
+///
+/// Dropping the parked capability rather than failing the send is the behaviour `ipc_send_cap`
+/// already documents for the other way a hand-off can come up empty (a receiver whose table is
+/// full): the data word still arrives and the receiver sees `NO_CAP`. No new error reaches
+/// userspace, so this is a fix inside the established model rather than a syscall-surface change.
 fn delete_page_frame_caps_where(matches: impl Fn(&crate::cap::Object) -> bool) {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
@@ -3184,6 +3200,9 @@ fn delete_page_frame_caps_where(matches: impl Fn(&crate::cap::Object) -> bool) {
     };
     for t in sched.threads.iter_mut() {
         t.capability_table.delete_matching(&matches);
+        if matches!(t.outgoing_cap, Some(c) if matches(&c.object)) {
+            t.outgoing_cap = None;
+        }
     }
 }
 
@@ -3191,6 +3210,11 @@ fn delete_page_frame_caps_where(matches: impl Fn(&crate::cap::Object) -> bool) {
 /// thread's** (milestone 23, DECISIONS §41). The caller keeps its own, which is the difference
 /// between reclaiming a page and taking a device back to hand on; [`crate::revoke::
 /// revoke_device_from_others`] has the reasoning.
+///
+/// **A `DeviceFrame` parked in a hand-off slot goes too** (2026-09-21), for
+/// [`delete_page_frame_caps_where`]'s reason, which carries the whole finding: a capability in
+/// flight to a receiver is in no capability table, so a sweep that reads tables alone leaves one
+/// alive. Spared on the keeper, exactly as its table is.
 pub fn delete_device_frame_caps_from_others(phys: u64) {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
@@ -3209,6 +3233,9 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
             {
                 let _ = t.capability_table.delete(slot);
             }
+        }
+        if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+            t.outgoing_cap = None;
         }
     }
 }
@@ -3256,6 +3283,12 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) 
                 {
                     let _ = t.capability_table.delete(slot);
                 }
+            }
+            // A `PortRange` parked in a hand-off slot goes too (2026-09-21), for
+            // `delete_page_frame_caps_where`'s reason: a capability in flight to a receiver is in
+            // no capability table, so a sweep that reads tables alone leaves one alive.
+            if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+                t.outgoing_cap = None;
             }
             // Forget the cached grant if it named the revoked range, so switching to this thread
             // installs nothing. x86 only; the field exists nowhere else.

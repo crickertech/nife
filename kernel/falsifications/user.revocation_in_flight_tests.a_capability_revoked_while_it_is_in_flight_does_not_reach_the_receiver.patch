@@ -1,0 +1,49 @@
+Falsifies `kernel::user::revocation_in_flight_tests::a_capability_revoked_while_it_is_in_flight_does_not_reach_the_receiver`.
+
+Architecture: aarch64
+
+The defect is the tree as it stood until 2026-09-21: the patch removes the three lines this lane
+added to `sched::delete_page_frame_caps_where`, which is the whole of the fix for the `PageFrame`
+sweeps. Every revocation sweep then reads `Thread::capability_table` and nothing else, and a
+capability parked in `Thread::outgoing_cap` by a `SEND_CAP` whose receiver has not arrived is in no
+table, so it survives a whole-machine `PageFrame::REVOKE` and the next `RECV_CAP` files it in the
+receiver's own table.
+
+This was the live tree, not an invented break. It was found by risk 7's adversarial pass asking the
+question the brief names, "what would have to be true for a revocation claim to be false", against
+every authority this kernel holds outside a capability slot.
+
+Expected to fail: `assert!(!matches!(delivered, Some(c) if c.object == Object::PageFrame(phys,
+page_frame_run_len(1))), "a revoked PageFrame capability was delivered out of the hand-off slot
+...")`. Confirmed red on 2026-09-21, on aarch64, before the fix existed.
+
+**The two assertions above the headline stay green under this patch**, which is what makes the red
+mean the claim rather than the fixture. The vacuity guard (`rendezvous_waiting_senders(ep) == 1`)
+says a capability really was in flight; the premise check (`!SENDER_STILL_HELD`) says the revoke
+really did reach the one holder a table sweep can see. A revoke that did nothing at all would fail
+the second one with a message saying the test proved nothing.
+
+**Read the architecture line the way milestone 313's audit taught.** `script/falsifications` replays
+a kernel record on the one architecture its patch names, and nothing here is architecture-specific:
+`outgoing_cap`, the sweeps and the rendezvous are portable scheduler code. The record is aarch64's
+because that is where it was replayed, not because the defect is.
+
+**Two sibling sweeps carry the same fix and no record.**
+`sched::delete_device_frame_caps_from_others` and `sched::delete_port_range_caps_impl` (`x86_64`
+only) each gained the same two lines, and no test drives either through a parked hand-off. They are
+reasoned from the code, which is the grade `notes/confinement-claims.md` already asks a reader to
+apply to an unmeasured verdict.
+
+diff --git a/kernel/src/sched.rs b/kernel/src/sched.rs
+--- a/kernel/src/sched.rs
++++ b/kernel/src/sched.rs
+@@ -3200,9 +3200,6 @@
+     };
+     for t in sched.threads.iter_mut() {
+         t.capability_table.delete_matching(&matches);
+-        if matches!(t.outgoing_cap, Some(c) if matches(&c.object)) {
+-            t.outgoing_cap = None;
+-        }
+     }
+ }
+ 
