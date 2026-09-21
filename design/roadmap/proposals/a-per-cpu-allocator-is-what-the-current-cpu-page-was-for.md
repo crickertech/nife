@@ -1,0 +1,43 @@
+# A per-CPU allocator is what the current-CPU page was for
+
+**Status: PROPOSED 2026-09-21.** Raised by the lane that built the current-CPU page, as the work its
+own change exists to serve and which nobody is doing.
+
+**Gate: NONE.** The page ships; a reader can call `user_mode_runtime::current_cpu` today.
+
+## Why this belongs on the list rather than in a report
+
+The page was justified by a consumer that does not exist yet. That is not a flaw in the reasoning:
+the consumer is what decided the shape (a load rather than a crossing, because an allocator asks on
+every allocation), and the shape had to be decided before anything could be built on it. But it does
+mean the mechanism currently has **no measured benefit at all**, and the numbers quoted for it are
+Linux's, about Linux. Until something allocates against it, nife has a fast answer to a question
+nothing asks.
+
+The honest version of that in a `BUGS` section is already written. This is the version that gets it
+fixed.
+
+## What it would be
+
+A small-object allocator in userspace that keeps a free list per CPU id, reads its own CPU on each
+allocation, and falls back correctly when the answer turns out to be the previous core's. The
+fallback is the interesting half and the reason this is a milestone rather than an afternoon: the
+value can be stale the instruction after it is read, Linux solves that with `rseq`'s restartable
+sequences, and this tree deliberately does not have those. So the design question is **what
+correctness argument replaces them**, and the candidates (a per-list lock taken only on the slow
+path, a compare-and-swap that tolerates the wrong list, an owner check on free) differ in exactly
+the cost this page was chosen to avoid.
+
+## What it would prove, which is the point
+
+- **A number.** Allocations per second against the same allocator with the CPU read removed, on all
+  three architectures, which turns the page from an argument into a measurement.
+- **Whether the staleness matters in practice**, which nothing in this tree currently knows.
+- **Whether `CPU_ID_BOUND` is the right thing to size by.** Eight lists per process is the current
+  answer and it is a guess; an allocator is what makes the cost of that guess visible.
+
+## What would make it not worth doing
+
+If the answer to the correctness question turns out to want restartable sequences, this stops being
+an allocator milestone and becomes an `rseq` milestone, which is a much larger thing and a syscall
+surface question. Finding that out early is a good outcome of starting it.
