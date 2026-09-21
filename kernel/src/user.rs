@@ -3396,6 +3396,23 @@ mod reap_tests;
 #[cfg(test)]
 mod survey_tests;
 
+/// **The other axis of a survey: which per-thread fact it asks for** (calef's 2026-09-21 selector
+/// ruling, `abi::survey::record`).
+///
+/// `survey_tests` above proves the walk, meaning what a domain contains and who may look at it.
+/// This proves the selector, meaning which record a walk returns. Separate files because the two
+/// properties are independent and their failures read nothing alike: a broken walk reports the
+/// wrong threads, where a broken selector reports the wrong fact about the right threads, with
+/// every tid still looking correct.
+///
+/// Cross-ISA, and here that is a claim rather than a habit (DECISIONS §19). The one record this
+/// ships with is placement, which is `sched`'s: `pick_spawn_target` samples two online cpus and
+/// `place_on` enqueues onto the winner, with no line of either under `arch/`. All three
+/// architectures therefore run literally these assertions, and a divergence would mean the
+/// scheduler is wrong rather than an ISA.
+#[cfg(test)]
+mod survey_record_tests;
+
 /// **`pmap`'s split, one object type over `survey_tests`** (milestone 126, `address_space::LIST`,
 /// DECISIONS §114). Cross-ISA for `survey_tests`'s reason: the method reads `Flags` through
 /// `arch::mmu::translate_at`, so a divergence here means something is wrong under `arch/`.

@@ -235,9 +235,41 @@ pub mod rendezvous {
     ///   own budget and those children are still live), the same refusal `DESTROY` gives.
     pub const REAP: u64 = 5;
 
-    /// `invoke(cap, SURVEY, cursor, 0, 0)` -> `(next_cursor, tid, state)`. **Read one entry of the
-    /// domain this endpoint supervises** (milestone 126). `next_cursor` returns in x0, `tid` in x1
-    /// and one of [`survey`](super::survey)'s state codes in x2.
+    /// `invoke(cap, SURVEY, cursor, record, 0)` -> `(next_cursor, tid, word)`. **Read one entry of
+    /// the domain this endpoint supervises** (milestone 126 (who else is running, and who is allowed to ask)).
+    /// `next_cursor` returns in x0, `tid` in
+    /// x1, and the selected record's own word in x2.
+    ///
+    /// **`record` is a selector, and that is the shape rather than an implementation detail.**
+    /// calef ruled on 2026-09-21 that observing another thread is a selector: a new per-thread fact
+    /// becomes a new [`survey::record`](super::survey::record) value, never a new return register.
+    /// The reason was a forecast rather than an argument. A register row holds a fourth word with
+    /// no new mechanism and appending one is the fewest moving parts *if the row stops*; he expects
+    /// a third and a fourth fact, and a mechanism that must be redesigned at the sixth field is the
+    /// wrong mechanism at the fourth. Nobody grows a register row: Linux's
+    /// `/proc/[pid]/task/[tid]/stat` is 52 fields behind a pseudo-file, and Zircon's
+    /// `zx_object_get_info` is a selector over 41 topics.
+    ///
+    /// **x0 and x1 are the frame; only x2 belongs to the record.** The cursor walk and the tid are
+    /// identical whichever record is asked for, so a caller that wants two facts about one domain
+    /// walks it twice and joins on the tid, and a caller that wants one is unaffected by the
+    /// existence of the others. That is what makes a new record cost an existing reader nothing.
+    ///
+    /// **[`survey::record::STATE`](super::survey::record::STATE) is 0, which is not a coincidence
+    /// and is the backward-compatibility claim stated out loud.** Every caller that shipped before
+    /// the selector existed passed 0 in x1 because the argument was unused, and 0 selects the
+    /// record those callers were already reading. The claim is that no existing caller changes, and
+    /// it is a claim about a wire rather than a hope: it holds precisely because the numbering was
+    /// chosen to make it hold.
+    ///
+    /// **An unknown record is [`crate::Error::BadMethod`], refused before the walk begins.** The
+    /// selector is part of the method's name, so an unrecognised one gets the same refusal an
+    /// unrecognised method word gets. It is refused *before* the domain is examined so that a bad
+    /// selector against an empty domain is a refusal rather than a
+    /// [`survey::DONE`](super::survey::DONE) that reads as "nothing here": a plausible wrong answer
+    /// is worse than an error, which is the ruling this tree already made about a counter it could
+    /// not trust. `BadMethod` from a `SURVEY` names the selector without ambiguity, because `SURVEY`
+    /// itself is a known method and the selector is the only other word this arm dispatches on.
     ///
     /// **The scope is the supervision subtree, because the kernel already maintains it.** A thread
     /// is in this survey exactly when its recorded fault endpoint *is* this endpoint, which is the
@@ -262,9 +294,9 @@ pub mod rendezvous {
     ///
     /// **The cursor is a resume point, not an index into a result.** Start at 0. Each entry returns
     /// the `next_cursor` to pass to get the one after it, and `next_cursor` of
-    /// [`survey::DONE`](super::survey::DONE) means the survey is finished (`tid` and `state` are
-    /// then 0). An empty domain finishes on the first call, which is a different answer from the
-    /// refusal above and deliberately so.
+    /// [`survey::DONE`](super::survey::DONE) means the survey is finished (`tid` and the record
+    /// word are then 0). An empty domain finishes on the first call, which is a different answer
+    /// from the refusal above and deliberately so.
     ///
     /// **It is a snapshot per call, not per survey.** The domain may change between calls: a child
     /// that dies is simply absent from a later one, and one born into an already-passed slot is
@@ -303,6 +335,76 @@ pub mod survey {
     /// make visible**, and
     /// it is the one Unix cannot show you without a parent that happens to have called `wait`.
     pub const DEAD: u64 = 4;
+
+    /// **Which per-thread record a [`SURVEY`](super::rendezvous::SURVEY) asks for.** The selector
+    /// calef ruled on 2026-09-21: a new per-thread fact is a new value here, never a new return
+    /// register.
+    ///
+    /// The value rides in x1, the argument `SURVEY` never used, and lands in x2 of the answer. x0
+    /// (the cursor) and x1 (the tid) are the same for every record, so the walk a caller writes is
+    /// the same walk whichever record it wants.
+    ///
+    /// Names provisional: calef names public items.
+    pub mod record {
+        /// **What run state the thread is in**: one of this module's parent's state codes. The
+        /// record `SURVEY` answered before selectors existed, and **0 so that it still does**.
+        /// Every caller written against the old three-word contract passed 0 into the then-unused
+        /// x1, so it selects this record by accident and keeps working on purpose.
+        pub const STATE: u64 = 0;
+
+        /// **Which core the thread was placed on when it started**: a cpu id, or [`NO_CPU`].
+        ///
+        /// The fact `sched::spawn_reporting_placement` has given the in-kernel job-mix supervisor
+        /// since milestone 240 (the soak reports what happened and not where) and that had no userspace
+        /// path, which is what kept that supervisor
+        /// in the kernel.
+        ///
+        /// **Placement, not "where it is running now"**, and the difference is deliberate rather
+        /// than an approximation nobody got around to sharpening. Tracking the current core means
+        /// a store in the context switch, which is the hottest line of the hottest function: the
+        /// kernel's `Thread::last_cpu` does exactly that and is behind a soak-build feature gate
+        /// because shipping it unconditionally cost 5.7% of `ipc_fastpath`'s footprint on aarch64,
+        /// over milestone 132 (the fast path's footprint, and a gate)'s 5% bound. Placement is written once, when the thread starts, so it
+        /// costs the IPC path nothing. A thread that was stolen onto another core, or woken onto
+        /// its waker's, still reports where it was placed. A reader wanting "now" does not have it
+        /// and must not read this as it.
+        ///
+        /// **The id is a name, not an index**, and this is the sentence that keeps a reader out of
+        /// the bug `cpu_set` exists to kill. The online set is not `0..n`: on the VisionFive 2 it
+        /// is `{1, 2, 3}`, because slot 0 is an M-mode monitor core with no MMU, and treating the
+        /// count as an index put `init` into a parked core's inbox for three boots. So key a
+        /// per-core tally by the id this record returns and never iterate a range. A census built
+        /// that way needs no online mask at all: the ids it observes are by construction a subset
+        /// of the online set, which is exactly what a placement census is asking about. A reader
+        /// that genuinely needs the machine's online set does **not** get it here, and has no path
+        /// to it today; that gap is stated where this record is documented rather than left for
+        /// somebody to paper over with a range.
+        pub const PLACEMENT: u64 = 1;
+
+        /// The [`PLACEMENT`] answer for a thread with no placement to report. `u64::MAX` rather
+        /// than a plausible small number, so a reader that ignores it is wrong loudly rather than
+        /// quietly tallying core 255.
+        ///
+        /// Every thread a survey can report has started, so this should not be reachable: a
+        /// supervision endpoint is recorded at `START` (DECISIONS §26 (the fault endpoint: thread death becomes a
+        /// message a supervisor holds)), so an embryo is not in its
+        /// domain yet, and a corpse keeps the placement it was started with. It is defined anyway
+        /// rather than left to a guess, which is the same posture `sched::last_cpus` takes with its
+        /// own `u8::MAX`.
+        pub const NO_CPU: u64 = u64::MAX;
+
+        /// **Whether this kernel answers a record.** The one enumeration of the selector space, so
+        /// adding a record is an edit here and an arm in the kernel's walk rather than a hunt.
+        ///
+        /// The caller refuses an unknown record with [`crate::Error::BadMethod`] *before* walking
+        /// the domain, which is why this is a predicate rather than a `match` folded into the
+        /// extraction: a bad selector must be refused even when the domain is empty and there is no
+        /// thread to extract anything from.
+        #[must_use]
+        pub const fn is_known(record: u64) -> bool {
+            matches!(record, STATE | PLACEMENT)
+        }
+    }
 }
 
 /// Methods on a `Reply` capability. **A one-shot answer to a specific caller.**
@@ -794,5 +896,42 @@ mod tests {
             super::fault::FAULT_EP_SLOT,
             super::CAPABILITY_TABLE_SLOTS - 1
         );
+    }
+}
+
+#[cfg(test)]
+mod survey_record_tests {
+    use super::survey::record;
+
+    /// **The default record is 0, which is the whole backward-compatibility claim.**
+    ///
+    /// Every caller written before the selector existed passed 0 into the then-unused x1. If this
+    /// constant ever moves, those callers silently start asking for a different record and read a
+    /// cpu id as a run state. A wire's compatibility is a claim about a number, so it is asserted
+    /// against the number rather than described in prose (milestone 85 (mutation testing over the host crates): a mutant that rewrites the
+    /// constant is what this notices).
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn the_state_record_is_zero_so_pre_selector_callers_select_it() {
+        assert_eq!(record::STATE, 0);
+    }
+
+    /// Known records are known and nothing else is, including the two an unknown selector most
+    /// plausibly arrives as: one past the end (a reader built against a later kernel) and a wild
+    /// value (a register that held something else).
+    #[test]
+    fn only_the_records_this_kernel_answers_are_known() {
+        assert!(record::is_known(record::STATE));
+        assert!(record::is_known(record::PLACEMENT));
+        assert!(!record::is_known(record::PLACEMENT + 1));
+        assert!(!record::is_known(u64::MAX));
+    }
+
+    /// **No record value may collide with [`record::NO_CPU`]**, because a reader that walked a
+    /// domain with a selector equal to the "no answer" sentinel would have no way to tell a record
+    /// from its own absence. Cheap to assert, impossible to notice later.
+    #[test]
+    fn the_no_answer_sentinel_is_not_also_a_record() {
+        assert!(!record::is_known(record::NO_CPU));
     }
 }

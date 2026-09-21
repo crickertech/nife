@@ -348,9 +348,12 @@ programs! {
         // That argued for folding it into `ps` as a flag, which is what milestone 281 was minted to do.
         // calef then took it one step further: the flag's entire content was a busy-wait over a table of
         // two columns that barely changes, so **deleting it buys the same simplification and costs
-        // nothing anyone was using**. Milestone 282 (DECISIONS §150) adds per-thread scheduled CPU time
-        // as a fourth `abi::rendezvous::SURVEY` word, and once there is something worth watching and
-        // something to rank by, the live view is rebuilt properly as `top`.
+        // nothing anyone was using**. Milestone 282 (a thread's CPU time, and the `top` it makes possible), on DECISIONS
+        // §150 (how does a thread's CPU time reach userspace?), adds per-thread scheduled CPU
+        // time, and once there is something worth watching and something to rank by, the live view
+        // is rebuilt properly as `top`. It arrives as an `abi::survey::record` value rather than as
+        // the fourth `SURVEY` word this line used to name: calef replaced the widened register row
+        // with a selector on 2026-09-21, inside the window §150 itself left open for exactly that.
         //
         // **Neither `watch` nor `crates/watch` was ever ratified**, and that was deliberate rather than
         // an oversight: calef declined to rule on both while this milestone might retire them, which it

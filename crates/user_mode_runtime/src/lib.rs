@@ -304,9 +304,32 @@ pub fn reap(slot: u64, tid: u64) -> i64 {
 ///
 /// Three words out of one `invoke`, so it is written like [`recv`] rather than through the
 /// single-value helper.
+///
+/// This is [`survey_record`] with [`abi::survey::record::STATE`], kept as its own function because
+/// the run state is what every caller in the tree wants and none of them should have to name a
+/// selector to ask for it.
 pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
+    survey_record(slot, cursor, abi::survey::record::STATE)
+}
+
+/// **Read one entry of a supervised domain, asking for a specific record** (`rendezvous::SURVEY`,
+/// calef's 2026-09-21 selector ruling). Returns `(next_cursor, tid, word)`, walked exactly as
+/// [`survey`] is: start at `cursor = 0`, feed each `next_cursor` back, stop at
+/// [`abi::survey::DONE`].
+///
+/// `record` picks which per-thread fact lands in the third word; see [`abi::survey::record`] for
+/// the values and what each one means. The cursor and the tid do not depend on it, so a caller that
+/// wants two facts about one domain walks it twice and joins the two walks on the tid.
+///
+/// A negative first word is an [`abi::Error`]. Two matter. `NotPermitted` is the endpoint
+/// capability not carrying `ENUMERATE`, which is a refusal and **not** an empty domain, and a
+/// caller must print it as one. `BadMethod` is a record this kernel does not answer, which is what
+/// a program built against a later kernel gets, and it is likewise not an empty domain.
+///
+/// Name provisional: calef names public items.
+pub fn survey_record(slot: u64, cursor: u64, record: u64) -> (i64, u64, u64) {
     // SAFETY: forwarded from `invoke5`'s contract; SURVEY reads no more than the three words used.
-    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::SURVEY, cursor, 0, 0) };
+    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::SURVEY, cursor, record, 0) };
     (r0 as i64, w1, w2)
 }
 
