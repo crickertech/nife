@@ -175,6 +175,14 @@ if ! script/qemu-check; then
     if [ "$os" != Linux ]; then
         # macOS and everything else: qemu-check has already named the remedy (`brew upgrade qemu`),
         # and there is no source build to fall back on. `script/ci-qemu` refuses to run off Linux.
+        #
+        # **The pin is enforceable on Linux and only advisory here, and that asymmetry is worth a
+        # reader's notice rather than a surprise.** `script/ci-qemu` builds the version
+        # `.qemu-version` names, so a Linux machine can always be made to match. Homebrew installs
+        # whatever is current, so `brew upgrade qemu` produces *latest* rather than *the pin*: the
+        # two agree when the pin tracks Homebrew and drift apart the moment it moves, which is how
+        # the pin came to read 11.0.2 on a machine that had run 11.1.1 since 2026-08-28. Nothing
+        # here can fix that; the honest thing is that the check says which version it found.
         exit 1
     fi
 
