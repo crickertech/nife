@@ -260,6 +260,8 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 199 | DECIDED | [The screen check asks instead of sampling](199-the-screen-check-asks-instead-of-sampling.md) |
 | 200 | DECIDED | [Two crates the documentation system refused](200-two-crates-the-documentation-system-refused.md) |
 | 201 | DECIDED | [One roadmap until a citation has to cross](201-one-roadmap-until-a-citation-has-to-cross.md) |
+| 202 | DECIDED | [Mechanical work goes to a cheaper model](202-mechanical-work-goes-to-a-cheaper-model.md) |
+| 203 | DECIDED | [Capacity is rented rather than bought](203-capacity-is-rented-not-bought.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

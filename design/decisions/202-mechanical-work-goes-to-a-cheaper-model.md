@@ -1,0 +1,77 @@
+# 202. Mechanical work goes to a cheaper model, and the gates are why that is safe
+
+**Status: DECIDED.** calef, 2026-09-20: *"You have permission to route mechanical work to cheaper
+models and should capture that somewhere durable. To start, Sonnet is already available under our
+Claude subscription."* *(Section number provisional until the merge queue lands it.)*
+
+## The constraint this answers
+
+calef's inference budget is $200 a month and the capacity runs out weekly. **The limit reached is a
+rate limit rather than a bill**, so the lever is routing rather than spending.
+
+Measured on 2026-09-20, five lanes reported **2.0 million tokens** between them (a crypto provider at
+641k, a screen handshake at 486k, floating-point state at 415k, a refusal backfill at 271k, a naming
+sweep at 184k) across 1,454 tool calls. The judgment in those lanes was a handful of choices each:
+eager against lazy FP save, a command-line knob against a kernel feature, which refusals earn
+numbers. **Everything else was execution against gates.**
+
+## The ruling
+
+**Mechanical, gate-covered work is briefed to a cheaper model. Judgment stays where it is.**
+
+| Goes to the cheaper model | Stays |
+|---|---|
+| Mutation-survivor triage, test writing against a stated property | Design forks, and anything `AGENTS.md` calls calef's |
+| Record sweeps, glosses, index and citation repair | Naming, which is calef's under milestone 115 (the names that were ratified) |
+| Parity ports where the shape is already set by another architecture | Merge conflict resolution and the merge queue |
+| Backlog work a script can verify: counts, censuses, triage to a ledger | Anything touching the syscall surface or a wire format |
+| Benchmark harnesses and their plumbing | A first implementation whose shape nobody has chosen yet |
+
+**Sonnet first, because it costs nothing new.** It is available under the existing subscription, so
+the first trial risks no money and no new vendor. Cheaper hosted models are a later question, and
+this section does not decide it.
+
+## Why this is safer here than it would be in most codebases
+
+**This tree has an unusually strong machine-checked floor**, and that is the whole argument.
+`script/lint`, `script/test` on three architectures, `script/citations --ratchet`, `script/roadmap
+--check`, `script/names`, `script/verify`, the mutation gate, the fastpath footprint and the icount
+tripwire all fail loudly at a lane that gets something wrong. **A weaker model's mistake is caught by
+a gate rather than by a reader**, which is the condition under which cheap inference pays. Most
+projects do not have it; this one was built that way for a different reason and now collects a second
+dividend.
+
+## What this does not claim, and how it will be judged
+
+**The cost of a weaker model is not tokens, it is cleanup.** A lane that ignores "do not touch
+`design/decisions/`", or writes a gloss from memory, or reports a finding that is not true, costs
+more maintainer attention than it saved. That has happened with a frontier model twice today: one
+lane reported a `script/names` blind spot that had been closed for a month, and another measured an
+hour of benchmarks against a tree it had clobbered.
+
+So the trial is bounded and measured rather than assumed:
+
+- **First lane: mutation triage on a single crate.** Every outcome is machine-checkable (a test that
+  kills the mutant, an equivalence the next run still reports, an exclusion carrying its reason), and
+  milestone 326 (nobody has been assigned to turn a mutation score upward) has set the standard.
+- **What is recorded**: what the lane produced, what the maintainer had to redo, and whether the
+  gates caught what went wrong or a person did.
+- **What would reverse this**: cleanup costing more attention than the routing saves. That is a
+  judgment calef makes on the record above, not a number a script returns.
+
+## The note this supersedes
+
+A standing maintainer note says to omit the `Agent` tool's model parameter so a lane inherits the
+session's model, because naming one pins it to a possibly-older alias. **That remains right for
+judgment lanes and is now wrong for mechanical ones**, which name their model deliberately. The
+distinction is the table above.
+
+## What a brief owes when it routes down
+
+**The brief carries more of the hazard, not less.** A lane that cannot infer the trap has to be told
+it: the gloss must sit on the same line as its number, the ratchet reads the committed tip, a
+worktree shares one stash stack, `origin/*` is not a fixed point. Those are already in the briefs
+this tree writes; routing down makes them load-bearing rather than courteous.
+
+**And the lane line stays.** Every pull request and comment an agent writes opens by saying it was
+written by an agent, whichever model wrote it. The model is not the point; the honesty is.
