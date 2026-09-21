@@ -107,6 +107,49 @@ build while that one does not.
 **12 bytes on aarch64** and similar elsewhere. The cost is the `Option<PageFrame>` load, the branch
 and the store, not the id. A cached per-core id would buy about 12 bytes and is not worth a field.
 
+## What spawn costs, which is a different path and was the one that failed
+
+The footprint numbers above are bytes on the IPC path and were within bound. `script/bench`'s
+`spawn_el0` is a different cost on a different path, and it failed: **+10.25% against the aarch64
+baseline, over the 10% bound**, because every address space now allocates, zeroes, stamps and maps
+one more frame and that benchmark builds and tears down a whole child per iteration.
+
+A/B'd on one tree with one nightly rather than argued away as drift:
+
+| aarch64 `spawn_el0` | ticks | against baseline 1,290,216 |
+|---|---|---|
+| the page compiled out | 1,297,943 | +0.60%, and that is the drift |
+| frame allocated, zeroed, stamped, never mapped | 1,325,656 | +2.75% |
+| mapped at `0xC000_0000_0000` (the first draft) | 1,422,462 | **+10.25%, the failure** |
+| mapped at `0x3FFF_F000` (what shipped) | 1,372,031 | +6.34% |
+
+**124,519 of the 132,246 ticks were this change and 7,727 were drift**, so nothing was blessed to
+make a red go away.
+
+**The cost was the address, not the page**, which is the part worth carrying forward. Allocating and
+zeroing the frame is 277 ticks a spawn. The other 968 was the walk: an address alone in a far corner
+of the space is alone in its page tables too, so the first draft's address needed a fresh L1 entry,
+a fresh L2 table and a fresh L3 table, three frames retyped and zeroed **per address space**. Moving
+the page to the last page of the first gigabyte puts it under tables the process's own segments have
+already paid for: one L3 instead of three, **741 ticks a spawn instead of 1,245**. Sharing the L3 as
+well would mean sitting in the same 2 MiB as a program's own segments, which is the collision hazard
+the first draft was right about, so that is where it stops.
+
+**Two cheaper shapes were priced and refused.** A recycled pool of retired pages would save most of
+the 277, because the kernel only ever writes this page's first 16 bytes and a retired one is still
+zero past them; it buys a global free list and its lifetime rules to save 2% of a spawn, which is
+machinery rather than elegance. Mapping the page lazily, on the first read, needs a demand-paging
+mechanism this kernel does not have and would be a redesign rather than a fix.
+
+**The published figure moves and is not left to rot.** `notes/benchmarks.md` publishes spawn at
+~7.7 µs against Linux `fork`+`exit`'s ~19.7 µs. A 6.3% longer path implies ~8.2 µs and ~2.4x rather
+than ~2.6x; that number is **implied, not re-measured**, because the HVF reading wants a quiet
+machine. It is recorded beside the published row and in a dated entry, which is where a reader meets
+it.
+
+The aarch64 and riscv64 `spawn_el0` baselines were re-saved with that attribution beside them, in
+their own commit. Nothing else was.
+
 ## BUGS
 
 - **A space that never binds a TCB has no page**, and `user_mode_runtime::current_cpu` faults on an
@@ -127,6 +170,11 @@ and the store, not the id. A cached per-core id would buy about 12 bytes and is 
   says. `maintainer/icount-baselines-stale` is an existing branch on the same subject and is where
   this belongs rather than here; re-saving baselines is a statement that a change is intended, and
   this lane is not the one that can make it about someone else's growth.
+- **The `x86_64` icount tripwire is 26% off and nothing has ever pulled it.** `script/bench --x86
+  --check` fails on `map_new` (228,380 against 180,604), identically with this change compiled out,
+  so it is not this lane's. It has gone unnoticed because the x86_64 leg is not in CI, which
+  `.github/workflows/ci.yml` already predicts in as many words. Left red on purpose and recorded in
+  `notes/benchmarks.md` rather than blessed.
 - **Nothing measures the allocator this was built for**, because there is no per-CPU allocator in
   this tree yet. The 20x and 35x figures in the crate docs are Linux's, about Linux, and are cited
   as the reason the shape was chosen rather than as a claim about nife.

@@ -470,7 +470,10 @@ real and worth recording, but it is not a page an application can use, so it doe
 column. The map row above compares like with like (`map_new` provisions a fresh page, as the host fault
 does); the ~91 ns sits below it as the mechanism floor, not as a headline.
 
-**Spawn is a real win, and an honest caveat.** `spawn_el0` builds a whole child from EL0 (`SPLIT` a
+**Spawn is a real win, and an honest caveat.** (The ~7.7 µs below is a 2026-09-21 reading; the
+current-CPU page has since made the path 6.3% longer, implying ~8.2 µs and ~2.4x. See the dated
+entry at the end of this file, which has the measurement and says which number is implied rather
+than measured.) `spawn_el0` builds a whole child from EL0 (`SPLIT` a
 region, retype an address space and a TCB, map code and a stack, configure, start), runs it to exit,
 reaps it, and `DESTROY`s its region, all in a self-timed loop that only repeats because object
 revocation reclaims each child (notes/object-revocation.md). At ~7.7 µs it beats Linux `fork`+`exit`
@@ -3781,3 +3784,61 @@ mirror image: a row that moved 26.4% while the code was byte-identical.
 already carries `x86_trap`, is already 152 bytes, and whose gate is green with room (+1.0%, +1.4%,
 +3.9%). The exemption is measured; asserting a property the tree does not hold is how a gate
 teaches people to route around it.
+
+## 2026-09-21: spawn got 6.3% longer for the current-CPU page, and where the other 4% went
+
+calef ruled that day that a thread reads its own CPU from a page rather than through a crossing, so
+every address space now owns one more frame: allocated, zeroed, stamped and mapped read-only before
+the thread runs. `spawn_el0` is the benchmark that pays for it, because it builds and tears down a
+whole child per iteration, and the `--check` tripwire caught it at **+10.25% against the aarch64
+baseline, over the 10% bound**.
+
+**The attribution, A/B'd on one tree with one nightly**, which is the thing a drift argument needs
+and usually does not have. Same build, the page disabled and enabled:
+
+| aarch64 `spawn_el0` | ticks | against baseline 1,290,216 |
+|---|---|---|
+| page disabled entirely | 1,297,943 | +0.60%, and this is the drift |
+| frame allocated, zeroed and stamped, never mapped | 1,325,656 | +2.75% |
+| mapped at `0xC000_0000_0000` (the first draft) | 1,422,462 | **+10.25%, the failure** |
+| mapped at `0x3FFF_F000` (what shipped) | 1,372,031 | +6.34% |
+
+So **124,519 of the 132,246 ticks were this change and 7,727 were drift**, which is the honest split
+and the reason no baseline was blessed to make the red go away.
+
+**The cost was the address, not the page.** Allocating and zeroing a 4 KiB frame is 277 ticks per
+spawn. The other 968 was the *walk*: an address alone in a far corner of the space is alone in its
+page tables too, so `0xC000_0000_0000` needed a fresh L1 entry, a fresh L2 table and a fresh L3
+table, three frames retyped and zeroed per address space. Moving the page to the last page of the
+first gigabyte puts it under L1 and L2 tables the process's own segments already paid for, so the
+mapping buys one L3 instead of three: **741 ticks per spawn instead of 1,245**. Sharing the L3 too
+would mean sitting in the same 2 MiB as a program's own segments, which is a collision hazard rather
+than a saving, so that is where it stops. `crates/current_cpu_protocol::PAGE_VA` carries the
+reasoning beside the number.
+
+**What this does to the published figure, stated rather than left to rot.** The spawn row above
+reads **~7.7 µs** against Linux `fork`+`exit`'s ~19.7 µs, and that is an HVF wall-clock reading, not
+this instrument. A 6.3% longer path implies roughly **~8.2 µs**, which is ~2.4x rather than ~2.6x,
+and the "lighter object than a Unix process" caveat is untouched: the structural difference this
+paragraph is careful about is exactly what one more mapped page does not change. **That number is
+implied, not re-measured.** The HVF reading wants a quiet machine and this one was 1.7x
+oversubscribed, and publishing a wall-clock figure taken under that would be worse than publishing
+the arithmetic and saying which it is.
+
+**The aarch64 and riscv64 `spawn_el0` baselines were re-saved** with that attribution beside them
+(riscv64 moved +6.26%, the same shape). Nothing else was touched, which matters because of the next
+entry.
+
+## 2026-09-21: the x86_64 tripwire is 26% off, and nothing has ever pulled it
+
+Found by the same lane, while checking whether its own change had moved the third architecture. It
+had not. `script/bench --x86 --check` fails on **`map_new`: 228,380 against a baseline of 180,604,
++26.4%**, and it fails *identically with that lane's change compiled out* (224,332, marginally
+faster), so this is somebody else's and predates it.
+
+It has never been caught because **the x86_64 leg is not in CI**, which `.github/workflows/ci.yml`
+already says in as many words: the tripwire "is built and recorded and simply nothing pulls it: an
+x86_64 icount regression passes CI silently". This is that entry's prediction, measured. The
+baseline was deliberately left red rather than re-saved: blessing a 26% regression nobody has
+attributed is the opposite of what a tripwire is, and the entry above is the standard this one is
+held to.
