@@ -13,6 +13,13 @@ in the code or the conversation doesn't make sense, it belongs here.
 
 ## Tooling
 
+- [Call-frame information in hand-written assembly](cfi-unwind.md): what CFI is, why the twelve
+  (really thirteen) hand-written `.s` files lacked it, the link-script discovery that a discarded
+  `.eh_frame*` was hiding the *compiler's* CFI too, and the before/after GDB transcripts: a
+  backtrace that used to loop past #9976 frames of `exception_vectors ()` now walks seven real
+  Rust frames through a context switch and a trap, and stops honestly where AArch64's DWARF gap and
+  GDB's own AArch64 return-column limitation say it must. Name provisional.
+
 - [QEMU](qemu.md): the software computer we develop on. Why we need it, what the `virt`
   machine is, what each flag does.
 

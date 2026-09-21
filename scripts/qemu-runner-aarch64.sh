@@ -212,7 +212,14 @@ if [ ! -x "$OBJCOPY" ]; then
 fi
 
 IMG="$ELF.img"
-"$OBJCOPY" -O binary "$ELF" "$IMG"
+# --remove-section for .eh_frame/.eh_frame_hdr: milestone (CFI in hand-written asm) stopped the
+# link scripts discarding call-frame information, so the ELF `gdb $ELF` reads now carries it. This
+# is the one place that has to NOT carry it along: the CFI is real ALLOC content the linker folds
+# into a PT_LOAD segment (measured; a non-alloc placement either dropped the bytes or broke
+# relocations elsewhere, see the comment in kernel/link-aarch64.ld), and `-O binary` on an
+# unfiltered ELF would grow this flat Image by the CFI's own size for no boot-time benefit. See
+# notes/cfi-unwind.md.
+"$OBJCOPY" -O binary --remove-section=.eh_frame --remove-section=.eh_frame_hdr "$ELF" "$IMG"
 
 # The userspace program rides in as an initrd, exactly the way Linux gets its initramfs: QEMU
 # loads the file into RAM and writes the address into /chosen/linux,initrd-start in the device

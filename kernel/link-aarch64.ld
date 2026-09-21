@@ -159,9 +159,43 @@ SECTIONS
     __image_end = .;
     __image_size = __image_end - __image_start;
 
+    /* `.eh_frame*` (call-frame information; milestone: CFI in hand-written asm) is deliberately
+     * not discarded any more, so it survives in the ELF for a debugger reading it from disk
+     * (`gdb <elf>`, `script/gdb`). "We never unwind" stops being true with this milestone: a
+     * debugger can now walk a frame in hand-written assembly, and whatever the compiler already
+     * emits for ordinary Rust functions besides.
+     *
+     * Three things were tried for WHERE it lives, and this is the one that worked; the other two
+     * are worth recording so nobody reaches for them again.
+     *
+     *   - Left unmentioned (default orphan placement): LLD keeps it ALLOC (the compiler marks it
+     *     so, unlike `.debug_info`/`.debug_line`, which are never ALLOC and so need no script
+     *     attention) and slots it in with the other read-only data, BETWEEN `.rodata` and `.data`
+     *     -- i.e. before `__image_end` above, which is exactly the number the arm64 Image header
+     *     and every bootloader trust. Measured: `__image_size` grew by the CFI's own size (about
+     *     100 KiB), for a debugging convenience that has nothing to do with how much RAM the
+     *     image needs. Wrong place, not wrong content.
+     *   - An explicit `(NOLOAD)` output section moved it out of the way but also turned it into
+     *     SHT_NOBITS, the same representation `.bss` uses: LLD dropped the actual bytes, and the
+     *     CFI content was gone.
+     *   - An explicit `(INFO)` output section kept the bytes and dropped ALLOC, but also let LLD
+     *     place it far from `.text` (multiple megabytes away), which overflowed a 32-bit
+     *     PC-relative relocation elsewhere in the image outright.
+     *
+     * What's below is the same explicit-output-section idea as those last two, corrected: an
+     * ORDINARY output section (no NOLOAD, no INFO), placed in the script text AFTER `__image_end`
+     * is computed rather than left to the orphan-placement heuristic. It stays ALLOC (so its
+     * bytes survive) and keeps the linker's normal sequential layout (so it lands right after
+     * `.bss`/the per-core stacks, close enough to `.text` that no relocation overflows), while
+     * costing `__image_size` nothing, because that symbol was already assigned before this
+     * section exists. `script/image` and every QEMU runner still strip it from the flat binary
+     * with `llvm-objcopy --remove-section` (Image size on disk, not debuggability); ordinary
+     * bytes trailing at the end of an ALLOC layout is the shape that flag was built for. The ELF
+     * `gdb <elf>` reads directly keeps the real content either way. See notes/cfi-unwind.md. */
+    .eh_frame : { KEEP(*(.eh_frame)) KEEP(*(.eh_frame_hdr)) }
+
     /DISCARD/ : {
         *(.comment)
         *(.note*)
-        *(.eh_frame*)         /* stack-unwinding tables; we never unwind */
     }
 }
