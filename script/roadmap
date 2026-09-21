@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# Validate and report the milestone roadmap in design/roadmap/ (index: README.md, one file per
-# milestone).
+# Validate and report the milestone roadmap in design/roadmap/, which is one file per milestone and
+# no index: the directory listing is the index (calef, 2026-09-21).
 #
 # Why this exists: milestone status used to be prose in the detail blocks, phrased a dozen different
 # ways, and a status sweep on 2026-07-30 mis-reported EIGHT milestones because no two blocks said
@@ -14,38 +14,33 @@
 # verified that a block HAS a table row and never WHERE the block sits or whether the row and the
 # block agree. Eight milestone blocks were filed under an essay about seL4; milestone 69's row said
 # NOT-STARTED while its block said BUILT. The split makes the filing defects impossible (the filename
-# is the identity, and `cat >>` into 74-cycle-counters.md can only add text to milestone 74), and this
-# script checks the one the split alone cannot prevent: the status in the index and in the milestone's
-# own file must agree.
+# is the identity, and `cat >>` into 74-cycle-counters.md can only add text to milestone 74 (cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64)). The
+# check the split alone could not prevent, that the status in the index and in the milestone's own
+# file agree, is gone with the index: there is one record now, so there is nothing to disagree.
 #
-# **The index is GENERATED as of milestone 294 (2026-09-14)**, which retired two of the checks
-# below and changed what the rest read. `--write` rewrites design/roadmap/README.md's table from the
-# blocks; `--index` prints it; the blocks are the source for status, gates, follow-on and citation
-# resolution, all four of which used to key on the table. The reason is measured: that table was
-# this tree's worst merge hotspot, eight conflicts in one session and none anywhere else, because
-# check 4b makes every lane touch its own block and every milestone also needed a row in one sorted
-# table. The long comment on the index section below has the argument and the migration's proof.
+# **There is no index file any more** (calef, 2026-09-21: *"I don't think the milestone index table
+# is worth building any more. It has too many rows to be digestible as a table"*, and, asked what
+# should replace it, *"Nothing at all. You'll have to read the directory for now."*). The directory
+# listing and the queries below are the index. Milestone 294 (`design/roadmap/README.md`'s index is
+# generated, not hand-maintained) had already made the table derived, so retiring it cost no
+# content: every column came from the block and still does. What survives is `--index`, which
+# renders the same five columns to stdout for `script/audits` and `script/fatal-risks`, the two
+# gates that need a status and a Built date per milestone. It is a data feed for scripts now, not a
+# document, and nothing writes it to a file.
 #
 # What is checked, and which defect each check answers:
-#   - every index row links to a milestone file that exists (the milestone-34 class). The other
-#     half, "every milestone file has an index row", is now the index being STALE rather than a
-#     failure: a lane never edits the generated table, so a missing row is the integrator's
-#     regeneration at merge and not the lane's defect. The count and the command print on every run;
 #   - the status vocabulary, in each file's own Status line. The index-versus-file comparison (the
-#     milestone-69 class) is gone because it cannot fail any more: one of the two records is now
-#     derived from the other, which is rung one where this check was rung two;
+#     milestone-69 class) is gone because it cannot fail any more: the block is the only record
+#     there is, which is rung one where that check was rung two;
 #   - **every non-lettered block carries one `## Index row` section**: an optional
-#     `**Built:** <ISO date>` line and exactly one summary paragraph, which are the two columns
-#     nothing else in the block states. The Built column's rules moved here from the row it now
-#     generates: BUILT must carry a date, REMOVED may, every other status must not;
+#     `**Built:** <ISO date>` line and exactly one summary paragraph, which are the two facts
+#     nothing else in the block states. BUILT must carry a date, REMOVED may, every other status
+#     must not. The heading keeps the name milestone 294 gave it although the index it was named
+#     for is retired: renaming it would touch every block in this directory, and a name is calef's;
 #   - each file holds exactly one milestone: one H1, on line 1, whose number matches the filename
 #     (the filed-under-an-essay class, and the appended-past-the-closer class);
 #   - two files claiming one milestone number is fatal, for the reason script/decisions records: as
 #     two files it would merge clean and silently where one file makes it a visible text conflict;
-#   - the **`Built` column**: five columns per row, a date on every BUILT and REMOVED row and on no
-#     other status. REMOVED keeps the date because the milestone did turn BUILT on it. Added 2026-08-17 after calef found milestone 43 BUILT with an empty date by eye and
-#     the sweep behind it found 23 defective rows, every one invisible to this script because the
-#     row regex anchors on the first four fields and stopped;
 #   - **`IN-PROGRESS` names its branch, and that branch has not already merged.** Added 2026-08-17,
 #     after a sweep found that ALL SIX `IN-PROGRESS` rows were false: four had MERGED (one thirteen
 #     days earlier) and two named no branch at all. This is the only token in the vocabulary whose
@@ -89,11 +84,10 @@
 # question calef had to ask by hand about milestone 16 (real hardware, IOMMU-backed driver
 # isolation)). `--revisit` prints the REFUSED milestones
 # whose stated condition names a milestone that has since turned BUILT, which is a refusal the tree
-# has already walked past without noticing (milestone 448). `--index` prints the generated table and
-# `--write` rewrites it into design/roadmap/README.md between its markers. `--check` validates and
-# exits non-zero on a problem, which is what a gate wants; a stale committed table is reported
-# rather than failed, for the reason the index section below spells out.
-# See design/roadmap/README.md for both vocabularies.
+# has already walked past without noticing (milestone 448 (a refusal gets a number, a status, and a
+# condition that would change it)). `--index` renders the five-column table to stdout for the two
+# scripts that read it as data; nothing writes it to a file, and no file holds it.
+# See notes/roadmap.md for both vocabularies.
 #
 # (The sentence above replaced a dangling one that named a `--unswept` mode this script has never
 # had: milestone 247's exemption list was removed an hour after it was written and took the mode
@@ -102,16 +96,11 @@
 #
 # BUGS
 #
-# **`--write` cannot repair its own output, and that trap sprang on 2026-09-20.** It validates the
-# committed index BEFORE regenerating, and refuses to write when a row does not parse. That is the
-# right order for an operator who hand-edited the table; it is the wrong order when the WRITER
-# produced the unparseable row, which is what happened when milestone 448 (a refusal gets a number,
-# a status, and a condition that would change it) minted the tree's first titles containing
-# `#[path]` and `#[test_case]`: the `]` ended the link text, `--check` rejected the row, and
-# `--write` then refused to run at all. The escape is fixed (see `cell`), but the shape remains: a
-# generator that validates the artefact it is about to overwrite can deadlock, and the way out is to
-# repair one row by hand and run it again. A reader meeting *"refusing to write an index generated
-# from blocks that do not validate"* should suspect the writer before the blocks.
+# **`--index`'s escaping outlived the document it was written for.** A literal `|` or `]` in a
+# title or a summary is still escaped for a markdown table nobody renders, because the two scripts
+# that read `--index` split cells on `|`. If that feed is ever replaced by something that is not
+# markdown-shaped, both escapes go with it. (The deadlock this section used to record, a `--write`
+# that refused to overwrite the unparseable row it had itself produced, went with `--write`.)
 #
 # **The `## Revisit` check proves a condition is present and nothing else.** It cannot prove one is
 # true, honest, current, or that the person writing it thought about it for longer than it took to
@@ -154,7 +143,6 @@ import sys
 
 root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "roadmap")
-index_path = os.path.join(d, "README.md")
 
 # The proposal-file parse this script shares with `script/metrics`, which counts the pile per week
 # (milestone 276). Milestone 236's rule: a derivation two scripts each copy will drift while both
@@ -287,89 +275,34 @@ revisits = []
 # that refused it. `--revisit` excludes them: a condition quoting its own origin is context.
 refused_by = {}
 
-# ---- the index, which is now GENERATED (milestone 294) ------------------------
-# **The index table used to be the tree's worst merge hotspot, and it was structural rather than
-# bad luck.** `script/lint` 4b makes every lane touch its own milestone's block; every milestone
-# also needed a row in ONE sorted table; so every milestone in flight collided with every other
-# milestone in flight, always, in that one file. Eight conflicts in a single session on
-# 2026-09-14 (pull requests #836, #843, #847, #849, #850, #851, #854 and #855), every one of them
-# in this table and none anywhere else, and every resolution mechanical: take both sides' rows and
-# sort by number.
-#
-# So the row is derived from the block instead. `--write` regenerates the table between the markers
-# in design/roadmap/README.md; `--index` prints it. The five columns come from four places in the
-# milestone's own file:
+# ---- the files, which are the whole record ------------------------------------
+# **There is no index to compare them against any more.** Milestone 294 (`design/roadmap/README.md`'s
+# index is generated, not hand-maintained) had already made the table derived from these blocks,
+# because it was the tree's worst merge hotspot: `script/lint` 4b makes every lane touch its own
+# block, every milestone also needed a row in one sorted table, so every milestone in flight
+# collided with every other one, always, in that one file. Eight conflicts in a single session on
+# 2026-09-14 (pull requests #836, #843, #847, #849, #850, #851, #854 and #855), every resolution
+# mechanical. Deriving it fixed the conflicts and left 540 rows nobody read, which is what calef
+# retired on 2026-09-21. The five columns are still assembled, by `--index`, straight into the
+# stdout of the two scripts that want them:
 #
 #   #        the filename's number
-#   Status   the `**Status: <TOKEN>` line, which this script already read
-#   Title    the H1, which this script already read
+#   Status   the `**Status: <TOKEN>` line
+#   Title    the H1
 #   Why      the `## Index row` section's summary paragraph
 #   Built    that section's `**Built:** <ISO date>` line
 #
-# **The summary and the date had to MOVE, and moving them was the milestone.** Neither was
-# derivable from what the blocks already said. The summary is a hand-written precis (median 369
-# characters), and measured against the block's own opening paragraph it scored a median
-# similarity of 0.07: the opening paragraph is written to open a document, not to summarise one,
-# and deriving the column from it would have silently rewritten what the index said about 288
-# milestones. The date was worse: 129 of 288 blocks did not state it in any parseable position,
-# and the ones that did used at least eight spellings (`**Status: BUILT.**` with the date in a
-# later sentence, `**Status: BUILT, 2026-08-26.**`, `**Status: BUILT (2026-08-01).**`,
-# `**Status: BUILT** on 2026-08-18 (PR #320)`, and so on). So both were moved verbatim into a
-# `## Index row` section, one per block, and the proof that nothing was lost is the reconstruction:
-# regenerating the table from the migrated blocks reproduced 271 of 288 rows byte for byte, and
-# every one of the other 17 was pre-existing drift in the hand-maintained table (12 whitespace, 5
-# titles the row had abbreviated away from its own block's H1).
-#
-# **What this check no longer does, and why that is the point.** The milestone-69 defect (a row
-# saying NOT-STARTED while its block said BUILT) was a defect because BOTH records were
-# hand-maintained and both looked authoritative, so a reader could not tell which was lying. Once
-# the row is derived there is nothing to decide: a table that disagrees with a block is stale, and
-# the fix is one command rather than a judgement. So a disagreement is REPORTED here, with the
-# command, and does not fail.
-#
-# **It must not fail, and that is a design choice with a cost.** Failing would force every lane
-# whose status moves to regenerate, which means editing this table, which is the hotspot coming
-# straight back. A lane therefore never touches design/roadmap/README.md, and the regeneration is
-# the integrator's at merge, in the same breath as the other things that are global to the tree
-# and minted there. The cost is that `main`'s committed table can lag the blocks between a merge
-# and a regeneration. That is bounded and visible (the count is printed on every run), and it is a
-# much smaller defect than the one it replaces, because a stale derived artifact raises no question
-# about which record is right.
-committed = {}
+# **The summary and the date live in the block because milestone 294 moved them there**, and that
+# move is why retiring the table cost nothing. Neither was derivable from what a block otherwise
+# said: the summary is a hand-written precis whose median similarity to the block's opening
+# paragraph was 0.07, and 129 of 288 blocks stated no Built date in any parseable position, in at
+# least eight spellings. Both were moved verbatim, and the proof nothing was lost is the
+# reconstruction: regenerating the table from the migrated blocks reproduced 271 of 288 rows byte
+# for byte, and all 17 differences were pre-existing drift in the hand-maintained table.
 generated = {}
-try:
-    index = open(index_path).read()
-except FileNotFoundError:
-    print(f"roadmap: {index_path} not found", file=sys.stderr)
-    sys.exit(1)
 
-# Kept as a check on the COMMITTED table only: a row is well formed, links to a block that exists,
-# and is not a duplicate. Everything the row SAYS is now checked at the block instead.
-ROW = re.compile(r"^\| (\d+) \| ([A-Z-]+) \| \[((?:\\\||\\\]|[^\]])+)\]\(([^)]+)\) \|")
-for i, line in enumerate(index.split("\n"), start=1):
-    if not re.match(r"^\| \d+ \| ", line):
-        continue
-    m = ROW.match(line)
-    if not m:
-        problems.append(f"index line {i} looks like a milestone row but does not parse "
-                        f"(number | STATUS | [title](file) | why). The table is generated: run "
-                        f"`script/roadmap --write` rather than editing it: {line[:60]}...")
-        continue
-    num, target = int(m.group(1)), m.group(4)
-    if num in committed:
-        problems.append(f"milestone {num} has two index rows (line {i})")
-    if not re.fullmatch(rf"0?{num}-[a-z0-9][a-z0-9-]*\.md", target):
-        problems.append(f"milestone {num}: row links to {target!r}, not to its own file")
-    elif not os.path.exists(os.path.join(d, target)):
-        problems.append(f"milestone {num}: row links to {target!r}, which does not exist. A row "
-                        f"whose block is gone is the milestone-34 class: run "
-                        f"`script/roadmap --write`")
-    committed[num] = line.rstrip()
 
-# There is deliberately no "the table is empty" check any more. It existed to catch a format
-# change that made the parser blind, and the staleness report answers that better: an empty table
-# reports 288 rows missing rather than one vague problem, and a `--write` that refused to run on a
-# blank table could never lay the first one down.
+# ---- the files ----------------------------------------------------------------
 
 # ---- the files, which are now the SOURCE of the index -------------------------
 FNAME = re.compile(r"(\d+)([a-z]?)-[a-z0-9][a-z0-9-]*\.md")
@@ -525,11 +458,11 @@ for fname in sorted(os.listdir(d)):
                         f"updated")
     elif INDEX_HEADING not in lines:
         problems.append(
-            f"{fname}: no '{INDEX_HEADING}' section. The index in design/roadmap/README.md is "
-            f"GENERATED from it (milestone 294), so a block without one has no row: give it "
+            f"{fname}: no '{INDEX_HEADING}' section. It carries the two facts nothing else in "
+            f"the block states, the Built date and a one-paragraph precis, and `script/audits` "
+            f"and `script/fatal-risks` read both through `script/roadmap --index`: give it "
             f"'{INDEX_HEADING}', a '**Built:** <YYYY-MM-DD>' line if the status is BUILT, and one "
-            f"paragraph saying why this milestone matters. Do not add the row to the table by "
-            f"hand; run `script/roadmap --write`")
+            f"paragraph saying why this milestone matters")
     else:
         paras = blocks_of(section(lines, INDEX_HEADING))
         if paras and paras[0].startswith("**Built:"):
@@ -708,19 +641,14 @@ for num, token in gate_specs:
         problems.append(f"milestone {num}: gate {token!r} is stale, because milestone "
                         f"{mn.group(1)} is BUILT and no longer gates anything")
 
-# ---- the generated table ------------------------------------------------------
-# Five columns, and two escapes.
-#
-# A literal `|` inside a cell would end it, so it is written `\|` here and stored unescaped in the
-# block, where it is ordinary prose. Two summaries and one title need this. One of them is
-# milestone 67 (`swish` the language), which is ABOUT the `||` operator.
-#
-# **A literal `]` inside a TITLE would end the link text**, so it is written `\]`. Found 2026-09-20
-# by milestone 448 (a refusal gets a number, a status, and a condition that would change it), whose
-# backfill minted the tree's first titles containing `#[path]`: the writer emitted a row the
-# reader's own `ROW` pattern then rejected, so `--write` and `--check` disagreed about a file one of
-# them had just produced. That is the shape this pair must never have, and it was latent from the
-# day the table was generated rather than introduced by those titles.
+# ---- the five-column rendering, for `--index` --------------------------------
+# Two escapes, and they are markdown's rather than this script's. A literal `|` inside a cell would
+# end it, so it is written `\|` here and stored unescaped in the block, where it is ordinary prose.
+# Two summaries and one title need it; one of them is milestone 67 (`swish` the language: quoting,
+# sequencing, and exit status), which is ABOUT the `||` operator. A literal `]` inside a TITLE would end the link text, so
+# it is written `\]`; found 2026-09-20 when milestone 448 (a refusal gets a number, a status, and a
+# condition that would change it) minted the tree's first titles containing `#[path]` and the
+# writer emitted a row the reader's own pattern rejected.
 INDEX_HEADER = ["| #  | Status | Milestone | Why it matters (§14) | Built |",
                 "|----|--------|-----------|----------------------|------------|"]
 
@@ -736,9 +664,6 @@ for num in sorted(milestones):
     tail = f" {ms['built']} |" if ms["built"] else " |"
     generated[num] = (f"| {num} | {ms['status']} | [{cell(ms['title'], link_text=True)}]({ms['file']}) "
                       f"| {cell(ms['summary'])} |" + tail)
-
-stale = sorted(set(committed) ^ set(generated)
-               | {n for n in set(committed) & set(generated) if committed[n] != generated[n]})
 # ---- unnumbered proposals (milestone 247, calef 2026-09-03) -------------------
 # **Anybody may add to the roadmap; prioritising it is a different act.** That is calef's
 # distinction and it dissolves a rule this tree had been treating as one thing. Lanes could not
@@ -756,8 +681,8 @@ stale = sorted(set(committed) ^ set(generated)
 # carry recency for free, which is why they stay for promoted blocks.
 #
 # **Promotion** is the integrator's, at merge, like every other global name: give the file its
-# number, `git mv` it up a directory, add the index row. Nothing else changes, because a proposal
-# already carries the status and gate lines a numbered block carries.
+# number and `git mv` it up a directory. Nothing else changes, because a proposal already carries
+# the status and gate lines a numbered block carries.
 #
 # **The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
 # the same burial in a new location. Nothing here can force a promotion, and a gate that tried
@@ -1173,71 +1098,25 @@ for line in grep.stdout.splitlines():
             problems.append(f"{loc}: cites milestone {n}, which has no block under "
                             f"design/roadmap/")
 
-# ---- the index, rendered ------------------------------------------------------
-# The table lives between these markers in design/roadmap/README.md. HTML comments, so a reader on
-# GitHub sees the table and not the plumbing, and so the prose around it (the status vocabulary,
-# the gate vocabulary, the ordering essay) stays hand-written where it belongs: those paragraphs
-# are an argument, and nothing derives an argument from a directory listing.
-BEGIN = "<!-- BEGIN GENERATED INDEX: script/roadmap --write -->"
-END = "<!-- END GENERATED INDEX -->"
+# ---- `--index`, which is a data feed and not a document ----------------------
+# `script/audits` counts BUILT rows out of this for its cadence trigger, and `script/fatal-risks`
+# takes the Built dates out of it for its "as of" check. Both used to open the committed table and
+# read its lag as a fact, which jammed four pull requests on 2026-09-19 (milestone 443 (lanes wait
+# on each other for three reasons, and none of them is the work)); they moved upstream to this, and
+# when the table itself was retired on 2026-09-21 they needed no further change, which is the point
+# of having moved them.
 
 
 def rendered():
     return "\n".join(INDEX_HEADER + [generated[n] for n in sorted(generated)])
 
 
-def rewrite_index():
-    text = open(index_path).read()
-    a, b = text.find(BEGIN), text.find(END)
-    if a < 0 or b < 0:
-        print(f"roadmap: {index_path} has no generated-index markers ({BEGIN})", file=sys.stderr)
-        sys.exit(1)
-    out = text[:a] + BEGIN + "\n\n" + rendered() + "\n\n" + text[b:]
-    if out == text:
-        return False
-    open(index_path, "w").write(out)
-    return True
-
-
 if mode == "--index":
     print(rendered())
     sys.exit(0)
 
-if mode == "--write":
-    if problems:
-        for p in sorted(set(problems)):
-            print(f"roadmap: {p}", file=sys.stderr)
-        print("roadmap: refusing to write an index generated from blocks that do not validate",
-              file=sys.stderr)
-        sys.exit(1)
-    changed = rewrite_index()
-    print(f"roadmap: {'rewrote' if changed else 'index already current:'} "
-          f"{len(generated)} rows in design/roadmap/README.md")
-    sys.exit(0)
-
 # ---- report ------------------------------------------------------------------
 ready = sorted(n for n, g in gates.items() if g == ["NONE"] and milestones[n]["status"] in STARTABLE)
-
-
-def stale_line():
-    """One line, printed by every mode that reports, because the committed table is a rendering
-    and the only thing that keeps it honest is somebody noticing it has fallen behind."""
-    if not stale:
-        return None
-    missing = sorted(set(generated) - set(committed))
-    gone = sorted(set(committed) - set(generated))
-    what = []
-    if missing:
-        what.append(f"{len(missing)} not in it yet ({', '.join(str(n) for n in missing[:8])})")
-    if gone:
-        what.append(f"{len(gone)} row{'s' if len(gone) != 1 else ''} with no block "
-                    f"({', '.join(str(n) for n in gone[:8])})")
-    changed = len(stale) - len(missing) - len(gone)
-    if changed:
-        what.append(f"{changed} row{'s' if changed != 1 else ''} behind "
-                    f"{'their' if changed != 1 else 'its'} block")
-    return (f"roadmap: the committed index is STALE in {len(stale)} of {len(generated)} rows: "
-            f"{'; '.join(what)}. Run `script/roadmap --write` (the integrator does this at merge)")
 
 
 if mode == "--check":
@@ -1248,9 +1127,6 @@ if mode == "--check":
     lettered = sorted(i for i in ids if not i.isdigit())
     print(f"roadmap: {len(milestones)} milestones, {len(ids)} files, status vocabulary clean, "
           f"every '## Index row' parses, every tree-wide citation resolves")
-    # Deliberately not a failure: see the header. A lane never edits the generated table, so a
-    # missing or behind row is the integrator's regeneration and not the lane's defect.
-    print(stale_line() or f"roadmap: the committed index matches all {len(generated)} blocks")
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
     print(f"roadmap: {swept} blocks answer '## Follow-on', {partial_swept} of them PARTIAL")
@@ -1319,7 +1195,7 @@ if mode == "--proposed":
         print(f"  {when}  {title[:72]}")
         print(f"              design/roadmap/{rel}")
     print(f"\n{len(proposals)} proposals with no number. Promoting one is the integrator's: give "
-          f"it a number, git mv it up a directory, add the index row")
+          f"it a number and git mv it up a directory")
     sys.exit(0)
 
 if mode == "--outstanding":
@@ -1351,7 +1227,7 @@ if mode == "--ready":
 
 if mode:
     print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, "
-          f"--outstanding, --proposed, --revisit, --index, --write, or --check)", file=sys.stderr)
+          f"--outstanding, --proposed, --revisit, --index, or --check)", file=sys.stderr)
     sys.exit(2)
 
 by_status = {}
@@ -1385,8 +1261,6 @@ for token in sorted(by_gate, key=gate_order):
     print(f"  {label:<22} {', '.join(str(n) for n in sorted(by_gate[token]))}")
 
 print(f"\ntotal: {len(milestones)} milestones, {len(ready)} ready to start")
-if stale_line():
-    print(stale_line())
 for p in sorted(set(problems)):
     print(f"PROBLEM: {p}")
 PY
