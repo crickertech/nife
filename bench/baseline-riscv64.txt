@@ -45,4 +45,13 @@ ctx_switch 504958 5000
 ipc_rtt_el0 1847912 5000
 sink_throughput 753672 80000
 map_el0 62420 500
-spawn_el0 203942 100
+# spawn_el0 re-saved 2026-09-21 for the current-CPU page (a thread reads its own CPU from a
+# page the kernel writes, so every address space now owns one more frame: allocated, zeroed,
+# stamped and mapped before the thread runs). +6.26% against 203,942, A/B'd on one tree with one
+# nightly rather than argued: with the page compiled out the same build reads +0.60%, so 124,519
+# of the 132,246 ticks are this change and 7,727 are drift. 741 of those ticks are per spawn, of
+# which 277 allocate and zero the frame and 464 are the one extra L3 the mapping needs. The first
+# draft cost 1,245 a spawn by putting the page in a far corner of the address space, where it was
+# alone in its page tables as well; notes/benchmarks.md has that measurement and what it does to
+# the published ~7.7 us figure.
+spawn_el0 216699 100
