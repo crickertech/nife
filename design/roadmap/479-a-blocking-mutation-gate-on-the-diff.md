@@ -34,6 +34,19 @@ workflow, no `script/ci-build` row, no ruleset entry.
   explicit that the mechanism is not refuted and the story is, so what would change this is evidence
   about pull requests as they land rather than about the diff in hand.
 
+  **MET on 2026-09-21, and this is the first refusal in the tree whose condition has come true.**
+  Milestone 517 (what fraction of survivor growth arrives on lines a pull request touched) ran
+  exactly that experiment across the six weeks between the baseline and the census: **629 of 771
+  survivors sit on lines a merged pull request wrote**, against 142 on older lines of which **one**
+  is a genuine regression. Adoption would have meant 62 of 761 pull requests (8.1%) carrying
+  untriaged survivors, median 6 each.
+
+  **Lifting the refusal is calef's and has not been done.** The measurement answers the evidential
+  objection this condition names; it does not answer the other two 438 raised, which are that the
+  gate is blind to `kernel/**` and `components/**` by construction, and that its first act on the
+  sampled window would have been to block a pull request adding machine-checked proofs. Those are
+  arguments about what the gate is worth, not about whether the story behind it was true.
+
 ## Index row
 
 A gate built, measured and then deliberately not switched on, with the ruling recorded at the
