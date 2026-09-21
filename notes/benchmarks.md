@@ -3354,3 +3354,105 @@ test is the part that would have caught this in July: `kernel/src/user/counter_f
 asserts that what a userspace program reports equals what the kernel measured, on all three
 architectures. **A test that compares a rate against a constant cannot catch a constant**, which is
 exactly why `freq > 0` held for two months.
+
+## 2026-09-21: `rfence_self` did not get 7.5% faster, its baseline row got 7.5% wrong
+
+calef asked for the fast benchmark to be chased the way a regression would be: on 2026-09-21
+riscv64's `rfence_self` measured **7.49% under** its committed baseline while every other row on
+every architecture sat inside noise. An unexplained improvement is the mirror image of an
+unexplained regression, and the icount tripwire is one-sided by design, so nothing was ever going
+to raise it.
+
+**The answer is neither of the two interesting ones.** The tree did not get faster and the
+benchmark did not stop measuring what it measures. The committed number was wrong on the day it
+was committed.
+
+### The measurement
+
+`rfence_self` measured **5991** ticks, and 5991 is exactly the value the baseline held before
+commit `28e165e2`, which raised it to 6476. `6476 - 5991 = 485`, and `485 / 6476 = 7.489%`: the
+whole reported improvement is that one row returning to a number it had never left.
+
+Run at the commit that wrote 6476, and at that commit's parent, the tree measures **5991** both
+times. Every other riscv64 row at `28e165e2` reproduces what `28e165e2` recorded, several of them
+to the digit (`spawn_reap 34277`, `ctx_switch 504958`, `spawn_el0 203942`). So the file came from a
+real run of that tree and one row in it did not.
+
+The number is not fragile in the ways worth ruling out, each checked rather than assumed:
+
+| checked | result |
+|---|---|
+| repeat runs, same build | byte-identical full tables, 3 of 3 |
+| clean `cargo clean -p kernel` rebuilds | 5991 both times |
+| six spinning host processes competing for cores | 5991 (`-icount shift=0,sleep=off` is load-immune, as intended) |
+| the commit that recorded 6476, and its parent | 5991 and 5991 |
+
+6476 appears nowhere else in the tree: not in the block for milestone 447 (a thread's vector
+registers are its own), which that commit re-measured, not in this note, not in any commit message.
+It is an orphan.
+
+### What did reproduce, and it is the one thing worth keeping
+
+`rfence_self` is **sensitive to how many harts are online**, even though it fences a mask naming
+only the calling hart:
+
+| harts online | `rfence_self` ticks |
+|---:|---:|
+| 1 (what `--riscv` boots) | 5991 |
+| 2 | 6432 |
+| 4 | 7153 |
+
+Each of those is itself deterministic across runs. The committed 6476 sits 0.7% above the two-hart
+value and nowhere near the one-hart value, which is suggestive of a run made at the wrong hart count
+and is not proof of one. `xtask/src/bench.rs` sets `NIFE_SMP=1` unconditionally on this leg, so the
+only way to get there today is to edit that line, which is how the table above was produced.
+
+**Why the sensitivity exists at all**: the mask names the caller, so nothing is IPI'd, but OpenSBI's
+TLB path is not the same code on a platform with other harts running. The kernel side is identical
+in all three rows.
+
+### Does the fence still fence?
+
+Yes, and nothing in the window touched it. `kernel/src/arch/riscv64/mmu.rs` has the two call sites
+that matter and both are unchanged: `flush_tlb` executes a local `sfence.vma` and *then*
+`sbi_remote_sfence_vma` against `online_harts_mask() & !(1 << cpu::id())`, and `flush_asid` does the
+same with `sbi_remote_sfence_vma_asid`. Each skips the firmware call only when that mask is empty,
+which on a one-hart boot is the correct answer and not a shortcut.
+
+**The caveat a reader of this number needs, and it is the honest limit of the benchmark:**
+`rfence_self` passes `me`, its *own* hart, precisely so the cost is "getting into firmware and back"
+rather than a shootdown. On the single-hart boot `--riscv` uses, the production call sites issue
+**zero** RFENCEs, which the suite's own probe prints (`map_new_remote_fences 0 over 64 iters`). So
+this row prices a call the running kernel never makes in that configuration. It is a useful floor
+for what an RFENCE costs; it is not the cost of a shootdown, and a change to the real shootdown path
+would not move it.
+
+### The tripwire consequence, which is why this was worth fixing rather than noting
+
+`--check`'s slack is `base / 10`. A baseline of 6476 gives the row 647 ticks of headroom in both
+directions around a true value of 5991, so the row could regress by **1132 ticks, 19% of its real
+cost**, before the gate fired. The corrected row restores ~600 ticks of slack around the number the
+tree actually produces.
+
+### What was re-saved, and how
+
+The single line `rfence_self 6476 512` was hand-edited to `rfence_self 5991 512`. **Not
+`--save`**, which rewrites the whole file from one run and would have re-recorded fifteen rows this
+lane did not measure for and has no mandate to move; other lanes are working on exactly that
+question.
+
+A `#` comment was put above the row saying what it is. **That comment will not survive the next
+`--save`**, because `run_bench`'s save path builds the file from a fixed header plus one
+`name ticks iters` line per result and preserves nothing else. That is a foot gun and this note is
+where the fact lives instead; it is also a concrete second argument for item 2 of
+milestone 415 (sub-tripwire drift accumulates across baseline saves), whose §190 (must a baseline
+save record why it moved) asks whether a save should be obliged to record a reason. A row that
+cannot carry a reason cannot carry a correction either.
+
+### One stale comment found in passing
+
+`xtask/src/bench.rs`'s check loop is preceded by a comment claiming indented `#` lines "are treated
+as data" by "a column-0-only check". The filter it sits above is
+`.filter(|l| !l.trim_start().starts_with('#'))`, which handles indented comments correctly. The
+comment describes a hazard the code already fixed. Left as a finding rather than edited, because
+`xtask/src/bench.rs` is shared bench scaffolding another lane is in.
