@@ -97,15 +97,28 @@ fails.
 |---|---|---|
 | `kernel/src/arch/` | 9,015 | 314 |
 | `kernel/src/` outside `arch/` | 30,877 | 263 |
-| **the kernel, total** | **39,892** | **577** |
-| everything else that runs on nife | 75,559 | 561 |
+| `crates/` reachable **only** from the kernel | -- | 117 |
+| **the trusted base, total** | -- | **694** |
+| userspace | -- | 382 |
+| shared by both | -- | 19 |
+| the boot chain, before the kernel exists | -- | 37 |
 
-**That last row is the one a comparison needs and the headline metric hides.** `unsafe_outside_arch`
-is 824, and **561 of those 824 blocks are in userspace**, outside the trusted base entirely. The
-number of `unsafe` blocks in nife's TCB is **577**, not 1,138 and not 824.
+**This table said 577 when it was written on 2026-09-21 and that was short by 117**, corrected the
+same day. The error is worth keeping rather than quietly fixing, because it is the exact mistake this
+page exists to stop a reader making: **the boundary is not a path.** A count of `kernel/src/**` misses
+sixteen `crates/` members that only the kernel depends on, several of which were **deliberately
+lifted out of `kernel/src` so that Kani could reach them**. Drawing the line at the directory
+therefore undercounts the trusted base by exactly the code this project moved in order to prove
+things about it.
 
-**So the closest thing to Tock's ratio that this tree can state is 577 unsafe blocks in 39,892 code
-lines, and it is not Tock's ratio**, for two reasons that both have to be said out loud:
+Milestone 522 (a boundary drawn by dependency, not by path) draws it at a real `cargo metadata`
+dependency edge instead, and `script/metrics` now reports the four populations separately:
+**`unsafe_trust_kernel` is 694**, at a density of 142 per 10,000 lines against userspace's 120.
+
+**The number of `unsafe` blocks in nife's TCB is 694**, not 1,138, not 824, and not 577.
+
+**So the closest thing to Tock's ratio that this tree can state is 694 unsafe blocks against the
+kernel's code, and it is not Tock's ratio**, for two reasons that both have to be said out loud:
 
 1. **The numerator is blocks, not lines.** Nothing in the tree converts one to the other, and a block
    ranges from a one-line register write to a page of context-switch glue.
@@ -206,11 +219,13 @@ that must keep running on a battery, which is the system Tock is.
 
 ## BUGS
 
-- **Every figure here is a snapshot with no series behind it.** `script/metrics` tracks
-  `kernel_code_lines` and `unsafe_density` over time, but **not** the TCB split this note's central
-  table depends on, so the 577-of-824 finding cannot be watched for drift and will be stale the
-  moment a lane lands. `design/roadmap/proposals/the-trusted-core-has-no-size.md` proposes fixing
-  that; until it is promoted, re-derive before quoting.
+- **This was true when written and was fixed within hours, which is why the entry stays.** It read:
+  *"`script/metrics` tracks `kernel_code_lines` and `unsafe_density` over time, but not the TCB split
+  this note's central table depends on, so the finding cannot be watched for drift and will be stale
+  the moment a lane lands."* It went stale faster than that: the table's own figure was wrong when
+  published. `script/metrics` now carries the split as its own columns, so the series exists and the
+  drift is watchable. **The remaining half of the entry is still true**: the figures in this note are
+  a snapshot, nothing regenerates them, and a reader should re-derive before quoting.
 - **"The trusted base is the kernel" is a claim about the design, not a measurement.** It assumes the
   MMU and the capability table do what the code says, which is what `design/fatal-risks.md`'s risk 2
   (the proofs prove trivia) exists to interrogate, and that risk is AMBER: `kernel/src/arch/` is
