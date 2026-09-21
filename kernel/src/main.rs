@@ -436,6 +436,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 arch::timer::apic_timer_frequency() / 1_000_000,
             );
 
+            // The TSC-vs-RTC measurement instrument, off unless the `tsc_probe` feature is on.
+            // It halts when it is done, so it never reaches the rest of the tour, the same shape
+            // `bench` and `icount` take. See notes/tsc-under-tcg.md.
+            #[cfg(feature = "tsc_probe")]
+            {
+                arch::tsc_probe::probe();
+                arch::halt();
+            }
+
             arch::timer::init();
             arch::interrupts::enable();
             let start = arch::timer::now();
