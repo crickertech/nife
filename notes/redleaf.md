@@ -23,8 +23,9 @@ The evidence is laid out here and the sentence is deliberately not written.
 | Burtsev, Appel, Detweiler, Huang, Li, Narayanan, Zellweger. *Isolation in Rust: What is Missing?* PLOS '21, Oct 25 2021. | the authors' own retrospective on what RedLeaf cost them | 2026-09-20 |
 | Chen, Li, Mesicek, Narayanan, Burtsev. *Atmosphere: Towards Practical Verified Kernels in Rust.* KISV '23, Oct 23 2023. | what the group did next | 2026-09-20 |
 | Chen, Li, Zhang, Narayanan, Burtsev. *Atmosphere: Practical Verified Kernels with Rust and Verus.* SOSP '25, Oct 13-16 2025. | the same, grown up | 2026-09-20 |
+| Heiser. *The seL4 Microkernel: An Introduction.* seL4 Foundation whitepaper, Revision 1.4.1 of 2026-07-17. | the reference point this project is measured against | 2026-09-20, for the TCB definition and size only |
 
-Everything quoted below is quoted from one of those six. Nothing here is recalled. `script/citations`
+Everything quoted below is quoted from one of those seven. Nothing here is recalled. `script/citations`
 validates in-tree numbered records and cannot check any of this, so the discipline is the author's
 alone, which is why the table exists.
 
@@ -114,51 +115,28 @@ difference.
 
 ### What this tree can and cannot say in their terms
 
-**Tested rather than asserted, and the answer is mostly "cannot," for a reason that is about the
-architecture rather than about the tooling.**
+**It cannot say it in their terms, and the reason is architectural rather than a gap in the
+tooling.** `notes/trusted-base.md` is the worked version: the three definitions of "trusted", the
+re-derived numbers, their six unsafe categories run against this tree file by file, and the
+`TakeCell` question answered from the code. The short form:
 
-What nife does measure, all of it counted on this worktree on 2026-09-20 using the tree's own
-`scripts/rust_source.py` stripper, which is the same code `script/metrics` and `script/lint` use:
+- In Tock and in RedLeaf the *safe* part of the kernel is **not** trusted for isolation, so counting
+  unsafe lines is a genuine TCB measurement.
+- In nife the **whole** kernel is trusted for isolation whether or not it is safe, because it is the
+  thing that programs the MMU and mints capabilities. The unsafe census measures proof burden, not
+  TCB size.
+- The tree's own numbers, from `script/metrics --table` on 2026-09-20: **39,892 kernel code lines**,
+  **577 `unsafe` blocks inside the kernel** (314 of them in `arch/`), and an unsafe density of **77**
+  per 10,000 non-arch code lines against a ceiling of 88. The headline `unsafe_outside_arch` of 824
+  is misleading for this purpose, because **561 of those blocks are in userspace**, outside the
+  trusted base entirely.
+- The apples-to-apples comparison is with seL4, which draws the boundary in the same place:
+  *"of the order of ten thousand lines of source code (10 kSLOC)"* (the seL4 Foundation whitepaper).
 
-| measure | value | where it comes from |
-|---|---|---|
-| `unsafe fn` declarations | **119** (26 of them trait-impl methods, whose contract is the trait's) | `script/lint`, check "unsafe fn contracts" |
-| `unsafe` blocks outside `kernel/src/arch/` | 955 | `rust_source.unsafe_census` |
-| `unsafe` blocks inside `kernel/src/arch/` | 314 | the same |
-| non-arch code lines (the density denominator) | 115,797 | the same |
-| unsafe density per 10,000 non-arch code lines | **82**, against a ceiling of 88 | `script/metrics`, the `unsafe.svg` series |
-| `kernel/src` code lines / comment lines | 39,892 / 35,788 | `rust_source.strip_non_code` |
-
-Every `unsafe fn` carries a `# Safety` section or `script/lint` fails, and every unsafe *operation*
-sits beside a written `// SAFETY:` invariant because `unsafe_op_in_unsafe_fn` and
-`clippy::undocumented_unsafe_blocks` compose to force it (`notes/unsafe-obligations.md`).
-
-**That is a finer-grained discipline than the 2017 paper's and it does not produce the 2017 paper's
-number, because the two systems disagree about what the word "trusted" refers to.**
-
-- In Tock and in RedLeaf, **the safe part of the kernel is not trusted for isolation.** The type
-  system is what keeps a driver out of another driver, so "which lines are trusted" and "which lines
-  are `unsafe`" are the same question, and counting unsafe lines is a genuine TCB measurement.
-- In nife, **the whole kernel is trusted for isolation whether or not it is safe**, because the
-  kernel is the thing that programs the MMU and mints capabilities. A safe-Rust bug in
-  `kernel/src/syscall.rs` can hand out an authority nobody should have, and no type system prevents
-  that. So nife's unsafe census is not a TCB measurement at all. It measures **how much of the code
-  the compiler cannot check**, which is a proof-burden and review-burden number, and the tree says so
-  in its own words: the density metric exists to hold the claim that *"the tree is getting
-  proportionally safer."*
-
-**So the honest translation, with the caveat attached, is this.** nife's analogue of *"over 6000
-lines of kernel code"* is `kernel/src` at 39,892 code lines, all of it trusted. Its analogue of
-*"under 1000 lines"* **does not exist**: the tree counts unsafe *blocks*, not unsafe *lines*, and
-1,269 blocks tree-wide is not convertible into a line count without writing code that does not exist.
-Worse, most of those blocks are in userspace crates that are outside the TCB entirely, so even a
-correct line count would need a TCB-membership filter the tree has never defined.
-
-**And the meta-gap is the one that would actually be worth closing.** `notes/tcb.md` is about the
-*Thread* Control Block, and its own acronym-collision section says the Trusted Computing Base sense
-*"is unrelated"*. There is no note and no metric column for the trusted core's size, so the tree
-cannot currently answer "how big is your TCB" in any units at all. That is proposed as
-`design/roadmap/proposals/the-trusted-core-has-no-size.md` rather than fixed here.
+**And the meta-gap is the one worth closing.** `notes/tcb.md` is about the *Thread* Control Block,
+and its own acronym-collision section says the Trusted Computing Base sense *"is unrelated"*. No
+metric column tracks the trusted core's size, so the split above is a snapshot with nothing watching
+it. Proposed as `design/roadmap/proposals/the-trusted-core-has-no-size.md` rather than fixed here.
 
 ## Corrections to the sketch this lane was briefed with
 
@@ -225,7 +203,7 @@ objects and traits are capabilities"*, and a domain's default authority is exact
 *"the microkernel system call interface ... the only interface through which the domain can affect
 the rest of the system."* And it has a supervision story: shadow drivers, *"lightweight shadow
 domains that mediate access to the device driver and restart it replaying its initialization
-protocol after the crash"*, which is DECISIONS §26 (the kernel turns a death into a message) wearing
+protocol after the crash"*, which is DECISIONS §26 (the fault endpoint: thread death becomes a message) wearing
 different clothes.
 
 On top of it they built **Rv6**, a POSIX-subset personality following xv6, as a collection of
@@ -234,6 +212,10 @@ semantics of the fork() system call as we do not rely on address spaces and henc
 and clone the address space of the domain."*
 
 ## Bet one: what each system has to trust
+
+*`notes/trusted-base.md` is the measured companion to this section: the three incompatible
+definitions of "trusted", the re-derived numbers for this tree, and their six unsafe categories run
+against it. This section is the argument; that note is the units.*
 
 This is the interesting axis, and both systems name their own trusted base honestly, which makes the
 comparison possible at all.
@@ -418,7 +400,7 @@ Four places, and the first two are not close.
    every second ... For reads, the throughput with and without restarts averages at 2062 MB/s and
    2164 MB/s respectively (a 5% drop in performance). For writes, the total throughput averages at
    356 MB/s with restarts and 423 MB/s without restarts (a 16% drop)."* nife has the mechanism
-   (DECISIONS §26 (a thread's death becomes a message), DECISIONS §41 (the endpoint is the broker)) and
+   (DECISIONS §26 (the fault endpoint: thread death becomes a message), DECISIONS §41 (the endpoint is the broker)) and
    `notes/live-replacement.md` records that live replacement costs zero in steady state, but nobody
    here has published what a component dying repeatedly costs a workload.
 4. **Application-level numbers against commodity baselines.** Maglev, a network key-value store, and
@@ -494,7 +476,7 @@ moved since January 2022.
 
 ## BUGS
 
-- **This note was written from six documents and one shallow clone. It is not a survey.** Citing
+- **This note was written from seven documents and one shallow clone. It is not a survey.** Citing
   papers is not the same as tracking a field, and the isolation-in-Rust literature since 2021
   (KSplit, Theseus, Netbricks, Splinter, VeriSMo, NrOS, Asterinas) was seen only through these
   authors' related-work sections, which are not a neutral source about their neighbours.
