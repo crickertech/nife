@@ -1,5 +1,35 @@
 # nife
 
+**A capability microkernel in Rust, built from the first instruction, where every driver and server
+is an ordinary process and the trusted core is small enough to say its size out loud.**
+
+Most operating systems ask you to trust millions of lines. Here the kernel allocates no memory of
+its own, every filesystem, driver and network stack is a confined process at EL0, and the trusted
+base is **694 `unsafe` blocks in 39,892 lines of kernel code**. It boots on **aarch64, riscv64 and
+x86_64**, on real silicon as well as under emulation, and it runs software nobody wrote for it:
+unmodified `ripgrep` 14.1.1 from crates.io, **zero patches**, with byte-identical transcripts from
+three separately built binaries.
+
+It is a **demonstrator**, which is what §14 (the project's direction) committed it to: built to
+stand next to Linux, macOS and seL4 on the primitives that define an operating system, and to win
+where a minimal kernel should.
+
+**And it was built in about ten weeks by one person who does not write the lines.** Many machine
+agents work in parallel lanes; one architect reviews architecture and outcomes. What makes that
+safe rather than reckless is the gate discipline: every architecture builds and boots or the merge
+fails, every proof must have a recorded way to go red, every citation must say what it cites, every
+refusal must say what would change it, and every known limitation sits beside the feature it limits
+rather than in a tracker. [notes/how-this-is-built.md](notes/how-this-is-built.md) has the numbers
+and the caveats that make them mean something.
+
+**Start with the part that could kill it.**
+[design/fatal-risks.md](design/fatal-risks.md) lists the nine claims that, if false, mean this
+project should stop, each with the experiment that would settle it and the honest verdict so far.
+Two are amber. **One already fired**: the first customer went to Linux, because nife could not meet
+a real deadline.
+
+---
+
 *The name is lowercase everywhere, sentence starts included, and is said like* knife: *Ni + Fe,
 the Earth's nickel-iron core. The full story, refused spellings included, is
 [design/naming.md](design/naming.md).*
@@ -12,15 +42,8 @@ the Earth's nickel-iron core. The full story, refused spellings included, is
 
 [![CI](https://github.com/crickertech/nife/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/crickertech/nife/actions/workflows/ci.yml)
 
-A capability microkernel for aarch64, riscv64 and x86_64, written in Rust, from the first
-instruction.
-
-The goal is DECISIONS §14 (the project's direction): a verified-Rust capability microkernel that
-runs real workloads, built to stand next to Linux, macOS, and seL4 on the primitives that define an
-OS, and to win
-where a minimal kernel should. The capability core carries machine-checked proofs. The kernel
-allocates no memory of its own. Every driver and server is an EL0 process. The same portable
-core boots on three ISAs, and on real RISC-V silicon.
+The capability core carries machine-checked proofs, the same portable core boots on three ISAs, and
+the kernel has run on real RISC-V silicon.
 
 ## Try it
 
