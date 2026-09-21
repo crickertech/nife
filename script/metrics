@@ -111,6 +111,25 @@
 # - **Charts are checked by eye, in a browser.** QuickLook crops an SVG's right edge and made the
 #   legends look clipped on 2026-09-19 when they were not; render with a browser before believing a
 #   layout defect.
+# - **The trust-boundary split's crate table is hand-maintained, not derived at every run.** The
+#   `unsafe_trust_*` columns (added by the unsafe-census-by-trust-boundary milestone, provisional)
+#   classify each `crates/` member as kernel-only, userspace-only, shared or boot-chain, from a
+#   `cargo metadata` resolve graph read ONCE on 2026-09-20 and baked into
+#   `scripts/rust_source.py` as `KERNEL_ONLY_CRATES`/`USERSPACE_ONLY_CRATES`/`SHARED_CRATES`. It
+#   cannot be re-derived per historical week for the same reason the coverage cell cannot: this
+#   script is forbidden from running cargo or checking anything out (see the top of this file), so
+#   applying today's table to a commit whose dependency graph actually differed is the same
+#   restatement trade `MILESTONE_STATUSES`/`NAME_STATUSES` already make. A `crates/` directory the
+#   table has never seen counts as `unsafe_trust_unclassified` rather than being silently dropped
+#   into the wrong bucket or ignored; a nonzero value there for an OLD week is this bug firing, not
+#   a new population appearing. None of the ten weeks on record hit it as of 2026-09-20 (checked by
+#   running `--backfill` and reading the column back).
+# - **A `SHARED` crate's unsafe is not attributed to a call site.** Whether a particular `unsafe`
+#   block in, say, `environment_protocol` is reached by the kernel's production code, by a
+#   userspace `std` program, or only by the kernel's own `#[cfg(test)]` test-oracle modules (several
+#   of which never ship) is a per-function read this pass did not do. `unsafe_trust_shared` is
+#   reported as its own column for exactly this reason: folding it into either side would be a
+#   guess wearing a number's clothes. See `notes/project-metrics.md`'s unsafe section.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -182,6 +201,10 @@ FIELDS = (['week', 'commit', 'date']
              'harnesses_falsified', 'harnesses_unfalsified', 'harnesses_total',
              'unsafe_outside_arch', 'unsafe_inside_arch', 'unsafe_thread_safety',
              'unsafe_code_lines', 'unsafe_density',
+             'unsafe_trust_kernel', 'unsafe_trust_kernel_code_lines', 'unsafe_trust_kernel_density',
+             'unsafe_trust_userspace', 'unsafe_trust_userspace_code_lines',
+             'unsafe_trust_userspace_density',
+             'unsafe_trust_shared', 'unsafe_trust_boot_chain', 'unsafe_trust_unclassified',
              'fatal_risks_tested', 'fatal_risks_untested',
              'coverage_lines_pct']
           # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them
@@ -743,6 +766,29 @@ def unsafe_census(tree):
     return {'unsafe_' + key: value for key, value in counts.items()}
 
 
+def unsafe_trust_census(tree):
+    """The same census, split by trust boundary rather than by kernel/src/arch/.
+
+    See `scripts/rust_source.py`'s own comment on `trust_boundary_census` for the classification
+    and its caveats (`shared`, `boot_chain` and `unclassified` are populations this number cannot
+    collapse into either side without guessing). Only the columns this page and a future ceiling
+    could plausibly want are kept; `trust_boundary_census` also computes `*_code_lines` for
+    `shared`/`boot_chain`/`unclassified`, dropped here because nothing charts them.
+    """
+    counts = rust_source.trust_boundary_census(tree.rust())
+    return {
+        'unsafe_trust_kernel': counts['kernel'],
+        'unsafe_trust_kernel_code_lines': counts['kernel_code_lines'],
+        'unsafe_trust_kernel_density': counts['kernel_density'],
+        'unsafe_trust_userspace': counts['userspace'],
+        'unsafe_trust_userspace_code_lines': counts['userspace_code_lines'],
+        'unsafe_trust_userspace_density': counts['userspace_density'],
+        'unsafe_trust_shared': counts['shared'],
+        'unsafe_trust_boot_chain': counts['boot_chain'],
+        'unsafe_trust_unclassified': counts['unclassified'],
+    }
+
+
 def harnesses(tree):
     counts = rust_source.harness_count(tree.rust())
     return {'harnesses_' + key: value for key, value in counts.items()}
@@ -807,7 +853,7 @@ def row_for(rev, week, coverage='', person_weeks=''):
         row[_col('names', status)] = nm[status]
     row['names_total'] = named
     for part in (proposals(tree), lines(tree), bugs(tree), harnesses(tree),
-                 unsafe_census(tree), fatal_risks(tree)):
+                 unsafe_census(tree), unsafe_trust_census(tree), fatal_risks(tree)):
         row.update(part)
     return row
 
@@ -1183,7 +1229,19 @@ CHARTS = [
       ('unfalsified', 'harnesses_unfalsified')], 1.0, None, None),
     ('unsafe.svg', 'unsafe blocks per 10,000 lines outside kernel/src/arch/',
      'the direction is down; the ceiling is script/lint’s',
+<<<<<<< HEAD
      [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88, None),
+=======
+     [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88),
+    ('unsafe-trust.svg', 'The same unsafe blocks, by trust boundary',
+     'kernel: no confinement over it. userspace: confined like any other program. see notes/'
+     'project-metrics.md for shared/boot chain/unclassified and why this is not the chart above',
+     [('kernel (trusted base)', 'unsafe_trust_kernel'),
+      ('userspace (confined)', 'unsafe_trust_userspace'),
+      ('shared (both, unresolved)', 'unsafe_trust_shared'),
+      ('boot chain (uefi_loader)', 'unsafe_trust_boot_chain'),
+      ('unclassified', 'unsafe_trust_unclassified')], 1.0, None),
+>>>>>>> origin/main
     ('fatal-risks.svg', 'The nine things that would kill nife',
      'design/fatal-risks.md; tested means an experiment has been run, not that it came back green',
      [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],

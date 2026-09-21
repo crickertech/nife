@@ -552,6 +552,105 @@ and 253 inside, with zero files disagreeing** (that commit's own row; the number
 afterwards). That is the check worth having, and it says the shortcuts in `script/lint`'s regex do
 not bite in this tree.
 
+## The same unsafe blocks, by trust boundary
+
+![unsafe blocks by trust boundary](project-metrics/unsafe-trust.svg)
+
+**The chart above this one mixes two populations that mean opposite things, and this is the same
+census with that mixed once and for good.** `unsafe_outside_arch` (824 today) adds every `unsafe`
+block that is not in `kernel/src/arch/`, kernel and userspace both, into one number. In a capability
+microkernel that is not a detail: an `unsafe` block inside `kernel/src` runs with nothing confining
+it, and an `unsafe` block in a userspace program (`components/`, `fixtures/`, or a crate that ships
+only into one of them) is confined by the same MMU-plus-capability-table mechanism that confines
+every other program. A single density cannot answer "how much of the code that matters for isolation
+is unsafe", because it never separates the two populations that question is about. Raised as exactly
+this problem by a research lane on 2026-09-20 (`notes/trusted-base.md`, landing alongside this
+section, written for the RedLeaf comparison; see `notes/redleaf.md`), which hand-computed a first cut
+and flagged in its own `BUGS` that nothing kept it computed. This split is that mechanism.
+
+**Today, 2026-09-20: 694 kernel, 382 userspace, 19 shared, 37 boot chain, 0 unclassified**, which
+sums to 1,132, not 1,138 (824 + 314). The 6-block difference is not the split disagreeing with the
+old census; it is a separate, smaller correction this pass found while classifying `crates/`: three
+crates (`board_console`, `portable_executable`, `stick_maker`) are host tooling that runs on the
+developer's Mac and never on nife, exactly like `bench/host/`, `xtask/` and the rest of
+`unsafe_census`'s own `HOST_ONLY` exclusion, just not under one of `HOST_ONLY`'s path prefixes; each
+says so in its own header. `unsafe_outside_arch`/`unsafe_density` above are left untouched by this
+finding (they still mean exactly what they meant, and `script/lint`'s ceiling still gates the same
+number it always has); this split simply does not count those three crates' 6 blocks toward either
+side, because the question this split answers, kernel privilege or userspace confinement, has no
+answer for code that runs on neither. Whether `unsafe_census`'s own `HOST_ONLY` should widen to match
+is calef's call, recorded rather than made here.
+
+**What each bucket is**, and the boundary decisions behind it are in `scripts/rust_source.py`'s own
+comment on `trust_boundary_census`:
+
+- **kernel** (694 blocks, 48,724 code lines, density **142** per 10,000): `kernel/src/**` (arch and
+  not) plus the sixteen `crates/` members reachable, over a real `cargo metadata` dependency edge,
+  **only** from the `kernel` package: `paging` and `dma_validator` among them, both lifted out of
+  `kernel/src` on purpose so Kani could reach them. Counting only `kernel/src/**`, as the hand
+  computation in `notes/trusted-base.md` does, misses these sixteen crates entirely: its 577 is
+  *undercounting the trusted base by the 117 blocks those crates carry*, which is worth flagging to
+  that note's own lane before it lands, since its `BUGS` section already names this exact risk
+  ("a tree can shrink [the kernel line count] by moving code out of `kernel/src` without reducing
+  what anyone has to trust") without checking whether it had happened to its own number.
+- **userspace** (382 blocks, 31,639 code lines, density **120** per 10,000): `components/`,
+  `fixtures/`, the sixteen `crates/` members reachable only from them, and five packages that are
+  each their own cargo workspace and never appear in the main one (`redoxfs_server`'s `el0` build,
+  `std_exerciser`, `entropy_backend`, `cryptography_exerciser`, `cryptography_provider`); every one
+  of them is, by its own header, a program or library that runs on nife at EL0 and never as kernel
+  code.
+- **shared** (19 blocks, in 5 of 36 crates reachable from both sides): code that genuinely executes
+  with kernel privilege in the kernel binary and, separately, under confinement in a userspace
+  program. Not a hedge: `environment_protocol`'s `ConfigPage` and `clock_protocol`'s `ClockPage` are
+  built by the kernel's `unsafe fn new`/`from_raw_parts` and read back through the identical
+  accessor by a userspace `std` program, so the same unsafe source is real in both roles. Folding it
+  into either side would overcount one and undercount the other; telling apart, per call site,
+  whether a specific block also runs from the kernel's own `#[cfg(test)]` oracles (several of these
+  crates' `Cargo.toml` comments say their kernel-side use is exactly that, a test predicting what a
+  client sent, and would never ship) is a source-level read this pass did not do and is recorded
+  as future work.
+- **boot chain** (37 blocks): `uefi_loader` and the one crate only it reaches (`sealed_pair`). It
+  runs once, before the kernel starts, with the full privilege of the pre-OS environment, to decide
+  which kernel image gets control, and its memory is gone by the time the kernel's isolation
+  boundary exists to enforce anything. That is a chain-of-trust question, not a runtime-isolation
+  one, so it is reported on its own rather than folded into either of the other two; which claim it
+  backs is calef's to decide.
+
+**Which number the ceiling should be held against.** `script/lint`'s `<!--count-at-most:unsafe-
+density-outside-arch-->` (`notes/unsafe-obligations.md`) holds the mixed density (currently 88
+against 77) and this pass does not change that marker's value; a gate's threshold is calef's. What
+this pass can say is what the ceiling would mean under each candidate: **142** if held against the
+kernel-only density, which is the number that answers "how much of the code nothing confines is
+unsafe"; **120** against the userspace density, the confined population, where a ceiling matters
+less because a bug there is a bug in one program, not in the base; or **77**, the status quo, which
+answers neither question precisely because it is built from both. Recommendation: the kernel density
+is the one worth a ceiling of its own, because it is the population where the mixed number's blind
+spot actually lives, but a ceiling set on it starts cold (no history of it moving deliberately) and
+that is a decision for calef to make with these numbers in hand, not one this pass makes for him.
+
+**The history, backfilled, and where it is honest about a gap rather than papering over one.**
+`script/metrics --backfill` restated the whole series with this split, the same way milestone 448
+restated `SUPERSEDED`/`REFUSED` into weeks already written. Of the ten weeks recorded before
+`--backfill` ran, **eight (2026W29 through 2026W36, then W37 too) carry a nonzero
+`unsafe_trust_unclassified`** (57 up to 188 blocks), because this tree spells its crate names out and
+most of them did not always have their current spelling: `crates/ipc`, `crates/dtb`, `crates/asid`
+and around forty more were renamed to `inter_process_communication`, `device_tree_blob`,
+`address_space_identifier` and so on over the weeks this series covers, and the classification table
+in `scripts/rust_source.py` is built from today's names (the same restatement trade
+`MILESTONE_STATUSES`/`NAME_STATUSES` already make, stated in that file's own header). **This was not
+reconstructed for the same reason a shortcut was refused rather than taken**: `git log
+--diff-filter=R --summary` finds candidate renames, but at least one pairing it offers is wrong
+(`crates/canary_gate` paired with `crates/work_steal_slot` by a `Cargo.toml`-only content match,
+while `canary_gate`'s own `src/lib.rs` correctly pairs with `memory_corruption_canary_gate`), and a
+hand-verified alias table for around forty old names, several of them (`mdns_proto`, `smb_proto`,
+`ntlm`) naming protocols since removed outright (SMB and Time Machine are out of this project's
+customer path entirely, per `AGENTS.md`) with no current bucket to map to at all, is real work this
+pass chose not to rush. **From 2026W38 (2026-09-20) the split is exact: `unsafe_trust_unclassified`
+reads 0.** A future lane rebuilding that alias table, verified file-by-file rather than trusted from
+`--summary` alone, is the way to close the gap; until then, read the early weeks' kernel/userspace
+bars as undercounts of both sides by whatever their `unclassified` band carries, exactly the caution
+this page already asks for `names_no_block` in the weeks before naming provenance existed.
+
 ## The nine things that would kill nife
 
 ![Fatal risks](project-metrics/fatal-risks.svg)

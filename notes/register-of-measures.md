@@ -95,6 +95,13 @@ Two of these are the register doing its job on itself: the unsafe rows did not e
 derived** by `script/lint`'s `==> unsafe fn contracts` check. Finding a number already tracked is as
 much a result as finding one that is not.
 
+**Row 7's density mixes kernel and userspace unsafe into one population, and nothing here gates the
+split.** `script/metrics` (the unsafe-census-by-trust-boundary milestone, provisional) now tracks
+`unsafe_trust_kernel`/`unsafe_trust_userspace` alongside it, weekly, with no ceiling of their own:
+see notes/project-metrics.md's "The same unsafe blocks, by trust boundary" for the numbers, why row
+7's 94 answers a different question than either half, and the recommendation on which one a future
+ceiling belongs on.
+
 ## Dated
 
 The command is the point of each row. A dated measurement whose re-taking is folklore is a `dated`
