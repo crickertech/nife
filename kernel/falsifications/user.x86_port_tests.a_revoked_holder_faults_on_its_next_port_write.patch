@@ -21,13 +21,17 @@ after its `out` on a rendezvous nobody was receiving, so a surviving grant hung 
 Expected to fail: `assert_eq!(msg[0], EVENT_FAULT, "a revoked holder's next `out` must fault; the
 word must never arrive")`, holding `EVENT_EXIT` (2) where it wanted `EVENT_FAULT` (1).
 
+Regenerated 2026-09-21 (falsif lane) against the context PR #1059 (risk 7's adversarial pass) moved:
+that pull request inserted the `outgoing_cap` hand-off sweep directly above the six lines this patch
+removes, so the old hunk no longer matched. Same six lines, same defect, new surrounding context.
+
 diff --git a/kernel/src/sched.rs b/kernel/src/sched.rs
-index 201071c7..00c851c7 100644
+index d1054fc8..750e8917 100644
 --- a/kernel/src/sched.rs
 +++ b/kernel/src/sched.rs
-@@ -3176,12 +3176,6 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>)
-                     let _ = t.capability_table.delete(slot);
-                 }
+@@ -3291,12 +3291,6 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>)
+             if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+                 t.outgoing_cap = None;
              }
 -            // Forget the cached grant if it named the revoked range, so switching to this thread
 -            // installs nothing. x86 only; the field exists nowhere else.
