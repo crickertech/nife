@@ -21,9 +21,9 @@ Pinned at **0.9.1**, upstream git sha `473b4baeb041`.
 
 **Releases: current.** 0.9.1 is still the newest published version that is neither yanked nor a prerelease.
 
-**Upstream git: 40 non-merge commits** since the pinned sha (plus 16 merge commits, dropped), head `c684a743f07c`.
+**Upstream git: 42 non-merge commits** since the pinned sha (plus 17 merge commits, dropped), head `b87b0976ee12`.
 
-Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4baeb041ebe14504f30693393b1cae52558c...c684a743f07c82e9d05519c9cf58fda4d5f765f4
+Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4baeb041ebe14504f30693393b1cae52558c...b87b0976ee122036b2ec040159b890e1e06ca139
 
 - 2026-07-05 `57ad275d` Update redox-path
 - 2026-07-07 `d807dd3e` Fix following symlink
@@ -65,6 +65,8 @@ Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4bae
 - 2026-08-30 `8ecdf1b0` Restore O_NOFOLLOW returning ELOOP upon symlink
 - 2026-08-31 `f0f1cf90` CI: Actually wait for mount for linux
 - 2026-08-31 `cf3ad1db` Fix rename with scheme path
+- 2026-09-06 `5e279a38` Update getrandom
+- 2026-09-06 `9328a9c0` Reduce env_logger deps
 
 **Upstream has edited files our divergence patch also touches**, so a bump is likely to conflict there:
 
