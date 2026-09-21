@@ -1,0 +1,17 @@
+[package]
+name = "file_allocation_table"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# Enough of FAT32 (Microsoft's "FAT: General Overview of On-Disk Format", version 1.03) to CREATE
+# an EFI system partition holding one boot file, as pure computation. No I/O of any kind, the same
+# rule `globally_unique_identifier_partition_table` keeps: this crate says what every sector of the
+# volume must contain and the caller writes them. So it compiles for the host and its tests run in
+# milliseconds. It reads nothing; milestone 140's FAT32 stratum is the read half and is not this.
+# See notes/file-allocation-table.md.
+
+[lints]
+workspace = true
+
+[dependencies]

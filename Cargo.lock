@@ -335,6 +335,10 @@ name = "environment_protocol"
 version = "0.1.0"
 
 [[package]]
+name = "file_allocation_table"
+version = "0.1.0"
+
+[[package]]
 name = "filesystem_protocol"
 version = "0.1.0"
 dependencies = [
