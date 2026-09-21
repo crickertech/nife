@@ -2710,6 +2710,12 @@ pub mod entropy_service;
 #[cfg_attr(not(test), allow(dead_code))] // the tests are its callers
 pub mod non_volatile_memory_express_service;
 
+/// **The offer a booted stick makes** (milestone 198 (a package manager, and the trivial install
+/// that makes a second customer possible), rung 2a): ask whether to put this system on the
+/// machine's own disk, and wire the two confined programs that do it. Boot policy only; nothing in
+/// it holds a disk.
+pub mod install_service;
+
 /// **A confined EL0 process drives a real, non-virtio DMA device** (milestone 261).
 ///
 /// What these prove that nothing else would: that the NVMe queue mechanics work from ring 3 with

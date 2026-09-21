@@ -177,6 +177,7 @@ dependencies = [
  "elf",
  "entropy_protocol",
  "environment_protocol",
+ "file_allocation_table",
  "filesystem_protocol",
  "globally_unique_identifier_partition_table",
  "grant_plan",

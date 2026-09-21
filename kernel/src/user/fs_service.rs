@@ -208,7 +208,19 @@ static FILE_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU6
 /// The wired service: the file-service endpoint clients `CALL`, the physical frame they share
 /// with the FS server, and (only on the call that did the wiring) the block server's and FS
 /// server's readiness endpoints.
-type Service = (RendezvousId, u64, Option<(RendezvousId, RendezvousId)>);
+///
+/// **The block server's half is itself an `Option`** (milestone 198 (a package manager, and the
+/// trivial install that makes a second customer possible), rung 2a). A boot that mounts the NVMe
+/// disk does not start a block server at all: it borrows the one
+/// `non_volatile_memory_express_service` already runs, whose readiness sentinel is sent once and
+/// may already have been taken by whoever wired it. `None` there means "already up, with nothing
+/// left to drain", which is a different fact from the outer `None`'s "somebody else wired the whole
+/// service" and deserves to be a different shape rather than a flag somewhere.
+type Service = (
+    RendezvousId,
+    u64,
+    Option<(Option<RendezvousId>, RendezvousId)>,
+);
 
 /// Wire the block server and the FS server if this boot has not already, else hand back what is
 /// already running. `None` means no RedoxFS disk is attached.
@@ -231,13 +243,19 @@ fn ensure(blk_image: &'static [u8], fs_server_image: &'static [u8]) -> Option<Se
 
 /// Wire and spawn the block server and the FS server. `blk_image` is the driver binary carrying
 /// the block-server role (hello on aarch64, `block_driver` on riscv); `fs_server_image` is the same on
-/// both ISAs. Returns `(blk_ready, ready, file_ep, file_shared)`.
+/// both ISAs. Returns `(blk_ready, ready, file_ep, file_shared)`, where `blk_ready` is `None` when
+/// the block service was already running (see [`nvme_disk`]).
 fn wire_servers(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-) -> Option<(RendezvousId, RendezvousId, RendezvousId, u64)> {
-    let (blk_ep, blk_ready, blk_shared) =
-        spawn_block_server(blk_image, crate::virtio::find_block_device_n(1)?);
+) -> Option<(Option<RendezvousId>, RendezvousId, RendezvousId, u64)> {
+    let (blk_ep, blk_ready, blk_shared) = match crate::virtio::find_block_device_n(1) {
+        Some(dev) => {
+            let (ep, ready, shared) = spawn_block_server(blk_image, dev);
+            (ep, Some(ready), shared)
+        }
+        None => nvme_disk()?,
+    };
     let file_shared = file_channel();
     let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
     let ready = crate::sched::create_rendezvous(); // FS server WRITE -> the kernel test RECVs
@@ -255,6 +273,34 @@ fn wire_servers(
         },
     );
     Some((blk_ready, ready, file_ep, file_shared))
+}
+
+/// **The NVMe disk, when this machine has no virtio one** (milestone 198 (a package manager, and
+/// the trivial install that makes a second customer possible), rung 2a).
+///
+/// This is what an **installed** system boots through. A machine with a nife disk on it has no
+/// virtio block device at all: the stick is gone, and what is left is the NVMe controller the
+/// installer wrote to. The NVMe data plane already serves `filesystem_protocol::blk` from a
+/// confined process with the same transfer geometry the FS server expects
+/// (`filesystem_protocol::blk::TRANSFER_BLOCKS` pages, multi-block requests included), so the
+/// substitution is the endpoint and the shared region and nothing else.
+///
+/// **The FS server is given the whole disk, not the nife data partition**, and that is a recorded
+/// limitation rather than an oversight. It works because `redoxfs`'s own `FileSystem::open` scans
+/// blocks `0..65536` for its header and adopts the block it finds it at as the filesystem's
+/// origin, which is why `components/src/installer.rs` puts the data partition **first** on the
+/// disk. The cost is that this server can address the EFI system partition and the partition table;
+/// a partition-bounded mount needs either a base-block field on the `blk` wire or a program in the
+/// middle, and the installer's `BUGS` carries the argument.
+///
+/// `None` when there is no NVMe controller. When the service was already wired this boot (the
+/// install offer surveys the disk through it before the progenitor exists) the readiness half comes
+/// back `None`, because that sentinel is sent once and has been taken; the service is up either
+/// way, which is what the caller actually needs to know.
+fn nvme_disk() -> Option<(RendezvousId, Option<RendezvousId>, u64)> {
+    let image = crate::user::program("non_volatile_memory_express")?;
+    let wiring = crate::user::non_volatile_memory_express_service::ensure(image)?;
+    Some((wiring.request, wiring.ready, wiring.transfer_phys))
 }
 
 /// **Spawn a block server on one virtio block device.** Extracted from [`wire_servers`] because
@@ -649,7 +695,7 @@ pub fn start(
     fs_server_image: &'static [u8],
     client_image: &'static [u8],
     client_role: u64,
-) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
+) -> Option<(Option<(Option<RendezvousId>, RendezvousId)>, RendezvousId)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     // 0 = the end-to-end proof; 1 = the fs_read benchmark loop.
     let report = spawn_fs_client(client_image, file_ep, file_shared, client_role, 0, 0, 0);
@@ -701,15 +747,19 @@ pub struct Grant {
 ///
 /// `None` means an earlier caller in this boot already wired the service and drained these.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn wait_for_service(readiness: Option<(RendezvousId, RendezvousId)>) {
+pub fn wait_for_service(readiness: Option<(Option<RendezvousId>, RendezvousId)>) {
     let Some((blk_ready, fs_ready)) = readiness else {
         return;
     };
-    assert_eq!(
-        crate::sched::ipc_recv(blk_ready)[0],
-        filesystem_protocol::fixture::READY,
-        "the block server did not bring the RedoxFS device up",
-    );
+    // `None` means the block service was already running when this one was wired, so its sentinel
+    // has been drained by whoever started it and there is nothing here to wait for.
+    if let Some(blk_ready) = blk_ready {
+        assert_eq!(
+            crate::sched::ipc_recv(blk_ready)[0],
+            filesystem_protocol::fixture::READY,
+            "the block server did not bring the RedoxFS device up",
+        );
+    }
     assert_eq!(
         crate::sched::ipc_recv(fs_ready)[0],
         filesystem_protocol::fixture::READY,
@@ -1180,7 +1230,7 @@ pub fn start_granted_set(
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct FileSink {
     /// The FS service's two readiness endpoints, if this call is the one that wired it.
-    pub readiness: Option<(RendezvousId, RendezvousId)>,
+    pub readiness: Option<(Option<RendezvousId>, RendezvousId)>,
     /// The byte sink. Goes into a program's output slot with `WRITE`.
     pub sink: RendezvousId,
     /// Readiness first, then `DONE` and the byte total at end of stream.
@@ -1291,7 +1341,7 @@ pub fn start_std(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
     std_image: &'static [u8],
-) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
+) -> Option<(Option<(Option<RendezvousId>, RendezvousId)>, RendezvousId)> {
     let spawned = start_std_full(blk_image, fs_server_image, std_image)?;
     Some((spawned.readiness, spawned.report))
 }
@@ -1299,7 +1349,7 @@ pub fn start_std(
 /// What [`start_std_full`] hands back: the service's readiness endpoints if this call wired it, the
 /// program's stdout endpoint, the untyped region its heap was drawn from, and the thread it runs as.
 pub struct StdSpawn {
-    pub readiness: Option<(RendezvousId, RendezvousId)>,
+    pub readiness: Option<(Option<RendezvousId>, RendezvousId)>,
     pub report: RendezvousId,
     pub heap: u64,
     pub thread: crate::thread::ThreadId,

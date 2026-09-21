@@ -208,7 +208,16 @@ impl Volume {
             .checked_sub(RESERVED_SECTORS)
             .ok_or(Error::NotFat32)?;
         let per_fat_sector = (256 * CLUSTER_SECTORS + FATS) / 2;
-        let fat_sectors = after_reserved.div_ceil(per_fat_sector);
+        // **Rounded up until the data area starts on a cluster boundary**, which is what every
+        // modern `mkfs.vfat` does and what this crate's caller depends on: an installer writing
+        // whole 4096-byte blocks through `filesystem_protocol::blk` can only put a cluster where a
+        // block goes. The specification's own sizing leaves the alignment to chance, and the run
+        // that found this out wrote the boot file **six sectors early** onto a real disk, because
+        // `32 + 2 * 1023` is not a multiple of eight. See this crate's
+        // `the_data_area_begins_on_a_cluster_boundary`.
+        let fat_sectors = after_reserved
+            .div_ceil(per_fat_sector)
+            .next_multiple_of(CLUSTER_SECTORS / FATS);
 
         let data_sectors = after_reserved
             .checked_sub(FATS * fat_sectors)
@@ -654,6 +663,30 @@ mod tests {
         assert_eq!(attr, ATTR_ARCHIVE);
         assert_eq!(cluster, FILE_CLUSTER);
         assert_eq!(size, 9_000_000);
+    }
+
+    /// **Every cluster begins on a 4096-byte boundary of the partition**, which is what lets a
+    /// caller moving one `filesystem_protocol::blk` block per request write the volume at all. It
+    /// is not free: FAT32's own sizing arithmetic leaves the data area wherever it falls, and the
+    /// first installed disk this crate produced had its boot file six sectors early because of it.
+    #[test]
+    fn the_data_area_begins_on_a_cluster_boundary() {
+        // A range of sizes, because the alignment depends on the table's length and the table's
+        // length depends on the size.
+        for mib in [300u64, 301, 400, 512, 700, 1024, 4096] {
+            let sectors = mib * 1024 * 2;
+            let v = Volume::new(sectors, 2048, 9_000_000, 1, "BOOTX64.EFI")
+                .unwrap_or_else(|e| panic!("{mib} MiB: {e:?}"));
+            assert_eq!(
+                v.data_first_sector() % u64::from(CLUSTER_SECTORS),
+                0,
+                "{mib} MiB: data area at sector {}",
+                v.data_first_sector()
+            );
+            assert_eq!(v.file_first_sector() % u64::from(CLUSTER_SECTORS), 0);
+            // And the table still covers every cluster the volume has.
+            assert!(v.fat_sectors() as u64 * (SECTOR as u64 / 4) >= v.clusters() as u64 + 2);
+        }
     }
 
     #[test]

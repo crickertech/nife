@@ -787,6 +787,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // a silent machine to be read as a hang.
         #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         {
+            // **The install offer** (milestone 198 (a package manager, and the trivial install that
+            // makes a second customer possible), rung 2a), and it has to be here rather than after
+            // the handoff: it asks its question on the console, and the progenitor gives the
+            // console's UART to a userspace input driver. It is a no-op on every boot that did not
+            // come from a file the loader could read back, which is every boot but a UEFI one.
+            user::install_service::offer();
             x86_hand_over();
             arch::halt();
         }

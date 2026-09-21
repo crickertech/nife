@@ -91,7 +91,13 @@ fi
 # The variable store has to be WRITABLE (the firmware records its boot order in it), so the pristine
 # one is copied rather than used in place. It is `edk2-i386-vars.fd` even for an x86_64 build,
 # because upstream edk2 builds one variable store for both and Homebrew keeps that name.
-VARS="target/ovmf-vars.fd"
+# **Where this boot's firmware variables live**, and why it is a knob (milestone 198 (a package
+# manager, and the trivial install that makes a second customer possible), rung 2a). The default is
+# one file that persists across every run in this checkout, which is what a real machine's firmware
+# does and is right for the interactive runners. It is wrong for the install gate: boot 1 writes a
+# boot option that boot 2 would then rely on, so "the firmware found the installed disk on its own"
+# would be a claim about our own leftovers. That gate points this at a file it deletes first.
+VARS="${NIFE_OVMF_VARS_OUT:-target/ovmf-vars.fd}"
 if [ ! -f "$VARS" ]; then
     for candidate in \
         "$NIFE_OVMF_VARS" \
@@ -194,6 +200,18 @@ if [ -n "$NIFE_DISK" ]; then
     fi
 fi
 
+# **The installation medium, detached** (milestone 198 (a package manager, and the trivial install
+# that makes a second customer possible), rung 2a). An install that only boots while the stick is
+# still in the machine has not installed anything, so the second half of `cargo xtask install-boot`
+# runs this script with no vvfat drive at all and the firmware has to find
+# \EFI\BOOT\BOOTX64.EFI on the disk it was just written to. The ESP directory argument is still
+# required and still has to exist, because everything else about the invocation is the same and a
+# second code path here would be a second machine.
+STICK="-drive format=raw,file=fat:rw:$ESP"
+if [ -n "$NIFE_UEFI_NO_STICK" ]; then
+    STICK=""
+fi
+
 NVME=""
 if [ -n "$NIFE_NVME" ]; then
     if [ ! -f "$NIFE_NVME" ]; then
@@ -218,5 +236,5 @@ exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     $NVME \
     -drive "if=pflash,format=raw,unit=0,readonly=on,file=$NIFE_OVMF_CODE" \
     -drive "if=pflash,format=raw,unit=1,file=$VARS" \
-    -drive "format=raw,file=fat:rw:$ESP" \
+    $STICK \
     "$@"

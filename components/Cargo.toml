@@ -286,6 +286,19 @@ path = "src/disk_partitioner.rs"
 test = false
 bench = false
 
+# `installer` (milestone 198 (a package manager, and the trivial install that makes a second
+# customer possible), rung 2a): the program a booted stick runs to put this system on the machine's
+# own disk. The most destructive program in this tree, and it holds exactly what
+# `disk_partitioner` holds plus a read-only copy of the file this machine booted from: one disk, one
+# entropy endpoint, no path to type. The question that precedes it is asked by
+# `kernel/src/user/install_service.rs`, before the disk capability exists. **Provisional name**,
+# set aside for it by `crates/stick_maker`'s own header.
+[[bin]]
+name = "installer"
+path = "src/installer.rs"
+test = false
+bench = false
+
 # The keyboard driver (milestone 29's input): a confined userspace virtio-input driver whose whole
 # power to inject a keystroke is the mapping of the compositor's input ring, not the doorbell every
 # client holds. `initrd_aarch64` packs it as "keyboard_driver" for both ISAs.
@@ -513,6 +526,7 @@ socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 globally_unique_identifier_partition_table = { version = "0.1.0", path = "../crates/globally_unique_identifier_partition_table" }
+file_allocation_table = { version = "0.1.0", path = "../crates/file_allocation_table" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }

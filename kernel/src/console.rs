@@ -595,6 +595,63 @@ pub fn quiet_uart_interrupt() {
     CONSOLE.lock().uart.disable_interrupts();
 }
 
+/// **Read one line typed at the console**, echoing it, and answer how many bytes it holds.
+///
+/// Milestone 198 (a package manager, and the trivial install that makes a second customer
+/// possible)'s rung 2a, and its one caller is `user::install_service`: an installer has to ask
+/// before it wipes a disk, and at the point in the boot where that question belongs the kernel is
+/// still the only holder of the console. After the progenitor hands the UART to the input driver
+/// this must not be called, because two readers of one FIFO lose bytes between them.
+///
+/// **It is bounded in time, and that is what makes it safe to put on the boot path.** A stick
+/// booted on a machine with nobody watching must reach the prompt rather than wait forever for an
+/// answer that is not coming, so a line that has not arrived within `patience` returns `None` and
+/// the caller carries on. The bound is a duration measured against the counter, not a spin count.
+///
+/// `\r` and `\n` both end the line; backspace and delete rub one byte out; anything that does not
+/// fit in `out` is dropped rather than wrapping. Nothing here is a line editor and nothing should
+/// grow into one: `crates/line_editor` is that, at EL0, where it belongs.
+///
+/// Name provisional (milestone 198's rung 2a): calef names public items.
+#[cfg(target_arch = "x86_64")]
+pub fn read_line(out: &mut [u8], patience: core::time::Duration) -> Option<usize> {
+    let hz = crate::arch::timer::frequency_checked()?;
+    let deadline = crate::arch::timer::now() + hz * patience.as_secs();
+    let mut n = 0usize;
+    loop {
+        // The lock is taken per byte rather than held across the wait, because holding it would
+        // deadlock the first thing that tried to print a fault while a person was thinking.
+        let byte = CONSOLE.lock().uart.read_byte();
+        let Some(byte) = byte else {
+            if crate::arch::timer::now() >= deadline {
+                return None;
+            }
+            core::hint::spin_loop();
+            continue;
+        };
+        match byte {
+            b'\r' | b'\n' => {
+                crate::println!();
+                return Some(n);
+            }
+            0x08 | 0x7f => {
+                if n > 0 {
+                    n -= 1;
+                    crate::print!("\u{8} \u{8}");
+                }
+            }
+            b if b.is_ascii_graphic() || b == b' ' => {
+                if n < out.len() {
+                    out[n] = b;
+                    n += 1;
+                    crate::print!("{}", b as char);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Break the console lock open. **Panic and fault paths only.**
 ///
 /// # Safety
