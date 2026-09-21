@@ -1,8 +1,17 @@
-//! **What the machine told us on the way in, `x86_64`**: the PVH `hvm_start_info` structure.
+//! **What the machine told us on the way in, `x86_64`**: the PVH `hvm_start_info` structure, and
+//! what the CPU says about itself when asked.
 //!
-//! Milestone 161. This is the third answer to the question the other two modules in this crate
-//! answer, and it is a *fourth* tier the crate's header does not list, because x86 has all three of
-//! the others and needs a different one for this particular fact.
+//! Milestone 161 (the `x86_64` kernel port). The handoff half is the third answer to the question
+//! the other two modules in this crate answer, and it is a *fourth* tier the crate's header does
+//! not list, because x86 has all three of the others and needs a different one for this fact.
+//!
+//! The [`Isa`] half at the bottom of this file is the ordinary third answer, added by
+//! milestone 524 (the three `x86_64` boot gates). It arrived late for a reason worth stating,
+//! because the reason was wrong: asking x86 what it is takes one instruction, so there is no
+//! format to parse, so it looked like there was nothing here for a host test to hold. **Reading the
+//! answer is trivial and deciding what it means is not**, because `CPUID` has no way to say "I do
+//! not implement that leaf" other than answering with a different leaf's bits, and the rule for
+//! telling those apart is the thing that can be wrong.
 //!
 //! The other two architectures learn where RAM is from the device tree, which the firmware hands
 //! them as a single pointer. x86 has no device tree. What it has is a boot protocol, and the
@@ -629,5 +638,330 @@ mod tests {
     fn an_absurd_module_size_saturates() {
         let b = module_bytes::<MODULE_ENTRY_LEN>(&[(0x1000, u64::MAX, 0)]);
         assert_eq!(module(&b, 0).unwrap().end(), u64::MAX);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// What the CPU itself is, and whether it can run this kernel.
+// ---------------------------------------------------------------------------------------------
+
+/// **What the boot does about a feature the part does not report.**
+///
+/// The other two architectures' tables carry a `required: bool` here, and two values were enough
+/// for them. x86 needed a third, and the third one is the interesting one: it exists because a
+/// feature this kernel is genuinely built on can be one **the only machine the project can run on
+/// does not promise**, and there is no honest way to spell that as either a yes or a no.
+///
+/// Collapsing it into `required: false` would file a load-bearing assumption next to `RDSEED`, an
+/// optional convenience. Collapsing it into `required: true` would refuse every boot. So it is its
+/// own value, it prints its own line, and promoting it to [`Gate::Refuse`] is a one-token change
+/// on the day a machine reports the bit.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Gate {
+    /// The boot refuses without it. [`REQUIRED`] is exactly these rows.
+    Refuse,
+    /// The kernel is built on it, no machine this project runs on reports it, and a refusal would
+    /// therefore refuse everything. Said out loud on every boot instead. [`WARNED`] is these rows.
+    Warn,
+    /// Useful to know and not load-bearing. Reported on the boot line and never fatal.
+    Report,
+}
+
+/// One row of [`TABLE`]: a `CPUID` feature this kernel names, and why it names it.
+///
+/// The `why` is the same field [`riscv64::Row`](crate::riscv64::Row) carries and for the same
+/// reason: a feature on this list with no reason beside it is a feature somebody added because
+/// `CPUID` reported it, and the record has to stay small enough to read.
+pub struct Row {
+    /// The name as Intel's and AMD's manuals spell it.
+    pub name: &'static str,
+    pub bit: Features,
+    /// What the boot does when the part does not report it.
+    pub gate: Gate,
+    /// Which `CPUID` leaf, register and bit says so, spelled the way the manuals cite it, so a
+    /// reader can check the decode against the document without reading [`Isa::decode`].
+    pub cite: &'static str,
+    pub why: &'static str,
+}
+
+/// A set of the features [`TABLE`] names. Same shape as
+/// [`riscv64::Extensions`](crate::riscv64::Extensions), deliberately.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub struct Features(u32);
+
+impl Features {
+    pub const NONE: Features = Features(0);
+
+    pub const fn union(self, other: Features) -> Features {
+        Features(self.0 | other.0)
+    }
+
+    pub const fn contains(self, other: Features) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// What is in `self` and not in `other`. This is how a missing-requirement set is computed.
+    pub const fn difference(self, other: Features) -> Features {
+        Features(self.0 & !other.0)
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+
+/// No-execute. `CPUID.80000001H:EDX[20]`.
+pub const NX: Features = Features(1 << 0);
+/// The `syscall`/`sysret` instruction pair. `CPUID.80000001H:EDX[11]`.
+pub const SYSCALL: Features = Features(1 << 1);
+/// The TSC ticks at a rate that does not move with the core's frequency or idle state.
+/// `CPUID.80000007H:EDX[8]`.
+pub const INVARIANT_TSC: Features = Features(1 << 2);
+/// `RDSEED`. `CPUID.(EAX=07H,ECX=0):EBX[18]`.
+pub const RDSEED: Features = Features(1 << 3);
+
+/// Every `CPUID` feature this kernel names, with the reason. Printed in this order at boot.
+///
+/// **Three of these are what the kernel is built on rather than what it would like**, and they do
+/// not all carry the same [`Gate`]; [`INVARIANT_TSC`]'s row says why, and it is the row worth
+/// reading.
+pub const TABLE: [Row; 4] = [
+    Row {
+        name: "nx",
+        bit: NX,
+        gate: Gate::Refuse,
+        cite: "CPUID.80000001H:EDX[20]",
+        why: "the hardware bit W^X is made of; without it the page tables' no-execute is a comment",
+    },
+    Row {
+        name: "syscall",
+        bit: SYSCALL,
+        gate: Gate::Refuse,
+        cite: "CPUID.80000001H:EDX[11]",
+        why: "the kernel's whole ring-3 entry path; absent, the ABI is #UD on the first call",
+    },
+    // **This one is built on and cannot be refused on, and the reason is measured rather than
+    // argued.** QEMU's TCG refuses to advertise the bit at all: `-cpu max,invtsc=on` answers
+    // `warning: TCG doesn't support requested feature: CPUID[eax=80000007h].EDX.invtsc [bit 8]`
+    // and clears it (QEMU 11, 2026-09-21). It is a KVM-only feature there, because QEMU will not
+    // promise rate constancy across a migration it cannot control, and the x86_64 suite runs
+    // entirely under TCG on an Apple Silicon host where KVM is not available at all. So every
+    // machine this project can run on today reports zero here, and `Gate::Refuse` would refuse
+    // every boot.
+    //
+    // Two things keep that from being a quiet downgrade. The boot says so on its own line rather
+    // than burying it in a feature list, and the promotion trigger is written down:
+    // milestone 87 (the x86_64 bare-metal machine) is real silicon, real silicon has had this bit
+    // since about 2008, and the day a boot there reports it this becomes `Gate::Refuse`.
+    Row {
+        name: "invariant-tsc",
+        bit: INVARIANT_TSC,
+        gate: Gate::Warn,
+        cite: "CPUID.80000007H:EDX[8]",
+        why: "the boot measures the TSC's rate ONCE; without this there is no single rate to measure",
+    },
+    Row {
+        name: "rdseed",
+        bit: RDSEED,
+        gate: Gate::Report,
+        cite: "CPUID.(EAX=07H,ECX=0):EBX[18]",
+        why: "a hardware entropy source; the service offers a different backend without it",
+    },
+];
+
+/// The features the kernel refuses to boot without: the [`TABLE`] rows gated [`Gate::Refuse`],
+/// and no others.
+pub const REQUIRED: Features = gathered(Gate::Refuse);
+
+/// The features the kernel is built on and does not refuse for: the [`Gate::Warn`] rows. A boot
+/// that does not report one of these says so, every time, in its own line.
+pub const WARNED: Features = gathered(Gate::Warn);
+
+/// The [`TABLE`] rows carrying one gate, as a set. `const` so both sets above are derived from the
+/// table rather than written twice; a row's gate is then the only thing anyone can get wrong.
+const fn gathered(gate: Gate) -> Features {
+    let mut acc = Features::NONE;
+    let mut i = 0;
+    while i < TABLE.len() {
+        // `==` on an enum is not const, and `matches!` on a pair needs one arm per value; the
+        // discriminant comparison is the shortest thing that works in a const context here.
+        if TABLE[i].gate as u8 == gate as u8 {
+            acc = acc.union(TABLE[i].bit);
+        }
+        i += 1;
+    }
+    acc
+}
+
+/// The `CPUID` leaves the kernel reads, as raw register words.
+///
+/// **Read unconditionally by the caller, believed selectively here.** x86 has no fault for a leaf
+/// a part does not implement: `CPUID` above the maximum answers with some *other* leaf's data,
+/// which is how an unchecked read turns one part's bits into another feature's answer. Which
+/// reads are meaningful is therefore a rule, the rule can be wrong, and a rule that can be wrong
+/// belongs where a host test can reach it rather than inside a booting kernel. So the kernel's
+/// job is reduced to executing the instruction, and [`Isa::decode`] owns every decision about
+/// what the words mean.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub struct CpuidWords {
+    /// Leaf 0, all four registers: `EAX` is the maximum standard leaf, `EBX`/`EDX`/`ECX` are the
+    /// vendor string in that order, which is not the register order anyone guesses.
+    pub leaf0: [u32; 4],
+    /// Leaf 7 subleaf 0. Meaningful only when `leaf0[0] >= 7`.
+    pub leaf7_0: [u32; 4],
+    /// Leaf `0x80000000`'s `EAX`: the maximum *extended* leaf, a separate space with its own
+    /// maximum. A part can answer every standard leaf and implement no extended leaf at all.
+    pub extended_max_leaf: u32,
+    /// Leaf `0x80000001`'s `EDX`. Meaningful only when `extended_max_leaf >= 0x8000_0001`.
+    pub extended_leaf1_edx: u32,
+    /// Leaf `0x80000007`'s `EDX`. Meaningful only when `extended_max_leaf >= 0x8000_0007`.
+    pub extended_leaf7_edx: u32,
+    /// Leaves `0x80000002` through `0x80000004`, four registers each, in `EAX`/`EBX`/`ECX`/`EDX`
+    /// order: the 48-character brand string. Meaningful only when
+    /// `extended_max_leaf >= 0x8000_0004`, and a part that answers 2 and 3 but not 4 does not
+    /// exist in the manuals, so the three leaves are gated together.
+    pub brand: [u32; 12],
+}
+
+/// **What this `x86_64` machine is.** One record, populated once at boot, printed at boot.
+///
+/// The third answer to the question [`riscv64::Isa`](crate::riscv64::Isa) and
+/// [`aarch64::Isa`](crate::aarch64::Isa) answer, and the easiest of the three to *ask*: one
+/// instruction, architected since 1993, no firmware in the way. What it is not easier at is
+/// deciding what the answer means, which is why this record has the same two verbs they do.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Isa {
+    /// The 12-character vendor string: `GenuineIntel`, `AuthenticAMD`, or under QEMU whatever
+    /// `-cpu` was asked for.
+    pub vendor: [u8; 12],
+    /// The 48-character brand string the vendor wrote, space-padded, or all zero on a part with
+    /// no extended leaf 4. Trailing and leading spaces are the vendor's; see [`Isa::brand_str`].
+    pub brand: [u8; 48],
+    /// The maximum standard `CPUID` leaf this part answers.
+    pub max_leaf: u32,
+    /// The maximum extended (`0x8000_0000`-based) leaf. A separate space; see [`CpuidWords`].
+    pub extended_max_leaf: u32,
+    /// Which of [`TABLE`]'s features the part reports.
+    pub features: Features,
+}
+
+impl Default for Isa {
+    /// All zero, which is a part that reports no feature and answers no leaf. Deliberately not a
+    /// plausible machine: the kernel's record is `None` until discovery runs, so nothing should
+    /// ever read this, and if something does the boot line says `cpuid leaves 0..0x0`.
+    fn default() -> Isa {
+        Isa {
+            vendor: [0; 12],
+            brand: [0; 48],
+            max_leaf: 0,
+            extended_max_leaf: 0,
+            features: Features::NONE,
+        }
+    }
+}
+
+/// What a machine is missing that this kernel needs. Empty on a machine we can run.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub struct Missing {
+    /// Required features (see [`REQUIRED`]) the part does not report.
+    pub features: Features,
+}
+
+impl Missing {
+    pub const fn any(self) -> bool {
+        !self.features.is_empty()
+    }
+}
+
+impl Isa {
+    /// Decode the leaves the kernel read. Pure: no `cpuid` here, so this is host-testable against
+    /// words captured from real parts and against words no part would report.
+    ///
+    /// **Every maximum-leaf gate lives here**, which is the point of taking raw words rather than
+    /// a closure to call: absence and "the leaf answered with somebody else's data" are the same
+    /// bits on the wire, and only the maximum tells them apart.
+    pub fn decode(w: &CpuidWords) -> Isa {
+        let mut vendor = [0u8; 12];
+        vendor[0..4].copy_from_slice(&w.leaf0[1].to_le_bytes());
+        vendor[4..8].copy_from_slice(&w.leaf0[3].to_le_bytes());
+        vendor[8..12].copy_from_slice(&w.leaf0[2].to_le_bytes());
+
+        let mut brand = [0u8; 48];
+        if w.extended_max_leaf >= 0x8000_0004 {
+            for (i, word) in w.brand.iter().enumerate() {
+                brand[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+            }
+        }
+
+        let mut features = Features::NONE;
+        if w.extended_max_leaf >= 0x8000_0001 {
+            if w.extended_leaf1_edx & (1 << 20) != 0 {
+                features = features.union(NX);
+            }
+            if w.extended_leaf1_edx & (1 << 11) != 0 {
+                features = features.union(SYSCALL);
+            }
+        }
+        if w.extended_max_leaf >= 0x8000_0007 && w.extended_leaf7_edx & (1 << 8) != 0 {
+            features = features.union(INVARIANT_TSC);
+        }
+        if w.leaf0[0] >= 7 && w.leaf7_0[1] & (1 << 18) != 0 {
+            features = features.union(RDSEED);
+        }
+
+        Isa {
+            vendor,
+            brand,
+            max_leaf: w.leaf0[0],
+            extended_max_leaf: w.extended_max_leaf,
+            features,
+        }
+    }
+
+    /// **Can this machine run us?** The only verb here a call site is meant to branch on, and it is
+    /// meant to branch exactly one way: say what is missing, and stop.
+    ///
+    /// **Silence is absence on x86, unlike on RISC-V**, and the difference is worth stating because
+    /// the two look like the same check. A device tree that does not mention an extension is
+    /// firmware being terse about a machine that is nonetheless executing the kernel, so
+    /// [`riscv64::Isa::missing_requirements`](crate::riscv64::Isa::missing_requirements) treats it
+    /// as unknown. `CPUID` is the part describing itself, and a part that does not answer leaf
+    /// `0x80000001` at all is a part from before these features existed. There is nobody in
+    /// between to be terse.
+    pub fn missing_requirements(&self) -> Missing {
+        Missing {
+            features: REQUIRED.difference(self.features),
+        }
+    }
+
+    /// **What the kernel is built on that this part does not promise**: the [`Gate::Warn`] rows it
+    /// does not report. Empty on a part that promises everything.
+    ///
+    /// Separate from [`missing_requirements`](Isa::missing_requirements) because the two call
+    /// sites do different things (one refuses, one prints) and because a reader has to be able to
+    /// tell "we checked and it is fine" from "we checked, it is not fine, and we booted anyway".
+    pub fn unpromised(&self) -> Features {
+        WARNED.difference(self.features)
+    }
+
+    /// Does the part implement `RDSEED`? The one row of [`TABLE`] anything outside the boot gate
+    /// branches on, so it gets a name rather than making a call site spell the bit.
+    pub fn rdseed(&self) -> bool {
+        self.features.contains(RDSEED)
+    }
+
+    /// The brand string as text, trimmed. `None` when the part answered no extended leaf 4 (the
+    /// bytes are all zero) or wrote something that is not UTF-8, which is not a case the manuals
+    /// allow and is exactly why it is checked rather than assumed.
+    pub fn brand_str(&self) -> Option<&str> {
+        if self.brand[0] == 0 {
+            return None;
+        }
+        let end = self
+            .brand
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(self.brand.len());
+        core::str::from_utf8(&self.brand[..end]).ok().map(str::trim)
     }
 }
