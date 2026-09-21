@@ -1669,6 +1669,18 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // the `/psci` half.
     smp::read_cpu_list();
 
+    // Does the machine agree with its own firmware about how fast the counter runs (2026-09-21)?
+    // Here for the same reason as the two reads above: the blob is only reachable through the
+    // coarse boot map, which `mmu::init` on the next line replaces. `CNTFRQ_EL0` is firmware-set,
+    // and a firmware that writes a wrong-but-plausible number is the one failure no later check can
+    // see. Silent on every machine we test on, which states nothing to compare against; see
+    // `arch::timer::check_frequency_against_device_tree` for what that costs and why it refuses
+    // rather than preferring one source. (Gated even though only aarch64 reaches this line at run
+    // time: the riscv64 arm above ends in `arch::halt()`, so everything below it is still
+    // *compiled* for that architecture, which has no such function and needs none.)
+    #[cfg(target_arch = "aarch64")]
+    arch::timer::check_frequency_against_device_tree(boot_info_pointer);
+
     // And now the sketchiest moment in the kernel. The instant SCTLR_EL1.M is set, the very
     // next instruction is fetched through the MMU. See arch/aarch64/mmu.rs.
     arch::mmu::init();
