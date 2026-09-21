@@ -14,48 +14,44 @@
 <text class="mut" x="20" y="44" font-size="11">a flow, not a stock: what the index says turned BUILT in those seven days</text>
 <line class="grid" x1="64" y1="324.0" x2="650.0" y2="324.0" stroke-width="1"/>
 <text class="mut" x="56" y="327.0" font-size="10" text-anchor="end">0</text>
-<line class="grid" x1="64" y1="279.7" x2="650.0" y2="279.7" stroke-width="1"/>
-<text class="mut" x="56" y="282.7" font-size="10" text-anchor="end">10</text>
-<line class="grid" x1="64" y1="235.3" x2="650.0" y2="235.3" stroke-width="1"/>
-<text class="mut" x="56" y="238.3" font-size="10" text-anchor="end">20</text>
+<line class="grid" x1="64" y1="257.5" x2="650.0" y2="257.5" stroke-width="1"/>
+<text class="mut" x="56" y="260.5" font-size="10" text-anchor="end">20</text>
 <line class="grid" x1="64" y1="191.0" x2="650.0" y2="191.0" stroke-width="1"/>
-<text class="mut" x="56" y="194.0" font-size="10" text-anchor="end">30</text>
-<line class="grid" x1="64" y1="146.7" x2="650.0" y2="146.7" stroke-width="1"/>
-<text class="mut" x="56" y="149.7" font-size="10" text-anchor="end">40</text>
-<line class="grid" x1="64" y1="102.3" x2="650.0" y2="102.3" stroke-width="1"/>
-<text class="mut" x="56" y="105.3" font-size="10" text-anchor="end">50</text>
+<text class="mut" x="56" y="194.0" font-size="10" text-anchor="end">40</text>
+<line class="grid" x1="64" y1="124.5" x2="650.0" y2="124.5" stroke-width="1"/>
+<text class="mut" x="56" y="127.5" font-size="10" text-anchor="end">60</text>
 <line class="grid" x1="64" y1="58.0" x2="650.0" y2="58.0" stroke-width="1"/>
-<text class="mut" x="56" y="61.0" font-size="10" text-anchor="end">60</text>
-<path class="seg s0" d="M74.0,324.0 V283.7 Q74.0,279.7 78.0,279.7 H108.6 Q112.6,279.7 112.6,283.7 V324.0 Z"><title>2026W29, built that week: 10</title></path>
-<text class="mut" x="93.3" y="342" font-size="10" text-anchor="middle">2026W29</text>
-<text class="fg val" x="93.3" y="274.7" font-size="10" text-anchor="middle">10</text>
-<path class="seg s0" d="M132.6,324.0 V292.5 Q132.6,288.5 136.6,288.5 H167.2 Q171.2,288.5 171.2,292.5 V324.0 Z"><title>2026W30, built that week: 8</title></path>
-<text class="mut" x="151.9" y="342" font-size="10" text-anchor="middle">2026W30</text>
-<text class="fg val" x="151.9" y="283.5" font-size="10" text-anchor="middle">8</text>
-<path class="seg s0" d="M191.2,324.0 V239.3 Q191.2,235.3 195.2,235.3 H225.8 Q229.8,235.3 229.8,239.3 V324.0 Z"><title>2026W31, built that week: 20</title></path>
-<text class="mut" x="210.5" y="342" font-size="10" text-anchor="middle">2026W31</text>
-<text class="fg val" x="210.5" y="230.3" font-size="10" text-anchor="middle">20</text>
-<path class="seg s0" d="M249.8,324.0 V190.6 Q249.8,186.6 253.8,186.6 H284.4 Q288.4,186.6 288.4,190.6 V324.0 Z"><title>2026W32, built that week: 31</title></path>
-<text class="mut" x="269.1" y="342" font-size="10" text-anchor="middle">2026W32</text>
-<text class="fg val" x="269.1" y="181.6" font-size="10" text-anchor="middle">31</text>
-<path class="seg s0" d="M308.4,324.0 V288.1 Q308.4,284.1 312.4,284.1 H343.0 Q347.0,284.1 347.0,288.1 V324.0 Z"><title>2026W33, built that week: 9</title></path>
-<text class="mut" x="327.7" y="342" font-size="10" text-anchor="middle">2026W33</text>
-<text class="fg val" x="327.7" y="279.1" font-size="10" text-anchor="middle">9</text>
-<path class="seg s0" d="M367.0,324.0 V248.2 Q367.0,244.2 371.0,244.2 H401.6 Q405.6,244.2 405.6,248.2 V324.0 Z"><title>2026W34, built that week: 18</title></path>
-<text class="mut" x="386.3" y="342" font-size="10" text-anchor="middle">2026W34</text>
-<text class="fg val" x="386.3" y="239.2" font-size="10" text-anchor="middle">18</text>
-<path class="seg s0" d="M425.6,324.0 V292.5 Q425.6,288.5 429.6,288.5 H460.2 Q464.2,288.5 464.2,292.5 V324.0 Z"><title>2026W35, built that week: 8</title></path>
-<text class="mut" x="444.9" y="342" font-size="10" text-anchor="middle">2026W35</text>
-<text class="fg val" x="444.9" y="283.5" font-size="10" text-anchor="middle">8</text>
-<path class="seg s0" d="M484.2,324.0 V110.8 Q484.2,106.8 488.2,106.8 H518.8 Q522.8,106.8 522.8,110.8 V324.0 Z"><title>2026W36, built that week: 49</title></path>
-<text class="mut" x="503.5" y="342" font-size="10" text-anchor="middle">2026W36</text>
-<text class="fg val" x="503.5" y="101.8" font-size="10" text-anchor="middle">49</text>
-<path class="seg s0" d="M542.8,324.0 V270.4 Q542.8,266.4 546.8,266.4 H577.4 Q581.4,266.4 581.4,270.4 V324.0 Z"><title>2026W37, built that week: 13</title></path>
-<text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W37</text>
-<text class="fg val" x="562.1" y="261.4" font-size="10" text-anchor="middle">13</text>
-<path class="seg s0" d="M601.4,324.0 V62.0 Q601.4,58.0 605.4,58.0 H636.0 Q640.0,58.0 640.0,62.0 V324.0 Z"><title>2026W38, built that week: 60</title></path>
-<text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W38</text>
-<text class="fg val" x="620.7" y="53.0" font-size="10" text-anchor="middle">60</text>
+<text class="mut" x="56" y="61.0" font-size="10" text-anchor="end">80</text>
+<path class="seg s0" d="M74.0,324.0 V301.4 Q74.0,297.4 78.0,297.4 H108.6 Q112.6,297.4 112.6,301.4 V324.0 Z"><title>2026W30, built that week: 8</title></path>
+<text class="mut" x="93.3" y="342" font-size="10" text-anchor="middle">2026W30</text>
+<text class="fg val" x="93.3" y="292.4" font-size="10" text-anchor="middle">8</text>
+<path class="seg s0" d="M132.6,324.0 V261.5 Q132.6,257.5 136.6,257.5 H167.2 Q171.2,257.5 171.2,261.5 V324.0 Z"><title>2026W31, built that week: 20</title></path>
+<text class="mut" x="151.9" y="342" font-size="10" text-anchor="middle">2026W31</text>
+<text class="fg val" x="151.9" y="252.5" font-size="10" text-anchor="middle">20</text>
+<path class="seg s0" d="M191.2,324.0 V224.9 Q191.2,220.9 195.2,220.9 H225.8 Q229.8,220.9 229.8,224.9 V324.0 Z"><title>2026W32, built that week: 31</title></path>
+<text class="mut" x="210.5" y="342" font-size="10" text-anchor="middle">2026W32</text>
+<text class="fg val" x="210.5" y="215.9" font-size="10" text-anchor="middle">31</text>
+<path class="seg s0" d="M249.8,324.0 V298.1 Q249.8,294.1 253.8,294.1 H284.4 Q288.4,294.1 288.4,298.1 V324.0 Z"><title>2026W33, built that week: 9</title></path>
+<text class="mut" x="269.1" y="342" font-size="10" text-anchor="middle">2026W33</text>
+<text class="fg val" x="269.1" y="289.1" font-size="10" text-anchor="middle">9</text>
+<path class="seg s0" d="M308.4,324.0 V268.1 Q308.4,264.1 312.4,264.1 H343.0 Q347.0,264.1 347.0,268.1 V324.0 Z"><title>2026W34, built that week: 18</title></path>
+<text class="mut" x="327.7" y="342" font-size="10" text-anchor="middle">2026W34</text>
+<text class="fg val" x="327.7" y="259.1" font-size="10" text-anchor="middle">18</text>
+<path class="seg s0" d="M367.0,324.0 V301.4 Q367.0,297.4 371.0,297.4 H401.6 Q405.6,297.4 405.6,301.4 V324.0 Z"><title>2026W35, built that week: 8</title></path>
+<text class="mut" x="386.3" y="342" font-size="10" text-anchor="middle">2026W35</text>
+<text class="fg val" x="386.3" y="292.4" font-size="10" text-anchor="middle">8</text>
+<path class="seg s0" d="M425.6,324.0 V165.1 Q425.6,161.1 429.6,161.1 H460.2 Q464.2,161.1 464.2,165.1 V324.0 Z"><title>2026W36, built that week: 49</title></path>
+<text class="mut" x="444.9" y="342" font-size="10" text-anchor="middle">2026W36</text>
+<text class="fg val" x="444.9" y="156.1" font-size="10" text-anchor="middle">49</text>
+<path class="seg s0" d="M484.2,324.0 V284.8 Q484.2,280.8 488.2,280.8 H518.8 Q522.8,280.8 522.8,284.8 V324.0 Z"><title>2026W37, built that week: 13</title></path>
+<text class="mut" x="503.5" y="342" font-size="10" text-anchor="middle">2026W37</text>
+<text class="fg val" x="503.5" y="275.8" font-size="10" text-anchor="middle">13</text>
+<path class="seg s0" d="M542.8,324.0 V121.8 Q542.8,117.8 546.8,117.8 H577.4 Q581.4,117.8 581.4,121.8 V324.0 Z"><title>2026W38, built that week: 62</title></path>
+<text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W38</text>
+<text class="fg val" x="562.1" y="112.8" font-size="10" text-anchor="middle">62</text>
+<path class="seg s0" d="M601.4,324.0 V320.7 Q601.4,317.4 604.7,317.4 H636.7 Q640.0,317.4 640.0,320.7 V324.0 Z"><title>2026W39, built that week: 2</title></path>
+<text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W39</text>
+<text class="fg val" x="620.7" y="312.4" font-size="10" text-anchor="middle">2</text>
 <rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
 <text class="fg" y="74" font-size="11"><tspan x="689" dy="0">built that week</tspan></text>
 </svg>

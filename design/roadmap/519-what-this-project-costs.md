@@ -1,10 +1,13 @@
 # 519. What this project costs, tracked where it cannot rot
 
-**Status: NOT-STARTED.** Minted 2026-09-21 by calef, from a conversation about what nife would have
-to be to change anyone else's behaviour. Every honest answer began with a cost number this tree
+**Status: BUILT** 2026-09-21. Minted 2026-09-21 by calef, from a conversation about what nife would
+have to be to change anyone else's behaviour. Every honest answer began with a cost number this tree
 cannot state. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Everything it needs is either already produced or already known.
+**Built the same day it was minted, and the sequencing was the deadline's**: the capture ran and was
+committed before any of the machinery around it was written, because this week's session records
+existed on 2026-09-21 and were not promised to exist on 2026-09-28. What the first capture found, and
+what it found already gone, is in the record below.
 
 ## Why this is a milestone and not a note
 
@@ -28,8 +31,9 @@ than tidy. See the deadline below.
 | Human effort | **about ten person-weeks** | calef works on nife full time, so one calendar week is one person-week. His own statement, 2026-09-21 |
 | Inference | **$200 a month since 2026-07-12**, about $470 to date | calef, 2026-09-21 |
 | Hardware | **$89.99** for argon, the Jetson TX1 | milestone 127 (the seL4 machine: a Jetson TX1)'s own record |
-| Other hardware | unpriced in this tree | radon, the UART adapters and the smart plugs; xenon was not bought for this project |
-| Machine effort | per-lane tokens, tool calls and wall clock | the session's task records, which this tree does not keep |
+| Other hardware | **$181.82, and the line above is wrong** | xenon *was* bought for this project: milestone 87 (the x86_64 bare-metal machine) records the OptiPlex, its serial module and the RS-232 chain, bought 2026-08-15 for the third ISA target §19 (architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64) names. Corrected by this lane against the tree; the original line was written from memory |
+| Still unpriced | no purchase record in this tree | radon, the UART adapters and the smart plugs. `notes/riscv-port.md`'s "~$70" is a sentence about the market, not a receipt, and the ledger leaves the row out rather than guess |
+| Machine effort | **22.3 billion tokens over six weeks**, captured 2026-09-21 | the harness's session records on patagonia, which this tree now keeps a committed aggregate of in `notes/project-metrics/effort.csv` |
 
 **The shape those numbers make is the finding, and it should be stated before anyone optimises the
 wrong term.** Cash to date is under a thousand dollars all in, against about ten person-weeks of one
@@ -76,6 +80,49 @@ later**, because this week's numbers exist today and will not exist next week.
    pretending otherwise** (`script/cadence-check` is this tree's existing shape for a thing that is
    due and has not happened).
 
+## What was built, 2026-09-21
+
+**`script/effort`** (provisional name) reads the harness's session records on this machine and writes
+`notes/project-metrics/effort.csv`, one row per ISO week and model. It splits tokens four ways
+because the API prices them between 0.1x and 2x of each other, and splits by model because this
+tree's mix is roughly half `claude-opus-5` and half `claude-sonnet-5` by token. A single blended
+number would have had no derivation behind it, which is what the dollar refusal below is about.
+
+**Five columns in `notes/project-metrics/weekly.csv`**, exactly as the table above specifies, filled
+from two committed records rather than from any revision: `effort.csv` and a new
+`notes/project-metrics/ledger.md`. Both are read from the working tree for every week, which is
+`built_by_week`'s precedent and is there for its reason. A sixth column, `merged_pull_requests`,
+arrived on calef's request the same day and is derived from git's own first-parent log: 996 merges,
+backfilled to the first commit, with no dependence on an API that retains ninety days.
+
+**One chart, `effort.svg`, and it is a ratio**: millions of tokens per milestone built, beside the
+velocity chart. It fell from 307 in 2026W34 to 73 and 68 in 2026W36 and 2026W38.
+
+**The ledger** carries hardware with dates and prices, the subscription's start and rate, and a dated
+table of vendor list rates per model, which is what makes the shadow price re-derivable rather than
+asserted.
+
+**The mechanism.** A GitHub runner cannot see the session records, so the weekly workflow cannot
+capture them and no workflow ever will. `script/effort --snapshot` writes a machine-local cache
+outside the repository, safe to run unattended from `launchd`, so a week's numbers outlive the
+transcripts; `script/cadence-check` gained its one non-workflow row and reports when the committed
+file does not hold the current week, through the watcher patagonia already runs. `--update` refuses
+to lower a figure a past week already carries, because the way this measurement dies is a pruned
+transcript and a later run writing the smaller number over the larger one.
+
+## What the first capture found, and what was already gone
+
+Read on 2026-09-21 from 477 record streams:
+
+| weeks | state |
+|---|---|
+| 2026W29 - 2026W33 | **gone.** No session record survives anywhere on this machine. Five weeks, from the first commit on 2026-07-12 |
+| 2026W34 - 2026W39 | captured. 22.3 billion tokens, 523 machine-hours, six weeks |
+
+They are recorded as **absent, not zero**, in the CSV and on the chart, which now draws a marker for
+a week nobody measured. Coverage's own 2026W29 gap got the same marker; it had been a sentence in a
+subtitle.
+
 ## What this must not become
 
 **Not time tracking for calef.** A person required to log hours to satisfy a metric stops
@@ -94,14 +141,51 @@ dishonest version.
 
 ## BUGS
 
+- **2026W37 is captured and should be treated as suspect.** 12.2 machine-hours against 110 to 133 on
+  either side, in a week whose roadmap says 13 milestones were built. Either it was quiet or its
+  records were rotated away before the first capture. Nothing can tell those apart after the fact,
+  which is the whole argument for the snapshot.
+- **The subscription's first $200 is outside the series.** calef dates it 2026-07-12, a Sunday, which
+  is 2026W28; the first commit is 2026-07-13 UTC and the series starts at 2026W29. A week has a row
+  only when a commit fell in it. `script/metrics` prints the discrepancy on every run rather than
+  folding the money into a neighbouring week.
+- **`lane_tokens` counts the whole project session, not its lanes.** A maintainer answering a
+  question, a review, and this block being written are all in it. It is the cost of the project
+  rather than the cost of the code, and the column name is narrower than the thing.
 - **The ten person-weeks is a statement, not a measurement**, and nothing will ever make it one
   without time tracking, which this milestone refuses. It is accurate to the bucket the comparisons
   need and no better.
-- **Machine effort cannot be attributed to a milestone yet.** Nothing links a lane to the milestone it
-  worked on, though the claim commit already names the number. Until that join exists, per-component
-  cost is not derivable and only per-week totals are.
+- **Machine effort cannot be attributed to a milestone yet, and the raw material for it is on disk.**
+  Every session record carries a `gitBranch`, and a lane's branch is named for its milestone, so the
+  join is *available*. It is deliberately not built: a branch is not a milestone (maintainer
+  branches, `main`, rebases), and a wrong attribution is worse than none. Until somebody decides what
+  a correct one looks like, per-component cost is not derivable and only per-week totals are. That is
+  the one piece of this milestone that wants a lane of its own.
+
+## Follow-on
+
+- **Proposed.** `design/roadmap/proposals/what-a-lane-spent-on-its-milestone.md`. Every session
+  record carries a `gitBranch` and a lane's branch is named for its milestone, so the join from
+  machine effort to milestone is on disk and was deliberately not built here: a branch is not a
+  milestone (maintainer branches, `main`, rebases), and a wrong per-component cost is worse than
+  none. It is the difference between "this project cost 22 billion tokens" and "a verified component
+  costs this much", which is the number the literature comparison actually wants.
+- **Recorded.** The suspect 2026W37 capture, the $200 of subscription outside the series, the
+  restatement of old weeks at the newest ledger rate, and `lane_tokens` counting the whole session
+  rather than its lanes all live in `BUGS` sections beside the thing a reader meets: this block's
+  own, `notes/project-metrics.md`'s, `notes/project-metrics/ledger.md`'s, and `script/effort`'s.
+- **Recorded.** `script/cadence-check`'s new row is checked by its output rather than by a run, so a
+  capture that ran and wrote nothing because the records were pruned reads as live. That hole is in
+  `script/effort`'s `BUGS`, where the reader who could act on it is.
+- **Done.** The correction to this block's own hardware line, which said xenon was not bought for
+  this project. Milestone 87 says otherwise and the ledger follows the tree.
+- **Refused.** A single headline number, time tracking for calef, and a dollar figure that does not
+  say which dollar it means. All three are calef's, settled at minting, and are recorded in `What
+  this must not become` above and carried into the page's prose where a reader meets the figures.
 
 ## Index row
+
+**Built:** 2026-09-21
 
 The method is half this project's claim, and a method's result is a cost; this tree measures only
 scale, and the inputs that would answer it are discarded weekly.

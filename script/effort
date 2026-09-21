@@ -153,9 +153,9 @@
 #   would be missed. Every directory read is printed, so the reader can see what was counted.
 #
 # Name: provisional. Minted 2026-09-21 by milestone 519's lane. `effort` is the word milestone 519's
-# own block uses for the quantity ("machine effort per milestone built"), it is a noun, which
-# DECISIONS §134 puts on the reporting half of the `script/` family beside `names`, `metrics` and
-# `falsifications`, and it is the unit rather than the source, which is what keeps it true if the
+# own block uses for the quantity ("machine effort per milestone built"), it is a noun, which is the
+# form this tree's reporting entry points take (`names`, `metrics`, `falsifications`, `decisions`
+# report; `verify`, `test`, `fuzz`, `bench` do something), and it is the unit rather than the source, which is what keeps it true if the
 # records ever move. Refused `tokens` (it names one of four columns and would be wrong the day hours
 # mattered), `usage` (the harness's own word for its billing records, so it would read as a wrapper
 # around someone else's report rather than as this project's measurement), and `cost` (this file

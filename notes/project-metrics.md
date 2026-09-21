@@ -156,6 +156,152 @@ not enter this chart, which is the reason it counts dated rows instead of differ
 `PARTIAL` block that turns `BUILT` was already counted as a milestone, and a block that turns
 `SUPERSEDED` leaves the `BUILT` column without anything having been unbuilt.
 
+## Pull requests merged each week
+
+![Pull requests merged each week](project-metrics/pull-requests.svg)
+
+**The second flow on this page, and it is here because the first one undercounts.** Milestones count
+*declared* units of work. A large share of what lands on `main` is not one: a decision, a correction,
+a record fix, a capture, a gate that was wrong about the tree. On 2026-09-21 the maintainer opened
+about fifteen pull requests of which three were milestones, and every column on this page was blind
+to the other twelve. Added at calef's request the same day, alongside milestone 519's cost columns,
+because that invisible work is most of what the cost columns are measuring.
+
+**Counted from git, never from the GitHub API**, which is the reason it backfills to the first commit
+like everything else here. A merge commit carries its own committer date and `main` holds all 996 of
+them; Actions retains run history for ninety days, so an API-derived series would have started in
+June and could never have been extended backwards. The shape matched is GitHub's own default merge
+subject, `Merge pull request #N from ...`, which is what the merge queue writes; a merge made any
+other way is not counted and cannot be told apart from an ordinary merge commit after the fact.
+
+**Read it beside the velocity chart, because the pairing is what is diagnostic.** Many pull requests
+against few milestones means the week went into record-keeping or into churn (reverts, fix-ups,
+corrections). Those are very different weeks and this page cannot tell them apart; it can only make
+the question visible, which is more than it could do before.
+
+**2026W29 and 2026W30 are genuine zeros.** The first two weeks were commits straight to a branch
+with no pull request; the practice starts in 2026W31 with 8.
+
+### Commits are deliberately not a series here
+
+There are 5,053 of them as of 2026-09-21 and they will not be charted, and this paragraph exists so that the next
+person does not add the obvious omission. The count measures **lane hygiene at least as much as
+output**. `AGENTS.md` requires a lane to commit whenever a piece works, because uncommitted work in a
+worktree is the one thing no part of this system protects, and then to squash the checkpoints into
+purposes before reporting. So the number reflects how faithfully lanes did both, and a week where
+lanes squashed well would look *less* productive than one where they did not. It stays a headline
+figure in prose, where it can carry that sentence, rather than a line on a chart where it cannot.
+
+### And a pull request is not a unit of value
+
+Merging four small corrections is four pull requests, and it might be the best hour of the day or the
+worst. This series answers **how much landed**. The cost columns below answer **what it took**.
+Neither of them answers whether it was worth doing, and a rising line here should not be read as
+though one of them did.
+
+## What this project costs
+
+![Machine effort per milestone built](project-metrics/effort.svg)
+
+**Three units, and deliberately no fourth that adds them up.** Milestone 519 (what this project
+costs, tracked where it cannot rot) refuses a single headline number, because three audiences want
+three different ones: person-weeks for the comparison against the verification literature, tokens
+with a dated price for the argument that the method is getting cheaper, and cash for calef's own
+budgeting. The columns are `human_person_weeks`, `lane_tokens` with `lane_wall_clock_hours` and
+`price_per_mtok_at_date`, and `cash_spend`.
+
+**The shape those numbers make is the finding.** Cash to date is under a thousand dollars all in,
+against eleven person-weeks of one experienced engineer's full attention (milestone 519's block
+says "about ten", written two days before this column existed; the column counts eleven calendar
+weeks, 2026W29 through the current partial 2026W39, and the difference is arithmetic rather than a
+correction). At any plausible rate
+for that person's time, **the human cost is on the order of 99% of the economic cost and the machines
+are a rounding error.** The claim this project can honestly make is not that software became cheap.
+It is that the scarce input is still a person, and what changed is how much one person's attention
+can be made to carry.
+
+### The chart is a ratio, and it is the one that answers the claim
+
+A total would say the project was busy. Millions of tokens per milestone built says whether the
+method got **cheaper**, which is the claim principle 2 of `AGENTS.md` actually makes. It fell from
+307 in 2026W34 to 73 and 68 in 2026W36 and 2026W38. Four things before anyone quotes that:
+
+- **A milestone is not a fixed unit**, which the velocity section says at length and which this
+  inherits with interest, because here it is the denominator. A week that built one build-flag fix
+  and a week that built a three-architecture bring-up divide by the same 1.
+- **2026W35's 1,021 is the highest and its week built 8 milestones**, against 2026W36's 49. Both
+  numbers are real. Whether that week was expensive or merely undeclared is not answerable from here,
+  and the pull-request series above is the first place to look.
+- **The current week is always understated.** Its tokens accumulate all week and its milestones land
+  in a burst near the end.
+- **Four weeks are marked as not captured rather than drawn as zero.** See the deadline below.
+
+### The deadline, and what was already gone when the capture started
+
+Every other column on this page is computed from a git revision, so history backfills by reading the
+tree at a past commit: that is how the mutation census, the velocity column and the coverage cells
+were all filled in retroactively. **Token and wall-clock records are not in git.** They live in the
+agent harness's session records under `~/.claude/projects/`, on one laptop, outside this repository,
+and nothing promises to keep them.
+
+The first capture ran on **2026-09-21** and read 477 record streams. It found **2026W34 through
+2026W39**, and found **nothing at all for 2026W29 through 2026W33**, which is the first five weeks of
+the project against a first commit on 2026-07-12. Those weeks are recorded as **absent, not zero**,
+in the CSV and on the chart, because an absent week averaged in as a zero is a lie that ends up in a
+published figure.
+
+**2026W37 is captured and should still be treated as suspect.** It reads 12.2 machine-hours against
+110 to 133 on either side, in a week whose roadmap says 13 milestones were built. Either that week
+really was quiet, or its records were rotated away before anyone looked. Nothing can tell those apart
+after the fact, and that is the argument for the snapshot described under *How it stays current*.
+
+### What `lane_wall_clock_hours` is, and what it conflates
+
+The sum, over every record stream, of the gap between consecutive responses, dropping any gap longer
+than thirty minutes. A stream is one session or one subagent lane, so **parallel lanes add**: four
+lanes working for an hour is four hours here, and a week can exceed 168. That is the point, since it
+is an effort figure rather than an elapsed one.
+
+It **conflates queueing with work**. A lane waiting on the merge queue, on a gate, or on a rate limit
+is indistinguishable here from one thinking. And the thirty-minute cut is a judgement, not a
+measurement: a longer gap is a session left open overnight, and counting it would put a sleeping
+laptop in the total. `IDLE_GAP_S=600 script/effort` shows how much the choice moves.
+
+### Two dollars, and which one is which
+
+This is the refusal milestone 519 is sharpest about. **This project pays a fixed monthly
+subscription, so the marginal cost of one more lane is zero dollars.** `cash_spend` is what was
+actually paid: $200 a month since 2026-07-12, plus $271.81 of hardware on 2026-08-15.
+
+`price_per_mtok_at_date` is a **shadow price**, and it is a rate rather than a total on purpose. It
+is that week's own token mix priced at vendor list rates, so a reader who wants the shadow figure
+multiplies it by `lane_tokens` and knows exactly what they have multiplied. Quoting one of these two
+numbers while implying the other is the dishonest version, so neither ever appears here without its
+label. Both rates and purchases live in
+[`notes/project-metrics/ledger.md`](project-metrics/ledger.md), which is appended to by hand and
+never regenerated.
+
+**The blended rate moves with the mix, not only with prices.** It runs from $0.30 to $0.78 per
+million tokens across the captured weeks while no published price changed, because this tree's work
+is split roughly half and half between `claude-opus-5` and `claude-sonnet-5` by token, and because a
+cache read lists at a tenth of an input token. A week that cached well reads cheap.
+
+**$200 of real spend is outside this series and that is not rounding.** calef dates the subscription
+2026-07-12, a Sunday, which is 2026W28; the first commit is 2026-07-13 UTC and the series starts at
+2026W29. A week gets a row only when a commit fell in it, so `cash_spend` sums to $671.81 against
+$871.81 actually paid. `script/metrics` prints the discrepancy on every run rather than folding it
+into a neighbouring week.
+
+### `human_person_weeks` is a statement, and will stay one
+
+1.0 per calendar week, because calef works on nife full time. It is not a measurement and nothing
+will make it one without time tracking, which milestone 519 refuses on the grounds that a person
+required to log hours stops volunteering the honest ones, and the metric is then worth less than what
+it displaced. The only thing ever asked of him is a **correction** when the datum stops being true,
+and the column is carried through every rewrite so that a hand-edited week survives the next
+backfill. It is accurate to the bucket the comparisons need (seL4 at about eleven person-years plus
+nine more for the proof; Atmosphere at 1.5 person-years on verification) and no better.
+
 ## Architecture decisions by status
 
 ![Architecture decisions by status](project-metrics/decisions.svg)
@@ -478,6 +624,37 @@ drawn for scale.
 `.github/workflows/metrics.yml` runs it every Monday and opens a pull request if anything changed,
 following `toolchain-bump.yml`, which is the closest existing shape.
 
+### One column the scheduled run cannot produce, and what stands in for it
+
+**The weekly workflow runs on a GitHub runner with a fresh checkout. It cannot see the session
+records the cost columns are measured from, and no workflow ever will.** Those records live under
+`~/.claude/projects/` on the machine the lanes ran on. So machine effort is captured by a person
+running `script/effort --update` on patagonia and committing the result, which is rung four of
+`AGENTS.md`'s ladder, and rung four is where this tree's failures live.
+
+Two mechanisms stand behind it rather than one, because the two ways this dies are different:
+
+- **`script/effort --snapshot` makes forgetting survivable.** It reads the same records and writes
+  the week's aggregate to a machine-local cache outside the repository, touching no file in the tree,
+  so it is safe to run unattended while lanes are working. A week's numbers then outlive the
+  transcripts they came from, and a month of nobody committing costs nothing. Under `launchd` beside
+  the merge drain and the trunk watcher (`notes/merge-queue.md` has the plist shape), with
+  `ProgramArguments` of `/bin/sh -c 'cd <checkout> && script/effort --snapshot'` and a
+  `StartInterval` of 21600, four times a day is ample for a weekly figure.
+- **`script/cadence-check` says when the capture has not happened.** It asks whether the committed
+  `notes/project-metrics/effort.csv` holds the current week, and `scripts/trunk-health.sh` already
+  calls it every five minutes on patagonia, which is the same machine that holds the records. It is
+  the only row in that report that is not a workflow, for the reason above: there is no run history
+  to interrogate, so the output is checked instead of the run.
+
+**Neither of them invents a number.** A week that nobody captured stays absent, and the chart draws
+it as absent. That is the whole design: this tree has twelve recorded instances of a missing failure
+signal being read as a pass, and a cost series that quietly stopped updating would be the thirteenth.
+
+`--update` refuses to lower a figure a past week already carries, and says which week and column it
+refused. That is the shape of the failure this measurement actually has: transcripts get pruned, a
+later run sees less, and the smaller number goes over the larger one without comment.
+
 **It is idempotent, and that is a property of how the file is written rather than a check on top of
 it.** The CSV is never appended to. It is read into a dictionary keyed by ISO week, the week being
 written **replaces its own entry**, and the whole file is rewritten from that dictionary in sorted
@@ -531,6 +708,31 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
   draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,
   which `script/roadmap --check` prints on every lint run and this column does not carry.
+- **The cost columns can stop updating and the charts will not say so.** They will simply stop
+  gaining weeks, and an absent week is drawn as absent, which is correct and is also exactly what a
+  dead capture looks like. `script/cadence-check` is the thing that speaks, and it speaks on
+  patagonia through `scripts/trunk-health.sh`, which inherits that watcher's own recorded gap: a
+  machine asleep is a watcher not watching.
+- **`lane_tokens` counts this project's whole session, not its lanes.** Every response in a record
+  stream filed under the nife project directory is counted, including a maintainer answering a
+  question, a review, and this page being written. It is the cost of the project, not the cost of
+  the code, and the name is narrower than the thing.
+- **Machine effort cannot be attributed to a milestone**, so the chart's ratio is a weekly average
+  over everything that happened rather than a per-milestone cost. The raw material for the join is on
+  disk (every record carries a `gitBranch`, and a lane's branch is named for its milestone) and the
+  join is deliberately not built: a branch is not a milestone, and a wrong attribution is worse than
+  none.
+- **`price_per_mtok_at_date` restates old weeks at the newest rate in the ledger.** The ledger is
+  appended to, and nothing reads a rate as of a week; the last row for a model wins. A rate change
+  would therefore re-price history, which is the same restatement hazard this page opens with and is
+  worse here because a dollar figure reads as a measurement.
+- **$200 of the subscription is outside `cash_spend` and stays outside it.** It was paid in 2026W28
+  and the series has no row for that week, because no commit fell in it. `script/metrics` prints the
+  amount on every run; nothing folds it into a neighbour, because that would put money in a week it
+  was not spent in to make a column sum tidily.
+- **`merged_pull_requests` can only see GitHub's default merge subject.** A merge made any other way
+  is not counted and cannot be distinguished from an ordinary merge commit afterwards. The total
+  matches what a maintainer counted by hand on 2026-09-21, which is evidence and not proof.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
 
