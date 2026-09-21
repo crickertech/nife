@@ -268,7 +268,31 @@ pub(crate) fn invoke(
             // empty answer is reserved for a domain that really is empty.
             //
             // `a0` is the cursor: 0 to start, then whatever the last call returned, until a
-            // `survey::DONE` comes back. x1 carries the tid and x2 the state code.
+            // `survey::DONE` comes back. `a1` is the RECORD: which per-thread fact the caller
+            // wants. x1 carries the tid and x2 that record's word.
+            //
+            // **The selector is calef's 2026-09-21 ruling, and it replaces growing this row.** The
+            // earlier plan put each new fact in a further return register; he expects a third and a
+            // fourth fact, and a mechanism that has to be redesigned at the sixth field is the
+            // wrong mechanism at the fourth. Nobody grows a register row: Linux reached 52 fields
+            // through a pseudo-file and Zircon 41 topics through a selector. So x0 and x1 are the
+            // frame, the same for every record, and only x2 belongs to the record.
+            //
+            // **`record::STATE` is 0 so that every caller written before the selector keeps
+            // working**, having passed 0 into an argument that was then unused. That is a claim
+            // about a wire rather than a hope, and it is asserted in `abi`'s own tests.
+            //
+            // **Why the placement record needs no authority beyond the `ENUMERATE` below**, said
+            // here rather than in a decisions file the reader would have to go and find. §150 (how does a
+            // thread's CPU time reach userspace?)
+            // already weighed that a viewer holding `ENUMERATE` learns something aggregate about
+            // threads it cannot otherwise name, and accepted it for a CPU-time counter. A placement
+            // is strictly less than what was accepted: one bounded value out of at most 64, written
+            // once when the thread started and never again, against a counter that moves
+            // continuously and can therefore be differenced into a timing channel. A viewer that
+            // can already see a thread's tid and run state learns which of a handful of cores it
+            // was put on, and it learns nothing at all about a thread outside the domain it was
+            // handed. The right to look is still the capability, and nothing here widens it.
             abi::rendezvous::SURVEY => {
                 // `ENUMERATE`, not `READ`, and the distinction is the method's whole safety
                 // argument: `READ` here also unlocks `RECV` and `REAP`, so a viewer granted it
@@ -277,9 +301,9 @@ pub(crate) fn invoke(
                 if !cap.rights.allows(Rights::ENUMERATE) {
                     return Err(Error::NotPermitted);
                 }
-                let (next, tid, state) = sched::survey_supervised(ep, a0)?;
+                let (next, tid, word) = sched::survey_supervised(ep, a0, a1)?;
                 frame.set_arg(1, tid);
-                frame.set_arg(2, state);
+                frame.set_arg(2, word);
                 Ok(next as i64)
             }
             _ => Err(Error::BadMethod),

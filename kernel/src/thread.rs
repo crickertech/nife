@@ -366,6 +366,36 @@ pub struct Thread {
     #[cfg(feature = "soak_test")]
     pub last_cpu: u8,
 
+    /// **Which core this thread was placed on when it started**, or [`u8::MAX`] if it has not
+    /// started. The fact `abi::survey::record::PLACEMENT` reports.
+    ///
+    /// `sched::spawn_reporting_placement` has handed this to the in-kernel job-mix supervisor since
+    /// milestone 240 (the soak reports what happened and not where) as a return value, which is only
+    /// available to a caller that did the spawning.
+    /// A userspace supervisor did not do the spawning, so a field on the thread is what gives the
+    /// same fact a path out through a survey, and is what unblocks moving that supervisor out of
+    /// the kernel.
+    ///
+    /// **Written once, at [`crate::sched::spawn_on`] and [`crate::sched::start_thread_control_block`],
+    /// and never on the IPC path.** That is the whole reason this one is unconditional where
+    /// `Thread::last_cpu` above is behind a soak-build feature (not a link, because that field
+    /// does not exist in a build without `soak_test` and rustdoc would not resolve it): `last_cpu` is written in
+    /// `schedule()`'s switch and cost 5.7% of `ipc_fastpath`'s footprint on aarch64, over milestone
+    /// 132's bound. A placement is one store per thread creation, which is a cold path by
+    /// definition, so the same information that was too expensive to keep continuously is free to
+    /// keep once.
+    ///
+    /// **So it is placement, not location**, and the record's documentation says so to its reader
+    /// rather than leaving the distinction here. A thread stolen onto another core, or woken onto
+    /// its waker's (DECISIONS §28 (SMP placement: local wakes), sub-point 2), still reports where it was placed.
+    ///
+    /// The value is a cpu **id**, which is a position in the online mask and not an index into a
+    /// range: `cpu_set`'s header has the VisionFive 2 boot this distinction cost three boots to
+    /// diagnose.
+    ///
+    /// Name provisional: calef names public items.
+    pub placement: u8,
+
     /// **The saved general-purpose state of this thread**: one stack pointer.
     ///
     /// Everything the calling convention promises a callee preserves lives on the stack it points
@@ -633,6 +663,7 @@ impl Thread {
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
+            placement: u8::MAX, // overwritten by the placement decision at spawn or START
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -668,6 +699,7 @@ impl Thread {
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
+            placement: u8::MAX, // overwritten by the placement decision at spawn or START
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -776,6 +808,7 @@ impl Thread {
                 handshake: thread_wake_handshake::Handshake::ready(),
                 #[cfg(feature = "soak_test")]
                 last_cpu: u8::MAX,
+                placement: u8::MAX, // overwritten by the placement decision at spawn or START
                 context,
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
@@ -826,6 +859,7 @@ impl Thread {
             handshake: thread_wake_handshake::Handshake::embryo(),
             #[cfg(feature = "soak_test")]
             last_cpu: u8::MAX,
+            placement: u8::MAX, // overwritten by the placement decision at spawn or START
             context: core::ptr::null_mut(),
             stack: None,
             space: None,

@@ -32,28 +32,28 @@ const _: () = assert!(
 
 /// One test's world: a budget the builder owns, and a small region the rendezvous points come out of, so
 /// `tidy` can give both back rather than spending the kernel's shared rendezvous budget on every run.
-fn arena() -> (u64, u64) {
+pub(super) fn arena() -> (u64, u64) {
     let budget = crate::memory_region::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
     let rendezvous_region =
         crate::memory_region::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
     (budget, rendezvous_region)
 }
 
-fn rendezvous(region: u64) -> sched::RendezvousId {
+pub(super) fn rendezvous(region: u64) -> sched::RendezvousId {
     sched::create_rendezvous_from(region).expect("no rendezvous")
 }
 
 /// Hold a domain **the way a viewer holds one**: `ENUMERATE` and nothing else, which is exactly
 /// what `ps` is granted. It is not that a viewer is refused `RECV` and `REAP`; it cannot name them,
 /// because those take `READ` and this capability does not carry it.
-fn hold_view(ep: sched::RendezvousId) -> u64 {
+pub(super) fn hold_view(ep: sched::RendezvousId) -> u64 {
     sched::grant(crate::cap::rendezvous_cap(ep, Rights::ENUMERATE)).expect("grant the rendezvous")
 }
 
 /// Hold a domain **the way its supervisor holds it**: `READ` to receive and reap, `ENUMERATE` to
 /// look. The two rights are separable and this is the holder that has both, which is what makes
 /// [`hold_view`]'s narrowness a choice rather than the only thing available.
-fn hold_supervisor(ep: sched::RendezvousId) -> u64 {
+pub(super) fn hold_supervisor(ep: sched::RendezvousId) -> u64 {
     sched::grant(crate::cap::rendezvous_cap(
         ep,
         Rights::READ.union(Rights::ENUMERATE),
@@ -63,7 +63,7 @@ fn hold_supervisor(ep: sched::RendezvousId) -> u64 {
 
 /// Hold the same rendezvous **send-only**: a peer that may report to this supervisor and is not the
 /// supervisor. The negative control's whole setup is this one line.
-fn hold_write(ep: sched::RendezvousId) -> u64 {
+pub(super) fn hold_write(ep: sched::RendezvousId) -> u64 {
     sched::grant(crate::cap::rendezvous_cap(ep, Rights::WRITE)).expect("grant the rendezvous")
 }
 
@@ -86,7 +86,7 @@ fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 /// guard page, and a `[Row; 128]` local is two kilobytes; `script/stack-frame-check` is the gate
 /// that made the buffer the caller's in the first place. The widest domain any test here builds is
 /// three, so eight is slack with room to notice an unexpected member rather than truncate it.
-const TEST_ROWS: usize = 8;
+pub(super) const TEST_ROWS: usize = 8;
 
 fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
     let s = ps::collect(rows, &mut |cursor| survey(slot, cursor));
@@ -110,7 +110,7 @@ fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
 /// members in two domains must drain the whole rendezvous before it collects any of them. Draining
 /// only its own domain's count releases somebody else's child and leaves one of its own blocked
 /// forever, which is the bug this comment exists to stop the next reader reintroducing.
-fn drain(parking: sched::RendezvousId, n: usize) {
+pub(super) fn drain(parking: sched::RendezvousId, n: usize) {
     for _ in 0..n {
         sched::ipc_recv(parking);
     }
@@ -127,7 +127,7 @@ fn drain(parking: sched::RendezvousId, n: usize) {
 /// same rendezvous can reap**, which is `capability::survey_includes`'s scope property observed from
 /// the control side rather than the view side. The wait is the clock's, not a yield count, because
 /// how long a released child takes to reach its exit is a property of the host (notes/hvf-leg.md).
-fn collect_all(cap: u64, tids: &[u64]) {
+pub(super) fn collect_all(cap: u64, tids: &[u64]) {
     for &tid in tids {
         assert!(
             super::wait_for(|| reap(cap, tid) == Ok(0)),
@@ -145,7 +145,7 @@ fn tids<'a>(s: &'a ps::Survey<'_>) -> impl Iterator<Item = u64> + 'a {
 /// Give everything back: the viewer's slots, then the builder's budget (which reclaims any instance
 /// region still under it), then the rendezvous region. Reclaiming the rendezvous points first would revoke
 /// the channels the corpses are still attached to.
-fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
+pub(super) fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
     for &s in slots {
         let _ = sched::delete_current_cap(s);
     }
@@ -155,7 +155,7 @@ fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
 }
 
 /// Build a child into its own region carved from `budget`, so one reclaim frees the instance.
-fn child_in(
+pub(super) fn child_in(
     budget: u64,
     stub: &[u32],
     report: Option<sched::RendezvousId>,

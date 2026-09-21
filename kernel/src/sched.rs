@@ -1458,6 +1458,15 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Thr
             // is aligned for `Thread` and holds no live one, so `write` drops nothing.
             unsafe { Thread::spawn_into(f, tid, dst) }
         })?;
+        // Record where it was placed, so a survey can report it (`abi::survey::record::PLACEMENT`).
+        // Here rather than inside `place_on`, and that siting is the whole cost argument: `place_on`
+        // is also the wake path, so a store there would be a store per wake on the IPC fastpath,
+        // which is what put `Thread::last_cpu` behind a soak-build feature. One store per thread
+        // creation is free by comparison. `insert_in_place` just returned this id, so the `if let`
+        // is belt and braces rather than a case that happens.
+        if let Some(t) = sched.threads.get_mut(id) {
+            t.placement = target as u8;
+        }
         // The placement decision is made ONCE, here, with interrupts masked, and carried out of
         // the critical section as a value. Re-deriving it below from `target != cpu::id()` is the
         // lost-wakeup bug `place_on` documents: this thread can be stolen onto another core
@@ -3933,8 +3942,19 @@ pub fn reap_supervised(ep: RendezvousId, tid: ThreadId) -> Result<(), abi::Error
 }
 
 /// **Read one entry of the domain a supervision rendezvous supervises** (milestone 126,
-/// `rendezvous::SURVEY`). Returns `(next_cursor, tid, state)`; a `next_cursor` of
-/// `abi::survey::DONE` means the walk is finished and the other two words are 0.
+/// `rendezvous::SURVEY`). Returns `(next_cursor, tid, word)`, where `word` is the fact `record`
+/// selected; a `next_cursor` of `abi::survey::DONE` means the walk is finished and the other two
+/// words are 0.
+///
+/// **`record` is a selector over per-thread facts**, calef's 2026-09-21 ruling: a new fact is a new
+/// `abi::survey::record` value rather than a fourth return register, because a register row that
+/// must be redesigned at the sixth field is the wrong mechanism at the fourth. The cursor and the
+/// tid are the same for every record, so only the third word moves, and a caller wanting two facts
+/// walks the domain twice and joins on the tid.
+///
+/// **An unknown record is refused before the walk**, so a bad selector against an empty domain is a
+/// refusal rather than a `DONE` that a reader would print as "nothing here". A plausible wrong
+/// answer is worse than an error.
 ///
 /// **The domain is the supervision subtree the kernel already maintains**, so there is no registry
 /// to keep in step with reality and no way for the view to disagree with it. Membership is
@@ -3948,7 +3968,18 @@ pub fn reap_supervised(ep: RendezvousId, tid: ThreadId) -> Result<(), abi::Error
 /// userspace program's discretion, which is a scheduler-latency hole a program could open on
 /// purpose. The cost is that the survey is a sequence of snapshots rather than one; see the `BUGS`
 /// section of notes/process-view.md, which states exactly what that does and does not promise.
-pub fn survey_supervised(ep: RendezvousId, cursor: u64) -> Result<(u64, u64, u64), abi::Error> {
+pub fn survey_supervised(
+    ep: RendezvousId,
+    cursor: u64,
+    record: u64,
+) -> Result<(u64, u64, u64), abi::Error> {
+    // Before anything else, including before the lock: a record this kernel does not answer is
+    // `BadMethod`, because the selector is part of the method's name. Doing it here rather than at
+    // the point of extraction is what makes the refusal independent of whether the domain happens
+    // to have a member to extract from.
+    if !abi::survey::record::is_known(record) {
+        return Err(abi::Error::BadMethod);
+    }
     let guard = IPC_TABLES.lock();
     // Before IPC_TABLES exists there is no domain to report, which is "nothing here", not a
     // refusal: the caller's authority was never in question.
@@ -3961,10 +3992,38 @@ pub fn survey_supervised(ep: RendezvousId, cursor: u64) -> Result<(u64, u64, u64
     let from = usize::try_from(cursor).unwrap_or(usize::MAX);
     for (slot, t) in sched.threads.iter_from(from) {
         if capability::survey_includes(t.fault_ep, ep) {
-            return Ok((slot as u64 + 1, t.id, survey_state(t.handshake.state)));
+            let word = match record {
+                abi::survey::record::STATE => survey_state(t.handshake.state),
+                abi::survey::record::PLACEMENT => survey_placement(t.placement),
+                // `is_known` refused every other value above, before the walk began. This arm is
+                // not dead defensiveness: it is what makes adding a record a loud two-line edit
+                // (the constant, and an arm here) instead of a record that silently reports zero
+                // because somebody widened `is_known` and stopped.
+                _ => return Err(abi::Error::BadMethod),
+            };
+            return Ok((slot as u64 + 1, t.id, word));
         }
     }
     Ok((abi::survey::DONE, 0, 0))
+}
+
+/// The placement a survey reports, as an `abi::survey::record::PLACEMENT` word.
+///
+/// Widens a cpu id, and turns the kernel's `u8::MAX` "not placed" into `record::NO_CPU`, which is
+/// `u64::MAX`. The two sentinels are deliberately not the same number: widening `u8::MAX` would
+/// hand userspace **255**, which is a perfectly plausible cpu id for a reader to tally, and this
+/// tree's ruling on a counter it could not trust was that a wrong number is worse than no number.
+///
+/// Unreachable in practice, and mapped anyway rather than guessed at: a supervision endpoint is
+/// recorded at `START` (DECISIONS §26 (the fault endpoint: thread death becomes a message a
+/// supervisor holds)), so an embryo is not yet in any domain, and a corpse keeps
+/// the placement it started with.
+const fn survey_placement(placement: u8) -> u64 {
+    if placement == u8::MAX {
+        abi::survey::record::NO_CPU
+    } else {
+        placement as u64
+    }
 }
 
 /// The run state a survey reports, as an `abi::survey` code.
@@ -4208,11 +4267,17 @@ pub fn start_thread_control_block(tid: ThreadId, args: [u64; 3]) -> Result<(), a
     // process that spawns a pipeline does not pile it all onto one core. `place_on` enqueues locally
     // or hands the thread to the target's inbox; the SGI that makes a remote target pick it up goes
     // out after IPC_TABLES is released.
-    let ptr = thread_control_block_ptr(sched, tid);
     // The decision, once, under the lock. Asking `target != cpu::id()` again after `drop(guard)`
     // unmasks interrupts first, so this thread can be stolen onto `target` in between and the
     // second answer skips the SGI the first one owed (see `place_on`).
-    let remote = place_on(pick_spawn_target(), ptr);
+    let target = pick_spawn_target();
+    // Record it on the thread, so a supervisor can survey it (`abi::survey::record::PLACEMENT`).
+    // This is the path every *user* thread takes, so it is the one a survey actually reads: a
+    // supervised thread is always one a `START` put on a core. `t` is still borrowed here, which is
+    // why this is before `thread_control_block_ptr` re-borrows `sched`.
+    t.placement = target as u8;
+    let ptr = thread_control_block_ptr(sched, tid);
+    let remote = place_on(target, ptr);
     drop(guard);
     if let Some(target) = remote {
         crate::arch::irq::send_reschedule(target);
