@@ -177,18 +177,25 @@ without it the second boot would have been riding a boot option the first one le
 
 ## What this does not do
 
-Beyond each file's own `BUGS`, the three that most want a reader's attention:
+**Whole disk only**, and that one has no proposal: installing beside another operating system means
+resizing a filesystem nife cannot read, which is the territory of milestone 140 (mount a drive this
+system did not create) and a different order of risk to somebody's data.
 
-- **Whole disk only.** Installing beside another operating system means resizing a filesystem nife
-  cannot read, which is milestone 140's territory and a different order of risk to somebody's data.
-- **The disk is named by its size and not by its model.** Milestone 515 asks for model and size, and
-  only size is here: reading a controller's model is a second `IDENTIFY` in the admin plane and
-  `non_volatile_memory_express::Handoff`'s three scalars are all spent. On a machine with two disks
-  the question would not say which. **That sentence is the single most load-bearing thing a stranger
-  reads**, and it wants a lane.
-- **There is no reinstall.** A disk that already carries a nife data partition is never offered an
-  install again, which is what stops an installed machine offering to wipe itself every boot. The
-  honest fix is a second question rather than a second mechanism, and it is not written.
+Everything else this rung found that it did not do is written where the next person meets it: in the
+`BUGS` section beside the feature, and, for the five that want work rather than only a record, as a
+proposal in `design/roadmap/proposals/`. The five, and what each is actually about:
+
+| proposal | the thing it is about |
+|---|---|
+| `the-disk-an-installer-names-has-no-model.md` | the offer says "the NVMe disk attached to this machine", which is a guess on the first machine with two. **The single most load-bearing sentence a stranger reads** |
+| `the-install-offer-should-say-what-is-already-on-the-disk.md` | the survey asks only whether nife is there, so a disk holding Windows is described as an unqualified target |
+| `there-is-no-way-back-from-the-stick.md` | an installed disk is never offered an install again, which is right, and turns a power cut between the installer and `mkfs` into an unrecoverable state |
+| `a-long-file-name-or-riscv64-cannot-be-installed.md` | `BOOTRISCV64.EFI` is not 8.3 and the FAT writer refuses it rather than mangling it |
+| `the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md` | `/chosen` has one initrd slot and no second one, which is why this rung is an `x86_64` claim |
+
+The sixth, the partition-bounded mount, is a `BUGS` entry in `installer` rather than a proposal,
+because what closes it is a wire value two programs agree on and that is calef's to name rather than
+a lane's to propose.
 
 ## See also
 

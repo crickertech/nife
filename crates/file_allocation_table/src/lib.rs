@@ -72,7 +72,9 @@
 //!   removable-media path cannot be written by this crate as it stands. That is a real gap for
 //!   [milestone 515 (the installer)](../../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)
 //!   on riscv64 and it is recorded rather than worked around: a long-name entry is a checksum and a
-//!   run of UTF-16 entries ahead of the short one, and it wants its own piece of work.
+//!   run of UTF-16 entries ahead of the short one. It has a proposal of its own,
+//!   `design/roadmap/proposals/a-long-file-name-or-riscv64-cannot-be-installed.md`, which prices it
+//!   and says what it does and does not unblock.
 //! - **Every timestamp is zero.** A `mkfs` with no clock capability writes 1970 rather than
 //!   inventing a plausible date, the same choice `redoxfs_server`'s `mkfs` made and for the same
 //!   reason.

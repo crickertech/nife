@@ -258,8 +258,9 @@ const BOOT_FILE_MAX: u64 = 64 * 1024 * 1024;
 /// - **x86_64 only.** The device-tree architectures hand the kernel a tree rather than a module
 ///   list, and `/chosen` has one initrd and no second slot; adding one is its own piece of work.
 ///   The trivial install of §157 (a trivial install is a web page, a USB drive, and packages) is a
-///   PC, so this is where it is needed first. The gap is real and is
-///   why rung 2a is an x86_64 claim.
+///   PC, so this is where it is needed first. The gap is real, it is why rung 2a is an x86_64
+///   claim, and it is priced in
+///   `design/roadmap/proposals/the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md`.
 /// - **The file is read whole into RAM**, about 9 MiB for the tour build. Streaming it to the disk
 ///   instead would mean keeping a firmware file handle past `ExitBootServices`, which there is no
 ///   such thing as.

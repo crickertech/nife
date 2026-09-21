@@ -95,10 +95,14 @@
 //!   system means resizing a filesystem nife cannot read, which is milestone 140 (mount a drive
 //!   this system did not create)'s territory and a different order of risk to somebody's data.
 //! - **The installed filesystem is not bounded by its partition**, for the reason the section above
-//!   gives. A filesystem server on the installed machine holds the whole disk. What keeps it inside
-//!   the partition today is that `mkfs` created it bounded, so its own allocator never learns about
-//!   the blocks past the end; that is a property of the filesystem rather than a capability, which
-//!   is the wrong rung of AGENTS.md's ladder and is recorded here rather than papered over.
+//!   gives. **The filesystem server on an installed machine holds the whole disk**, bounded only by
+//!   the extent `mkfs` recorded in the filesystem's own header, so its allocator never learns about
+//!   the blocks past the end and never reaches the EFI system partition or the table. That is a
+//!   property of the filesystem rather than a capability, which is the wrong rung of AGENTS.md's
+//!   ladder, and it is recorded here rather than papered over. Closing it means bounding the
+//!   *server*: either a base-block field on the `blk` wire, which is a value two programs agree on
+//!   and therefore calef's, or a caretaker between the disk and the FS server, which costs one IPC
+//!   hop per filesystem block. `mkfs`'s own `PartitionDisk` is what the bounded version looks like.
 //! - **The logical block size is assumed to be 512**, the same assumption and the same reason as
 //!   `disk_surveyor` and `disk_partitioner`: nothing in `filesystem_protocol::blk` carries the
 //!   device's. An NVMe namespace formatted with 4096-byte logical blocks would get a table no other

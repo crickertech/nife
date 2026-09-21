@@ -60,7 +60,10 @@
 //!
 //! - **x86_64 only**, because `memory::boot_file_region` is: a device-tree handoff has one initrd
 //!   slot in `/chosen` and no second one for the loader's own file. `uefi_loader`'s
-//!   `place_boot_file` carries the argument and the gap.
+//!   `place_boot_file` carries the argument and the gap, and
+//!   `design/roadmap/proposals/the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md` prices
+//!   closing it and names the three other things that still stand between it and an install on
+//!   those architectures.
 //! - **It asks on the console, which means the kernel reads the UART** (`console::read_line`).
 //!   That is only sound because this runs before the progenitor hands the device to the input
 //!   driver, and it is the reason the offer is made at this exact point in the boot and not later.
@@ -70,18 +73,24 @@
 //!   `non_volatile_memory_express::Handoff` to put forty ASCII bytes, whose three scalars are all
 //!   spent. On a machine with two disks this sentence would not say which, and that is why the
 //!   offer says "the NVMe disk attached to this machine" rather than naming an ordinal it cannot
-//!   back up. **Naming the disk properly wants a lane**; it is the single most load-bearing
-//!   sentence a stranger reads.
+//!   back up. **It is the single most load-bearing sentence a stranger reads**, and it has a
+//!   proposal of its own, `design/roadmap/proposals/the-disk-an-installer-names-has-no-model.md`,
+//!   which finds that the kernel-side half needs no ruling and the program-side half is the wire
+//!   question milestone 421 (the block roster cannot name an NVMe disk) is already held on.
 //! - **Nothing here is crash-atomic**, and a power cut between the partitioner and `mkfs` leaves a
 //!   partitioned disk with no filesystem, which the next boot reports as a disk it cannot mount.
 //! - **It checks for nife and for nothing else.** A disk carrying Windows, or a Linux root, looks
 //!   exactly like an empty one from here: the survey asks "is there a nife data partition" and any
 //!   other answer is "installable". A person who says yes to the question loses that disk. Naming
-//!   what is already on it is `disk_surveyor`'s job and it would be a good next step.
+//!   what is already on it is `disk_surveyor`'s job, and
+//!   `design/roadmap/proposals/the-install-offer-should-say-what-is-already-on-the-disk.md` is the
+//!   proposal for it.
 //! - **A machine that already carries nife is never offered an install again**, which is what stops
 //!   an installed system offering to wipe itself on every boot and also means there is no way to
-//!   reinstall from the stick. The honest fix is a second question ("nife is already on this disk;
-//!   replace it?") rather than a second mechanism, and it is not written.
+//!   reinstall from the stick. The sharp case is a power cut between the installer and `mkfs`,
+//!   which leaves a nife data partition with no filesystem in it and a machine that will never be
+//!   offered an install again. `design/roadmap/proposals/there-is-no-way-back-from-the-stick.md`
+//!   is the proposal, and the fix is a second question rather than a second mechanism.
 
 use super::*;
 use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
