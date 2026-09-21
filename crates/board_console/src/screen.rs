@@ -348,4 +348,29 @@ mod tests {
         ppm.extend(std::iter::repeat_n(PAPER, 7 * 8).flatten());
         assert_eq!(read(&ppm).expect("readable"), "\n");
     }
+
+    /// [`ReadError`]'s `Display`, which nothing else in the suite reads: the other error test
+    /// checks the *value* with `PartialEq`, never the words a person at a bench would see.
+    #[test]
+    fn a_read_error_displays_what_went_wrong() {
+        assert_eq!(
+            ReadError::NotAPixmap.to_string(),
+            "not a binary P6 portable pixmap"
+        );
+        assert_eq!(
+            ReadError::Truncated { wanted: 10, got: 3 }.to_string(),
+            "the pixmap promised 10 bytes of pixels and has 3"
+        );
+    }
+
+    /// **Width and height of zero are each rejected alone**, not only together. The header check
+    /// is three conditions joined by `||`; a test that only ever sets more than one of them at
+    /// once cannot tell that operator apart from `&&`, since either grouping still fires when
+    /// every condition is true. `an_unreadable_dump_says_which_kind_it_is` covers the third
+    /// (`max != 255`) alone already; this covers the other two.
+    #[test]
+    fn width_or_height_of_zero_is_rejected_even_when_the_other_is_fine() {
+        assert_eq!(read(b"P6\n0 5\n255\n").unwrap_err(), ReadError::NotAPixmap);
+        assert_eq!(read(b"P6\n5 0\n255\n").unwrap_err(), ReadError::NotAPixmap);
+    }
 }

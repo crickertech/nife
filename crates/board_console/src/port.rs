@@ -85,7 +85,18 @@ const PREFIXES: &[&str] = &["ttyACM", "ttyUSB"];
 /// two adapters and the caller is a script.
 #[must_use]
 pub fn candidates() -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir("/dev") else {
+    scan(Path::new("/dev"))
+}
+
+/// [`candidates`]'s directory walk, over any directory rather than always `/dev`.
+///
+/// Separate for [`choose`]/[`pick`]'s own reason: whether an adapter happens to be plugged into
+/// the machine running the tests is not something a host test can control, so `candidates()`
+/// itself cannot be asserted on portably. This can, against a temporary directory built for the
+/// purpose, which is what makes the prefix filter and the sort a tested property instead of one
+/// only ever exercised by whatever `/dev` happens to hold.
+fn scan(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut found: Vec<PathBuf> = entries
@@ -356,6 +367,67 @@ mod tests {
         let mut sorted = found.clone();
         sorted.sort();
         assert_eq!(found, sorted);
+    }
+
+    /// **The walk itself, against a directory this test controls rather than whatever `/dev`
+    /// happens to hold.** `candidates()` cannot be pinned down portably (see [`scan`]'s own
+    /// doc), so this is what actually proves the prefix filter and the sort: a real adapter
+    /// name, a look-alike with the wrong prefix, and a name that happens to sort last.
+    #[test]
+    fn scan_keeps_only_the_matching_prefixes_and_sorts_them() {
+        let dir = std::env::temp_dir().join(format!(
+            "board_console-scan-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["zz.not-a-serial-port", PREFIXES[0], "aa.also-not-one"] {
+            std::fs::File::create(dir.join(name)).unwrap();
+        }
+        let real_name = format!("{}TESTDEVICE", PREFIXES[0]);
+        std::fs::File::create(dir.join(&real_name)).unwrap();
+
+        let found = scan(&dir);
+        assert_eq!(
+            found,
+            vec![dir.join(PREFIXES[0]), dir.join(&real_name)],
+            "only the two matching names, sorted, and neither look-alike"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A directory that does not exist is an empty list, not a panic: this is what makes
+    /// `choose`'s "no candidate" message reachable on a machine with no `/dev` entries at all
+    /// worth naming, rather than a path this function itself falls over on.
+    #[test]
+    fn scan_of_a_missing_directory_is_empty() {
+        assert_eq!(
+            scan(Path::new("/no/such/directory/board-console-test")),
+            Vec::<PathBuf>::new()
+        );
+    }
+
+    /// **`stty` itself, the one line of IO residue nothing above it reaches.** `stty` is on
+    /// every base system this crate's header claims for it (that is the whole argument for
+    /// calling it rather than taking a dependency), so an argument it cannot possibly accept is
+    /// a real, portable way to make it fail without a device: this is not asserting on the
+    /// exact wording (that varies by OS, per this module's header), only that the returned
+    /// status and stderr are `stty`'s own and not a placeholder standing in for them.
+    #[test]
+    fn stty_runs_the_real_program_and_hands_back_what_it_actually_said() {
+        let (ok, status, _stdout, stderr) =
+            stty(&["--board-console-test-no-such-flag".to_string()])
+                .expect("stty is on PATH in every base system, per this module's header");
+        assert!(!ok, "an unrecognised flag must not report success");
+        assert_ne!(status, "", "a real exit status is never the empty string");
+        assert_ne!(
+            status, "xyzzy",
+            "a real exit status is never this placeholder"
+        );
+        assert!(
+            !stderr.is_empty(),
+            "stty must have said something about the bad flag"
+        );
     }
 
     /// Every flag in here is a decision with a reason, and the one that would hurt most if it went
