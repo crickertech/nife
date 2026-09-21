@@ -385,7 +385,7 @@ pub mod pixel_format {
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct GraphicsOutputMode {
-    /// How many modes [`GraphicsOutput::query_mode`] would accept.
+    /// How many modes `GraphicsOutput::query_mode` would accept.
     pub max_mode: u32,
     /// Which one is current.
     pub mode: u32,

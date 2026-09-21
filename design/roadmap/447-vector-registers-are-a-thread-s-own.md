@@ -403,10 +403,10 @@ are measurements rather than arguments, and neither needs this decision made fir
 
 ## Follow-on
 
-- **Milestone 534.** The target flip, in
-  `design/roadmap/534-the-soft-float-targets-could-now-be-flipped.md`: what it would take, buy
-  and cost, and the two measurements that should come before it. Written up rather than
-  recommended, because it is an ABI two programs agree on and §22 chose the current one
+- **Milestone 534.** milestone 534 (the soft-float targets could now be flipped),
+  `design/roadmap/534-the-soft-float-targets-could-now-be-flipped.md`: the target flip, what it
+  would take, buy and cost, and the two measurements that should come before it. Written up rather
+  than recommended, because it is an ABI two programs agree on and §22 chose the current one
   deliberately; the *fork reaches calef with its questions already answered* tenet asks for options
   and costs on an irreversible fork and explicitly not for a winner. **A `design/decisions/` section
   is owed when calef rules on it**; this lane does not write one, per its brief.

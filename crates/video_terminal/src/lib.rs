@@ -646,7 +646,7 @@ impl Vt {
     /// position and would be actively misleading.
     ///
     /// **`col < self.cols` is checked after `col == self.col`, and by then it is redundant.**
-    /// `self.col` is never `>= self.cols` (the same cursor-in-bounds invariant [`Vt::erase_display`]'s
+    /// `self.col` is never `>= self.cols` (the same cursor-in-bounds invariant `Vt::erase_display`'s
     /// doc comment names), so `col == self.col` already implies `col < self.cols`; relaxing the
     /// comparison to `<=` cannot change which branch is taken. It stays written out because a reader
     /// should not have to chase that invariant to see the guard is safe.
