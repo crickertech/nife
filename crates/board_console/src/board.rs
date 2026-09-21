@@ -351,6 +351,9 @@ mod tests {
         assert_eq!(first, relabelled);
         assert!(first.seen_in("U-Boot SPL 2021.10", true));
         assert!(!relabelled.seen_in("U-Boot SPL 2021.10", true));
+        // `eq` is depth alone, and `<` above already goes through `partial_cmp` rather than
+        // `eq`, so this is the one assertion in the module that actually calls it.
+        assert_ne!(first, second, "different depths must not compare equal");
     }
 
     /// The depths are written by hand beside each rung, so something has to say they are the
@@ -403,6 +406,12 @@ mod tests {
         );
         // Mid-word, the line is not yet evidence of anything: the next three bytes may be `SPL`.
         assert!(!uboot.seen_in("U-Boot ", false));
+        // A *complete* line with nothing after the prefix and no trailing whitespace: the word
+        // is the rest of the line, which is only true because the line has finished arriving.
+        assert!(
+            uboot.seen_in("U-Boot 2021.10", true),
+            "a complete line settles a word even with no whitespace after it"
+        );
     }
 
     /// A board with no prologue answers every `--until` firmware word with `None`, which is what
@@ -412,6 +421,16 @@ mod tests {
         assert!(XENON.rung("spl").is_none());
         assert!(XENON.rung("uboot").is_none());
         assert_eq!(XENON.keys().count(), 0);
+    }
+
+    /// A board **with** a prologue names its rungs, which `XENON.keys().count() == 0` above
+    /// cannot tell apart from `keys()` always returning nothing.
+    #[test]
+    fn a_boards_keys_are_its_rungs_in_order() {
+        assert_eq!(
+            RADON.keys().collect::<Vec<_>>(),
+            vec!["spl", "opensbi", "uboot", "handoff"]
+        );
     }
 
     #[test]

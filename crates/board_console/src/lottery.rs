@@ -596,4 +596,147 @@ mod tests {
         );
         assert_eq!(series.draws[0].ending, Ending::Truncated);
     }
+
+    /// **`parse_core_line` on its own**, rather than only through `tally`, because a shifted
+    /// slice start can still land on the real role token by coincidence: the offset error this
+    /// catches only shows up when the bytes it wrongly includes look like a *second* worker.
+    #[test]
+    fn parse_core_line_reads_the_tokens_after_threads_and_nothing_before_it() {
+        // `threads=1 R2` is the real content; `core=0 G9` sits before it on purpose, so that an
+        // off-by-nine slice start (the `+`-to-`-` mutant) would land inside `G9` and misread it
+        // as a second worker, a grinder this time, on top of the responder that is actually there.
+        assert_eq!(
+            parse_core_line("soak-test-census: core=0 G9 threads=1 R2"),
+            Some(CoreLine {
+                grinder: false,
+                ipc: true
+            })
+        );
+    }
+
+    /// A token whose tail is not a role's group number must be skipped, not guessed at. This is
+    /// the one distinguishing case between "skip when malformed or empty" (`||`) and "skip only
+    /// when malformed and empty at once" (`&&`, which nothing can ever satisfy: an empty tail
+    /// always reads as `all(digit)` vacuously true, so the `&&` guard never fires and every
+    /// token, however garbled, is read as a worker).
+    #[test]
+    fn a_token_whose_tail_is_not_a_group_number_is_not_a_worker() {
+        assert_eq!(
+            parse_core_line("soak-test-census: core=0 threads=1 Grinder R2"),
+            Some(CoreLine {
+                grinder: false,
+                ipc: true
+            }),
+            "'Grinder' starts with G but is not a group number and must not set grinder"
+        );
+    }
+
+    /// **A census legend with no core lines under it before the next boot still settles the
+    /// block that came before it.** `finish()`'s own "still accumulating" fallback only saves
+    /// the day when a boot ends *mid*-census; this is the other place `settled` is assigned, and
+    /// nothing else exercises it in isolation.
+    #[test]
+    fn a_second_legend_with_nothing_under_it_still_settles_the_first_block() {
+        let log = concat!(
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            // The re-census legend arrives, but no core line follows it before the next boot:
+            // `settled` has to come from the census caught above the legend line, not from
+            // whatever `finish()` finds in `census` (which is empty here).
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test: started\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.draws[0].cores, Some(1));
+        assert_eq!(series.draws[0].clean_cores, Some(1));
+    }
+
+    /// A series with exactly as many attempts as draws has nothing that failed to reach the
+    /// workload, and the report must not say otherwise.
+    #[test]
+    fn a_series_with_no_missing_draws_says_nothing_about_missing_ones() {
+        let series = Series {
+            attempts: 2,
+            draws: vec![
+                Draw {
+                    clean_cores: Some(1),
+                    cores: Some(4),
+                    rate: Some(100),
+                    beats: 3,
+                    ending: Ending::Rebooted,
+                },
+                Draw {
+                    clean_cores: Some(1),
+                    cores: Some(4),
+                    rate: Some(100),
+                    beats: 3,
+                    ending: Ending::Truncated,
+                },
+            ],
+        };
+        assert!(!series.report().contains("never reached the workload"));
+    }
+
+    /// The distribution table's header and its per-row draw count and span, checked against a
+    /// series built directly rather than through `tally`, so each of the report's three moving
+    /// parts (whether the header prints at all, which row a draw lands in, and whether a single
+    /// rate renders as itself rather than as a range) can be pinned down exactly.
+    #[test]
+    fn the_distribution_table_puts_each_draw_in_its_own_row_and_no_other() {
+        let series = Series {
+            attempts: 2,
+            draws: vec![
+                Draw {
+                    clean_cores: Some(0),
+                    cores: Some(4),
+                    rate: Some(100),
+                    beats: 1,
+                    ending: Ending::Truncated,
+                },
+                Draw {
+                    clean_cores: Some(2),
+                    cores: Some(4),
+                    rate: Some(300),
+                    beats: 1,
+                    ending: Ending::Truncated,
+                },
+            ],
+        };
+        let report = series.report();
+        assert!(
+            report.contains("clean cores  draws  rates seen"),
+            "a non-empty distribution must print its header:\n{report}"
+        );
+        // clean=1 has no draws at all: swapping `==` for `!=` when filtering each row would put
+        // *other* rows' draws here instead of leaving it empty.
+        assert!(
+            report.contains(&format!("  {:>11}  {:>5}  -", 1, 0)),
+            "clean=1 must show zero draws with no rate span:\n{report}"
+        );
+        // A single draw's rate must render as itself, not as a degenerate one-point range: that
+        // is the `lo == hi` guard, and disabling it always takes the two-value arm.
+        assert!(
+            !report.contains("300-300/s"),
+            "a single rate must not render as a range:\n{report}"
+        );
+        assert!(report.contains("300/s"));
+    }
+
+    /// When every draw carries a census, nothing was excluded from the distribution, and the
+    /// report must not claim otherwise.
+    #[test]
+    fn a_fully_judged_series_reports_no_exclusions() {
+        let series = Series {
+            attempts: 1,
+            draws: vec![Draw {
+                clean_cores: Some(1),
+                cores: Some(4),
+                rate: Some(100),
+                beats: 1,
+                ending: Ending::Truncated,
+            }],
+        };
+        assert!(!series.report().contains("excluded from the distribution"));
+    }
 }

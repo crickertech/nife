@@ -444,6 +444,26 @@ mod tests {
         (port, String::from_utf8(log).expect("ASCII"), report)
     }
 
+    /// Every [`Report`] kind describes itself, which nothing else in the suite reads directly:
+    /// every other test checks the *value* of `report()` and leaves `describe()`'s wording to
+    /// [`crate::watch::Session::summary`], which composes it rather than asserting on it.
+    #[test]
+    fn every_report_kind_describes_itself() {
+        assert!(Report::NotSent.describe().contains("no byte was sent"));
+        assert!(Report::Sent.describe().contains("did not acknowledge"));
+        assert!(
+            Report::Confirmed
+                .describe()
+                .contains("disarmed its reboot loop")
+        );
+        assert!(
+            Report::Failed("permission denied".to_string())
+                .describe()
+                .contains("permission denied")
+        );
+        assert!(Report::NothingToStop.describe().contains("nothing to stop"));
+    }
+
     /// **The whole of the safety argument, as an assertion.** A boot that gets as far as the soak
     /// starting, and a board sitting at a U-Boot prompt, and a kernel printing its banner, are all
     /// states in which nothing may be written, because none of them has announced an armed reboot
