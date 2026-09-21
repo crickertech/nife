@@ -261,26 +261,6 @@ exists](notes/stack.md), [what `no_std` actually removes](notes/no-std.md), [wha
 script is for](notes/linker-scripts.md), [what QEMU is](notes/qemu.md), and [how portable
 kernels are structured](notes/portability.md).
 
-## The rules a contributor is held to
-
-**How to propose a change is [`CONTRIBUTING.md`](CONTRIBUTING.md)**, which is short and links to the
-rules rather than repeating them. The rules themselves are below.
-
-**They are in [`CLAUDE.md`](CLAUDE.md), and its name is misleading**, which milestone 117's first
-stranger run established by skipping it: a 50 KB file called `CLAUDE.md` at the root reads as tooling
-config for an agent, so a human contributor walks past it. It is not config. It is where the
-project's rules live, and several of them exist nowhere else.
-
-`script/lint` cites it by name in its own failure messages ("CLAUDE.md rule 7"), so a build can fail
-against a file the person who triggered it was never told to read. Until that is fixed properly, this
-paragraph is the pointer.
-
-What is in there and nowhere else: that all architecture-specific code lives under
-`kernel/src/arch/`; that a driver never reaches into a kernel global; that anything two binaries must
-agree on is a crate rather than a `#[path]` module, and why (a shared module in a `no_std` binary is
-unreachable by host tests and by Kani); that names are calef's call; and the ladder that ranks
-"make the wrong state unrepresentable" above "a gate that fails loudly" above "a note nobody reads".
-
 ## Milestones
 
 **Not repeated here.** They live in **[design/roadmap/](design/roadmap/README.md)**, which has a status
@@ -312,35 +292,10 @@ history, and it is left visibly empty rather than dropped.
 
 ## Things this project has already gotten wrong
 
-Kept here on purpose, because the corrections were the most instructive part.
-
-**QEMU does not hand an ELF a device tree pointer in `x0`.** It only does that under the
-Linux boot protocol, which it selects for flat arm64 `Image` files. We shipped an ELF, so it
-took the bare-metal path and populated no registers. We found out by printing `x0` and
-getting zero. *Since fixed*: we now emit a flat binary with a 64-byte Image header, and two
-tests hold the line. See [notes/boot-protocol.md](notes/boot-protocol.md).
-
-**`bl` does not push a return address onto the stack.** That's x86. On aarch64 the return
-address goes into register `x30`, and the stack is where it gets *parked* when a function
-needs `x30` for a call of its own. See [notes/stack.md](notes/stack.md).
-
-**`into_iter()` on a big array is a kernel footgun.** Milestone 3 (hand out physical memory, and
-detect a smashed stack) hung the machine for
-150 seconds with no output. `[Option<Frame>; 1024].into_iter().flatten()` moves 16 KiB by
-value, twice, onto a 64 KiB stack; `sp` walked through `.bss` and `.data` into `.text` and
-the kernel executed its own overwritten code. Two of the three diagnoses along the way were
-wrong. The write-up of *how it was actually found* (semihosting exit codes as bisection
-markers, because `println!` runs through the `.text` you just corrupted) is the most useful
-thing in [notes/stack.md](notes/stack.md).
-
-## Reading
-
-- The **xv6 book** (MIT, ~100pp) for how a real Unix-shaped kernel is put together
-- [`rust-raspberrypi-OS-tutorials`](https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials)
-  for aarch64 mechanics
-- The [OSDev wiki](https://wiki.osdev.org), as a reference rather than a tutorial
-- [Compiler Explorer](https://godbolt.org), set to Rust + aarch64. The fastest way to build
-  assembly intuition that exists.
+Kept on purpose, because the corrections were the most instructive part: a device tree pointer QEMU
+never passed, a return address that does not go on the stack, and a kernel that executed its own
+overwritten code. [notes/corrections.md](notes/corrections.md) has them, each pointing at the note
+that carries the full account.
 
 ## Security
 
@@ -357,9 +312,3 @@ Licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the
-work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
-additional terms or conditions.
