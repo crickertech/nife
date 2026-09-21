@@ -29,6 +29,20 @@ third-party program (`ripgrep`, zero patches) running on all three.
 
 One person is the architect and reviewer. He does not write the lines.
 
+**The human cost, because it is the number that makes the rest mean anything.** calef works on this
+full time, so **one calendar week is one person-week**, and the whole project to date is **about ten
+person-weeks** of human effort. That is his own statement rather than a measurement, and it is the
+denominator every figure above should be read against.
+
+**What that is worth comparing to, carefully.** Atmosphere, a hardware-isolated Verus-verified
+microkernel, reports **1.5 person-years on verification alone**; seL4 reports about eleven
+person-years, plus nine more. **Those are not the same work**, and the comparison is dishonest if
+stated without that: seL4 and Atmosphere carry machine-checked proofs of functional correctness for
+their kernels, where this tree has 178 Kani harnesses covering parts of it and a risk register that
+says so. The honest sentence is narrower: **ten person-weeks bought a three-architecture capability
+microkernel that boots on silicon and runs unmodified third-party software**, and what it did not
+buy is a verified kernel.
+
 ## Five caveats, because the numbers are worthless without them
 
 **This is size and rate, not quality.** A count of milestones marked BUILT is a count of blocks
