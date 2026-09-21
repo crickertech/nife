@@ -289,6 +289,18 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     )
 }
 
+/// The nightly `rust-toolchain.toml` pins, as the baseline header records it.
+///
+/// A three-line parse rather than a TOML dependency: §46 (thin primitives or whole subsystems) is the
+/// rule, and one `channel = "..."` line does not justify one. `None` when the file has no channel
+/// line at all, which the caller turns into `unrecorded` rather than a guess.
+fn pinned_nightly() -> Option<String> {
+    let text = std::fs::read_to_string(workspace_root().join("rust-toolchain.toml")).ok()?;
+    text.lines()
+        .find(|l| l.trim_start().starts_with("channel"))
+        .and_then(|l| l.split('"').nth(1).map(str::to_owned))
+}
+
 /// Run a bench kernel through `cmd`, read its `bench:` lines until `bench: done`, and report the
 /// table (and, off the deterministic icount instrument, save or check against `baseline`). Shared by
 /// the aarch64 and RISC-V bench paths so the parsing, the table, and the regression gate are one
@@ -398,8 +410,24 @@ fn run_bench(
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("baseline.txt");
+        // **The nightly these counts were produced by, written into the file that holds them.**
+        // icount counts guest instructions, and a different compiler emits a different instruction
+        // sequence for the same source, so the toolchain is part of what these numbers mean in
+        // exactly the way `.qemu-version` already is. It went unrecorded until 2026-09-21, and the
+        // cost was live: `nightly-2026-09-15` was pinned without re-recording, the tripwire's
+        // headroom eroded for reasons no change was responsible for, and the tree was bumped again
+        // before anyone acted. `script/lint`'s baseline-toolchain check compares this line against
+        // `rust-toolchain.toml`, so the two cannot disagree silently.
+        //
+        // Read from the PIN rather than from the compiler that happens to be running: the pin is
+        // what CI and every other machine build with, and a `RUSTUP_TOOLCHAIN` override in one
+        // shell is not a fact about the repository. A save under such an override therefore writes
+        // the pin, which is a lie only if the override was deliberate and then committed without
+        // raising the pin, and that is the case `script/lint` catches from the other side.
+        let pinned = pinned_nightly().unwrap_or_else(|| "unrecorded".into());
         let mut out = format!(
-            "# bench/{stem}: deterministic icount tick counts (cargo xtask bench --save).
+            "# toolchain: {pinned}
+# bench/{stem}: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
 # PATH is not the pinned one, precisely because that is when a baseline comparison stops being
