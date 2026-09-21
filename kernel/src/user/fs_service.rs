@@ -216,11 +216,14 @@ static FILE_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU6
 /// may already have been taken by whoever wired it. `None` there means "already up, with nothing
 /// left to drain", which is a different fact from the outer `None`'s "somebody else wired the whole
 /// service" and deserves to be a different shape rather than a flag somewhere.
-type Service = (
-    RendezvousId,
-    u64,
-    Option<(Option<RendezvousId>, RendezvousId)>,
-);
+type Service = (RendezvousId, u64, Readiness);
+
+/// **The two sentinels a caller has to drain before the service is running**, and `None` when an
+/// earlier caller in this boot already drained them.
+///
+/// The block server's half is itself an `Option` for the reason [`Service`] gives above: a boot
+/// that borrows an already-running block service has no sentinel of its own left to wait for.
+pub type Readiness = Option<(Option<RendezvousId>, RendezvousId)>;
 
 /// Wire the block server and the FS server if this boot has not already, else hand back what is
 /// already running. `None` means no RedoxFS disk is attached.
@@ -249,12 +252,19 @@ fn wire_servers(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
 ) -> Option<(Option<RendezvousId>, RendezvousId, RendezvousId, u64)> {
+    // **The NVMe arm is for a machine with no virtio block device at all**, which is what an
+    // installed system is, and the test for it is device 0 rather than device 1. The two questions
+    // are not the same and the difference cost a gate: `cargo xtask uefi-test` attaches one virtio
+    // disk and an NVMe controller, so "there is no device 1" was true there and the FS server was
+    // handed a disk with no filesystem on it. A boot with a virtio disk and no *second* one still
+    // has no RedoxFS service, exactly as it always did.
     let (blk_ep, blk_ready, blk_shared) = match crate::virtio::find_block_device_n(1) {
         Some(dev) => {
             let (ep, ready, shared) = spawn_block_server(blk_image, dev);
             (ep, Some(ready), shared)
         }
-        None => nvme_disk()?,
+        None if crate::virtio::find_block_device_n(0).is_none() => nvme_disk()?,
+        None => return None,
     };
     let file_shared = file_channel();
     let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
@@ -695,7 +705,7 @@ pub fn start(
     fs_server_image: &'static [u8],
     client_image: &'static [u8],
     client_role: u64,
-) -> Option<(Option<(Option<RendezvousId>, RendezvousId)>, RendezvousId)> {
+) -> Option<(Readiness, RendezvousId)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     // 0 = the end-to-end proof; 1 = the fs_read benchmark loop.
     let report = spawn_fs_client(client_image, file_ep, file_shared, client_role, 0, 0, 0);
@@ -747,7 +757,7 @@ pub struct Grant {
 ///
 /// `None` means an earlier caller in this boot already wired the service and drained these.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn wait_for_service(readiness: Option<(Option<RendezvousId>, RendezvousId)>) {
+pub fn wait_for_service(readiness: Readiness) {
     let Some((blk_ready, fs_ready)) = readiness else {
         return;
     };
@@ -1230,7 +1240,7 @@ pub fn start_granted_set(
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct FileSink {
     /// The FS service's two readiness endpoints, if this call is the one that wired it.
-    pub readiness: Option<(Option<RendezvousId>, RendezvousId)>,
+    pub readiness: Readiness,
     /// The byte sink. Goes into a program's output slot with `WRITE`.
     pub sink: RendezvousId,
     /// Readiness first, then `DONE` and the byte total at end of stream.
@@ -1341,7 +1351,7 @@ pub fn start_std(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
     std_image: &'static [u8],
-) -> Option<(Option<(Option<RendezvousId>, RendezvousId)>, RendezvousId)> {
+) -> Option<(Readiness, RendezvousId)> {
     let spawned = start_std_full(blk_image, fs_server_image, std_image)?;
     Some((spawned.readiness, spawned.report))
 }
@@ -1349,7 +1359,7 @@ pub fn start_std(
 /// What [`start_std_full`] hands back: the service's readiness endpoints if this call wired it, the
 /// program's stdout endpoint, the untyped region its heap was drawn from, and the thread it runs as.
 pub struct StdSpawn {
-    pub readiness: Option<(Option<RendezvousId>, RendezvousId)>,
+    pub readiness: Readiness,
     pub report: RendezvousId,
     pub heap: u64,
     pub thread: crate::thread::ThreadId,

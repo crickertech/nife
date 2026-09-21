@@ -1,7 +1,8 @@
 //! **The install gate**: a stick boots, puts itself on a disk, and the machine boots from that disk
 //! with the stick gone (milestone 198 (a package manager, and the trivial install that makes a
-//! second customer possible), rung 2a; [milestone 515 (the installer a stick runs to put itself on
-//! the disk)](../../design/roadmap/515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md)).
+//! second customer possible), rung 2a.
+//!
+//! Milestone 515 (a stick that puts itself on the machine's disk) is the proposal it follows.
 //!
 //! # Why it is two boots
 //!
@@ -124,7 +125,10 @@ pub(crate) fn install_boot() -> bool {
         // The one thing a person does, typed when the question is on the wire. The marker is the
         // prompt itself, which ends without a newline, so the reader below cannot be line-based.
         &[("install     : > ", "INSTALL\r")],
-        "install     : DONE",
+        // The whole line, not a prefix of it: the loop below stops the machine the instant this
+        // appears, so a prefix leaves the rest of the line unread and the assertion for the full
+        // sentence then fails on a boot that did everything right.
+        "install     : DONE. Remove the installation medium and reboot.",
         420,
     ) else {
         return false;
@@ -170,6 +174,9 @@ pub(crate) fn install_boot() -> bool {
     for wanted in [
         // The firmware found the file on the disk, with no boot variable and no boot index.
         "UEFI QEMU NVMe Ctrl",
+        // The loader's own first line, which it has printed since milestone 87 (the x86_64
+        // bare-metal machine) and which says the firmware started what was written rather than
+        // something it found elsewhere.
         "nife uefi_loader: milestone 87",
         "nife: handing the system to the userspace progenitor.",
         // A prompt.
