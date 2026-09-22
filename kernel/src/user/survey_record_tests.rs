@@ -1,4 +1,4 @@
-//! **The `SURVEY` selector, and the one record it ships with: a thread's placement.**
+//! **The `SURVEY` selector, and the records it answers: a thread's placement, and its CPU time.**
 //!
 //! `survey_tests` proves the *walk*: what a domain contains and who may look at it. This file
 //! proves the *selector*, which is the other axis calef's 2026-09-21 ruling added: which per-thread
@@ -26,6 +26,26 @@ use super::survey_tests::{
 use crate::arch::exceptions::TrapFrame;
 use crate::sched;
 use crate::syscall::invoke;
+
+/// **A record number this kernel does not answer**, which is what the refusal tests ask for.
+///
+/// One past the last record there is, which is the way an unknown selector actually arrives: a
+/// program built against a later kernel. Written as an offset from the last constant rather than
+/// as a literal so that adding a record moves it, and
+/// [`the_unknown_record_is_really_unknown`](self::the_unknown_record_is_really_unknown) fails
+/// loudly if somebody adds one and this does not move.
+const UNKNOWN_RECORD: u64 = record::CPU_TIME + 1;
+
+/// **The refusal tests below are testing what they think they are.** If a later record takes
+/// [`UNKNOWN_RECORD`]'s value, every one of them starts asserting that a *known* record is refused,
+/// which would pass for the wrong reason until somebody read the file.
+#[test_case]
+fn the_unknown_record_is_really_unknown() {
+    assert!(
+        !record::is_known(UNKNOWN_RECORD),
+        "UNKNOWN_RECORD names a record this kernel answers, so the refusal tests below are void",
+    );
+}
 
 /// `invoke(cap, SURVEY, cursor, record, _)` through the real dispatcher, returning the three words
 /// a userspace caller would read out of its registers.
@@ -277,7 +297,7 @@ fn an_unknown_record_is_refused_rather_than_defaulted() {
     let domain = Domain::build();
     let viewer = hold_view(domain.supervision);
 
-    for bad in [record::PLACEMENT + 1, u64::MAX] {
+    for bad in [UNKNOWN_RECORD, u64::MAX] {
         let (r0, tid, word) = survey_record(viewer, 0, bad);
         assert_eq!(
             r0,
@@ -318,7 +338,7 @@ fn an_unknown_record_is_refused_even_when_the_domain_is_empty() {
         "an empty domain did not answer with DONE, so this test is not measuring what it thinks",
     );
 
-    let (r0, ..) = survey_record(viewer, 0, record::PLACEMENT + 1);
+    let (r0, ..) = survey_record(viewer, 0, UNKNOWN_RECORD);
     assert_eq!(
         r0,
         Error::BadMethod as i64,
