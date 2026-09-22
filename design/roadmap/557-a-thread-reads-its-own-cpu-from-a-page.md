@@ -1,4 +1,4 @@
-# 525. A thread reads its own CPU from a page
+# 557. A thread reads its own CPU from a page
 
 **Status: BUILT.** The number is **provisional**: the integrator mints it at merge, and 524 onward
 is contested between branches that cannot see each other.

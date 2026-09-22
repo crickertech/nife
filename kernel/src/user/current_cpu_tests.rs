@@ -91,7 +91,7 @@ fn a_userspace_thread_reads_a_core_that_is_really_online() {
 /// frequency, that a wrong number is worse than no number.
 #[test_case]
 fn a_space_that_never_ran_has_no_answer_and_then_has_the_right_one() {
-    let (space, _entry) = load(current_cpu_reader_image()).expect("load failed");
+    let (space, _entry) = load(current_cpu_reader_image(), 0).expect("load failed");
     let va = space
         .current_cpu_page_kernel_va()
         .expect("a freshly loaded space has no current-cpu page");
@@ -125,7 +125,7 @@ fn a_space_that_never_ran_has_no_answer_and_then_has_the_right_one() {
 fn the_page_is_returned_when_the_space_is_dropped() {
     let before = crate::memory::free_page_frames();
     {
-        let space = load(current_cpu_reader_image()).expect("load failed").0;
+        let space = load(current_cpu_reader_image(), 0).expect("load failed").0;
         assert!(
             space.current_cpu_page_kernel_va().is_some(),
             "a loaded space has no current-cpu page to return",
