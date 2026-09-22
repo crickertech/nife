@@ -40,7 +40,14 @@ pub const NO_TID: ThreadId = u64::MAX;
 /// over a 4 KiB guard page, milestone 90) in the NOLOAD stack region: 272 KiB of RAM for the
 /// four new seats. QEMU `virt` gives us as many cores as `-smp` asks; the runners default to 4
 /// and `NIFE_SMP` moves the legs up to this ceiling.
-pub const MAX_CPUS: usize = 8;
+///
+/// **The number itself lives in `crates/current_cpu_protocol`**, and this is one name for it
+/// rather than a second copy. It stopped being a kernel-private constant on 2026-09-21: a
+/// userspace program that reads its own CPU out of a page has to size a per-CPU array by
+/// something, and "one past the highest id the kernel will hand out" is the only safe answer,
+/// because the online set is not `0..count` (`crates/cpu_set`, and the three boots it cost on
+/// first silicon). Two binaries agreeing on a number is what AGENTS.md rule 7 is about.
+pub const MAX_CPUS: usize = current_cpu_protocol::CPU_ID_BOUND;
 
 /// One core's private data.
 pub struct PerCpu {

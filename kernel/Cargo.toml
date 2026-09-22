@@ -76,6 +76,7 @@ compositor = { version = "0.1.0", path = "../crates/compositor" }
 # `smp::online_cpus`/`nth_online` add only the live mask; the non-contiguous {1,2,3} shape the QEMU
 # suite cannot boot is host-proven in this crate instead.
 cpu_set = { version = "0.1.0", path = "../crates/cpu_set" }
+current_cpu_protocol = { version = "0.1.0", path = "../crates/current_cpu_protocol" }
 # The credential contract (milestone 56, the credential half). The kernel wires the credential
 # service and its provisioner, and its tests read the reply codes the userspace clients report, so
 # no party has its own copy of what a verdict means.

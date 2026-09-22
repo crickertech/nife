@@ -1,0 +1,18 @@
+[package]
+name = "current_cpu_protocol"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# A thread's own CPU, as a page rather than a crossing (calef's 2026-09-21 ruling on how
+# userspace asks where a thread runs, whose decision section is on another branch): one
+# definition of the read-only page the kernel writes the running core's id into at every
+# switch-in, so the kernel (the one writer) and `user_mode_runtime::current_cpu` (every reader)
+# cannot drift on the layout or the fixed virtual address. The same shape
+# `counter_frequency_protocol` uses for the counter frequency, with one difference that is the
+# whole point: this page's word changes while the process runs.
+
+[lints]
+workspace = true
+
+[dependencies]

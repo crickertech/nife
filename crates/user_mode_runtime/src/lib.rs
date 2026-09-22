@@ -958,6 +958,54 @@ pub fn cntfrq_checked() -> Option<u64> {
     page.hz()
 }
 
+/// **Which CPU this thread is running on**, or `None` if this process has no page to read it from
+/// or has somehow not been switched in yet.
+///
+/// A plain load, no syscall, and that is the point rather than an optimization. calef ruled on
+/// 2026-09-21 that a thread observing *itself* gets a page and a thread observing *another* gets a
+/// selector, because the consumer here is a memory allocator keeping a per-CPU cache: it asks once
+/// per allocation, and a crossing at that rate is not a cost you can amortize away. (The ruling's
+/// `design/decisions/` section is on another branch and not on `main` yet, so it is named here
+/// rather than cited.) `crates/current_cpu_protocol` carries the layout, the ordering argument and
+/// the reason this is not a register on any of the three targets.
+///
+/// **The answer can be stale before you use it**, because the kernel may migrate this thread the
+/// instruction after the load, and nothing in this function or that crate prevents it. A per-CPU
+/// cache built on this must be *correct* when the answer turns out to be the previous core's and
+/// merely faster when it is not. Linux solves the same problem with `rseq`'s restartable
+/// sequences; this tree does not have those and is not pretending to.
+///
+/// **The value is a CPU id, not an index into anything you have counted.** Size a per-CPU array by
+/// [`current_cpu_protocol::CPU_ID_BOUND`] and nothing else: the VisionFive 2's online set is
+/// `{1, 2, 3}`, so counting cores and indexing by the count reaches a core that is not there and
+/// misses one that is.
+///
+/// # EXAMPLES
+///
+/// ```no_run
+/// # use user_mode_runtime::current_cpu;
+/// let mut per_cpu = [0u64; current_cpu_protocol::CPU_ID_BOUND];
+/// if let Some(cpu) = current_cpu() {
+///     per_cpu[cpu] += 1;
+/// }
+/// ```
+///
+/// # BUGS
+///
+/// - **A process whose address space was never bound to a TCB has no page here**, and this faults
+///   on an unmapped read rather than answering `None`. Every space that runs a thread gets one
+///   (`kernel::user::AddressSpace::new` for the kernel-built ones,
+///   `kernel::sched::configure_thread_control_block` for the userspace-built ones), so the shape
+///   that faults is a space with no thread in it, which has nothing to ask. Stated because the
+///   failure is a fault rather than a value, which is the one thing a caller cannot handle.
+pub fn current_cpu() -> Option<usize> {
+    // SAFETY: the kernel maps a page it owns, read-only, at `current_cpu_protocol::PAGE_VA` into
+    // every address space that a TCB binds, before that thread's first instruction runs. See this
+    // function's own BUGS section for the one shape that has no page.
+    let page = unsafe { current_cpu_protocol::CurrentCpuPage::new(current_cpu_protocol::PAGE_VA) };
+    page.cpu()
+}
+
 /// **Monotonic nanoseconds since boot**, from [`now`] and [`cntfrq`].
 ///
 /// Here rather than in each program because two of them need it and the naive form is wrong:

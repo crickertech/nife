@@ -275,6 +275,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "current_cpu_protocol"
+version = "0.1.0"
+
+[[package]]
 name = "defmt"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -380,6 +384,7 @@ dependencies = [
  "compositor",
  "coremark",
  "credential_protocol",
+ "current_cpu_protocol",
  "elf",
  "filesystem_protocol",
  "grant_plan",
@@ -515,6 +520,7 @@ dependencies = [
  "counter_frequency_protocol",
  "cpu_set",
  "credential_protocol",
+ "current_cpu_protocol",
  "device_tree_blob",
  "dma_validator",
  "elf",
@@ -1069,6 +1075,7 @@ version = "0.1.0"
 dependencies = [
  "abi",
  "counter_frequency_protocol",
+ "current_cpu_protocol",
  "user_mode_heap",
 ]
 
