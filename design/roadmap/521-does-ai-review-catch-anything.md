@@ -1,9 +1,7 @@
 # 521. Does an AI review of a pull request catch anything the gates and the maintainer do not
 
-**Status: NOT-STARTED.** Minted 2026-09-21 by calef, who asked for an experiment rather than an
+**Status: BUILT.** Minted 2026-09-21 by calef, who asked for an experiment rather than an
 opinion. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The corpus, the harness precedent and the defects all exist in this tree.
 
 ## The question, stated so it can come back no
 
@@ -64,6 +62,26 @@ with a number in it. A starting proposal, to be argued with before the first run
 - **Refuse** if it names under a fifth, or exceeds two false positives per clean pull request.
 - **Anything between is a null result**, which is a legitimate outcome and must be reported as one.
 
+### Registered 2026-09-22, before the first call, for the run recorded below
+
+The corpus the run above uses did not exist when this block was written, so the threshold is
+restated here against it rather than left to be read across from a different corpus. **Written and
+committed before any model was called**; `git log` on this file is the evidence, since the commit
+that added this section precedes every transcript commit.
+
+- **The corpus is `notes/delegation/ledger.tsv`'s three defect rows of 2026-09-22**, every one of
+  which passed `script/lint`, `script/citations --ratchet` and `script/roadmap --check`. The gates
+  are therefore not a control group here; they are the thing that already failed.
+- **Arm 1 scores one question per defect: did the reviewer name it?** Named, or not. A finding that
+  the diff deleted text without saying why the deletion matters is scored **partial** and counted
+  against the threshold as a miss, because the class of defect here is a true sentence removed and
+  noticing a deletion is not noticing a loss.
+- **Arm 2 counts every finding on a clean diff**, adjudicated true, false, or unfalsifiable, with
+  false positives per clean diff the denominator.
+- **Adopt** at a third or more of arm 1 named, with under one false positive per clean diff.
+  **Refuse** under a fifth, or over two false positives per clean diff. **Anything else is null.**
+- **Per model, never averaged**, because the point of running two is that they may differ.
+
 ## The variable worth building in
 
 **The reviewer is the same model family that wrote the code**, so its blind spots may be the lane's
@@ -91,6 +109,49 @@ nothing downstream checks it. The experiment exists to find out whether that pri
 - **Milestone 191 (did the proofs catch the bugs?)** is the retrospective-against-a-corpus shape, and
   it returned an uncomfortable answer that the tree kept.
 
+## The result, 2026-09-22
+
+**Run and recorded in `notes/delegated-review/README.md`**, against the three defect rows and two
+clean rows the rented models produced that morning, every one of which passed `script/lint`,
+`script/citations --ratchet` and `script/roadmap --check`. Fifty-five reviews, two models, both
+postures, three replicates a cell, every transcript kept unedited in an archive beside the note.
+
+**The answer to the question this block asks is yes, and the evidence is not the score.** On the
+465-line documentation diff the ledger had marked **clean**, `moonshotai/kimi-k3` produced fifty
+findings across six reviews: **thirty-eight true, zero false**. Among them a justifying paragraph
+that names the mean where its own table reports the median, an estimator described as unbiased in a
+sentence that also says it converges from above, and a correction notice certifying as exact a
+comparison its own methods line shows spans two boots, each with its own
+calibration error. None of that was caught by a gate or by the human who signed the diff off.
+
+**And the prior in this block survives anyway, because the same model missed the four-line defect.**
+Nothing named D1, the diff that replaced *(Number provisional until the merge queue lands it.)*.
+Two of `kimi-k3`'s adversarial reviews **reached the observation and rejected it** in their own
+reasoning, verbatim:
+
+> Is there an issue with the renumbering note *replacing* rather than *supplementing* the
+> provisional note? ... That's actually a real, if subtle, point: the original note existed
+> precisely because numbers minted on unmerged branches can collide, which is exactly what
+> happened. ... Thin.
+
+> I'm confident this is fine. ... A reviewer nitpicking this would be wrong to block.
+
+Perception was not the failure, judgement was, which is the ceiling fact the adversarial arm was
+built to expose. Reviewing the **clean** version of the same renumber, the same model three times
+recommended removing the provisional sentence, which is the defect.
+
+| model | arm 1: defects named | arm 2: false per clean diff | against the registered threshold |
+|---|---|---|---|
+| `qwen/qwen3-coder` | 0 of 2 | 0.58 | **REFUSE** |
+| `moonshotai/kimi-k3` | 1 of 2 | 0.67 | **ADOPT** |
+
+**The threshold is met and should be distrusted, in that order.** Two defect diffs is a denominator
+where one scoring call moves the verdict, and one of the two clean diffs turned out not to be clean,
+which makes arm 2's denominator wrong in the direction that flatters the reviewer. The finding worth
+carrying is not the verdict but its shape: **findings scale with reviewable surface, true and false
+alike.** A large prose diff is where delegated review earns its cost; a four-line diff is where it
+passed the defect and invented concerns on the clean one, in the same pair of runs.
+
 ## BUGS
 
 - **The corpus is small and not evenly distributed.** `notes/proof-retrospective.md` says so of its
@@ -100,7 +161,30 @@ nothing downstream checks it. The experiment exists to find out whether that pri
   reviewer would be spending. State who adjudicated and record the disputed cases rather than only
   the totals.
 
+## Follow-on
+
+- **Recorded.** `notes/delegated-review/README.md`'s `BUGS` carries what this run cannot support: an
+  agent adjudicated its own kind, the corpus is five diffs of which one was mislabelled, every defect
+  in it is of one shape (a true sentence removed or two meanings folded into one), the reviewer saw
+  one commit rather than the worktree, and the run's cost was never measured.
+- **Refused.** Excluding the transcripts from the citation, counted-claim and em-dash gates. The
+  first attempt at this run did exactly that, one exception per gate, and calef refused it on
+  2026-09-22: *"I don't want to change the style rules."* A style rule that grows an exception per
+  corpus is a list rather than a rule. The evidence is kept unedited in
+  `notes/delegated-review/transcripts.tar.gz` instead, where no prose gate has an opinion about it,
+  and the note says why a reader is looking at an archive.
+- **Proposed.** `design/roadmap/proposals/a-delegated-reviewer-found-ten-defects-nobody-was-going-to-find.md`
+  carries the ten true findings the reviewer made in a commit a human had passed as clean, and the
+  routing question they raise. They are not this lane's to fix: the commit is another lane's and is
+  not on `main`.
+- **Refused.** Adopting delegated review as a standing step is not this milestone's to decide. The
+  experiment was built to inform that call and the threshold it registered is met by one model of
+  two, on two defect diffs, one of which every model missed. A recommendation from the lane that ran
+  the experiment would be the lane grading its own result.
+
 ## Index row
+
+**Built:** 2026-09-22
 
 An experiment rather than an opinion: whether an AI review catches defects the gates and the
 maintainer miss, scored against defects whose introducing commits are known, with the false-positive
