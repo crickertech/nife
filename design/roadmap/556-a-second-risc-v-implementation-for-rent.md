@@ -1,6 +1,6 @@
-# 527. A second RISC-V implementation, for €16 a month
+# 556. A second RISC-V implementation, for €16 a month
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-second-risc-v-implementation-for-rent`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by the maintainer after calef asked for rented riscv64
+**Status: NOT-STARTED.** *(This file was renumbered on 2026-09-22 from 527 to 556 because a concurrently merged lane had taken 527.)* Promoted from the proposal `a-second-risc-v-implementation-for-rent`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by the maintainer after calef asked for rented riscv64
 hardware to be looked for rather than assumed absent: *"let's try to find riscv64 rented hardware. I
 predict availability will improve."* It has improved, and the finding is better than the prediction.
 
