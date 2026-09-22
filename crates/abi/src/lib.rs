@@ -956,11 +956,18 @@ mod survey_record_tests {
     /// Known records are known and nothing else is, including the two an unknown selector most
     /// plausibly arrives as: one past the end (a reader built against a later kernel) and a wild
     /// value (a register that held something else).
+    ///
+    /// **"One past the end" is written against the last constant rather than as a literal**, so
+    /// adding a record moves it instead of quietly turning this line into an assertion that a
+    /// *known* record is unknown. That is not hypothetical: [`record::CPU_TIME`] took the value
+    /// this test used to name, and the test failed rather than passing for the wrong reason, which
+    /// is what it is for.
     #[test]
     fn only_the_records_this_kernel_answers_are_known() {
         assert!(record::is_known(record::STATE));
         assert!(record::is_known(record::PLACEMENT));
-        assert!(!record::is_known(record::PLACEMENT + 1));
+        assert!(record::is_known(record::CPU_TIME));
+        assert!(!record::is_known(record::CPU_TIME + 1));
         assert!(!record::is_known(u64::MAX));
     }
 
