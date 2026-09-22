@@ -383,18 +383,18 @@ aarch64-cpu = "11"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 # **The two-slot boot state, and the one token of it that crosses the handoff** (rung 2b of
-# milestone 198). `uefi_loader`'s chooser writes `boot_slot::cmdline::KEY` onto the kernel's
+# milestone 198 (a package manager, and the trivial install that makes a second customer possible)). `uefi_loader`'s chooser writes `boot_slot::cmdline::KEY` onto the kernel's
 # command line and `arch::x86_64::machine` reads it back, so rule 7 applies: what two binaries
 # agree on is a crate, not a constant spelled twice. `user::install_service` then hands the number
 # to the program that writes the bit.
 #
 # Ours, in this workspace; its own single dependency
-# (`globally_unique_identifier_partition_table`) is ours and has no external ones. Not a §46
-# decision, and the alternative was a second spelling of a token with nothing keeping the two in
+# (`globally_unique_identifier_partition_table`) is ours and has no external ones. Not a
+# §46 (thin primitives or whole subsystems; we write everything in between) decision, and the alternative was a second spelling of a token with nothing keeping the two in
 # step.
 boot_slot = { version = "0.1.0", path = "../crates/boot_slot" }
 
 # x86_64 only, because the chooser that writes the token is: `uefi_loader::chooser` runs on a UEFI
 # machine with an installed disk, which is the only place rung 2b's slots exist. A scope note
-# (DECISIONS §19), not a portability claim; the device-tree architectures gain this when they gain
+# (DECISIONS §19 (architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64)), not a portability claim; the device-tree architectures gain this when they gain
 # an install.

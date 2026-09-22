@@ -83,7 +83,7 @@
 //!   passed would not be evidence the ordering is enforced, only that it held this time.
 //! - **It proves nothing about a real firmware**, the same caveat `install-boot` and `rollback`
 //!   carry. OVMF is one implementation and a generous one.
-//! - **x86_64 only** (DECISIONS §19 (architectural parity is a gate, not an aspiration)), because
+//! - **x86_64 only** (DECISIONS §19 (architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64)), because
 //!   the chooser is. The device-tree architectures have no installed disk to choose slots on yet.
 //! - **It takes several minutes under TCG**, three boots of it, so it is not in `script/test`'s
 //!   default legs any more than `install-boot` and `rollback-boot` are.

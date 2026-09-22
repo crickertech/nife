@@ -10,7 +10,7 @@ milestone block is named here in prose rather than cited.
 oversight: retiring it means editing milestone 525's block, whose `**Proposed.**` follow-on row and
 `BUGS` both name the proposal file and are both now stale, and that block belongs to a lane still
 working. **For the integrator at merge**: delete
-`design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md`, and change 525's two rows to
+`design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md`, and change milestone 525 (a bad upgrade cannot brick the machine: two boot slots, tries and priority)'s two rows to
 point here. `script/roadmap --check` fails on the deletion until the second half is done.
 
 This is the other half of rung 2b of milestone 198 (a package manager, and the trivial install that
@@ -154,7 +154,7 @@ separate QEMU processes with nothing between them but the disk.
   above buys a recovery that no reader in this tree performs yet; a foreign tool can do it.
 - **The upgrade is staged by the gate and not by nife**, because nothing in this tree upgrades a
   running machine. The format is exercised end to end; the program that will do it is not.
-- **x86_64 only** (DECISIONS §19 (architectural parity is a gate, not an aspiration)), because the
+- **x86_64 only** (DECISIONS §19 (architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64)), because the
   chooser is, and the device-tree architectures have no installed disk to choose slots on. A scope
   note rather than a portability claim; the parameter the number would arrive on is already on
   every architecture's `hand_over`.

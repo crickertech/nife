@@ -59,7 +59,8 @@ const MAX_CMDLINE: usize = 256;
 /// **The boot command line the loader wrote**, or `None` when this boot chain did not write one.
 ///
 /// Factored out of [`attach_screen`] when a second token joined the first: the line carries the
-/// screen (milestone 243) and, on an installed machine, which boot slot started this image
+/// screen (milestone 243 (a machine with no serial port has no way to say anything, and no gate
+/// can read it)) and, on an installed machine, which boot slot started this image
 /// ([`boot_slot`]). One reader, so a machine with no framebuffer still gets its slot number, which
 /// is the bug that shape of the code would otherwise have had.
 ///
