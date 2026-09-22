@@ -137,7 +137,7 @@ TABLE
 #                       it is audited, not of the diff; `cargo-deny` also wants the network.
 #   coverage            instruments and re-runs the whole host suite.
 #   fuzz                60 seconds per target by construction, and unbounded by intent.
-#   bench               two full icount baselines; `script/icount` above is the seven-second
+#   bench               three full icount baselines; `script/icount` above is the seven-second
 #                       instrument that carries the timing claims, and it IS local.
 #   cpu-matrix          five QEMU boots of the riscv64 suite, one per CPU model.
 #
