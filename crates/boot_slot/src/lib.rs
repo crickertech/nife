@@ -445,3 +445,110 @@ impl SlotHeader {
         image.len() as u64 == self.image_len && crc::crc32(image) == self.image_crc32
     }
 }
+
+/// **The token that tells a booted kernel which slot it came from**, and the only thing that
+/// crosses from the chooser into the running system.
+///
+/// # Why there is a token at all
+///
+/// A running system cannot work out which slot started it. The obvious inference, *"it is whatever
+/// [`select`] would pick now"*, is wrong in exactly the case that matters: the chooser spends a try
+/// before handing off, so a slot that was started with its last try is no longer [`State::bootable`]
+/// and [`select`] now names the other one. The one boot a confirmation exists for is the one the
+/// inference gets backwards, so the number has to be carried rather than recomputed.
+///
+/// # Why it is a word on the command line
+///
+/// `uefi_loader`'s `hvm_start_info` already carries a NUL-terminated command line, already holds
+/// more than one word on it (the screen, and `machine_discovery::framebuffer::SCREEN_HOLD` under
+/// the gate's feature), and the kernel already reads it before `mmu::init`. So this is a third word
+/// on a line that exists rather than a new agreement.
+///
+/// The three shapes it was weighed against, priced rather than asserted:
+///
+/// | | cost |
+/// |---|---|
+/// | a field in `machine_discovery`'s handoff | a new field in a structure the PVH specification fixes, or a nife-private one beside it, and a second thing for a loader on each of three architectures to fill in |
+/// | a module in the `hvm_start_info` module list | the list has two entries and a third would be a page of memory and an entry format, to carry one nibble |
+/// | a fixed physical page | a number two programs agree on with nothing checking it, and the one shape this tree has no precedent for |
+/// | **a word on the command line** | **one token, one parser, and a host test that round-trips it against the kernel's own reader** |
+///
+/// **This is a value two programs agree on**, which `AGENTS.md` puts in the expensive category, so
+/// the spelling is provisional until calef rules on it. Nothing outside this repository has acted
+/// on it, and a machine handed a line it does not understand simply does not confirm, which is the
+/// safe direction.
+///
+/// # The cost worth naming
+///
+/// The boot command line now has tokens owned by two crates: the screen's are
+/// `machine_discovery::framebuffer`'s and this one is here. That split is deliberate (a reader
+/// asking what `boot-slot=1` means looks in the crate named after boot slots) and it is a cost: no
+/// single place enumerates the line's vocabulary. `uefi_loader::handoff::cmdline` is the writer
+/// that sees all of it, and its `CMDLINE_LEN` is the one place the lengths are added up.
+///
+/// # EXAMPLES
+///
+/// ```
+/// use boot_slot::cmdline;
+///
+/// let mut out = [0u8; cmdline::MAX_LEN];
+/// let n = cmdline::encode(1, &mut out);
+/// let line = core::str::from_utf8(&out[..n]).unwrap();
+/// assert_eq!(line, "boot-slot=1");
+/// assert_eq!(cmdline::parse(line), Some(1));
+///
+/// // Beside the screen, in either order, which is what the kernel actually reads.
+/// assert_eq!(cmdline::parse("screen=0x80000000,800,600,3200,bgrx boot-slot=0"), Some(0));
+///
+/// // A line that says nothing about slots is a boot that was not started by a chooser.
+/// assert_eq!(cmdline::parse("screen=0x80000000,800,600,3200,bgrx"), None);
+/// ```
+pub mod cmdline {
+    /// The token's key, including the `=`. Provisional: names are calef's.
+    pub const KEY: &str = "boot-slot=";
+
+    /// The longest this token can be: the key and one decimal digit.
+    ///
+    /// One digit, not two, because [`super::select_excluding`] already cannot exclude past slot 63
+    /// and `installer` lays out two. A slot number that did not fit a digit would be a different
+    /// disk layout, and [`encode`] refuses rather than truncating.
+    pub const MAX_LEN: usize = KEY.len() + 1;
+
+    /// Write `boot-slot=N` into `out`, returning its length, or **0 when it does not fit or `slot`
+    /// is not a single digit**.
+    ///
+    /// Zero rather than a panic or a truncation: the caller is a bootloader with no console left,
+    /// and a line it could not write is a boot that does not confirm, which is the direction this
+    /// whole feature fails in anyway.
+    #[must_use]
+    pub fn encode(slot: u8, out: &mut [u8]) -> usize {
+        if slot > 9 || out.len() < MAX_LEN {
+            return 0;
+        }
+        out[..KEY.len()].copy_from_slice(KEY.as_bytes());
+        out[KEY.len()] = b'0' + slot;
+        MAX_LEN
+    }
+
+    /// **Which slot started this boot**, from the whole command line, or `None` when no word on it
+    /// is this token.
+    ///
+    /// `None` is the ordinary answer and not an error: a stick, a `-kernel` boot, and an installed
+    /// machine whose chooser fell back to the image in its own file all reach a running kernel with
+    /// nothing to confirm.
+    ///
+    /// A token whose value is not a single digit is `None` too, for the reason [`encode`] refuses
+    /// to write one: a malformed slot number that parsed as *some* slot would be a confirmation
+    /// written to the wrong partition entry, which is the one outcome worse than not confirming.
+    #[must_use]
+    pub fn parse(cmdline: &str) -> Option<u8> {
+        let word = cmdline
+            .split_ascii_whitespace()
+            .find(|w| w.starts_with(KEY))?;
+        let digits = &word[KEY.len()..];
+        match digits.as_bytes() {
+            [d @ b'0'..=b'9'] => Some(d - b'0'),
+            _ => None,
+        }
+    }
+}
