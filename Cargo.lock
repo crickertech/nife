@@ -505,6 +505,7 @@ dependencies = [
  "bitmap_font",
  "block_roster",
  "boot_ladder",
+ "boot_slot",
  "byte_sink_protocol",
  "calendar",
  "capability",

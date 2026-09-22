@@ -56,6 +56,44 @@ pub fn boot_info(at: usize) -> Option<BootInfo> {
 /// one. `Framebuffer::MAX_LEN` is the only thing written there today and is well under this.
 const MAX_CMDLINE: usize = 256;
 
+/// **The boot command line the loader wrote**, or `None` when this boot chain did not write one.
+///
+/// Factored out of [`attach_screen`] when a second token joined the first: the line carries the
+/// screen (milestone 243) and, on an installed machine, which boot slot started this image
+/// ([`boot_slot`]). One reader, so a machine with no framebuffer still gets its slot number, which
+/// is the bug that shape of the code would otherwise have had.
+///
+/// `None` is the ordinary case for every boot that is not `uefi_loader`'s: QEMU's PVH loader
+/// writes a zero command line, so `script/test --arch x86_64` takes this path.
+fn cmdline(info: &BootInfo) -> Option<&'static str> {
+    if info.cmdline == 0 {
+        return None;
+    }
+    // SAFETY: a physical address the loader wrote into its own handoff, reached through the direct
+    // map the boot page tables installed over the low 4 GiB. The length is capped rather than
+    // trusted, so an unterminated string reads `MAX_CMDLINE` bytes of the loader's own page and
+    // stops; the bytes are only ever compared against ASCII.
+    let bytes = unsafe {
+        core::slice::from_raw_parts(phys_to_virt(info.cmdline) as *const u8, MAX_CMDLINE)
+    };
+    let len = bytes.iter().position(|b| *b == 0).unwrap_or(MAX_CMDLINE);
+    core::str::from_utf8(&bytes[..len]).ok()
+}
+
+/// **Which boot slot started this image**, from the token `uefi_loader`'s chooser wrote
+/// (`boot_slot::cmdline`).
+///
+/// `None` on every boot no chooser started: a stick, a `-kernel` boot, and a chooser's own
+/// fallback to the image in its file. A kernel that gets `None` confirms nothing, which is the
+/// state the whole tree was in before this: safe, and upgrades do not stick.
+///
+/// **Read here rather than trusted from anywhere else.** The number decides which partition entry
+/// a later write marks good, and a wrong one is a machine keeping an image that never ran, so the
+/// parser refuses anything it cannot read exactly rather than guessing a slot.
+fn boot_slot(info: &BootInfo) -> Option<u8> {
+    boot_slot::cmdline::parse(cmdline(info)?)
+}
+
 /// **Put the boot tour on a screen, if the boot handoff described one** (milestone 243).
 ///
 /// The whole of the x86 side of that milestone's kernel half, in one function, because it is one
@@ -71,18 +109,7 @@ const MAX_CMDLINE: usize = 256;
 /// the boot tour does. See `memory::record_framebuffer`.
 pub fn attach_screen(at: usize) -> Option<(Framebuffer, u32, u32)> {
     let info = boot_info(at)?;
-    if info.cmdline == 0 {
-        return None;
-    }
-    // SAFETY: a physical address the loader wrote into its own handoff, reached through the direct
-    // map the boot page tables installed over the low 4 GiB. The length is capped rather than
-    // trusted, so an unterminated string reads `MAX_CMDLINE` bytes of the loader's own page and
-    // stops; the bytes are only ever compared against ASCII.
-    let bytes = unsafe {
-        core::slice::from_raw_parts(phys_to_virt(info.cmdline) as *const u8, MAX_CMDLINE)
-    };
-    let len = bytes.iter().position(|b| *b == 0).unwrap_or(MAX_CMDLINE);
-    let cmdline = core::str::from_utf8(&bytes[..len]).ok()?;
+    let cmdline = cmdline(&info)?;
     let found = Framebuffer::parse(cmdline)?;
     let span = found.span()? as u64;
 
@@ -817,6 +844,12 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
         forbidden_count += 1;
         crate::memory::record_boot_file(m.addr, m.size);
     }
+    // **And which slot started this image**, which is a fact about the boot rather than a region
+    // to reserve, recorded here because this is where the handoff is already in hand and it is
+    // before `mmu::init` swaps the boot page tables out from under the direct map the reader uses.
+    // `user::install_service::confirm` is the one consumer; a boot no chooser started records
+    // nothing and confirms nothing.
+    crate::memory::record_boot_slot(boot_slot(info));
 
     crate::memory::bring_up_page_frames(&ram[..count], &forbidden[..forbidden_count]);
     count

@@ -734,6 +734,35 @@ pub fn boot_file_region() -> Option<(u64, u64)> {
     (size > 0).then_some((start, size))
 }
 
+/// **Which boot slot started this image** (`arch::x86_64::machine::boot_slot`), recorded at memory
+/// bring-up from the token the chooser wrote onto the kernel's command line.
+///
+/// Stored as `slot + 1` so that zero is "no chooser started this boot", which is the ordinary case
+/// and has to be distinguishable from slot 0 rather than confused with it: confirming slot 0 on a
+/// machine that actually booted slot 1 would mark an image good that never ran.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_boot_slot(slot: Option<u8>) {
+    let encoded = slot.map_or(0, |s| s as usize + 1);
+    BOOT_SLOT_PLUS_ONE.store(encoded, core::sync::atomic::Ordering::Relaxed);
+}
+
+/// **The boot slot this image was started from, if a chooser started it.**
+///
+/// `None` for a stick, a `-kernel` boot, and an installed machine whose chooser fell back to the
+/// image in its own file. All three are boots with nothing to confirm, and `None` is the answer
+/// that leaves the disk alone.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn boot_slot() -> Option<u8> {
+    match BOOT_SLOT_PLUS_ONE.load(core::sync::atomic::Ordering::Relaxed) {
+        0 => None,
+        n => Some((n - 1) as u8),
+    }
+}
+
+/// Where [`record_boot_slot`] puts it. Zero means no chooser; see [`INITRD_START`] for why this is
+/// an atomic written once at boot rather than a lock.
+static BOOT_SLOT_PLUS_ONE: AtomicUsize = AtomicUsize::new(0);
+
 /// Where [`record_boot_file`] puts the boot file's base. See [`INITRD_START`] for why this is an
 /// atomic written once at boot rather than a lock.
 static BOOT_FILE_START: AtomicUsize = AtomicUsize::new(0);
