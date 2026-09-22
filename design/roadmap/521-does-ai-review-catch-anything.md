@@ -1,6 +1,6 @@
 # 521. Does an AI review of a pull request catch anything the gates and the maintainer do not
 
-**Status: NOT-STARTED.** Minted 2026-09-21 by calef, who asked for an experiment rather than an
+**Status: BUILT.** Minted 2026-09-21 by calef, who asked for an experiment rather than an
 opinion. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** The corpus, the harness precedent and the defects all exist in this tree.
@@ -110,6 +110,41 @@ nothing downstream checks it. The experiment exists to find out whether that pri
   what the harness itself cost.
 - **Milestone 191 (did the proofs catch the bugs?)** is the retrospective-against-a-corpus shape, and
   it returned an uncomfortable answer that the tree kept.
+
+## The result, 2026-09-22
+
+**Run and recorded in `notes/delegated-review/README.md`**, against the three defect rows and two
+clean rows the rented models produced that morning, every one of which passed `script/lint`,
+`script/citations --ratchet` and `script/roadmap --check`. Fifty-five reviews, two models, both
+postures, three replicates a cell, every transcript committed.
+
+**The answer to the question this block asks is yes, and the evidence is not the score.** On the
+465-line documentation diff the ledger had marked **clean**, `moonshotai/kimi-k3` produced fifty
+findings across six reviews: **thirty-eight true, zero false**. Among them a justifying paragraph
+that names the mean where its own table reports the median, an estimator described as unbiased in a
+sentence that also says it converges from above, and a correction notice certifying as exact a
+comparison its own methods line shows spans two boots, each with its own
+calibration error. None of that was caught by a gate or by the human who signed the diff off.
+
+**And the prior in this block survives anyway, because the same model missed the four-line defect.**
+Nothing named D1, the diff that replaced *(Number provisional until the merge queue lands it.)*.
+Two of `kimi-k3`'s adversarial reviews **reached the observation and rejected it** in their own
+reasoning: *"Thin."*, *"I'm confident this is fine"*, *"A reviewer nitpicking this would be wrong to
+block."* Perception was not the failure, judgement was, which is the ceiling fact the adversarial arm
+was built to expose. Reviewing the **clean** version of the same renumber, the same model three times
+recommended removing the provisional sentence, which is the defect.
+
+| model | arm 1: defects named | arm 2: false per clean diff | against the registered threshold |
+|---|---|---|---|
+| `qwen/qwen3-coder` | 0 of 2 | 0.58 | **REFUSE** |
+| `moonshotai/kimi-k3` | 1 of 2 | 0.67 | **ADOPT** |
+
+**The threshold is met and should be distrusted, in that order.** Two defect diffs is a denominator
+where one scoring call moves the verdict, and one of the two clean diffs turned out not to be clean,
+which makes arm 2's denominator wrong in the direction that flatters the reviewer. The finding worth
+carrying is not the verdict but its shape: **findings scale with reviewable surface, true and false
+alike.** A large prose diff is where delegated review earns its cost; a four-line diff is where it
+passed the defect and invented concerns on the clean one, in the same pair of runs.
 
 ## BUGS
 
