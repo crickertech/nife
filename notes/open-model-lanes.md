@@ -40,6 +40,31 @@ cd <worktree> && ANTHROPIC_BASE_URL=<gateway> ANTHROPIC_AUTH_TOKEN=<token> \
 OpenAI-compatible client mode. Open-weight providers are OpenAI-shaped, so a translating gateway
 sits in between; the Claude Code documentation names **LiteLLM** and **Kong**.
 
+## The provider is OpenRouter, and it needs the gateway
+
+calef chose OpenRouter on 2026-09-22. Checked against its own API reference the same day: it
+exposes **`POST /api/v1/chat/completions`** with `Authorization: Bearer`, describes itself as
+OpenAI-compatible, and **publishes no `/v1/messages`**. So the gateway is not optional here, and it
+is the documented shape rather than a workaround: LiteLLM's proxy serves `/v1/messages` in Anthropic
+format and translates to an OpenAI-compatible upstream.
+
+```
+Claude Code  --/v1/messages-->  LiteLLM (127.0.0.1:4000)  --/chat/completions-->  OpenRouter
+```
+
+`config/open-lane-litellm.yaml` holds the mapping and `scripts/open-lane-gateway.sh` starts it. The
+gateway runs no model, so it costs patagonia almost nothing, which matters because its 16 GB is
+already what caps the lane count.
+
+**Why OpenRouter rather than a provider directly**, stated so the next person does not re-litigate
+it: one account and one key reach every open-weight model, so switching candidates is a line in a
+config rather than a new signup, and that is exactly what an unmeasured choice needs. The cost is a
+margin on top of the underlying provider's price and one more party in the path.
+
+**The model is not chosen.** `config/open-lane-litellm.yaml` carries three candidates addressable by
+name so a benchmark can switch between them without editing the lane script. Nothing here has
+measured which of them drives a tool loop reliably, and the config says so.
+
 ## What makes a cheaper model safe here, and it is not the model
 
 **The gates are the oracle.** `scripts/open-lane.sh` never judges the work: it loops the model
