@@ -1,0 +1,41 @@
+# The open-weight lane gateway, as a service on cordoba.
+#
+#     sudo cp config/open-lane-gateway.service /etc/systemd/system/
+#     sudo systemctl edit open-lane-gateway     # put the two keys in an override, not in git
+#     sudo systemctl enable --now open-lane-gateway
+#
+# **Why cordoba rather than patagonia.** It is always on, where a laptop is not, and a gateway that
+# sleeps with the lid leaves every other host failing on a connection error rather than a gate
+# failure. It also keeps the OpenRouter key on one machine instead of copied to each. And it spends
+# nothing that matters: LiteLLM runs no model, so against cordoba's 3.6 GB free it is a translator
+# rather than a load, while patagonia's 16 GB is the thing that actually caps the lane count.
+#
+# **Set OPEN_LANE_HOST to cordoba's tailnet address, not 0.0.0.0.** The launcher refuses the latter.
+# Once this is off loopback the master key is the only thing between any host on the tailnet and the
+# OpenRouter bill; Tailscale ACLs are the second layer and are worth setting.
+
+[Unit]
+Description=LiteLLM gateway: Anthropic /v1/messages translated to OpenRouter
+Documentation=https://github.com/crickertech/nife/blob/main/notes/open-model-lanes.md
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=calef
+WorkingDirectory=/home/calef/nife
+# Put OPENROUTER_API_KEY, OPEN_LANE_TOKEN and OPEN_LANE_HOST here, via `systemctl edit`, so the
+# keys live in /etc rather than in a repository that is public.
+EnvironmentFile=-/etc/open-lane-gateway.env
+ExecStart=/home/calef/nife/scripts/open-lane-gateway.sh
+Restart=on-failure
+RestartSec=10
+# It holds an API key and serves a network. Give it nothing it does not need.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/calef/.cache
+
+[Install]
+WantedBy=multi-user.target

@@ -52,9 +52,22 @@ format and translates to an OpenAI-compatible upstream.
 Claude Code  --/v1/messages-->  LiteLLM (127.0.0.1:4000)  --/chat/completions-->  OpenRouter
 ```
 
-`config/open-lane-litellm.yaml` holds the mapping and `scripts/open-lane-gateway.sh` starts it. The
-gateway runs no model, so it costs patagonia almost nothing, which matters because its 16 GB is
-already what caps the lane count.
+`config/open-lane-litellm.yaml` holds the mapping and `scripts/open-lane-gateway.sh` starts it.
+
+**It runs on cordoba, not on patagonia** (calef, 2026-09-22, wanting to call it from several hosts
+on his tailnet). Three reasons beyond that one. cordoba is **always on**, where a laptop is not, and
+a gateway that sleeps with the lid leaves callers failing on a connection error rather than a gate
+failure. It keeps the **OpenRouter key on one machine** instead of copied to each. And it spends
+nothing that matters: LiteLLM runs no model, so against cordoba's 3.6 GB free it is a translator
+rather than a load, while patagonia's 16 GB is the thing that actually caps the lane count.
+`config/open-lane-gateway.service` is the unit.
+
+**Leaving loopback changes what the master key is for**, which is worth stating rather than
+discovering. On `127.0.0.1` it guards against another local process using the OpenRouter key by
+accident. On a tailnet address it is **the only thing between any host on that network and the
+OpenRouter bill**. So: real entropy, kept in `/etc` rather than in this repository, bound to the
+tailnet interface rather than `0.0.0.0` (the launcher refuses `0.0.0.0` for that reason), with
+Tailscale ACLs as the second layer.
 
 **Why OpenRouter rather than a provider directly**, stated so the next person does not re-litigate
 it: one account and one key reach every open-weight model, so switching candidates is a line in a
