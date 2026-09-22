@@ -1,9 +1,25 @@
 #!/bin/sh
 # Start the LiteLLM gateway that `scripts/open-lane.sh` talks to.
 #
-#     export OPENROUTER_API_KEY=sk-or-...
-#     export OPEN_LANE_TOKEN=$(head -c 24 /dev/urandom | base64)   # any secret; the proxy's own
+#     export OPENROUTER_API_KEY=sk-or-...                    # issued by OpenRouter
+#     export OPEN_LANE_TOKEN="sk-$(openssl rand -hex 24)"     # invented here; see below
 #     scripts/open-lane-gateway.sh
+#
+# **The two secrets do different jobs and only one of them is issued by anybody.**
+# `OPENROUTER_API_KEY` comes from OpenRouter, lives only on this machine, and pays for the
+# inference. `OPEN_LANE_TOKEN` is LiteLLM's `master_key`: a password you make up, which the gateway
+# demands from every caller. Without it, anything that reaches the port spends the OpenRouter key.
+# Callers send it as `Authorization: Bearer`, which is what Claude Code's `ANTHROPIC_AUTH_TOKEN`
+# becomes, so `scripts/open-lane.sh` already passes it correctly.
+#
+# **It must begin with `sk-`.** LiteLLM requires that of a master key and refuses to start
+# otherwise, which is a confusing first failure to meet. No database is needed for it; that is only
+# for per-key spend tracking.
+#
+# **Why a gateway at all.** Claude Code resolves its endpoint at startup and speaks the Anthropic
+# Messages API (`POST /v1/messages`); OpenRouter speaks OpenAI chat-completions and exposes no
+# `/v1/messages`, confirmed against its own API reference on 2026-09-22. LiteLLM exposes the former
+# and translates to the latter. It runs no model, so it is a translator rather than a load.
 #
 # **It stays on loopback, and Tailscale does the exposing.** The gateway holds an OpenRouter key,
 # so the strongest thing available is for it never to bind a network interface: a firewall rule that
