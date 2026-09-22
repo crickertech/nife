@@ -1856,6 +1856,24 @@ put there is not established, because it was not investigated here per this lane
 in this lane's report as a milestone of its own (provisional; the integrator mints the number),
 rather than chased in place.
 
+**Seen a second time, 2026-09-21**, by the milestone 198 (a package manager, and the trivial install
+that makes a second customer possible) rung 2b lane, as *"returned 296 of 224 pages"*: a **72**-page
+surplus where the first sighting was 53. Three things the second sighting adds, and none of them
+closes it.
+
+It **recurs** rather than being one run's accident, and the surplus is a different number each time,
+which is what a neighbouring teardown landing in the window would look like and is not what a fixed
+accounting error would look like. It is **intermittent**: the same binary, on the same machine, the
+same afternoon, passed the assertion twice and failed it once. And the failing run was the loaded
+one, load 7.0 of 8 cores with another lane's two runaway doctests pegged at 99% each, while both
+passing runs were quieter; that does not contradict the diagnostic above, because load does not
+manufacture pages, but it fits the "a neighbour's teardown completes inside my measured window"
+reading, since contention is what stretches the window.
+
+So the second sighting **strengthens the negative-direction diagnosis and still does not establish
+whether the frames come from a neighbour or from a leak**. It remains un-investigated and it remains
+worth a lane.
+
 ### `kernel/src/arch/aarch64/timer.rs:680`, `holding_a_lock_masks_the_timer`: "the timer is not ticking at all"
 
 ```rust

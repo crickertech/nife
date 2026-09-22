@@ -110,8 +110,14 @@ recording on 2026-09-21. Four call sites were updated to pay for it and the inst
 eleven-megabyte boot-file window could not be, because it goes through `user::run` and `run` had
 nowhere to put the number; it fitted inside `AS_OVERHEAD`'s slack by luck. Growing the boot image by
 a megabyte took the luck away, and the failure was an `OutOfPageFrames` panic three frames from
-anything that mentions memory. The accounting now happens in `load_sized`, from `spawn.maps` itself,
+anything that mentions memory. The accounting now happens in `user::load`, from `spawn.maps` itself,
 so no caller has to remember.
+
+**The first version of it overcharged and the frame ledger said so**, deterministically and on the
+first run: charging the whole window took a frame per long-lived process, permanently, into a region
+that never used it, and the aarch64 suite went from 22249 kept frames to 22317. A caller owes the
+cost **above** what `AS_OVERHEAD`'s margin already carried, which is what `WINDOW_IN_OVERHEAD`
+names. That gate is the reason this landed right rather than landing quietly wrong.
 
 ## Scope note (DECISIONS §19 (architectural parity is a tenet; the targets are aarch64, riscv64 and x86_64))
 

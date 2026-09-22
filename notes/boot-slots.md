@@ -193,9 +193,16 @@ recording on 2026-09-21. Four call sites were updated to pay for it; the install
 eleven-megabyte boot-file window could not be, because it goes through `user::run` and `run` had
 nowhere to put the number, and it fitted inside `AS_OVERHEAD`'s slack by luck. This rung grew the
 boot image by about a megabyte and the luck ran out, as an `OutOfPageFrames` panic three stack
-frames from anything that mentions memory. `user::load_sized` now takes the number from `spawn.maps`
-itself, so no caller has to remember it: the same move as any other accounting that was a comment
-and is now a computation.
+frames from anything that mentions memory. `user::load` now takes the number and `run_with` derives
+it from `spawn.maps`, so no caller has to remember it: the same move as any other accounting that
+was a comment and is now a computation.
+
+**The first version of that fix overcharged, and the frame ledger caught it**, which is worth
+recording because it is the gate working rather than a detour. Charging the full window put a frame
+into every long-lived process's region that the region never used, sixty-eight of them, to pay for a
+window one caller has; the aarch64 suite went from 22249 kept frames to 22317 and failed. What a
+caller owes is the cost **above** what `AS_OVERHEAD`'s margin was already providing, which is
+`WINDOW_IN_OVERHEAD` and its reasoning at the arithmetic.
 
 ## See also
 
