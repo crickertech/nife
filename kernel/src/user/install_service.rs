@@ -144,8 +144,13 @@ const R_MADE: u64 = 0x_4D_4B_46_53_44;
 // The installer's roles, in `a0`. Must match `components/src/installer.rs`.
 const ROLE_INSTALL: u64 = 0;
 const ROLE_SURVEY: u64 = 1;
+const ROLE_CONFIRM: u64 = 2;
 /// The survey's "this disk already carries a nife data partition" verdict, ASCII `HAVIT`.
 const R_ALREADY: u64 = 0x_48_41_56_49_54;
+/// The confirm role's "that slot is successful" verdict, ASCII `CNFRM`.
+const R_CONFIRMED: u64 = 0x_43_4E_46_52_4D;
+/// Its "there is no such boot slot on this disk" refusal, ASCII `NOSLT`.
+const R_NO_SLOT: u64 = 0x_4E_4F_53_4C_54;
 
 /// **Offer to install, and carry it out if a person says so.** Returns after either, so the boot
 /// continues in every case.
@@ -173,7 +178,7 @@ pub fn offer() {
     // **Before the question, and by a process that cannot write.** An installed machine boots from
     // a file too, so an offer that did not look at the disk first would ask every installed machine
     // to wipe itself, once per boot.
-    let report = spawn_installer(installer, &disk, None, ROLE_SURVEY, 0);
+    let report = spawn_installer(installer, &disk, None, ROLE_SURVEY, 0, 0);
     if crate::sched::ipc_recv(report)[0] == R_ALREADY {
         return; // nife is already on this disk. See BUGS: there is no reinstall.
     }
@@ -202,7 +207,14 @@ pub fn offer() {
     };
 
     crate::println!("  install     : partitioning and copying the boot file...");
-    let report = spawn_installer(installer, &disk, Some(entropy), ROLE_INSTALL, boot_file_len);
+    let report = spawn_installer(
+        installer,
+        &disk,
+        Some(entropy),
+        ROLE_INSTALL,
+        boot_file_len,
+        boot_file_len,
+    );
     let answer = crate::sched::ipc_recv(report);
     if answer[0] != R_INSTALLED {
         crate::println!(
@@ -243,6 +255,133 @@ pub fn offer() {
     crate::println!("  install     : DONE. Remove the installation medium and reboot.");
 }
 
+/// **Say that this boot worked**, so an upgrade that came up is not rolled back once its tries run
+/// out (rung 2b of milestone 198's other half).
+///
+/// A no-op on every boot no chooser started, which is a stick, a `-kernel` boot, and an installed
+/// machine whose chooser fell back to the image in its own file. All three reach a running kernel
+/// with nothing to confirm.
+///
+/// # What "this boot worked" means here, and it is a promise rather than a mechanism
+///
+/// **The criterion is: the machine got far enough that a person can log in and fix whatever else is
+/// wrong.** Concretely, at this call site, all of the following already happened:
+///
+/// | |
+/// |---|
+/// | the kernel came up, its self-tests passed, and it reached userspace |
+/// | the NVMe controller was brought up and its server answered requests from ring 3 |
+/// | the block server and the filesystem server started, and the filesystem server **mounted the installed disk and reported ready** |
+/// | the progenitor was loaded out of the archive, measured against the trust root, and built |
+///
+/// Nothing is confirmed unless every one of those held, because this runs after all of them and
+/// the boot does not reach here otherwise.
+///
+/// **Why not earlier, and why not later.** Confirming at the kernel's self-test would mark an
+/// upgrade good that has no working disk and no userspace, which is the failure the whole feature
+/// exists to prevent; the bias has to be late. Confirming later is what the rest of this comment
+/// is about, and the honest answer is that later is not reachable automatically on this system
+/// today: past this point the machine is waiting for a person, and an unattended appliance has
+/// nobody to ask. The Boot Loader Specification leaves the call to the operating system for the
+/// same reason, and ChromeOS's update engine sets the bit from userspace on the same judgement.
+///
+/// **What a boot that satisfies this criterion can still be wrong about**, which is the honest half
+/// of the feature and is repeated in `crates/boot_slot`'s `BUGS` where a reader meets it:
+///
+/// - **Anything nothing exercises at boot.** The network stack, the compositor, a driver for a
+///   device this machine has and the boot path does not touch. An upgrade that breaks only those
+///   is confirmed and kept.
+/// - **The shell**, which is the one thing the proposal's recommended criterion names and this does
+///   not reach. The filesystem is mounted and the progenitor is built, but nothing has typed
+///   anything. A regression between here and a prompt survives.
+/// - **Anything that fails after the first few seconds**: a leak, a wedge under load, a filesystem
+///   that mounts and then corrupts. This is a statement about coming up, not about running.
+///
+/// # What holds the authority to write the partition table, and how narrow it is
+///
+/// `components/src/installer.rs`'s [`ROLE_CONFIRM`], spawned here with four capabilities and
+/// nothing else: the report endpoint, the disk's `blk` endpoint, the page it shares with that
+/// disk's server, and a budget for the one page it maps itself. **No entropy endpoint**, so it
+/// cannot draw the unique ids a new partition table carries and the only table it can write is the
+/// one it read; **no boot file**, so it cannot rewrite the image it is vouching for; no console, no
+/// filesystem, no network.
+///
+/// It is not as narrow as it should be, and the gap is named rather than papered over: a `blk`
+/// endpoint is the whole disk, because nothing in `filesystem_protocol::blk` bounds a client to a
+/// block range. So this process *could* write anywhere on that disk. That is the same limitation
+/// `installer`'s own `BUGS` records for the filesystem server, it is one wire field away from
+/// fixed, and it is the reason this is a boot-path call rather than something a program could ask
+/// for later.
+///
+/// # What serialises this against the filesystem server, and the answer is an ordering
+///
+/// **Nothing enforces it.** One NVMe server has one transfer region, shared by every client of its
+/// endpoint, and a client stages bytes into that region before it calls. Two clients staging at
+/// once would corrupt each other, and no lock, lease or range check prevents it.
+///
+/// What makes this write safe is where it is: **after the filesystem server's ready report and
+/// before the progenitor's first instruction.** In that window the filesystem server is blocked in
+/// receive with no client that could wake it, because the kernel boot path is single-threaded and
+/// is the only thing that can hand its endpoint to anybody. So the region has one user.
+///
+/// That is rung three of `AGENTS.md`'s ladder, a written record at the thing itself, and it is an
+/// **exception** to the rule that the higher rung wins. It is stated as one: **this is a foot gun.**
+/// The day something spawns a second disk client before the progenitor runs, or this call moves
+/// after it, the ordering silently stops holding and the symptom is a corrupted partition table on
+/// somebody's installed machine. The mechanism that would make it hold is a transfer region per
+/// client, or a `blk` endpoint bounded to a block range; both are wire decisions and neither is
+/// this lane's.
+pub fn confirm() {
+    let Some(slot) = crate::memory::boot_slot() else {
+        return; // No chooser started this boot: there is nothing to confirm.
+    };
+    let Some(installer) = program("installer") else {
+        crate::println!(
+            "  boot slot   : slot {slot} cannot be confirmed: the archive has no installer."
+        );
+        return;
+    };
+    let Some(nvme) = program("non_volatile_memory_express") else {
+        return;
+    };
+    let Some(disk) = non_volatile_memory_express_service::ensure(nvme) else {
+        // A machine that booted from a slot and has no NVMe controller is a machine whose disk
+        // went away between the chooser and here. Nothing to write to, and saying so is better
+        // than a silent revert three boots later.
+        crate::println!("  boot slot   : slot {slot} cannot be confirmed: no disk.");
+        return;
+    };
+    disk.wait_for_ready();
+
+    let report = spawn_installer(installer, &disk, None, ROLE_CONFIRM, slot as u64, 0);
+    let answer = crate::sched::ipc_recv(report);
+    match answer[0] {
+        R_CONFIRMED if answer[2] == 0 => {
+            crate::println!("  boot slot   : slot {slot} was already confirmed; nothing written.");
+        }
+        R_CONFIRMED => {
+            crate::println!(
+                "  boot slot   : slot {slot} confirmed. This upgrade will not roll back."
+            );
+        }
+        R_NO_SLOT => {
+            // The number crossed a boot and did not match anything, so nothing was written. A
+            // machine in this state rolls back, which is the safe direction, and this line is the
+            // only place a person would find out why.
+            crate::println!(
+                "  boot slot   : slot {slot} is not on this disk ({} boot slots found); NOT confirmed.",
+                answer[1]
+            );
+        }
+        other => {
+            crate::println!(
+                "  boot slot   : slot {slot} NOT confirmed ({other:#x}, step {}). This boot will roll back.",
+                answer[1]
+            );
+        }
+    }
+}
+
 /// Print what is about to be destroyed and read the answer. `true` only for exactly
 /// [`CONFIRMATION`].
 fn asked(size_bytes: u64) -> bool {
@@ -273,6 +412,12 @@ fn spawn_installer(
     disk: &non_volatile_memory_express_service::Wiring,
     entropy: Option<RendezvousId>,
     role: u64,
+    // What the role reads out of `a1`: the boot file's length for [`ROLE_INSTALL`], the slot
+    // number for [`ROLE_CONFIRM`], nothing for [`ROLE_SURVEY`].
+    arg1: u64,
+    // **How many bytes of the boot file to map**, which is a separate number from `arg1` because
+    // only one role wants both. A role that maps none of it cannot rewrite the image it is
+    // looking at, which is the same narrowing the missing entropy endpoint is.
     boot_file_len: u64,
 ) -> RendezvousId {
     let report = crate::sched::create_rendezvous();
@@ -308,7 +453,7 @@ fn spawn_installer(
             image,
             Spawn {
                 arg0: role,
-                arg1: boot_file_len,
+                arg1,
                 arg2: 0,
                 grants: &[], // every one of them is placed above, at its own slot
                 maps,

@@ -1375,7 +1375,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   that to the disk **before** handing off, which is the only thing that bounds an image that hangs
   rather than one that fails where somebody can see it. The table of which failures are caught and
   which are not, and `cargo xtask rollback-boot`: three boots watching a doomed upgrade be tried,
-  killed at the handoff, and abandoned.
+  killed at the handoff, and abandoned. **And the other half**: the chooser writes the slot number
+  onto the kernel's command line, because a running system cannot work out which slot started it,
+  and a confined process holding the disk and no source of randomness sets the successful bit once
+  the filesystem server has mounted that disk. What that criterion can still be wrong about is
+  written beside it, and `cargo xtask confirm-boot` is the exact negative of the rollback gate: a
+  good upgrade confirms itself and is still chosen with no tries left.
 - [Installing nife onto a disk](installing.md): milestone 515 (a stick that puts itself on the
   machine's disk), which is milestone 198 (a package manager, and the trivial
   install)'s rung 2a, built. `cargo xtask install-boot` boots a stick under OVMF, the installer

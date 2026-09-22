@@ -33,6 +33,18 @@
 //! |---|---|
 //! | [`ROLE_SURVEY`] | read the table back and say whether this disk already carries nife |
 //! | [`ROLE_INSTALL`] | draw the ids, write the table, lay out the EFI system partition, copy the boot file |
+//! | [`ROLE_CONFIRM`] | mark the boot slot this machine started from successful, so a good upgrade sticks |
+//!
+//! [`ROLE_CONFIRM`] is the trial boot's other half, and it is here rather than in a program of its
+//! own for one reason: it is `ROLE_SURVEY` with a write. It reads the same 34 blocks with the same
+//! parser, finds the slot the kernel told it about, and puts back one attribute word. A second
+//! program would be a second copy of the table read, the block-page mapping, the `blk` client and
+//! the verdict convention, to change nine bits.
+//!
+//! **It holds no entropy endpoint either**, which is the sentence that makes the write narrow
+//! rather than merely small. A partition table carries unique ids, so a process with no source of
+//! randomness cannot mint one; the only table it can write is a table it read, with the bits
+//! `boot_slot` owns changed. What it *can* still do is the honest caveat, and it is in `BUGS`.
 //!
 //! `ROLE_SURVEY` is **a separate process with no entropy endpoint**, exactly as
 //! `disk_partitioner`'s verify role is, and for the same reason: a program that cannot draw a
@@ -198,6 +210,9 @@ const BOOT_FILE_VA: u64 = 0x1000_0000;
 pub const ROLE_INSTALL: u64 = 0;
 /// **Read the table back and report what is on the disk.** No entropy endpoint, no writes.
 pub const ROLE_SURVEY: u64 = 1;
+/// **Mark the boot slot named in `a1` successful**, so an upgrade that came up is not rolled back.
+/// No entropy endpoint; the only table it can write is the one it read.
+pub const ROLE_CONFIRM: u64 = 2;
 
 /// The transfer unit of the block service: one filesystem block per request.
 const TRANSFER: u64 = blk::BLOCK_SIZE as u64;
@@ -274,6 +289,18 @@ pub const R_ALREADY: u64 = 0x_48_41_56_49_54;
 /// The disk carries no nife data partition: no table at all, or somebody else's.
 pub const R_EMPTY: u64 = 0x_45_4D_50_54_59;
 
+// [`ROLE_CONFIRM`]'s verdicts.
+/// **The slot is successful**, whether this process set the bit or found it already set. One
+/// verdict for both, because an idempotent write has one outcome and a caller that had to tell
+/// them apart would be a caller doing bookkeeping the disk already holds. ASCII `CNFRM`.
+pub const R_CONFIRMED: u64 = 0x_43_4E_46_52_4D;
+/// **There is no such boot slot on this disk**, so nothing was written. ASCII `NOSLT`.
+///
+/// It is the refusal that matters most: the slot number crosses a boot, and a number this program
+/// cannot match to a partition is one it must not guess at. Word 1 carries how many boot slots
+/// were found, so a transcript says what it was looking at.
+pub const R_NO_SLOT: u64 = 0x_4E_4F_53_4C_54;
+
 /// The entry array under construction. 16 KiB, so it goes in `.bss` rather than on the stack.
 static mut ARRAY: [u8; ENTRY_ARRAY_BYTES] = [0; ENTRY_ARRAY_BYTES];
 /// The primary table as read back by [`survey`]: LBA 0..33 is 34 logical blocks, five transfer
@@ -281,7 +308,7 @@ static mut ARRAY: [u8; ENTRY_ARRAY_BYTES] = [0; ENTRY_ARRAY_BYTES];
 static mut PRIMARY: [u8; 5 * blk::BLOCK_SIZE] = [0; 5 * blk::BLOCK_SIZE];
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, boot_file_len: u64, _a2: u64) -> ! {
+pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
     // The page shared with the block server, mapped out of this program's own budget
     // (milestone 108). Before anything else, because every `blk` call goes through it.
     if !user_mode_runtime::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET) {
@@ -290,12 +317,21 @@ pub extern "C" fn _start(role: u64, boot_file_len: u64, _a2: u64) -> ! {
     if role == ROLE_SURVEY {
         survey()
     }
+    if role == ROLE_CONFIRM {
+        // `a1` is the slot number the chooser wrote onto the kernel's command line, carried here
+        // rather than inferred: see `boot_slot::cmdline` for why a running system cannot work it
+        // out for itself.
+        confirm(a1)
+    }
     debug_assert!(role == ROLE_INSTALL);
-    if boot_file_len == 0 {
+    // `a1` is the boot file's length for this role, which is the one thing the kernel knows and
+    // this program cannot measure: the file is mapped read-only at a fixed address with no length
+    // beside it.
+    if a1 == 0 {
         send(REPORT, R_NO_BOOT_FILE, 0, 0);
         user_mode_runtime::exit()
     }
-    install(boot_file_len)
+    install(a1)
 }
 
 /// **Is nife already on this disk?** Read the primary table and look for a partition of the nife
@@ -312,25 +348,11 @@ fn survey() -> ! {
         user_mode_runtime::exit()
     }
 
-    // LBA 0 through 33: the protective MBR, the primary header and the whole entry array, which is
-    // five transfer blocks.
-    let head = primary();
-    for i in 0..5u64 {
-        if (call(BLK, req(blk::READ), i).0 as i64) < 0 {
-            send(REPORT, R_EMPTY, 0, 0);
-            user_mode_runtime::exit()
-        }
-        // SAFETY: `BLK_PAGE` is a mapped page of exactly one transfer block, and the destination
-        // window is inside `head`, which is five of them.
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                BLK_PAGE as *const u8,
-                head.as_mut_ptr().add(i as usize * blk::BLOCK_SIZE),
-                blk::BLOCK_SIZE,
-            );
-        }
+    if !read_primary() {
+        send(REPORT, R_EMPTY, 0, 0);
+        user_mode_runtime::exit()
     }
-    let head: &[u8] = head;
+    let head: &[u8] = primary();
     let Ok(table) = GloballyUniqueIdentifierPartitionTable::parse(
         &head[LBA as usize..2 * LBA as usize],
         &head[2 * LBA as usize..],
@@ -345,6 +367,181 @@ fn survey() -> ! {
         }
     }
     send(REPORT, R_EMPTY, 0, 0);
+    user_mode_runtime::exit()
+}
+
+/// **Read LBA 0 through 33 into [`primary()`]**: the protective MBR, the primary header and the
+/// whole entry array, which is five transfer blocks. `false` if the disk refused any of them.
+///
+/// Shared by [`survey`] and [`confirm`], which read the same thing for different reasons, so the
+/// window and the staging copy have one spelling.
+fn read_primary() -> bool {
+    let head = primary();
+    for i in 0..5u64 {
+        if (call(BLK, req(blk::READ), i).0 as i64) < 0 {
+            return false;
+        }
+        // SAFETY: `BLK_PAGE` is a mapped page of exactly one transfer block, and the destination
+        // window is inside `head`, which is five of them.
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                BLK_PAGE as *const u8,
+                head.as_mut_ptr().add(i as usize * blk::BLOCK_SIZE),
+                blk::BLOCK_SIZE,
+            );
+        }
+    }
+    true
+}
+
+/// How many used partition entries [`confirm`] will decode and write back. A table with more than
+/// this is read and refused rather than rewritten, so a table this program cannot reproduce
+/// exactly is one it never touches. `uefi_loader::chooser`'s own `MAX_PARTITIONS`, and the same
+/// reasoning.
+const MAX_PARTITIONS: usize = 16;
+
+/// **Say that this boot worked**, by setting `boot_slot::State::successful` on the slot the
+/// machine started from.
+///
+/// # The one number that comes from outside
+///
+/// `slot` is the index among this disk's `NIFE_BOOT` partitions, in table order, as
+/// `uefi_loader`'s chooser counted them and wrote onto the kernel's command line. It is counted
+/// the same way here, which is the whole of the agreement between the two: the chooser's
+/// `the_disk_with_slots` collects boot-type partitions in index order and so does the loop below.
+///
+/// **A number this program cannot match is a refusal, never a nearest slot.** Confirming the wrong
+/// entry would mark an image good that never ran, which is worse than not confirming at all: the
+/// machine would then keep an upgrade that does not work instead of rolling back to one that does.
+///
+/// # Why it is safe to run twice, and safe to lose power in the middle
+///
+/// Setting a bit that is already set writes the same bytes, so a second run is a second copy of
+/// the same table, and this one returns before writing anything when it finds the slot already
+/// successful. That is the *cheap* half of idempotence and it is the one a reader should not rely
+/// on: the property that matters is the byte-level one below.
+///
+/// The bits this changes are nine, inside one `u64`, inside one 128-byte entry, inside one 512-byte
+/// logical block. They are never split across two writes, so the entry array on the disk is always
+/// either the old entry or the new one and never a third thing. What *can* be interrupted is the
+/// four-write sequence that puts the array and the two headers back, and the order below is chosen
+/// so that **at every instant at least one complete, self-consistent copy of the table is on the
+/// disk**: the backup is finished before the primary is touched. `uefi_loader::chooser`'s
+/// `write_back` writes the same four ranges in a different order, which does not have that
+/// property; changing it is that lane's and it is named in this program's `BUGS`.
+///
+/// The worst outcome of an interrupted confirmation is therefore a slot that is not confirmed,
+/// which is exactly the state the machine was in a moment earlier and rolls back safely, or a
+/// primary table that does not parse beside a backup that does, which is the recovery case
+/// `BUGS` says nothing yet reads.
+fn confirm(slot: u64) -> ! {
+    let size = call(BLK, req(blk::SIZE), 0).0 as i64;
+    if size <= 0 || !(size as u64).is_multiple_of(LBA) {
+        send(REPORT, R_DISK_FAILED, 1, size as u64);
+        user_mode_runtime::exit()
+    }
+    let block_count = size as u64 / LBA;
+
+    if !read_primary() {
+        send(REPORT, R_DISK_FAILED, 2, 0);
+        user_mode_runtime::exit()
+    }
+
+    // Everything needed to rebuild the table, taken while the parse is still borrowed from the
+    // staging buffer: `array()` is a different buffer, but the entries themselves are decoded
+    // copies and the disk's identity and geometry come from the table it already has.
+    let mut parts = [Entry::UNUSED; MAX_PARTITIONS];
+    let mut used = 0usize;
+    let mut at = usize::MAX;
+    let mut slots = 0u64;
+    let disk_guid;
+    {
+        let head: &[u8] = primary();
+        let Ok(table) = GloballyUniqueIdentifierPartitionTable::parse(
+            &head[LBA as usize..2 * LBA as usize],
+            &head[2 * LBA as usize..],
+        ) else {
+            send(REPORT, R_DISK_FAILED, 3, 0);
+            user_mode_runtime::exit()
+        };
+        disk_guid = table.disk_guid();
+        for (index, part) in table.partitions() {
+            // `create` writes the partitions it is given at indices 0, 1, 2..., so a table whose
+            // used entries are not contiguous from zero would be renumbered by a rewrite. Ours
+            // never are; a disk whose are not is refused rather than silently rearranged. The same
+            // check the chooser makes, for the same reason.
+            if index != used || used == MAX_PARTITIONS {
+                send(REPORT, R_NO_SLOT, slots, 0);
+                user_mode_runtime::exit()
+            }
+            if part.type_guid == types::NIFE_BOOT {
+                if slots == slot {
+                    at = used;
+                }
+                slots += 1;
+            }
+            parts[used] = part;
+            used += 1;
+        }
+    }
+
+    if at == usize::MAX {
+        send(REPORT, R_NO_SLOT, slots, slot);
+        user_mode_runtime::exit()
+    }
+
+    let state = State::from_attributes(parts[at].attributes);
+    if state.successful {
+        // **Already good, so the disk is not written at all.** An installed machine boots its
+        // confirmed slot every day of its life, and a write on every one of those boots is a write
+        // that can be interrupted on every one of them. `State::attempted` refuses the same write
+        // for the same reason, one stage earlier.
+        send(REPORT, R_CONFIRMED, slot, 0);
+        user_mode_runtime::exit()
+    }
+    parts[at].attributes = state.confirmed().into_attributes(parts[at].attributes);
+
+    let array = array();
+    let Ok(table) = GloballyUniqueIdentifierPartitionTable::create(
+        disk_guid,
+        LBA as usize,
+        block_count,
+        &parts[..used],
+        array,
+    ) else {
+        send(REPORT, R_DISK_FAILED, 4, 0);
+        user_mode_runtime::exit()
+    };
+
+    let mut block = [0u8; LBA as usize];
+    let entry_array: &[u8] = table.entry_array();
+
+    // The backup, complete, before the primary is touched; then the primary, its header last so a
+    // half-written primary fails its own CRC rather than pointing at an array it does not
+    // describe. The protective MBR is not rewritten: the attribute bits are the only thing
+    // changing and the MBR does not describe them.
+    if !write_at(table.backup_entry_lba(), entry_array) {
+        send(REPORT, R_DISK_FAILED, 5, 0);
+        user_mode_runtime::exit()
+    }
+    block.fill(0);
+    if table.write_backup_header(&mut block).is_err()
+        || !write_at(table.backup_header_lba(), &block)
+    {
+        send(REPORT, R_DISK_FAILED, 6, 0);
+        user_mode_runtime::exit()
+    }
+    if !write_at(table.primary_entry_lba(), entry_array) {
+        send(REPORT, R_DISK_FAILED, 7, 0);
+        user_mode_runtime::exit()
+    }
+    block.fill(0);
+    if table.write_primary_header(&mut block).is_err() || !write_at(PRIMARY_HEADER_LBA, &block) {
+        send(REPORT, R_DISK_FAILED, 8, 0);
+        user_mode_runtime::exit()
+    }
+
+    send(REPORT, R_CONFIRMED, slot, 1);
     user_mode_runtime::exit()
 }
 

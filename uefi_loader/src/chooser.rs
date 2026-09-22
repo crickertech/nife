@@ -105,9 +105,17 @@
 //!   then refuse, and the machine falls back to the image in the chooser's file. That is a safe
 //!   outcome rather than a good one, and it is untested: nothing in this tree cuts power to a QEMU
 //!   between two block writes.
-//! - **A slot is never marked successful by anything on a running machine**, so an upgrade that
-//!   came up perfectly still rolls back once its tries are spent. `crates/boot_slot`'s `BUGS` has
-//!   the whole of it.
+//! - **This chooser's four block writes go primary-first**, so there is a window in which neither
+//!   copy of the table parses: the primary's array is new while its header still describes the old
+//!   one, and the backup has not been touched. `installer`'s `ROLE_CONFIRM` writes the same four
+//!   ranges **backup-first**, which leaves one complete self-consistent copy on the disk at every
+//!   instant and costs nothing. Making this one agree is a reordering of four lines and belongs to
+//!   whoever next touches this function; it is recorded here rather than done because the
+//!   interrupted case is untested either way (see the entry above) and changing an untested
+//!   failure path on the way past is how a rollback stops working.
+//! - **Nothing here reads the backup table when the primary fails to parse.** With the reordering
+//!   above that would be a real recovery; without it, it is what lets a foreign tool repair a
+//!   machine this loader has given up on.
 //! - **An image started from a slot has no boot file**, because `LoadImage` from a buffer leaves
 //!   the child's `DeviceHandle` null and there is no volume to read a file back from. So an
 //!   installed machine cannot install itself onto a second disk; only a machine booted from the

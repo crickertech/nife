@@ -160,17 +160,48 @@ and nothing came back, so this is the hang rather than a stand-in for it. And th
 slot 1 is a byte-for-byte copy of the working one on purpose: garbage would be caught by the header
 checksum inside one boot, which tests the cheap half.
 
-## What this does not do
+## What marks a trial boot successful
 
-**Nothing marks a trial boot successful.** The installer sets the bit on the slot it writes, and
-that is a record of an observation rather than an assumption, because the bytes going into slot 0
-are the bytes the firmware started that machine with seconds earlier. But an *upgrade* that came up
-perfectly still rolls back once its tries are spent. That fails safe and it means upgrades do not
-stick, which is not a system anybody would run.
-[The proposal](../design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md) has the
-criterion the lane recommends (the filesystem mounted and the shell reachable, which is the point
-past which somebody can log in and fix the rest), the four boundaries the slot number has to cross,
-and the honest note that this half was deferred on effort.
+The installer sets the bit on the slot it writes, and that is a record of an observation rather than
+an assumption: the bytes going into slot 0 are the bytes the firmware started that machine with
+seconds earlier. An *upgrade* is a different claim, and something on the running machine has to make
+it, or a perfectly good upgrade rolls back once its tries are spent.
+
+**The chooser tells the booted system which slot it is**, as a word on the kernel's command line
+(`boot_slot::cmdline`), and it has to be told rather than work it out: the try is spent *before* the
+handoff, so a slot started on its last try is no longer `bootable` and `select` now names the other
+one. The one boot a confirmation exists for is the one the inference gets backwards.
+
+**The criterion is the filesystem server mounting the installed disk and reporting ready**, with the
+progenitor built and measured and about to run. That is everything between power-on and the last
+thing this machine can check without a person, and the bias is deliberately late: confirming early
+would keep an upgrade that comes up and cannot do its job, which is the failure the whole feature
+exists to prevent.
+
+**What it can still be wrong about**, which is the honest half: anything the boot path does not
+touch (the network stack, the compositor, a driver nothing opens at boot), the shell, which is one
+row stronger than this reaches, and anything that fails after the first few seconds. It is a
+statement about coming up, not about running.
+
+**The write is `installer`'s `ROLE_CONFIRM`**, which is `ROLE_SURVEY` with a write: the same 34
+blocks, the same parser, one attribute word put back. It holds no entropy endpoint, so it cannot
+draw the unique ids a new table carries and the only table it can write is the one it read; and no
+boot file, so it cannot rewrite the image it is vouching for.
+
+**What keeps it from colliding with the filesystem server is an ordering, not a mechanism**, and
+that is worth knowing before you move the call. One block server has one transfer region shared by
+every holder of its endpoint. `install_service::confirm` runs between the filesystem server's ready
+report and the progenitor's first instruction, when that server is blocked in receive with no client
+that could wake it. The day something spawns a second disk client before the progenitor runs, the
+ordering stops holding silently. See
+[the proposal](../design/roadmap/proposals/two-programs-share-one-disks-transfer-region.md).
+
+`cargo xtask confirm-boot` is `rollback-boot`'s exact negative: a good upgrade with **one** try is
+tried, confirms itself, and is still chosen on boot 3 with no tries left. The single try is the
+strength of the test rather than its cost: a slot with tries to spare would be chosen by priority
+alone and the gate would pass on a machine whose confirmation did nothing.
+
+## What this does not do
 
 **Nothing writes the second slot on a running machine**, because there is no upgrader. The gate
 stages one from the host, through the same crates the installer uses, so the format is exercised end

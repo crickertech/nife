@@ -86,19 +86,19 @@ use gpt::{Entry, GloballyUniqueIdentifierPartitionTable as Table};
 use crate::install;
 
 /// The logical block size the installer writes and this gate reads. Its own `BUGS` has the note.
-const LBA: u64 = 512;
+pub(crate) const LBA: u64 = 512;
 
 /// LBA 0 through 33: the protective MBR, the primary header and the whole entry array.
-const PRIMARY_BYTES: usize = 34 * LBA as usize;
+pub(crate) const PRIMARY_BYTES: usize = 34 * LBA as usize;
 
 /// **The priority the staged upgrade is written at**, above the install's own 2 so that the chooser
 /// prefers it. Three rather than fifteen for the reason `boot_slot::INSTALLED_PRIORITY` gives: the
 /// range is there to be walked up.
-const TRIAL_PRIORITY: u8 = 3;
+pub(crate) const TRIAL_PRIORITY: u8 = 3;
 
 /// **How many tries the staged upgrade gets.** One, so the gate is three boots rather than five;
 /// see `BUGS`.
-const TRIAL_TRIES: u8 = 1;
+pub(crate) const TRIAL_TRIES: u8 = 1;
 
 /// **The gate.** `true` only if the machine went back to slot 0 on its own.
 pub(crate) fn rollback_boot() -> bool {
@@ -186,7 +186,7 @@ pub(crate) fn rollback_boot() -> bool {
 ///
 /// The bytes and the bits both go through the same crates the installer uses, so this is the real
 /// format and not a second spelling of it.
-fn stage_an_upgrade(disk: &Path, boot_file: &Path) -> bool {
+pub(crate) fn stage_an_upgrade(disk: &Path, boot_file: &Path) -> bool {
     let image = match std::fs::read(boot_file) {
         Ok(bytes) => bytes,
         Err(e) => {
@@ -329,11 +329,7 @@ fn the_disk_agrees(disk: &Path) -> bool {
         return false;
     };
 
-    let states: Vec<State> = table
-        .partitions()
-        .filter(|(_, p)| p.type_guid == types::NIFE_BOOT)
-        .map(|(_, p)| State::from_attributes(p.attributes))
-        .collect();
+    let states: Vec<State> = slot_states(&table);
     let [zero, one] = states[..] else {
         eprintln!("rollback-boot: the disk no longer has two boot slots");
         return false;
@@ -359,4 +355,30 @@ fn the_disk_agrees(disk: &Path) -> bool {
         ok = false;
     }
     ok
+}
+
+/// **Every boot slot's state, in table order**, which is the order `uefi_loader`'s chooser counts
+/// them in and therefore the order a slot number means.
+///
+/// Shared by this gate and `confirm`'s, which assert opposite things about the same bits.
+pub(crate) fn slot_states(table: &Table) -> Vec<State> {
+    table
+        .partitions()
+        .filter(|(_, p)| p.type_guid == types::NIFE_BOOT)
+        .map(|(_, p)| State::from_attributes(p.attributes))
+        .collect()
+}
+
+/// **Read the primary partition table off an installed disk**, for a gate checking what the machine
+/// wrote down rather than what it said.
+pub(crate) fn read_table(disk: &Path, out: &mut [u8; PRIMARY_BYTES]) -> bool {
+    let Ok(mut file) = std::fs::File::open(disk) else {
+        eprintln!("could not reopen {}", disk.display());
+        return false;
+    };
+    if file.read_exact(out).is_err() {
+        eprintln!("could not read the partition table back");
+        return false;
+    }
+    true
 }

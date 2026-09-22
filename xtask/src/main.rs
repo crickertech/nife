@@ -30,6 +30,8 @@ mod bench;
 mod board;
 mod boot_check;
 mod card_check;
+/// **The rollback gate** (rung 2b of milestone 198 (a package manager, and the trivial install that makes a second customer possible)): a doomed upgrade is tried and the machine comes back on its own.
+mod confirm;
 mod disk;
 mod disk_check;
 mod farm;
@@ -40,7 +42,6 @@ mod inspect;
 mod install;
 mod manual;
 mod measure;
-/// **The rollback gate** (rung 2b of milestone 198 (a package manager, and the trivial install that makes a second customer possible)): a doomed upgrade is tried and the machine comes back on its own.
 mod rollback;
 mod scanout;
 mod screen;
@@ -167,6 +168,11 @@ fn main() -> ExitCode {
         "uefi-boot" => uefi_boot(),
         "install-boot" => install::install_boot(),
         "rollback-boot" => rollback::rollback_boot(),
+        // Rung 2b's other half: a GOOD upgrade is tried, confirmed by the running system, and
+        // still chosen on the next boot with no tries left. The exact negative of the line above,
+        // and the one that proves the rollback is a policy rather than an accident. Name
+        // provisional (2026-09-21): `stick-boot` was already the boot stick's gate.
+        "confirm-boot" => confirm::confirm_boot(),
         // Milestone 195: the same firmware, the kernel's test binary instead of its tour.
         "uefi-test" => uefi_test(),
         // The stick (DECISIONS §157): every architecture's boot file, sealed, and `stick_maker`
@@ -239,7 +245,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|install-boot|rollback-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|install-boot|rollback-boot|confirm-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -247,6 +253,9 @@ fn main() -> ExitCode {
             );
             eprintln!(
                 "       cargo xtask rollback-boot  (x86_64/OVMF: a doomed upgrade is tried, and the machine comes back on the previous image by itself)"
+            );
+            eprintln!(
+                "       cargo xtask confirm-boot   (x86_64/OVMF: a good upgrade is tried, confirms itself, and is still chosen with no tries left)"
             );
             eprintln!(
                 "       cargo xtask card-check [<mounted card>|<stick dir>|<boot file>]   (default: target/board)"
