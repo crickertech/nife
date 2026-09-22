@@ -1,6 +1,6 @@
-# A riscv64 host that hands this kernel ACPI instead of a device tree
+# 526. A riscv64 host that hands this kernel ACPI instead of a device tree
 
-**Status: PROPOSED 2026-09-20.** Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-riscv64-host-that-hands-us-acpi`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number provisional until the merge queue lands
 it; the slug is provisional too, like every name a lane mints.)*
 
@@ -75,3 +75,9 @@ carries a UEFI stage. Doing ACPI alone keeps this to one thing.
 **The IOMMU line on the same slide.** That is milestone 143 (silicon IOMMU: carrying 16b's driver to
 a board that ships the ratified spec), which is hardware-gated and stays there; `notes/riscv-summit-2026.md`
 records that nothing at the summit moved it.
+
+## Index row
+
+The RISC-V Server Platform specification reached 1.0 and is ratified. Verified away from the talk:
+`riscv-non-isa/riscv-server-platform` tag `v1.0`, published `2026-05-06T20:48:48Z`, release note
+*"First ratified release."*...

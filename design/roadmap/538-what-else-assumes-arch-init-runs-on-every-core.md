@@ -1,6 +1,6 @@
-# What else assumes `arch::init` runs on every core
+# 538. What else assumes `arch::init` runs on every core
 
-**Status: PROPOSED 2026-09-20.** Found by milestone 447 (a thread's vector registers are its own),
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-else-assumes-arch-init-runs-on-every-core`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Found by milestone 447 (a thread's vector registers are its own),
 which hit the instance and named the class in its own report. The instance is fixed in that
 milestone; the class is not audited, and this is that audit.
 
@@ -40,3 +40,8 @@ architecture that claim is false; a reader meeting the name cannot tell. Whether
 rename (calef's), a comment at each call site, or a structural change that gives per-core bring-up
 its own hook, is exactly the sort of thing to decide with the audit's findings in hand rather than
 before them.
+
+## Index row
+
+447 put its floating-point initialisation in `arch::init`, on the reasonable assumption that a hook
+by that name runs when a core comes up.

@@ -1,6 +1,6 @@
-# The soft-float targets could now be flipped, and two measurements should come first
+# 534. The soft-float targets could now be flipped, and two measurements should come first
 
-**Status: PROPOSED 2026-09-20.** Filed by the lane of milestone 447 (a thread's vector registers
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-soft-float-targets-could-now-be-flipped`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by the lane of milestone 447 (a thread's vector registers
 are its own), which built the thing that was blocking the flip and deliberately did not take it.
 
 **Gate: NONE.** Both measurements below run on the dev Mac and need nobody. The flip itself is
@@ -104,3 +104,7 @@ It does not recommend. The *fork reaches calef with its questions already answer
 options and costs on an irreversible fork and explicitly **not** for a winner, because "a
 syscall-surface decision arriving with a recommendation is already most of the way made" and an ABI
 is the same shape of thing.
+
+## Index row
+
+Every target in `targets/` is soft-float.

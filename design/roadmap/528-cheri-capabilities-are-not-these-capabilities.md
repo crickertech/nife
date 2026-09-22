@@ -1,6 +1,6 @@
-# CHERI's capabilities are not this kernel's capabilities, and the tree never says so
+# 528. CHERI's capabilities are not this kernel's capabilities, and the tree never says so
 
-**Status: PROPOSED 2026-09-20.** Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `cheri-capabilities-are-not-these-capabilities`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number and slug provisional until the merge
 queue lands it.)*
 
@@ -74,3 +74,7 @@ If calef reads the summit note and judges that the ambiguity is not going to rea
 readers, close it. It costs one lane and it is documentation, so the downside of skipping it is
 deferred rather than compounding, which is exactly the kind of thing that should lose to a milestone
 on the customer path if one appears.
+
+## Index row
+
+CHERI is no longer being proposed as a RISC-V extension.

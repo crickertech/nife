@@ -1,6 +1,6 @@
-# What a trusted component costs, in the only currency that travels
+# 537. What a trusted component costs, in the only currency that travels
 
-**Status: PROPOSED 2026-09-21.** Raised by the maintainer, from calef's question about how cost per
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-a-trusted-component-costs`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about how cost per
 trusted component would be measured and to what accuracy.
 
 **Gate: NONE.** Everything it needs is already produced and thrown away.
@@ -79,3 +79,8 @@ stops being true.
 **No dashboard.** `script/metrics` already carries a weekly series and a chart nobody has to
 maintain. If this lands anywhere, it lands there, as a column and a paragraph, with the same honesty
 the page already applies to its own undercounts.
+
+## Index row
+
+This tree measures scale: milestones, lines, harnesses, proofs, and since 2026-09-20 a velocity
+chart.

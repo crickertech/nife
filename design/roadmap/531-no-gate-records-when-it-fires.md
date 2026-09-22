@@ -1,6 +1,6 @@
-# No gate in this tree records when it fires, so its own retirement rule cannot be applied
+# 531. No gate in this tree records when it fires, so its own retirement rule cannot be applied
 
-**Status: PROPOSED 2026-09-21.** Raised by a research lane calef briefed to ask what gate practices
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `no-gate-records-when-it-fires`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by a research lane calef briefed to ask what gate practices
 this tree lacks, with the instruction that any gate must prove its worth, existing ones included.
 The lane read `script/lint`'s 47 named checks, the thirteen workflows, `notes/check-inventory.md`,
 `design/fatal-risks.md` and the failure records in `notes/`, and measured the git history for
@@ -444,3 +444,9 @@ The three that bound this proposal:
 
 **If only one is taken, take the first.** The other three are opinions about where the next defect
 will come from. The first is the instrument that would tell us whether this proposal was right.
+
+## Index row
+
+Nothing in this tree should be deleted on the evidence available, and that is the finding rather
+than a reprieve. This tree retires a check on a stated criterion, "a check that only ever rejects
+valid work is measuring the wrong thing",...

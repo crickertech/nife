@@ -1,6 +1,6 @@
-# Whether the roadmap should become issues, and what a citation means after the repository split
+# 533. Whether the roadmap should become issues, and what a citation means after the repository split
 
-**Status: PROPOSED 2026-09-19.** Written by `maintainer/roadmap-after-the-split`, on calef's
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-roadmap-after-the-split`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Written by `maintainer/roadmap-after-the-split`, on calef's
 question of 2026-09-19: *"We have a lot of machinery now for managing milestones. We could use
 issues. Are we sure our current approach is still the right approach? How will we manage this when
 we break up the repo and build packages?"* Shaped for the integrator to mint as a
@@ -25,7 +25,7 @@ layer that gates read and the layer a newcomer reads; (2) yes, at exactly two th
 which is the roadmap; (3) the number breaks and the gloss does not, which is why the identifier is
 the only part worth deciding now.**
 
-## 1. The roadmap is three layers, and only one of them is in `design/roadmap/`
+## The roadmap is three layers, and only one of them is in `design/roadmap/`
 
 Treating it as one thing is what makes the question look hard. Measured in this worktree at
 `bfe6a7ae`:
@@ -50,7 +50,7 @@ cannot hold.
 1, `DECIDED` 1, and 3 with an empty status word. A tracker gives you open/closed plus labels, which
 is fewer distinctions than the tree already makes and no cheaper to keep accurate.
 
-## 2. What a tracker can and cannot carry, checked rather than asserted
+## What a tracker can and cannot carry, checked rather than asserted
 
 ### The four questions from the brief, each answered by a command
 
@@ -75,7 +75,7 @@ present time. Demonstrated:
 ```
 $ old=da2330141b76219ba91a9fcaac42719d689d9993   # 2026-08-01
 $ git show $old:design/roadmap.md | grep '^### 39\.'
-### 39. Repository structure for a loosely-coupled OS, and the road to a distribution
+### Repository structure for a loosely-coupled OS, and the road to a distribution
 $ git show $old:design/roadmap.md | grep -oE '^#{2,3} [0-9]+\.' | tail -1
 ### 57.
 ```
@@ -138,7 +138,7 @@ already available and has zero uptake.** Nothing has to be enabled, configured o
 using issues for the two things above. That is evidence about demand, not about design, and it is
 the cheapest evidence on this page.
 
-## 3. The split is the forcing function, and the number is what breaks
+## The split is the forcing function, and the number is what breaks
 
 DECISIONS §151 rules the goal is independent release and third-party programs, on the Linux
 distribution model: *"The kernel is one independently-released component, not a privileged base."*
@@ -243,7 +243,7 @@ lossy into merely indirect: a number that no longer resolves locally resolves to
 it went and why. It is rung three of the ladder (a written record at the thing itself), it costs one
 file, and it is the only part of this page that is cheap in every option.
 
-## 4. Prior art, read rather than recalled
+## Prior art, read rather than recalled
 
 Fetched 2026-09-19. Every quotation below was read from the URL given.
 
@@ -305,7 +305,7 @@ anywhere above. Rust's move in the opposite direction is also worth one line sin
 the compiler team's MCP process put a *lighter* tier of proposal into tracker issues while leaving
 the heavy tier in the RFC repository, which is a proportionality argument rather than a medium one.
 
-## 5. Recommendation, with the test from §92 (a caretaker is supervised by the client it serves)
+## Recommendation, with the test from §92 (a caretaker is supervised by the client it serves)
 
 **Keep the argument and the status in the tree. Do not move the roadmap to issues. Enable nothing
 and decide nothing about the identifier today, and instead spend one ratchet on the gloss, which is
@@ -351,7 +351,7 @@ why item 1 exists: a gloss ratchet makes options A, B, C and E converge, so the 
 every week it is deferred rather than more expensive. That is unusual enough to be worth stating,
 because the normal shape of a deferred decision here is the opposite.
 
-## 6. What it costs to do nothing, after the decouple-the-lanes work lands
+## What it costs to do nothing, after the decouple-the-lanes work lands
 
 The in-flight work on #999 removes three couplings, and they should not be re-argued here. From its
 block: `script/fatal-risks` reads the blocks rather than the generated index; `script/audits` does
@@ -408,3 +408,9 @@ the identifier is a number, and that is not a problem 443 was scoped to touch.
 - **Nothing here measures how often a citation is actually followed.** The whole argument that
   citations must resolve rests on the assumption that readers follow them. That is plausible, it is
   what `script/citations` exists for, and it is unmeasured.
+
+## Index row
+
+Answered 2026-09-20 by DECISIONS §201 (one roadmap until a citation has to cross), which rules on
+all three asks: the citation identity is deferred under option E with two conditions, a cross-
+repository dependency is declared by the...

@@ -1,6 +1,6 @@
-# Name a customer, or admit the ranking function has nothing to rank
+# 530. Name a customer, or admit the ranking function has nothing to rank
 
-**Status: PROPOSED 2026-09-21.** Raised by the maintainer, from calef's question about what nife
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `name-a-customer`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about what nife
 would have to be to change anyone else's behaviour, and from the fact that every honest answer began
 with "a customer".
 
@@ -87,3 +87,8 @@ of principle 1 while the path is blocked, and it is what the roadmap should act 
 - **A workload arriving that meets the criteria without a package manager**, which is possible and
   should not be ruled out by this decision: the criteria are the test, and the precondition binds
   only third parties.
+
+## Index row
+
+`AGENTS.md`'s first principle ranks work by the shortest path to a system a customer runs, and then
+says plainly that the path is vacant.

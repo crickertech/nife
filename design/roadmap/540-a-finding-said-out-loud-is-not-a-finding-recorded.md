@@ -1,6 +1,6 @@
-# A finding said out loud is not a finding recorded
+# 540. A finding said out loud is not a finding recorded
 
-**Status: PROPOSED 2026-09-20.** Raised by calef, who asked for *"improved rigor around capturing
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it. It was 524 in this branch until 2026-09-21, when a concurrently merged lane took that number; the integrator renumbered at merge, which is the case AGENTS.md predicts for anything global to the tree.)* Promoted from the proposal `a-finding-said-out-loud-is-not-a-finding-recorded`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by calef, who asked for *"improved rigor around capturing
 all of the action without my prompting"* after a day in which he had to ask twice what had not been
 written down, and got four items both times.
 
@@ -76,7 +76,7 @@ which is a different and achievable thing.
 
 ## The proposal, three parts, strongest first
 
-### 1. Capture, then report
+### Capture, then report
 
 **Every finding in a message to calef carries the path where it lives.** A finding the maintainer
 cannot cite a path for gets one before the message is sent, or the message says plainly that it is
@@ -93,7 +93,7 @@ It is the same inversion the tree applies elsewhere: `script/citations` does not
 exists, it checks the ones that are written, and the discipline is to write the gloss while the
 target is open rather than to remember later.
 
-### 2. One inbox, which already exists
+### One inbox, which already exists
 
 A finding that is not a `BUGS` entry beside the feature becomes a file in
 `design/roadmap/proposals/`, immediately, even at three lines. No new machinery is needed:
@@ -104,7 +104,7 @@ The pile is the point rather than an embarrassment. `notes/project-metrics.md` a
 proposal count is closer to debt than a rising provisional-name count is, and that honesty is what
 makes the inbox usable: nobody is tempted to keep the number down by not writing things in it.
 
-### 3. A cadence on disposition, which is the only real gate available
+### A cadence on disposition, which is the only real gate available
 
 The tree cannot check that a finding was entered. It can check that what was entered does not rot.
 Two reports, on the cadence the audit and stranger workflows already run:
@@ -132,3 +132,9 @@ honestly, is the one this tree copied on purpose.
 Whether part 1 becomes a clause in `AGENTS.md`, beside the lane rule it extends, and in what words.
 Parts 2 and 3 need no ruling: the inbox exists, and the first half of the cadence is a few lines
 against a parser that is already written.
+
+## Index row
+
+`AGENTS.md` already binds a lane: *identified work leaves the lane in a tracked form, or the merge
+waits*, in exactly two shapes, a proposed milestone or a recorded limitation where a reader meets
+the feature.

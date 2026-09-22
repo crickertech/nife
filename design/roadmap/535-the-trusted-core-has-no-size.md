@@ -1,6 +1,6 @@
-# The trusted core has no size, and the tree cannot say how big it is
+# 535. The trusted core has no size, and the tree cannot say how big it is
 
-**Status: PROPOSED 2026-09-20.** Filed by `maintainer/redleaf-comparison` from the RedLeaf and
+**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-trusted-core-has-no-size`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/redleaf-comparison` from the RedLeaf and
 Tock-founding-paper reading (`notes/redleaf.md`, `notes/trusted-base.md`). *(Number and slug
 provisional until the merge queue lands it.)*
 
@@ -91,3 +91,9 @@ If calef judges that the TCB size is not a number this project wants to publish,
 measurement's main value is external, and internally the unsafe-density ceiling is already doing the
 work of keeping a lane honest. It costs one lane, it is documentation and one metric column, and
 skipping it defers rather than compounds.
+
+## Index row
+
+What the lane already did, so this proposal is smaller than it looks. `notes/trusted-base.md` now
+states the three definitions, re-derives the numbers, and gives the split that matters (577 `unsafe`
+blocks inside the kernel of 1,138...

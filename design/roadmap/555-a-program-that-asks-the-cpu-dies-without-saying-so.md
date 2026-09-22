@@ -1,6 +1,6 @@
-# A program that asks the CPU dies without saying so
+# 555. A program that asks the CPU dies without saying so
 
-**Status: PROPOSED 2026-09-21.** Raised by the maintainer from two milestones' findings in the same
+**Status: NOT-STARTED.** *(This file was renumbered on 2026-09-22 from 525 to 555 because a concurrently merged lane had taken 525.)* Promoted from the proposal `a-program-that-asks-the-cpu-dies-without-saying-so`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer from two milestones' findings in the same
 week, and filed rather than launched because the third option below is a decision about what a
 program may assume about its machine.
 
@@ -67,3 +67,9 @@ for nobody. **The condition worth writing down is the first program that measura
 performance for want of it**, which is a fact about a benchmark rather than an argument about
 capability. Until then the flags and a legible refusal are the honest position, and B makes the
 refusal cheap to diagnose when the day comes.
+
+## Index row
+
+On `x86_64-unknown-nife` a program that decides at run time which implementation to use, by asking
+the CPU what it supports, executes an AVX2 instruction in ring 3 and dies with `vector 6 (invalid
+opcode)` before printing anything.
