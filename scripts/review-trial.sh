@@ -13,8 +13,13 @@
 #
 # # BUGS
 #
-# - **It does not retry.** A gateway timeout is a lost trial and shows up as an empty output file;
-#   check for one before scoring rather than after.
+# - **A reasoning model spends the budget on thinking**, and LiteLLM returns that as a `thinking`
+#   block rather than a `text` one. `REVIEW_MAX_TOKENS` is 16000 for every trial for that reason,
+#   and it is one number for all models so the conditions do not differ by model. If a run still
+#   returns no text the transcript says so at the top rather than looking like an empty review.
+# - **It does not retry.** A gateway timeout is a lost trial and shows up as a missing output file;
+#   scripts/review-matrix.sh retries, and a cell that is still missing after that is reported as
+#   missing rather than scored as silence.
 # - **Temperature is the gateway's default**, so a rerun will not reproduce a transcript verbatim.
 #   The transcripts in notes/delegated-review/transcripts/ are the record, not a reproducible build.
 set -eu
@@ -47,14 +52,17 @@ export REVIEW_PROMPT="$prompt"
 python3 - "$model" "$out" <<'PY'
 import json, os, sys, urllib.request
 model, out = sys.argv[1], sys.argv[2]
-body = json.dumps({"model": model, "max_tokens": 2000,
+body = json.dumps({"model": model, "max_tokens": int(os.environ.get("REVIEW_MAX_TOKENS", "16000")),
                    "messages": [{"role": "user", "content": os.environ["REVIEW_PROMPT"]}]}).encode()
 req = urllib.request.Request(os.environ["REVIEW_BASE_URL"].rstrip("/") + "/v1/messages",
                              data=body, headers={"content-type": "application/json",
                                                  "x-api-key": "unused-the-gateway-has-no-password"})
-with urllib.request.urlopen(req, timeout=600) as r:
+with urllib.request.urlopen(req, timeout=1200) as r:
     d = json.load(r)
-text = "".join(b.get("text", "") for b in d.get("content", []))
+text = "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
+if not text.strip():
+    text = "[no text block returned; the model spent its budget on thinking]\n\n" + \
+        "".join(b.get("thinking", "") for b in d.get("content", []))
 with open(out, "w") as f:
     f.write(text)
 print(f"{model}: {d.get('usage')}", file=sys.stderr)

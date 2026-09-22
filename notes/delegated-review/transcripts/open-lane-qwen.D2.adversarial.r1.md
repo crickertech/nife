@@ -1,0 +1,11 @@
+1. **kernel/src/user/install_service.rs**: The new `format_disk_description` function returns a `'static str`, but some of its branches return string literals (e.g., `" (already has nife installed)"`) while others do not. However, this is actually correct because all returned values are string literals with static lifetime. So there's no issue here.
+
+2. **kernel/src/user/install_service.rs**: In `spawn_surveyor`, the code grants capabilities to specific slots (`SURVEYOR_SLOT_REPORT`, `SURVEYOR_SLOT_BLK`, etc.) using `crate::sched::grant_at`. These constants must match exactly with how the `disk_surveyor` component expects to receive these capabilities. Any mismatch would lead to runtime errors or incorrect behavior, but verifying this requires checking the `disk_surveyor` source which is outside the provided context. Assuming the constants are correctly matched across components, this should be fine.
+
+3. **kernel/src/user/install_service.rs**: In `spawn_surveyor`, the code waits for two messages from the surveyor via `ipc_recv(report)` but only checks the second message for partition information. This assumes that `_roster_msg` is always successfully received before `table_msg`. While IPC in microkernels often implies ordered delivery, failing to check the result of the first `ipc_recv` might hide issues if the surveyor sends malformed or unexpected initial data.
+
+4. **kernel/src/user/install_service.rs**: In `create_roster_page`, the comment says "SAFETY: a freshly allocated frame..." but doesn't ensure exclusive access or proper initialization beyond zeroing. If another part of the system accesses the same physical address concurrently or assumes certain initial state, this could cause race conditions or inconsistent behavior.
+
+5. **kernel/src/user/install_service.rs**: In `block_devices`, the function collects block devices into an array sized by `block_roster::capacity_of(FRAME_SIZE as usize)`. If `FRAME_SIZE` changes or isn't aligned properly with expected capacity limits, this could overflow buffers or truncate device lists unexpectedly during enumeration.
+
+NO CONCERNS
