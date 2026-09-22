@@ -288,7 +288,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
         "caps pgrep",
         &["cap 7  endpoint  domain   ENUMERATE", "do nothing to them"],
     ),
-    // **`top`, at the real prompt** (milestone 282), and what is asserted is the two things a
+    // **`top`, at the real prompt** (milestone 282 (a thread's CPU time, and the `top` it makes possible)), and what is asserted is the two things a
     // boot cannot make untrue: the summary line's opening, which proves the ambient uptime counter
     // and the domain count both reached the output stream, and the `TIME(ms)` header, which proves
     // the **second** walk happened. A `top` whose CPU-time walk was refused would print the table

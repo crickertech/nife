@@ -448,7 +448,7 @@ path = "src/pgrep.rs"
 test = false
 bench = false
 
-# `top` (milestone 282): the same domain `ps` lists, walked twice and ranked by each thread's
+# `top` (milestone 282 (a thread's CPU time, and the `top` it makes possible)): the same domain `ps` lists, walked twice and ranked by each thread's
 # scheduled CPU time. Holds `ps`'s three capabilities exactly; the difference is the question asked,
 # not the authority held. The summary line is crates/top, the walk and the table are crates/ps, both
 # host-tested. Portable for `ps`'s reason.

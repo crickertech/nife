@@ -85,8 +85,8 @@
 //! question is whether this is a program at all or a flag on `ps`.
 
 #![no_std]
-// Program entry points, not the crates/ library surface milestone 68's ratchet tracks
-// (DECISIONS §107): each `[[bin]]` is its own crate root with one `_start`, and 58 of them
+// Program entry points, not the crates/ library surface milestone 68 (code-quality gates: one lint policy)'s ratchet
+// tracks (DECISIONS §107 (`missing_docs` moves to `workspace.lints.rust`)): each `[[bin]]` is its own crate root with one `_start`, and 58 of them
 // documenting an OS-facing ABI entry point is not what the lint is for.
 #![allow(missing_docs)]
 #![no_main]
@@ -113,7 +113,7 @@ static HAS_DIAG: AtomicBool = AtomicBool::new(false);
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     HAS_DIAG.store(granted(DIAG_SLOT), Ordering::Relaxed);
 
-    // **Walk first, complain second, print third** (DECISIONS §67), for the reason `ps` gives: a
+    // **Walk first, complain second, print third** (DECISIONS §67 (a program's second stream is a declaration, not a number)), for the reason `ps` gives: a
     // survey cannot know its complaints up front, and the reader of the second stream drains it to
     // end-of-stream before it reads a byte of the first.
     let mut rows = [ps::Row::default(); ps::MAX_ROWS];
