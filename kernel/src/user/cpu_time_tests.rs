@@ -117,6 +117,7 @@ fn record_of(viewer: u64, tid: u64, record: u64) -> u64 {
 /// blocked, which is what the comparison catches.
 #[test_case]
 fn the_thread_that_ran_is_the_thread_that_is_charged() {
+    let frames_before = crate::memory::free_page_frames();
     let (budget, rendezvous_region) = arena();
     let supervision = rendezvous(rendezvous_region);
     let parking = rendezvous(rendezvous_region);
@@ -168,6 +169,20 @@ fn the_thread_that_ran_is_the_thread_that_is_charged() {
     let supervisor = hold_supervisor(supervision);
     collect_all(supervisor, &[sleeper]);
     tidy(budget, rendezvous_region, &[viewer, supervisor]);
+
+    // **Wait for this test's own frames to be back before leaving**, which is an assertion and also
+    // a courtesy to whatever runs next. A force-killed runaway is converted to a corpse by a tick
+    // on whichever core holds it, so the last of its pages can land after this body returns; a
+    // neighbouring test that measures `free_page_frames()` either side of its own teardown then
+    // sees *this* test's pages arrive inside its window and reports recovering more than it ever
+    // held. That shape is on record at `live_swap_tests.rs`'s budget assertion
+    // (notes/load-sensitive-assertions.md, "two unowned reds"), and a test that spawns a runaway is
+    // exactly the neighbour that would cause it.
+    assert!(
+        super::wait_for(|| crate::memory::free_page_frames() == frames_before),
+        "this test's frames never came back: {} of {frames_before}",
+        crate::memory::free_page_frames(),
+    );
 }
 
 /// **A blocked thread's figure does not move**, which is the other half of the claim above and the
