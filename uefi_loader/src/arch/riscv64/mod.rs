@@ -121,12 +121,12 @@ pub fn hand_over(
     // milestone 198 (a package manager, and the trivial install that makes a second customer
     // possible)'s rung 2a, which is an x86_64 claim for this reason.
     _boot_file: Option<(u64, u64)>,
-    /// **Always `None` here**, and that is a scope note (DECISIONS §19 (architectural parity is a
-    /// gate, not an aspiration)) rather than an unused parameter. The chooser that would set it is
-    /// `uefi_loader::chooser`, which is x86_64 only for the same reason the install offer is: an
-    /// installed machine on this architecture is what rung 2b of milestone 198 built, and the
-    /// device-tree architectures have no installed disk to choose slots on yet. When they do, this
-    /// parameter is where the number arrives.
+    // **Always `None` here**, and that is a scope note (DECISIONS §19 (architectural parity is a
+    // gate, not an aspiration)) rather than an unused parameter. The chooser that would set it is
+    // `uefi_loader::chooser`, which is x86_64 only for the same reason the install offer is: an
+    // installed machine on this architecture is what rung 2b of milestone 198 built, and the
+    // device-tree architectures have no installed disk to choose slots on yet. When they do, this
+    // parameter is where the number arrives.
     _from_slot: Option<u8>,
 ) -> Result<(), &'static str> {
     if kernel.end > ALLOCATION_CEILING + 1 {

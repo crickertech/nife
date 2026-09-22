@@ -117,9 +117,9 @@ pub fn hand_over(
     kernel: &Placed,
     module: Option<(u64, u64)>,
     boot_file: Option<(u64, u64)>,
-    /// **Which boot slot started this image**, when a chooser did, so the running system can say
-    /// the boot worked. `None` for a stick, a `-kernel` boot, and a chooser's own fallback to the
-    /// image in its file; all three are boots with nothing to confirm.
+    // **Which boot slot started this image**, when a chooser did, so the running system can say
+    // the boot worked. `None` for a stick, a `-kernel` boot, and a chooser's own fallback to the
+    // image in its file; all three are boots with nothing to confirm.
     from_slot: Option<u8>,
 ) -> Result<(), &'static str> {
     // --- The page the kernel's AP bring-up needs, asked for by name ---
@@ -391,9 +391,9 @@ pub fn hand_over(
 struct Trampoline {
     /// Its first instruction, called with the System V convention.
     enter: extern "sysv64" fn(u64, u64, u64, u64) -> !,
-    /// The `lgdt` operand, argument three.
+    // The `lgdt` operand, argument three.
     gdtr: u64,
-    /// The 32-bit continuation, argument four.
+    // The 32-bit continuation, argument four.
     pmode32: u64,
 }
 

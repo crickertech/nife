@@ -2098,6 +2098,16 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         .expect("insert the keyboard driver's endpoint");
         assert_eq!(s12, 12);
     }
+    // **Say that this boot worked**, if a chooser started it (rung 2b of milestone 198's other
+    // half). Here and not a line earlier or later, and the position is the mechanism: the
+    // filesystem server above has mounted the installed disk and reported ready, which is as late
+    // a criterion as this system can evaluate without a person, and the progenitor has not started,
+    // so the disk's one transfer region still has a single user. `install_service::confirm` argues
+    // both halves and names the foot gun in the second.
+    #[cfg(target_arch = "x86_64")]
+    if fs_rights != 0 {
+        install_service::confirm();
+    }
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
     // x0 = the boot role (the progenitor has one role and ignores it, but it is passed for the
