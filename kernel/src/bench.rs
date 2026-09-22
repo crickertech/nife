@@ -503,6 +503,35 @@ fn map_new() {
     #[cfg(target_arch = "riscv64")]
     let fences_before = crate::arch::remote_fence_count();
 
+    // Preemption is masked across the window. Milestone 541 (a timed window that excludes
+    // preemption) is this, and the masking is the whole of it.
+    //
+    // **The window is ~250 microseconds of guest time and the scheduler tick is 10 ms**
+    // (`TICK_HZ` is 100 on all three architectures), so the window covers about 2.5% of a tick
+    // period and whether a timer interrupt lands inside it is decided by the phase the boot
+    // happened to leave the timer in. That phase moves when unrelated kernel code changes size.
+    // On 2026-09-21 a semantically identical rewrite of one expression in `schedule()` moved it,
+    // one preemption landed inside this window, and `map_new` read **+26.4%** and failed the 10%
+    // tripwire while the map path's object code was byte-identical (notes/benchmarks.md).
+    //
+    // Masking removes the coin flip rather than diluting it: with the same perturbation applied,
+    // `map_new` measures 180,537 either way on x86_64, where it measured 180,604 and 228,356
+    // before. The interrupt is not lost, only deferred: it is pending at `restore` below and the
+    // preemption is taken there, outside the window, which is why the probe can still report 1.
+    //
+    // This is a different measurement under `-icount` and the trade is deliberate. All vCPUs
+    // share one virtual clock, so a window that masks interrupts is a window that excludes
+    // whatever the rest of the machine would have done inside it. That is exactly what is
+    // wanted here: the row's job is the cost of mapping a page, not the cost of being
+    // descheduled while mapping one. Rows that mean to measure scheduling (`yield_switch`,
+    // `spawn_reap`) do not do this and must not.
+    //
+    // Safe because nothing on this path blocks: `map_new` retypes from a region, walks the
+    // table and writes a leaf, taking only spin locks. A row whose body can block cannot use
+    // this.
+    let preemptions_before = sched::preemptions_here();
+
+    let irqs_were_on = crate::arch::interrupts::disable();
     timed("map_new", MAP_ITERS, || {
         for i in 0..MAP_ITERS {
             let page = space
@@ -515,6 +544,16 @@ fn map_new() {
             TOTAL.fetch_add(page[0] as u64, Ordering::Relaxed);
         }
     });
+    crate::arch::interrupts::restore(irqs_were_on);
+
+    // **A probe, not a row**, for the reason the fence probe below states: it is a count, and a
+    // 10% tolerance over a count is not a tripwire. It is what makes the masking above auditable
+    // instead of asserted. Read it as "how many preemptions this window did not pay for": a
+    // non-zero value here is the deferred one taken at `restore`, not one inside the window.
+    println!(
+        "bench-probe: map_new_preemptions {} over {MAP_ITERS} iters",
+        sched::preemptions_here() - preemptions_before
+    );
 
     // **Not a `timed` line, and deliberately not on the baseline.** These are counts and a bitmask,
     // not durations: putting them through `timed` would invite `--check` to police them with a 10%

@@ -3664,12 +3664,120 @@ corrected in the same commit as this entry.
 
 ### BUGS
 
+All three of these were closed the same day by milestone 541 (a timed window that excludes
+preemption), whose entry is directly below. They are kept as written because the second one was
+**wrong**, and how it was wrong is the reason the entry below exists.
+
 - **This entry attributes the number and does not fix the benchmark.** `map_new`'s window is short
   enough to be dominated by whether a preemption lands in it, and that is a defect in the benchmark
   rather than in either spelling of `schedule()`. See
-  `design/roadmap/proposals/map-new-times-a-window-too-short-to-mean-anything.md`.
+  design/roadmap/541-a-timed-window-that-excludes-preemption.md (a timed window that excludes
+  preemption), which is this proposal promoted and built.
 - **The five-context-switches reading is arithmetic that fits, not an instrumented count.** The
   lump is measured; its composition is inferred from `47,752 / 9,594`. Nothing here counts the
-  preemptions directly, and a lane that fixes the benchmark should.
+  preemptions directly, and a lane that fixes the benchmark should. **It did, and the count is
+  one.**
 - **No baseline was re-saved.** `map_new`'s baseline of 180,604 is the old spelling's number and
-  still reproduces on `main` exactly.
+  still reproduces on `main` exactly. All three are re-saved by 541, on calef's ruling.
+
+## 2026-09-21: one preemption, not five, and a window that can refuse it
+
+Milestone 541, the entry above promoted and built. Two findings, and the first is a correction to
+the entry above rather than an addition to it.
+
+### The lump is ONE preemption, and a preemption does not cost what a yield costs
+
+Counting directly, with a probe reading a per-core preemption counter across exactly the timed
+window:
+
+| build | preemptions in the window | `map_new` |
+|---|---|---|
+| old chain | **0** | 180,604 |
+| the `match` | **1** | 228,356 |
+
+So the whole 47,752-tick lump is **one** timer preemption. The "about five" reading above divided
+it by `yield_switch`'s 9,594 ticks per iteration, and that denominator is the wrong event: a
+`yield_switch` iteration is a *voluntary* round trip between two kernel threads that are both
+immediately runnable, while a timer preemption is a trap, a dispatch, an EOI, a `schedule()`, and
+then **however long it takes for this thread to be picked again**, which is unbounded by anything
+in the benchmark.
+
+**The spread on that last term is the substantive half of the correction.** The same single
+preemption measured at 4,096 iterations costs **6,670** ticks, against 47,752 at 64. A factor of
+seven, for the same event, depending only on what else was runnable when it landed. That is why
+raising `MAP_ITERS` is not the fix it looks like: the disturbance is not a constant being divided
+by a larger window, it is an unknown number of unknown-sized events.
+
+### Preemption CAN be excluded under `-icount`, and this is the measurement
+
+The open question the proposal could not answer. Masking interrupts across the window
+(`arch::interrupts::disable` / `restore`, which all three architectures already implement):
+
+| | old chain | the `match` | delta |
+|---|---|---|---|
+| unmasked | 180,604 | 228,356 | **47,752** |
+| masked | 180,537 | 180,537 | **0** |
+
+The row is byte-identical across the perturbation that used to move it by a quarter. The
+`-icount` trade is real and is taken deliberately: all vCPUs share one virtual clock, so a masked
+window excludes what the rest of the machine would have done inside it, which is exactly what a row
+named `map_new` should exclude and exactly what `yield_switch` and `spawn_reap` must not.
+
+### The window is ~2.5% of a tick period on every architecture
+
+This is the number that says x86_64 was not special, and it is arithmetic over one measurement of
+each:
+
+| arch | `map_new` window | counter | window in real time | one preemption, priced | as a fraction |
+|---|---|---|---|---|---|
+| aarch64 | 15,870 ticks | 62.5 MHz | 254 us | ~1,759 ticks | **11.1%** |
+| riscv64 | 2,410 ticks | 10 MHz | 241 us | ~112 ticks | **4.6%** |
+| x86_64 | 180,537 ticks | TSC | ~181 us | 6,670 to 47,752 | **3.7% to 26.4%** |
+
+`TICK_HZ` is 100 on all three, so the scheduler tick period is 10 ms and the window covers about
+2.5% of one. Whether a tick lands inside it is a one-in-forty coin flip on the phase the boot left
+the timer in, and unrelated code-size changes move that phase. **aarch64 would fail the 10%
+tripwire on a single preemption**, and the only reason it never had is that the coin had not come
+up heads there yet. The per-preemption prices for aarch64 and riscv64 are lower bounds, measured at
+4,096 iterations where the preempted thread resumed promptly.
+
+### BUGS
+
+- **`map_el0` is the same shape and is not fixed.** It times a mapping loop from EL0, and a kernel
+  cannot mask interrupts around a window it does not own. It has not been measured for this.
+- **The per-architecture preemption prices come from one build each**, at a different iteration
+  count than the one that ships, and the x86_64 row shows the same event varying by a factor of
+  seven. Read them as orders of magnitude.
+- **Nothing sweeps the phase.** "One in forty" is the ratio of two measured durations, not a
+  measured failure rate.
+
+### The counter cost 150 bytes of IPC fastpath, and the increment was not why
+
+`script/fastpath-footprint` was not on this lane's gate list and caught this after the fact:
+riscv64 `ipc_send_recv` at 5.4% over a 5% bound, `syscall_entry` at 6.8%. Three plausible causes
+were all wrong, which is the reason this is written down.
+
+| what was changed | riscv64 `ipc_send_recv` |
+|---|---|
+| base | 4,734 |
+| the milestone as first written | 4,884 |
+| ...with the `fetch_add` deleted, the field kept | **4,884** |
+| ...with the field moved to the end of the struct | **4,884** |
+| base plus the `cpu::PerCpu` field and nothing else | **4,884** |
+| the counter in its own array, `PerCpu` untouched | **4,734** |
+
+It was `size_of::<PerCpu>()` going from **128 to 136**. `PERCPU[id]` indexes an array of that
+struct, so the address is `base + id * size_of`: at 128 that is a shift and `cpu::current()`
+inlines to a couple of instructions at each of its many call sites, several on the IPC fastpath,
+and at 136 every one of them grows. The counter moved to its own array and the fastpath is
+byte-identical to base on all three architectures.
+
+**The instrument lesson, which is why this sits in this file.** Between the two shapes every row
+of `script/bench` moved by at most **0.12%**. A tripwire on time could not see a change a tripwire
+on size failed on. Neither is a substitute for the other, and `map_new`'s own defect was the
+mirror image: a row that moved 26.4% while the code was byte-identical.
+
+`kernel/src/cpu.rs` now asserts the size is a power of two, exempt on x86_64, where the struct
+already carries `x86_trap`, is already 152 bytes, and whose gate is green with room (+1.0%, +1.4%,
++3.9%). The exemption is measured; asserting a property the tree does not hold is how a gate
+teaches people to route around it.

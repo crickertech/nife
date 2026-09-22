@@ -69,6 +69,21 @@
 #   (`ENTRY`, the `case` below, `CALL`) has to be extended when a fourth ISA arrives, and the
 #   `ENTRY` set is a judgement about that ISA's trap architecture rather than a string edit.
 #
+#   **The bound is drift from a recorded figure, not distance from a target**, so headroom is
+#   whatever the last save happened to leave and a branch can be near the bound without having
+#   done anything. On 2026-09-21 riscv64 sat at +2.2% on `ipc_send_recv` and +4.7% on
+#   `syscall_entry` before the branch under test contributed anything, so a 150-byte change failed
+#   the gate while a much larger one would have passed a year earlier. Milestone 541 (a timed
+#   window that excludes preemption) hit this and did not re-save; a lane is re-shaping this gate
+#   to report distance from a 4 KiB target and a 32 KB L1i instead.
+#
+#   **A field added to `cpu::PerCpu` moves these numbers even when the fastpath never reads it**,
+#   which is the failure mode this script is worst at explaining. `PERCPU[id]` indexes an array of
+#   that struct, so its size decides whether the address is a shift or a multiply: taking it from
+#   128 to 136 bytes cost 150 bytes here on riscv64 and 38 on `syscall_entry`, with the code that
+#   wrote the new field costing nothing measurable. `kernel/src/cpu.rs` now asserts the size is a
+#   power of two so that arrives as a failing build instead of as this gate's output.
+#
 # Usage:
 #   script/fastpath-footprint            # measure all three ISAs and check against the baselines
 #   script/fastpath-footprint --save     # re-record the baselines (a statement that a change is intended)
