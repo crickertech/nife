@@ -1866,6 +1866,15 @@ fn deliver_death(sched: &mut IpcTables, corpse: ThreadId, ep: RendezvousId, msg:
 }
 
 /// Called from the timer IRQ. **Records** that a switch is wanted; does not switch.
+///
+/// **`#[inline(never)]`, and the reason is a measurement rather than a preference.** On riscv64 the
+/// timer interrupt and a syscall arrive through the same `riscv_trap_body`, so anything inlined
+/// here lands in a symbol `script/fastpath-footprint` counts **flat**: its bytes are charged to
+/// every syscall although no syscall fetches them, which is the over-count milestone 368 (the entry set is flat, so an inlining flip can move 12% into it) records.
+/// Keeping this a call rather than an inline puts the tick path's bytes in the tick path's own
+/// symbol, where they belong and where the gate can see them for what they are. One `jal` per tick
+/// per core, at 100 Hz, against bytes on the line every syscall shares.
+#[inline(never)]
 pub fn on_tick() {
     cpu::current().need_resched.store(true, Ordering::Relaxed);
     // **Charge this tick to whatever is on this CPU** (milestone 282 (a thread's CPU time, and the `top` it makes possible), DECISIONS §150 (how does a thread's CPU time reach userspace?)). One
