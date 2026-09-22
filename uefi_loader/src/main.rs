@@ -171,8 +171,16 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     #[cfg(not(target_arch = "x86_64"))]
     let boot_file = None;
 
+    // The slot number, on the one architecture that has a chooser to produce it. Carried across
+    // the handoff so a booted system can say the boot worked, which is the half of the two-slot
+    // rollback that rung 2b left unbuilt: see `boot_slot::cmdline`.
+    #[cfg(not(target_arch = "x86_64"))]
+    let from_slot: Option<u8> = None;
+
     // --- 5. The architecture's handover, which ends in the kernel or in an error ---
-    arch::hand_over(handle, table, services, found, &kernel, module, boot_file)
+    arch::hand_over(
+        handle, table, services, found, &kernel, module, boot_file, from_slot,
+    )
 }
 
 /// Place the embedded kernel by its physical addresses, zeroed first so every `.bss` and `NOLOAD`

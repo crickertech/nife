@@ -182,43 +182,98 @@ pub fn encode_module(addr: u64, size: u64) -> [u8; MODULE_ENTRY_LEN] {
 /// milestone 445 (the screen check stops sampling and starts asking). Sized for both whether or
 /// not that feature is on, so a caller's buffer has one length rather than two and nobody reading
 /// the copy that places it has to work out which build they are in.
+/// `boot_slot::cmdline::MAX_LEN` is the third token, which every build can carry: an installed
+/// machine's chooser writes it and every other boot leaves it off.
+///
+/// **This constant is the one place the line's vocabulary is added up**, and that is worth saying
+/// out loud because the tokens themselves belong to two different crates: the screen's to
+/// `machine_discovery::framebuffer`, the slot's to `boot_slot`. Nothing else in the tree sees all
+/// of them at once.
 pub const CMDLINE_LEN: usize = machine_discovery::framebuffer::Framebuffer::MAX_LEN
     + 1
     + machine_discovery::framebuffer::SCREEN_HOLD.len()
+    + 1
+    + boot_slot::cmdline::MAX_LEN
     + 1;
 
 /// **Write the kernel's boot command line**, NUL-terminated, returning its length *without* the
 /// NUL. `out` must be at least [`CMDLINE_LEN`] bytes.
 ///
-/// One token on an ordinary build: the screen the firmware was drawing on, which is the whole of
-/// what milestone 243 (a machine with no serial port has no way to say anything, and no gate can
-/// read it) carries across the handoff.
+/// **Zero when there is nothing to say**, and the caller writes no command line at all in that
+/// case. That is the ordinary shape of a machine with neither a screen nor a chooser.
 ///
-/// **Under the `screen_hold` feature there is a second word**, and it is for one caller:
-/// `cargo xtask uefi-boot`, the gate that photographs that screen. It asks the kernel to stop
-/// between painting its boot tour and clearing it, announce that on the serial line, and wait for a
-/// byte back, so the gate reads a state rather than racing a window. `uefi_loader`'s `Cargo.toml`
-/// says what it costs a machine that is handed it by mistake.
+/// Up to three words, in the order a reader meets them:
+///
+/// - the screen the firmware was drawing on, which is the whole of what milestone 243 (a machine
+///   with no serial port has no way to say anything, and no gate can read it) carries across the
+///   handoff. `None` on a machine the firmware had no graphics output on, which is the `OptiPlex`
+///   with its serial module.
+/// - `boot_slot::cmdline::KEY` and a digit, when a chooser started this image. It is how the
+///   running system learns which slot to confirm, and it is written **only** when there is one:
+///   a stick, a `-kernel` boot, and a fallback to the image in this file all leave it off, and a
+///   kernel that does not find it simply confirms nothing.
+/// - `machine_discovery::framebuffer::SCREEN_HOLD` under the `screen_hold` feature, for one
+///   caller: `cargo xtask uefi-boot`, the gate that photographs that screen. It asks the kernel to
+///   stop between painting its boot tour and clearing it, announce that on the serial line, and
+///   wait for a byte back, so the gate reads a state rather than racing a window.
+///   `uefi_loader`'s `Cargo.toml` says what it costs a machine that is handed it by mistake.
+///
+/// **The screen moved from an argument to an `Option` when the slot arrived**, and the reason is
+/// worth a sentence: the caller used to skip writing a command line entirely when there was no
+/// screen, which would have silently dropped the slot on every serial-only machine. That is the
+/// exact class of bug this feature cannot afford, because its symptom is an upgrade that reverts
+/// days later on one kind of machine.
 ///
 /// **Here rather than in the binary**, so the line two programs agree on is written where a host
-/// test can read it back with the kernel's own parser, which is this module's rule for every other
-/// encoder in it.
+/// test can read it back with the kernel's own parsers, which is this module's rule for every
+/// other encoder in it.
 ///
 /// # Panics
 ///
 /// If `out` is shorter than [`CMDLINE_LEN`].
 #[must_use]
-pub fn cmdline(screen: &machine_discovery::framebuffer::Framebuffer, out: &mut [u8]) -> usize {
+pub fn cmdline(
+    screen: Option<&machine_discovery::framebuffer::Framebuffer>,
+    from_slot: Option<u8>,
+    out: &mut [u8],
+) -> usize {
     assert!(out.len() >= CMDLINE_LEN, "cmdline needs CMDLINE_LEN bytes");
     #[allow(unused_mut)]
-    let mut n = screen.encode(out);
+    let mut n = 0usize;
+
+    if let Some(screen) = screen {
+        n += screen.encode(out);
+    }
+
+    if let Some(slot) = from_slot {
+        let at = if n == 0 {
+            n
+        } else {
+            out[n] = b' ';
+            n + 1
+        };
+        let written = boot_slot::cmdline::encode(slot, &mut out[at..]);
+        // Zero means the number did not fit a digit, which no two-slot disk produces. Leaving the
+        // separator off rather than writing a dangling space keeps the line exactly what the
+        // parsers see.
+        if written > 0 {
+            n = at + written;
+        }
+    }
+
     #[cfg(feature = "screen_hold")]
     {
-        out[n] = b' ';
-        n += 1;
+        if n > 0 {
+            out[n] = b' ';
+            n += 1;
+        }
         let word = machine_discovery::framebuffer::SCREEN_HOLD.as_bytes();
         out[n..n + word.len()].copy_from_slice(word);
         n += word.len();
+    }
+
+    if n == 0 {
+        return 0;
     }
     out[n] = 0;
     n
@@ -256,7 +311,7 @@ mod tests {
             order: PixelOrder::Bgrx,
         };
         let mut out = [0u8; CMDLINE_LEN];
-        let n = cmdline(&screen, &mut out);
+        let n = cmdline(Some(&screen), None, &mut out);
         assert_eq!(
             out[n], 0,
             "the line is NUL-terminated at the length returned"
@@ -335,6 +390,80 @@ mod tests {
         // What the kernel does once it has followed that pointer.
         let text = core::str::from_utf8(&line[..written]).expect("ASCII");
         assert_eq!(Framebuffer::parse(text), Some(screen));
+    }
+
+    /// **The slot number survives the handoff on a machine with no screen**, which is the shape
+    /// this line could not carry before: the caller used to write no command line at all when
+    /// there was no framebuffer, so a serial-only installed machine would have reached its kernel
+    /// with nothing to confirm and reverted every upgrade.
+    #[test]
+    fn a_slot_number_reaches_the_kernel_with_or_without_a_screen() {
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+
+        let screen = Framebuffer {
+            base: 0x8000_0000,
+            width: 800,
+            height: 600,
+            stride: 3200,
+            order: PixelOrder::Bgrx,
+        };
+
+        for with_screen in [None, Some(&screen)] {
+            for slot in [0u8, 1] {
+                let mut out = [0u8; CMDLINE_LEN];
+                let n = cmdline(with_screen, Some(slot), &mut out);
+                assert_eq!(out[n], 0, "NUL-terminated at the length returned");
+                let line = core::str::from_utf8(&out[..n]).expect("ASCII");
+                assert_eq!(
+                    boot_slot::cmdline::parse(line),
+                    Some(slot),
+                    "the kernel's own parser reads the slot back from {line:?}"
+                );
+                assert_eq!(
+                    Framebuffer::parse(line),
+                    with_screen.copied(),
+                    "and the screen token is untouched by the one beside it"
+                );
+            }
+        }
+    }
+
+    /// **A boot with nothing to say writes no command line**, so an ordinary `-kernel` boot and a
+    /// stick are byte-for-byte what they were before the slot token existed.
+    ///
+    /// Skipped under `screen_hold`, which is a build that always has a word to write; the feature
+    /// is one gate's and never a machine's.
+    #[test]
+    #[cfg(not(feature = "screen_hold"))]
+    fn no_screen_and_no_chooser_is_an_empty_line_rather_than_a_blank_one() {
+        let mut out = [0xAAu8; CMDLINE_LEN];
+        assert_eq!(cmdline(None, None, &mut out), 0);
+        assert_eq!(out[0], 0xAA, "nothing was written, not even a terminator");
+    }
+
+    /// **Every token this writer can emit fits [`CMDLINE_LEN`]**, asserted rather than added up by
+    /// a reader, because the constant is the one place the line's vocabulary is summed and the
+    /// tokens belong to two different crates.
+    #[test]
+    fn the_longest_line_this_writer_can_produce_fits_its_own_buffer() {
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+
+        // The widest screen token this encoder can produce, by the fields that are printed in
+        // full: the assertion is against `MAX_LEN`, which is that crate's own claim.
+        let screen = Framebuffer {
+            base: u64::MAX,
+            width: u32::MAX,
+            height: u32::MAX,
+            stride: u32::MAX,
+            order: PixelOrder::Bgrx,
+        };
+        let mut out = [0u8; CMDLINE_LEN];
+        let n = cmdline(Some(&screen), Some(9), &mut out);
+        assert!(
+            n < CMDLINE_LEN,
+            "{n} bytes and a NUL must fit {CMDLINE_LEN}"
+        );
+        assert_eq!(out[n], 0);
     }
 
     /// The two crates agree on the structure's length, which is the fact that would silently break

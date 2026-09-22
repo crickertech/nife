@@ -117,6 +117,10 @@ pub fn hand_over(
     kernel: &Placed,
     module: Option<(u64, u64)>,
     boot_file: Option<(u64, u64)>,
+    /// **Which boot slot started this image**, when a chooser did, so the running system can say
+    /// the boot worked. `None` for a stick, a `-kernel` boot, and a chooser's own fallback to the
+    /// image in its file; all three are boots with nothing to confirm.
+    from_slot: Option<u8>,
 ) -> Result<(), &'static str> {
     // --- The page the kernel's AP bring-up needs, asked for by name ---
     //
@@ -289,16 +293,22 @@ pub fn hand_over(
     // The command line, NUL-terminated, in the page reserved for it above. Written after
     // `ExitBootServices` like everything else in this section: it names memory this loader already
     // owns and needs no firmware call, so there is nothing here that could invalidate the map key.
-    let cmdline = found.screen.map_or(0, |screen| {
-        // The line itself is assembled in the library, where a host test reads it back with the
-        // kernel's own parser; `handoff::cmdline` also says what the `screen_hold` feature adds.
-        let mut token = [0u8; CMDLINE_LEN];
-        let n = uefi_loader::handoff::cmdline(&screen, &mut token);
+    // **A command line whenever there is anything to put on it**, which since rung 2b of milestone
+    // 198 is not the same as "whenever there is a screen": an installed machine with a serial
+    // console and no framebuffer still has to be told which slot it came from, or it can never
+    // confirm the boot and every upgrade to it reverts a few boots later.
+    let mut token = [0u8; CMDLINE_LEN];
+    // The one writer, so what this places is decoded in a host test by the kernel's own parsers;
+    // `handoff::cmdline` says what each token is and what `screen_hold` adds.
+    let written = uefi_loader::handoff::cmdline(found.screen.as_ref(), from_slot, &mut token);
+    let cmdline = if written == 0 {
+        0
+    } else {
         // SAFETY: `CMDLINE_OFFSET + CMDLINE_LEN` is inside page 0 of the handoff block, which was
-        // allocated above and whose first 88 bytes are the structure and the module list.
-        unsafe { ptr::copy_nonoverlapping(token.as_ptr(), cmdline_at as *mut u8, n + 1) };
+        // allocated and zeroed above, and `written + 1` is at most `CMDLINE_LEN`.
+        unsafe { ptr::copy_nonoverlapping(token.as_ptr(), cmdline_at as *mut u8, written + 1) };
         cmdline_at
-    });
+    };
 
     // **Module 0 is the archive and module 1 is this loader's own file, in that order, and the
     // order is the contract.** `arch::x86_64::machine::initrd` reads module 0 and has since
