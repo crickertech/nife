@@ -479,9 +479,16 @@ impl SlotHeader {
 /// | **a word on the command line** | **one token, one parser, and a host test that round-trips it against the kernel's own reader** |
 ///
 /// **This is a value two programs agree on**, which `AGENTS.md` puts in the expensive category, so
-/// the spelling is provisional until calef rules on it. Nothing outside this repository has acted
-/// on it, and a machine handed a line it does not understand simply does not confirm, which is the
-/// safe direction.
+/// **the spelling was ratified by calef on 2026-09-22** ("Ratified"), after he asked what a slot is
+/// and why the number cannot be recomputed. It is now a value this project has committed to.
+///
+/// **Why it cannot be recomputed, which is what the ruling turned on.** A reader will reach for
+/// inferring the slot from the table: the one with the highest priority and tries remaining must be
+/// the one that booted. **That inference is wrong precisely on the boot a confirmation exists for.**
+/// The chooser spends a try *before* handing off, so by the time the kernel looks, the state is no
+/// longer the state the decision was made from: on a trial boot with one try left, the slot that
+/// actually booted now shows zero, and the inference names the other one. A machine would then
+/// confirm the copy it did not boot, which is worse than never confirming.
 ///
 /// # The cost worth naming
 ///
