@@ -63,29 +63,95 @@ const DISK_BYTES: u64 = 1024 * 1024 * 1024;
 /// Where the boot files are staged for this gate. Its own directory rather than `target/esp`,
 /// because that one is what the bench procedure copies to a stick and nothing here should decide
 /// when it is rebuilt.
-fn install_esp_dir() -> PathBuf {
+pub(crate) fn install_esp_dir() -> PathBuf {
     workspace_root().join("target/esp-install")
 }
 
 /// An empty directory to hand the runner as its ESP argument on the second boot. The runner still
 /// requires one and still has to find it; what it does not do is attach it.
-fn empty_esp_dir() -> PathBuf {
+pub(crate) fn empty_esp_dir() -> PathBuf {
     workspace_root().join("target/esp-detached")
 }
 
 /// The NVMe image this gate installs onto, written empty at the start of every run.
-fn install_disk_path() -> PathBuf {
+pub(crate) fn install_disk_path() -> PathBuf {
     workspace_root().join("target/nife-install.img")
 }
 
 /// This gate's own firmware variable store. See the module header: deleting it is a load-bearing
 /// part of the second boot's claim.
-fn vars_path() -> PathBuf {
+pub(crate) fn vars_path() -> PathBuf {
     workspace_root().join("target/ovmf-vars-install.fd")
 }
 
 /// **The gate.** `true` only if both boots did what they were supposed to.
 pub(crate) fn install_boot() -> bool {
+    if !prepare() {
+        return false;
+    }
+    if install_once().is_none() {
+        return false;
+    }
+
+    eprintln!();
+    eprintln!("--- boot 2 of 2: the same machine with the stick detached ---");
+    let Some(second) = boot(
+        &empty_esp_dir(),
+        true,
+        &[
+            // The progenitor's own last line, which is printed after the prompt exists.
+            ("the progenitor is running at ring 3", "ls\r"),
+            // And then read the file back, which is what makes this an install rather than a boot.
+            ("made-on-target", "wc made-on-target\r"),
+        ],
+        // `wc`'s answer for `filesystem_protocol::fixture::blank::MADE_BODY`: one line, ten words,
+        // fifty-seven bytes. Written out rather than derived, because a gate that computed the
+        // number from the same constant the program wrote would be checking its own arithmetic.
+        "1 10 57",
+        300,
+    ) else {
+        return false;
+    };
+
+    let mut ok = true;
+    for wanted in [
+        // The firmware found the file on the disk, with no boot variable and no boot index.
+        "UEFI QEMU NVMe Ctrl",
+        // The loader's own first line, which it has printed since milestone 87 (the x86_64
+        // bare-metal machine) and which says the firmware started what was written rather than
+        // something it found elsewhere.
+        "nife uefi_loader: milestone 87",
+        // Rung 2b: the installed disk's own chooser picked the slot the install marked good, and
+        // the image it started knows which slot it came from.
+        "uefi_loader: starting boot slot 0",
+        "uefi_loader: started from boot slot 0",
+        "nife: handing the system to the userspace progenitor.",
+        // A prompt.
+        "nife capability shell.",
+        // The file `mkfs` wrote before the reboot, listed and then read.
+        "made-on-target",
+        "1 10 57",
+    ] {
+        if !second.contains(wanted) {
+            eprintln!("install-boot: boot 2's transcript is missing {wanted:?}");
+            ok = false;
+        }
+    }
+    // **The offer must not be made to a machine that already carries nife**, or every boot of every
+    // installed machine would pause to ask whether to wipe itself.
+    if second.contains("EVERYTHING ON THAT DISK WILL BE DESTROYED") {
+        eprintln!("install-boot: boot 2 offered to install over an installed machine");
+        ok = false;
+    }
+    if ok {
+        eprintln!("install-boot: PASS");
+    }
+    ok
+}
+
+/// **Build everything and write an empty disk**, which is what any gate starting from a bare
+/// machine needs. Shared with `cargo xtask rollback-boot`, which begins with the same install.
+pub(crate) fn prepare() -> bool {
     // `mkfs` and the FS server, which the archive packs only if something built them for this
     // target. Without `mkfs` the install partitions the disk and leaves the data partition empty,
     // and the second boot then has nothing to read back.
@@ -113,13 +179,15 @@ pub(crate) fn install_boot() -> bool {
         );
         return false;
     }
-    if !write_empty_disk() {
-        return false;
-    }
+    write_empty_disk()
+}
 
+/// **Boot the stick once and let it install itself.** The transcript, or `None` if anything in the
+/// install did not happen.
+pub(crate) fn install_once() -> Option<String> {
     eprintln!();
-    eprintln!("--- boot 1 of 2: the stick installs itself onto an empty NVMe disk ---");
-    let Some(first) = boot(
+    eprintln!("--- the stick installs itself onto an empty NVMe disk ---");
+    let first = boot(
         &install_esp_dir(),
         false,
         // The one thing a person does, typed when the question is on the wire. The marker is the
@@ -130,11 +198,8 @@ pub(crate) fn install_boot() -> bool {
         // sentence then fails on a boot that did everything right.
         "install     : DONE. Remove the installation medium and reboot.",
         420,
-    ) else {
-        return false;
-    };
+    )?;
 
-    let mut ok = true;
     for wanted in [
         "install     : this system was booted from a file and can install itself.",
         "install     :   EVERYTHING ON THAT DISK WILL BE DESTROYED.",
@@ -143,68 +208,15 @@ pub(crate) fn install_boot() -> bool {
         "install     : DONE. Remove the installation medium and reboot.",
     ] {
         if !first.contains(wanted) {
-            eprintln!("install-boot: boot 1's transcript is missing {wanted:?}");
-            ok = false;
+            eprintln!("install: the install transcript is missing {wanted:?}");
+            return None;
         }
     }
-    if !ok {
-        return false;
-    }
-
-    eprintln!();
-    eprintln!("--- boot 2 of 2: the same machine with the stick detached ---");
-    let Some(second) = boot(
-        &empty_esp_dir(),
-        true,
-        &[
-            // The progenitor's own last line, which is printed after the prompt exists.
-            ("the progenitor is running at ring 3", "ls\r"),
-            // And then read the file back, which is what makes this an install rather than a boot.
-            ("made-on-target", "wc made-on-target\r"),
-        ],
-        // `wc`'s answer for `filesystem_protocol::fixture::blank::MADE_BODY`: one line, ten words,
-        // fifty-seven bytes. Written out rather than derived, because a gate that computed the
-        // number from the same constant the program wrote would be checking its own arithmetic.
-        "1 10 57",
-        300,
-    ) else {
-        return false;
-    };
-
-    for wanted in [
-        // The firmware found the file on the disk, with no boot variable and no boot index.
-        "UEFI QEMU NVMe Ctrl",
-        // The loader's own first line, which it has printed since milestone 87 (the x86_64
-        // bare-metal machine) and which says the firmware started what was written rather than
-        // something it found elsewhere.
-        "nife uefi_loader: milestone 87",
-        "nife: handing the system to the userspace progenitor.",
-        // A prompt.
-        "nife capability shell.",
-        // The file `mkfs` wrote before the reboot, listed and then read.
-        "made-on-target",
-        "1 10 57",
-    ] {
-        if !second.contains(wanted) {
-            eprintln!("install-boot: boot 2's transcript is missing {wanted:?}");
-            ok = false;
-        }
-    }
-    // **The offer must not be made to a machine that already carries nife**, or every boot of every
-    // installed machine would pause to ask whether to wipe itself.
-    if second.contains("EVERYTHING ON THAT DISK WILL BE DESTROYED") {
-        eprintln!("install-boot: boot 2 offered to install over an installed machine");
-        ok = false;
-    }
-
-    if ok {
-        eprintln!("install-boot: PASS");
-    }
-    ok
+    Some(first)
 }
 
 /// Write `DISK_BYTES` of nothing, replacing whatever the last run left.
-fn write_empty_disk() -> bool {
+pub(crate) fn write_empty_disk() -> bool {
     match std::fs::File::create(install_disk_path()).and_then(|f| f.set_len(DISK_BYTES)) {
         Ok(()) => true,
         Err(e) => {
@@ -222,7 +234,7 @@ fn write_empty_disk() -> bool {
 ///
 /// Reads bytes rather than lines, which is not a detail: the installer's question ends in `> ` with
 /// no newline, so a line-based reader would not see it until after the answer was due.
-fn boot(
+pub(crate) fn boot(
     esp: &PathBuf,
     detached: bool,
     sends: &[(&str, &str)],

@@ -282,8 +282,18 @@ pub struct BootServices {
     install_configuration_table: usize,
 
     // --- Image services (4 before the one we want) ---
-    load_image: usize,
-    start_image: usize,
+    /// `LoadImage(boot_policy, parent, device_path, source_buffer, source_size, &mut handle)`.
+    ///
+    /// The two calls milestone 198's rung 2b added, and they are what makes the image at
+    /// `\EFI\BOOT\BOOTX64.EFI` a **chooser** rather than only a loader: it reads a boot slot off
+    /// the disk and starts the image in it. `device_path` is null here and `source_buffer` is the
+    /// slot's bytes, which is the specification's own way of starting an image that is not a file
+    /// on a volume the firmware can see.
+    pub load_image:
+        extern "efiapi" fn(u8, Handle, *const c_void, *const u8, usize, *mut Handle) -> Status,
+    /// `StartImage(handle, &mut exit_data_size, &mut exit_data)`. Returns only if the started image
+    /// returns, which for a nife boot image means it failed.
+    pub start_image: extern "efiapi" fn(Handle, *mut usize, *mut *mut u16) -> Status,
     exit: usize,
     unload_image: usize,
     /// `ExitBootServices(image_handle, map_key)`.
@@ -308,7 +318,15 @@ pub struct BootServices {
 
     // --- Library services (2 before the one we want) ---
     protocols_per_handle: usize,
-    locate_handle_buffer: usize,
+    /// `LocateHandleBuffer(search_type, &guid, search_key, &mut count, &mut handles)`.
+    ///
+    /// Rung 2b's other addition, and it asks the one question the chooser cannot answer any other
+    /// way: **which whole disks does this machine have?** `HandleProtocol` asks about a handle
+    /// already in hand and `LocateProtocol` answers with the firmware's first choice; only this
+    /// one enumerates. The buffer comes from the firmware's pool and is never freed, which costs a
+    /// few dozen bytes for the rest of a boot.
+    pub locate_handle_buffer:
+        extern "efiapi" fn(u32, *const Guid, *mut c_void, *mut usize, *mut *mut Handle) -> Status,
     /// `LocateProtocol(&guid, registration, &mut interface)`.
     ///
     /// The one call milestone 243 added, and it is the cheapest possible form of the question:
@@ -456,8 +474,14 @@ pub struct LoadedImage {
     /// media path is a constant. See `src/main.rs`'s `place_boot_file` BUGS note.
     pub file_path: *const c_void,
     reserved: *const c_void,
-    load_options_size: u32,
-    load_options: *const c_void,
+    /// Bytes at [`Self::load_options`]. Set by whoever called `LoadImage`, which for a chain-loaded
+    /// nife image is the chooser.
+    pub load_options_size: u32,
+    /// **What the chooser told this image about itself.** `uefi_loader`'s chooser writes
+    /// `chooser::STARTED_BY_CHOOSER` followed by the slot number here, and the started image reads
+    /// it to know that it is the image being tried rather than the chooser doing the trying. It is
+    /// the one thing that keeps a chooser from chain-loading itself forever.
+    pub load_options: *const c_void,
     image_base: *const c_void,
     image_size: u64,
 }
@@ -541,4 +565,71 @@ pub struct SystemTable {
     pub number_of_table_entries: usize,
     /// **Where the ACPI RSDP is found**, and the reason a UEFI boot needs no `"RSD PTR "` scan.
     pub configuration_table: *const ConfigurationTable,
+}
+
+/// `EFI_BLOCK_IO_PROTOCOL_GUID`.
+pub const BLOCK_IO_PROTOCOL_GUID: Guid = Guid {
+    a: 0x964e_5b21,
+    b: 0x6459,
+    c: 0x11d2,
+    d: [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
+};
+
+/// `LocateHandleBuffer`'s `ByProtocol` search: every handle carrying the named protocol.
+pub const BY_PROTOCOL: u32 = 2;
+
+/// `EFI_BLOCK_IO_MEDIA`, truncated after the last field this loader reads.
+///
+/// The five `BOOLEAN`s are spelled out one by one rather than collapsed for the same reason
+/// [`BootServices`]' unused entries are: their count and their types are the ABI, and a `[u8; 5]`
+/// would hide the padding that puts [`Self::block_size`] at offset 12.
+#[allow(
+    dead_code,
+    reason = "the unread flags hold the read fields at their specified offsets"
+)]
+#[repr(C)]
+pub struct BlockIoMedia {
+    /// Changes when the medium is swapped. Every read and write must carry the current value, which
+    /// is how the firmware refuses a request aimed at a disk that is no longer there.
+    pub media_id: u32,
+    removable_media: u8,
+    /// **False on an empty optical drive**, which is the one handle a naive enumeration trips over.
+    pub media_present: u8,
+    /// **True for a partition, false for the disk it is on.** The chooser wants whole disks: a GPT
+    /// lives at LBA 1 of a disk, and LBA 1 of a partition is somebody's filesystem.
+    pub logical_partition: u8,
+    /// True for a medium that will refuse every write, which the chooser checks before it promises
+    /// itself that a try has been spent.
+    pub read_only: u8,
+    write_caching: u8,
+    /// Bytes per logical block. 512 on everything this has been run on, and not assumed.
+    pub block_size: u32,
+    io_align: u32,
+    /// The last addressable block, so the disk is `last_block + 1` blocks long.
+    pub last_block: u64,
+}
+
+/// `EFI_BLOCK_IO_PROTOCOL`.
+///
+/// **Reads and writes are whole blocks and nothing else**: `size` must be a multiple of
+/// [`BlockIoMedia::block_size`] and the buffer must be aligned, which is why every caller here
+/// works out of a page the firmware allocated.
+#[allow(
+    dead_code,
+    reason = "`reset` holds the three used methods at their specified offsets"
+)]
+#[repr(C)]
+pub struct BlockIo {
+    /// The protocol revision. Not checked: this loader reads only revision-1 fields.
+    pub revision: u64,
+    /// What the medium is.
+    pub media: *const BlockIoMedia,
+    reset: usize,
+    /// `ReadBlocks(this, media_id, lba, size, buffer)`.
+    pub read_blocks: extern "efiapi" fn(*mut BlockIo, u32, u64, usize, *mut u8) -> Status,
+    /// `WriteBlocks(this, media_id, lba, size, buffer)`.
+    pub write_blocks: extern "efiapi" fn(*mut BlockIo, u32, u64, usize, *const u8) -> Status,
+    /// `FlushBlocks(this)`. **The chooser calls it before it hands off**, because a try it has
+    /// spent and a controller has not written down is a try nothing spent.
+    pub flush_blocks: extern "efiapi" fn(*mut BlockIo) -> Status,
 }

@@ -1355,6 +1355,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
   the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
   bench steps for radon and argon**.
+- [Two boot slots, so a bad upgrade cannot brick the machine](boot-slots.md): milestone 198 (a
+  package manager, and the trivial install)'s rung 2b, built, on calef's ruling of 2026-09-21. An
+  installed machine keeps two copies of its boot image, and the state choosing between them
+  (priority, tries, confirmed) lives in the GPT attribute bits the UEFI specification reserves to
+  the owner of the partition type, which is why a boot slot is a partition of nife's own type and
+  not a file. **The correction the rung turned on**: generic firmware does not read those bits and
+  never will, because the specification tells it not to, so ChromeOS's firmware-level selection
+  comes from depthcharge replacing UEFI rather than from the format. The selector is therefore ours,
+  and it is `\EFI\BOOT\BOOTX64.EFI` itself. It spends one of the chosen slot's tries and writes
+  that to the disk **before** handing off, which is the only thing that bounds an image that hangs
+  rather than one that fails where somebody can see it. The table of which failures are caught and
+  which are not, and `cargo xtask rollback-boot`: three boots watching a doomed upgrade be tried,
+  killed at the handoff, and abandoned.
 - [Installing nife onto a disk](installing.md): milestone 515 (a stick that puts itself on the
   machine's disk), which is milestone 198 (a package manager, and the trivial
   install)'s rung 2a, built. `cargo xtask install-boot` boots a stick under OVMF, the installer

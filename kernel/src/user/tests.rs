@@ -400,7 +400,7 @@ fn an_elf_that_asks_to_be_loaded_over_the_kernel_is_refused() {
     let image = forged_elf(mmu::KERNEL_VA_BASE, elf::PF_R | elf::PF_X);
 
     assert_eq!(
-        load(&image).err(),
+        load(&image, 0).err(),
         Some(LoadError::Unmappable(MapError::WrongHalf)),
         "the kernel agreed to map a user program on top of itself",
     );
@@ -417,7 +417,7 @@ fn an_elf_that_asks_for_a_writable_executable_page_is_refused() {
     let image = forged_elf(0x40_0000, elf::PF_R | elf::PF_W | elf::PF_X);
 
     assert_eq!(
-        load(&image).err(),
+        load(&image, 0).err(),
         Some(LoadError::NotLoadable(elf::Error::WritableAndExecutable)),
     );
 }
@@ -425,9 +425,9 @@ fn an_elf_that_asks_for_a_writable_executable_page_is_refused() {
 /// Junk is refused, and refusing it does not take the kernel down.
 #[test_case]
 fn a_bad_binary_is_refused_rather_than_panicking() {
-    assert!(load(b"#!/bin/sh\necho hi\n").is_err());
-    assert!(load(&[]).is_err());
-    assert!(load(&[0u8; 4096]).is_err());
+    assert!(load(b"#!/bin/sh\necho hi\n", 0).is_err());
+    assert!(load(&[], 0).is_err());
+    assert!(load(&[0u8; 4096], 0).is_err());
     // And we are still executing, which is the assertion.
 }
 
@@ -804,7 +804,7 @@ fn an_asid_flush_reaches_the_other_cores() {
 #[test_case]
 fn a_read_only_segment_is_mapped_read_only() {
     let image = loader_subject_image();
-    let (space, _) = load(image).expect("the initrd did not load");
+    let (space, _) = load(image, 0).expect("the initrd did not load");
 
     let rodata = elf::Elf::parse(image)
         .unwrap()
@@ -855,7 +855,7 @@ fn a_read_only_segment_is_mapped_read_only() {
 fn the_hardware_says_el0_cannot_read_the_kernels_memory() {
     const KERNEL_TEXT: u64 = 0xffff_0000_4008_0000;
 
-    let (space, _) = load(loader_subject_image()).expect("the initrd did not load");
+    let (space, _) = load(loader_subject_image(), 0).expect("the initrd did not load");
 
     // SAFETY: nothing is at EL0; we are a kernel thread mid-test.
     unsafe { mmu::activate_user(space.ttbr0()) };

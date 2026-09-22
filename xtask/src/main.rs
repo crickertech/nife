@@ -40,6 +40,8 @@ mod inspect;
 mod install;
 mod manual;
 mod measure;
+/// **The rollback gate** (rung 2b of milestone 198 (a package manager, and the trivial install that makes a second customer possible)): a doomed upgrade is tried and the machine comes back on its own.
+mod rollback;
 mod scanout;
 mod screen;
 mod shell_check;
@@ -164,6 +166,7 @@ fn main() -> ExitCode {
         // exposed on its own because the bench procedure starts by watching this pass locally.
         "uefi-boot" => uefi_boot(),
         "install-boot" => install::install_boot(),
+        "rollback-boot" => rollback::rollback_boot(),
         // Milestone 195: the same firmware, the kernel's test binary instead of its tour.
         "uefi-test" => uefi_test(),
         // The stick (DECISIONS §157): every architecture's boot file, sealed, and `stick_maker`
@@ -236,11 +239,14 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|install-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|install-boot|rollback-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
                 "       cargo xtask install-boot   (x86_64/OVMF: a stick installs itself onto an NVMe disk, then that disk boots with the stick detached)"
+            );
+            eprintln!(
+                "       cargo xtask rollback-boot  (x86_64/OVMF: a doomed upgrade is tried, and the machine comes back on the previous image by itself)"
             );
             eprintln!(
                 "       cargo xtask card-check [<mounted card>|<stick dir>|<boot file>]   (default: target/board)"

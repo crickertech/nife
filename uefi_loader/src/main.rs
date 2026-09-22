@@ -69,6 +69,9 @@ use uefi_loader::efi::{
 use uefi_loader::image;
 
 mod arch;
+/// **Which of the two boot images on the disk to start**, so a bad upgrade cannot brick the machine (milestone 198's rung 2b).
+#[cfg(target_arch = "x86_64")]
+mod chooser;
 
 /// The kernel ELF and the userspace archive, embedded by `build.rs`.
 mod embedded {
@@ -125,6 +128,25 @@ pub extern "efiapi" fn efi_main(handle: Handle, system_table: *mut SystemTable) 
 /// Everything between "the firmware started us" and "the kernel is running", in the one order that
 /// works. Returns only on failure, and only while there is still a console to say so on.
 fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<(), &'static str> {
+    // --- 0. Which image should be running at all ---
+    //
+    // **Before anything is placed**, because the chooser may hand the machine to a different copy
+    // of this binary, and that copy needs the kernel's fixed physical range free. An installed
+    // machine whose slots are all unbootable, a stick, and a `-kernel` boot all fall through this
+    // and boot the image in this file, which is the answer to "what if both slots are bad".
+    #[cfg(target_arch = "x86_64")]
+    let from_slot = chooser::started_from_slot(handle, services);
+    #[cfg(target_arch = "x86_64")]
+    match from_slot {
+        Some(slot) => {
+            // A chooser started us. Say which slot, and do not become a chooser in turn.
+            say(table, "uefi_loader: started from boot slot ");
+            say_decimal(table, u32::from(slot));
+            say(table, "\r\n");
+        }
+        None => chooser::choose(handle, table, services),
+    }
+
     // --- 1. What this architecture needs from the firmware, read before anything moves ---
     let found = arch::discover(table, services)?;
 
@@ -135,8 +157,17 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     let module = place_archive(services)?;
 
     // --- 4. This file's own bytes, so the running system can install itself ---
+    //
+    // An image a chooser started has no file to read back: `LoadImage` from a buffer leaves the
+    // child's device handle null. That narrows an installed machine to not installing itself onto
+    // a second disk, which is `chooser`'s BUGS, and it is also what keeps an installed machine
+    // from offering to wipe itself once per boot.
     #[cfg(target_arch = "x86_64")]
-    let boot_file = place_boot_file(handle, table, services);
+    let boot_file = if from_slot.is_some() {
+        None
+    } else {
+        place_boot_file(handle, table, services)
+    };
     #[cfg(not(target_arch = "x86_64"))]
     let boot_file = None;
 

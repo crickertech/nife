@@ -281,6 +281,31 @@ pub mod types {
         [0xAC, 0x38, 0xA2, 0x74, 0xC5, 0x03, 0x85, 0xBA],
     );
 
+    /// **A nife boot slot**, holding one copy of the image the firmware's chooser starts
+    /// (rung 2b of milestone 198 (a package manager, and the trivial install that makes a second customer possible)).
+    ///
+    /// A random version-4 GUID, generated once on 2026-09-21 and fixed forever, for the same
+    /// reason [`NIFE_DATA`] is: there is no registry to ask and a disk written by one release has
+    /// only this number to agree on with the next. **Never change this value.**
+    ///
+    /// It has a second job [`NIFE_DATA`] does not, and it is the reason a boot slot is a partition
+    /// of its own rather than a file. UEFI 2.11 5.3.3 reserves attribute bits 48 to 63 for
+    /// "GUID specific use" and says *"Only the owner of the `PartitionTypeGUID` is allowed to modify
+    /// these bits"*. Those bits carry the priority, the tries and the confirmed flag that decide
+    /// which image boots (`crates/boot_slot`), and they are ours to define **because this GUID is
+    /// ours**. On a partition of somebody else's type they would be somebody else's bits.
+    ///
+    /// **Ratified by calef on 2026-09-21** ("Ratify the GUID and bit positions"), the same day it
+    /// was minted. A type GUID is a value two programs agree on, so ratification is what moves it
+    /// from a lane's proposal to a number this project has committed to; from here it changes only
+    /// the way [`NIFE_DATA`] would, which is to say not at all.
+    pub const NIFE_BOOT: Guid = Guid::from_fields(
+        0x1163_1EE3,
+        0xE18F,
+        0x4AFC,
+        [0x9D, 0x7F, 0x17, 0x15, 0x72, 0x63, 0x56, 0x29],
+    );
+
     /// A short name for a type GUID, or `None` for one this crate does not recognise.
     ///
     /// Deliberately returns `None` rather than a placeholder: a partition tool should print the raw
@@ -298,6 +323,7 @@ pub mod types {
             APPLE_HFS_PLUS => "Apple HFS+",
             APPLE_APFS => "Apple APFS",
             NIFE_DATA => "nife data",
+            NIFE_BOOT => "nife boot slot",
             _ => return None,
         })
     }
