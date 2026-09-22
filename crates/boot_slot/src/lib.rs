@@ -129,13 +129,18 @@
 //!   irreversible category; calef ratified both on 2026-09-21, so the cost of changing them is now
 //!   paid in disks rather than in code. [`SlotHeader`] carries a version field for exactly that
 //!   reason, and any future change should use it rather than redefining the bits.
-//! - **Nothing in this crate marks a slot successful on its own.** [`State::confirmed`] exists and
-//!   is exercised by the tests; the program that calls it on a running machine does not, so today
-//!   only `installer` sets the bit, at install time, on the slot it just wrote. The consequence is
-//!   precise and it is a real limitation rather than a theoretical one: **an upgrade that is never
-//!   confirmed rolls back after its tries are spent, even though it was working.** That fails
-//!   safe (the machine keeps running the previous image) and it means upgrades do not stick. See
-//!   `design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md`.
+//! - **What confirms a trial boot is a promise, and here is what it can be wrong about.**
+//!   `installer`'s `ROLE_CONFIRM` calls [`State::confirmed`] on a running machine once the
+//!   filesystem server has mounted the installed disk and reported ready, which is the latest
+//!   point this system can reach without a person. So a boot that is confirmed still may not have
+//!   exercised **anything the boot path does not touch** (the network stack, the compositor, a
+//!   driver for a device nothing opens at boot), has **not reached a shell**, and says nothing
+//!   about the seconds after it: a leak, a wedge under load, or a filesystem that mounts and then
+//!   corrupts is confirmed and kept. `kernel/src/user/install_service.rs`'s `confirm` argues the
+//!   criterion and the milestone block has the rest.
+//! - **Nothing in this crate marks a slot successful on its own**, and that is the layering rather
+//!   than a gap: this crate touches no disk. The program is `ROLE_CONFIRM` above, and a machine
+//!   that never runs it rolls back an upgrade that was working, which fails safe.
 //! - **Two slots is not a number this crate enforces.** [`select`] takes a slice of any length and
 //!   the policy is the same for three; `installer` lays out two because a third costs a partition
 //!   and buys nothing until something can use it.
