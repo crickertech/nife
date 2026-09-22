@@ -1,3 +1,25 @@
+# toolchain: nightly-2026-09-20
+# qemu: unrecorded
+# The emulator that counted these instructions. An icount count is a function of two things, the
+# compiler that emitted the instructions and the emulator that counted them, and this tree recorded
+# neither until 2026-09-21. `unrecorded` is the truthful answer for the counts below and not a
+# placeholder: nobody wrote down which QEMU produced them, and inventing a version now would be
+# worse than the gap. `cargo xtask bench --save` writes the real one from the binary it runs, and
+# `--check` compares it against the emulator in front of it from that point on.
+#
+# What is known, and it is why this line exists at all: `.qemu-version` pins **11.0.2**, this
+# machine has had **11.1.1** installed since 2026-08-28, and `script/bench` never looked. So the
+# counts below were read against an emulator that may well not be the pinned one, `script/qemu-check`
+# asserted they were "recorded against" the pin with nothing to support it, and the divergence has
+# already reached published figures. Which version this project should run is calef's call and is
+# deliberately not settled here.
+# The nightly this file's counts are read against. Written by `cargo xtask bench --save` and
+# checked against `rust-toolchain.toml` by `script/lint`, because a compiler bump changes the
+# instruction sequence these counts measure and so silently revalues every number below. On this
+# first stamping the line is a VERIFICATION rather than a recording: the counts were recorded on an
+# earlier nightly and re-checked green against this pin on 2026-09-21, worst margin +0.02% on
+# aarch64 and +2.27% on x86_64, with riscv64's `rfence_self` 7.49% FASTER than its floor. The next
+# `--save` makes it an ordinary recording.
 # bench/baseline-aarch64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on

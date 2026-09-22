@@ -240,6 +240,70 @@ that cancel fixed overhead (the shift is in the measured body, not fixed overhea
 cancel); common-mode subtraction (the shifts are not common-mode). Recorded here rather than quietly
 re-baselined, because the machine overruled the claim.
 
+### The floors name the nightly they were read against (2026-09-21)
+
+**A toolchain bump revalues every number in `bench/baseline-*.txt` and no commit is responsible for
+it.** icount counts guest instructions and a new compiler emits different ones for the same source,
+so the tripwire's headroom moves for a reason nothing in the tree explains. That happened: on
+2026-09-15 the pin went to `nightly-2026-09-15` with the floors left alone, most of the headroom
+went with it, and the tree was bumped again to `nightly-2026-09-20` before anybody acted. It was
+luck that the drift then evaporated. Measured 2026-09-21 the worst margin was +0.02% on aarch64 and
++2.27% on x86_64, with riscv64's `rfence_self` **7.49% faster** than its floor.
+
+So each baseline carries a `# toolchain: nightly-YYYY-MM-DD` line, written by `cargo xtask bench
+--save` from the **pin** rather than from whichever compiler happens to be running, and
+`script/lint` fails when that line and `rust-toolchain.toml` disagree. **It can only fire on a
+branch that raises the pin**, which is the point: the bump is where the delta is caused, where a
+human is already deciding something, and where re-recording is attributable. A general staleness
+check would have failed branches that caused nothing.
+
+**Auto-re-saving on a bump is refused** (calef, 2026-09-21), and the refusal is written at both
+places somebody would reach for it, `script/toolchain-bump` and `.github/workflows/toolchain-bump.yml`.
+A floor that tracks the compiler by construction moves by exactly as much as a nightly moved the
+kernel, so a nightly that genuinely made this kernel slower would report nothing, and catching that
+is most of what the tripwire is for.
+
+### The emulator is the other half of the same fact (2026-09-21)
+
+**An icount count is a function of two things: the compiler that emitted the instructions and the
+emulator that counted them.** The section above made the first a record. The second was worse off,
+and the `rfence` lane found it while chasing a benchmark that had apparently got 7.49% faster:
+**`.qemu-version` pins 11.0.2, this machine has had 11.1.1 installed since 2026-08-28, and
+`script/bench` never checked.** Every committed baseline in this tree was measured against an
+emulator nobody recorded and nothing verified. `script/qemu-check`'s own warning text asserted the
+baselines "were recorded against" the pin, which is the assumption wearing a fact's clothes in the
+one place a reader goes to ask.
+
+**The stamp records the emulator that RAN, not the pin, and the asymmetry with the toolchain stamp
+is the argument rather than an inconsistency.** `rustup` *resolves* the compiler from
+`rust-toolchain.toml`, so there the pin and the thing that ran are one fact by construction (the one
+escape, `RUSTUP_TOOLCHAIN`, is named in the code). **Nothing resolves QEMU from `.qemu-version`.** It
+is a wish about the machine, and on 2026-08-28 the machine stopped granting it. Writing the pin into
+the baseline would file intent under the heading of provenance, which is precisely the defect being
+closed. So `cargo xtask bench --save` asks the binary, and when the answer differs from the pin the
+line says both, because that disagreement is a fact about the numbers rather than something to tidy.
+
+**The check compares the stamp against the emulator in front of it, and lives in `--check` rather
+than in `script/lint`.** A static lint cannot ask this: there is no emulator in a repository. Two
+comparisons were available and only one is honest.
+
+| compared against | what it would do |
+|---|---|
+| `.qemu-version` | fails any baseline truthfully recorded off-pin, so it forbids the file from stating the truth, and still passes a comparison run on a third version |
+| **the emulator this run used** | asks the only apples-to-apples question there is: is the counter reading this floor the counter that produced it |
+
+**`unrecorded` is a truthful answer and does not fail**, the posture
+milestone 115 (the names that were refused) already takes for names. Every baseline carries it today, because
+nobody wrote down which QEMU produced those counts and inventing a version now would be worse than
+the gap. The check therefore fires at full strength from the first honest `--save` onward and never
+on a number nobody stamped.
+
+**What a failure means is not "upgrade something".** A re-record and the pin have to be settled in
+the same commit, because CI builds the pinned emulator (`script/ci-qemu`) and will then read these
+floors on it. **Which version this project should run is calef's, and is deliberately not decided
+here**: the divergence has already reached published figures, so it wants stating rather than
+tidying.
+
 ## Compute vs. OS primitives: two benchmarks that measure different things (milestone 19e)
 
 The microbenchmarks above are the *right* kind for a microkernel: IPC, context switch, the paths a
@@ -1206,6 +1270,11 @@ so it tracks the board list rather than a number somebody liked:
 - **The whole-kernel image: no target at all.** Optimising it would be optimising the wrong thing.
 
 We are at 5.4 KiB and roughly 40 lines, which is the right order of magnitude and not comfortable.
+
+**That sentence is the one-way send, and the shape the system runs is worse.** Measured 2026-09-21
+on `nightly-2026-09-20`, `ipc_call_reply` is 6,038 bytes on riscv64, 7,104 on aarch64 and 8,234 on
+x86_64: **1.47x to 2.01x this target**, and 18% to 25% of the U74's L1i. `script/fastpath-footprint`
+prints those two ratios on every run now, for the reason in the next section.
 The reasoning behind the fraction is Liedtke's rather than a round number: the constraint is not
 that the kernel fits, it is that the kernel leaves most of L1 intact for the application, because
 cache pollution is what Mach actually charged its users.
@@ -1241,6 +1310,50 @@ because these numbers are static: icount drifts when the compiler remakes inlini
 unrelated reasons, where a symbol size moves only when the code moves. DECISIONS §144 replaces that
 stored baseline with a delta against `main` plus an absolute 16 KiB ceiling per architecture; that
 decision is made and not yet built.
+
+### What the gate prints: distance, not drift (2026-09-21)
+
+**The gate reported `+1.4% against baseline (7028)` and nothing else**, which is movement away from
+whatever the binary happened to be the last time somebody re-recorded it. Two things follow and both
+are bad. The number means something different after a compiler change, since symbol sizes move when
+the optimizer does. And it says nothing about the constraint in the script's own first line, *"the
+IPC fastpath must stay small enough to live in L1i"*: the 32 KB and the 4 KiB above were in this
+note and nowhere near the tool that measures against them.
+
+So each figure now prints as bytes, as a multiple of the **4 KiB target**, and as a share of the
+**32 KB L1i** that binds, with `total` also given as a fraction of the 16 KiB ceiling §144 (a delta
+and a ceiling) decides and nothing yet enforces:
+
+```
+    budget: 4096 B target, 32768 B L1i (radon's SiFive U74, the smallest we run on)
+    ipc_send_recv    4734 B   1.16x target  14.4% of L1i  over 8 symbols
+    ipc_call_reply   6038 B   1.47x target  18.4% of L1i  over 10 symbols  <- the shape the system runs
+    ipc_fastpath     6038 B   1.47x target  18.4% of L1i  the worse of the two shapes
+    syscall_entry    1914 B                  5.8% of L1i  over 5 symbols (flat, no closure)
+    total            7952 B   1.94x target  24.3% of L1i  (7.77 KiB), an upper bound
+    49% of the 16 KiB ceiling §144 (a delta and a ceiling) decides and does not yet enforce
+    drift: ipc_send_recv +2.2% against baseline (4632), within the 5% band
+```
+
+**Drift is kept, demoted and relabelled.** It is still the thing that FAILS, because a 5% jump
+inside one pull request is a mistake somebody just made, and that is what a tripwire catches well.
+It is no longer the thing the output is about.
+
+**Neither budget is gated, and that is calef's call on 2026-09-21 rather than an omission.** The
+tree is 1.5x to 2x over the 4 KiB target, so a gate on it would fail on the day it was written.
+Shrinking the fastpath to pass one would be optimising against a target whose value nobody here can
+currently measure: milestone 370 (a layout control) exists precisely because the perturbation
+experiments that would price a byte of footprint cannot yet tell footprint from addresses. Whether
+4 KiB is still the right number belongs with milestone 132 (the fast path's footprint) and
+milestone 188 (the IPC fastpath), and waits on 370. The footprint baselines were deliberately not
+re-saved in the same change, for the same reason.
+
+**And the footprint baselines are eroding the way the icount ones did.** They carry no record of
+the nightly they were measured on, and on 2026-09-20's pin every figure on every ISA sits above its
+baseline, with riscv64's `syscall_entry` at **+4.7% against a 5% band**. One more compiler bump can
+fail this gate for a reason no commit is responsible for. `bench/baseline-*.txt` got the stamp and
+`script/lint`'s check on 2026-09-21; `bench/fastpath-*.txt` did not, because stamping it means
+re-saving it. It is recorded in the script's own `BUGS`.
 
 **What "non-cold" means, since 2026-09-04 (milestone 188 phase 3).** Two families. The panic and
 formatting family is libcore's and is matched by a regex in the script, because it carries no

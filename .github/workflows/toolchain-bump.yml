@@ -5,7 +5,14 @@ name: toolchain bump
 #   1. PROPOSE (here): raise the pin, rebuild the std overlay as a fast sanity check, open a PR.
 #   2. VERIFY (the CI workflow, on that PR): both ISAs, the proofs, the benchmarks. The real gate
 #      stays the real gate; this job deliberately does not try to be it.
-#   3. ACCEPT (a human): merge. Nothing changes what the project compiles with until someone says so.
+#   3. ACCEPT (a human): re-record the icount floors on this branch, having read what moved, then
+#      merge. Nothing changes what the project compiles with until someone says so.
+#
+# **The floors are part of ACCEPT and not of PROPOSE, on purpose** (calef, 2026-09-21). A new
+# compiler emits different instruction sequences, so `bench/baseline-*.txt` is revalued by a bump
+# without any commit being responsible, and `script/lint` fails on this branch until the floors name
+# the new pin. Having this job re-save them would make the floors track the toolchain silently, and
+# a nightly that genuinely made this kernel slower would then never be visible.
 #
 # This job must never push to `main`. An unattended job that can change the toolchain every build in
 # the project uses is exactly the authority it should not have, and the 2026-07-30 incident is the
@@ -159,6 +166,12 @@ jobs:
           check that actually catches drift; everything else is this PR's own CI, which is the point
           of proposing rather than applying.
 
+          NOT MERGEABLE AS-IS: the icount floors in bench/baseline-*.txt still name the old nightly,
+          and script/lint fails until they are re-recorded on this branch. That is deliberate. A
+          different compiler emits different instruction sequences, so those floors are revalued by
+          a change no commit is responsible for, and this job re-recording them for you would make
+          them track the toolchain silently.
+
           Merging changes what every build in the project compiles with, so it wants a human."
             body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
 
@@ -168,6 +181,26 @@ jobs:
           check that catches upstream drift. **Everything else is this PR's own CI**: both ISAs, the
           Kani proofs, and the benchmark tripwire. That split is deliberate, so the proposing job never
           has to be trusted as the gate.
+
+          **\`script/lint\` on this branch WILL fail, and that failure is a step rather than a
+          defect.** The icount floors in \`bench/baseline-*.txt\` carry the nightly they were read
+          against, and this PR has raised the pin past it. icount counts guest instructions, so a new
+          compiler revalues every one of those numbers without a line of this repository changing.
+          On 2026-09-15 exactly that happened with nothing to catch it: the pin moved, the floors did
+          not, most of the tripwire's headroom went, and the tree was bumped again before anybody
+          acted.
+
+          The fix is three commands on this branch, in this PR, having **read the deltas first**:
+
+          \`\`\`
+          script/bench --check && script/bench --riscv --check && script/bench --x86 --check
+          script/bench --save && script/bench --riscv --save && script/bench --x86 --save
+          \`\`\`
+
+          **This job deliberately does not do that for you.** A bump that re-recorded the floors as
+          part of raising the pin would make them track the compiler by construction, so a nightly
+          that genuinely made this kernel slower would move the floor by as much as it moved the
+          kernel and report nothing. Say in the commit message what moved.
 
           If CI here is red, upstream has moved away from us. Do not merge; the fix is a commit to this
           branch adding whatever the overlay now needs (usually a name in the \`pub use

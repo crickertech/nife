@@ -78,10 +78,54 @@ fi
 
 echo "==> Full gate on the new toolchain"
 script/fmt --check
-script/lint
+# **`NIFE_BUMP_IN_PROGRESS` is an exception and it is a foot gun, so it says so here.**
+#
+# `script/lint` fails when `bench/baseline-*.txt` names a nightly other than the pinned one, which
+# is the mechanism that stops a bump silently revaluing the icount floors. This script has just
+# raised the pin and has not re-recorded anything, so that check is guaranteed to fire, and firing
+# here would trip the restore trap above and un-bump a tree that is otherwise fine. So the bump, and
+# only the bump, turns that one check off while it runs.
+#
+# What keeps it honest is that the enforcement was never here. It is `script/lint` in CI on the
+# pull request the bump becomes, where this variable is not set and cannot be, and where the
+# baselines and the pin must agree before anything merges. Setting it anywhere else buys a green
+# lint that means nothing.
+echo "    (NIFE_BUMP_IN_PROGRESS=1: the baseline-nightly check is the one thing a bump is expected"
+echo "     to fail, and CI on the resulting pull request is what actually enforces it.)"
+NIFE_BUMP_IN_PROGRESS=1 script/lint
 script/test
 
 trap - EXIT INT TERM
 echo
 echo "==> Bumped to $new, and every gate passed."
 echo "    Commit rust-toolchain.toml (and the overlay, if it needed new re-exports)."
+echo
+
+# **The floors are now measured against a compiler that is no longer the pinned one.**
+#
+# icount counts guest instructions, so `$new` revalues every number in `bench/baseline-*.txt`
+# without a line of this repository changing. Leaving them alone is what happened on 2026-09-15:
+# the pin moved, the floors did not, most of the tripwire's headroom went, and the tree was bumped
+# again before anyone noticed. It was luck rather than design that the drift later evaporated.
+#
+# **This script does not re-record them for you, and that refusal is the design.** A bump that
+# re-saved the floors as part of raising the pin would make them track the compiler by construction:
+# a nightly that genuinely made this kernel slower would move the floor by exactly as much as it
+# moved the kernel and report nothing, and catching precisely that is most of what the tripwire is
+# for. So the re-save stays a deliberate act, in this bump's own commit, by somebody who has read
+# the delta. `script/lint` refuses to pass until it happens.
+echo "==> One thing is left, and it is deliberately yours rather than this script's:"
+echo
+echo "    The icount floors in bench/baseline-*.txt still name the OLD nightly. A new compiler"
+echo "    emits different instruction sequences, so those numbers have been revalued by a change"
+echo "    nothing in this tree is responsible for. Re-record them IN THIS COMMIT, having read what"
+echo "    moved:"
+echo
+echo "        script/bench --check         # read the deltas first; this is the part that matters"
+echo "        script/bench --riscv --check"
+echo "        script/bench --x86 --check"
+echo "        script/bench --save && script/bench --riscv --save && script/bench --x86 --save"
+echo
+echo "    A floor that moved a long way is not a formality to click past: a nightly can make this"
+echo "    kernel genuinely slower, and re-saving without reading the delta is the one outcome this"
+echo "    mechanism refuses to automate. Say in the commit message what moved."

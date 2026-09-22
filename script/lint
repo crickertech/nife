@@ -1325,6 +1325,95 @@ is the cheaper answer than an exemption; see milestone 287.""", file=sys.stderr)
 print(f"the project's QEMU is on PATH: {checked} entry point(s), each sourcing {FRAGMENT}")
 QEMUEOF
 
+# **The icount baselines name the nightly they were read against, and it has to be the pinned one.**
+#
+# `bench/baseline-{aarch64,riscv64,x86_64}.txt` are the tripwire's committed floors. icount counts
+# guest instructions, so a new compiler revalues every number in them without anything in this
+# repository changing: the floors move for a reason no commit is responsible for, and the tripwire's
+# headroom erodes silently. That is not hypothetical. `nightly-2026-09-15` was pinned with the
+# baselines left un-resaved, most of the headroom went with it, and the tree was bumped again to
+# `nightly-2026-09-20` before anybody acted. It was luck that the drift evaporated: measured
+# 2026-09-21 the worst margin was +2.27%.
+#
+# **This check can only ever fail on a pull request that raises the pin**, which is the whole design.
+# Every other branch carries a baseline and a pin that already agree, and the merge queue rebases
+# onto a `main` where they still do. So a bump pull request is where the delta is caused, where it is
+# visible, and where a human is already deciding something; that is the shape calef chose on
+# 2026-09-21 over a general staleness check, which would fail branches that caused nothing.
+#
+# **Auto-re-saving on a bump is refused, and this is the place somebody would reach for it.** A
+# workflow that re-recorded the floors as part of raising the pin would make them track the compiler
+# by construction, so a nightly that genuinely made this kernel slower would never be visible, and
+# most of what the tripwire exists for is exactly that. The re-save stays a human act in the bump's
+# own commit, with the numbers in front of them. `script/toolchain-bump` says the same thing at the
+# moment it raises the pin.
+#
+# **The one exemption, and it is a foot gun.** `script/toolchain-bump` sets
+# `NIFE_BUMP_IN_PROGRESS=1` around its own gate run, because it has just raised the pin and has not
+# re-recorded anything, so this check is guaranteed to fire and firing there would only un-bump a
+# tree that is otherwise fine. Nothing in CI sets it and nothing else should: the enforcement is
+# this check running unexempted on the bump's pull request. A green lint bought with this variable
+# means nothing.
+echo "==> the icount baselines name the pinned nightly"
+python3 - <<'TOOLCHAINEOF' || exit 1
+import os
+import pathlib
+import re
+import sys
+
+if os.environ.get("NIFE_BUMP_IN_PROGRESS"):
+    print("the icount baselines name the pinned nightly: SKIPPED (NIFE_BUMP_IN_PROGRESS; "
+          "script/toolchain-bump is mid-bump, and CI on its pull request is the real gate)")
+    sys.exit(0)
+
+pin = None
+for line in pathlib.Path("rust-toolchain.toml").read_text().splitlines():
+    if line.lstrip().startswith("channel"):
+        m = re.search(r'"([^"]+)"', line)
+        if m:
+            pin = m.group(1)
+        break
+if pin is None:
+    print("lint: rust-toolchain.toml has no channel line to check the baselines against", file=sys.stderr)
+    sys.exit(1)
+
+STAMP = re.compile(r"^#\s*toolchain:\s*(\S+)\s*$")
+bad, checked = [], 0
+for path in sorted(pathlib.Path("bench").glob("baseline-*.txt")):
+    checked += 1
+    got = None
+    for line in path.read_text().splitlines():
+        m = STAMP.match(line)
+        if m:
+            got = m.group(1)
+            break
+    if got is None:
+        bad.append(f"{path.as_posix()}: no '# toolchain: <channel>' line")
+    elif got != pin:
+        bad.append(f"{path.as_posix()}: recorded against {got}, but rust-toolchain.toml pins {pin}")
+
+if bad:
+    print("lint: the icount baselines do not name the pinned nightly:", file=sys.stderr)
+    for b in bad:
+        print(f"        {b}", file=sys.stderr)
+    print(f"""
+A compiler bump changes the instruction sequences these floors count, so the
+numbers are revalued by a change no commit in this branch is responsible for.
+Re-record them HERE, in the commit that raises the pin, so the delta is seen by
+the person causing it:
+
+    script/bench --save
+    script/bench --riscv --save
+    script/bench --x86 --save
+
+and say in the commit message what moved. If a floor moved a lot, that is the
+gate working: a nightly can make this kernel genuinely slower, and re-recording
+without reading the delta is the one outcome this refuses to automate.""", file=sys.stderr)
+    sys.exit(1)
+
+print(f"the icount baselines name the pinned nightly: {checked} file(s) at {pin}")
+TOOLCHAINEOF
+
 # Counted claims (milestone 125). DECISIONS §39 says a name is a claim; so is a number, and a number
 # is the kind of claim a machine can check, which is what makes this a gate rather than an audit.
 #

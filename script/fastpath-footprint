@@ -48,6 +48,15 @@
 # leaner decoder. The per-symbol reasoning is at `ENTRY` below. `ipc_fastpath` IS comparable across
 # all three: it closes over portable Rust and the symbol sets agree.
 #
+# **What it reports against, since 2026-09-21: distance, not drift.** Every figure is printed as
+# bytes, as a multiple of the **4 KiB target**, and as a share of the **32 KB L1i** that binds
+# (radon's SiFive U74, the smallest among the machines this tree runs on). Those two constants are
+# the reason this gate exists and they were not in its output: it said `+1.4% against baseline
+# (7028)`, which measures movement away from whatever the binary happened to be last month and means
+# something different after every compiler change. Drift is still what FAILS, because a 5% jump
+# inside one pull request is a mistake somebody just made; the budget is reported and not gated,
+# for the reason set out at `L1I` below. See `notes/benchmarks.md`, "The target".
+#
 # **What it is not.** It is not a cache measurement. No cache is modelled by icount and the HVF host
 # has an L1i several times larger than the boards, so nothing in this tree can yet observe the
 # effect this bounds. Milestone 74's PMU counters on milestone 127's Jetson TX1 are what turn this
@@ -106,6 +115,17 @@
 #     is now: x86_64 was widened in on 2026-08-27, `bench/fastpath-x86_64.txt` exists, and
 #     `kernel/src/arch/x86_64/fastpath_pad.rs` does not, so `--features fastpath_pad --arch x86_64`
 #     is still the one thing here that only works on two of three.)
+#   - **The footprint baselines do not name the nightly they were measured on**, and symbol sizes
+#     move with the compiler for the same reason icount counts do. `bench/baseline-*.txt` carries a
+#     `# toolchain:` line since 2026-09-21 and `script/lint` checks it; `bench/fastpath-*.txt` does
+#     not, so a bump can still erode this gate's 5% band silently. It was left that way on purpose
+#     rather than swept in: stamping these files means re-saving them, and calef's 2026-09-21
+#     ruling is that they are not to be re-saved while what a byte of footprint buys cannot be
+#     measured at all (see `L1I` below, and milestone 370 (a layout control)). The erosion is not
+#     hypothetical: measured 2026-09-21 on `nightly-2026-09-20`, every figure on every ISA is above
+#     its baseline, and riscv64's `syscall_entry` is **+4.7% against a 5% band**, so this gate is
+#     one nightly away from failing for a reason no commit is responsible for. The first deliberate
+#     `--save` here is where the stamp belongs.
 #   - **`syscall_entry` is flat, so an inlining decision can move bytes into it that no syscall
 #     fetches.** Three instances in two days on 2026-09-04, each closed with `#[inline(never)]` on
 #     the folded callee. `design/roadmap/368-a-flat-entry-set-counts-bytes-no-syscall-fetches.md`
@@ -391,11 +411,63 @@ entry_syms = [s for s in size if any(re.search(p, s) for p in ENTRY)]
 entry_total = sum(ENTRY_SLICE.get(s, size[s]) for s in entry_syms)
 total = closure_total + entry_total
 
+# **The two numbers this gate is actually about, and until 2026-09-21 it printed neither.**
+#
+# This script's own first line says the fastpath must stay small enough to live in L1i. That is a
+# physical budget, and what the output reported was `+1.4% against baseline (7028)`: drift from
+# whatever the binary happened to be last month. The facts a reader needs were in
+# notes/benchmarks.md and nowhere near the gate, so the gate's number meant something different
+# after every compiler change and said nothing about the constraint it exists to serve.
+#
+#   L1I     32 KB, radon's SiFive U74 (notes/benchmarks.md's cache table names it the binding
+#           constraint: the smallest L1i among the machines this tree actually runs on, and it sits
+#           at the bottom of the frontier range anyway, so it tracks the board list rather than a
+#           number somebody liked).
+#   TARGET  4 KiB, about an eighth of that L1i. notes/benchmarks.md's "The target" derives the
+#           fraction from Liedtke's argument rather than from roundness: the constraint is not that
+#           the kernel fits, it is that the kernel leaves most of L1 intact for the application,
+#           because cache pollution is what Mach actually charged its users.
+#
+# **Neither is gated, and that is a decision rather than an omission** (calef, 2026-09-21). The
+# tree is 1.5x to 2x over the target, so a gate on it would fail on the day it was written and be
+# turned off on the next. Shrinking the fastpath to make it pass would be optimising against a
+# target whose value nobody here can currently measure: milestone 370 (a layout control) exists
+# precisely because the perturbation experiments that would price a byte of footprint cannot yet
+# tell footprint from addresses. Whether 4 KiB is still the right number belongs with
+# milestone 132 (the fast path's footprint) and milestone 188 (the IPC fastpath), and waits on 370.
+#
+# So: distance is REPORTED, because it is the quantity, and it means the same thing after a
+# compiler change. Drift against the committed baseline stays the thing that FAILS, because a 5%
+# jump inside one pull request is a mistake somebody just made, which is what a gate catches well.
+L1I = 32 * 1024
+TARGET = 4 * 1024
+
+
+def against(n):
+    """`n` as a share of the L1i that binds, and as a multiple of the target."""
+    return f"{n / TARGET:5.2f}x target  {100 * n / L1I:4.1f}% of L1i"
+
+
+print(f"    budget: {TARGET} B target, {L1I} B L1i (radon's SiFive U74, the smallest we run on)")
 for label, _ in SHAPES:
-    print(f"    {label:15s}{shape_totals[label]:6d} bytes over {len(shape_syms[label])} symbols")
-print(f"    ipc_fastpath   {closure_total:6d} bytes, the worse of the two shapes")
-print(f"    syscall_entry  {entry_total:6d} bytes over {len(entry_syms)} symbols (flat, no closure)")
-print(f"    total          {total:6d} bytes ({total/1024:.2f} KiB), an upper bound")
+    tail = "  <- the shape the system runs" if label == "ipc_call_reply" else ""
+    print(f"    {label:15s}{shape_totals[label]:6d} B  {against(shape_totals[label])}"
+          f"  over {len(shape_syms[label])} symbols{tail}")
+print(f"    ipc_fastpath   {closure_total:6d} B  {against(closure_total)}"
+      f"  the worse of the two shapes")
+# No target ratio on the entry set: the 4 KiB target is stated over the IPC fastpath's
+# instructions, and the trap path is not part of what it bounds. Its L1i share is still the
+# quantity that matters, since a syscall fetches these bytes too.
+print(f"    syscall_entry  {entry_total:6d} B  {' ' * 15}{100 * entry_total / L1I:4.1f}% of L1i"
+      f"  over {len(entry_syms)} symbols (flat, no closure)")
+print(f"    total          {total:6d} B  {against(total)}"
+      f"  ({total/1024:.2f} KiB), an upper bound")
+# The third distance, and the only one the tree has already voted on. §144 (a delta and a ceiling)
+# decides an absolute 16 KiB per architecture on exactly this `total`, derived in
+# notes/target-hardware.md as half of the 32 KB L1i, which is where Liedtke's argument genuinely
+# weakens. It is DECIDED and not built: no check here enforces it, so printing the fraction is what
+# keeps the decision visible against the number it was made about.
+print(f"    {100 * total / (16 * 1024):.0f}% of the 16 KiB ceiling §144 (a delta and a ceiling) decides and does not yet enforce")
 
 # **`--layout`: where the hot path landed, and proof that nothing else moved** (milestone 134's
 # layout control, 2026-09-19; notes/footprint-perturbation.md). E3 compares kernels that differ in
@@ -676,13 +748,17 @@ for key, got in GATED:
               file=sys.stderr)
         bad = True
     elif abs(delta) > 0.001:
-        print(f"    {key}: {delta*100:+.1f}% against baseline ({ref}), within bound")
+        # Labelled `drift` since 2026-09-21, because that is what it is: movement against a number
+        # this tree happened to record on some earlier day, on some earlier compiler. The lines
+        # above are the distance to the budget, and they are what the gate is about; this is the
+        # secondary signal that catches a sudden jump inside one pull request.
+        print(f"    drift: {key} {delta*100:+.1f}% against baseline ({ref}), within the {TOL*100:.0f}% band")
 sys.exit(1 if bad else 0)
 PYEOF
     rm -rf "$tmp"
     trap - EXIT
 done
 
-[ "$status" = 0 ] && [ -z "$save" ] && [ -z "$features" ] && echo "fastpath-footprint: within bound on every ISA checked"
+[ "$status" = 0 ] && [ -z "$save" ] && [ -z "$features" ] && echo "fastpath-footprint: within the drift band on every ISA checked; the distance to the 4 KiB target is above, and is reported rather than gated"
 [ "$status" = 0 ] && [ -n "$features" ] && echo "fastpath-footprint: measured (--features $features; not checked against the baseline)"
 exit "$status"
