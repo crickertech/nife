@@ -490,16 +490,17 @@ lanes.** When two lanes must gate together, `VERIFY_JOBS=2` each shares the budg
 doubling it. The tell is the same every time and is easy to misread: a heavy job dying with no
 failing assertion, reported as a cancellation or a timing failure rather than as memory.
 
-**And a third ceiling, which is disk, and which the two above will not warn you about** (2026-09-14,
-met four times in one session and treated as an incident each time). Five lanes at roughly 3 GB of
-`target/` each, plus **7.2 GB in the main checkout's own** `target/`, took a 252 GB volume to 1.9 GB
-free and then to a command failing mid-write with `No space left on device`. The main checkout is the
-one nobody watches, because it is not a lane and does not appear in `git worktree list`, and every
-gate run from it builds there. **So: three or four lanes, not five, and run gates from a lane's
-worktree rather than the main checkout**, which removes a whole build tree from the budget. The
-failure mode is the one this file already fears most: disk is the only pressure here that destroys
-work rather than delaying it, and deletes still succeed while writes fail, so recovery is always
-cleanup and never a restart.
+**And a third ceiling, which was disk and is no longer the binding one** (2026-09-14, met four times
+in one session; repriced 2026-09-22). Five lanes at roughly 3 GB of `target/` each, plus **7.2 GB in
+the main checkout's own**, took a 252 GB volume to 1.9 GB free and then to a command failing
+mid-write with `No space left on device`. Pruning fixed it, and what decides lane count now is the
+memory and cores above. **So the lever moved with it: lanes gate in CI rather than here**
+(`briefs/gate-in-ci.md`), which takes QEMU and `script/verify` off this machine and unbinds lane
+count from 16 GB. The trade is wall-clock, 23 to 29 minutes a round, and **lanes are asynchronous**,
+so it costs nothing a person waits for. Two habits survive the repricing: **run any local gate from a
+lane's worktree rather than the main checkout**, the build tree nobody watches because it never
+appears in `git worktree list`; and prune promptly, because disk is still the only pressure here that
+destroys work rather than delaying it, and deletes keep succeeding while writes fail.
 
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
 `verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.

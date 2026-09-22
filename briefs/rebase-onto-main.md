@@ -56,4 +56,9 @@ Two failures are common after a rebase and both are yours to fix:
 
 `script/citations --ratchet` reads the **committed** state, so commit before running it.
 
+**Those three are the whole of your gating, and that is deliberate.** Do not run `script/test` or
+`script/verify` here. They are the heavy half, they belong in CI (`briefs/gate-in-ci.md`), and a
+rebase that also gated would hold this machine's memory for an hour to prove something a runner
+proves for free.
+
 Do **not** push. Do **not** force-push. Leave the branch rebased locally and stop.
