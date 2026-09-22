@@ -1226,6 +1226,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   learning material that page used to list.
 - [Things this project has already gotten wrong](corrections.md): the index of scars, kept because
   the corrections were the most instructive part, each pointing at the note with the full account.
+- [Renting an open-weight model for the mechanical lanes](open-model-lanes.md): the mechanism
+  §202 (mechanical work goes to a cheaper model) and §203 (capacity is rented rather than bought)
+  ruled and nobody built. Why nothing is hosted locally (patagonia is already the ceiling,
+  cordoba is serving the family's photos), why a mechanical lane has to be a separate headless
+  process, and the one thing that makes a cheaper model safe: the gates are the oracle, so the
+  routing rule is about which work has a crisp gate rather than which work is easy.
 - [Prior art and reuse](prior-art.md): where to look before building (Redox, rCore, Tock,
   Hubris, seL4, Fuchsia) and the rule that decides build-vs-reuse: the reuse boundary is the
   TCB boundary. Inside it, always build; userspace components, actively prefer porting,
