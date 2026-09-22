@@ -105,9 +105,10 @@ down, which makes them roadmap items rather than reports.
 - **"It is not production-ready."** Correct. There is no user authentication, no ASLR, no secure
   boot chain to firmware, no network security of any kind, and the shell is a demo. See
   notes/why-not-general-purpose.md.
-- **A hardening feature that is on the roadmap.** design/roadmap/README.md is the list of what is missing
-  and in what order. A missing feature that appears there is a roadmap item; a *defence that is
-  claimed to exist and does not work* is a vulnerability, and that distinction is the whole test.
+- **A hardening feature that is on the roadmap.** design/roadmap/ is what is missing and in what
+  order, one file per milestone (`script/roadmap` reads it). A missing feature that has a block
+  there is a roadmap item; a *defence that is claimed to exist and does not work* is a
+  vulnerability, and that distinction is the whole test.
 - **Anything that requires already being the progenitor.** The progenitor is privileged and unverified, and DECISIONS
   §14 says so in the thesis itself. The kernel confines it, and a compromised progenitor cannot break the
   kernel or escape confinement, but the progenitor's authority over the processes it builds is by design.

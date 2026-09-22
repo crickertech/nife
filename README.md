@@ -86,8 +86,9 @@ you came for.
    the name misleads.
 4. **[`notes/capabilities.md`](notes/capabilities.md)**, the one idea everything else is downstream
    of. If a design choice here looks strange, this is usually the reason.
-5. **[`design/roadmap/`](design/roadmap/README.md)**, the only status in the tree, with a fixed
-   vocabulary and a checker. Anywhere else that claims status is stale by construction.
+5. **[`design/roadmap/`](design/roadmap/)**, the only status in the tree: one file per milestone,
+   with a fixed vocabulary and a checker. `script/roadmap --ready` is the query most readers want.
+   Anywhere else that claims status is stale by construction.
 6. **[`design/decisions/`](design/decisions/README.md)**, one file per decision, cited elsewhere in
    the tree as `§N`, when you want the argument behind a specific choice, including the ones that
    were refused.
@@ -139,8 +140,8 @@ emulator difference, which `script/qemu-check`'s header prices.
 
 ## What it does
 
-This section is deliberately **not** status. Status lives in one place, with a gated status column and
-a checker: **[design/roadmap/](design/roadmap/README.md)**. What follows is what the system *is*, and each
+This section is deliberately **not** status. Status lives in one place, with a gated status line and
+a checker: **[design/roadmap/](design/roadmap/)**. What follows is what the system *is*, and each
 claim points at the artifact that keeps it true rather than repeating a list that goes stale. The
 previous version of this section did repeat them, and drifted twice inside three days.
 
@@ -263,9 +264,11 @@ kernels are structured](notes/portability.md).
 
 ## Milestones
 
-**Not repeated here.** They live in **[design/roadmap/](design/roadmap/README.md)**, which has a status
-column with a fixed vocabulary and a checker (`script/roadmap`) that fails the build if a milestone is
-cited in prose without a row, or carries a status outside the vocabulary. This file used to hold a
+**Not repeated here.** They live in **[design/roadmap/](design/roadmap/)**, one file per milestone,
+each carrying a status line with a fixed vocabulary, and a checker (`script/roadmap`) that fails the
+build if a milestone is cited in prose without a block, or carries a status outside the vocabulary.
+There is no index: `script/roadmap --ready` answers what a newcomer usually came to ask, and the
+vocabulary is in [notes/roadmap.md](notes/roadmap.md). This file used to hold a
 second copy: fifty-two lines of tick-marks, a partial and out-of-order subset, and nothing checking
 it. A duplicate of a gated artifact is the copy that goes stale, because only one of them has the
 gate.

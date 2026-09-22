@@ -117,7 +117,7 @@ def classify(text):
 # done, the four `E0133`s, and Kani's bundled rustc running ten months behind this tree's pin. The
 # same was true of milestone 313's. So keeping the files preserved almost nothing and cost a
 # directory that grows for ever, which is a second place work accumulates and the exact shape
-# `design/roadmap/README.md` calls a burial in a new location.
+# `notes/roadmap.md` calls a burial in a new location.
 #
 # So the count this module feeds is the count of files, and a promoted proposal stops being either.
 # What a promotion owes instead is that **anything the proposal carried and the milestone does not

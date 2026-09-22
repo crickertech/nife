@@ -153,8 +153,8 @@ now records that it asserted the opposite for a month.
   the integrator with file, line and replacement: `design/roadmap/274-apple-silicon-isa-support.md`
   (a `NOT-STARTED` block, so live intent) and
   `design/roadmap/341-instruments-nothing-runs.md`, whose `Gate:` line asked which instrument joins
-  the retired script and was corrected when milestone 433 numbered it on 2026-09-19. The other fifteen blocks and the four
-  `design/roadmap/README.md` rows are accounts and keep the old name.
+  the retired script and was corrected when milestone 433 (drain the proposal pile to zero, and keep it there) numbered it on 2026-09-19. The other fifteen blocks are accounts
+  and keep the old name, as did the four index rows, until the index was retired on 2026-09-21.
 - **Milestone 397.** `script/bootstrap` conflates installing what is missing with verifying the
   environment is adequate, and the second failing is what costs a developer the whole local tier.
   Numbered on 2026-09-19 by milestone 433's drain of the pile, with the note that milestone 287's
@@ -162,7 +162,7 @@ now records that it asserted the opposite for a month.
   it was measured on.
 - **Recorded.** `notes/scripts.md` claimed `script/lint`'s row was the longest markdown line in the
   repository; the counted-claim marker vouches for the number and nothing vouched for which line
-  carried it, and it had moved to `design/roadmap/README.md`. Corrected in place.
+  carried it, and it had moved to the roadmap index, since retired. Corrected in place.
 
 ## Index row
 

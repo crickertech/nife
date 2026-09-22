@@ -1684,7 +1684,11 @@ and a list marker given a second space by a wrap script. After a rewrap, list th
 than the file's width (`git diff -U0 | grep '^+[^+]' | awk 'length > 101'`) and read a
 `--word-diff` of the result; the word diff should show only the names you meant to change.
 
-### The generated roadmap index is not a sweep target, and running the generator proves it
+### The generated roadmap index was not a sweep target, and running the generator proved it
+
+*The index this section is about was retired on 2026-09-21 and `--write` went with it, so there is
+no generated file left in a rename's path. The lesson is kept because the next generated file will
+raise the same question.*
 
 The same lane was briefed to run `script/roadmap --write` after editing, on the reasoning that
 `design/roadmap/README.md` is generated and would pick the rename up. It reported **"index already

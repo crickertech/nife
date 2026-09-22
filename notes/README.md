@@ -38,10 +38,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   risk 3 has never once succeeded, and Miri has been red for three weeks on a missing environment
   variable rather than on undefined behaviour. Name provisional.
 
-- [The roadmap index is generated](roadmap-index.md): `design/roadmap/README.md`'s milestone
-  table is derived from the block files and rewritten by `script/roadmap --write`, because it was
-  the tree's worst merge hotspot: eight conflicts in one session, every one of them in that table
-  and none anywhere else. How to add a milestone now, the measurement that refused the two cheaper
+- [The roadmap](roadmap.md): how to add a milestone, the status, gate and follow-on vocabularies,
+  and the rule that anybody may write a proposal. It also carries the history of the index table
+  that used to sit at `design/roadmap/README.md`: derived from the blocks by milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) because
+  it was the tree's worst merge hotspot (eight conflicts in one session, every one of them in that
+  table and none anywhere else), and retired entirely on 2026-09-21 by calef, because 540 rows of
+  paragraph-length cells are not a document anybody reads. The measurement that refused the two cheaper
   options (the summary scores 0.07 similarity against the block's opening paragraph; 129 of 288
   blocks state no parseable Built date), and the reconstruction that proved the 288-file migration
   lost nothing.
@@ -131,7 +133,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [Handing a session over](session-handoff.md): **superseded, and this entry advertised it as
   current for thirty-eight days.** Written 2026-07-29 as a restart point for one session, and its
   own opening asked to be deleted or overwritten once stale. What a fresh context needs now is
-  `AGENTS.md` (roles, merge authority, lane discipline) and `design/roadmap/README.md` (the queue).
+  `AGENTS.md` (roles, merge authority, lane discipline) and `script/roadmap --ready` (the queue).
   The page is kept for its account of what landed on 2026-07-29, which is the only narration
   several of those decisions have, and it now carries a banner saying not to follow its process.
 

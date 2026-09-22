@@ -1,9 +1,12 @@
 #!/bin/sh
 #
 # Report progress against the user journeys in design/journeys/ (index: README.md, one file per
-# journey), reading each journey's steps against design/roadmap/README.md and
-# design/decisions/README.md, the same indices script/roadmap and script/decisions already treat as
-# ground truth.
+# journey), reading each journey's steps against the milestone blocks in design/roadmap/ and the
+# index in design/decisions/README.md, the same records script/roadmap and script/decisions already
+# treat as ground truth. The roadmap half was an index table too until 2026-09-21, when calef
+# retired it; the blocks it was generated from are read directly now, which is one file open per
+# milestone instead of one, and the only shape a milestone's status has ever had that cannot go
+# stale.
 #
 # Why this exists: a milestone answers "is this piece of work done"; a journey answers "could a
 # person actually do the whole thing today, start to finish". No single milestone was blocking the
@@ -13,9 +16,9 @@
 # question deserves, rather than a one-off trace repeated by hand each time someone asks it again.
 #
 # A journey has no status field of its own; design/journeys/README.md explains why (the same reason
-# script/roadmap's Built-date column and script/lint's counted-claims checks exist: a hand-written
+# script/roadmap's Built-date check and script/lint's counted-claims checks exist: a hand-written
 # number nobody re-derives drifts the moment reality moves under it). Everything printed here is
-# computed fresh from the two indices, every run.
+# computed fresh from the two records, every run.
 #
 # With no arguments, lists every journey with a one-line rollup. Given a journey's number, slug, or
 # filename (with or without `.md`), prints that journey's full step-by-step detail. `--check`
@@ -60,12 +63,38 @@ def load_index(path, row_re):
     return out
 
 
-# Same row shapes script/roadmap and script/decisions already parse: `| N | STATUS | [title](...) |`
-# with the roadmap carrying two more trailing cells this script does not need.
-ROADMAP_ROW = re.compile(r"^\| (\d+) \| ([A-Z-]+) \| \[")
+# The decision index's row shape, which script/decisions parses too.
 DECISION_ROW = re.compile(r"^\| (\d+) \| ([A-Z][A-Z0-9 ]*[A-Z0-9]) \| \[")
 
-milestones = load_index(os.path.join(rd, "README.md"), ROADMAP_ROW)
+# The milestone blocks, read the way script/roadmap reads them: the number is the filename's and
+# the status is the first non-blank line after the H1. A lettered addendum (20a) carries neither
+# and is skipped, exactly as it is one directory over. Only the number and the status are wanted
+# here, so this deliberately does not re-implement the rest of that script's validation: a block
+# this cannot parse is script/roadmap --check's failure to report, not this one's.
+BLOCK = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
+STATUS = re.compile(r"\*\*Status: ([A-Z-]+)\b")
+
+
+def load_blocks(d):
+    out = {}
+    try:
+        names = sorted(os.listdir(d))
+    except FileNotFoundError:
+        print(f"journeys: {d} not found", file=sys.stderr)
+        sys.exit(1)
+    for fname in names:
+        m = BLOCK.fullmatch(fname)
+        if not m:
+            continue
+        lines = open(os.path.join(d, fname)).read().split("\n")
+        first = next((l for l in lines[1:] if l.strip()), "")
+        sm = STATUS.match(first)
+        if sm:
+            out[int(m.group(1))] = sm.group(1)
+    return out
+
+
+milestones = load_blocks(rd)
 decisions = load_index(os.path.join(dd, "README.md"), DECISION_ROW)
 
 STEP_ROW = re.compile(
@@ -115,7 +144,7 @@ for fname in sorted(os.listdir(jd)):
         step, ms = int(step), int(ms)
         dec = int(dec) if dec else None
         if ms not in milestones:
-            problems.append(f"{fname}:{i}: step {step} cites milestone {ms}, which has no index row")
+            problems.append(f"{fname}:{i}: step {step} cites milestone {ms}, which has no block")
         if dec is not None and dec not in decisions:
             problems.append(f"{fname}:{i}: step {step} cites decision {dec}, which has no index row")
         steps.append((step, ms, dec, need))

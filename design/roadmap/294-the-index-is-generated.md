@@ -2,6 +2,17 @@
 
 **Status: BUILT** 2026-09-14. Minted by the maintainer on 2026-09-14, out of a session that
 resolved eight merge conflicts and found every one of them in the same table.
+
+**The table this built was retired on 2026-09-21**, by calef: *"I don't think the milestone index
+table is worth building any more. It has too many rows to be digestible as a table."* **That is not
+this milestone being undone.** The migration below is exactly what made the retirement cost nothing:
+by the time the table went, every cell in it was a rendering of text living in a milestone's own
+file, so deleting it deleted no writing. Retiring it a month earlier would have destroyed 288
+hand-written summaries and 288 dates. What survives of the generator is `script/roadmap --index`,
+which assembles the same five columns as a feed for `script/audits` and `script/fatal-risks`; the
+vocabularies that surrounded the table are in `notes/roadmap.md`. The status stays **BUILT** rather
+than becoming REMOVED, because what this milestone built was the *derivation*, and the derivation
+is what made the deletion free.
 *(Number provisional until the merge queue lands it.)*
 
 **The defect was structural, not bad luck.** `script/lint` check 4b requires every lane to touch
@@ -108,18 +119,19 @@ back. The cost of not failing is in BUGS below, named rather than hidden.
 ## Follow-on
 
 - **Recorded.** The committed table can lag the blocks between a merge and a regeneration; detection
-  is rung two and the action is rung four. Recorded in this block's `BUGS` and in
-  `design/roadmap/README.md` where a reader meets the table.
+  is rung two and the action is rung four. Recorded in this block's `BUGS` and, while the table
+  existed, beside it in `notes/roadmap.md`'s predecessor; the table was retired on 2026-09-21 and
+  the staleness went with it.
 - **Recorded.** `## Index row` is a provisional name, like every name a lane ships. It sits beside
   `## Follow-on` and `## BUGS` as a section `script/roadmap` reads, and the refusals are in
-  `notes/roadmap-index.md`.
+  `notes/roadmap.md`.
 - **Milestone 412.**
   This lane's first `script/test` failed on `uefi-boot`'s `smp: 2 core(s) online` assertion, from a
   tree whose diff `cargo xtask` does not read, and passed on the next two runs. The tree already
   records that flake and bounds it at `-smp 3` and above, which the tour's own comment reasons from;
   it reaches two.
 - **Done.** The migration itself: 288 blocks, text moved rather than rewritten, verified by
-  reconstruction. The method and the script are in `notes/roadmap-index.md` so the next
+  reconstruction. The method and the script are in `notes/roadmap.md` so the next
   column-shaped migration does not have to re-derive it.
 
 ## BUGS

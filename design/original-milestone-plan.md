@@ -38,7 +38,7 @@ process owns and delegates (notes/frames.md); SMP (§11); Call/Reply IPC, a one-
 (§12, milestone 12); and capability revocation with safe untyped reclamation, scoped to frames (§13,
 milestone 13).
 
-**The road past v1** is sketched in [design/roadmap/](roadmap/README.md): proposed milestones
+**The road past v1** is sketched in [design/roadmap/](roadmap/): proposed milestones
 12-17 and the two decisions they force. Milestone 12 (Call/Reply IPC) is §11's sibling in getting its own
 decision entry before code, and the first of them built; the rest stay proposals until started.
 

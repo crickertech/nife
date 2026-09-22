@@ -42,15 +42,17 @@ retirement, when there is something to generalize from.
 **A journey has no status field of its own, and that is deliberate.** A hand-written "70% done" is
 exactly the kind of claim this tree's own `counted-claims` mechanism exists to replace: a number
 nobody re-derives drifts the moment one of its steps moves. `script/journeys` computes a journey's
-state by reading `design/roadmap/README.md` and `design/decisions/README.md`, the same indices
-`script/roadmap` and `script/decisions` already treat as ground truth, so a journey file records
+state by reading the milestone blocks in `design/roadmap/` and the index in
+`design/decisions/README.md`, the same records `script/roadmap` and `script/decisions` already treat
+as ground truth, so a journey file records
 only what a human has to write: which steps, in what order, and why each one is on the path.
 
 ## Index
 
 GitHub renders this README as the directory index. `script/journeys` is the live view; this table
-is the identity mapping only, the same division `design/roadmap/README.md` and
-`design/decisions/README.md` already make between "what number is this" and "what state is it in".
+is the identity mapping only, the same division `design/decisions/README.md` makes between "what
+number is this" and "what state is it in". `design/roadmap/` no longer keeps an index at all, and
+the reason it can afford not to is that nothing there needs a second copy of a number.
 
 | # | journey |
 |---|---|

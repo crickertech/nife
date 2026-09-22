@@ -9,7 +9,7 @@
 use crate::Sink;
 
 /// The longest source line the renderer holds. The longest line in this repository's markdown is
-/// 2047 bytes <!--count:longest-markdown-line-->; this is the next power of two above it, so the
+/// 1925 bytes <!--count:longest-markdown-line-->; this is the next power of two above it, so the
 /// corpus fits with room and a document from elsewhere fails loudly through
 /// [`Renderer::truncated`] rather than quietly.
 ///
@@ -32,8 +32,8 @@ pub const TABLE_COLS: usize = 8;
 ///
 /// A longer table is **not** truncated: it is emitted in chunks of this many rows, each aligned to
 /// its own widths. That is the failure mode worth having, because the alternative loses text. This
-/// repository's largest table is 117 rows (`design/roadmap/README.md`), so the case is real rather
-/// than defensive.
+/// repository's largest table is the decision index in `design/decisions/README.md`, over 200 rows,
+/// so the case is real rather than defensive.
 pub const TABLE_ROWS: usize = 48;
 
 /// Bytes of cell text the renderer holds at once, spilling into a new chunk when it is full, on the

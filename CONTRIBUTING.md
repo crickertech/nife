@@ -162,8 +162,10 @@ is in the medium this project exists to get things out of.
 - [`design/decisions/`](design/decisions/README.md) is what was chosen, what was rejected, and why,
   **including the decisions that were refused**. That is on purpose: you can disagree with an
   argument, but not with an authority.
-- [`design/roadmap/`](design/roadmap/README.md) is the only status in the tree. It has a fixed
-  status vocabulary and a checker; anywhere else that claims status is stale by construction.
+- [`design/roadmap/`](design/roadmap/) is the only status in the tree: one file per milestone, no
+  index, and `script/roadmap` to query it. It has a fixed status vocabulary
+  ([notes/roadmap.md](notes/roadmap.md)) and a checker; anywhere else that claims status is stale by
+  construction.
 - [`notes/`](notes/README.md) is a glossary written while building, one file per question that
   turned out to be load-bearing.
 - [`design/audit-reports/`](design/audit-reports/) is every audit, its lens, and when the next is due.

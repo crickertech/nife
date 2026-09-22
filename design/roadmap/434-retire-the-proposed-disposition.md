@@ -36,7 +36,7 @@ finished block's gate can only be stale.
 calef ruled on 2026-09-19 that `design/roadmap/proposals/` should not exist, milestone 433 drained
 all 106 files out of it, and two records were rewritten to say so:
 `design/decisions/140-follow-on-disposition-vocabulary.md` retired `Proposed.` and left six words,
-and `design/roadmap/README.md` says a lane writes the numbered block itself.
+and the roadmap's own prose, now `notes/roadmap.md`, says a lane writes the numbered block itself.
 
 **The scripts said otherwise.** `script/roadmap` still accepted `Proposed.` in a follow-on bullet,
 still required that bullet to name a file under a directory that no longer exists, still carried a
@@ -110,7 +110,7 @@ longer applies, since there is one caller now. The module stays a module anyway:
 reader meets the explanation of why a column on a live dashboard is permanently zero going forward,
 and folding fifty lines of a dead record form into the middle of the dashboard would bury that.
 
-### `design/roadmap/README.md`, one word
+### The roadmap's disposition table, one word
 
 The disposition table still introduced itself as "one of eight dispositions" after its own row for
 `Proposed.` was deleted. Seven now, six of which any block may use and `Outstanding.` only a

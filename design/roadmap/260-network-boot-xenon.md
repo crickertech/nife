@@ -6,7 +6,7 @@ Built 2026-09-05: everything that does not need xenon or the house router, which
 this block predicted. **What remains is one bench session and one router edit**, both calef's, and
 both now written down as procedures rather than as intentions.
 
-**Gate: HARDWARE.** In the second sense `design/roadmap/README.md` names: xenon is here, the
+**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names: xenon is here, the
 router is here, and what remains is a person standing at both. Two firmware settings (tick `Enable
 UEFI Network Stack`, move Integrated NIC to `Enabled w/PXE`), one router edit, one power cycle and
 one photograph. They are calef's because they are his machine and his house network, not because

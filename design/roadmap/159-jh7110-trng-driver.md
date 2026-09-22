@@ -10,7 +10,7 @@ The driver's own logic can be written and host-tested without silicon; whether i
 usable entropy, and at what rate, can only be verified by reading real bits off a real TRNG.
 
 **Status deliberately did not move on 2026-08-24, and again on 2026-09-01, and this section is
-both lanes' report of why**, per `design/roadmap/README.md`'s own rule that a branch touching
+both lanes' report of why**, per this directory's own rule that a branch touching
 nothing else in this file must at least say so.
 
 The first lane (2026-08-24) confirmed the TRNG from documentation, wrote and host-tested its

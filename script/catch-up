@@ -3,7 +3,7 @@
 # script/catch-up [<since>]: what changed since I last looked?
 #
 # A derived view, not a record. The tree already carries its chronology in four places (the git log,
-# the pull request bodies, the roadmap's Built column, dated decisions), and a hand-maintained trip
+# the pull request bodies, each milestone block's Built date, dated decisions), and a hand-maintained trip
 # log would be a fifth copy of facts that already exist, which is the duplication milestones 96 and
 # 114 spent 2026-08-04 removing from the inits and from the decisions. The cautionary example is
 # notes/session-handoff.md: a "current state" document that rotted until milestone 94's sweep found
@@ -155,10 +155,17 @@ print(f"          to   {head_sha[:9]} on {head_branch}: {head_subject[:56]}")
 
 
 # ---- the roadmap -------------------------------------------------------------------------------
-# Two formats, because the directory is one day old. The current index is
-# `| N | STATUS | [title](file) | why | built |`; its predecessor design/roadmap.md carried the same
-# first three columns without the link, and before 2026-07-30 carried no status column at all. All
-# three are recognised, and the third is reported as a gap rather than as an empty result.
+# Three formats, because this window can reach back across two changes of shape. Since 2026-09-21
+# there is no index at all (calef retired it) and the milestone blocks are read directly. Before
+# that the index was `| N | STATUS | [title](file) | why | built |`; its predecessor
+# design/roadmap.md carried the same first three columns without the link, and before 2026-07-30
+# carried no status column at all. All four are recognised, and the last is reported as a gap
+# rather than as an empty result.
+#
+# **The index is still read where it exists**, rather than reading blocks everywhere. A revision's
+# report should say what that revision said, and between a merge and an integrator's regeneration
+# the committed table lagged the blocks; re-deriving an old week from its blocks would report
+# transitions on days nobody saw them.
 #
 # **The pre-column status is deliberately not reconstructed from the prose**, though the prose is
 # right there in the detail cell and says "Built" often enough to tempt a grep. That grep is the
@@ -170,6 +177,41 @@ print(f"          to   {head_sha[:9]} on {head_branch}: {head_subject[:56]}")
 def split_cells(line):
     # `\|` inside a cell is an escaped pipe, not a separator: milestone titles use it.
     return [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+
+
+def parse_blocks(rev):
+    """(rows, path, 0) read from the per-milestone blocks, for a revision with no index.
+
+    One `git cat-file --batch` over `<rev>:<path>` for every block, which is two processes for the
+    whole directory rather than one per milestone. The three fields are where `script/roadmap`
+    reads them: the number from the filename, the status from the first non-blank line after the
+    H1, the Built date from the `**Built:**` line under `## Index row`.
+    """
+    names = ls_tree(rev, "design/roadmap")
+    if names is None:
+        return None, None, 0
+    blocks = [n for n in names if re.fullmatch(r"\d+-[a-z0-9][a-z0-9-]*\.md", n)]
+    if not blocks:
+        return None, None, 0
+    spec = "".join(f"{rev}:design/roadmap/{n}\n" for n in blocks)
+    out = subprocess.run(["git", "cat-file", "--batch"], input=spec.encode(),
+                         capture_output=True).stdout
+    rows, pos = {}, 0
+    for name in blocks:
+        end = out.index(b"\n", pos)
+        size = int(out[pos:end].split()[2])
+        text = out[end + 1:end + 1 + size].decode("utf-8", "replace")
+        pos = end + 1 + size + 1
+        lines = text.split("\n")
+        first = next((l for l in lines[1:] if l.strip()), "")
+        sm = re.match(r"\*\*Status: ([A-Z-]+)\b", first)
+        if not sm:
+            continue
+        title = lines[0][2:].strip() if lines[0].startswith("# ") else name
+        title = re.sub(r"^\d+[a-z]?\. ", "", title)
+        bm = re.search(r"^\*\*Built:\*\*\s*(\d{4}-\d{2}-\d{2})\s*$", text, re.M)
+        rows[int(name.split("-", 1)[0])] = (sm.group(1), title, bm.group(1) if bm else "")
+    return rows, "design/roadmap/", 0
 
 
 def parse_roadmap(rev):
@@ -204,15 +246,16 @@ def parse_roadmap(rev):
             title = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", title)
             rows[int(cells[0])] = (status, title, built)
         return rows, path, statusless
-    return None, None, 0
+    return parse_blocks(rev)
 
 
 old_rows, old_path, old_statusless = parse_roadmap(base)
 new_rows, new_path, _ = parse_roadmap(head_sha)
 
 if new_rows is None:
-    gaps.append("no roadmap at HEAD (design/roadmap/README.md and design/roadmap.md are both "
-                "absent): milestone status cannot be reported at all")
+    gaps.append("no roadmap at HEAD (design/roadmap/ holds no milestone block, and neither "
+                "design/roadmap/README.md nor design/roadmap.md is there): milestone status "
+                "cannot be reported at all")
     old_rows = new_rows = {}
 elif old_rows is None:
     gaps.append(f"no roadmap existed at {base_short}, so every milestone in this report reads as newly "

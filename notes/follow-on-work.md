@@ -28,7 +28,7 @@ written is rung four: a lane report is read once, by one person, on the day it i
 
 **Every BUILT, REMOVED or PARTIAL milestone block carries a `## Follow-on` section**, checked by
 `script/roadmap --check` and therefore by `script/lint`. (`PARTIAL` is milestone 252's addition,
-below.) The dispositions are tabulated in design/roadmap/README.md, which is where a block author
+below.) The dispositions are tabulated in notes/roadmap.md, which is where a block author
 meets them. In short: `None.`, `Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`,
 `Proposed.`, and `Outstanding.` for a `PARTIAL` block's own remaining scope.
 

@@ -138,7 +138,8 @@ That call is calef's, so the block says so rather than moving.
   evidence is in 207's own `## Follow-on` and in `design/decisions/` nowhere: it is one line in a
   review, not a decision file.
 - **Recorded.** `Outstanding.` is a provisional name, like the seven words it joins. It is recorded
-  as provisional in `script/roadmap`'s own comment and in `design/roadmap/README.md`.
+  as provisional in `script/roadmap`'s own comment and in `notes/roadmap.md`, which is where that
+  vocabulary moved when the roadmap index was retired on 2026-09-21.
 
 ## Index row
 

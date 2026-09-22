@@ -731,77 +731,24 @@ todo_count=$(git grep -hoE '(TODO|FIXME|XXX|HACK)[[:blank:]]*\(milestone [0-9]+\
     ':!vendor' ':!patches' ':!*.md' ':!script/lint' 2>/dev/null | wc -l | tr -d ' ')
 echo "TODO markers: $todo_count in code, each naming a milestone that has a block"
 
-# The milestone blocks, validated (see design/roadmap/README.md's status vocabulary and
-# script/roadmap). Catches a status token nobody defined, a block missing the `## Index row` section
-# the generated table is built from, and a milestone referenced in prose that has no block, which is
-# exactly how milestone 34 went missing. Documentation is part of this project's deliverable, so its
-# index gets a gate. Since milestone 294 that index is GENERATED: `script/roadmap --check` reports a
-# committed table that has fallen behind the blocks and does not fail on it, because failing would
-# make every lane edit the one file that was this tree's worst merge hotspot.
+# The milestone blocks, validated (see notes/roadmap.md's status vocabulary and script/roadmap).
+# Catches a status token nobody defined, a block missing the `## Index row` section that carries its
+# Built date and its precis, and a milestone referenced in prose that has no block, which is exactly
+# how milestone 34 (gPU acceleration via virtio-gpu 3D (the display ladder's rung four)) went missing. Documentation is part of this project's deliverable, so the record
+# gets a gate.
+#
+# **The check that used to sit under this one went with the index it guarded.** Milestone 443 (lanes
+# wait on each other for three reasons, and none of them is the work) added a grep forbidding any
+# script but the generator and the two history readers from opening
+# `design/roadmap/README.md`, because that file lagged its blocks and four pull requests jammed on
+# scripts reading the lag as a fact. calef retired the file on 2026-09-21, so the failure it
+# guarded cannot happen: a script that opens it now gets `FileNotFoundError`, which is louder than
+# the grep was and needs nobody to maintain a list of exceptions. `script/metrics` and
+# `script/catch-up` still read it at historical revisions, where it exists and is what that
+# revision said.
 echo "==> roadmap status"
 "$(dirname "$0")/roadmap" --check
 
-# The generated index is a RENDERING, and nothing in script/ may gate on it (milestone 443).
-#
-# Milestone 294 derived `design/roadmap/README.md` from the per-milestone blocks and made a stale
-# row a report rather than a failure, so that no lane has to edit what was this tree's worst merge
-# hotspot. The consequence is that `main`'s committed table lags between a merge and the
-# integrator's `--write`, and every script that opened it read that lag as a fact. On 2026-09-19
-# that jammed four pull requests in a day: `script/fatal-risks` took its Built dates from the
-# committed table, so risk 9's citation of milestone 177 "looked current only while 177's row was
-# not BUILT", and `script/audits` counted 213 milestones built against a tree that had 214.
-#
-# Both now read `script/roadmap --index`, which renders the same five columns from the blocks. This
-# check is what stops the coupling growing back, because it is the kind that reads as ordinary code
-# at the call site: one `open()` of a path that looks like the record.
-#
-# **Two scripts are allowed and they are not exceptions, they are a different question.**
-# `script/metrics` and `script/catch-up` read the committed file at HISTORICAL revisions, through
-# `git ls-tree` and `git show`, to chart what the roadmap said in a past week. A block-derived
-# answer does not exist for a revision before milestone 294 landed, and no amount of generating
-# produces one. That is also the reason the file stays committed at all.
-#
-# **What this cannot catch:** a script that shells out to `git show HEAD:design/roadmap/README.md`,
-# or builds the path from pieces. It is a grep, and it catches the shape the two real defects had.
-echo "==> the roadmap index is not a gate input"
-python3 - <<'PY'
-import pathlib
-import re
-import sys
-
-ALLOWED = {"script/metrics", "script/catch-up", "script/roadmap"}
-PATH = re.compile(r"""["'](design/roadmap/README\.md)["']|"design",\s*"roadmap",\s*"README\.md\"""")
-bad = []
-for f in sorted(pathlib.Path("script").iterdir()):
-    if not f.is_file() or f.as_posix() in ALLOWED:
-        continue
-    for n, line in enumerate(f.read_text(errors="replace").split("\n"), start=1):
-        # A comment line is prose about the file, which every script here is entitled to write.
-        if line.lstrip().startswith("#"):
-            continue
-        if PATH.search(line):
-            bad.append(f"{f.as_posix()}:{n}: {line.strip()[:72]}")
-if bad:
-    print("lint: script/ reads the GENERATED roadmap index as data:", file=sys.stderr)
-    for b in bad:
-        print(f"  {b}", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("design/roadmap/README.md is rendered from design/roadmap/<n>-<slug>.md and is allowed",
-          file=sys.stderr)
-    print("to lag main between a merge and the integrator's `script/roadmap --write`. A check that",
-          file=sys.stderr)
-    print("reads it reads that lag as a fact, which is how four pull requests jammed on",
-          file=sys.stderr)
-    print("2026-09-19. Read `script/roadmap --index` instead; it renders the same five columns",
-          file=sys.stderr)
-    print("from the blocks. script/metrics and script/catch-up are allowed because they read",
-          file=sys.stderr)
-    print("HISTORICAL revisions, where no block-derived answer exists. See milestone 443.",
-          file=sys.stderr)
-    sys.exit(1)
-print("the generated roadmap index is read by nothing in script/ but its generator and the two "
-      "history readers")
-PY
 
 # Intra-doc links, denied when broken. This codebase leans unusually hard on `[`Item`]` links to
 # stitch the code to itself and to the notes, which is deliberate (see CLAUDE.md on commenting) and
