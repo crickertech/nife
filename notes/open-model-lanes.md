@@ -75,29 +75,26 @@ contrasts with `tailscale funnel`, the command that publishes to the public inte
 never be used for this.** Serve also provisions TLS, so callers reach
 `https://<host>.<tailnet>.ts.net:4000` rather than sending an API key over plaintext.
 
-**Four layers, each doing a different job**, which is why this is better than binding the tailnet
-address directly:
+**Three layers, and no gateway password** (calef, 2026-09-22: *"I already have a spend limit. Lets
+remove the key."*).
 
 | layer | what it decides |
 |---|---|
-| loopback bind | only this machine's own processes can open the socket at all |
+| loopback bind | only cordoba's own processes can open the socket at all |
 | `tailscale serve` | the tailnet, and nothing else, reaches it |
-| Tailscale ACLs | *which* tailnet nodes reach it |
-| the master key | a node that may connect but should not be spending the OpenRouter key |
+| Tailscale ACLs | *which* tailnet nodes reach it, and this is the authorization |
 
-The first is the one that matters most, because it is the only one that survives a later mistake: an
-interface that appears later, or a firewall rule edited wrongly, cannot reach a socket that was
-never bound. Binding `OPEN_LANE_HOST=<tailnet address>` is supported and is second best, since then
-the master key is doing more of the work; `0.0.0.0` is refused outright.
+The first matters most, because it is the only one that survives a later mistake: an interface that
+appears later, or a firewall rule edited wrongly, cannot reach a socket that was never bound.
+Binding `OPEN_LANE_HOST=<tailnet address>` is supported and is second best; `0.0.0.0` is refused
+outright.
 
-**Why OpenRouter rather than a provider directly**, stated so the next person does not re-litigate
-it: one account and one key reach every open-weight model, so switching candidates is a line in a
-config rather than a new signup, and that is exactly what an unmeasured choice needs. The cost is a
-margin on top of the underlying provider's price and one more party in the path.
-
-**The model is not chosen.** `config/open-lane-litellm.yaml` carries three candidates addressable by
-name so a benchmark can switch between them without editing the lane script. Nothing here has
-measured which of them drives a tool loop reliably, and the config says so.
+**What this accepts, recorded because it is a choice rather than an oversight.** LiteLLM listens on
+cordoba's loopback with no credential, so **any process on cordoba can spend the OpenRouter key**,
+and cordoba runs Immich. The tailnet cannot help there, because that traffic never crosses it. The
+backstop is the **spend limit on the OpenRouter key itself**, which calef had already set and which
+is the only control here that still works after a key has leaked. A gateway password would have
+narrowed the loopback case and nothing else; it was weighed and declined.
 
 ## What makes a cheaper model safe here, and it is not the model
 

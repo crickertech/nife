@@ -23,9 +23,12 @@
 # providers are OpenAI-shaped, so a translating gateway sits in between; LiteLLM is the one the
 # Claude Code documentation names. Set these before running:
 #
-#     export OPEN_LANE_BASE_URL=http://127.0.0.1:4000   # the LiteLLM gateway
-#     export OPEN_LANE_TOKEN=<gateway token>
+#     export OPEN_LANE_BASE_URL=https://<cordoba>.<tailnet>.ts.net:4000
 #     export OPEN_LANE_MODEL=<model id the gateway exposes>
+#
+# The gateway has no password of its own (see `scripts/open-lane-gateway.sh`), but Claude Code under
+# `--bare` still insists on *some* credential, so this sends a placeholder. It is not a secret and
+# the gateway ignores it.
 #
 # # BUGS
 #
@@ -53,7 +56,6 @@ rounds=${3:-4}
 [ -f "$brief" ] || { echo >&2 "open-lane: no such brief: $brief"; exit 2; }
 
 : "${OPEN_LANE_BASE_URL:?set OPEN_LANE_BASE_URL to the gateway that speaks /v1/messages}"
-: "${OPEN_LANE_TOKEN:?set OPEN_LANE_TOKEN to the gateway token}"
 : "${OPEN_LANE_MODEL:?set OPEN_LANE_MODEL to the model id the gateway exposes}"
 
 brief_text=$(cat "$brief")
@@ -82,7 +84,7 @@ $feedback"
     (
         cd "$worktree"
         ANTHROPIC_BASE_URL="$OPEN_LANE_BASE_URL" \
-        ANTHROPIC_AUTH_TOKEN="$OPEN_LANE_TOKEN" \
+        ANTHROPIC_AUTH_TOKEN="${OPEN_LANE_TOKEN:-unused-the-gateway-has-no-password}" \
         ANTHROPIC_MODEL="$OPEN_LANE_MODEL" \
         CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 \
         claude --bare -p "$prompt" --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
