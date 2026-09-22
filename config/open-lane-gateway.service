@@ -10,9 +10,16 @@
 # nothing that matters: LiteLLM runs no model, so against cordoba's 3.6 GB free it is a translator
 # rather than a load, while patagonia's 16 GB is the thing that actually caps the lane count.
 #
-# **Set OPEN_LANE_HOST to cordoba's tailnet address, not 0.0.0.0.** The launcher refuses the latter.
-# Once this is off loopback the master key is the only thing between any host on the tailnet and the
-# OpenRouter bill; Tailscale ACLs are the second layer and are worth setting.
+# **Leave it on loopback and let Tailscale expose it.** The gateway holds an OpenRouter key, so the
+# strongest available arrangement is that it never binds a network interface: an interface that
+# appears later, or a firewall rule that is wrong later, then cannot reach it at all.
+#
+#     tailscale serve --bg --https=4000 http://127.0.0.1:4000
+#
+# `tailscale serve` is tailnet-only by definition and provisions TLS. **`tailscale funnel` is the
+# one that publishes to the internet and must never be used for this.** Tailscale ACLs then decide
+# which tailnet nodes may reach it, and the master key guards against one that may connect but
+# should not be spending the key.
 
 [Unit]
 Description=LiteLLM gateway: Anthropic /v1/messages translated to OpenRouter
@@ -24,8 +31,9 @@ Wants=network-online.target
 Type=exec
 User=calef
 WorkingDirectory=/home/calef/nife
-# Put OPENROUTER_API_KEY, OPEN_LANE_TOKEN and OPEN_LANE_HOST here, via `systemctl edit`, so the
-# keys live in /etc rather than in a repository that is public.
+# Put OPENROUTER_API_KEY and OPEN_LANE_TOKEN here, via `systemctl edit`, so the keys live in /etc
+# rather than in a repository that is public. OPEN_LANE_HOST is deliberately not set: the default is
+# loopback, and `tailscale serve` is what makes it reachable.
 EnvironmentFile=-/etc/open-lane-gateway.env
 ExecStart=/home/calef/nife/scripts/open-lane-gateway.sh
 Restart=on-failure

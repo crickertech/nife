@@ -62,12 +62,33 @@ nothing that matters: LiteLLM runs no model, so against cordoba's 3.6 GB free it
 rather than a load, while patagonia's 16 GB is the thing that actually caps the lane count.
 `config/open-lane-gateway.service` is the unit.
 
-**Leaving loopback changes what the master key is for**, which is worth stating rather than
-discovering. On `127.0.0.1` it guards against another local process using the OpenRouter key by
-accident. On a tailnet address it is **the only thing between any host on that network and the
-OpenRouter bill**. So: real entropy, kept in `/etc` rather than in this repository, bound to the
-tailnet interface rather than `0.0.0.0` (the launcher refuses `0.0.0.0` for that reason), with
-Tailscale ACLs as the second layer.
+**It never binds a network interface, and Tailscale does the exposing** (calef's question,
+2026-09-22: can the port be reachable only over the tailnet). It can, and the best form of that is
+not a firewall rule:
+
+```
+tailscale serve --bg --https=4000 http://127.0.0.1:4000
+```
+
+`tailscale serve` is **tailnet-only by definition**, which its own documentation states and
+contrasts with `tailscale funnel`, the command that publishes to the public internet. **Funnel must
+never be used for this.** Serve also provisions TLS, so callers reach
+`https://<host>.<tailnet>.ts.net:4000` rather than sending an API key over plaintext.
+
+**Four layers, each doing a different job**, which is why this is better than binding the tailnet
+address directly:
+
+| layer | what it decides |
+|---|---|
+| loopback bind | only this machine's own processes can open the socket at all |
+| `tailscale serve` | the tailnet, and nothing else, reaches it |
+| Tailscale ACLs | *which* tailnet nodes reach it |
+| the master key | a node that may connect but should not be spending the OpenRouter key |
+
+The first is the one that matters most, because it is the only one that survives a later mistake: an
+interface that appears later, or a firewall rule edited wrongly, cannot reach a socket that was
+never bound. Binding `OPEN_LANE_HOST=<tailnet address>` is supported and is second best, since then
+the master key is doing more of the work; `0.0.0.0` is refused outright.
 
 **Why OpenRouter rather than a provider directly**, stated so the next person does not re-litigate
 it: one account and one key reach every open-weight model, so switching candidates is a line in a
