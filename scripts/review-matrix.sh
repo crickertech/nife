@@ -1,5 +1,6 @@
 #!/bin/sh
-# Run milestone 521's whole trial matrix: every model against every bundle, both postures, N times.
+# Run the whole trial matrix for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not):
+# every model against every bundle, both postures, N times.
 #
 #     REVIEW_BASE_URL=... scripts/review-matrix.sh <bundle-dir> <out-dir> [replicates]
 #
@@ -9,6 +10,10 @@
 #
 # # BUGS
 #
+# - **Its output does not belong in the tree loose.** Model output carries the characters this
+#   tree's style gates forbid, and calef refused an exception per corpus on 2026-09-22, so a run's
+#   transcripts are archived rather than committed as files. notes/delegated-review/README.md has
+#   the reason and the extract command; the directory this writes is the input to that archive.
 # - **It retries a timeout twice and then gives up**, leaving that cell's file absent. Scoring must
 #   treat an absent file as missing, not as a reviewer with nothing to say.
 set -eu
@@ -22,9 +27,11 @@ for m in ${REVIEW_MODELS:-open-lane-qwen open-lane-kimi}; do
         for p in neutral adversarial; do
             i=1
             while [ "$i" -le "$n" ]; do
-                f="$out/$m.$d.$p.r$i.md"
+                f="$out/$m.$d.$p.r$i.txt"
                 if [ ! -s "$f" ]; then
-                    ( for try in 1 2 3; do
+                    ( attempt=0
+                      while [ "$attempt" -lt 3 ]; do
+                        attempt=$((attempt + 1))
                         "$here/review-trial.sh" "$m" "$b" "$p" "$f" 2>/dev/null && break
                         rm -f "$f"
                       done

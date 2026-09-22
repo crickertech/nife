@@ -28,8 +28,32 @@ never given this note, the ledger of verdicts, or the brief that named the defec
   defects and takes no argument that could tell it which commit is which, so it cannot leak an answer
   it does not have. `scripts/review-trial.sh` wraps that in one of two fixed paragraphs and posts it.
 - **Every prompt is reconstructible and every answer is committed verbatim**, in
-  `transcripts/` and `transcripts-48k/`, one file per model, diff, posture and replicate. Re-run the
-  bundle script on the same commit and diff it against what the transcripts were answering.
+  `transcripts.tar.gz`, one file per model, diff, posture and replicate:
+
+      tar xzf notes/delegated-review/transcripts.tar.gz -C /tmp
+
+  It unpacks to `transcripts/` (the 48 uniform-budget runs) and `transcripts-48k/` (the seven
+  supplementary ones). Re-run `scripts/review-bundle.sh` on the same commit and diff it against
+  what the transcripts were answering.
+
+**Why it is an archive and not fifty-five files, which a reader meeting a `.tar.gz` in a notes
+directory is owed.** Loose, the transcripts failed four gates: the citation scan wanted the
+milestone numbers a model cited on an unmerged branch to resolve on `main`, `script/citations`
+wanted glosses on them, the counted-claims check measured a reasoning dump's 4735-byte line against
+the corpus `documentation`'s renderer is sized for, and the em-dash rule wanted a rented model's
+punctuation rewritten. The first attempt at this note added an exclusion to each. **calef refused
+that on 2026-09-22:** *"I don't want to change the style rules."* A style gate that grows an
+exception per corpus stops being a rule and becomes a list, and the em-dash rule in particular
+exists so that prose here reads as a person wrote it, which an exemption for prose a model wrote
+would empty out. A gzip is not prose, so no prose gate has an opinion about it and **nothing in the
+evidence had to be edited to pass a check.** That is `script/citations`' own argument for the
+captured `*.log` fixtures, that nobody wrote those lines as prose, carried one step further:
+unlike a machine log, model output contains the very characters the style rule forbids.
+
+**Quotations in this note are verbatim**, on their own `>` lines, which `script/lint`'s em-dash
+rule permits since 2026-09-22: a quotation is not the quoter's prose, so a source's punctuation
+survives being quoted here. The reasoning is at the check. The archive still holds the originals,
+because bulk evidence is not quotation and does not belong inline.
 - **The same prompt went to defective and clean diffs alike**, so nothing in the wording separates
   the arms. The two postures differ by one sentence, quoted in `scripts/review-trial.sh`.
 - **The adversarial posture does not assert that a defect exists.** It says one *may* be hiding and
@@ -88,12 +112,23 @@ Six reviews per model per defect diff. The question is not whether it said somet
 | `kimi-k3` | **0 / 6** | **5 / 6** | **1 of 2** |
 
 **`kimi-k3` named D2 in the ledger's own terms, once, unprompted.** In one neutral review:
-*"Likewise 'unpartitioned or unreadable' conflates two distinct findings. The module itself calls
-this 'the single most load-bearing sentence a stranger reads'; it must not be self-contradictory."*
+
+> Likewise "unpartitioned or unreadable" conflates two distinct findings. The module itself calls
+> this "the single most load-bearing sentence a stranger reads"; it must not be self-contradictory.
+
 Four other reviews reached the same string by a different and arguably better route, that
-`format_disk_description` never consults `F_MBR`, so an ordinary Windows disk is described to its
-owner as empty at the moment they are asked to destroy it. Same expression, same harm, a mechanism
-the ledger had not recorded.
+`format_disk_description` never consults `F_MBR`. Verbatim, and this is the shape of all four:
+
+> 1. **kernel/src/user/install_service.rs — `format_disk_description` reports MBR and backup-GPT disks as
+> "unpartitioned or unreadable".** The function only recognises partitions via `F_PRIMARY` (a valid
+> primary GPT). The commit defines `F_MBR` and `F_BACKUP`, so the surveyor detects those cases, but the
+> formatter never consults them: a disk carrying an MBR partition table — the most common Windows/Linux
+> layout a user will actually meet, and the exact case the cited proposal exists to warn about — falls
+> through to " (unpartitioned or unreadable)". The module's own docs call this sentence "the single most
+> load-bearing sentence a stranger reads"; as written it actively tells a person that a partitioned disk
+> is empty right before they type INSTALL.
+
+Same expression, same harm, by a mechanism the ledger had not recorded.
 
 **`qwen3-coder`'s one partial** flagged the same branch as misinterpreting `F_SIZE` and as
 "misleading user feedback", which is the right line for a wrong reason and does not reach the
@@ -140,12 +175,17 @@ the prose.
 `kimi-k3` found the following in a commit that passed every gate and that a human reviewer had
 already signed off as clean. Each was checked against the file before being counted:
 
-- **`design/roadmap/526`'s justifying paragraph names the wrong statistic.** It says *"reporting the
-  worst case rather than the mean was the instruction that mattered: by the mean, the defect was
-  fixed at three windows and had never been very bad at one."* Both properties belong to the
-  **median**, which is the column in the table directly above it. The mean of a distribution with a
-  99th percentile of +884% would have shown the defect rather than hidden it, so the sentence teaches
-  the reverse of its own lesson in the record the next cap decision will be made from.
+- **`design/roadmap/526`'s justifying paragraph names the wrong statistic.** Checked against the
+  file and correct. The reviewer's own words, quoted whole because its punctuation is its own:
+
+> 3. **design/roadmap/526-….md** — "By the mean, the defect was fixed at three windows and had never been
+> very bad at one" mislabels the statistic. The table reports the *median* (+0.36% at one window, +0.00%
+> from three up); the *mean* at one window is dominated by the tail — the +1153% and +884% outliers alone
+> contribute ~10 points over 200 boots — so the mean would have made the defect look glaring, not
+> invisible. The paragraph that justifies the whole estimator choice gets its own statistics backwards.
+
+  The sentence teaches the reverse of its own lesson, in the record the next cap decision will be
+  made from.
 - **"An average would be a biased estimator for precisely the reason the minimum is an unbiased
   one"** contradicts the same paragraph, which says every window is an upper bound and the minimum
   "converges on the truth from above". An estimator that is always an upper bound is biased upward at

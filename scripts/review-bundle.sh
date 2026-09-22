@@ -3,7 +3,7 @@
 #
 #     scripts/review-bundle.sh <worktree> <commit> > bundle.txt
 #
-# **Provisional name** (milestone 521's harness). This is the half of the experiment that enforces
+# **Provisional name**, the harness for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not). This is the half of the experiment that enforces
 # blindness, so it is deliberately dumb: everything it emits comes out of `git show` and `git cat-file`
 # in the worktree named on the command line. It knows nothing about which commits are defective, and
 # takes no argument that could tell it.
@@ -15,7 +15,7 @@
 # # BUGS
 #
 # - **It caps each pre-image at 1200 lines**, so a reviewer given a very large changed file sees a
-#   truncated one and the truncation is announced in the bundle. No file in milestone 521's corpus
+#   truncated one and the truncation is announced in the bundle. No file in this experiment's corpus
 #   hit the cap; a later corpus might.
 set -eu
 

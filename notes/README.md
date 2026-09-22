@@ -1235,8 +1235,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   process, and the one thing that makes a cheaper model safe: the gates are the oracle, so the
   routing rule is about which work has a crisp gate rather than which work is easy.
 - [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md):
-  milestone 521's run, with the threshold registered before the first call and all 55 transcripts
-  committed. A rented reasoning model found ten true defects and zero false ones in a 465-line
+  milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not)'s run: the threshold was
+  registered before the first call and all 55 transcripts are kept
+  unedited in an archive beside it. A rented reasoning model found ten true defects and zero false ones in a 465-line
   documentation diff a human had passed as clean, and missed the four-line defect entirely while
   reaching the right observation in its own reasoning and calling it pedantic. Findings scale with
   reviewable surface, true and false alike.

@@ -3,7 +3,7 @@
 #
 #     scripts/review-trial.sh <model> <diff-file> <posture> <out-file>
 #
-# **Provisional name** (milestone 521's harness). It exists so that the prompt a reviewer saw is a
+# **Provisional name**, the harness for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not). It exists so that the prompt a reviewer saw is a
 # file anyone can read rather than a claim in a report: the whole experiment turns on the reviewer
 # not having been told what to look for, and that is only checkable if the prompt is on disk.
 #
