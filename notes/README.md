@@ -1241,6 +1241,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   documentation diff a human had passed as clean, and missed the four-line defect entirely while
   reaching the right observation in its own reasoning and calling it pedantic. Findings scale with
   reviewable surface, true and false alike.
+- [The redo rate](delegation/ledger.tsv): one row per task handed to a rented model, with a
+  reviewer's verdict rather than a gate's. Read it with `script/redo-rate`. Five rows on
+  2026-09-22: 40% clean, 40% defect, 20% redo, and **every one of them passed every gate**.
 - [Prior art and reuse](prior-art.md): where to look before building (Redox, rCore, Tock,
   Hubris, seL4, Fuchsia) and the rule that decides build-vs-reuse: the reuse boundary is the
   TCB boundary. Inside it, always build; userspace components, actively prefer porting,

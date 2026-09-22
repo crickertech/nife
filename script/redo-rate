@@ -1,0 +1,56 @@
+#!/bin/sh
+# script/redo-rate: how often work handed to a rented model has to be done again.
+#
+#     script/redo-rate                      # the rate, and every row that was not clean
+#     script/redo-rate --add <<'ROW'        # append one row (tab separated, see the ledger's header)
+#
+# Name: provisional, minted 2026-09-22 by the maintainer. Named for the number rather than the file,
+# because the number is the thing anyone asks for. Refused `delegation-quality`, which is a category
+# rather than a measurement; refused `ledger`, which names the storage and would collide with every
+# other ledger this tree grows. calef names scripts; expect this to change.
+#
+# **Why this exists, and why it cannot be a gate.** Every row in the ledger passed `script/lint`,
+# `script/citations --ratchet` and `script/roadmap --check`. The defects are the ones a gate cannot
+# see: a load-bearing sentence deleted, two opposite meanings folded into one string on a prompt
+# about destroying a disk. So the verdict is a reviewer's judgement, recorded by hand, and this
+# script only counts.
+#
+# **It is the number that decides whether any of the rest is worth it.** Delegation looks cheap at
+# five cents a task; a task that must be redone by hand costs more than never having delegated it.
+# notes/session-effort.md has the cost side, which says the session rather than the lanes is where
+# the tokens go; this is the quality side, and the two only make sense together.
+#
+# # BUGS
+#
+# - **The sample is tiny and the verdicts are one reviewer's.** Five rows on one day. A second
+#   reviewer would disagree about at least one of them, and nothing here records that.
+# - **Nothing appends automatically.** `scripts/open-lane.sh` could write the cost row itself, but
+#   the verdict needs a human who has read the diff, so a half-automated row would be a row with the
+#   important column blank, which reads as "clean" to anyone skimming.
+# - **A clean verdict is not a claim that the work was good**, only that it needed nothing further.
+set -eu
+
+ledger="$(dirname "$0")/../notes/delegation/ledger.tsv"
+[ -f "$ledger" ] || { echo >&2 "redo-rate: no ledger at $ledger"; exit 1; }
+
+if [ "${1:-}" = "--add" ]; then
+    cat >> "$ledger"
+    echo "redo-rate: row appended"
+    exit 0
+fi
+
+awk -F'\t' '
+    /^#/ || NF < 6 { next }
+    { total++; v[$6]++ }
+    $6 != "clean" { rows[++n] = $1 "  " $2 "  " $6 "\n      " $7 }
+    END {
+        if (total == 0) { print "redo-rate: no rows yet"; exit }
+        printf "redo-rate: %d delegated task(s)\n", total
+        printf "  clean  %2d  (%3.0f%%)\n", v["clean"],  v["clean"]  * 100 / total
+        printf "  defect %2d  (%3.0f%%)   a reader would object; accepted or fixed in place\n", v["defect"], v["defect"] * 100 / total
+        printf "  redo   %2d  (%3.0f%%)   had to be done again\n", v["redo"], v["redo"] * 100 / total
+        print  ""
+        print  "Every row below passed every gate. These are what a gate could not see:"
+        for (i = 1; i <= n; i++) print "  " rows[i]
+    }
+' "$ledger"
