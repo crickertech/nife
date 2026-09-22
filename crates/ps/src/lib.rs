@@ -60,10 +60,10 @@
 //!
 //! ```text
 //! $ ps
-//!          TID  STATE
-//!            5  blocked
-//!            9  running
-//! 4294967302  dead
+//!          TID  STATE     TIME(ms)
+//!            5  blocked         20
+//!            9  running        310
+//! 4294967302  dead             150
 //! ```
 //!
 //! The empty and the refused cases, which differ in a way `ps` on Linux has no way to express:
@@ -104,9 +104,18 @@
 //!   (`(generation << 32) | slot`, `crates/slots`). It is printed as the one integer
 //!   `abi::rendezvous::REAP` would accept, because splitting it into `gen:slot` would publish the
 //!   shape of the kernel's thread table to every program that can run `ps`.
-//! - **There is no sort order to choose.** Rows come out in the kernel's slot order, which is
-//!   neither creation order nor tid order once a slot has been reused. A `--sort` would be honest
-//!   only once there is something to sort by, which means the accounting `top` needs.
+//! - **`ps` itself does not sort.** Rows come out in the kernel's slot order, which is neither
+//!   creation order nor tid order once a slot has been reused. There is now something to sort by
+//!   (milestone 282 (a thread's CPU time, and the `top` it makes possible)) and
+//!   [`Survey::rank_by_cpu_time`] does it, but `ps` does not call it: ranking is what makes a
+//!   listing a `top`, and `components/src/top.rs` is the program that does. `ps` has no flag for it
+//!   because `ArgSpec` carries one integer and this program spends none, the same limit
+//!   `crates/pgrep`'s `BUGS` names for its missing pattern.
+//! - **The `TIME` column is two walks, not one.** `abi::rendezvous::SURVEY` answers one record per
+//!   call, so a listing with both the state and the CPU time asks the kernel for each thread twice
+//!   and joins on the tid ([`Survey::join_cpu_time`]). A thread that dies between the two walks has
+//!   a row with no figure in it, printed as `-` rather than as a zero. DECISIONS §204 (how userspace asks where a thread runs) priced the
+//!   extra syscall at about 45 microseconds per second for sixty-four threads.
 //! - **The state is a snapshot per row, not per table.** See the `BUGS` section of
 //!   notes/process-view.md: a row read early in the walk may be stale by the time the table prints.
 //! - **No automated run spawns `ps` or `pgrep`.** This crate's own logic has host tests
@@ -161,6 +170,18 @@ pub struct Row {
     pub tid: u64,
     /// One of `abi::survey`'s state codes.
     pub state: u64,
+    /// **Scheduled on-CPU time in milliseconds**, or `None` when nobody asked for it.
+    ///
+    /// `None` rather than `0`, and the difference is the whole reason this is an `Option`.
+    /// [`collect`] performs one walk, for the state record, because that is all `pgrep` and a plain
+    /// listing want; the figure arrives only if a caller then runs
+    /// [`Survey::join_cpu_time`](Survey::join_cpu_time). A zero here would be a thread that has
+    /// genuinely never been on a CPU at a tick, which is a different fact from "not asked", and a
+    /// column that printed them the same way would be this crate's own `BUGS` section coming true.
+    ///
+    /// It also stays `None` for a row whose tid was in the first walk and not the second, which is
+    /// a thread that died in between. See [`Survey::join_cpu_time`].
+    pub cpu_millis: Option<u64>,
 }
 
 /// A finished walk of one domain: the rows, and whatever went wrong.
@@ -168,7 +189,11 @@ pub struct Row {
 /// Built by [`collect`], which is the only constructor, so a `Survey` always describes a walk that
 /// really happened.
 pub struct Survey<'a> {
-    rows: &'a [Row],
+    /// Mutable because a survey is written to after it is collected: a second walk fills
+    /// [`Row::cpu_millis`] in ([`Survey::join_cpu_time`]) and a ranking view reorders it
+    /// ([`Survey::rank_by_cpu_time`]). The borrow is still the caller's buffer; nothing here
+    /// allocates.
+    rows: &'a mut [Row],
     /// The negated `abi::Error` that ended the walk, if one did. `Some` here means **the listing is
     /// not the domain**: it is however far the walk got, which is why the caller prints the reason
     /// rather than the partial table.
@@ -225,12 +250,16 @@ pub fn collect<'a>(
             truncated = true;
             break;
         }
-        rows[n] = Row { tid, state };
+        rows[n] = Row {
+            tid,
+            state,
+            cpu_millis: None,
+        };
         n += 1;
         cursor = next;
     }
     Survey {
-        rows: &rows[..n],
+        rows: &mut rows[..n],
         refused,
         stalled,
         truncated,
@@ -238,9 +267,79 @@ pub fn collect<'a>(
 }
 
 impl Survey<'_> {
-    /// The rows, in the order the kernel reported them.
+    /// The rows, in the order the kernel reported them unless [`rank_by_cpu_time`](Self::rank_by_cpu_time)
+    /// has reordered them.
     pub fn rows(&self) -> &[Row] {
         self.rows
+    }
+
+    /// **Fill in [`Row::cpu_millis`] from a second walk of the same domain** (milestone 282 (a thread's CPU time, and the `top` it makes possible),
+    /// `abi::survey::record::CPU_TIME`).
+    ///
+    /// `read(cursor)` is one `SURVEY` asking for the CPU-time record, exactly as the closure
+    /// [`collect`] takes is one asking for the state record. The caller binds the record, not this
+    /// function, because a program that wants a third fact tomorrow joins it the same way.
+    ///
+    /// **Two walks joined on the tid, rather than one walk carrying two facts**, which is the shape
+    /// DECISIONS §204 (how userspace asks where a thread runs) chose when it made the record a selector: the cursor and the tid are the
+    /// same whichever record is asked for, so only the third word moves, and a program that wants
+    /// one fact pays nothing for the existence of the others. The cost is one extra syscall per
+    /// thread, which §204 priced at about 45 microseconds per second for sixty-four threads at a
+    /// one-second refresh.
+    ///
+    /// **A domain can change between the two walks**, and this is where that shows. A tid in the
+    /// first walk and not the second is a thread that died in between: its row keeps `None` and the
+    /// listing prints that it does not know, rather than borrowing a number from another row. A tid
+    /// in the second walk and not the first is simply ignored, because there is no row to put it
+    /// in. That is `readdir`'s bargain, the same one a single walk already takes between its own
+    /// calls (see the `BUGS` section of notes/process-view.md), and it is stated here rather than
+    /// hidden because the failure it prevents is a plausible wrong number.
+    ///
+    /// A refusal in the second walk is recorded exactly as one in the first is, so a caller that
+    /// checks [`refused`](Self::refused) afterwards is told rather than shown a table with a blank
+    /// column.
+    pub fn join_cpu_time(&mut self, read: &mut dyn FnMut(u64) -> (i64, u64, u64)) {
+        let mut cursor = 0u64;
+        loop {
+            let (next, tid, millis) = read(cursor);
+            if next < 0 {
+                self.refused = Some(next);
+                return;
+            }
+            let next = next as u64;
+            if next == abi::survey::DONE {
+                return;
+            }
+            // The same non-advancing-cursor guard `collect` carries, and for the same reason: this
+            // loop must terminate for every reader, including a test's.
+            if next <= cursor {
+                self.stalled = true;
+                return;
+            }
+            if let Some(row) = self.rows.iter_mut().find(|r| r.tid == tid) {
+                row.cpu_millis = Some(millis);
+            }
+            cursor = next;
+        }
+    }
+
+    /// **Order the rows by CPU time, most first**, which is what makes a listing a `top`.
+    ///
+    /// Ties break on the tid, ascending, so the order is total and a redraw of an idle machine does
+    /// not shuffle. A row with no figure (see [`Row::cpu_millis`]) sorts last, because "not known"
+    /// is not "none used" and putting it at the head would be the strongest possible claim about
+    /// the one row that has nothing to say.
+    ///
+    /// `sort_unstable_by` allocates nothing, which is why this can happen in a `no_std` program on
+    /// a twelve-page stack.
+    pub fn rank_by_cpu_time(&mut self) {
+        self.rows.sort_unstable_by(|a, b| {
+            b.cpu_millis
+                .unwrap_or(0)
+                .cmp(&a.cpu_millis.unwrap_or(0))
+                .then(a.cpu_millis.is_none().cmp(&b.cpu_millis.is_none()))
+                .then(a.tid.cmp(&b.tid))
+        });
     }
 
     /// **Was this a refusal?** True when the domain could not be read at all or not to its end. A
@@ -303,11 +402,28 @@ impl Survey<'_> {
         if !self.complete() || self.rows.is_empty() {
             return;
         }
-        out(b"         TID  STATE\n");
+        // The TIME column appears only when somebody asked for it (`Survey::join_cpu_time`), so a
+        // `pgrep`-shaped caller that did not is not handed a column of dashes to explain.
+        let timed = self.rows().iter().any(|r| r.cpu_millis.is_some());
+        if timed {
+            out(b"         TID  STATE     TIME(ms)\n");
+        } else {
+            out(b"         TID  STATE\n");
+        }
         for row in self.rows() {
             write_thread_id(row.tid, out);
             out(b"  ");
-            out(state_name(row.state).as_bytes());
+            let name = state_name(row.state);
+            out(name.as_bytes());
+            if timed {
+                // Pad the state to the width of the widest one so the figures line up; a column of
+                // numbers that does not is a column a reader has to add up by hand.
+                for _ in name.len()..STATE_WIDTH {
+                    out(b" ");
+                }
+                out(b"  ");
+                write_millis(row.cpu_millis, out);
+            }
             out(b"\n");
         }
     }
@@ -346,6 +462,41 @@ pub fn refusal(code: i64) -> &'static str {
         Some(abi::Error::Gone) => "the domain this named has been destroyed",
         _ => "the domain could not be read",
     }
+}
+
+/// The width the `STATE` column is padded to: the longest name [`state_name`] can return
+/// (`running`, seven characters), so the column after it starts in the same place on every line.
+const STATE_WIDTH: usize = 7;
+
+/// A CPU-time figure right-aligned in eight columns, or `-` when the row has none.
+///
+/// Eight columns holds 27 hours of CPU time before the column widens, and a figure that outgrows it
+/// pushes the column rather than losing a digit, for the same reason [`write_thread_id`] does.
+///
+/// **`-` rather than `0` for an unknown figure**, which is the whole reason [`Row::cpu_millis`] is
+/// an `Option`: a thread that was never on a CPU at a tick really does read `0`, and a reader who
+/// cannot tell that from "this row was not asked about" has been handed the plausible wrong number
+/// this tree keeps refusing to print.
+fn write_millis(millis: Option<u64>, out: &mut dyn FnMut(&[u8])) {
+    let Some(millis) = millis else {
+        out(b"       -");
+        return;
+    };
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    let mut v = millis;
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for _ in (buf.len() - i)..8 {
+        out(b" ");
+    }
+    out(&buf[i..]);
 }
 
 /// A tid right-aligned in twelve columns, which is wide enough for a generational name whose
@@ -406,7 +557,8 @@ mod tests {
             s.rows()[2],
             Row {
                 tid: 9,
-                state: abi::survey::DEAD
+                state: abi::survey::DEAD,
+                cpu_millis: None,
             }
         );
     }
@@ -544,6 +696,110 @@ mod tests {
         );
         let out = shown(|o| s.write_report(o));
         assert!(out.contains("4294967302"), "{out}");
+    }
+
+    /// A CPU-time reader over a canned domain: `entries` in slot order, then done.
+    fn times(entries: &'static [(u64, u64)]) -> impl FnMut(u64) -> (i64, u64, u64) {
+        move |cursor: u64| match entries.get(cursor as usize) {
+            Some(&(tid, millis)) => (cursor as i64 + 1, tid, millis),
+            None => (abi::survey::DONE as i64, 0, 0),
+        }
+    }
+
+    /// **The second walk fills the column, joined on the tid rather than on the position.**
+    ///
+    /// The two walks are given the domain in *different orders* on purpose. Joining on position
+    /// would pass on a canned reader that returned them in the same order and would silently
+    /// mis-attribute every figure the first time a slot was reused between two calls.
+    #[test]
+    fn a_second_walk_fills_the_time_column_by_tid() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(
+            &mut rows,
+            &mut domain(&[(3, abi::survey::RUNNING), (5, abi::survey::BLOCKED)]),
+        );
+        s.join_cpu_time(&mut times(&[(5, 20), (3, 990)]));
+
+        assert_eq!(s.rows()[0].tid, 3);
+        assert_eq!(s.rows()[0].cpu_millis, Some(990));
+        assert_eq!(s.rows()[1].cpu_millis, Some(20));
+    }
+
+    /// **A thread that died between the two walks has no figure, and that is printed as `-`.**
+    ///
+    /// The alternative is a zero, which reads as "this thread has used no CPU" and is a claim
+    /// nobody made. It is the same distinction the empty domain and the refusal are kept apart by,
+    /// one column over.
+    #[test]
+    fn a_thread_missing_from_the_second_walk_keeps_no_figure() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(
+            &mut rows,
+            &mut domain(&[(3, abi::survey::RUNNING), (5, abi::survey::RUNNING)]),
+        );
+        s.join_cpu_time(&mut times(&[(3, 40)]));
+
+        assert_eq!(s.rows()[1].cpu_millis, None);
+        let out = shown(|o| s.write_report(o));
+        assert!(out.lines().nth(2).unwrap().ends_with('-'), "{out}");
+    }
+
+    /// A refusal in the **second** walk is a refusal, exactly as one in the first is. A table with
+    /// a blank column and no complaint would be the failure this crate exists to avoid, wearing a
+    /// new hat.
+    #[test]
+    fn a_refusal_in_the_second_walk_is_still_a_refusal() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(&mut rows, &mut domain(&[(3, abi::survey::RUNNING)]));
+        assert!(!s.refused());
+        s.join_cpu_time(&mut |_| (abi::Error::Gone as i64, 0, 0));
+        assert!(s.refused());
+        assert_eq!(shown(|o| s.write_report(o)), "");
+        assert!(shown(|o| s.write_diagnostics(o)).contains("destroyed"));
+    }
+
+    /// A second walk whose cursor does not advance terminates, the same guard `collect` carries.
+    #[test]
+    fn a_second_walk_that_does_not_advance_ends() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(&mut rows, &mut domain(&[(3, abi::survey::RUNNING)]));
+        s.join_cpu_time(&mut |_| (1, 3, 10));
+        assert!(s.refused());
+    }
+
+    /// **The ranking is what makes a listing a `top`**: most CPU first, ties on the tid, and a row
+    /// with no figure last rather than first.
+    #[test]
+    fn ranking_puts_the_busiest_first_and_the_unknown_last() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(
+            &mut rows,
+            &mut domain(&[
+                (3, abi::survey::RUNNING),
+                (5, abi::survey::RUNNING),
+                (7, abi::survey::RUNNING),
+                (9, abi::survey::RUNNING),
+            ]),
+        );
+        // 9 gets no figure at all; 3 and 7 tie at 100.
+        s.join_cpu_time(&mut times(&[(3, 100), (5, 900), (7, 100)]));
+        s.rank_by_cpu_time();
+
+        let order: Vec<u64> = s.rows().iter().map(|r| r.tid).collect();
+        assert_eq!(order, vec![5, 3, 7, 9], "ranked: {order:?}");
+    }
+
+    /// The `TIME` column appears only when a caller asked for it, so a listing that ran one walk is
+    /// not handed a column of dashes to explain.
+    #[test]
+    fn the_time_column_appears_only_when_it_was_asked_for() {
+        let mut rows = [Row::default(); MAX_ROWS];
+        let mut s = collect(&mut rows, &mut domain(&[(3, abi::survey::RUNNING)]));
+        assert!(!shown(|o| s.write_report(o)).contains("TIME"));
+        s.join_cpu_time(&mut times(&[(3, 250)]));
+        let out = shown(|o| s.write_report(o));
+        assert!(out.contains("TIME(ms)"), "{out}");
+        assert!(out.lines().nth(1).unwrap().ends_with("250"), "{out}");
     }
 
     /// A state code from a kernel newer than this program prints as `?` rather than panicking or

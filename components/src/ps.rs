@@ -37,8 +37,9 @@
 //! | 8 | the diagnostics sink, `WRITE` | where a refusal goes, so `>` cannot swallow it |
 //!
 //! Three capabilities, and **none of them names a process**. No memory grant, no file, no directory,
-//! no clock: a snapshot of a domain needs no wall clock and no accounting, which is why `ps` is the
-//! first of `procps` to be built and `top` is not.
+//! no clock. That stayed true when the `TIME` column arrived (milestone 282 (a thread's CPU time, and the `top` it makes possible)): the CPU
+//! figure is a second walk of the *same* endpoint under the *same* right, so a column that on Unix
+//! comes from reading `/proc` comes here from a capability this program was already holding.
 //!
 //! The domain sits in a slot the shell's grant plan **names** ([`DOMAIN_SLOT`]) rather than the next
 //! free one, for the reason DECISIONS §67 gave the diagnostics slot the same treatment: how many low
@@ -49,9 +50,9 @@
 //!
 //! ```text
 //! $ ps
-//!          TID  STATE
-//!            5  running
-//!            9  blocked
+//!          TID  STATE     TIME(ms)
+//!            5  running        310
+//!            9  blocked         20
 //!
 //! $ ps > running.txt      the table lands in the file
 //! $ ps | wc               the table is counted, and no /proc was read to make it
@@ -90,7 +91,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_mode_runtime::{exit, granted, send, survey};
+use user_mode_runtime::{exit, granted, send, survey, survey_record};
 
 /// The output sink: where the table goes. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -117,7 +118,15 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     // is the kernel's whole thread table, so even a `ps` handed the widest grant this system can
     // express has room for every row. Two kilobytes on a twelve-page stack.
     let mut rows = [ps::Row::default(); ps::MAX_ROWS];
-    let found = ps::collect(&mut rows, &mut |cursor| survey(DOMAIN_SLOT, cursor));
+    let mut found = ps::collect(&mut rows, &mut |cursor| survey(DOMAIN_SLOT, cursor));
+    // **The `TIME` column is a second walk** (milestone 282 (a thread's CPU time, and the `top` it makes possible)). `SURVEY` answers one record
+    // per call, so both facts about one domain are two walks joined on the tid, which is the shape
+    // the selector was chosen for: a caller that wants one fact pays nothing for the existence of
+    // the others. Both walks are over the same endpoint and the same right, so this asks for
+    // nothing the listing above did not already hold.
+    found.join_cpu_time(&mut |cursor| {
+        survey_record(DOMAIN_SLOT, cursor, abi::survey::record::CPU_TIME)
+    });
 
     found.write_diagnostics(&mut |bytes| write_on(diag_slot(), bytes));
     diag_end();
