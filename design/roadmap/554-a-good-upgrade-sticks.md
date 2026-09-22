@@ -1,6 +1,6 @@
-# 543. A good upgrade sticks: what marks a trial boot successful
+# 554. A good upgrade sticks: what marks a trial boot successful
 
-**Status: BUILT.** *(Number provisional until the merge queue lands it; 542 is the highest claimed
+**Status: BUILT.** *(Renumbered from 543 by the integrator on 2026-09-22: the maintainer minted 543 for a promoted proposal while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 542 is the highest claimed
 on a branch in flight.)* Built 2026-09-21 by the lane `abboot/confirm-a-trial-boot`, on calef's
 launch of the proposal `design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md` the same
 day. **Based on the rung 2b branch `abboot/tries-and-priority`, which is not on `main` yet**, so its
