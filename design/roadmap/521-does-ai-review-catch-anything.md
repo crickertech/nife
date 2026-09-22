@@ -64,6 +64,26 @@ with a number in it. A starting proposal, to be argued with before the first run
 - **Refuse** if it names under a fifth, or exceeds two false positives per clean pull request.
 - **Anything between is a null result**, which is a legitimate outcome and must be reported as one.
 
+### Registered 2026-09-22, before the first call, for the run recorded below
+
+The corpus the run above uses did not exist when this block was written, so the threshold is
+restated here against it rather than left to be read across from a different corpus. **Written and
+committed before any model was called**; `git log` on this file is the evidence, since the commit
+that added this section precedes every transcript commit.
+
+- **The corpus is `notes/delegation/ledger.tsv`'s three defect rows of 2026-09-22**, every one of
+  which passed `script/lint`, `script/citations --ratchet` and `script/roadmap --check`. The gates
+  are therefore not a control group here; they are the thing that already failed.
+- **Arm 1 scores one question per defect: did the reviewer name it?** Named, or not. A finding that
+  the diff deleted text without saying why the deletion matters is scored **partial** and counted
+  against the threshold as a miss, because the class of defect here is a true sentence removed and
+  noticing a deletion is not noticing a loss.
+- **Arm 2 counts every finding on a clean diff**, adjudicated true, false, or unfalsifiable, with
+  false positives per clean diff the denominator.
+- **Adopt** at a third or more of arm 1 named, with under one false positive per clean diff.
+  **Refuse** under a fifth, or over two false positives per clean diff. **Anything else is null.**
+- **Per model, never averaged**, because the point of running two is that they may differ.
+
 ## The variable worth building in
 
 **The reviewer is the same model family that wrote the code**, so its blind spots may be the lane's
