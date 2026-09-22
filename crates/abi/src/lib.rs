@@ -414,7 +414,7 @@ pub mod survey {
         /// is `jiffies`-based accounting, the bargain Linux also takes, and it is why a reader must
         /// not treat two of these numbers that should have matched as a contradiction.
         ///
-        /// **What a holder of [`rights::ENUMERATE`](super::rights::ENUMERATE) learns, said plainly
+        /// **What a holder of [`rights::ENUMERATE`](crate::rights::ENUMERATE) learns, said plainly
         /// because it is more than the record before it.** A run state is one of five values and
         /// says only what a thread is doing at the instant of the call; this is a **continuous,
         /// monotonic** signal about a thread the viewer may not otherwise be able to name, and two

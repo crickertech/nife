@@ -448,6 +448,16 @@ path = "src/pgrep.rs"
 test = false
 bench = false
 
+# `top` (milestone 282): the same domain `ps` lists, walked twice and ranked by each thread's
+# scheduled CPU time. Holds `ps`'s three capabilities exactly; the difference is the question asked,
+# not the authority held. The summary line is crates/top, the walk and the table are crates/ps, both
+# host-tested. Portable for `ps`'s reason.
+[[bin]]
+name = "top"
+path = "src/top.rs"
+test = false
+bench = false
+
 # `pmap` (milestone 126, DECISIONS §114): `ps`'s split one object type over, listing an address
 # space's mappings through `abi::aspace::LIST` gated by `ENUMERATE` rather than `WRITE`. Proven
 # end to end against a real `Object::Aspace` in `kernel::user::pmap_tests`; not reachable from the
@@ -539,6 +549,7 @@ nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
+top = { version = "0.1.0", path = "../crates/top" }
 uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_protocol = { version = "0.1.0", path = "../crates/entropy_protocol" }

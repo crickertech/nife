@@ -124,7 +124,7 @@ pub(crate) fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -288,6 +288,26 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
         "caps pgrep",
         &["cap 7  endpoint  domain   ENUMERATE", "do nothing to them"],
     ),
+    // **`top`, at the real prompt** (milestone 282), and what is asserted is the two things a
+    // boot cannot make untrue: the summary line's opening, which proves the ambient uptime counter
+    // and the domain count both reached the output stream, and the `TIME(ms)` header, which proves
+    // the **second** walk happened. A `top` whose CPU-time walk was refused would print the table
+    // without that column and this line would fail, which is the one failure a
+    // `pgrep`-style empty-diagnostics check could not catch.
+    //
+    // The tids and the figures are deliberately not pinned. A tid is a generational name that moves
+    // with the boot's history, and a CPU figure is a measurement of a real machine; a gate that
+    // pinned either would be pinning this boot rather than the program.
+    ("top", &["up ", "threads: ", "TID  STATE     TIME(ms)"]),
+    // And the second stream is empty, the same trick the `pgrep 2>` line above uses: `top`
+    // complains in exactly the cases `ps` does, so an empty second stream says none of them
+    // happened and the table above it is the domain.
+    ("top 2> top.txt", &[]),
+    ("wc < top.txt", &["0 0 0"]),
+    // The scope, printed before anything is spawned. `top` holds `ps`'s three capabilities and not
+    // one more: the ranking costs no authority, because the CPU figures are a second walk of the
+    // same endpoint under the same right.
+    ("caps top", &["cap 7  endpoint  domain   ENUMERATE"]),
     // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
     // `least_authority_demo`'s, because `monotonic_nanos` is granted to every process unconditionally
     // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the
