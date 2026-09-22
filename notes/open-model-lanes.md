@@ -93,6 +93,29 @@ forks, anything touching the syscall surface or a wire format, prose a reader wi
 adversarial passes. Yesterday's findings that mattered most, `size_of::<PerCpu>()` breaking a shift,
 a capability surviving a revocation sweep, a calibration wrong by 11x, all came from the second kind.
 
+## Maintainer work is the best target found, and the reason is not the model
+
+**Measured 2026-09-22.** A rebase with three known conflict classes, handed to Qwen3-Coder through
+`scripts/open-lane.sh`, cost **$0.0552**, was correct first time, needed no redo, and replaced about
+thirteen of the maintainer's tool calls with four. It took `main`'s baselines rather than
+hand-merging them, which is the trap that nearly shipped a wrong benchmark floor twice that evening.
+
+**It worked because the brief encoded judgement that had already been made**, not because the model
+is clever: three named resolutions, and an instruction to abort on anything else. That is lookup
+rather than judgement, and lookup is what a cheap model is good at.
+
+So the briefs live in `briefs/` as checked-in assets rather than being retyped from memory, because
+a brief written fresh each time loses a clause a month and the clause it loses is the one that stops
+a wrong conflict resolution shipping as housekeeping.
+
+**This reframes the offload estimate.** The decision that the subscription stays and rented models
+fill the mechanical tail, taken the same day and not yet on `main`, puts the lane tail at about 18%
+of a day's tokens. Maintainer work sits on top of
+that, is nearly all delegatable at these prices, and is done in the most expensive context
+available. Nobody has measured it, because the session's own consumption is not instrumented. The milestone for
+that, *what a lane spent on its milestone*, was promoted the same day and is not yet on `main`, so
+it is named here rather than cited.
+
 ## What has to be benchmarked before this is trusted
 
 **Tool-call fidelity, and nothing in the documentation vouches for it.** Claude Code sends tool
