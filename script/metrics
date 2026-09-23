@@ -1345,6 +1345,17 @@ def fill_derived(rows, rev):
         print('metrics: $%.2f of ledger spend falls in %s, which the series has no row for; '
               'cash_spend does not include it'
               % (sum(orphaned.values()), ', '.join(sorted(orphaned))), file=sys.stderr)
+    # The same silent drop, one column over, and it is the reason the flow does not sum to the
+    # stock. Milestone 1 (boot to Rust on QEMU `virt`, and print to the PL011 UART) carries a
+    # `**Built:**` date of 2026-07-12, a Sunday, so it lands in 2026W28, and the series starts at
+    # 2026W29 because that is where the first commit is. Without this line the series is one short
+    # of the tree's own BUILT total and nothing says so. Reported rather than absorbed into 2026W29,
+    # for the reason above: a week has a row only if a commit fell in it.
+    unbucketed = {week: n for week, n in built.items() if week not in rows}
+    if unbucketed:
+        print('metrics: %d dated milestone(s) fall in %s, which the series has no row for; '
+              'milestones_built_this_week does not include them'
+              % (sum(unbucketed.values()), ', '.join(sorted(unbucketed))), file=sys.stderr)
     return rows
 
 
