@@ -847,6 +847,17 @@ fails one file, and a floor of 90 newly fails two.** Raising the floor is not a 
 two files. That is the number the question needs, and it is calef's to act on. `script/coverage`
 prints it on every run, so it never has to be re-derived.
 
+**The count at 90 is platform-sensitive, and the platform that gates is CI.** The same run on the
+dev Mac later that evening (cargo-llvm-cov 0.8.7, nightly-2026-09-23) agrees exactly on the minimum,
+84.0% and the same file, and on the aggregate to two decimals, 95.21 against CI's 95.2. It disagrees
+on one file: `crates/globally_unique_identifier_partition_table/src/lib.rs` is **315 of 351 lines
+(89.7%) on CI and 318 of 351 (90.6%) here**. Three lines, straddling 90, which is enough to move the
+85-89.9% band from one file to none and the answer at a floor of 90 from two files to one. So a
+floor of 90 would fail a build on CI while passing for the person asked to fix it, which is the
+worse of the two directions. This is the same class of platform gap the 2026W36 control already
+prices at 33 lines; it only becomes visible here because a single file happens to sit on the
+boundary. A floor of **85** has no such ambiguity on either platform.
+
 **A higher floor is not automatically a better one, and this panel must not be read as a target.**
 `script/coverage` says it plainly: the floor is a floor, a file at 81% is not "done", and 100% is
 not the goal because tests have to prove something. `AGENTS.md` is blunter still: do not add filler
