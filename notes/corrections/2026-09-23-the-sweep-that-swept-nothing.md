@@ -65,6 +65,7 @@ All times UTC. The workflow's whole life fits in one table.
 | 2026-09-23 20:37:53 | That dispatch refuses, on a branch without the fix. |
 | 2026-09-23 20:49:25 | `falsify/machine-discovery` dispatches. Refuses. |
 | 2026-09-23 20:50:57 | `falsify/crates-paging` posts the same finding as a comment on pull request #1159, deliberately not fixing it, because `.github/` is shared and two siblings were dispatching that workflow at the time. |
+| 2026-09-23 21:16:38 | This record's own pull request, #1166, trips a fifth instance of the same shape while being written. `coe-architect-label.yml`, merged hours earlier to put `needs-architect` on every COE by default, detects the new file correctly and then fails to apply the label, because `gh pr edit` was called without `--repo` in a job that never checks the repository out. The step's `if` takes the else arm as designed, the job reports **pass**, and no label appears. |
 
 **Six completed runs, six refusals. The count of falsification patches this workflow has replayed in
 its lifetime is zero.** The one run that carried the fix was cancelled by its own concurrency group
@@ -148,8 +149,8 @@ Because a gate is written against the defect it hunts, and the empty-input case 
 author is not thinking about while writing it. From outside, checking nothing is indistinguishable
 from finding nothing, and it is what every new gate does on the day it lands, before its subject
 exists. The review that follows asks whether the gate catches the defect; nothing asks what it does
-when its input set is empty. **This is the fourth instance of the shape found in a single day**, and
-that recurrence, not the `tee`, is the finding:
+when its input set is empty. **This was the fourth instance of the shape found in a single day, and a fifth arrived while
+this document was being written**; that recurrence, not the `tee`, is the finding:
 
 - **Milestone 401 (a gate that selects the set it judges can pass by checking nothing)**, pull
   request #1130, went looking for the class in `script/` and found it. Eight selectors now assert
@@ -162,6 +163,14 @@ that recurrence, not the `tee`, is the finding:
   still satisfies a required check, so skipping is never the safe default. That file's `gate` job
   exists because it had to learn it more than once.
 - **This sweep**, where the skipped work is the whole subject of the workflow.
+- **And a fifth, found by this document's own pull request**, which is the strongest evidence in it
+  that the shape is a habit rather than four coincidences. The workflow that labels a COE for
+  calef's attention reported success while applying no label. Its detection step names the
+  repository explicitly and worked; its labelling step inferred the repository from a git remote
+  that a checkout-free job does not have, and its deliberate report-and-continue arm turned the
+  failure into a pass. Every individual choice there is one this tree argues for on purpose, in
+  that file's own header: best-effort, never fatal, a COE must not fail to exist because a label
+  API call failed. The result is still a green tick over nothing.
 
 The ladder in `AGENTS.md` ranks how hard to make a rule hold. It has nothing to say about a
 mechanism proving it had something to hold. **A gate that reported clean should have to say over how
@@ -180,6 +189,11 @@ convention for, and building one is what the second action item below is.
   report a denominator it must assert is non-zero. It is the workflow-level counterpart of what
   milestone 401 (a gate that selects the set it judges can pass by checking nothing) built inside
   `script/`.
+- **Done.** `coe-architect-label.yml`'s labelling step now passes `--repo "$GITHUB_REPOSITORY"`, so
+  it no longer depends on a git remote that a job without a checkout does not have, and the reason
+  is written beside the flag. Carried on this branch, `maintainer/the-sweep-that-swept-nothing`.
+  The label on this pull request was applied by hand in the meantime; the fix takes effect on the
+  next push to it, which is the demonstration.
 - **Recorded.** The `concurrency` group in `falsifications.yml` is the bare string `falsifications`
   with no ref in the key, so a hand dispatch from any branch cancels a running one from any other.
   That is what killed the only run of this workflow that would have swept anything. The limitation

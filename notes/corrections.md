@@ -42,8 +42,9 @@ happen again. The directory name is provisional, as §210 says.
 (2026-09-23). A `tee` into the checkout dirtied the tree before the sweep's own dirty-tree guard read
 it, and `continue-on-error` swallowed the refusal, so three scheduled runs published the refusal as
 their report and went green. The fifth why reaches the habit rather than the `tee`: a check that
-examined nothing looks exactly like a check that found nothing, and this was the fourth instance of
-that shape found in one day.
+examined nothing looks exactly like a check that found nothing, and this was the fourth of five instances of
+that shape found in one day, the fifth being the workflow that was supposed to label this very
+record for calef.
 
 ## Why this page exists rather than a tidy repository
 

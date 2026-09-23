@@ -16,7 +16,7 @@ before its subject exists, and nothing in this tree's review asks about it. The 
 is "does this catch the defect". The question that goes unasked is "what does this do when its input
 set is empty".
 
-Four instances turned up in one day, 2026-09-23:
+Five instances turned up in one day, 2026-09-23:
 
 - **Milestone 401 (a gate that selects the set it judges can pass by checking nothing)** swept
   `script/` for the class and guarded eight selectors, enumerated in `notes/empty-selectors.md`.
@@ -28,6 +28,12 @@ Four instances turned up in one day, 2026-09-23:
 - **The weekly falsification sweep**, which replayed zero patches in all three of its scheduled runs
   and reported success each time, because the transcript it was writing dirtied the tree its own
   guard protects and `continue-on-error` discarded the refusal.
+
+- **The labeler for corrections of error**, `coe-architect-label.yml`, merged the same day. It
+  detected a new COE record correctly and then failed to apply the label, because `gh pr edit` was
+  called without `--repo` in a job with no checkout; its deliberate never-fail arm reported the
+  failure to the log and the job to GitHub as a pass. Fixed on the branch that found it, which was
+  the branch writing the correction of error about the other four.
 
 Milestone 401 fixed the `script/` half. **The workflow half is untouched**, and it is the half where
 the swallowing is explicit and deliberate rather than accidental.
