@@ -201,6 +201,79 @@ pub(crate) const MAX_THREADS: usize = 256;
 /// (a spawn already costs a page).
 static PEAK_THREADS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 
+/// **Scheduled on-CPU time, one timer tick at a time, keyed by thread slot** (milestone 282 (a thread's CPU time, and the `top` it makes possible),
+/// DECISIONS §150 (how does a thread's CPU time reach userspace?)). `abi::survey::record::CPU_TIME` is what reads it.
+///
+/// **Why an array beside the table rather than a `u64` on `Thread`**, which is what §150's build
+/// note described and is the one place this differs from it. The increment happens in
+/// [`on_tick`], in interrupt context, and the only name a core has for its running thread there is
+/// a tid in its own per-CPU block. Turning that tid into a `&mut Thread` means `IPC_TABLES`, and a
+/// timer interrupt that waits on a lock another core holds is a scheduler-latency hole opened at
+/// every tick on every core; `try_lock` is no better, because a dropped sample is not a coarse
+/// number, it is a wrong one, and it would be dropped exactly when the machine is busiest. The
+/// slot index is already in the tid's low 32 bits (`generational_table`'s packing), so an array
+/// keyed by slot needs no lock, no lookup, and no ordering beyond relaxed.
+///
+/// **Not on `cpu::PerCpu` either**, and that is a measured constraint rather than a preference:
+/// milestone 527 (the survey selector, and a thread's placement) grew `PerCpu` by one `u64`, took
+/// `size_of::<PerCpu>()` from 128 to 136, and cost riscv64's IPC fastpath 5.4% because `PERCPU[id]`
+/// stopped indexing with a shift. `kernel/src/cpu.rs` now const-asserts that size. This counter is
+/// per **thread**, not per core, so it was never a candidate for that struct; the note is here
+/// because the next person to add a counter will consider it.
+///
+/// **Two kilobytes of `.bss`**, which is `MAX_THREADS` slots at eight bytes and does not move with
+/// the workload.
+///
+/// # The race, stated rather than assumed (rule 4)
+///
+/// A core's tick increments only the slot of the thread that core is running, so the **write** is
+/// uncontended by construction and needs no cross-core synchronisation. A survey reading a slot
+/// another core is incrementing is a relaxed load of a value in flight: it reads a number that was
+/// true a moment ago, never a torn one, because the unit is a naturally aligned `u64`. That is the
+/// same bargain the per-CPU `TICKS` array already takes, and it is the right one for a statistic
+/// nobody branches on.
+///
+/// # Slot reuse
+///
+/// The counter is zeroed when a slot is **filled**, not when it is emptied, which is what lets a
+/// corpse keep the time it earned until its supervisor reaps it. A survey can report a `DEAD`
+/// thread, and reporting it with a fresh occupant's zero (or a previous occupant's total) would be
+/// the plausible wrong number this tree already ruled against.
+static CPU_TICKS: [core::sync::atomic::AtomicU64; MAX_THREADS] =
+    [const { core::sync::atomic::AtomicU64::new(0) }; MAX_THREADS];
+
+/// The slot a generational thread name occupies, for indexing [`CPU_TICKS`].
+///
+/// `generational_table` packs `(generation << 32) | slot`, so the slot is the low word. No bound
+/// check here on purpose: every caller indexes [`CPU_TICKS`] with `get`, so an out-of-range answer
+/// is `None` rather than a panic, and `cpu::NO_TID` (`u64::MAX`) lands out of range for free, which
+/// is what makes "this core is running nothing" cost no branch of its own.
+const fn slot_of(tid: ThreadId) -> usize {
+    (tid & 0xffff_ffff) as usize
+}
+
+/// **Charge one timer tick to the thread this core is running** (milestone 282 (a thread's CPU time, and the `top` it makes possible)).
+///
+/// The whole of the accounting, called from [`on_tick`] in interrupt context: one relaxed load of
+/// this core's `current`, one bounds-checked index, one relaxed increment. Nothing here can block,
+/// allocate, or take a lock, which is the property that let this go on the tick path at all.
+///
+/// A core running nothing yet (`cpu::NO_TID`) charges nobody, and costs the same branch the bounds
+/// check already spends. The idle thread is a thread and is charged like any other; it is not in
+/// any supervision domain, so no survey reports it.
+fn charge_tick() {
+    if let Some(counter) = CPU_TICKS.get(slot_of(current_thread_id())) {
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// Start a freshly filled slot's CPU time at zero. Called by both inserts, under `IPC_TABLES`.
+fn clear_cpu_ticks(tid: ThreadId) {
+    if let Some(counter) = CPU_TICKS.get(slot_of(tid)) {
+        counter.store(0, Ordering::Relaxed);
+    }
+}
+
 /// The high-water mark [`PEAK_THREADS`] holds. Printed by the test suite's closing summary.
 #[cfg_attr(not(test), allow(dead_code))] // the closing summary is the only reader
 pub fn peak_thread_count() -> usize {
@@ -348,6 +421,8 @@ impl Threads {
             return None;
         }
         self.note_peak();
+        // A reused slot starts its CPU accounting at zero; see `CPU_TICKS`.
+        clear_cpu_ticks(name);
         Some(name)
     }
 
@@ -366,8 +441,10 @@ impl Threads {
             unsafe { crate::thread::init_fp_state(ptr) };
             ThreadControlBlockPointer(ptr)
         });
-        if name.is_some() {
+        if let Some(name) = name {
             self.note_peak();
+            // A reused slot starts its CPU accounting at zero; see `CPU_TICKS`.
+            clear_cpu_ticks(name);
         }
         name
     }
@@ -1802,8 +1879,21 @@ fn deliver_death(sched: &mut IpcTables, corpse: ThreadId, ep: RendezvousId, msg:
 }
 
 /// Called from the timer IRQ. **Records** that a switch is wanted; does not switch.
+///
+/// **`#[inline(never)]`, and the reason is a measurement rather than a preference.** On riscv64 the
+/// timer interrupt and a syscall arrive through the same `riscv_trap_body`, so anything inlined
+/// here lands in a symbol `script/fastpath-footprint` counts **flat**: its bytes are charged to
+/// every syscall although no syscall fetches them, which is the over-count milestone 368 (the entry set is flat, so an inlining flip can move 12% into it) records.
+/// Keeping this a call rather than an inline puts the tick path's bytes in the tick path's own
+/// symbol, where they belong and where the gate can see them for what they are. One `jal` per tick
+/// per core, at 100 Hz, against bytes on the line every syscall shares.
+#[inline(never)]
 pub fn on_tick() {
     cpu::current().need_resched.store(true, Ordering::Relaxed);
+    // **Charge this tick to whatever is on this CPU** (milestone 282 (a thread's CPU time, and the `top` it makes possible), DECISIONS §150 (how does a thread's CPU time reach userspace?)). One
+    // bounds-checked index and one relaxed increment, which is the whole of the accounting; see
+    // [`CPU_TICKS`] for why the counter is an array beside the table rather than a field in it.
+    charge_tick();
     // The corruption tripwire, when armed (the board tour's initrd-demo window). One relaxed
     // load when it is not, which is every other tick everywhere. IRQ context is safe for its
     // println: the console's IrqSafeMutex masks interrupts while held, so the interrupted
@@ -4016,6 +4106,7 @@ pub fn survey_supervised(
             let word = match record {
                 abi::survey::record::STATE => survey_state(t.handshake.state),
                 abi::survey::record::PLACEMENT => survey_placement(t.placement),
+                abi::survey::record::CPU_TIME => survey_cpu_time(slot),
                 // `is_known` refused every other value above, before the walk began. This arm is
                 // not dead defensiveness: it is what makes adding a record a loud two-line edit
                 // (the constant, and an arm here) instead of a record that silently reports zero
@@ -4026,6 +4117,24 @@ pub fn survey_supervised(
         }
     }
     Ok((abi::survey::DONE, 0, 0))
+}
+
+/// The CPU time a survey reports, as an `abi::survey::record::CPU_TIME` word: **milliseconds**.
+///
+/// Keyed by the walk's own slot rather than by the tid, because the walk already holds it and the
+/// two are the same number (`generational_table` packs the slot in a name's low word). Under
+/// `IPC_TABLES` with the thread in hand, so the slot is live and its counter is this thread's.
+///
+/// **Milliseconds are converted here so the unit never leaves the kernel as a tick.** A tick count
+/// would make every reader depend on `TICK_HZ`, and would change meaning underneath them the day
+/// that constant moved; the conversion costs one multiply and one divide, on a path that already
+/// crossed a syscall boundary and took a lock. All three architectures tick at 100 Hz today, so
+/// the answer advances in steps of ten.
+fn survey_cpu_time(slot: usize) -> u64 {
+    let ticks = CPU_TICKS.get(slot).map_or(0, |c| c.load(Ordering::Relaxed));
+    // `TICK_HZ` is 100 everywhere, so this is `ticks * 10` and cannot overflow a `u64` short of
+    // 58 million years of continuous CPU time.
+    ticks * 1000 / crate::arch::timer::TICK_HZ
 }
 
 /// The placement a survey reports, as an `abi::survey::record::PLACEMENT` word.

@@ -210,6 +210,7 @@ dependencies = [
  "system_initializer",
  "timetable",
  "tock-registers",
+ "top",
  "uptime",
  "user_mode_runtime",
  "video_terminal",
@@ -986,6 +987,15 @@ name = "tock-registers"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d2d250f87fb3fb6f225c907cf54381509f47b40b74b1d1f12d2dccbc915bdfe"
+
+[[package]]
+name = "top"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "ps",
+ "uptime",
+]
 
 [[package]]
 name = "tracing"

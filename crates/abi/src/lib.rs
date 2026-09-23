@@ -393,6 +393,43 @@ pub mod survey {
         /// own `u8::MAX`.
         pub const NO_CPU: u64 = u64::MAX;
 
+        /// **How long the thread has been scheduled on a CPU, in milliseconds.** Scheduled
+        /// on-CPU time, which is what Linux's `utime`/`stime` and Zircon's
+        /// `zx_info_thread_stats_t::total_runtime` report, and what a reader who knows `top`
+        /// expects `%CPU` to be derived from. DECISIONS §150 (how does a thread's CPU time reach userspace?) refused the two cheaper
+        /// answers: wall-clock age reads identically for a thread that slept five minutes and one
+        /// that ran five minutes, and userspace sampling over `SURVEY` misses every thread that
+        /// runs between two samples.
+        ///
+        /// **Milliseconds rather than ticks, and the unit is the wire contract.** A tick count
+        /// would oblige every reader to learn this kernel's `TICK_HZ` and would silently change
+        /// meaning the day that constant moved; a millisecond means the same thing in every build
+        /// and on every architecture. The granularity is nonetheless the tick, which is 10 ms on
+        /// all three architectures today, so this number moves in steps rather than smoothly.
+        ///
+        /// **It is sampled at the timer tick, not accumulated at the context switch**, which is
+        /// §150's sub-choice 1 and has a visible consequence rather than only an implementation
+        /// one: a thread that runs entirely between two ticks is charged **nothing**, and a thread
+        /// that happens to be on the CPU at every tick is charged for the whole of each one. That
+        /// is `jiffies`-based accounting, the bargain Linux also takes, and it is why a reader must
+        /// not treat two of these numbers that should have matched as a contradiction.
+        ///
+        /// **What a holder of [`rights::ENUMERATE`](crate::rights::ENUMERATE) learns, said plainly
+        /// because it is more than the record before it.** A run state is one of five values and
+        /// says only what a thread is doing at the instant of the call; this is a **continuous,
+        /// monotonic** signal about a thread the viewer may not otherwise be able to name, and two
+        /// reads of it measure how much work that thread did in between. A confined viewer holding
+        /// a supervision endpoint can therefore watch the shape of another thread's workload
+        /// without holding anything that lets it act on that thread. §150 weighed that and accepted
+        /// it, on the ground that `ENUMERATE` is already "the right to learn what exists, as
+        /// distinct from acting on it", and the leak is bounded by the domain: a survey never
+        /// reaches outside the supervision subtree the caller was endowed. §204 (how userspace asks where a thread runs) records that
+        /// [`PLACEMENT`] is strictly less than this, which is the comparison that makes the
+        /// magnitude concrete rather than adjectival.
+        ///
+        /// Name provisional: calef names public items.
+        pub const CPU_TIME: u64 = 2;
+
         /// **Whether this kernel answers a record.** The one enumeration of the selector space, so
         /// adding a record is an edit here and an arm in the kernel's walk rather than a hunt.
         ///
@@ -402,7 +439,7 @@ pub mod survey {
         /// thread to extract anything from.
         #[must_use]
         pub const fn is_known(record: u64) -> bool {
-            matches!(record, STATE | PLACEMENT)
+            matches!(record, STATE | PLACEMENT | CPU_TIME)
         }
     }
 }
@@ -919,11 +956,18 @@ mod survey_record_tests {
     /// Known records are known and nothing else is, including the two an unknown selector most
     /// plausibly arrives as: one past the end (a reader built against a later kernel) and a wild
     /// value (a register that held something else).
+    ///
+    /// **"One past the end" is written against the last constant rather than as a literal**, so
+    /// adding a record moves it instead of quietly turning this line into an assertion that a
+    /// *known* record is unknown. That is not hypothetical: [`record::CPU_TIME`] took the value
+    /// this test used to name, and the test failed rather than passing for the wrong reason, which
+    /// is what it is for.
     #[test]
     fn only_the_records_this_kernel_answers_are_known() {
         assert!(record::is_known(record::STATE));
         assert!(record::is_known(record::PLACEMENT));
-        assert!(!record::is_known(record::PLACEMENT + 1));
+        assert!(record::is_known(record::CPU_TIME));
+        assert!(!record::is_known(record::CPU_TIME + 1));
         assert!(!record::is_known(u64::MAX));
     }
 

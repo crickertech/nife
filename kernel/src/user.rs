@@ -3607,6 +3607,16 @@ mod survey_tests;
 #[cfg(test)]
 mod survey_record_tests;
 
+/// **What the CPU-time record's number means** (milestone 282 (a thread's CPU time, and the `top` it makes possible), DECISIONS §150 (how does a thread's CPU time reach userspace?)).
+///
+/// `survey_record_tests` proves that a record can be asked for and that an unknown one is refused,
+/// which a record returning a constant zero would satisfy. This proves the figure: a runaway is
+/// charged for the CPU it took, a thread blocked in a send is charged for nothing, and a corpse
+/// keeps what it earned. The first of those is the assertion the wall-clock age §150 refused would
+/// fail, since two threads of the same age read identically under it.
+#[cfg(test)]
+mod cpu_time_tests;
+
 /// **`pmap`'s split, one object type over `survey_tests`** (milestone 126, `address_space::LIST`,
 /// DECISIONS §114). Cross-ISA for `survey_tests`'s reason: the method reads `Flags` through
 /// `arch::mmu::translate_at`, so a divergence here means something is wrong under `arch/`.
