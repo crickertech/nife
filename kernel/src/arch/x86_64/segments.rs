@@ -375,7 +375,29 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
 /// out of `schedule()`'s switch), for the price of a call and a compare on the common switch.
 #[cold]
 pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
-    let id = crate::cpu::id();
+    set_port_range_grant_on(crate::cpu::id(), grant);
+}
+
+/// [`set_port_range_grant`] for a core that names itself by number rather than through `gs`.
+///
+/// **The NMI half of a revocation broadcast cannot call `cpu::id()`**, which reads `IA32_GS_BASE`,
+/// and `mmu::serve_shootdown_nmi`'s own doc has the reason: an NMI can land in the window where that
+/// MSR still holds the *user's* value while `cs` says ring 0. The handler names its core from the
+/// local APIC id register instead, which is hardware ground truth, and hands it here. On this port
+/// the two numbers are the same (`smp::seat_cpus_from_acpi` seats every core at the slot its own
+/// APIC id names), and the sender `debug_assert`s it rather than assuming it.
+///
+/// # The one rule that makes every writer of a TSS bitmap safe
+///
+/// **A core's port bitmap is written only by a thread holding `sched::IPC_TABLES`, or by an NMI that
+/// such a thread sent.** That is what stops the revocation broadcast landing inside a switch-path
+/// install on the target core and leaving the two writers interleaved: while the revoker holds the
+/// lock, no other core can be inside `sched::install_port_grant`, because milestone 315 (a port
+/// revoke that reaches every core) moved that
+/// call inside the locked region for exactly this reason. The one exception is `bench_*` below,
+/// which runs in a `feature = "bench"` boot that pins a single hart and sends nothing.
+#[cold]
+fn set_port_range_grant_on(id: usize, grant: Option<(u16, u16)>) {
     // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
     // the switch path; a different core touches a different index.
     let installed = unsafe { INSTALLED_PORT_GRANT[id] };
@@ -411,29 +433,51 @@ pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
 /// revoked, re-deny its bits and point `iomap_base` past the limit, so a port access faults even
 /// before the next context switch. If a different grant (or none) is installed, this does nothing.
 ///
-/// For a `PortRange::REVOKE` this is a belt-and-suspenders check: the switch away from a holder
-/// already uninstalls its grant, so the revoker running here means the revoked grant is not installed
-/// on *this* core. For `sched::delete_current_cap` (milestone 313's audit) it is the whole mechanism:
-/// the thread dropping its own port capability is the thread whose grant is installed here, and this
-/// is what makes its next `in`/`out` fault rather than its next-but-one.
-///
-/// # BUGS
-///
-/// **It reaches one core, and x86 no longer runs one.** This was written as the step a future SMP
-/// x86 would run **on each core** in response to a shootdown IPI, the same shape as the TLB
-/// shootdown (notes/x86-tlb-shootdown.md), while `smp::bring_up_secondaries` still refused on
-/// `x86_64`. It no longer refuses (`smp::seat_cpus_from_acpi`; the tour boots two cores under OVMF),
-/// and the IPI was never added. So on a multi-core x86 a revoked holder that is *running on another
-/// core* keeps that core's bitmap until its next context switch, at most one tick, during which its
-/// `in`/`out` still succeed. The cached grant is cleared by then, so the window cannot reopen. The
-/// two port tests run on one core and cannot see this; recorded by milestone 313's audit rather
-/// than fixed, with the broadcast proposed as its own milestone.
+/// This is what [`sched::delete_current_cap`](crate::sched::delete_current_cap) needs and the whole
+/// of what it needs: the thread dropping its own port capability is the thread whose grant is
+/// installed *here*, and a core's bitmap only ever permits the range for the thread currently
+/// running on it, so there is no second core to tell. A `PortRange::REVOKE` names a holder that may
+/// be running anywhere and calls [`revoke_port_grant_everywhere`] instead.
 pub fn revoke_installed_port_grant(base: u16, count: u16) {
-    let id = crate::cpu::id();
-    // SAFETY: this core's own slot; see `set_port_range_grant`.
+    revoke_installed_port_grant_on(crate::cpu::id(), base, count);
+}
+
+/// [`revoke_installed_port_grant`] for a core that names itself by number. The receiving half of
+/// [`revoke_port_grant_everywhere`], called from the NMI handler; see [`set_port_range_grant_on`]
+/// for why the handler cannot ask `cpu::id()` who it is.
+pub(super) fn revoke_installed_port_grant_on(id: usize, base: u16, count: u16) {
+    // SAFETY: this core's own slot; see `set_port_range_grant_on`.
     if unsafe { INSTALLED_PORT_GRANT[id] } == Some((base, count)) {
-        set_port_range_grant(None);
+        set_port_range_grant_on(id, None);
     }
+}
+
+/// **Take the grant out of every online core's TSS, and do not return until they have done it**
+/// (milestone 315). `PortRange::REVOKE`'s arch half.
+///
+/// A revoked holder can be *running on another core* at the instant the revoker deletes its
+/// capability, and that core's bitmap still permits the range: the cached grant
+/// (`thread::Thread::port_range_grant`) is cleared under `sched::IPC_TABLES`, but nothing had told
+/// the hardware. The audit in milestone 313 (the security audit that was due since August) accepted
+/// that as a window of at most one tick, on the
+/// reasoning that the next context switch on that core closes it and it cannot reopen. **It was not
+/// theoretical.** At `NIFE_SMP=2` the suite's own
+/// `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` went red in 7 of 12 full
+/// runs (the campaign in milestone 316 (which core booted)) and 5 of 30 filtered ones, every
+/// failure the same shape: the
+/// child's `out` was permitted and it exited cleanly where the test demands a fault. The instrument
+/// that named the cause was a snapshot of [`INSTALLED_PORT_GRANT`] taken at the revoke: on both
+/// captured failures it read "revoker on cpu 0, cpu 1 holds a grant".
+///
+/// The local reset comes first, so this core's own bitmap is right before anyone else is told to
+/// look, which is the order [`super::mmu::flush_tlb`] uses for the same reason. The remote half
+/// rides the TLB shootdown's NMI, and that choice is forced rather than preferred: see
+/// notes/x86-tlb-shootdown.md for why an ordinary IPI deadlocks against a core spinning for a lock
+/// with interrupts masked, which is exactly what a core waiting for `IPC_TABLES` is doing while the
+/// revoker holds it.
+pub fn revoke_port_grant_everywhere(base: u16, count: u16) {
+    revoke_installed_port_grant(base, count);
+    super::mmu::revoke_port_grant_others(base, count);
 }
 
 /// **Bench-only** (DECISIONS §121's amendment, 2026-08-24): the I/O permission bitmap option 1
