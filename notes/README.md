@@ -1251,6 +1251,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   practices each earned by a specific 2026-09-22/23 failure: never pull a CI log into the session,
   ask a gate for its exit code, delegate conflict resolution, spot-check rather than re-derive.
 - [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md):
+- [What `claude --effort` buys, measured against a real repository query](effort-levels.md):
+  `scripts/open-lane.sh` never passed `--effort`, on any lane, ever. 20 runs of a real, checkable
+  roadmap query across all five levels found correctness determined entirely by the wording of the
+  prompt and not at all by the effort level: an ambiguous wording got the identical wrong answer at
+  every level, a disambiguated one got the identical right answer at every level. What effort level
+  does move is time and turns (`low` to `max` is about 5x the wall-clock for the same output), which
+  is why `OPEN_LANE_EFFORT` defaults to `low`, a null result reported as one rather than a
+  manufactured recommendation. Provisional name.
+- [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md):
   milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not)'s run: the threshold was
   registered before the first call and all 55 transcripts are kept
   unedited in an archive beside it. A rented reasoning model found ten true defects and zero false ones in a 465-line
