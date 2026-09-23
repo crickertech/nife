@@ -264,6 +264,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 203 | DECIDED | [Capacity is rented rather than bought](203-capacity-is-rented-not-bought.md) |
 | 204 | DECIDED | [How userspace asks where a thread runs](204-how-userspace-asks-where-a-thread-runs.md) |
 | 205 | DECIDED | [The subscription stays, and rented models fill the mechanical tail](205-the-subscription-stays-and-renting-fills-the-tail.md) |
+| 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
 | 207 | DECIDED | [The roadmap is a graph, and the block says so](207-the-roadmap-is-a-graph-and-says-so.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
