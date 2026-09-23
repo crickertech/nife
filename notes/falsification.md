@@ -543,6 +543,21 @@ building agrees with, which is why a proof and not a test is what catches it.
 
 ## BUGS
 
+- **The weekly sweep in CI has swept nothing since it was written, and reported success every
+  time.** Found 2026-09-23 by dispatching `falsifications.yml` on a lane branch and reading the log:
+  `script/falsifications --sweep refuses to run on a dirty working tree`, because the step is
+  `script/falsifications --sweep 2>&1 | tee sweep.txt` and the redirection creates `sweep.txt` in the
+  checkout **before** the script reads `git status`, which counts an untracked file as dirty. The
+  refusal returns 2, `tee` is the last command in the pipe, so the step exits 0 and the job is green.
+  Every scheduled run since 2026-08-31, when the workflow was written, has this in its log. The
+  refusal is the script working exactly as its own BUGS section says it should; what failed is a
+  report that says nothing and looks like a report that says everything, which is the shape this
+  whole note exists to refuse, one level out. The fix is to write the transcript outside the
+  checkout (`$RUNNER_TEMP`), and it is a workflow edit rather than a script one, so it is recorded
+  here rather than taken by the lane that found it (which was confined to `crates/machine_discovery`).
+  **Until it is fixed, a `replayable` record older than the last hand-run sweep is a claim nothing
+  has re-checked.**
+
 - **The self-referential sweep cannot be a gate and cannot be repeated cheaply.** No check
   distinguishes "asserts through the function under test" from "legitimately asserts agreement",
   which is why milestone 211 is a sweep with a worklist rather than a lint. Its per-finding
