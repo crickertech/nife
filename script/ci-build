@@ -299,6 +299,16 @@ if ! script/bootstrap; then
     exit 1
 fi
 
+# The tier has to select something: milestone 401 (a gate that selects the set it judges).
+# `names_in_tier` matches a literal column value out of the `checks` table, so renaming the tier or reformatting the separator leaves this
+# loop nothing to iterate, and the script then prints "all pass" having run no check at all. An
+# empty selection is the one outcome that must never read as success.
+if [ -z "$(names_in_tier local)" ]; then
+    echo "ci-build: the 'local' tier selected no checks, so nothing ran. The tier column in" >&2
+    echo "checks() moved; without this guard the run would have reported 'all pass'." >&2
+    exit 1
+fi
+
 ran=""
 for name in $(names_in_tier local); do
     run_one "$name"
