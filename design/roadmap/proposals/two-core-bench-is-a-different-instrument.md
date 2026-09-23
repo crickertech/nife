@@ -8,8 +8,8 @@ notes/benchmarks.md, the 2026-09-23 section; this block is the work that evidenc
 
 ## What happened
 
-Milestone 315 flipped `scripts/qemu-runner-x86_64.sh`'s `NIFE_SMP` default to 2, per DECISIONS §153
-(how a two-core x86_64 test earns its place).
+Milestone 315 flipped `scripts/qemu-runner-x86_64.sh`'s `NIFE_SMP` default to 2, per
+DECISIONS §153 (how a two-core x86_64 test earns its place).
 `bench_x86` was the one architecture arm that never pinned its own core count, so the icount bench
 silently started measuring a two-core machine while both its `eprintln!`s still said "single hart",
 and five counters left the 10% tripwire, four of them faster. That arm is pinned to 1 now, in the
