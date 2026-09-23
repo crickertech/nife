@@ -767,8 +767,18 @@ its own feature flags, so the scope moves from week to week exactly as it moved 
 | 2026W36 | `d0b254c5a5e6` | nightly-2026-09-06 | 26066 / 27604 | 94.4 |
 | 2026W37 | `5cd67cd3f193` | nightly-2026-09-13 | 26472 / 27952 | 94.7 |
 | 2026W38 | `5d9d5e4c1f6a` | nightly-2026-09-17 | 26063 / 27525 | 94.7 |
+| 2026W39 | `3dd86628a` | nightly-2026-09-23 | 32365 / 33994 | 95.2 |
 
-Three things a reader should hold against those numbers:
+Four things a reader should hold against those numbers:
+
+- **2026W39 was measured by CI, not on the dev Mac, and at a different commit from the one in its
+  row.** The dev machine was under four lanes' builds that evening, and this page's own guidance is
+  that a heavy job taken under contention is worth less than an honest gap. The lcov is the one
+  `ci.yml`'s coverage job uploaded for `3dd86628a` (run 35917383053, green), which is the same
+  instrument on the same week; the row's other columns are read from `35390e595f89`, later in that
+  week. That is the "nothing ties an lcov file to a commit" caveat above, firing on purpose rather
+  than by accident, and it is the same size of gap this page already accepts between a live cell and
+  a backfilled one.
 
 - **2026W29 is empty because no instrument existed.** `script/coverage` arrived on 2026-07-22.
   Running a later script on that tree would measure something the week never measured, which is a
@@ -827,6 +837,15 @@ taken there too.
 gated, and how many a floor of 85 or of 90 would newly fail. `script/coverage` prints the same
 three lines at the end of every run. That last pair is the number a proposal to raise the floor
 needs, and it is reported rather than left to be re-derived from the HTML report.
+
+**What the distribution actually says, measured 2026-09-23.** Over the 116 files the floor acts on
+at `3dd86628a`: none under 80%, **one** in 80-84.9%, **one** in 85-89.9%, 16 in 90-94.9%, 66 in
+95-99.9%, and 32 at 100%. The minimum is **84.0%**, `crates/machine_discovery/src/interrupt_id.rs`
+(21 of 25 lines), and the next one up is
+`crates/globally_unique_identifier_partition_table/src/lib.rs` at 89.7%. So **a floor of 85 newly
+fails one file, and a floor of 90 newly fails two.** Raising the floor is not a backlog here; it is
+two files. That is the number the question needs, and it is calef's to act on. `script/coverage`
+prints it on every run, so it never has to be re-derived.
 
 **A higher floor is not automatically a better one, and this panel must not be read as a target.**
 `script/coverage` says it plainly: the floor is a floor, a file at 81% is not "done", and 100% is
