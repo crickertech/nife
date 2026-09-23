@@ -24,6 +24,9 @@ four:
 
 > milestone 90 exists only because calef happened to be at his desk the day a report named it
 
+(That is milestone 90 (a guard page under the per-CPU secondary stacks), real kernel work that
+existed only because one person read one report on one day.)
+
 **And it gets worse as lanes get cheaper**, which is why it is worth deciding now rather than when
 it hurts. Every lever this project has pulled in the last week (renting open models, gating in CI,
 raising the lane ceiling) increases the number of reports produced per hour without increasing the
@@ -59,7 +62,8 @@ a single word away from defeating the whole thing.
 
 **Option 3, recommended: a capture step after every lane.** Something reads the report and the pull
 request body and emits either nothing or N stub files in `design/roadmap/proposals/`. It is
-extraction rather than judgement, which is what §202 routes to a cheaper model, and it fires without
+extraction rather than judgement, which is what §202 (mechanical work goes to a cheaper model, and
+the gates are why that is safe) routes to a cheaper model, and it fires without
 anyone remembering, which is the ladder's rung two. A stub it gets wrong is deleted; a finding it
 catches is one calef does not have to.
 
