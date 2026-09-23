@@ -19,12 +19,17 @@ const SPIN_STUB: &[u32] = super::x86_programs::SPIN;
 /// reclaim its region while it still spins, and assert the region comes back whole.
 #[test_case]
 fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
-    let frames_before = crate::memory::free_page_frames();
     let threads_before = sched::thread_count();
 
     // The runaway's whole world in one region: the address space's root and tables, its code
     // page, its stack, and its TCB, so a single `DESTROY` reclaims all of it.
     let region = crate::memory_region::create(16).expect("no region for the runaway");
+    // These sixteen frames, by name. The window below spans a runaway spinning on whichever core
+    // §28 (SMP placement: two random choices at spawn) placed it on, a kill converted by that
+    // core's own tick, and up to a second of yielding: ample room for a neighbouring test's
+    // teardown to land inside a machine-wide free-frame delta. See `testing::RegionRun` and
+    // notes/load-sensitive-assertions.md.
+    let run = crate::testing::RegionRun::of(region);
     let aspace = user_address_space_create(region).expect("no aspace");
 
     let code_phys = crate::memory_region::retype_page(region).expect("no code frame");
@@ -94,11 +99,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         sched::thread_count() <= threads_before,
         "the force-killed runaway was reclaimed but never actually reaped",
     );
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
-        "reclaiming a force-killed runaway did not return its frames to baseline",
-    );
+    run.assert_returned("reclaiming a force-killed runaway did not return its frames");
 }
 
 /// A child that blocks in `RECV` on the rendezvous in slot 0 and never comes back on its own. Nine
@@ -259,11 +260,10 @@ fn reclaim_within_two_seconds(region: u64) -> bool {
 /// assertion, "a region holding a resident blocked in RECV never reclaimed" (checked 2026-08-16).
 #[test_case]
 fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
-    let frames_before = crate::memory::free_page_frames();
-
     // The child's whole world in one region, its rendezvous included: address space, code, stack, TCB, and
     // the rendezvous it will park on.
     let region = crate::memory_region::create(16).expect("no region for the blocked child");
+    let run = crate::testing::RegionRun::of(region); // this region's frames, not the machine's
     let ep = sched::create_rendezvous_from(region).expect("no rendezvous in the child's region");
 
     let aspace = user_address_space_create(region).expect("no aspace");
@@ -344,11 +344,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         super::wait_for(|| !sched::thread_present(tid)),
         "the region reclaimed but its blocked resident was never reaped",
     );
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
-        "reclaiming a blocked resident's region did not return its frames to baseline",
-    );
+    run.assert_returned("reclaiming a blocked resident's region did not return its frames");
 }
 
 /// **`DESTROY` reclaims a region whose resident is blocked on a rendezvous it does not own**
@@ -375,18 +371,19 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
 /// first assertion.
 #[test_case]
 fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_own() {
-    // **The rendezvous is created before the baseline**, the same order and for the same reason
-    // `user::tests::reclaim_frees_a_started_then_exited_childs_regions` states: it comes out of the
-    // kernel's own pinned rendezvous region, which this reclaim deliberately cannot reach, so it
-    // must not count against the frame accounting. Sampling first cost this test two runs, at a
-    // deterministic 32 frames.
-    //
     // Somebody else's rendezvous is the whole point: it is not created from `region`, so the sweep
-    // that opens `reap_region_objects` never touches it and nothing ever wakes the child.
+    // that opens `reap_region_objects` never touches it and nothing ever wakes the child. It comes
+    // out of the kernel's own pinned rendezvous region, which this reclaim deliberately cannot
+    // reach.
+    //
+    // Creating it before a machine-wide free-frame baseline used to be load-bearing, and sampling
+    // in the other order cost this test two runs at a deterministic 32 frames. The accounting
+    // below names the child's own region instead, so the rendezvous's pages are outside the
+    // measurement by construction rather than by ordering.
     let ep = sched::create_rendezvous();
-    let frames_before = crate::memory::free_page_frames();
 
     let (region, tid) = child_blocked_on(ep, crate::cap::Rights::READ, RECV_STUB);
+    let run = crate::testing::RegionRun::of(region);
 
     // **Wait for it to be queued, not for "probably scheduled by now."** Reclaiming a child that
     // is still `Ready` proves the old force-kill path and nothing about this one.
@@ -411,9 +408,7 @@ fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_o
         super::wait_for(|| !sched::thread_present(tid)),
         "the region reclaimed but its blocked resident was never reaped",
     );
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
+    run.assert_returned(
         "reclaiming the region of a resident blocked elsewhere did not return its frames",
     );
 }
@@ -446,13 +441,13 @@ fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_o
 /// the reclaim itself still succeeds.
 #[test_case]
 fn tearing_down_a_reply_parked_caller_sweeps_the_reply_capability() {
-    // Before the baseline: it comes out of the kernel's pinned rendezvous region and is never
-    // reclaimed here. See the test above.
+    // Out of the kernel's pinned rendezvous region and never reclaimed here, so it is outside what
+    // this test accounts for. See the test above.
     let ep = sched::create_rendezvous();
-    let frames_before = crate::memory::free_page_frames();
 
     // WRITE, because the child calls on it. This test is the server.
     let (region, tid) = child_blocked_on(ep, crate::cap::Rights::WRITE, CALL_STUB);
+    let run = crate::testing::RegionRun::of(region); // this region's frames, not the machine's
 
     // Collect the request, which is what moves the caller off the sender queue and leaves it
     // reply-parked on nothing. `ipc_recv_cap` deliberately does not wake a caller: the reply is
@@ -493,11 +488,7 @@ fn tearing_down_a_reply_parked_caller_sweeps_the_reply_capability() {
         super::wait_for(|| !sched::thread_present(tid)),
         "the region reclaimed but its reply-parked resident was never reaped",
     );
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
-        "reclaiming a reply-parked resident's region did not return its frames",
-    );
+    run.assert_returned("reclaiming a reply-parked resident's region did not return its frames");
 }
 
 /// **A region lent to an address space is freed by its owner, and by nobody else.**
@@ -521,32 +512,19 @@ fn tearing_down_a_reply_parked_caller_sweeps_the_reply_capability() {
 /// can schedule that.
 #[test_case]
 fn an_address_space_never_frees_a_region_it_was_lent() {
-    // Sample the baseline only once it has stopped moving. A thread reaped by an earlier test frees
-    // its space's region from `finish_switch`, on whatever core got there, a beat after the thread
-    // left the table; reading the count while that is in flight would make this assert on somebody
-    // else's arithmetic. Two agreeing samples a yield apart mean nothing is outstanding. Same
-    // lesson, same shape, as `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned`.
-    let mut last = crate::memory::free_page_frames();
-    assert!(
-        super::wait_for(|| {
-            sched::yield_now();
-            let prev = core::mem::replace(&mut last, crate::memory::free_page_frames());
-            prev == last
-        }),
-        "the free-frame count never settled, so this test cannot tell its own arithmetic from a \
-         neighbouring reap",
-    );
-    let frames_before = last;
-
     // Four pages is enough for a root and one table; nothing is mapped here, so the space is only
     // ever asked who owns its memory.
     let region = crate::memory_region::create(4).expect("no region for the lent-backing test");
+    // **These four frames, by name, and that is what retires the settling loop that stood here.**
+    // This test used to sample the machine's free-frame count until two reads a yield apart
+    // agreed, because an earlier test's thread can be reaped from another core a beat after it
+    // leaves the table and its space's region freed inside this window. The wait was real work
+    // done to make a global counter usable; asking about this region's own run removes the need
+    // for it, since nothing any other core does can touch these four bits. `RegionRun::of` also
+    // asserts all four are used, which is the "the region should have cost exactly its 4 pages"
+    // claim the subtraction used to make.
+    let run = crate::testing::RegionRun::of(region);
     let name = user_address_space_create(region).expect("no address space from the region");
-    let allocated = frames_before - crate::memory::free_page_frames();
-    assert_eq!(
-        allocated, 4,
-        "the region should have cost exactly its 4 pages"
-    );
 
     // Out of the registry, exactly as `ThreadControlBlock::CONFIGURE` does: from here the space is an owned value
     // whose `Drop` is the thing under test, which is the shape the reaper holds it in.
@@ -556,18 +534,12 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     crate::memory_region::unpin(region);
     drop(space);
 
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before - 4,
+    run.assert_held(
         "dropping an address space returned a region it was only lent: the region's real owner \
          still has a name for those pages, and its `DESTROY` frees every one of them a second time",
     );
 
     // And the owner's reclaim still works, returning the run exactly once.
     crate::memory_region::destroy(region);
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
-        "the region's owner could not return a run its borrower had let go of",
-    );
+    run.assert_returned("the region's owner could not return a run its borrower had let go of");
 }

@@ -117,8 +117,12 @@ fn record_of(viewer: u64, tid: u64, record: u64) -> u64 {
 /// blocked, which is what the comparison catches.
 #[test_case]
 fn the_thread_that_ran_is_the_thread_that_is_charged() {
-    let frames_before = crate::memory::free_page_frames();
     let (budget, rendezvous_region) = arena();
+    // This test's own two runs, by name. Both are root regions, so their frames are the
+    // allocator's own bits and nothing any other core does can move them; the machine-wide count
+    // this used to bracket could be moved by anything. See `testing::RegionRun`.
+    let budget_run = crate::testing::RegionRun::of(budget);
+    let rendezvous_run = crate::testing::RegionRun::of(rendezvous_region);
     let supervision = rendezvous(rendezvous_region);
     let parking = rendezvous(rendezvous_region);
 
@@ -170,19 +174,26 @@ fn the_thread_that_ran_is_the_thread_that_is_charged() {
     collect_all(supervisor, &[sleeper]);
     tidy(budget, rendezvous_region, &[viewer, supervisor]);
 
-    // **Wait for this test's own frames to be back before leaving**, which is an assertion and also
-    // a courtesy to whatever runs next. A force-killed runaway is converted to a corpse by a tick
-    // on whichever core holds it, so the last of its pages can land after this body returns; a
-    // neighbouring test that measures `free_page_frames()` either side of its own teardown then
-    // sees *this* test's pages arrive inside its window and reports recovering more than it ever
-    // held. That shape is on record at `live_swap_tests.rs`'s budget assertion
-    // (notes/load-sensitive-assertions.md, "two unowned reds"), and a test that spawns a runaway is
-    // exactly the neighbour that would cause it.
-    assert!(
-        super::wait_for(|| crate::memory::free_page_frames() == frames_before),
-        "this test's frames never came back: {} of {frames_before}",
-        crate::memory::free_page_frames(),
-    );
+    // **This test's own frames are back before it leaves**, asked about the two runs it allocated
+    // rather than about the machine.
+    //
+    // This used to be `wait_for(|| free_page_frames() == frames_before)`, and it was written as a
+    // courtesy as much as an assertion: a force-killed runaway is converted to a corpse by a tick
+    // on whichever core holds it, so the last of its pages can land after this body returns, and a
+    // *neighbouring* test measuring the global count either side of its own teardown would see
+    // this test's pages arrive inside its window and report recovering more than it ever held
+    // (notes/load-sensitive-assertions.md, "two unowned reds"). The courtesy is retired rather than
+    // dropped: after the 2026-09-23 sweep no test in this suite brackets the global count, so
+    // there is no neighbour left for a late page to confuse. The assertion half is kept, narrowed
+    // to the pages this test is actually responsible for, where `tidy`'s two reclaims make it
+    // deterministic instead of a wait.
+    //
+    // What it no longer covers, stated rather than hidden: the child's own non-region pages, the
+    // current-cpu page among them, which belong to no region and so cannot be named from here
+    // once the space is gone. `user/current_cpu_tests.rs` is where that frame is asserted on
+    // directly, and the whole-boot frame ledger in `testing.rs` is what would catch a drift.
+    budget_run.assert_returned("the builder's budget did not come back");
+    rendezvous_run.assert_returned("this test's rendezvous region did not come back");
 }
 
 /// **A blocked thread's figure does not move**, which is the other half of the claim above and the

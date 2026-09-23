@@ -1137,3 +1137,87 @@ pub fn runner(tests: &[&dyn Testable]) {
 
     semihosting::exit(semihosting::EXIT_SUCCESS)
 }
+
+/// **A root region's run of frames, named while the region is alive.**
+///
+/// The instrument the frame-return tests in `sched.rs`, `user/tests.rs` and
+/// `user/force_kill_tests.rs` ask their question through, and it exists because the question they
+/// used to ask was wider than the property. `memory::free_page_frames()` counts every free frame in
+/// the machine, so bracketing it across a reclaim asserts that *nothing else in the kernel
+/// allocated or freed* for the length of the window. No test in this suite has any business making
+/// that claim: the windows contain child threads, remote-core reaps and a neighbouring test's late
+/// teardown, and two of them were proved wrong on CI before this type existed (pull requests #1101
+/// and #1120, notes/load-sensitive-assertions.md).
+///
+/// A root region's pages come from the frame allocator and go back to it
+/// (`memory_region::destroy`), so every frame in the run is marked used from `create` until the
+/// reclaim and free afterwards. Those bits are the property itself, and nothing outside the region
+/// can move them. `memory_region::usage` is the sibling instrument, for a *child* region whose
+/// pages return to a parent rather than to the allocator, and whose frames therefore stay used
+/// either way.
+///
+/// **Leak sensitivity is sharper, not merely preserved.** A frame a reclaim never returned stays
+/// marked used forever, so the defect fails on every run rather than on the runs where the
+/// arithmetic happens to be visible, and it can no longer be masked by somebody else freeing the
+/// same number of frames in the same window.
+///
+/// **Name provisional** (this lane; calef names the interfaces).
+pub struct RegionRun {
+    base: u64,
+    pages: u64,
+}
+
+impl RegionRun {
+    /// Name the run `region` spans, and prove the naming is not vacuous.
+    ///
+    /// The bounds have to be taken while the region is alive, because `region_bounds` goes stale
+    /// with the name. The `Some(true)` guard is what keeps the later "these frames came back"
+    /// check honest: it says these addresses are frames this allocator actually owns, so a wrong
+    /// base fails loudly here rather than reading as "not used" after the reclaim.
+    ///
+    /// # Panics
+    /// If `region` is not a live region, or if any frame in its run is not marked used.
+    pub fn of(region: u64) -> RegionRun {
+        let (base, size) =
+            crate::memory_region::region_bounds(region).expect("no bounds for a live region");
+        let run = RegionRun {
+            base,
+            pages: size / page_frames::FRAME_SIZE,
+        };
+        run.assert_all(
+            true,
+            "a live region's pages should be marked used by the allocator",
+        );
+        run
+    }
+
+    /// Every frame in the run is back with the allocator.
+    ///
+    /// # Panics
+    /// If any frame in the run is still marked used.
+    pub fn assert_returned(&self, what: &str) {
+        self.assert_all(false, what);
+    }
+
+    /// Every frame in the run is still marked used: nothing gave them back.
+    ///
+    /// # Panics
+    /// If any frame in the run has been freed.
+    pub fn assert_held(&self, what: &str) {
+        self.assert_all(true, what);
+    }
+
+    fn assert_all(&self, used: bool, what: &str) {
+        for i in 0..self.pages {
+            let frame = page_frames::PageFrame::from_addr(self.base + i * page_frames::FRAME_SIZE);
+            assert_eq!(
+                crate::memory::is_page_frame_used(frame),
+                Some(used),
+                "{what}: frame {:#x} (page {i} of the {}-page run at {:#x})",
+                frame.addr(),
+                self.pages,
+                self.base,
+            );
+        }
+    }
+}
