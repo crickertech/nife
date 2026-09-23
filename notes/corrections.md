@@ -30,6 +30,21 @@ wrong. The write-up of *how it was actually found* (semihosting exit codes as bi
 markers, because `println!` runs through the `.text` you just corrupted) is the most useful
 thing in [stack.md](stack.md).
 
+## Corrections of error
+
+§210 (a correction of error, and its action items are decisions, proposals or milestones) rules that
+this tree writes COEs: what happened, a timeline with times, the impact, a root cause reached by five
+whys, and action items that resolve to a decision, a proposal or a milestone. The entries above are
+scars, which is a record that something healed. These are records of what was changed so it would not
+happen again. The directory name is provisional, as §210 says.
+
+**[The weekly falsification sweep replayed nothing and reported success](corrections/2026-09-23-the-sweep-that-swept-nothing.md)**
+(2026-09-23). A `tee` into the checkout dirtied the tree before the sweep's own dirty-tree guard read
+it, and `continue-on-error` swallowed the refusal, so three scheduled runs published the refusal as
+their report and went green. The fifth why reaches the habit rather than the `tee`: a check that
+examined nothing looks exactly like a check that found nothing, and this was the fourth instance of
+that shape found in one day.
+
 ## Why this page exists rather than a tidy repository
 
 A newcomer who hits a limitation the documentation named will trust the documentation. One who hits

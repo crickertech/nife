@@ -626,3 +626,12 @@ building agrees with, which is why a proof and not a test is what catches it.
   because somebody read two call sites on one day. Nothing re-reads them, and the failure is
   silent in the worst direction: the harness stays green while proving a claim about a guard the
   kernel no longer applies.
+- **A hand dispatch of the weekly sweep cancels any other branch's.** `falsifications.yml`'s
+  `concurrency` group is the bare string `falsifications` with no ref in the key, and it carries
+  `cancel-in-progress: true`. That is right for the cron, where a queued weekly run has nothing to
+  say that the newer one will not say better, and wrong for `workflow_dispatch`: on 2026-09-23 three
+  falsification lanes dispatched the workflow within twenty minutes of each other and the second
+  killed the first. The run it killed was the only one in the workflow's life that would have
+  replayed a patch. Check `gh run list --workflow falsifications.yml` for a run in progress before
+  dispatching, and re-dispatch if yours is cancelled. See
+  `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`.
