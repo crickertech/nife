@@ -1,25 +1,5 @@
-# toolchain: nightly-2026-09-20
-# qemu: unrecorded
-# The emulator that counted these instructions. An icount count is a function of two things, the
-# compiler that emitted the instructions and the emulator that counted them, and this tree recorded
-# neither until 2026-09-21. `unrecorded` is the truthful answer for the counts below and not a
-# placeholder: nobody wrote down which QEMU produced them, and inventing a version now would be
-# worse than the gap. `cargo xtask bench --save` writes the real one from the binary it runs, and
-# `--check` compares it against the emulator in front of it from that point on.
-#
-# What is known, and it is why this line exists at all: `.qemu-version` pins **11.0.2**, this
-# machine has had **11.1.1** installed since 2026-08-28, and `script/bench` never looked. So the
-# counts below were read against an emulator that may well not be the pinned one, `script/qemu-check`
-# asserted they were "recorded against" the pin with nothing to support it, and the divergence has
-# already reached published figures. Which version this project should run is calef's call and is
-# deliberately not settled here.
-# The nightly this file's counts are read against. Written by `cargo xtask bench --save` and
-# checked against `rust-toolchain.toml` by `script/lint`, because a compiler bump changes the
-# instruction sequence these counts measure and so silently revalues every number below. On this
-# first stamping the line is a VERIFICATION rather than a recording: the counts were recorded on an
-# earlier nightly and re-checked green against this pin on 2026-09-21, worst margin +0.02% on
-# aarch64 and +2.27% on x86_64, with riscv64's `rfence_self` 7.49% FASTER than its floor. The next
-# `--save` makes it an ordinary recording.
+# toolchain: nightly-2026-09-22
+# qemu: 11.1.1
 # bench/baseline-riscv64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -29,29 +9,17 @@
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
 yield_switch 188666 2000
-ipc_rtt 172373 1000
-relay_rtt 344237 1000
-call_reply 177982 1000
-broker_rtt 355473 1000
-spawn_reap 34277 64
+ipc_rtt 171719 1000
+relay_rtt 344143 1000
+call_reply 177981 1000
+broker_rtt 355489 1000
+spawn_reap 34443 64
 map_new 2411 64
-# rfence_self: corrected by hand from 6476 on 2026-09-21. 6476 was never what this tree
-# measured; 5991 is, at 28e165e2, at its parent, and at every commit since. `--save` rewrites
-# this file and will delete these three lines: notes/benchmarks.md holds the account.
-rfence_self 5991 512
+rfence_self 6476 512
 coremark 3654349 256
 null_syscall 73029 20000
-ctx_switch 504958 5000
-ipc_rtt_el0 1847912 5000
-sink_throughput 753672 80000
-map_el0 62420 500
-# spawn_el0 re-saved 2026-09-21 for the current-CPU page (a thread reads its own CPU from a
-# page the kernel writes, so every address space now owns one more frame: allocated, zeroed,
-# stamped and mapped before the thread runs). +6.26% against 203,942, A/B'd on one tree with one
-# nightly rather than argued: with the page compiled out the same build reads +0.60%, so 124,519
-# of the 132,246 ticks are this change and 7,727 are drift. 741 of those ticks are per spawn, of
-# which 277 allocate and zero the frame and 464 are the one extra L3 the mapping needs. The first
-# draft cost 1,245 a spawn by putting the page in a far corner of the address space, where it was
-# alone in its page tables as well; notes/benchmarks.md has that measurement and what it does to
-# the published ~7.7 us figure.
-spawn_el0 216699 100
+ctx_switch 504857 5000
+ipc_rtt_el0 1846499 5000
+sink_throughput 753725 80000
+map_el0 62544 500
+spawn_el0 204517 100
