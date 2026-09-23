@@ -4002,7 +4002,8 @@ from the reader's side.
 ## 2026-09-23: five x86_64 counters left the tripwire and no benchmarked code had changed
 
 Milestone 315 (a port revoke that reaches every core) flipped
-`scripts/qemu-runner-x86_64.sh`'s `NIFE_SMP` default from 1 to 2, per DECISIONS §153. CI's
+`scripts/qemu-runner-x86_64.sh`'s `NIFE_SMP` default from 1 to 2, per DECISIONS §153 (how a
+two-core x86_64 test earns its place). CI's
 `bench (icount regression tripwire)` then failed on x86_64 with five counters out of bounds, four
 of them *faster*:
 
