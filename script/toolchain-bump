@@ -124,8 +124,10 @@ echo
 echo "        script/bench --check         # read the deltas first; this is the part that matters"
 echo "        script/bench --riscv --check"
 echo "        script/bench --x86 --check"
-echo "        script/bench --save && script/bench --riscv --save && script/bench --x86 --save"
+echo "        script/bench --save --why \"nightly bump: <what moved>\"   # --why is required"
+echo "        script/bench --riscv --save --why \"...\" && script/bench --x86 --save --why \"...\""
 echo
 echo "    A floor that moved a long way is not a formality to click past: a nightly can make this"
 echo "    kernel genuinely slower, and re-saving without reading the delta is the one outcome this"
-echo "    mechanism refuses to automate. Say in the commit message what moved."
+echo "    mechanism refuses to automate. The --why goes in the file beside the numbers, and says"
+echo "    the same thing the commit message says (milestone 302 (a baseline records what it was saved against))."
