@@ -203,6 +203,26 @@ clothes: roadmap status that was wrong in both records and invisible to the gate
 (§76), naming decisions that lived in one table cell nobody could find (milestone 115), and a
 merge-order coupling that only a lane's report mentioned. When you notice it, move up a rung.
 
+## We are all owners: see a problem, drive it to an owner, and if none, own it
+
+calef, 2026-09-23: *"We are all owners here so let's make certain we don't let things fall through
+the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
+own it."*
+
+The complement to **"Nobody remembers, so build the mechanism that does not need them to"** above,
+not a restatement of it: that section says do not rely on someone noticing; this one says that once
+you have noticed, the problem is yours to route, not to leave for whoever's pull request it happened
+to land on. Read alone, the first tenet lets a reader conclude that a problem outside their own lane
+is not their business. It is not.
+
+A load-sensitive test flake in `kernel/src/user/current_cpu_tests.rs` failed CI repeatedly across
+many pull requests on 2026-09-22 and 2026-09-23, correctly diagnosed and written into
+`notes/load-sensitive-assertions.md` twice, then left: every pull request that hit it was not the one
+that caused it, "every individual encounter looked like someone else's problem," and it was chased
+only after calef asked directly. The same day, pull request #1054 sat unassigned for a day because a
+workflow opened it and nothing assigned it, and a stale-draft warning `merge-drain.sh` correctly
+posted on #1087 went unacted on for 24 hours. Noticing is not owning until the problem has an owner.
+
 ## Elegance and performance beat implementation convenience
 
 calef, 2026-08-16: **"We wouldn't be building this project out of convenience. This whole

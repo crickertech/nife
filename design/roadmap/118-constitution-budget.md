@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 929 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 949 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
 for 988 against its own smaller diff, which §155 (naming conventions) superseded): **Raised from 925
@@ -424,7 +424,14 @@ delegation is worth doing here, context isolation before cost-per-token), and li
 session's head. The full argument and the practices it earns went to `notes/what-a-session-carries.md`
 rather than here, per this section's own rule that the note carries the argument and the constitution
 carries the rule; what is here is three lines pointing at it. Nothing was removed to pay for it; that
-is the cost, stated. **Raised again from 924 to 925 on 2026-09-22**, for one line, because the disk ceiling it repriced
+is the cost, stated. **Raised from 929 to 949 on 2026-09-23**, measured from the merged tree after two branches raised it independently from the same base of 925, one to 929 and one to 945, arriving at 949, for a new tenet: calef stated on 2026-09-23 that everyone owns
+a problem they notice, not only the ones with a mechanism already pointed at them, the complement to
+the existing "Nobody remembers, so build the mechanism that does not need them to" tenet (2026-08-04),
+because a load-sensitive test flake was correctly written into `notes/load-sensitive-assertions.md`
+twice and left, since every pull request that hit it was not the one that caused it. Nothing was
+removed to pay for it; the section earned its lines by staying to one paragraph of quote, one of
+relation to the existing tenet, and one of the failure it names.
+**Raised again from 924 to 925 on 2026-09-22**, for one line, because the disk ceiling it repriced
 was not merely stale but actively misleading: it told a reader the lane count was three or four for a
 reason that had stopped being true, and the paragraph that replaces it has to carry both the retired
 number and the lever that replaced it (lanes gate in CI). Compressed first, from an eleven-line
