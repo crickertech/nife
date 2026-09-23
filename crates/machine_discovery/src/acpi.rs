@@ -330,7 +330,7 @@ pub enum MadtEntry {
     GenericDistributor {
         /// `GICD`, physical.
         address: u64,
-        /// 0 unspecified, 1 GICv1, 2 GICv2, 3 GICv3, 4 GICv4. **Zero is common and means "work it
+        /// 0 unspecified, 1 `GICv1`, 2 `GICv2`, 3 `GICv3`, 4 `GICv4`. **Zero is common and means "work it
         /// out"**, which a caller can only do from the other entries.
         version: u8,
     },
@@ -1283,7 +1283,7 @@ mod tests {
     }
 
     /// The SPCR names a PL011 at QEMU `virt`'s address on GSIV 33, which is the INTID the kernel
-    /// has hardcoded since milestone 19 and now reads instead.
+    /// has hardcoded since milestone 19 (run a real workload) and now reads instead.
     #[test]
     fn the_spcr_names_a_pl011_and_its_global_interrupt() {
         let mut body = [0u8; SPCR_FIXED_LEN];

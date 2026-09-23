@@ -3,7 +3,7 @@
 //!
 //! # Why this shape, and not the other one
 //!
-//! The x86_64 half of this loader hands the kernel an ACPI root pointer and the kernel reads the
+//! The `x86_64` half of this loader hands the kernel an ACPI root pointer and the kernel reads the
 //! tables itself. Mirroring that here would mean a second discovery path through
 //! `kernel/src/memory.rs`, `smp.rs`, `console.rs` and `arch/aarch64/`, every one of which asks the
 //! device tree today, **and a change to what the loader and the kernel agree on across the
@@ -16,7 +16,7 @@
 //! have been handed**. The kernel boots on an ACPI machine without knowing that ACPI exists.
 //!
 //! **This is a translation and it loses information**, which is the honest reason the firmware's own
-//! device tree stays first in [`super::arch`]'s order when a machine offers both. See BUGS.
+//! device tree stays first in the aarch64 loader's own order when a machine offers both. See BUGS.
 //!
 //! # Tested by the reader, not by inspection
 //!
@@ -34,7 +34,8 @@
 //!   `memory::pci_regions()` answers `None`, and the boot takes the same path it takes on the
 //!   JH7110, which has no such node either. A bus that is there is invisible.
 //! - **No virtio-mmio, no `fw_cfg`, no ITS.** Same reason for the first two (QEMU describes them in
-//!   AML); the third is a node `machine_discovery::gic` does not read yet (milestone 317).
+//!   AML); the third is a node `machine_discovery::gic` does not read yet (milestone 317 (the
+//!   interrupt-remapping flags, and where MSI confinement actually lives)).
 //! - **The memory map is the UEFI one, merged.** Runtime-services and ACPI regions are excluded, so
 //!   the kernel will not hand out the tables it was described by, and conventional plus
 //!   boot-services plus loader memory is offered as RAM. That is the same set the firmware's own
@@ -482,4 +483,283 @@ fn write_memory(o: &mut Out<'_>, machine: &Machine) -> Result<(), Error> {
         o.end_node()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use device_tree_blob::{DeviceTreeBlob, Region};
+    use machine_discovery::aarch64::{Conduit, Psci};
+    use machine_discovery::cpu_list::{CpuList, EnableMethod};
+    use machine_discovery::{gic, interrupt_id};
+
+    use super::*;
+
+    /// QEMU `virt` with `acpi=on,gic-version=3`, as its tables describe it: the machine the boot
+    /// this milestone measured actually ran on.
+    fn qemu_virt() -> Machine {
+        let mut cpus = [Cpu::default(); MAX_CPUS];
+        for (i, cpu) in cpus[..4].iter_mut().enumerate() {
+            *cpu = Cpu {
+                mpidr: i as u64,
+                enabled: true,
+            };
+        }
+        let mut ram = [Ram::default(); MAX_RAM];
+        ram[0] = Ram {
+            start: 0x4000_0000,
+            len: 0x1000_0000,
+        };
+        Machine {
+            gic: Gic::V3 {
+                distributor: Region {
+                    start: 0x0800_0000,
+                    size: GICD_LEN,
+                },
+                redistributors: Region {
+                    start: 0x080a_0000,
+                    size: 0x00f6_0000,
+                },
+            },
+            cpus,
+            cpu_count: 4,
+            psci_hvc: Some(true),
+            timer: Some(Gtdt {
+                secure_el1: (29, 0),
+                non_secure_el1: (30, 0),
+                virtual_el1: (27, 0),
+                el2: (26, 0),
+            }),
+            uart: Some(Uart {
+                address: 0x0900_0000,
+                interrupt: Some(33),
+            }),
+            ram,
+            ram_count: 1,
+        }
+    }
+
+    fn built(machine: &Machine) -> (usize, [u8; 8192]) {
+        let mut out = [0u8; 8192];
+        assert!(output_len() <= out.len(), "the fixture buffer is generous");
+        let len = build(machine, &mut out).expect("the tree is written");
+        (len, out)
+    }
+
+    /// **The whole claim, read back through the kernel's own decoders.**
+    ///
+    /// Every assertion here is a call the kernel makes on the real boot path, against the bytes
+    /// this module writes. A writer proved by inspection is proved by nothing; this is the rule
+    /// `handoff.rs` and `device_tree_patch.rs` already follow, and it is what would catch a cell
+    /// count or a node name drifting out from under `memory::init` in milliseconds rather than in
+    /// a QEMU run.
+    #[test]
+    fn what_this_writes_is_what_the_kernel_reads() {
+        let machine = qemu_virt();
+        let (len, out) = built(&machine);
+        let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
+
+        // `memory::init`, first call: the interrupt controller, found by its binding.
+        assert_eq!(
+            gic::discover(&dt).expect("the GIC node parses"),
+            Some(machine.gic),
+            "the GIC written is not the GIC read back"
+        );
+
+        // `memory::init`, second call: RAM.
+        let mut regions = [Region { start: 0, size: 0 }; MAX_RAM];
+        let n = dt
+            .memory_regions(&mut regions)
+            .expect("the memory nodes parse");
+        assert_eq!(n, 1);
+        assert_eq!(
+            (regions[0].start, regions[0].size),
+            (0x4000_0000, 0x1000_0000)
+        );
+
+        // `memory::init`, third call: the console UART's interrupt, decoded through the root's
+        // `interrupt-parent` phandle and the controller's `#interrupt-cells`. 33 is SPI 1, which
+        // is what QEMU's own tree states and what the kernel's fallback constant also says; the
+        // point is that it came from the machine.
+        assert_eq!(
+            interrupt_id::of_node(&dt, b"pl011@9000000").expect("the UART node parses"),
+            Some(33)
+        );
+
+        // `smp::read_cpu_list`.
+        let list = CpuList::from_device_tree(&dt).expect("/cpus parses");
+        assert_eq!(list.described, 4);
+        for (i, cpu) in list.cpus().iter().enumerate() {
+            assert_eq!(cpu.hwid, i as u64);
+            assert!(cpu.startable(), "an enabled MADT entry is a startable core");
+            assert_eq!(cpu.enable_method, EnableMethod::Psci);
+        }
+
+        // `arch::aarch64::isa::init`.
+        let psci = Psci::from_device_tree(&dt)
+            .expect("/psci parses")
+            .expect("this machine claims PSCI");
+        assert_eq!(psci.conduit, Some(Conduit::Hvc));
+        assert!(psci.can_start_a_core());
+
+        // `arch::aarch64::timer::check_frequency_against_device_tree` looks for this node, and
+        // finds no `clock-frequency` on it, which is the path that returns without comparing.
+        assert_eq!(
+            dt.node_prop_compatible(b"arm,armv8-timer", b"clock-frequency")
+                .expect("the timer node parses"),
+            None,
+            "the GTDT states no rate, so neither does this node"
+        );
+    }
+
+    /// **The virtual timer's GSIV becomes the PPI the binding spells**, which is the one conversion
+    /// in this file that is arithmetic rather than a copy. 27 absolute is PPI 11, because PPIs
+    /// start at INTID 16; getting the direction wrong would write 43 and describe a different
+    /// interrupt entirely.
+    #[test]
+    fn a_gtdt_gsiv_becomes_the_bank_relative_number_the_binding_wants() {
+        let (len, out) = built(&qemu_virt());
+        let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
+        let interrupts = dt
+            .node_prop_compatible(b"arm,armv8-timer", b"interrupts")
+            .expect("the timer node parses")
+            .expect("the node states its interrupts");
+        assert_eq!(interrupts.len(), 12 * 4, "four timers, three cells each");
+        let cell = |i: usize| {
+            u32::from_be_bytes([
+                interrupts[i * 4],
+                interrupts[i * 4 + 1],
+                interrupts[i * 4 + 2],
+                interrupts[i * 4 + 3],
+            ])
+        };
+        // Secure 29, non-secure 30, virtual 27, EL2 26, each as <1 (gsiv - 16) 4>.
+        for (slot, gsiv) in [(0usize, 29u32), (1, 30), (2, 27), (3, 26)] {
+            assert_eq!(cell(slot * 3), 1, "a PPI");
+            assert_eq!(cell(slot * 3 + 1), gsiv - 16);
+            assert_eq!(cell(slot * 3 + 2), IRQ_TYPE_LEVEL_HIGH);
+        }
+    }
+
+    /// A GICv2 machine, which is what QEMU `virt` presents by default and what this milestone's
+    /// first ACPI boot actually ran on. The second `reg` block is the CPU interface rather than a
+    /// redistributor array, and `gic::discover` is what has to tell them apart.
+    #[test]
+    fn a_gicv2_machine_reads_back_as_a_gicv2() {
+        let mut machine = qemu_virt();
+        machine.gic = Gic::V2 {
+            distributor: Region {
+                start: 0x0800_0000,
+                size: GICD_LEN,
+            },
+            cpu_interface: Region {
+                start: 0x0801_0000,
+                size: GICC_LEN,
+            },
+        };
+        let (len, out) = built(&machine);
+        let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
+        assert_eq!(
+            gic::discover(&dt).expect("the GIC node parses"),
+            Some(machine.gic)
+        );
+    }
+
+    /// **Every optional table really is optional.** A machine with nothing but a GIC and RAM still
+    /// yields a tree the kernel can walk: no `/psci` (one core, said at bring-up rather than as a
+    /// failure), no timer node, no UART node (the kernel falls back to its constant and says so).
+    #[test]
+    fn a_machine_with_only_a_gic_and_ram_still_yields_a_readable_tree() {
+        let mut machine = qemu_virt();
+        machine.psci_hvc = None;
+        machine.timer = None;
+        machine.uart = None;
+        machine.cpu_count = 1;
+        let (len, out) = built(&machine);
+        let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
+        assert_eq!(
+            gic::discover(&dt).expect("the GIC node parses"),
+            Some(machine.gic)
+        );
+        assert_eq!(Psci::from_device_tree(&dt).expect("/psci parses"), None);
+        assert_eq!(
+            interrupt_id::of_node(&dt, b"pl011@9000000").expect("no such node"),
+            None
+        );
+        assert_eq!(
+            CpuList::from_device_tree(&dt)
+                .expect("/cpus parses")
+                .described,
+            1
+        );
+    }
+
+    /// **A disabled MADT entry becomes a core the kernel will not start**, and stays in the list.
+    /// Dropping it would describe a smaller machine than the one in front of us; marking it
+    /// `status = "disabled"` is what `cpu_list::Cpu::startable` already knows how to refuse.
+    #[test]
+    fn a_disabled_core_is_described_and_not_startable() {
+        let mut machine = qemu_virt();
+        machine.cpus[2].enabled = false;
+        let (len, out) = built(&machine);
+        let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
+        let list = CpuList::from_device_tree(&dt).expect("/cpus parses");
+        assert_eq!(list.described, 4, "all four are described");
+        let startable = list.cpus().iter().filter(|c| c.startable()).count();
+        assert_eq!(startable, 3, "the disabled one is refused");
+    }
+
+    /// **The archive handoff is unchanged**: the written tree goes through the same
+    /// `device_tree_patch::with_initrd` the firmware's own tree does, and the kernel reads
+    /// `/chosen` back. This is the seam where a tree with no `/chosen` at all would have been a
+    /// silent boot with no userspace.
+    #[test]
+    fn the_written_tree_takes_an_initrd_like_any_other() {
+        let (len, out) = built(&qemu_virt());
+        let capacity =
+            crate::device_tree_patch::output_len(&out[..len]).expect("the tree is well formed");
+        let mut patched = [0u8; 8192];
+        assert!(capacity <= patched.len());
+        crate::device_tree_patch::with_initrd(&out[..len], 0x4ac6_0000, 0x4b70_0000, &mut patched)
+            .expect("the initrd is named");
+        let dt = DeviceTreeBlob::from_bytes(&patched).expect("still a device tree");
+        let initrd = dt
+            .initrd()
+            .expect("/chosen parses")
+            .expect("the archive is named");
+        assert_eq!(initrd.start, 0x4ac6_0000);
+        assert_eq!(initrd.size, 0x4b70_0000 - 0x4ac6_0000);
+        // And the machine survived the rewrite, which is the half a `/chosen` test usually forgets.
+        assert!(gic::discover(&dt).expect("the GIC node parses").is_some());
+    }
+
+    /// A buffer smaller than the tree is refused rather than half-written. The caller allocates
+    /// [`output_len`] pages, so this is the guard on a future machine with more cores or more RAM
+    /// regions than that bound covers.
+    #[test]
+    fn a_short_buffer_is_refused() {
+        let machine = qemu_virt();
+        let (len, _) = built(&machine);
+        for short in [0usize, 8, HEADER_LEN, len / 2, len - 1] {
+            let mut out = [0u8; 8192];
+            assert_eq!(
+                build(&machine, &mut out[..short]),
+                Err(Error::OutputTooSmall),
+                "{short} bytes is short of the {len} this tree needs"
+            );
+        }
+    }
+
+    /// Unit addresses are lower-case hex with no prefix and no leading zeros, and a zero address is
+    /// the single digit `0`. The kernel matches `console::UART_NODE` against this spelling
+    /// literally, so it is a contract rather than a formatting preference.
+    #[test]
+    fn unit_addresses_are_spelled_the_way_a_device_tree_spells_them() {
+        let mut buf = [0u8; 40];
+        assert_eq!(unit_name(b"cpu", 0, &mut buf), b"cpu@0");
+        assert_eq!(unit_name(b"pl011", 0x0900_0000, &mut buf), b"pl011@9000000");
+        assert_eq!(
+            unit_name(b"memory", 0xffff_0000_0000_0000, &mut buf),
+            b"memory@ffff000000000000"
+        );
+    }
 }

@@ -154,11 +154,34 @@ riscv64:  uefi_loader: boot hart from RISCV_EFI_BOOT_PROTOCOL: 0
           smp: 4 core(s) online                     (with NIFE_SMP=4)
 ```
 
-**EDK2 on aarch64 hides the device tree when it presents ACPI**, measured: under
-`-machine virt` (ACPI on by default) the loader prints `the firmware offers no device tree (on QEMU
-virt, boot with acpi=off; ...)`, and under `acpi=off` it boots. nife on aarch64 reads a device tree,
-so an ACPI-only aarch64 machine cannot run it; that is a kernel limit the loader reports rather than
-one it adds.
+**EDK2 on aarch64 hides the device tree when it presents ACPI**, measured 2026-09-19: under
+`-machine virt` (ACPI on by default) the loader printed `the firmware offers no device tree (on QEMU
+virt, boot with acpi=off; ...)` and stopped, and under `acpi=off` it booted. That was recorded here
+as a kernel limit the loader reported rather than one it added, and it was the reason
+`scripts/qemu-stick.sh` passed `acpi=off`.
+
+**It is fixed, 2026-09-23.** The loader now reads the tables and **writes the device tree** the kernel would have been
+handed (`uefi_loader/src/device_tree_from_acpi.rs`), so `NIFE_ACPI=on scripts/qemu-stick.sh aarch64
+target/stick` reaches the same shell prompt `acpi=off` does. The firmware's own tree still wins when
+a machine offers both, because it is the richer description. What the two boots differ by, measured
+the same day on the same stick:
+
+```text
+                  acpi=off (the firmware's tree)         acpi=on (written from ACPI)
+  pcie          : ecam 0x4010000000..0x4020000000        none (this machine describes no host bridge)
+  memory        : 256 MiB total, 234 MiB free            256 MiB total, 228 MiB free
+```
+
+Everything else in the machine description is byte-identical: the same cpu, console, GIC, timer,
+MMU and scheduler lines. The PCI bus is missing because an ACPI machine states its BAR windows and
+its interrupt routing in AML (`_CRS` and `_PRT`), which needs an interpreter; the six megabytes are
+the ACPI tables and firmware runtime regions, which are excluded from the RAM this writes rather
+than handed to the frame allocator. `device_tree_from_acpi`'s own BUGS section is the full list.
+
+**Why this matters beyond QEMU**: SBBR requires an aarch64 server to present ACPI and permits it to
+present no device tree, so every aarch64 cloud machine (AWS Graviton, Azure Cobalt, Google Axion,
+Oracle Ampere A1) is the `acpi=on` case. `notes/rented-metal.md` priced them and found none could
+run nife; this is the half of that which was ours to fix.
 
 ### The seal, which is structural now
 
