@@ -904,11 +904,22 @@ sweeps capabilities precisely so that no capability still names a page the alloc
 out, and an in-flight one reopened that. Fixed in the three sweeps that lacked it, with a test red
 first on all three architectures; `notes/confinement-claims.md` carries it and the eight attacks that
 held. **The caveat is the one that keeps the gate closed**: it was us attacking our own system, which
-is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And one window was **accepted rather than closed**: `PortRange::REVOKE`
-reaches one core, so a revoked holder on another core keeps its bitmap for at most one tick
+is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And one window was accepted rather than closed at the time: `PortRange::REVOKE`
+reached one core, so a revoked holder on another core kept its bitmap for at most one tick
 (DECISIONS §152's `BUGS`, corrected the same day, and
 [milestone 315](roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and calef
 promoted out of this entry's proposal on 2026-09-17).
+
+**Corrected 2026-09-23: that window is closed.** Milestone 315 (a port revoke that reaches every
+core) is BUILT. The revoke now resets this core and rides the TLB shootdown's NMI to the rest, and
+`install_port_grant` moved inside the locked region so no core can reinstall a grant the sweep just
+cleared. Proved by 12 of 12 full two-core suites, 36 boots, against 3 of 12 failing before.
+
+**What it does to this risk, which is less than it sounds.** It removes an accepted hole from the
+confinement claim, so the claim is stronger than the audit left it. It does not change the caveat
+above, which is the one that matters: the attacking was still us attacking our own system. A window
+we closed ourselves, found by our own test, is the same category of evidence as the audit that found
+it, and this entry's verdict rests on that category rather than on any single hole.
 
 **And the audit produced a third instance of this file's recurring shape.** Milestone 299's two port
 tests could not fail in the direction they exist for: a wrongly permitted `out` was followed by a
