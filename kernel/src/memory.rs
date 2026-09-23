@@ -494,7 +494,12 @@ pub fn image_bounds() -> (u64, u64) {
 }
 
 /// Is this frame currently marked used?
-#[cfg_attr(not(test), allow(dead_code))] // this file's bootstrap tests are the callers
+///
+/// **The scoped form of [`free_page_frames`]**, and the one to reach for when a test knows which
+/// frame it is asking about: a machine-wide free count moves whenever any other part of the kernel
+/// allocates or frees, so a test bracketing it is asserting that the rest of the system held still.
+/// `user/current_cpu_tests.rs` is the worked example (notes/load-sensitive-assertions.md).
+#[cfg_attr(not(test), allow(dead_code))] // this file's bootstrap tests and user/current_cpu_tests.rs
 pub fn is_page_frame_used(frame: PageFrame) -> Option<bool> {
     ALLOCATOR.lock().as_ref()?.is_used(frame)
 }
