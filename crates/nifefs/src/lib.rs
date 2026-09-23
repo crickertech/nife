@@ -68,6 +68,16 @@
 //! - **[`MAX_FILES`] is a ceiling that grows with the SUITE, not with the system**, so the cost is
 //!   invisible to each branch that causes it and lands on whoever merges. Three lanes landing
 //!   together on 2026-07-30 pushed the archive from 31 files to 32 and forced a directory resize.
+//! - **`a_short_image_is_refused_not_indexed` is the expensive proof in this tree**, and the cost
+//!   belongs to the harness rather than to any one machine. Replaying its falsification took
+//!   **20 to 31 minutes** and drove the solver to **3.0-3.6 GB**, against seconds and a few
+//!   hundred megabytes for every other record in `crates/`; 3.5 GB is the ceiling AGENTS.md
+//!   records for one harness on the dev Mac. Those numbers were taken on patagonia under load
+//!   from concurrent lanes, so read them as an order of magnitude and not as a benchmark.
+//!   `package_archive`'s `a_short_file_is_refused` behaves the same way, which is the part worth
+//!   keeping: both are "a short input is refused" shapes, and a length check against a wholly
+//!   symbolic buffer is what the solver has to case-split on. Anyone wondering why a falsification
+//!   sweep takes forty minutes is looking at these two.
 //! - **A reader holding one block cannot see the whole directory.** The EL0 blk driver
 //!   (`crates/virtio`) buffers block 0 only, so it can find the first
 //!   [`ENTRIES_IN_FIRST_BLOCK`] files and no more. It is used on the tiny test disk, not the
