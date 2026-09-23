@@ -1,0 +1,144 @@
+#!/bin/sh
+#
+# Cut a lane's branch and worktree, refusing a bad name before either exists.
+#
+#     script/claim milestone/238-a-thing
+#     script/claim maintainer/some-fix --worktree ~/projects/nife-worktrees/somefix --no-claim
+#
+# # Why this exists
+#
+# script/lint's check 4 refuses a branch that LOOKS like a milestone claim but does not parse
+# (`milestone-126-pgrep`, a hyphen where `milestone/*` needs a slash), because a near-miss would
+# otherwise skip check 4b in silence, which is the check that moves a milestone's roadmap status at
+# merge. That check is right. It also only ever sees a branch that already exists, which means it
+# fires after `git worktree add`, after the work is written, sometimes after commits. On 2026-09-22
+# the maintainer hit it there and paid the late price: delete the branch, delete the worktree,
+# recreate both with the right name, re-apply the commit. A rung-two gate delivering a rung-four
+# experience, because the only place the rule was checkable was the last place it was cheap to fail.
+#
+# This runs the identical refusal (shared with script/lint through scripts/branch-name-check.sh, so
+# the two cannot drift into different answers for the same name) before touching the filesystem or
+# git at all. A bad name here costs one retyped command.
+#
+# # Why it also makes the claim
+#
+# AGENTS.md §90 (the claim is a draft pull request; the status flip is a gate): a lane's first act,
+# before any work, is one empty commit, a push, and a draft pull request, because that draft is what
+# stops two lanes silently taking the same milestone. A front door that stopped at `git worktree add`
+# would hand back exactly the gap that mechanism exists to close: a worktree and branch that exist
+# and claim nothing, for however long it takes the lane to remember the next three commands.
+# `--no-claim` is there for the caller who wants the branch alone.
+#
+# Name: provisional, minted 2026-09-22 for this milestone. A verb, per DECISIONS §134 ("family
+# splits in a way nobody had written down"), which records the split the `script/` family already
+# had: what does something takes a verb, what reports takes a noun. This script performs an action
+# rather than reads the tree back, so it takes the verb. Chosen for the word AGENTS.md and
+# scripts/lane-claim-check.sh already use for exactly this act, the empty commit plus draft pull
+# request that makes a lane visible before it has anything else to show. calef has not ruled on it.
+#
+# See notes/scripts.md.
+
+set -eu
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+# The shape rule itself lives here so this script and script/lint's check 4 read off one case
+# statement instead of two that can quietly stop agreeing.
+. "$repo_root/scripts/branch-name-check.sh"
+
+usage() {
+    cat >&2 <<'EOF'
+usage: script/claim <branch-name> [--worktree <dir>] [--title <text>] [--no-claim]
+
+  <branch-name>     e.g. milestone/238-a-thing or maintainer/some-fix. Checked against the same
+                     shape rule script/lint's check 4 enforces, before anything is created.
+  --worktree <dir>  where to put the worktree. Default: ~/projects/nife-worktrees/<slug>, where
+                     <slug> is the branch's last /-separated segment (the canonical location per
+                     notes on this project's worktree convention).
+  --title <text>    the draft pull request's title, and the text after "claim: " in the empty
+                     commit. Default: the branch name itself; `gh pr edit` renames the pull
+                     request later if a better title turns up mid-work.
+  --no-claim        stop once the branch and worktree exist. Skip the empty commit, the push, and
+                     the draft pull request (AGENTS.md §90's claim). Without this flag the claim is
+                     made, because that is every lane's documented first act and a front door that
+                     stops short of it hands back the exact race it exists to prevent.
+EOF
+}
+
+branch=""
+worktree=""
+title=""
+make_claim=yes
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --worktree)
+            [ $# -ge 2 ] || { echo "claim: --worktree needs a path" >&2; exit 2; }
+            worktree="$2"; shift 2 ;;
+        --title)
+            [ $# -ge 2 ] || { echo "claim: --title needs text" >&2; exit 2; }
+            title="$2"; shift 2 ;;
+        --no-claim) make_claim=no; shift ;;
+        -h|--help) usage; exit 0 ;;
+        -*)
+            echo "claim: unknown argument $1" >&2
+            usage
+            exit 2 ;;
+        *)
+            if [ -n "$branch" ]; then
+                echo "claim: one branch name only (already have '$branch', also saw '$1')" >&2
+                exit 2
+            fi
+            branch="$1"; shift ;;
+    esac
+done
+
+if [ -z "$branch" ]; then
+    usage
+    exit 2
+fi
+
+# The refusal this script exists for, and it runs first: before the worktree, before the branch,
+# before a single file changes on disk.
+nife_check_branch_name_shape "$branch" claim || exit 1
+
+if [ -z "$worktree" ]; then
+    slug="${branch##*/}"
+    worktree="$HOME/projects/nife-worktrees/$slug"
+fi
+
+if [ -e "$worktree" ]; then
+    echo "claim: $worktree already exists; pass --worktree <dir> to pick another" >&2
+    exit 1
+fi
+
+if git -C "$repo_root" rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+    echo "claim: branch '$branch' already exists locally" >&2
+    exit 1
+fi
+
+echo "==> fetching origin, so the branch starts from the real tip rather than a stale local main"
+git -C "$repo_root" fetch origin
+
+echo "==> creating worktree at $worktree on branch $branch"
+git -C "$repo_root" worktree add "$worktree" -b "$branch" origin/main
+
+if [ "$make_claim" = no ]; then
+    echo "claim: worktree and branch created; --no-claim given, stopping before the §90 claim"
+    echo "claim: cd $worktree"
+    exit 0
+fi
+
+claim_text="${title:-$branch}"
+
+echo "==> claim: empty commit, push, draft pull request"
+(
+    cd "$worktree"
+    git commit --allow-empty -m "claim: $claim_text"
+    git push -u origin HEAD
+    gh pr create --draft --title "$claim_text" --body "**Lane:** \`$branch\`, written by an agent; calef's account is the author GitHub shows.
+
+Claim commit only so far."
+)
+
+echo "claim: worktree $worktree, branch $branch, draft pull request opened"
+echo "claim: cd $worktree"
