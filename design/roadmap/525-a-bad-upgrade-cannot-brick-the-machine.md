@@ -126,8 +126,9 @@ x86_64 claim because a device-tree handoff has one initrd slot in `/chosen` and 
 the loader's own file; without that file there is nothing to install and nothing to put in a slot.
 Nothing about the slot format, the bit layout or the policy is x86-specific, and `crates/boot_slot`
 compiles and is tested on the host. What does not exist on aarch64 and riscv64 is the chooser, and
-what blocks it is the same proposal that blocks the install:
-`design/roadmap/proposals/the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md`.
+what blocks it is the same milestone that blocks the install, 568 (the boot file has nowhere to go
+on a device-tree machine):
+`design/roadmap/568-the-boot-file-has-nowhere-to-go-on-a-device-tree-machine.md`.
 
 ## BUGS
 

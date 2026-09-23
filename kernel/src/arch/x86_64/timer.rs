@@ -50,7 +50,7 @@
 //!   `counter_frequency_protocol`'s page, and `coremark`'s self-reported rate all read it;
 //!   `wait_for`'s deadlines fail safe, which is why nothing has ever gone red over this. The error
 //!   being one-sided is also the fix: the minimum of several windows converges from above. See
-//!   design/roadmap/proposals/the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md.
+//!   design/roadmap/571-the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md.
 //! - **Under `-icount shift=0,sleep=off` the TSC is not a clock with respect to real time at all**,
 //!   and `script/bench --x86` uses that flag by default. Measured against the RTC in one boot, its
 //!   rate moved 37% between two workloads (662 MHz while running a register loop, 486 MHz while

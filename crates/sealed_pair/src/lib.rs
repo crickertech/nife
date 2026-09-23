@@ -89,7 +89,7 @@
 //!   bench evening, because nothing in the message points at a cargo feature. The inverse is the
 //!   case to fear: a build that carried the digest without reaching the check would read as
 //!   **sealed** while verifying nothing. Options are priced in
-//!   `design/roadmap/proposals/a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
+//!   `design/roadmap/563-a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
 //!
 //! Name: provisional. Minted 2026-09-19 by the lane that built it. A kernel and the archive it
 //! vouches for are one sealed set, and this crate is the one place that says whether two given

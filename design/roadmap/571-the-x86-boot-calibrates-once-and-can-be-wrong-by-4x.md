@@ -1,6 +1,6 @@
-# The x86 boot calibrates the TSC once, and can be wrong by 4x
+# 571. The x86 boot calibrates the TSC once, and can be wrong by 4x
 
-**Status: PROPOSED 2026-09-21.** Raised by the `tscdrift` lane, which was sent to measure whether
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-x86-boot-calibrates-once-and-can-be-wrong-by-4x` on 2026-09-22, filed 2026-09-21. Raised by the `tscdrift` lane, which was sent to measure whether
 TCG's TSC drifts and found that it does not, while the number the boot writes down does.
 
 **Gate: NONE.** The fix is inside `kernel/src/arch/x86_64/timer.rs`, touches no syscall surface, no
@@ -59,3 +59,7 @@ red test and why it would have gone on not showing up.
 It also decides how much a **D'**-style marking (carrying "unpromised" in the type, so consumers must
 acknowledge the rate is unpromised) is really worth: a marked number that is still 4x wrong is
 honest about the wrong thing.
+
+## Index row
+
+The x86_64 boot calibrates the TSC once, against a PIT channel-2 one-shot it polls, and the poll can only ever notice the terminal count late. Twenty-two boots of one binary against a counter measured at exactly 1000.000 MHz reported rates from 1001 MHz to 4330 MHz, every one of them above the truth and none below, because a single descheduling of the QEMU thread inside the window inflates the answer without bound. The one-sidedness is what makes the fix cheap, and it is one function in `kernel/src/arch/x86_64/timer.rs`.

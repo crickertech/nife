@@ -194,7 +194,8 @@ every holder of its endpoint. `install_service::confirm` runs between the filesy
 report and the progenitor's first instruction, when that server is blocked in receive with no client
 that could wake it. The day something spawns a second disk client before the progenitor runs, the
 ordering stops holding silently. See
-[the proposal](../design/roadmap/proposals/two-programs-share-one-disks-transfer-region.md).
+[milestone 573 (two programs share one disk's transfer region, and only an ordering keeps them
+apart)](../design/roadmap/573-two-programs-share-one-disks-transfer-region.md).
 
 `cargo xtask confirm-boot` is `rollback-boot`'s exact negative: a good upgrade with **one** try is
 tried, confirms itself, and is still chosen on boot 3 with no tries left. The single try is the

@@ -1,6 +1,6 @@
-# The disk an installer names has no model, only a size
+# 569. The disk an installer names has no model, only a size
 
-**Status: PROPOSED 2026-09-21.** Raised by the rung 2a lane of milestone 198 (a package manager, and
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-disk-an-installer-names-has-no-model` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible) while building the install offer, and
 filed rather than built because the half that a *program* needs is a wire shape and that is not a
 lane's to mint.
@@ -87,3 +87,7 @@ the first machine with two.
   the serial as easily; what it cannot do is let a person *choose*, which is option B.
 - **Nothing here helps a SATA disk**, which has no driver at all (milestone 515's `BUGS`), or an
   NVMe controller hidden behind Intel RST or VMD.
+
+## Index row
+
+The installer prints one sentence before it destroys a disk, and it is the most load-bearing sentence a stranger reads in this system: everything else the install does is recoverable by reinstalling. Today it names a size and hedges the rest, calling the target "the NVMe disk attached to this machine", because on a machine with two it could not say which. Milestone 515's own `BUGS` already says the confirmation must name the disk by model and size rather than by an ordinal, and whether a process that is not the kernel may be told a controller's identity is the half that waits on a ruling.

@@ -1,6 +1,6 @@
-# A CoreMark score on three architectures, now that the rate is the machine's
+# 558. A CoreMark score on three architectures, now that the rate is the machine's
 
-**Status: PROPOSED 2026-09-21.** Raised by the `cntfrq` lane as work its own change unblocked:
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-coremark-score-on-three-architectures` on 2026-09-22, filed 2026-09-21. Raised by the `cntfrq` lane as work its own change unblocked:
 *"a real CoreMark score is newly trustworthy on all three architectures ... that is a number nobody
 is currently producing."*
 

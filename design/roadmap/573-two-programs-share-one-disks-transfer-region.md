@@ -1,6 +1,6 @@
-# Two programs share one disk's transfer region, and only an ordering keeps them apart
+# 573. Two programs share one disk's transfer region, and only an ordering keeps them apart
 
-**Status: PROPOSED 2026-09-21.** Raised by the lane `abboot/confirm-a-trial-boot`, which had to
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `two-programs-share-one-disks-transfer-region` on 2026-09-22, filed 2026-09-21. Raised by the lane `abboot/confirm-a-trial-boot`, which had to
 write a live partition table on a machine whose filesystem server already held the same disk, and
 found that nothing but where the call sits stops the two corrupting each other.
 
@@ -56,3 +56,7 @@ steps.
 - **This proposal has measured neither option**, for the reason above. A lane taking it should price
   both before bringing the fork, and should expect the bounded endpoint to win on being the answer
   to two problems rather than one.
+
+## Index row
+
+One block server has one transfer region shared by every holder of its request endpoint, and a client stages bytes into that region before it calls, so two clients staging at once corrupt each other and nothing prevents it. It bites nowhere today only because the boot path is single-threaded and hands a disk to one program at a time; the confirming write is the first that runs while another program holds the same endpoint, and what makes it safe is a comment at the call site. Both candidate fixes, a field on the `blk` wire or a second shared region in a server's handoff, are values two programs agree on.

@@ -1,6 +1,6 @@
-# A long file name, or riscv64 cannot be installed
+# 560. A long file name, or riscv64 cannot be installed
 
-**Status: PROPOSED 2026-09-21.** Raised by the rung 2a lane of milestone 198 (a package manager, and
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-long-file-name-or-riscv64-cannot-be-installed` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which wrote
 `crates/file_allocation_table` and refused the name rather than mangling it.
 
@@ -68,3 +68,7 @@ name. That test is the whole reason this is a small piece of work rather than a 
   second file, it does.
 - **Nothing here reads a long name**, and nothing should: this crate has no reader at all, and
   milestone 140 (mount a drive this system did not create) is the read half.
+
+## Index row
+
+`crates/file_allocation_table` writes 8.3 short names only, so it refuses `BOOTRISCV64.EFI` at eleven characters rather than mangling it into a file the firmware will not find. That refusal is correct and it forecloses exactly one thing: an installer on riscv64, since `install_service` is the only caller that writes FAT on the machine being installed. Long-name support in that crate, with host tests and the third-party reader already wired up, is what makes the install a three-architecture claim instead of an x86_64 one.

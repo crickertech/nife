@@ -1,6 +1,6 @@
-# A seal check that reads bytes cannot see a check that was dropped
+# 563. A seal check that reads bytes cannot see a check that was dropped
 
-**Status: PROPOSED 2026-09-21.** Raised by the lane of milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need), which was launched because `script/board-image --job-mix --tftp` reported `NOT SEALED`
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped` on 2026-09-22, filed 2026-09-21. Raised by the lane of milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need), which was launched because `script/board-image --job-mix --tftp` reported `NOT SEALED`
 on a card whose kernel and archive were packed by one command. The cause is not the pair and not the
 seal's arithmetic: the kernel image genuinely does not carry the digest, because the build that
 diverts the boot tour never calls the code that would check it, and the linker removed it.
@@ -71,3 +71,7 @@ closes the inverse case in general rather than by inspection.
 meets it, per DECISIONS §71 (a limitation is promoted when it stops being a fact and becomes a
 plan). This proposal is the plan half; the trigger for promoting it is a second person losing time
 to the same message, or anyone wanting option B's guarantee for an unattended card.
+
+## Index row
+
+A `soak`, `job_mix` or `bench` card verifies nothing: the build that diverts the boot tour never calls the measured-boot refusal, so the linker removes it and the trust root is unreferenced. Alternating one cargo feature and counting the refusal message in the resulting kernel showed three occurrences becoming zero. `script/board-image` then reports `NOT SEALED` on a card whose kernel and archive were packed by one command, which is true about the bytes and wrong about the cause, and a check that reads bytes cannot see a check that was compiled out.

@@ -202,7 +202,7 @@ What reads the number: `bench --x86 --real`'s ns/iter, `Instant` and `uptime` th
 in the x86 suite. Deadlines fail safe (an inflated rate makes a two-second timeout longer in real
 time, never shorter); the reported numbers do not.
 
-**This is tracked**: `design/roadmap/proposals/the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md`,
+**This is tracked**: `design/roadmap/571-the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md`,
 and `arch::x86_64::timer`'s `BUGS` section now says it where a reader meets the feature.
 
 ## What this measurement cannot see
