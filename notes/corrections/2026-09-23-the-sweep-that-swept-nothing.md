@@ -192,8 +192,11 @@ convention for, and building one is what the second action item below is.
 - **Done.** `coe-architect-label.yml`'s labelling step now passes `--repo "$GITHUB_REPOSITORY"`, so
   it no longer depends on a git remote that a job without a checkout does not have, and the reason
   is written beside the flag. Carried on this branch, `maintainer/the-sweep-that-swept-nothing`.
-  The label on this pull request was applied by hand in the meantime; the fix takes effect on the
-  next push to it, which is the demonstration.
+  The label on this pull request was applied by hand in the meantime, and it will stay hand-applied
+  here: the labeller's `synchronize` path diffs only the push that raised it, deliberately, so that
+  a label a human removed does not silently return. No later push to this branch adds a file under
+  `notes/corrections/`, so nothing on this pull request will exercise the fixed step. The next COE
+  is the first run that can.
 - **Recorded.** The `concurrency` group in `falsifications.yml` is the bare string `falsifications`
   with no ref in the key, so a hand dispatch from any branch cancels a running one from any other.
   That is what killed the only run of this workflow that would have swept anything. The limitation
