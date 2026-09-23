@@ -213,6 +213,82 @@ The remainder, 8,953 pairs, is recorded as work in milestone 444's block rather 
 intention: `script/citations --census --list` regenerates the worklist at any time, so nothing about
 it has to be kept in a note that will go stale.
 
+## --moved: when a status flips, who was citing that milestone
+
+Milestone 385 (when a milestone's status flips, tell the lane which notes cite it) is the fourth
+mode and the only one that **cannot fail**. The other three say something is wrong. This one says
+something might be, and it cannot tell which, so it prints a worklist and returns zero.
+
+The failure it answers has a measured shape. Six "is there a milestone for X" questions in one
+evening turned up four things wrong on `main` rather than four things missing, all the same: prose
+that was true when written and went silently false when a milestone landed.
+`notes/why-not-general-purpose.md` told newcomers there was no networking, no writable filesystem,
+no display and no SMP, five of six rows false. Milestone 66 (Vaultwarden: somebody else's real
+application, running here)'s gap table said TCP listen and accept were absent from the contract a
+month after milestone 107 (the socket contract learns to accept) shipped them. Every one stayed
+green through every gate.
+
+```
+$ script/citations --moved 5f850c367~1..5f850c367
+citations: milestone 525 moved NEW -> BUILT: A bad upgrade cannot brick the machine: two boot slots, tries an
+citations:   design/decisions/207-the-roadmap-is-a-graph-and-says-so.md:50
+citations:   design/roadmap/554-a-good-upgrade-sticks.md:10
+```
+
+Two files, and the second is the real one: milestone 554 (a good upgrade sticks: what marks a trial
+boot successful)'s block still described 525 as the proposal it had been.
+
+### Why it tells rather than obliges
+
+DECISIONS §207 (the roadmap is a graph, and the block says so in fields a script can walk) ruled on
+this exact coupling from the other direction, and cites milestone 385 by number as its evidence.
+§207 retired `Gate: MILESTONE N` because the rule **obliged an edit** in every dependent block when
+a dependency landed, made by somebody in another lane who was not looking, so a milestone being
+satisfied turned unrelated branches red on a line they never touched.
+
+What §207 removed is an obligation to *edit* on a status flip. `--moved` is a duty to *tell*
+somebody on a status flip, addressed to the one lane already in the file. It asks for no edit, it
+is read and dismissed in a sentence, and no other branch goes red. A version of this that demanded
+edits would reintroduce what §207 refused three weeks after it was decided, which is why it reports.
+
+### The four measurements that decided the design
+
+1. **A worklist is three files, not thirty.** Across `notes/`, 194 milestones are cited by at least
+   one note, median 3 and mean 4.4. Three files is a thing a lane reads.
+2. **It fires per branch, not over the tree.** Sixty-eight rows flipped to `BUILT` in fourteen days.
+   Tree-wide that is fifteen note-reads a day owned by nobody, which is how a check becomes noise.
+3. **It keys on the bare `milestone N`.** Only 4% of milestone citations in `notes/` carry a gloss,
+   so reading the glossed form `--check` reads would find one citation in twenty-five. It uses the
+   same regex `--census` uses, for the same reason.
+4. **It reads the block file and nothing else.** 385's own `BUGS` feared a status moving without the
+   pull request touching the index, and asked the implementation to read both. There is no longer a
+   both: `design/roadmap/README.md` was generated from the blocks by
+   milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) and retired
+   on 2026-09-21, so the `**Status:` line in the block is the single record.
+
+### What it costs, measured over history
+
+Over the 150 most recent merges into `main` on 2026-09-23, **50 moved at least one status** and the
+other 100 printed a single line saying nothing moved. A lane that edits its own block without
+changing its status, which `script/lint` 4b makes every lane do, sees that line and nothing else.
+
+Of the 50, the **median is 4 citing files**. Those 50 merges hold 262 individual flips, and per
+flip the median is **1** citing file and the mean 3.4.
+
+The tail is real and is worth naming rather than averaging away, because it is where a reader would
+decide this is noise:
+
+| merge | flips | citing files |
+|---|---|---|
+| #970, milestone 433 (drain the proposal pile to zero, and keep it there) | 113 | 363 |
+| #1018, milestone 448 (a refusal gets a number, a status, and a condition that would change it) | 43 | 103 |
+| #992, milestone 161 (the x86_64 kernel port: bring up the HAL's third architecture) | 1 | 48 |
+
+The first two are sweeps that added or restatused dozens of blocks at once, which is the same
+outlier the ratchet's own measurement found in #970. The third is one flip on a heavily cited
+number. The worst single milestone in the window is 433 at 108 citing files, for the same reason:
+a milestone that reorganised the roadmap is cited by the roadmap.
+
 ## Attributed quotations
 
 The second half. A block quote may name the file it came from, and the passage must still be there:
@@ -329,6 +405,31 @@ re-resolves it against `19-architectural-parity.md` on every run; edit that sent
 and this page fails the build until it is brought back into agreement.
 
 ## BUGS
+
+**`--moved` cannot tell staleness from correctness, and it never will.** A note saying that
+milestone 30 (the network stack as a confined component) built the net stack is right forever, and
+it is listed every time 30's block is touched. The output is a prompt to look. If looking is
+usually wasted the mode will be skipped, and that, rather than a false negative, is the failure mode
+to watch for.
+
+**`--moved` misses the worse half of the class it was raised for, and the miss is inherent.** A page
+saying "there is no networking" cites nothing, because a negative claim has no anchor to hang a
+check on. That is the shape of the worst of the four instances that prompted milestone 385 (when a
+milestone's status flips, tell the lane which notes cite it), and it is not detectable without
+telling an assertion from an observation in prose, which this tree has already priced: `git grep -w
+TODO` ran at an 82% false-positive rate. The other half wants a sweep rather than a gate, and
+milestone 259 (sweep `notes/` for claims that stopped being true) is that sweep.
+
+**`--moved` sees a citation in prose and not one in code.** It walks `notes/` and `design/` only. A
+`milestone N` in a Rust comment is usually provenance for the code beneath it rather than a claim
+about what the tree can do today, so including `*.rs` would multiply the worklist by the population
+`--census` counts without adding a case of the defect. Untested rather than proved: nobody has
+measured how often a code comment makes a present-tense claim about a milestone.
+
+**A block deleted or renumbered is not reported by `--moved`.** The mode reads the status at the tip
+and skips a file that is gone, so a number retired out from under its citers prints nothing here.
+That case is already a hard failure elsewhere: `script/roadmap --check` fails a `milestone N` that
+resolves to no block at all.
 
 **An untracked file is invisible to this check, and a green run says nothing about it.** The walk is
 `git ls-files "*.md"`, so a file that has been written but not yet `git add`ed is not in the corpus:

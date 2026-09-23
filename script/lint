@@ -863,6 +863,22 @@ echo "==> citations"
 echo "==> new citations say what they cite"
 "$(dirname "$0")/citations" --ratchet
 
+# Milestone 385 (when a milestone's status flips, tell the lane which notes cite it), and the only
+# thing in this script that **cannot fail**. Every other check here says a build is wrong. This one
+# says somebody's prose might be, and cannot tell which, so it prints and returns zero.
+#
+# It is here rather than beside the gates because of when it has to fire: the lane flipping a
+# milestone to BUILT is the one person in the project who knows what that milestone now makes true,
+# and it is holding that knowledge only while it is in the file. A sweep a week later is read by
+# somebody who has to reconstruct it. That is the whole argument for the position, and it is why a
+# report earns a line in a gate script.
+#
+# `|| true` because a report that can take the build down is a gate, whatever its output says, and a
+# failure here would be a failure about prose nobody can prove wrong. This is the one place in
+# script/lint where a non-zero exit is the bug rather than the finding.
+echo "==> notes citing a milestone this branch moved"
+"$(dirname "$0")/citations" --moved || true
+
 # The fourth citation gate, and the only one that reads what a citation CLAIMS (milestone 275). The
 # three above prove a `milestone N` or `§N` resolves, and that its gloss names the right record;
 # none of them asks whether what `design/fatal-risks.md` SAYS about what it resolved to is still

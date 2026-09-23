@@ -76,6 +76,9 @@
 #   script/citations --check     validate; non-zero on a problem (wired into script/lint)
 #   script/citations --ratchet   the lines this branch ADDS carry a gloss (wired into script/lint)
 #   script/citations --census    count the citations that carry no gloss at all; reporting only
+#   script/citations --moved     this branch flipped a milestone's status: who cites it. Reporting
+#                                only, and it can never fail (milestone 385, when a milestone's
+#                                status flips, tell the lane which notes cite it).
 #
 # Name: recorded (DECISIONS §134, which cites this name as the shape a later report should match).
 # Introduced by milestone 97's lane on 2026-08-04. §134 puts it in the noun half of the `script/`
@@ -498,6 +501,162 @@ if mode == "--ratchet":
 
 
 # ==============================================================================================
+# --moved: when this branch flips a milestone's status, who was citing that milestone
+# ==============================================================================================
+#
+# Milestone 385 (when a milestone's status flips, tell the lane which notes cite it). Six "is there
+# a milestone for X" questions in one evening turned up four things wrong on `main` rather than four
+# things missing, all the same shape: prose that was true when written and went silently false when
+# a milestone landed. The lane flipping N to BUILT is the one person who knows what N now makes
+# true, and it is holding that knowledge at exactly the moment this fires. Any later reader has to
+# reconstruct it.
+#
+# **It reports and never fails**, and that is a decision rather than caution. It cannot tell a
+# stale citation from a fine one: a note saying "milestone 30 built the net stack" is right forever
+# and appears here every time 30's block is touched. A gate that guessed at prose would be
+# `git grep -w TODO`'s 82% false-positive rate wearing different clothes, which AGENTS.md has
+# already priced and this tree has already refused once. The shape is `script/names --unratified`:
+# a worklist that names work without blocking anybody's build.
+#
+# **Which side of DECISIONS §207 (the roadmap is a graph, and the block says so in fields a script
+# can walk) this lands on, because §207 ruled on the same coupling from the other direction.** §207
+# retired `Gate: MILESTONE N` precisely because it *obliged an edit* in every dependent block when a
+# dependency landed, made by somebody in another lane who was not looking, so a milestone being
+# satisfied turned unrelated branches red on a line they never touched. §207 cites this milestone by
+# number as the evidence. What §207 removed is an obligation to EDIT on a status flip. This is a
+# duty to TELL somebody on a status flip, addressed to the one lane that is already in the file.
+# It asks for no edit, it can be read and dismissed in a sentence, and no other branch goes red
+# because of it. Turning this into a gate that demanded edits would reintroduce exactly what §207
+# refused, three weeks after it was decided.
+#
+# **It keys on the bare `milestone N` and not on the glossed form `--check` reads**, which is the
+# measurement that would otherwise have broken it: only 4% of milestone citations in `notes/` carry
+# a gloss, so keying on `CITE` would find one citation in twenty-five. `ANY_CITE` is the right
+# regex here for the same reason it is the right one for `--census`.
+#
+# **It reads the block file and not an index**, which closes one of 385's own BUGS entries: that
+# BUGS line feared a status moving without the pull request touching the index, and asked the
+# implementation to read both. There is no longer a both. `design/roadmap/README.md` was generated
+# from the blocks by milestone 294 (`design/roadmap/README.md`'s index is generated, not
+# hand-maintained) and retired by calef on 2026-09-21, so the block's own `**Status:` line is the
+# single record and §76's two-places disagreement cannot recur.
+#
+# It sees `notes/` AND `design/`, where 385's proposal measured only `notes/`. Two of the four
+# instances that prompted the milestone were in `design/roadmap/` (milestone 66's gap table, 99's
+# compressor claim) and 385's BUGS says both want the same treatment. The cost is measured rather
+# than assumed: see notes/citations.md for what this prints against the live tree.
+#
+# Name provisional: `--moved` is this lane's, not calef's.
+STATUS_LINE = re.compile(r"\*\*Status: ([A-Z-]+)\b")
+BLOCK_FILE = re.compile(r"design/roadmap/(\d+)-[a-z0-9][a-z0-9-]*\.md")
+
+if mode == "--moved":
+    base, tip = arg, "HEAD"
+    if ".." in arg:
+        base, tip = arg.split("..", 1)
+    if not base:
+        base = subprocess.run(["git", "-C", root, "merge-base", "HEAD", "origin/main"],
+                              capture_output=True, text=True).stdout.strip()
+    if not base:
+        # No merge base is a detached HEAD in CI or a fresh clone, and there is no branch to judge.
+        # Silence rather than a guess, the same answer `--ratchet` and script/lint 4b give.
+        print("citations: no merge base against origin/main; nothing to compare statuses against")
+        sys.exit(0)
+
+    def status_at(rev, path):
+        """The `**Status: <TOKEN>` of a block as of `rev`, or None if the file is not there.
+
+        The first non-blank line after the H1, which is where script/roadmap --check requires it
+        and fails the block if it is anywhere else. Parsing it here rather than shelling out to
+        script/roadmap keeps this a diff of two commits: script/roadmap reads the working tree.
+        """
+        r = subprocess.run(["git", "-C", root, "show", f"{rev}:{path}"], capture_output=True)
+        if r.returncode != 0:
+            return None
+        for line in r.stdout.decode(errors="replace").split("\n")[1:]:
+            if line.strip():
+                m = STATUS_LINE.match(line)
+                return m.group(1) if m else None
+        return None
+
+    names = subprocess.run(
+        ["git", "-C", root, "diff", "--name-only", f"{base}..{tip}", "--", "design/roadmap/"],
+        capture_output=True, text=True,
+    ).stdout.split()
+
+    # A lettered addendum (20a) takes no status line, so BLOCK_FILE does not match it and it is
+    # skipped here for the reason script/roadmap skips it: it is an appendix to a milestone, not
+    # one of its own.
+    moved = []
+    for path in sorted(names):
+        m = BLOCK_FILE.fullmatch(path)
+        if not m:
+            continue
+        num = int(m.group(1))
+        was, now = status_at(base, path), status_at(tip, path)
+        if was != now and now is not None:
+            moved.append((num, path, was, now))
+
+    if not moved:
+        print("citations: no milestone status moved on this branch")
+        sys.exit(0)
+
+    # The citing tree. `notes/` and `design/` only: those are the prose a stale claim hides in, and
+    # a `milestone N` in a Rust comment is provenance for the code under it rather than a claim
+    # about what the tree can do today.
+    citers = subprocess.run(
+        ["git", "-C", root, "ls-files", "--", "notes/", "design/",
+         ":!design/roadmap/README.md", ":!*.log"],
+        capture_output=True, text=True,
+    ).stdout.split()
+
+    # number -> [(path, lineno)], first mention per file, which is the unit a reader opens.
+    cited = {num: [] for num, _, _, _ in moved}
+    wanted = set(cited)
+    for path in citers:
+        try:
+            with open(os.path.join(root, path), "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if b"\0" in data:
+            continue
+        text, starts = prepared(path, data.decode(errors="replace"))
+        seen = set()
+        for m in ANY_CITE.finditer(text):
+            if m.group(1) == "§":
+                continue
+            num = int(m.group(2))
+            if num not in wanted or num in seen:
+                continue
+            # A block never cites itself into its own worklist: the lane is already in that file,
+            # and it is the file it just edited.
+            own = BLOCK_FILE.fullmatch(path)
+            if own and int(own.group(1)) == num:
+                continue
+            seen.add(num)
+            cited[num].append((path, starts[m.start()] + 1))
+
+    for num, path, was, now in moved:
+        title = MILESTONES[num][0] if num in MILESTONES else "(no block)"
+        print(f"citations: milestone {num} moved {was or 'NEW'} -> {now}: {title[:64]}")
+        if not cited[num]:
+            print("citations:   nothing in notes/ or design/ cites it")
+            continue
+        for where, lineno in cited[num]:
+            print(f"citations:   {where}:{lineno}")
+
+    total_cites = sum(len(v) for v in cited.values())
+    print()
+    print(f"citations: {len(moved)} status change(s), {total_cites} file(s) citing them. This is a")
+    print("worklist, not a failure: it cannot tell a stale sentence from a current one, so it")
+    print("prints and stops. You are the person who knows what these milestones now make true.")
+    print("What it CANNOT see is the worse half: a page saying \"there is no networking\" cites")
+    print("nothing, because a negative claim has no anchor. See notes/citations.md.")
+    sys.exit(0)
+
+
+# ==============================================================================================
 # The census: how big is the backlog the ratchet is not sweeping
 # ==============================================================================================
 #
@@ -786,7 +945,8 @@ if mode == "--check":
     sys.exit(0)
 
 if mode:
-    print(f"citations: unknown argument {mode!r} (no argument, or --check)", file=sys.stderr)
+    print(f"citations: unknown argument {mode!r} "
+          "(no argument, or --check, --ratchet, --census, --moved)", file=sys.stderr)
     sys.exit(2)
 
 print(f"{len(DECISIONS)} decisions, {len(MILESTONES)} milestones")
