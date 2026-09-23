@@ -11,7 +11,6 @@ above the lowest set, where a server parses a length the client never sent and r
 run of bytes out of the shared page.
 
 diff --git a/crates/credential_protocol/src/lib.rs b/crates/credential_protocol/src/lib.rs
-index 7dbe96c85..9902fdc2d 100644
 --- a/crates/credential_protocol/src/lib.rs
 +++ b/crates/credential_protocol/src/lib.rs
 @@ -242,3 +242,3 @@ pub const fn op(w0: u64) -> u64 {

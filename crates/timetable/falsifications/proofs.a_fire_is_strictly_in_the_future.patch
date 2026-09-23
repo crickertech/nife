@@ -9,7 +9,6 @@ Expected to fail: the harness's `assert!(next > now)`, at `prev + period == now`
 function returns `now` itself and the same occurrence fires again on the next poll.
 
 diff --git a/crates/timetable/src/lib.rs b/crates/timetable/src/lib.rs
-index 8e6d5323f..01f00a739 100644
 --- a/crates/timetable/src/lib.rs
 +++ b/crates/timetable/src/lib.rs
 @@ -738,3 +738,3 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {

@@ -9,7 +9,6 @@ name the dead entry had. That is a stale `ThreadId` resolving to a later occupan
 whole reason this table is generational rather than an array of `Option`.
 
 diff --git a/crates/generational_table/src/lib.rs b/crates/generational_table/src/lib.rs
-index 41c73d768..61f80251e 100644
 --- a/crates/generational_table/src/lib.rs
 +++ b/crates/generational_table/src/lib.rs
 @@ -176,3 +176,2 @@ impl<T, const N: usize> Table<T, N> {

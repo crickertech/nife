@@ -11,7 +11,6 @@ budget test. The carved run `[parent_watermark, new)` would overlap pages alread
 earlier child, which is two owners for one page.
 
 diff --git a/crates/memory_regions/src/lib.rs b/crates/memory_regions/src/lib.rs
-index a381894c7..0ef63126b 100644
 --- a/crates/memory_regions/src/lib.rs
 +++ b/crates/memory_regions/src/lib.rs
 @@ -72,3 +72,3 @@ pub fn split_new_watermark(parent_pages: u64, parent_watermark: u64, want: u64)

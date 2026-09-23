@@ -11,7 +11,6 @@ from `prev` is not a multiple of the period, where the answer overshoots by `r` 
 that fell behind drifts further behind on every pass.
 
 diff --git a/crates/timetable/src/lib.rs b/crates/timetable/src/lib.rs
-index 8e6d5323f..30890342e 100644
 --- a/crates/timetable/src/lib.rs
 +++ b/crates/timetable/src/lib.rs
 @@ -752,3 +752,3 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {

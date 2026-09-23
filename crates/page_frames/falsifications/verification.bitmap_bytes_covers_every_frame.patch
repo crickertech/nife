@@ -10,7 +10,6 @@ count not a multiple of eight, where the last few frames have no bit and `get`/`
 the end of the bitmap.
 
 diff --git a/crates/page_frames/src/lib.rs b/crates/page_frames/src/lib.rs
-index 0fd8462db..30bb04e08 100644
 --- a/crates/page_frames/src/lib.rs
 +++ b/crates/page_frames/src/lib.rs
 @@ -155,3 +155,3 @@ impl<'a> PageFrameAllocator<'a> {

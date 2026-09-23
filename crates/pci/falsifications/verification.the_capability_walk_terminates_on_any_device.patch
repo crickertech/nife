@@ -12,7 +12,6 @@ failure and not an unwinding-assertion failure; that distinction is the thing to
 patch ever reports something else.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..7ce9f3d87 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -504,3 +504,3 @@ pub fn virtio_caps(

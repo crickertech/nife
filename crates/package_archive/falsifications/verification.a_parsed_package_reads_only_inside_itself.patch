@@ -11,7 +11,6 @@ passes the weakened length check and `parse` then indexes a table entry that is 
 is the install path, so the buffer is whatever arrived.
 
 diff --git a/crates/package_archive/src/lib.rs b/crates/package_archive/src/lib.rs
-index a3d9c6158..6ea27b64f 100644
 --- a/crates/package_archive/src/lib.rs
 +++ b/crates/package_archive/src/lib.rs
 @@ -250,3 +250,3 @@ impl<'a> Package<'a> {

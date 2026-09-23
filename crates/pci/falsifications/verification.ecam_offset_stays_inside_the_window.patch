@@ -10,7 +10,6 @@ above 127, where a config read leaves the 256-bus window the kernel mapped and t
 accessor touches whatever is next in the address space.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..912db5e59 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -102,3 +102,3 @@ impl Bdf {

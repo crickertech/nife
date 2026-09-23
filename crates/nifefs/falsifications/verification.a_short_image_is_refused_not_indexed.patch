@@ -10,7 +10,6 @@ an image one byte short of the directory span. The parse continues into entry re
 of the buffer, which is a filesystem server indexing an image a client handed it.
 
 diff --git a/crates/nifefs/src/lib.rs b/crates/nifefs/src/lib.rs
-index 627ff32fe..5c332b186 100644
 --- a/crates/nifefs/src/lib.rs
 +++ b/crates/nifefs/src/lib.rs
 @@ -254,3 +254,3 @@ impl<'a> Fs<'a> {

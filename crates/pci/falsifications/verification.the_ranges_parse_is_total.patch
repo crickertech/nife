@@ -11,7 +11,6 @@ hostile-input class as a device's config space, so a panic here is a kernel that
 `ranges` property takes down during boot.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..7a8c2fbc4 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -686,3 +686,3 @@ pub fn mem32_window(ranges: &[u8]) -> Option<(u64, u64)> {

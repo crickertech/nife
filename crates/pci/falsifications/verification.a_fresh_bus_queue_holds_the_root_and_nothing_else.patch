@@ -11,7 +11,6 @@ zero and `tail` is one: the invariant the `enqueue` proof preserves is false in 
 state, so preserving it proves nothing.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..33bdc9ffd 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -282,3 +282,2 @@ impl BusQueue {

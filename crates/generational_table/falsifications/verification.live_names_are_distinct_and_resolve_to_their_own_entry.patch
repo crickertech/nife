@@ -11,7 +11,6 @@ entry at a time would look correct; the second entry's name unpacks to slot 0 wi
 and resolves to nothing.
 
 diff --git a/crates/generational_table/src/lib.rs b/crates/generational_table/src/lib.rs
-index 41c73d768..5624f7a44 100644
 --- a/crates/generational_table/src/lib.rs
 +++ b/crates/generational_table/src/lib.rs
 @@ -123,3 +123,3 @@ impl<T, const N: usize> Table<T, N> {

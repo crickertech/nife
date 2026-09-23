@@ -10,7 +10,6 @@ where the answer is either `None` (the inflated index is past `total`) or a diff
 a frame is filed under somebody else's bit.
 
 diff --git a/crates/page_frames/src/lib.rs b/crates/page_frames/src/lib.rs
-index 0fd8462db..d3e03dd87 100644
 --- a/crates/page_frames/src/lib.rs
 +++ b/crates/page_frames/src/lib.rs
 @@ -337,3 +337,3 @@ impl<'a> PageFrameAllocator<'a> {

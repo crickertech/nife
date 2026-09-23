@@ -10,7 +10,6 @@ pinned. The first frees memory a live object still sits in; the second frees a p
 under its own children, which is the double-free this proof is named for.
 
 diff --git a/crates/memory_regions/src/lib.rs b/crates/memory_regions/src/lib.rs
-index a381894c7..4f1c219c2 100644
 --- a/crates/memory_regions/src/lib.rs
 +++ b/crates/memory_regions/src/lib.rs
 @@ -105,3 +105,3 @@ pub fn destroy_outcome(

@@ -11,7 +11,6 @@ that is not already frame-aligned, where a frame number would carry an offset in
 two distinct addresses in one frame would name two different frames.
 
 diff --git a/crates/page_frames/src/lib.rs b/crates/page_frames/src/lib.rs
-index 0fd8462db..db32d89f7 100644
 --- a/crates/page_frames/src/lib.rs
 +++ b/crates/page_frames/src/lib.rs
 @@ -109,3 +109,3 @@ impl PageFrame {

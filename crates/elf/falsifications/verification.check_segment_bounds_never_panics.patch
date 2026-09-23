@@ -9,7 +9,6 @@ huge offset and a huge size. Both numbers come from a file the kernel was handed
 crafted binary halting the loader rather than being refused by it.
 
 diff --git a/crates/elf/src/lib.rs b/crates/elf/src/lib.rs
-index 98694d352..5b19b45a4 100644
 --- a/crates/elf/src/lib.rs
 +++ b/crates/elf/src/lib.rs
 @@ -577,5 +577,3 @@ fn check_segment_bounds(

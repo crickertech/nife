@@ -10,7 +10,6 @@ silently become allocatable again while still running, which is the aliasing the
 this module rules out and this one is what stops arriving by the back door.
 
 diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
-index 00d1ed21d..bdbc9a885 100644
 --- a/crates/address_space_identifier/src/lib.rs
 +++ b/crates/address_space_identifier/src/lib.rs
 @@ -114,3 +114,3 @@ impl Allocator {

@@ -10,7 +10,6 @@ entry is removed while a lower one is live: `top` walks to zero and every walk b
 reports an empty table while `len` still counts the survivors.
 
 diff --git a/crates/generational_table/src/lib.rs b/crates/generational_table/src/lib.rs
-index 41c73d768..8f536bdaa 100644
 --- a/crates/generational_table/src/lib.rs
 +++ b/crates/generational_table/src/lib.rs
 @@ -189,3 +189,3 @@ impl<T, const N: usize> Table<T, N> {

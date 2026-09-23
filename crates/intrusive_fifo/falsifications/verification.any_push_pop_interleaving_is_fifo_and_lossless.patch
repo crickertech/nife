@@ -12,7 +12,6 @@ empty while holding a node, and that node is lost. In the kernel this queue hold
 threads.
 
 diff --git a/crates/intrusive_fifo/src/lib.rs b/crates/intrusive_fifo/src/lib.rs
-index 0253f23a4..9f569dfdd 100644
 --- a/crates/intrusive_fifo/src/lib.rs
 +++ b/crates/intrusive_fifo/src/lib.rs
 @@ -212,5 +212,2 @@ impl<T: Node> Fifo<T> {

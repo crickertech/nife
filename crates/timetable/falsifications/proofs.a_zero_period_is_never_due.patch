@@ -11,7 +11,6 @@ answer (`prev` is returned when `prev > now`) or on the remainder operation, whi
 as a division by zero on the path where it is reached.
 
 diff --git a/crates/timetable/src/lib.rs b/crates/timetable/src/lib.rs
-index 8e6d5323f..e60eaa37f 100644
 --- a/crates/timetable/src/lib.rs
 +++ b/crates/timetable/src/lib.rs
 @@ -734,5 +734,2 @@ fn unbacked(e: &Endowment, held: Held) -> Option<Unbacked> {

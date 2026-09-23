@@ -12,7 +12,6 @@ reports interrupt pin 0 is a device the kernel meets during enumeration of hardw
 vetted.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..3ffb1153a 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -648,3 +648,3 @@ pub fn intx_irq(base: u32, dev: u8, pin: u8) -> u32 {

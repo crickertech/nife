@@ -10,7 +10,6 @@ whose virtual range wraps, which is a crafted binary panicking the kernel in the
 trusts this function.
 
 diff --git a/crates/elf/src/lib.rs b/crates/elf/src/lib.rs
-index 98694d352..f342f83b2 100644
 --- a/crates/elf/src/lib.rs
 +++ b/crates/elf/src/lib.rs
 @@ -587,4 +587,2 @@ fn check_segment_bounds(

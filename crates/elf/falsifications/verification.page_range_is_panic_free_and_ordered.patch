@@ -10,7 +10,6 @@ Expected to fail: the panic-free half of the claim, as an arithmetic overflow, a
 not fit. `Segment` is `pub`, so it must hold without `parse`'s guarantees.
 
 diff --git a/crates/elf/src/lib.rs b/crates/elf/src/lib.rs
-index 98694d352..41f6dbe09 100644
 --- a/crates/elf/src/lib.rs
 +++ b/crates/elf/src/lib.rs
 @@ -380,3 +380,3 @@ impl Segment<'_> {

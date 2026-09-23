@@ -10,7 +10,6 @@ exactly the arbitrary-response regime this harness quantifies over and nothing a
 supplies.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..b60e99f0c 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -422,3 +422,3 @@ pub fn read_bars(

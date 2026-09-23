@@ -10,7 +10,6 @@ first assertion survives, because `authenticated` still asks for `MATCH` exactly
 this harness states the discrimination as well as the authentication.
 
 diff --git a/crates/credential_protocol/src/lib.rs b/crates/credential_protocol/src/lib.rs
-index 7dbe96c85..94433cfce 100644
 --- a/crates/credential_protocol/src/lib.rs
 +++ b/crates/credential_protocol/src/lib.rs
 @@ -320,3 +320,3 @@ pub fn wipe(page: &mut [u8]) {

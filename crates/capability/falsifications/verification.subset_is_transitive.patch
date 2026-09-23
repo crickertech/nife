@@ -16,7 +16,6 @@ Expected to fail: the harness's `assert!(a.is_subset_of(c))`, at `a = 0b11`, `b 
 is exactly the laundering the doc comment says a flat subset check is safe because it cannot do.
 
 diff --git a/crates/capability/src/lib.rs b/crates/capability/src/lib.rs
-index 1b2d08a9b..36296e551 100644
 --- a/crates/capability/src/lib.rs
 +++ b/crates/capability/src/lib.rs
 @@ -142,3 +142,3 @@ impl Rights {

@@ -10,7 +10,6 @@ a live slot index and whose high half is anything at all. The name arrives in a 
 so this is the forging case: the table would resolve a number nobody was ever issued.
 
 diff --git a/crates/generational_table/src/lib.rs b/crates/generational_table/src/lib.rs
-index 41c73d768..6b37f13da 100644
 --- a/crates/generational_table/src/lib.rs
 +++ b/crates/generational_table/src/lib.rs
 @@ -151,5 +151,3 @@ impl<T, const N: usize> Table<T, N> {

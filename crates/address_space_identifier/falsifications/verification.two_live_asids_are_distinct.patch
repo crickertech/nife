@@ -10,7 +10,6 @@ count lands on a bit that is already set, the `|=` changes nothing, and the next
 returns the same ASID. Two live address spaces then share a TLB tag.
 
 diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
-index 00d1ed21d..c6af91ce8 100644
 --- a/crates/address_space_identifier/src/lib.rs
 +++ b/crates/address_space_identifier/src/lib.rs
 @@ -100,3 +100,3 @@ impl Allocator {

@@ -11,7 +11,6 @@ Expected to fail: the harness's `assert!(next_after(prev, period, now) >= prev +
 schedule tightens by a nanosecond every time an entry is re-armed.
 
 diff --git a/crates/timetable/src/lib.rs b/crates/timetable/src/lib.rs
-index 8e6d5323f..ea22948bc 100644
 --- a/crates/timetable/src/lib.rs
 +++ b/crates/timetable/src/lib.rs
 @@ -737,3 +737,3 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {

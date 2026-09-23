@@ -11,7 +11,6 @@ and bit 1 clear, where the allocator hands a user address space the kernel's own
 will serve one the other's memory.
 
 diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
-index 00d1ed21d..5969ee653 100644
 --- a/crates/address_space_identifier/src/lib.rs
 +++ b/crates/address_space_identifier/src/lib.rs
 @@ -100,3 +100,3 @@ impl Allocator {

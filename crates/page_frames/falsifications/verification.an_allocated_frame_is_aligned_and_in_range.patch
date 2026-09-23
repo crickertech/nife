@@ -9,7 +9,6 @@ other than zero, where `alloc` returns an address inside the first frame of the 
 than the frame it reserved the bit for.
 
 diff --git a/crates/page_frames/src/lib.rs b/crates/page_frames/src/lib.rs
-index 0fd8462db..c2f41b2d8 100644
 --- a/crates/page_frames/src/lib.rs
 +++ b/crates/page_frames/src/lib.rs
 @@ -250,3 +250,3 @@ impl<'a> PageFrameAllocator<'a> {

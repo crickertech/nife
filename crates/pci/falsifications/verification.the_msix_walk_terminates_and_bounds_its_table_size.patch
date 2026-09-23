@@ -11,7 +11,6 @@ any device answering with bit 11 set, where the kernel would size a vector table
 entries against hardware that has at most 2048.
 
 diff --git a/crates/pci/src/lib.rs b/crates/pci/src/lib.rs
-index 01c0cc8fa..ffd293317 100644
 --- a/crates/pci/src/lib.rs
 +++ b/crates/pci/src/lib.rs
 @@ -627,3 +627,3 @@ pub fn msix_cap(bdf: Bdf, read32: &mut dyn FnMut(Bdf, u64) -> u32) -> Option<Msi

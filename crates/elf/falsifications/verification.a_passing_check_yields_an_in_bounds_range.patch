@@ -10,7 +10,6 @@ file and running past its end, where `segment_at` then slices `bytes[p_offset..e
 buffer the kernel read.
 
 diff --git a/crates/elf/src/lib.rs b/crates/elf/src/lib.rs
-index 98694d352..959a0a613 100644
 --- a/crates/elf/src/lib.rs
 +++ b/crates/elf/src/lib.rs
 @@ -580,3 +580,3 @@ fn check_segment_bounds(
