@@ -1,0 +1,20 @@
+Falsifies `elf::verification::a_passing_check_has_no_address_overflow`.
+
+The defect: the virtual-range check is deleted. It is the one line here whose value is thrown
+away, so it reads as a statement with no effect, and the two checks above it already returned
+everything the function computes. What it actually does is hand a guarantee forward: `validate`
+and `page_range` both add `vaddr + memsz` unchecked because this line proved they can.
+
+Expected to fail: the harness's `assert!(vaddr.checked_add(memsz).is_some())`, on a segment
+whose virtual range wraps, which is a crafted binary panicking the kernel in the code that
+trusts this function.
+
+diff --git a/crates/elf/src/lib.rs b/crates/elf/src/lib.rs
+index 98694d352..f342f83b2 100644
+--- a/crates/elf/src/lib.rs
++++ b/crates/elf/src/lib.rs
+@@ -587,4 +587,2 @@ fn check_segment_bounds(
+     // i.e. a crafted binary halting the kernel.
+-    vaddr.checked_add(memsz).ok_or(Error::AddressOverflow)?;
+-
+     Ok(end)

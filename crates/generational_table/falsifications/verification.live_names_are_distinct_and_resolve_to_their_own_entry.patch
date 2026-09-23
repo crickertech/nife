@@ -1,0 +1,21 @@
+Falsifies `generational_table::verification::live_names_are_distinct_and_resolve_to_their_own_entry`.
+
+The defect: `name` packs the two fields the other way round while `unpack` is left alone. The
+pair has to agree and nothing makes them, which is what this kind of hand-rolled packing costs;
+the crate doc says "a name packs `(generation, slot)`" and reading that order into the shift is
+the error.
+
+Expected to fail: the harness's `assert_eq!(t.get(b).copied(), Some(b_val))`. The first slot's
+name survives the transposition (both halves are zero), so a table that is only ever used one
+entry at a time would look correct; the second entry's name unpacks to slot 0 with generation 1
+and resolves to nothing.
+
+diff --git a/crates/generational_table/src/lib.rs b/crates/generational_table/src/lib.rs
+index 41c73d768..5624f7a44 100644
+--- a/crates/generational_table/src/lib.rs
++++ b/crates/generational_table/src/lib.rs
+@@ -123,3 +123,3 @@ impl<T, const N: usize> Table<T, N> {
+     const fn name(slot: usize, generation: u32) -> u64 {
+-        ((generation as u64) << 32) | slot as u64
++        ((slot as u64) << 32) | generation as u64
+     }

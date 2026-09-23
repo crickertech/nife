@@ -628,7 +628,7 @@ mod verification {
     /// panics or overflows, for any file length and any field values. This is the leaf of the
     /// parser's panic surface, factored out of the loop so bounded model checking can reach it (the
     /// whole-parse proof cannot; see notes/verification.md).
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/elf/falsifications/verification.check_segment_bounds_never_panics.patch`
     #[kani::proof]
     fn check_segment_bounds_never_panics() {
         let _ = check_segment_bounds(
@@ -644,7 +644,7 @@ mod verification {
     /// `Ok(end)` then `p_offset <= end <= file_len`, so the caller's slice `bytes[p_offset..end]` is
     /// in bounds. This is the guarantee that makes `segment_at`'s slice safe, proved for every input,
     /// which is what the intractable whole-parse totality proof was really reaching for.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/elf/falsifications/verification.a_passing_check_yields_an_in_bounds_range.patch`
     #[kani::proof]
     fn a_passing_check_yields_an_in_bounds_range() {
         let file_len: usize = kani::any();
@@ -660,7 +660,7 @@ mod verification {
     /// **A passing check guarantees the virtual range does not overflow.** If it returns `Ok`, then
     /// `vaddr + memsz` did not wrap, so the later unchecked `seg.vaddr + seg.memsz` in `validate`
     /// cannot panic. This proves the cross-function invariant by hand-off through the type.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/elf/falsifications/verification.a_passing_check_has_no_address_overflow.patch`
     #[kani::proof]
     fn a_passing_check_has_no_address_overflow() {
         let vaddr: u64 = kani::any();
@@ -674,7 +674,7 @@ mod verification {
     /// must be safe on its own, without `parse`'s guarantees. For every `vaddr` and `memsz`,
     /// including the near-`u64::MAX` values a hostile file names, the saturating arithmetic neither
     /// panics nor returns an inverted range.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/elf/falsifications/verification.page_range_is_panic_free_and_ordered.patch`
     #[kani::proof]
     fn page_range_is_panic_free_and_ordered() {
         let seg = Segment {
