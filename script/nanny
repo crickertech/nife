@@ -1,0 +1,70 @@
+#!/bin/sh
+# script/nanny: work the merge queue by delegating it, rather than by remembering to.
+#
+#     script/nanny               # survey, then rebase every conflicting branch, then report
+#     script/nanny --survey      # the read-only half only
+#
+# Name: provisional, minted 2026-09-22 by the maintainer, taking calef's own word for the duty
+# ("nanny the merge queue"). Refused `queue`, which names the thing rather than the act and collides
+# with every other queue this tree grows; refused `drain`, which `scripts/merge-drain.sh` already
+# spends on the watcher that reports a stall. calef names scripts; expect this to change.
+#
+# **Why this is a script and not a habit.** On 2026-09-22 the maintainer measured its own session at
+# 233M tokens a day against 5M for the twenty lanes it ran, wrote `briefs/rebase-onto-main.md`,
+# measured a delegated rebase at $0.055 with no redo, and then hand-rebased four branches without
+# once reaching for it. Each one felt too small to delegate. That is `AGENTS.md`'s ladder exactly:
+# the rule was rung four, a resolution held in a head, and rung four is what every failure of
+# 2026-08-04 was relying on. **A duty that depends on remembering is not a mechanism.**
+#
+# So the default path delegates. Doing it by hand is still possible and now takes more effort than
+# not, which is the right way round.
+#
+# **What it does not do, on purpose.** It does not push and it does not enqueue. A conflict
+# resolution is a judgement: taking `main`'s baselines rather than hand-merging them is the
+# difference between a correct rebase and a wrong benchmark floor shipped as housekeeping, and
+# nothing here can check which happened. So it leaves every branch rebased locally and hands back a
+# list to read.
+#
+# # BUGS
+#
+# - **It needs the gateway up** (`scripts/open-lane-gateway.sh` on cordoba) and `OPEN_LANE_BASE_URL`
+#   and `OPEN_LANE_MODEL` set. Without them it says so and does nothing, rather than falling back to
+#   doing the work in the expensive session, because a silent fallback would restore exactly the
+#   habit this exists to replace.
+# - **A worktree per conflicting branch has to exist already.** It does not create them, because
+#   guessing where a branch's worktree should live is how a lane's work gets cloned into the wrong
+#   place.
+# - **The redo rate is the number that decides whether this helps**, and it is a reviewer's
+#   judgement: `script/redo-rate` counts it and nothing appends a row automatically.
+set -eu
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+survey_only=${1:-}
+
+: "${OPEN_LANE_BASE_URL:?set OPEN_LANE_BASE_URL; see notes/open-model-lanes.md}"
+: "${OPEN_LANE_MODEL:?set OPEN_LANE_MODEL; see notes/open-model-lanes.md}"
+
+echo "==> surveying the queue (delegated, read-only)"
+"$here/scripts/open-lane.sh" "$here" "$here/briefs/survey-the-queue.md" 1 || true
+
+[ "$survey_only" = "--survey" ] && exit 0
+
+echo
+echo "==> rebasing every conflicting branch (delegated; nothing is pushed)"
+git -C "$here" fetch -q origin
+gh pr list --json number,mergeStateStatus,headRefName \
+    --jq '.[] | select(.mergeStateStatus == "DIRTY" or .mergeStateStatus == "CONFLICTING") | "\(.number)\t\(.headRefName)"' |
+while IFS="$(printf '\t')" read -r number branch; do
+    tree=$(git -C "$here" worktree list --porcelain |
+        awk -v b="refs/heads/$branch" '/^worktree /{w=$2} /^branch /{if ($2==b) print w}')
+    if [ -z "$tree" ]; then
+        echo "  #$number $branch: no worktree, skipped"
+        continue
+    fi
+    echo "  #$number $branch -> $tree"
+    "$here/scripts/open-lane.sh" "$tree" "$here/briefs/rebase-onto-main.md" 3 || \
+        echo "  #$number handed back unrebased; read it before doing anything"
+done
+
+echo
+echo "==> nothing was pushed and nothing was enqueued. Read each diff, then decide."
