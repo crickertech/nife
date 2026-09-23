@@ -174,7 +174,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 113 | AMENDED | [Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term](113-kernel-object-plain-names.md) |
 | 114 | DECIDED | [`pmap` gets its listing: `ENUMERATE` extends to the address-space object](114-aspace-enumerate.md) |
 | 115 | DECIDED | [No `sysctl`: each subsystem's tuning goes through its own service, not a bolted-on aggregator](115-no-sysctl.md) |
-| 116 | DECIDED | [Live component state handoff is declined, for want of a customer](116-state-handoff-declined.md) |
+| 116 | SUPERSEDED BY 209 | [Live component state handoff is declined, for want of a customer](116-state-handoff-declined.md) |
 | 117 | DECIDED | [A principal's subtree is named by its identity string, created at provisioning time](117-subtree-name-is-identity.md) |
 | 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 | 119 | DECIDED | [Splitting `OutOfMemory`'s three causes is declined for want of a customer](119-oom-causes-declined.md) |
@@ -267,6 +267,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
 | 207 | DECIDED | [The roadmap is a graph, and the block says so](207-the-roadmap-is-a-graph-and-says-so.md) |
 | 208 | DECIDED | [Installing a package is granting it, and the activation set is versioned](208-installing-is-granting.md) |
+| 209 | DECIDED | [State handoff is an opaque blob over a granted frame, and it is optional](209-state-handoff-is-an-opaque-blob-and-it-is-optional.md) |
 | 210 | DECIDED | [A correction of error, and its action items are decisions, proposals or milestones](210-a-correction-names-its-action.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same

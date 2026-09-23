@@ -2,12 +2,23 @@
 
 **Status: PARTIAL.**
 
-**Gate: NONE.** As of 2026-08-23, state handoff is **declined for now, for want of a customer**
-(DECISIONS §116): no component with meaningful live state exists or is being built, same shape as
-`std::thread::spawn` and hard links. §116 also checked the framing and records a transport shape
-(opaque blob over a shared page, capabilities via `GRANT`) as guidance for whoever eventually has a
-real component to swap, without committing to it. It is the one residual left, and it needed no
-decision from this lane: the other three are built.
+**Gate: NONE.** **State handoff was ruled on 2026-09-23 and is no longer declined**
+([DECISIONS §209](../decisions/209-state-handoff-is-an-opaque-blob-and-it-is-optional.md), state handoff is an opaque blob over a granted frame, and it is optional).
+The transport is the shape §116 (live component state handoff is declined, for want of a customer) sketched and did not commit to: an **opaque blob over a granted
+shared `Frame`** for state, **`GRANT`** for capabilities. **Handoff is optional**, declared in the
+component manifest beside `depends_on`; a component that declares nothing is kill-and-replaced, as
+the console already is. **Failure does not commit**: an incoming instance that cannot absorb the
+state leaves the swap incomplete, which is a revoke of the new grant under §16 (object revocation). The manifest
+field's name is calef's and is unratified.
+
+The premise §116 declined on did not survive the week it was written in, and that is worth keeping
+here: it said no component with meaningful live state existed or was being built, and
+`redoxfs_server`'s first commit is dated 2026-08-24, one day later. `notes/fs-server.md` calls a
+filesystem server with open handles this milestone's hardest state-handoff case. So the package
+ruling that reopened this was the **second** customer, not the first. §209 (state handoff is an opaque blob over a granted frame, and it is optional) carries the full record.
+
+**Building it is ordinary unblocked work.** All four residuals this block named now have their
+decisions; none of the four is waiting on calef.
 
 **The component manifest is built** (2026-08-17, `crates/component_plan`,
 notes/component-manifest.md), which is the piece milestone 39's packaging analysis leans on. **The
@@ -23,10 +34,9 @@ and it turns out only a component that itself forwards synchronously while servi
 one populated: a pure consumer already degrades for free on the endpoint's own sender queue, which is
 §41's central mechanism doing a second job nobody had asked of it yet.
 
-**The status does not move.** Three of the four residuals this block named are now built, but the
-status line has tracked state handoff since it was declined, not a residual count, and state handoff
-is unchanged: still declined for want of a customer, still the crux, still calef's to decide when a
-stateful component exists to design it against.
+**The status does not move.** Three of the four residuals this block named are built, and the fourth
+is decided rather than built. The status line has tracked state handoff since it was declined, not a
+residual count; as of 2026-09-23 it tracks an unbuilt ruling instead of an open question.
 
 **In brief.** Every userspace component (driver, server, app) is a swappable, vendor-shippable unit behind a stable contract; operators replace them live, no reboot. The console hot-swap is instance one; a durable queue-broker decouples component lifecycles (opt-in per channel, for latency)
 
@@ -96,8 +106,9 @@ finding is that the stronger right is not merely large but **insufficient**, sin
 blocked thread never reaches `schedule()` to spend the kill a `DESTROY` arms). No watchdog program was
 built, deliberately: both its halves are behind those decisions.
 
-**What remains:** state handoff, declined for now (DECISIONS §116, want of a customer; the
-component here is near-stateless, which is what makes kill-and-replace sufficient). Dependency-aware
+**What remains:** state handoff, now decided and not yet built (DECISIONS §209, state handoff is an opaque blob over a granted frame, and it is optional;
+the component here is near-stateless, which is what makes kill-and-replace sufficient and why it
+would declare no handoff at all). Dependency-aware
 orchestration is built (2026-08-23) but the hung-component work already sharpens both residuals in
 the same way, and for the graph the sharpening is now a recorded gap rather than a prediction: the
 quiescence protocol orchestration needs (telling a dependent to degrade) is exactly the step a hang
@@ -174,7 +185,7 @@ ring variant is io_uring, DPDK, and virtio.
   before anything is built when it cannot. seL4 CapDL / Fuchsia territory as this block predicted, and
   Fuchsia's `use`/`offer` split turned out to be the load-bearing half. Still compiled in rather than
   shipped beside a binary: notes/component-manifest.md.
-- **State handoff, declined for now (DECISIONS §116, 2026-08-23).** The console is easy because it
+- **State handoff, ruled 2026-09-23 (DECISIONS §209, state handoff is an opaque blob over a granted frame, and it is optional; the account below is the superseded 2026-08-23 decline).** The console is easy because it
   is near-stateless. A filesystem server (open handles, caches, in-flight writes) or a network
   stack (live connections) cannot be kill-and-restarted without losing state, and live-swapping
   them would need moving that state from outgoing to incoming instance over a supervisor-brokered
@@ -222,9 +233,11 @@ components are isolated processes, named through indirection and confined by cap
 be swapped under the others.
 ## Follow-on
 
-- **Decision.** State handoff is declined for now for want of a customer, recorded in
-  `design/decisions/116-state-handoff-declined.md`, which also records a non-binding transport
-  shape for whoever eventually has a stateful component to swap.
+- **Decision.** Ruled 2026-09-23 in
+  `design/decisions/209-state-handoff-is-an-opaque-blob-and-it-is-optional.md`: an opaque blob over a
+  granted shared frame, optional per component, and a swap that does not commit on failure. It
+  supersedes `design/decisions/116-state-handoff-declined.md`, whose want-of-a-customer premise had
+  already expired when it was written.
 - **Recorded.** A manifest is still compiled in rather than shipped beside a binary.
   `notes/component-manifest.md`'s `BUGS` carries the two candidate shapes and the reason to decide
   later, and nothing has shipped outside this tree.
