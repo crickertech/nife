@@ -299,6 +299,20 @@ if ! script/bootstrap; then
     exit 1
 fi
 
+# The selector has to select something: milestone 401 (a gate that selects the set it judges).
+# `names_in_tier` matches a literal column value out of the `checks` table with `awk`, so renaming
+# the `local` tier or reformatting a row's separator leaves this loop nothing to iterate. Reproduced
+# by hand: retag every `local` row `default` and run the script, and it prints "ci-build: all pass,
+# the aarch64 suite twice" having run zero checks, because a `for` loop over an empty word list is
+# not an error in `sh`. Silent success is the one outcome this table cannot afford, since this is
+# the enumeration `ci.yml` fans out from and the command a developer runs before pushing.
+if [ -z "$(names_in_tier local)" ]; then
+    echo "ci-build: the 'local' tier selected no checks, so nothing ran. The tier column in" >&2
+    echo "  checks() moved or was misspelled; without this guard the run would have reported" >&2
+    echo "  'all pass' anyway." >&2
+    exit 1
+fi
+
 ran=""
 for name in $(names_in_tier local); do
     run_one "$name"
