@@ -50,24 +50,35 @@ permissions:
   contents: read
   pull-requests: read
 
-# Mirrors ci.yml's and verify.yml's pattern (their headers have the full argument): only the tip of
-# a branch or PR matters, so a follow-up push should cancel the run in flight, but a merge-queue
-# entry must run to completion undisturbed or it can structurally never report.
+# The group name mirrors ci.yml's and verify.yml's pattern for the same reason theirs does: only
+# the tip of a branch or PR matters for **serializing** runs, and a merge-queue entry must run to
+# completion undisturbed or it can structurally never report.
 #
-# **The `gh-readonly-queue/` exemption is applied from the start here**, not discovered the way
-# PR #557 discovered it for ci.yml and verify.yml. PR #546 sat `AWAITING_CHECKS` for over two hours
-# because the old `'tip'` fallback put every retry of one queue entry in the same concurrency group
-# as the last, and `cancel-in-progress` killed each attempt before it could report a conclusion --
-# a required check that could never complete. This workflow is new, so there is no history of that
-# bug here specifically, but the fix is known and applied up front rather than reintroduced.
+# **The `gh-readonly-queue/` exemption in the group name is applied from the start here**, not
+# discovered the way PR #557 discovered it for ci.yml and verify.yml. PR #546 sat `AWAITING_CHECKS`
+# for over two hours because the old `'tip'` fallback put every retry of one queue entry in the same
+# concurrency group as the last, and cancellation killed each attempt before it could report a
+# conclusion -- a required check that could never complete. The group name keeps that fix even
+# though, below, cancellation itself is off.
+#
+# **`cancel-in-progress` is `false`, unlike ci.yml and verify.yml, and deliberately** (briefs/
+# gate-in-ci.md's Step 5 and its BUGS note have the general case: a push closely followed by
+# `ready_for_review` lands two events in one concurrency group, and GitHub cancels the older run,
+# which then shows as a permanent red X indistinguishable from a real failure). ci.yml and verify.yml
+# keep cancelling because they cost 23 to 47 minutes and a superseded run wastes real CI time; this
+# job is one `gh api` call against a PR's labels and reports in single-digit seconds, so there is
+# nothing a cancellation saves here, only noise it adds. It was one of the three checks cancelled by
+# that exact race on #1123 (a force-push and a `ready_for_review` a second apart). `coe-architect-
+# label.yml` already made this same call for its own job, `cancel-in-progress: false` with the same
+# reasoning in its own header; this workflow now matches that precedent instead of ci.yml's.
 #
 # This workflow never triggers on a push to `main` (it has no `push:` trigger above), so the
-# `github.ref == 'refs/heads/main'` branch of this condition is unreachable today. Kept anyway, for
+# `github.ref == 'refs/heads/main'` branch of the group name is unreachable today. Kept anyway, for
 # parity with ci.yml/verify.yml's pattern and so the group stays correct without edits if a `push`
 # trigger is ever added.
 concurrency:
   group: architect-hold-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'tip' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
+  cancel-in-progress: false
 
 jobs:
   hold:
