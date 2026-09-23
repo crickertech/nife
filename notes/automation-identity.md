@@ -34,9 +34,11 @@ the workflow can inspect, and it couples the project's automation to one person'
 installation tokens are minted fresh per run, so nothing stored expires, and the identity belongs to
 the role rather than to the person. That is `needs-architect`'s principle applied to credentials.
 
-This note is the procedure. Creating the App needs owner rights on the organization, so it is
-calef's to run; everything on the repository side is already in place and inert, waiting for the two
-secrets.
+**As of 2026-09-23 the App exists**: `smelter`, App ID **5053502**, created by calef under
+`crickertech` and installed on `nife` alone, with both secrets stored as **organization secrets
+scoped to `nife`**. This note stays written as a procedure rather than as a history, because the
+next person to run it will be provisioning a second App or replacing a lost key, and the steps are
+the same either way. Where a step has already been taken, it says so.
 
 ## What it does not fix
 
@@ -114,7 +116,7 @@ Once, by an owner of the `crickertech` organization.
 ## Installing it and storing the secrets
 
 8. On the App's settings page, note the **App ID** near the top. For `smelter` it is **5053502**,
-   created 2026-09-23 by calef. Then **Generate a private key**, which downloads a `.pem` file.
+   created 2026-09-23 by calef; this step is done. Then **Generate a private key**, which downloads a `.pem` file.
    GitHub never shows it again; a lost key is regenerated rather than recovered.
 
    **The App ID is not sensitive** and the private key is the only thing here that is. An App ID is
@@ -161,9 +163,13 @@ Once, by an owner of the `crickertech` organization.
         rm ~/Downloads/*.private-key.pem
 
     **You cannot confirm this from the shell either**, and that is not something being broken:
-    `gh secret list --org crickertech` needs the same `admin:org` scope and returns the same 403. On
-    the browser path the secrets page itself is the confirmation, and the first real proof is the
+    `gh secret list --org crickertech` needs the same `admin:org` scope and returns the same 403 for
+    any shell that is not an organization admin's, which is the ordinary case rather than a fault.
+    On the browser path the secrets page itself is the confirmation, and the first real proof is the
     identity probe in step 11, once the workflow change has merged.
+
+    **This is the path that was actually used.** Both `smelter` secrets were stored this way by
+    calef in the browser on 2026-09-23, after the `gh` commands above returned the 403.
 
     **Storing them early is safe, and the argument is structural rather than an observation.** Until
     the workflow change has merged, `main`'s `toolchain-bump.yml` contains no reference to
@@ -221,6 +227,19 @@ Once, by an owner of the `crickertech` organization.
     has already fallen through to the App, so revoking the token cannot break a run that is still
     reaching for it. Then delete the PAT rung from `toolchain-bump.yml`'s comment and expressions,
     which is a two-line change and should not be done before this step.
+
+## The one dependency, and why it was taken
+
+**`actions/create-github-app-token`. Approved by calef, 2026-09-23 UTC.** §46 (thin primitives or
+whole subsystems) makes taking a dependency a decision rather than a convenience, so it is recorded
+rather than merely described. It is **maintained by GitHub** and does exactly one thing, mint an
+installation token per run. It is **outside the shipping graph**: it runs in CI and no part of the
+OS depends on it, which is the distinction §46 draws. **The alternative was worse**, and this is the
+case where §46's "write it yourself" guidance does not apply, because minting the token by hand
+means signing a JWT with the private key and exchanging it, in shell, inside a workflow: more code,
+in the least testable place this project has, handling a signing key. And **the fallback chain
+survives its absence**, since the step is skipped entirely when the App secrets are unset, so the
+action is load-bearing for neither the PAT path nor the `github.token` path.
 
 ## EXAMPLES
 

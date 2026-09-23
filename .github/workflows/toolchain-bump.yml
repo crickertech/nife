@@ -87,13 +87,25 @@ jobs:
       # landing this change changes nothing about how this job runs today. That is deliberate: the
       # App is calef's to create and this workflow must not wait on it.
       #
-      # `actions/create-github-app-token` is a **workflow-only dependency**, not one in the shipping
-      # graph, and is taken in the
-      # §46 (thin primitives or whole subsystems) spirit: it exchanges an App ID and private key for a
-      # short-lived installation token, which is a signed-JWT dance nobody should hand-roll in
-      # `bash`, and it is maintained by GitHub itself. It is covered by the `github-actions`
-      # ecosystem in `.github/dependabot.yml`, so its version is kept current the same way every
-      # other action here is.
+      # **Dependency: `actions/create-github-app-token`. Approved by calef, 2026-09-23 UTC.**
+      # §46 (thin primitives or whole subsystems) makes taking a dependency a decision rather than a
+      # convenience, so the decision is recorded here, where the next reader meets the `uses:` line.
+      # Four reasons it was taken:
+      #
+      #   - **Maintained by GitHub**, and it does exactly one thing: mint an installation token per
+      #     run.
+      #   - **Outside the shipping graph.** It runs in CI and no part of the OS depends on it, which
+      #     is the distinction §46 draws.
+      #   - **The alternative was worse**, and this is the case where §46's "write it yourself"
+      #     guidance does not apply. Minting the token by hand means signing a JWT with the private
+      #     key and exchanging it, in shell, inside a workflow: more code, in the least testable
+      #     place this project has, handling a signing key.
+      #   - **The fallback chain survives its absence.** With the App secrets unset the step is
+      #     skipped entirely, so this action is load-bearing for neither the PAT path nor the
+      #     `github.token` path.
+      #
+      # It is covered by the `github-actions` ecosystem in `.github/dependabot.yml`, so its version
+      # is kept current the same way every other action here is.
       - name: Mint an installation token for the automation App
         id: app-token
         if: env.AUTOMATION_APP_ID != ''
