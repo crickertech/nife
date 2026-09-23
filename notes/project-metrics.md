@@ -71,6 +71,53 @@ be misread as an ordinary number the way a bare `202636` can. It is also the dic
 makes rerunning `script/metrics` replace a row rather than add one, and the axis label is that key
 rather than something derived beside it, so the two cannot drift apart.
 
+## 2026-09-23: two days of movement in 2026W39
+
+The `2026W39` row was last computed 2026-09-21, the morning the scheduled workflow's Monday run
+merged it (`.github/workflows/metrics.yml`, `0 6 * * 1`). That is the automation working as
+designed, not a fault: the row is refreshed weekly, on purpose, so it does not open the same
+near-empty pull request six times in a row for a quiet week. The two days since were not quiet, so
+`script/metrics --update` was run by hand on 2026-09-23 to catch the row up mid-week, which is the
+mechanism this page already documents for exactly this case rather than anything new.
+
+**The biggest mover is `merged_pull_requests`: 17 to 108, all verified against `git log
+--first-parent` for the same range.** `milestones_built_this_week` went 2 to 16, `milestones_total`
+521 to 566 (`milestones_built` 232 to 246, `milestones_not_started` 198 to 226; the backlog again
+grew faster than it drained). `fatal_risks_tested` went 5 to 9 and `fatal_risks_untested` 4 to 0: all
+nine risks in `design/fatal-risks.md` now have an experiment on record. `names_total` moved 234 to
+244 (`names_provisional` 53 to 61) and `decisions_total` 203 to 207. `proposals_unnumbered` fell 17
+to 2, most of that pile promoted or resolved rather than abandoned.
+
+**`unsafe_trust_unclassified` reappeared: 0 to 16, and this is a data gap, not an instrument
+change.** `scripts/rust_source.py` was not touched in this window; its hand-maintained crate tables
+were. Four `crates/` directories landed in the last two days that none of `KERNEL_ONLY_CRATES`,
+`USERSPACE_ONLY_CRATES`, `SHARED_CRATES` or `BOOT_CHAIN_CRATES` know about yet: `boot_slot`,
+`current_cpu_protocol`, `file_allocation_table` and `top`. `current_cpu_protocol` carries the
+unsafe blocks; the other three carry none. This is exactly the gap this page's unsafe-by-trust
+section already names as a limitation of a table read once and baked in, showing up again the first
+time new crates land after it was written. `unsafe_trust_boot_chain` also moved, 37 to 62, and that
+one is real growth in `uefi_loader`/`sealed_pair`, not a classification artifact.
+
+**The token and cost columns did not move, and that is deliberate, not an oversight.**
+`lane_tokens`, `lane_wall_clock_hours`, `price_per_mtok_at_date` and `cash_spend` for 2026W39 are
+byte-identical to the 2026-09-21 row: 506,140,600 tokens, 12.0 hours, $0.439/Mtok, $0.00 cash.
+`notes/project-metrics/effort.csv` was not recaptured for this update, because the only way to
+recapture it is to run `script/effort` from this very session, which would fold this session's own
+token consumption into the week it is trying to report. So the effort chart's "million tokens per
+milestone" line for 2026W39 fell from 253.1 to 31.6 in this redraw, and every bit of that fall is
+`milestones_built_this_week` growing from 2 to 16 under an unmoved numerator, not tokens getting
+cheaper. Read it as what it is: still the most understated cell on the page, now more so, because
+two of its busiest days are not in the capture at all. `coverage_lines_pct` for 2026W39 is still
+empty for the same reason it was empty on 2026-09-21: nothing here re-derives coverage, and this
+update did not run `script/coverage`.
+
+**One earlier week moved too, by the mechanism this page already documents rather than by
+anything new.** `2026W31`'s `milestones_built_this_week` went from 20 to 21. That column is read
+from today's tree for every week, on purpose (see "Milestones built each week" below), so a BUILT
+date discovered since the last run can still move a week that closed seven weeks ago. `2026W38`'s
+effort ratio moved from 67.8 to 65.7 for the same reason: its `milestones_built_this_week` corrected
+from 62 to 64.
+
 ## Milestones by status
 
 ![Milestones by status, and proposals waiting for a number](project-metrics/milestones.svg)
@@ -653,6 +700,32 @@ reads 0.** A future lane rebuilding that alias table, verified file-by-file rath
 bars as undercounts of both sides by whatever their `unclassified` band carries, exactly the caution
 this page already asks for `names_no_block` in the weeks before naming provenance existed.
 
+**That backfill was lost for two days and restored 2026-09-23.** The `unsafe_trust_*` columns
+above landed on `main` at 2026-09-20 23:30 (`3764a78d3`) with the ten weeks above already backfilled,
+matching this section's own numbers. The next commit to touch `weekly.csv`
+(`6e8934474`, "Rebuild the weekly series after the merge", 2026-09-21) was resolving a conflict
+between two branches that had each added columns to the same file, and its message says the plan
+was to restore its own branch's cost columns and "let `script/metrics` add the trust-boundary
+columns from the merged script." What ran next was `--update`, not `--backfill`: `--update` only
+recomputes the current week and any week missing outright, so it added the ten new column headers
+to every row but left `unsafe_trust_kernel`, `unsafe_trust_kernel_code_lines`,
+`unsafe_trust_kernel_density`, the userspace triple, `unsafe_trust_shared` and
+`unsafe_trust_boot_chain` **empty, not zero**, for 2026W29 through 2026W38, which is why
+`unsafe-trust.svg` drew one point instead of ten from 2026-09-21 until this was found and
+`script/metrics --backfill` was rerun on 2026-09-23. The nine restored values match the
+2026-09-20 backfill exactly (the `unclassified` counts for 2026W29 through 2026W37 are the same
+57-to-188 figures this section already names, and 2026W38 is still exactly 0), so this is the same
+known rename-alias gap reappearing rather than a new one. **The lesson is about the merge, not the
+census**: any column added by one branch while another branch is independently adding columns to
+the same CSV needs a `--backfill` after the conflict is resolved, because `--update` treats every
+already-present row as already correct and will not notice that a resolved merge just introduced
+blank cells into it. Checked for the same shape elsewhere on 2026-09-23 and found nowhere else:
+every other column that could go this route (`milestones_superseded`, `milestones_refused`,
+`fatal_risks_tested`, `fatal_risks_untested`) was in fact backfilled at the commit that added it,
+and the flow columns (`milestones_built_this_week`, `merged_pull_requests`, the four cost columns)
+are recomputed for every row on every run regardless of mode, so they cannot hold a stale blank this
+way.
+
 ## The nine things that would kill nife
 
 ![Fatal risks](project-metrics/fatal-risks.svg)
@@ -775,6 +848,14 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   the current week's row records the commit it was taken at, so a gate on it would fail every pull
   request that touched anything. The workflow is the mechanism; this is rung two of `AGENTS.md`'s
   ladder declining to be rung one, said out loud rather than left as an omission.
+- **A newly added column can go blank across history if a CSV merge conflict is resolved with
+  `--update` instead of `--backfill`.** `--update` only touches the current week and any week
+  missing outright; a row the CSV already holds is left exactly as it was, new columns included, so
+  a merge that resolves two branches' concurrently-added columns into one header needs a `--backfill`
+  afterward or the older rows carry the new columns as empty cells. This happened to
+  `unsafe_trust_*` from 2026-09-21 to 2026-09-23 (see "That backfill was lost for two days" above)
+  and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on `weekly.csv`
+  after any commit that merges two metrics branches is worth a look before trusting the row count.
 - **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
   2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
   is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so

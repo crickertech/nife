@@ -71,12 +71,12 @@
 <path class="seg s3" d="M542.8,78.2 V77.7 Q542.8,77.2 543.3,77.2 H580.9 Q581.4,77.2 581.4,77.7 V78.2 Z"><title>2026W38, Unrecorded: 1</title></path>
 <text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W38</text>
 <text class="fg val" x="562.1" y="72.2" font-size="10" text-anchor="middle">232</text>
-<rect class="seg s0" x="601.4" y="161.2" width="38.7" height="162.8"><title>2026W39, Ratified: 153</title></rect>
-<rect class="seg s1" x="601.4" y="132.5" width="38.7" height="28.7"><title>2026W39, Recorded: 27</title></rect>
-<rect class="seg s2" x="601.4" y="76.1" width="38.7" height="56.4"><title>2026W39, Provisional: 53</title></rect>
-<path class="seg s3" d="M601.4,76.1 V75.6 Q601.4,75.0 601.9,75.0 H639.5 Q640.0,75.0 640.0,75.6 V76.1 Z"><title>2026W39, Unrecorded: 1</title></path>
+<rect class="seg s0" x="601.4" y="159.1" width="38.7" height="164.9"><title>2026W39, Ratified: 155</title></rect>
+<rect class="seg s1" x="601.4" y="130.4" width="38.7" height="28.7"><title>2026W39, Recorded: 27</title></rect>
+<rect class="seg s2" x="601.4" y="65.4" width="38.7" height="64.9"><title>2026W39, Provisional: 61</title></rect>
+<path class="seg s3" d="M601.4,65.4 V64.9 Q601.4,64.4 601.9,64.4 H639.5 Q640.0,64.4 640.0,64.9 V65.4 Z"><title>2026W39, Unrecorded: 1</title></path>
 <text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W39</text>
-<text class="fg val" x="620.7" y="70.0" font-size="10" text-anchor="middle">234</text>
+<text class="fg val" x="620.7" y="59.4" font-size="10" text-anchor="middle">244</text>
 <rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
 <text class="fg" y="74" font-size="11"><tspan x="689" dy="0">Ratified</tspan></text>
 <rect class="s1" x="672" y="83" width="11" height="11" rx="2"/>
