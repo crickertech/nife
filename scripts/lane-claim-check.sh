@@ -1,10 +1,14 @@
 #!/bin/sh
 #
-# Report pushed lane branches that have no pull request claiming them.
+# Report pushed branches that have no pull request claiming them, and pushed
+# branches whose pull request closed without a resolution anyone acted on.
 #
 #     scripts/lane-claim-check.sh          # one pass, then exit
 #
 # PROVISIONAL NAME. Minted 2026-08-31 by milestone 204's lane; not put to calef. See `Name:` below.
+#
+# **This reports; it never deletes anything.** Every line below is a person's judgment call, even
+# the ones that say "safe to delete". Nothing here runs unattended and nothing here acts.
 #
 # # Why this exists
 #
@@ -29,7 +33,7 @@
 # one that is mid-work and about to open its pull request anyway. `script/lint` was refused for
 # exactly that reason. What was missing was never enforcement; it was anything that looks.
 #
-# **Not a nag.** Three false-positive shapes were designed out, because a report that cries wolf
+# **Not a nag.** Several false-positive shapes were designed out, because a report that cries wolf
 # gets ignored and then the real case goes unread:
 #
 #   - **The legitimate window.** A lane pushes and then opens the pull request, and GitHub refuses a
@@ -40,7 +44,12 @@
 #     the neighbouring report and the one this must not duplicate.
 #   - **A merged lane's leftover branch.** A branch whose pull request merged and which nobody
 #     deleted is hygiene, not a missing claim. It is reported on its own line, with the word
-#     `LEFTOVER` and the pull request number, so nobody has to read it as an accusation.
+#     `LEFTOVER` and the pull request number, so nobody has to read it as an accusation. But
+#     `LEFTOVER` means the branch tip itself is an ancestor of `main`, checked directly, not just
+#     that some pull request from it merged: `maintainer/open-model-lanes` kept three commits after
+#     its own #1089 merged, found while verifying this script against the live repository on
+#     2026-09-23, and a check that trusted the pull request's state alone would have told a reader
+#     to delete work the merge never included. That shape prints as `MERGED BUT DIVERGED` instead.
 #   - **A branch someone opened a non-draft pull request for.** A ready pull request is a louder
 #     claim than a draft, not a quieter one.
 #
@@ -51,6 +60,14 @@
 # the lane whose missing claim matters, and a last-commit clock would go quiet for exactly the
 # branches that are being worked hardest. `merge-drain.sh`'s `stale_drafts` uses the opposite clock
 # for the opposite reason, and the pair is worth reading together.
+#
+# There are two clocks, not one, because a `milestone/*` claim and a stray branch answer different
+# questions. `GRACE_MINUTES` (default 15) protects the gap between a push and a draft pull request,
+# and stays scoped to `milestone/*` because that is the only prefix §90 (the claim is a draft pull
+# request; the status flip is a gate) governs.
+# `GRACE_HOURS` (default 24) covers every other branch, where the question is not "has this lane
+# opened its claim yet" but "has anyone come back to this at all"; see the survey below for the
+# measurement that set it.
 #
 # Name: unrecorded. Provisional. `lane` and `claim` are both AGENTS.md's own words for these things
 # (`§90`: "the draft is the claim"), and `-check` matches `script/qemu-check` and
@@ -66,25 +83,40 @@
 #   - **It cannot see a lane that has not pushed at all**, which is the more dangerous state:
 #     AGENTS.md says the pushed branch is the only ledger another session can read, and uncommitted
 #     work in a worktree is the one thing no part of this system protects.
-#   - **`milestone/*` only.** A lane on `fix/`, `roadmap/` or `maintainer/` is invisible here, and
-#     those are legitimate lane prefixes that `script/lint` accepts. Widening the pattern would also
-#     sweep in short-lived maintainer branches that are not claims and are not meant to be, so the
-#     narrow version ships and the gap is written down rather than guessed at.
-#   - **The activity feed is read one page deep.** A `milestone/*` branch created more than 100
-#     repository events ago has no visible birth, and is reported rather than skipped: an old branch
-#     with no claim is the case worth seeing, so the fallback errs loud instead of silent.
+#   - **Every branch except `main` and `gh-readonly-queue/*`, not just `milestone/*`.** This was
+#     narrower once: "widening the pattern would also sweep in short-lived maintainer branches that
+#     are not claims and are not meant to be." That reason was a guess, and a 2026-09-23 survey of
+#     25 branches carrying no open pull request falsified it: 18 were `maintainer/*` or `fix/*`, and
+#     every one needed action (deleted as an empty claim, deleted as superseded, or turned into a
+#     pull request). The predicted class of harmless short-lived branches did not appear; the two
+#     closest cases were pushed by the maintainer mid-session and were real leaks caught by this
+#     widening. What was true is that a stray `maintainer/*` branch answers a different question
+#     than a `milestone/*` claim, which is why it gets its own, longer clock (`GRACE_HOURS`) instead
+#     of sharing `GRACE_MINUTES`: a 24-hour window against that same survey flagged 23 of 24 and
+#     deferred exactly the one branch still inside its legitimate window, with zero false positives.
+#   - **The activity feed is read one page deep.** A branch created more than 100 repository events
+#     ago has no visible birth, and is reported rather than skipped: an old branch with no claim is
+#     the case worth seeing, so the fallback errs loud instead of silent. Widening past `milestone/*`
+#     makes this more likely to bite, since 100 events cover less wall-clock time on a busier day.
 #   - **It reports to stdout only.** `merge-drain.sh` can comment on the pull request it is
 #     complaining about; a branch with no pull request has nowhere to be told. Whoever reads the
 #     drain's log reads this, and nothing reaches a lane that is not looking.
+#   - **"Holds work" is sized by `git diff --shortstat`, not read.** It says how much changed, not
+#     whether it matters. A person still has to look before deciding claim, land-and-delete, or
+#     leave it.
 
 set -e
 cd "$(dirname "$0")/.."
 
 REPO="crickertech/nife"
 GRACE_MINUTES=${GRACE_MINUTES:-15}
+GRACE_HOURS=${GRACE_HOURS:-24}
 
-branches=$(git ls-remote --heads origin 'milestone/*' 2>/dev/null |
-	sed 's|.*refs/heads/||' | sort)
+branches=$(git ls-remote --heads origin 2>/dev/null |
+	sed 's|.*refs/heads/||' |
+	grep -v '^main$' |
+	grep -v '^gh-readonly-queue/' |
+	sort)
 [ -z "$branches" ] && exit 0
 
 # Every pull request that has ever named one of these branches as its head, in any state. `--state
@@ -105,29 +137,73 @@ for branch in $branches; do
 	if [ -n "$pr" ]; then
 		state=$(printf '%s' "$pr" | jq -r '.state')
 		num=$(printf '%s' "$pr" | jq -r '.number')
+		# `state` is GitHub's own PullRequestState enum (OPEN, CLOSED, MERGED), not a flag
+		# this script infers, so it alone tells MERGED from CLOSED reliably; `mergedAt`
+		# carries no information `state` does not already have.
 		case "$state" in
-		OPEN) continue ;;  # claimed, draft or ready; nothing to say
+		OPEN)
+			continue # claimed, draft or ready; nothing to say
+			;;
+		MERGED)
+			# "Merged" describes the pull request, not the branch: a lane can keep
+			# pushing to the same branch after its own pull request lands, and a
+			# leftover check that trusts the PR state alone would tell a reader to
+			# delete work the merge never included. Ask the branch tip itself.
+			if git merge-base --is-ancestor "origin/$branch" origin/main 2>/dev/null; then
+				echo "lane-claim-check: LEFTOVER. $branch's #$num merged; delete the branch"
+			else
+				stat=$(git diff --shortstat "origin/main...origin/$branch" 2>/dev/null)
+				n=$(git rev-list --count "origin/main..origin/$branch" 2>/dev/null || echo '?')
+				echo "lane-claim-check: MERGED BUT DIVERGED. $branch's #$num merged, but" \
+					"$n commit(s) since are not on main ($stat). Read what's new before" \
+					"deleting; claim it with a fresh pull request or land it in notes/"
+			fi
+			continue
+			;;
 		*)
-			echo "lane-claim-check: LEFTOVER. $branch's #$num is $state; delete the branch"
+			# CLOSED without merging: abandoned, or rejected, or superseded. The branch
+			# may be the only place that work still exists. Never fold this into
+			# LEFTOVER; a reader who deletes on sight here can destroy work.
+			echo "lane-claim-check: CLOSED, NOT MERGED. $branch's #$num closed without" \
+				"merging; read it before deciding anything, do not delete on this line alone"
 			continue
 			;;
 		esac
 	fi
+
+	# No pull request in any state. Split by branch shape so a milestone claim still gets
+	# its short, tuned window, and everything else gets the wider one the survey measured.
+	case "$branch" in
+	milestone/*) grace_seconds=$((GRACE_MINUTES * 60)) ;;
+	*) grace_seconds=$((GRACE_HOURS * 3600)) ;;
+	esac
 
 	born=$(printf '%s' "$activity" | jq -r --arg b "refs/heads/$branch" '
 		[ .[] | select(.ref == $b) | select(.activity_type == "branch_creation")
 		  | .timestamp | fromdateiso8601 ] | min // empty' 2>/dev/null)
 
 	if [ -n "$born" ]; then
-		age=$(( $(date -u +%s) - born ))
-		if [ "$age" -lt $((GRACE_MINUTES * 60)) ]; then
-			continue  # the legitimate window between a push and a create
+		age=$(($(date -u +%s) - born))
+		if [ "$age" -lt "$grace_seconds" ]; then
+			continue # inside the legitimate window for this branch's shape
 		fi
 		mins=$((age / 60))
 	else
-		mins="?"  # older than the activity page; see BUGS
+		mins="?" # older than the activity page; see BUGS
 	fi
 
-	echo "lane-claim-check: UNCLAIMED. $branch has no pull request after $mins minutes." \
-		"AGENTS.md §90: gh pr create --draft"
+	# Empty claim versus real work is the difference between "delete it" and "somebody has
+	# to look", and a branch name alone cannot say which. `--shortstat` against origin/main
+	# answers it in one call without checking anything out.
+	commits=$(git rev-list --count "origin/main..origin/$branch" 2>/dev/null || echo 0)
+
+	if [ "$commits" -eq 0 ]; then
+		echo "lane-claim-check: UNCLAIMED, EMPTY. $branch has no commits past main after" \
+			"$mins minutes. Safe to delete; nothing is lost."
+	else
+		stat=$(git diff --shortstat "origin/main...origin/$branch" 2>/dev/null)
+		echo "lane-claim-check: UNCLAIMED, HOLDS WORK. $branch has $commits commit(s)" \
+			"after $mins minutes ($stat). AGENTS.md §90: gh pr create --draft to claim it," \
+			"or land what it found in notes/ and delete."
+	fi
 done

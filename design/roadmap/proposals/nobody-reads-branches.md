@@ -1,16 +1,41 @@
 # Nobody reads branches, so give the maintainer a command that does
 
-**Status: PROPOSED 2026-09-23.** Raised by the `maintainer/nobody-reads-branches` lane, written
-while surveying the 25 remote branches calef's 2026-09-23 sweep found carrying no open pull
-request, the oldest last touched nine days earlier. Verified independently against the live
-repository while drafting this: 24 of the 25 are real lane branches (`milestone/*`, `maintainer/*`,
-`fix/*`); the 25th, `gh-readonly-queue/main/pr-1080-...`, is the merge queue's own synthetic
-candidate branch, not a lane's, and any mechanism built from this proposal must exclude that shape
-the same way `lane-claim-check.sh` already excludes the ones it found.
+**Status: PROPOSED 2026-09-23.** Decided the same day; see "What calef decided" below. Kept in
+this directory rather than promoted, because the disposition is a fix to an existing script, not a
+numbered milestone, and there is no numbered block for it to be drained into. Raised by the
+`maintainer/nobody-reads-branches` lane, written while surveying the 25 remote branches calef's
+2026-09-23 sweep found carrying no open pull request, the oldest last touched nine days earlier.
+Verified independently against the live repository while drafting this: 24 of the 25 are real lane
+branches (`milestone/*`, `maintainer/*`, `fix/*`); the 25th, `gh-readonly-queue/main/pr-1080-...`,
+is the merge queue's own synthetic candidate branch, not a lane's, and any mechanism built from this
+proposal must exclude that shape the same way `lane-claim-check.sh` already excludes the ones it
+found.
 
 **Gate: NONE.** Nothing here touches the syscall surface, adds a dependency, or needs hardware.
-The only prerequisite is calef reading this and ratifying a name and a threshold, which is true of
-every proposal in this directory.
+
+## What calef decided
+
+calef read this the same day it was written and refused the closing recommendation: a fourth
+watcher script, even a narrow one, competes for the same attention the tree already fails to spend
+on the three it has (AGENTS.md's own "reported and never acted", the exhibit this proposal itself
+leans on). His ruling: **one script that already exists, already runs, and already has a reader,
+instead of a second competing for the same attention.** So the mechanism below landed as three
+changes to `scripts/lane-claim-check.sh` rather than as `scripts/orphan-branch-check.sh`, in the
+same lane, the same day.
+
+That reverses one specific refusal from "What else was considered" below: extending
+`lane-claim-check.sh` was refused there because "the two problems want thresholds three orders of
+magnitude apart... folding the second into the first risks breaking the tuning that is currently
+working." The fix is to keep both thresholds rather than pick one: `milestone/*` keeps the existing
+15-minute `GRACE_MINUTES` (the push-to-draft gap §90 protects), and every other branch gets its own,
+much longer window (`GRACE_HOURS`, default 24, see below), so widening scope does not touch the
+tuning that was already correct. The rest of that refusal's reasoning, that a fourth-watcher script
+and a wider `lane-claim-check.sh` are different shapes, is what calef overruled directly rather than
+what this lane re-argued.
+
+The original recommendation, its measurements, and every refusal below are kept as written: they
+are the reasoning that produced the ruling above, and this tree keeps refusals rather than erasing
+the record of a path not taken.
 
 ## The failure is at least four shapes, and one bystander shape worth naming alongside them
 
@@ -88,6 +113,12 @@ The two problems want thresholds three orders of magnitude apart (minutes to pro
 push and draft, versus days to catch one that never will) and different actions (a nudge to open a
 pull request, versus a person deciding whether to claim, land-and-delete, or just delete). Folding
 the second into the first risks breaking the tuning that is currently working.
+
+**Overruled 2026-09-23; see "What calef decided" above.** The risk named here was real but
+narrower than the refusal treated it: it is a risk to a *shared* threshold, not to folding the
+checks into one file. Two separate grace windows in one script, `GRACE_MINUTES` untouched for
+`milestone/*` and a new `GRACE_HOURS` for everything else, keep the 15-minute tuning exactly as it
+was measured while adding the wider sweep beside it.
 
 **A new `scripts/` watcher of the same shape**, run on the existing five-minute `launchd` cadence
 and reporting once per stall the way `merge-drain.sh`'s `notify()` already does. Refused on the
@@ -184,13 +215,15 @@ anything, for the reason the refused Actions-workflow option already names.
 | Real work, no pull request (case 1) | Report age, commit and file counts | A person's call: `gh pr create --draft` to claim it visibly per §90, or, if it is genuinely abandoned, land what it found in `notes/` and delete, per AGENTS.md's own line that "a branch holding a finding should have the finding landed in `notes/` first" |
 | Empty §90 claim, dead lane (case 2) | Report age | Delete; nothing is lost |
 | Merged, not deleted (case 3) | Report age and pull request number | Delete; this widens `lane-claim-check.sh`'s existing `LEFTOVER` check past `milestone/*` |
-| Closed, not merged (case 4) | Report age and pull request number, kept visually distinct from case 3 | Read the closed pull request's thread for the reason it closed, then delete; do not fold this into case 3's zero-judgment path |
+| Closed, not merged (case 4) | Report age and pull request number, kept visually distinct from case 3 | Read the closed pull request's thread for the reason it closed. **Never recommend deletion from this line alone**; the work may exist nowhere but this branch |
 
-A provisional name for the mechanism: `scripts/orphan-branch-check.sh`, in `scripts/` rather than
-`script/` for the same reason `merge-drain.sh` and `lane-claim-check.sh` are there, a maintainer's
-tool rather than a front door a contributor types. `orphan` is doing the work `lane-claim-check.sh`'s
-own header already does with `claim`: naming the thing the branch is missing, not the branch itself.
-Unratified; calef's call per the naming rule.
+**Implemented, not as a new script.** calef's ruling (see "What calef decided" above) put this in
+`scripts/lane-claim-check.sh`: it already exists, already runs, and already has a reader, which beat
+a fourth thing competing for the same attention. The script now covers every branch except `main`
+and `gh-readonly-queue/*`, splits `MERGED` from `CLOSED` (`state` alone is a reliable GraphQL enum
+for this, no need for `mergedAt`), and classifies each unclaimed branch as empty or holding work
+before printing it. See its own header for the mechanism and its `BUGS` section for what this
+widening cost.
 
 ## What is out of scope
 
