@@ -74,7 +74,8 @@ not one.
 trigger rather than a decision to make now.** `smelter` is expected to serve several repositories:
 §151 (the goal of the repository split is independent release and third-party programs) is DECIDED,
 milestone 39 (repository structure for a loosely-coupled OS) names option C as the destination, and
-milestone 120 already put the manifest in a separate repository, `basalt`. Once `nife` is one
+milestone 120 (the OS becomes `nife`, and the project gets an organization) already put the
+manifest in a separate repository, `basalt`. Once `nife` is one
 repository among several it stops being the obvious home for organization-wide tooling
 documentation, and `basalt` is the plausible destination for this page. **The move happens at the
 split, not before**, because today the argument for keeping it here is the stronger one: it sits
