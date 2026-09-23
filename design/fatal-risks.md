@@ -585,10 +585,16 @@ That cuts against the claim's second clause, and it is the strongest evidence th
 - **A boot-core-identity defect that failed `every_secondary_runs_scheduled_work` about half the time
   at two cores** on x86_64, found and fixed under QEMU by
   milestone 316 (which core booted).
-- **A port revocation that does not reach every core**, found the same way: of 12 two-core runs, all
-  seven failures are one assertion, the revoked holder's `out` succeeding. That is an open multicore
-  correctness defect today, and milestone 315 (a port revoke that reaches every core) is
-  `NOT-STARTED`.
+- **A port revocation that did not reach every core**, found the same way and **fixed on 2026-09-23**
+  by milestone 315 (a port revoke that reaches every core). `PortRange::REVOKE` cleared the
+  capability under `IPC_TABLES` but reset the TSS I/O bitmap on the **revoker's core only**, leaving
+  a window until every other core's next switch. Diagnosed from evidence rather than argument: a
+  snapshot at the revoke read "revoker on cpu 0, cpu 1 holds a grant" on both captured failures,
+  while 27 passing runs had no grant installed elsewhere. The fix resets this core and rides the TLB
+  shootdown's NMI to the rest, and moves `install_port_grant` inside the locked region so a core
+  cannot reinstall a grant the sweep just cleared. Proved by 12 of 12 full two-core suites green,
+  36 boots. **Found under QEMU, not on silicon**, which is the fourth such case and bears on this
+  risk's premise below.
 - **A test that hung in two of three full HVF runs** and passes in every TCG run and when run alone
   (`notes/hvf-leg.md`), un-diagnosed.
 
@@ -613,9 +619,11 @@ defects here are loom and a two-core QEMU, and both are cheap.**
   search them.
 - **riscv64 and x86_64 have no real-silicon leg at all.** For those two architectures the whole of
   this risk is reachable only on a bench boot.
-- **x86_64 has no multicore coverage by default anywhere.** `NIFE_SMP` defaults to 1, `script/soak-test
-  --arch x86_64` soaks one core and reports `remote=0` to say so, and the default flip waits on
-  milestone 315 above, per DECISIONS §153 (how a two-core x86_64 test earns its place).
+- **x86_64 had no multicore coverage by default anywhere**, and that changed on 2026-09-23 when
+  milestone 315 (a port revoke that reaches every core) landed and **`NIFE_SMP` defaulted to 2**, per
+  DECISIONS §153 (how a two-core x86_64 test earns its place). `script/soak-test --arch x86_64` and
+  its `remote=0` report want re-checking against that default; this entry will be wrong again if they
+  were not updated with it.
 
 So the reachable fraction of this risk under CI is: five hand-extracted protocols under a C11 model,
 plus whatever a round-robin TCG interleaving happens to expose on two or four emulated cores. That is
