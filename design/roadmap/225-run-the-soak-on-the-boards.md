@@ -8,9 +8,16 @@ the merge queue lands it.)*
 **Gate: HARDWARE.** In milestone 53's sense: the boards are on the desk and this needs hands on
 them. Nothing else blocks, and nothing more can be built for it.
 
-**In brief.** Fatal risk 5's entire premise is that the defects appear only on silicon. Its one
-recorded instance is exactly that: **radon** produced a receiver woken with nothing delivered, on
-three harts, in a bench session, and no emulator run had ever shown it.
+**In brief.** Fatal risk 5's entire premise is that the defects appear only on silicon, **and as of
+2026-09-23 that premise has zero confirmed instances.** This block said until then that radon had
+produced one, a receiver woken with nothing delivered on three harts that no emulator run had shown.
+**That reading was retracted on 2026-08-15**, the day after it was recorded and two weeks before this
+block was written, by `notes/visionfive2.md`'s fifth bench stop: the dumps are the terminal state of
+a completed tour, identified five independent ways. Every multicore defect this project has found was
+found without silicon, including both x86_64 `ap_boot` bugs, which were found under QEMU TCG.
+
+**That strengthens the case for running this, rather than weakening it.** A premise with no instances
+is untested, not disproved, and this milestone is the experiment that would test it.
 
 Everything needed to run it now exists, and none of it existed on 2026-09-01:
 
