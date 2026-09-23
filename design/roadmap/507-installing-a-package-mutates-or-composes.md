@@ -7,12 +7,22 @@ except for this paragraph: the argument is its author's and promotion is not the
 it. Written by milestone 198 (a package manager, and the trivial install)'s scoping lane (`milestone/198-package-manager-scoping`). Shaped as a
 `design/decisions/` section for the integrator to mint.
 
-**Gate: DECISION.** How installation reaches a running system is the contract every package, every
-program author and every future installer is written against, so it is irreversible in AGENTS.md's
-sense. **Options, no winner.** Blocked until answered: installing anything onto a running system.
-**On the install path since 2026-09-19**: DECISIONS §157 defines a trivial install as growing by
-installing packages over the internet, which is installing onto a running system. (This line said
-whole-image composition was not blocked, which is still true of composition alone.)
+**Gate: NONE.** **The fork was answered on 2026-09-23: calef chose A3, with rollback**, recorded as
+§208 (installing a package is granting it, and the activation set is versioned), at
+[design/decisions/208-installing-is-granting.md](../decisions/208-installing-is-granting.md). Installing records
+that a package exists, its digest and manifest become spawnable, its data is a read-only directory a
+session binds by name, and the table of entries is versioned so an activation set rolls back as a
+whole. Nothing below is rewritten: the options, the costs and the two namespaces are the proposal's
+own argument and they are what the decision was made against. What has changed is only that it is no
+longer open. §208 carries why A1 and A2 lost, what A3 obligates, and the one section it reopens.
+
+Until 2026-09-23 this paragraph read **Gate: DECISION**, because how installation reaches a running
+system is the contract every package, every program author and every future installer is written
+against, so it is irreversible in AGENTS.md's sense. **On the install path since 2026-09-19**:
+DECISIONS §157 (a trivial install is a web page, a USB drive, and packages over the internet)
+defines a trivial install as growing by installing packages over the internet, which
+is installing onto a running system. (That line said whole-image composition was not blocked, which
+is still true of composition alone.)
 
 ## What is being decided
 
@@ -102,6 +112,9 @@ milestone 47's claim made literal; the non-effort case for A2 is Haiku's and Nix
 a whole system state, which A3 gets only if the table of entries is itself versioned.
 
 ## If calef says no to all three
+
+*(Answered: he did not. See the gate paragraph above and §208. The section is kept because it is
+the proposal's own reasoning about the stakes, and it is what made the cost of a refusal legible.)*
 
 Nothing is installed at runtime; packages are build inputs to an image, and a new program arrives by
 reflashing. That is the first slice, and it is a complete answer for us as builders. It is not an
