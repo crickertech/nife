@@ -67,8 +67,7 @@ Every milestone block carries all five. **A missing field is a defect rather tha
 `none` is written out and silence never means anything.
 
     **Milestone dependencies:** 527, 543
-    **Decision dependencies:** §92, §150   (a caretaker is supervised by the client it serves;
-                                             how a thread's CPU time reaches userspace)
+    **Decision dependencies:** §92 (a caretaker is supervised by the client it serves), §150 (how does a thread's CPU time reach userspace?)
     **Machine requirements:** riscv64 silicon; PMU cycle counter
     **Specific machine:** none
     **Needs a person:** no
