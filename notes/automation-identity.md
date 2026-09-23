@@ -52,6 +52,26 @@ token. A lane's `gh` calls from a developer machine still run as calef's `gh` lo
 produce pull requests with his byline; that is what the `**Lane:**` line in every body exists to
 say in the meantime.
 
+## Why `smelter` has no repository of its own
+
+calef asked, 2026-09-23. **No, and the reason is that there would be nothing in it.** A GitHub App
+is a registered identity plus a permission set, held at the organization level; it has no code
+unless it has a webhook handler, and this one deliberately has none. Its only artifacts are an App
+ID and a private key, both secrets on `nife`, so a repository for it would hold an empty tree and a
+README pointing back at this note. **The second reason is this tree's own standard**: this note
+lives beside `toolchain-bump.yml`, the workflow it documents, so the two version together, and
+moving it out means the next change to that workflow can silently invalidate it with nothing to
+catch the drift.
+
+Three things would change the answer, and any one of them is enough: the App grows a **webhook
+handler**, a service receiving events and acting on them, which is real code with its own deploy and
+tests and does not belong inside an OS repository; it grows **custom actions** shared by several
+repositories and needing their own release cadence; or it **serves repositories beyond `nife`**,
+enough that `nife` stops being the natural home for its configuration. The milestone's stated reuse,
+a future workflow copying the two steps from `EXAMPLES` below, is **copied steps rather than shared
+code**, and so triggers none of the three. That distinction is the whole reason this is written
+down: "reuse is the compounding value" reads like an argument for a repository, and it is not one.
+
 ## Creating the App
 
 Once, by an owner of the `crickertech` organization.
