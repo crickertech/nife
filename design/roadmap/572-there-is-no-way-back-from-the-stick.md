@@ -1,6 +1,6 @@
-# There is no way back from the stick: an installed disk is never offered an install again
+# 572. There is no way back from the stick: an installed disk is never offered an install again
 
-**Status: PROPOSED 2026-09-21.** Raised by the rung 2a lane of milestone 198 (a package manager, and
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `there-is-no-way-back-from-the-stick` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which introduced the rule this proposal
 is about and found the case that makes it a defect rather than a choice.
 
@@ -68,3 +68,7 @@ precisely because the confined-program-per-question shape is already built.
 - **Nothing here makes the install crash-atomic**, which is the underlying fault. A reinstall path
   makes the half-written state recoverable; it does not stop it happening, and nobody has measured
   how often it would.
+
+## Index row
+
+An installed machine boots from a file too, and nothing in the handoff distinguishes that file from one on a stick, so the install offer surveys first and declines to ask when a nife data partition is already there. That rule is right and this does not ask to remove it. It asks for the other half: a person who wants to reinstall boots the stick, watches it decline, and has no way forward from inside the system, because nothing in this tree wipes a partition table and `installer` is the only program that writes one.

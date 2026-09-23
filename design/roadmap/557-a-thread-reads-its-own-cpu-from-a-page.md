@@ -181,7 +181,9 @@ their own commit. Nothing else was.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-per-cpu-allocator-is-what-the-current-cpu-page-was-for.md`: the consumer this
+- **Milestone 561.** The consumer is milestone 561 (a per-CPU allocator is what the current-CPU
+  page was for),
+  `design/roadmap/561-a-per-cpu-allocator-is-what-the-current-cpu-page-was-for.md`: the consumer this
   page exists for, and the only thing that turns the mechanism into a measured number.
 - **Recorded.** What has to change when two TCBs can share an address space: in
   `crates/current_cpu_protocol`'s `BUGS` section, beside the field it constrains.

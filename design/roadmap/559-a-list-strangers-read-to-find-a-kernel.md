@@ -1,6 +1,6 @@
-# A list strangers read to find a kernel worth reading
+# 559. A list strangers read to find a kernel worth reading
 
-**Status: PROPOSED 2026-09-21.** Raised by calef: *"Create a proposal to add nife or basalt to
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-list-strangers-read-to-find-a-kernel` on 2026-09-22, filed 2026-09-21. Raised by calef: *"Create a proposal to add nife or basalt to
 https://github.com/jubalh/awesome-os."*
 
 **Gate: DECISION.** Not because the work is hard, which is one line in somebody else's README, but

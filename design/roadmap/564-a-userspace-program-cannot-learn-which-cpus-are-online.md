@@ -1,6 +1,6 @@
-# A userspace program cannot learn which cpus are online
+# 564. A userspace program cannot learn which cpus are online
 
-**Status: PROPOSED 2026-09-21.** Raised by the `SURVEY` selector lane, which shipped a record
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-userspace-program-cannot-learn-which-cpus-are-online` on 2026-09-22, filed 2026-09-21. Raised by the `SURVEY` selector lane, which shipped a record
 reporting the cpu a thread was placed on and found that a reader has no way to interpret the set of
 ids it collects: nothing in this tree gives userspace `smp::online_harts_mask` or anything derived
 from it.

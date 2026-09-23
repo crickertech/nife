@@ -1,6 +1,6 @@
-# A delegated reviewer found ten defects in a diff a human had passed as clean
+# 575. A delegated reviewer found ten defects in a diff a human had passed as clean
 
-**Status: PROPOSED 2026-09-22.** Raised by the experiment in milestone 521 (does an AI review of a
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-delegated-reviewer-found-ten-defects-nobody-was-going-to-find` on 2026-09-22, filed 2026-09-22. Raised by the experiment in milestone 521 (does an AI review of a
 pull request catch anything the gates and the maintainer do not), as work its own run turned up and
 could not do. The findings, and the check of each against the file, are in
 `notes/delegated-review/README.md`.
@@ -49,3 +49,7 @@ alike.
 
 - **One corpus, five diffs, one adjudicator who was an agent.** Nothing here establishes a rate.
   `notes/delegated-review/README.md` records the rest of what the run cannot support.
+
+## Index row
+
+Run blind against a 465-line documentation commit that had passed `script/lint`, `script/citations --ratchet` and `script/roadmap --check`, and that a human reviewer had recorded as clean, a rented reasoning model produced fifty findings over six reviews, thirty-eight of them true and none false. The ten worth a block are corrections to Markdown that already exists: a paragraph that names the mean where the property belongs to the median, an estimator called unbiased in a sentence saying it converges from above, and a correction notice that over-certifies the comparison a reader is most likely to quote.

@@ -1,6 +1,6 @@
-# The install offer should say what is already on the disk
+# 570. The install offer should say what is already on the disk
 
-**Status: PROPOSED 2026-09-21.** Raised by the rung 2a lane of milestone 198 (a package manager, and
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-install-offer-should-say-what-is-already-on-the-disk` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which built the offer and recorded this
 in `install_service`'s `BUGS` on the way past.
 
@@ -84,3 +84,7 @@ data.
 - **A longer question is a question people stop reading.** Three extra lines is the budget; a
   partition list on a disk with a dozen entries needs a limit and a "and 7 more", which this
   proposal does not specify.
+
+## Index row
+
+The install surveys the target disk for exactly one thing, whether a nife data partition is already there, so that an installed machine is not offered an install every boot. A disk carrying Windows, a Linux root, or somebody's photographs on one large partition answers that question no and is described to the person about to lose it as an unqualified target. A confirmation is worth only what the person can check it against, and the offer withholds the one fact that would most reliably stop a wrong answer.

@@ -42,8 +42,9 @@ from one build and the kernel will halt at nothing, because it verifies nothing.
 
 **So the failure was never about job-mix specifically.** `--soak` and `--bench` cards divert the
 tour at the same three sites and will read `NOT SEALED` for the same reason. That finding is
-separable from this milestone and is raised on its own as
-`design/roadmap/proposals/a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`; it
+separable from this milestone and is raised on its own as milestone 563 (a seal check that reads
+bytes cannot see a check that was dropped),
+`design/roadmap/563-a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`; it
 is also recorded where a bench operator meets it, in `notes/job-mix.md`'s `BUGS` and in
 `crates/sealed_pair`'s.
 
@@ -266,10 +267,10 @@ an hour on a tool that cries wolf.
 
 ## Follow-on
 
-- **Proposed.** The seal check reads bytes and cannot see a check the linker dropped, so a
+- **Milestone 563.** The seal check reads bytes and cannot see a check the linker dropped, so a
   `--soak`, `--job-mix` or `--bench` card is misreported as `NOT SEALED` and, worse, genuinely
   verifies nothing:
-  `design/roadmap/proposals/a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
+  `design/roadmap/563-a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
   This is the urgent half of what provoked this milestone and it is an hour's work on a tool.
 - **Recorded.** Whether a diverted boot tour should keep measured boot at all is a question about
   three kernel features rather than about a tool, and it is option B of that proposal. A card left

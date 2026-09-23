@@ -1,6 +1,6 @@
-# A website for the project plan
+# 565. A website for the project plan
 
-**Status: PROPOSED 2026-09-21.** Written by the lane that retired the roadmap index, out of calef's
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-website-for-the-project-plan` on 2026-09-22, filed 2026-09-21. Written by the lane that retired the roadmap index, out of calef's
 own sentence on the day he retired it: *"Nothing at all. You'll have to read the directory for now.
 Eventually we'll build a website and the project plan will be captured there."* The first half is
 done; this is the tracked form of the second, because `AGENTS.md` says identified work leaves a lane
@@ -51,3 +51,7 @@ published".
 Nothing. The directory works, the queries work, and no milestone waits on this. It is written down
 so that the sentence that named it does not become the fifth thing this project loses by saying it
 out loud instead of writing it down.
+
+## Index row
+
+Retiring the generated roadmap index cost a reader nothing and added nothing, and three of the things a stranger wants are still answered only by running a command inside a checkout: what this project intends to do next and why, what shape 522 flat milestone files have, and anything at all for a person who has not cloned the repository. `AGENTS.md`'s third principle is that a newcomer must be able to succeed without asking anyone, and there is no publishing story of any kind here yet, which is the honest size of the work.

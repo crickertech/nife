@@ -491,4 +491,4 @@ is worth more than the migration: it found drift nobody was looking for.
   as the reason a directory beats a single file.
 - **Nothing publishes any of this.** calef's sentence retiring the table named a website as where
   the project plan eventually goes; there is no publishing story today, and the gap is written up
-  in `design/roadmap/proposals/a-website-for-the-project-plan.md`.
+  in `design/roadmap/565-a-website-for-the-project-plan.md`.

@@ -1,6 +1,6 @@
-# A per-CPU allocator is what the current-CPU page was for
+# 561. A per-CPU allocator is what the current-CPU page was for
 
-**Status: PROPOSED 2026-09-21.** Raised by the lane that built the current-CPU page, as the work its
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-per-cpu-allocator-is-what-the-current-cpu-page-was-for` on 2026-09-22, filed 2026-09-21. Raised by the lane that built the current-CPU page, as the work its
 own change exists to serve and which nobody is doing.
 
 **Gate: NONE.** The page ships; a reader can call `user_mode_runtime::current_cpu` today.
@@ -41,3 +41,7 @@ the cost this page was chosen to avoid.
 If the answer to the correctness question turns out to want restartable sequences, this stops being
 an allocator milestone and becomes an `rseq` milestone, which is a much larger thing and a syscall
 surface question. Finding that out early is a good outcome of starting it.
+
+## Index row
+
+Milestone 557 (a thread reads its own CPU from a page)'s current-CPU page was justified by a consumer that does not exist, so the mechanism has no measured benefit and the numbers quoted for it are Linux's, about Linux. This builds the consumer: a userspace small-object allocator with a free list per CPU id that reads its own CPU on every allocation. The interesting half is the fallback, because the value can be stale the instruction after it is read and this tree deliberately has no `rseq`, so what correctness argument replaces restartable sequences is the question the milestone answers.

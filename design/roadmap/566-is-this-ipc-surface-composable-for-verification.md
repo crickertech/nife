@@ -1,6 +1,6 @@
-# Is this IPC surface composable for verification, or only verifiable piecewise
+# 566. Is this IPC surface composable for verification, or only verifiable piecewise
 
-**Status: PROPOSED 2026-09-21.** Raised by the `incremental-path` lane, from a sentence in the paper
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `is-this-ipc-surface-composable-for-verification` on 2026-09-22, filed 2026-09-21. Raised by the `incremental-path` lane, from a sentence in the paper
 it was reading that nobody here has answered.
 
 **Gate: NONE.** Everything it needs is in this tree and in two notes already written.

@@ -1,6 +1,6 @@
-# The boot file has nowhere to go on a device-tree machine
+# 568. The boot file has nowhere to go on a device-tree machine
 
-**Status: PROPOSED 2026-09-21.** Raised by the rung 2a lane of milestone 198 (a package manager, and
+**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-boot-file-has-nowhere-to-go-on-a-device-tree-machine` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which built the install on `x86_64` and
 threaded the gap through the other two architectures as `None` rather than leaving it implied.
 
@@ -66,3 +66,7 @@ currently held open by a parameter named `_boot_file`.
 - **`output_len` is the one place this can go wrong quietly**: a tree copied into a buffer sized for
   two properties and then given four overruns, and the failure lands before any console exists on
   some firmware. It has host tests; they would need two more.
+
+## Index row
+
+An installer has to write the running system's own boot file to the new disk, and that file cannot be carried inside the archive because it contains the archive. On x86_64 the loader reads its own file back off the boot volume and hands it over as PVH module 1. On aarch64 and riscv64 the kernel learns about its machine from a device tree, and `/chosen` carries one initrd with no second slot, so `hand_over` takes a `_boot_file` that is always `None`. That is why `install_service` is x86_64 only, and closing it is a second pair of `/chosen` properties.

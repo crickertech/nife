@@ -491,7 +491,7 @@ path rather than the whole kernel.
   against whatever archive is beside it, and the `job-mix: FAILED: no 'job_mix_task' program`
   row in the table above becomes the only thing that catches it. `--soak` and `--bench` cards
   divert the tour at the same three sites and inherit both. Options are priced in
-  `design/roadmap/proposals/a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
+  `design/roadmap/563-a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
 - **The supervisor is in the kernel, and that is what makes the build special** (milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need)). A userspace supervisor would delete the whole
   class of problem the entry above is one member of, and would measure the more honest thing: its
   own releases and drains would be real `svc` round trips inside the timed window, and it would be

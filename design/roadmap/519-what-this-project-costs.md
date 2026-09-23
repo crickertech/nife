@@ -164,7 +164,9 @@ dishonest version.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/what-a-lane-spent-on-its-milestone.md`. Every session
+- **Milestone 574.** The join from machine effort to a component is milestone 574 (what a lane
+  spent on its milestone, joined from the branch it worked on),
+  `design/roadmap/574-what-a-lane-spent-on-its-milestone.md`. Every session
   record carries a `gitBranch` and a lane's branch is named for its milestone, so the join from
   machine effort to milestone is on disk and was deliberately not built here: a branch is not a
   milestone (maintainer branches, `main`, rebases), and a wrong per-component cost is worse than
