@@ -121,19 +121,49 @@ fn a_space_that_never_ran_has_no_answer_and_then_has_the_right_one() {
 /// region does not pay for, so `memory_region::destroy` does not cover it and `Drop` has to free it
 /// by hand. That is exactly the shape a leak hides in, and the suite's own frame ledger would only
 /// notice it as a slow drift across an unrelated test.
+///
+/// **It asks about that one frame, not about the machine's free total**, and the difference is the
+/// whole reason this test stopped being trustworthy. It used to bracket `free_page_frames()` around
+/// the drop and demand equality, which asserts that *nothing else in the kernel allocated or freed
+/// anything* for the length of the window, a claim this test has no business making and cannot
+/// keep. It failed on pull request #1094, whose diff touches only tooling, with twenty frames MORE
+/// free than the baseline: a neighbouring test's late teardown landing inside the window. A leak
+/// shows as fewer, so the surplus could not even be the defect under test.
+/// See notes/load-sensitive-assertions.md.
+///
+/// The frame's own bit in the allocator is immune to that by construction. A neighbour freeing
+/// frames cannot move it, which is the direction every failure of the old form arrived from, and a
+/// leak still fails it: a frame `Drop` never returned stays marked used forever.
+///
+/// `memory_region::usage` (the scoped counter that fixed the sibling in `live_swap_tests.rs`, pull
+/// request #1101) is not available here for the reason stated at the top of this comment: this
+/// frame belongs to no region.
 #[test_case]
 fn the_page_is_returned_when_the_space_is_dropped() {
-    let before = crate::memory::free_page_frames();
-    {
+    let frame = {
         let space = load(current_cpu_reader_image(), 0).expect("load failed").0;
-        assert!(
-            space.current_cpu_page_kernel_va().is_some(),
-            "a loaded space has no current-cpu page to return",
+        let va = space
+            .current_cpu_page_kernel_va()
+            .expect("a loaded space has no current-cpu page to return");
+
+        // The kernel VA is this frame through the direct map, so inverting the map names the
+        // physical frame the allocator handed out. Taken while the space is alive, because the
+        // accessor goes away with it.
+        let frame = PageFrame::containing(mmu::virt_to_phys(va));
+        assert_eq!(
+            crate::memory::is_page_frame_used(frame),
+            Some(true),
+            "the current-cpu page at {va:#x} is not a frame this allocator has handed out: the \
+             direct-map inversion below names the wrong frame and the check after the drop would \
+             prove nothing",
         );
-    }
+        frame
+    };
+
     assert_eq!(
-        crate::memory::free_page_frames(),
-        before,
-        "dropping an address space did not return its current-cpu frame",
+        crate::memory::is_page_frame_used(frame),
+        Some(false),
+        "dropping an address space did not return its current-cpu frame at {:#x}",
+        frame.addr(),
     );
 }

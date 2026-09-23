@@ -401,6 +401,15 @@ is not an obstacle. Recommended here, not built here.
   one-shot coincidence pass is possible in a way `assert_eq` did not permit. The trade is
   deliberate: equality bought that exactness by also asserting the rest of the machine held
   still, which is false on any loaded run and was producing red CI on documentation PRs.
+- **`the_page_is_returned_when_the_space_is_dropped` can still be failed by a neighbour, and it
+  takes an allocation rather than a free.** Asking `is_page_frame_used` about one named frame is
+  immune to the freeing neighbour that produced every observed failure of the old global form, but
+  a neighbour that allocated *this exact frame* between the drop and the check would read as a
+  leak. It is a microsecond window against one frame out of the machine's free set, where the old
+  form was a seconds-wide window against every frame in the machine, and the two failure modes do
+  not overlap: this one needs an allocation the tests running sequentially on the boot thread do
+  not make. Recorded rather than closed, because closing it needs the allocator to tell a test
+  which frame it handed out next, which is machinery for an exposure nothing has hit.
 - **The drift test can still go red on a pathological host**, by design: eight consecutive
   quarter-second windows each containing a missed tick fails with a message naming the condition.
   That is rarer by orders than the old failure (one miss anywhere in a single fixed window), and
@@ -1867,34 +1876,10 @@ region's **absence** is the measurement, because §16 (object revocation: reclai
 children are
 still carved out of it, so a stale name proves every child was gone first.
 
-### `kernel/src/user/current_cpu_tests.rs:134`, `the_page_is_returned_when_the_space_is_dropped`
-
-```rust
-let before = crate::memory::free_page_frames();
-{ /* load a space, check it has a current-cpu page */ }
-assert_eq!(crate::memory::free_page_frames(), before,
-           "dropping an address space did not return its current-cpu frame");
-```
-
-**Same global counter, same failure, seen 2026-09-22** on pull request #1094, whose diff touches
-only a maintainer script and so cannot have caused it. It failed on the riscv64 CPU matrix while
-`main` was green, which is the signature of a load-sensitive assertion rather than a regression.
-
-**It cannot take the fix above, and that is worth saying where a reader meets it.** The frame this
-test watches is the one an address space owns that *its region does not pay for*: the whole reason
-the test exists is that `memory_region::destroy` does not cover it and `Drop` must free it by hand.
-So there is no region whose usage could be queried instead, and a scoped counter is not available
-the way it was for `run_swap`. Fixing this one needs a different mechanism, and it has not been
-chased.
-
-**Say plainly what the diagnostic says plainly: this is not explained by load, and it may be a real
-bug.** Every negative-direction case this page has actually chased turned out to be a test written
-against a global counter that something else could also move (the reaper count, the address-space
-frame count, both rescoped to a narrow `Tid`-scoped wait in the fourth round), never a kernel defect
-undiscovered underneath. Whether this one is the same shape or something a swap-system regression
-put there is not established, because it was not investigated here per this lane's brief. Proposed
-in this lane's report as a milestone of its own (provisional; the integrator mints the number),
-rather than chased in place.
+***Two paragraphs below this one used to sit under the `current_cpu_tests.rs` entry, and they are
+this site's: both quote `run_swap`'s own message ("N of 224 pages"), which the other test does not
+print. Moved here 2026-09-23, and the stale "PR #XXX" placeholder resolved to the pull request that
+actually made the change.***
 
 **Seen a second time, 2026-09-21**, by the milestone 198 (a package manager, and the trivial install
 that makes a second customer possible) rung 2b lane, as *"returned 296 of 224 pages"*: a **72**-page
@@ -1917,7 +1902,99 @@ worth a lane.
 **Fixed 2026-09-22**: The assertion now measures a scoped quantity (the specific budget region's
 page count) rather than a global one (the total free frame count). This eliminates the sensitivity
 to concurrent activity on the machine while preserving the test's ability to detect actual leaks.
-See PR #XXX for the change.
+See pull request #1101.
+
+### `kernel/src/user/current_cpu_tests.rs:134`, `the_page_is_returned_when_the_space_is_dropped` **FIXED 2026-09-23**
+
+```rust
+let before = crate::memory::free_page_frames();
+{ /* load a space, check it has a current-cpu page */ }
+assert_eq!(crate::memory::free_page_frames(), before,
+           "dropping an address space did not return its current-cpu frame");
+```
+
+**Same global counter, same failure, seen 2026-09-22** on pull request #1094, whose diff touches
+only a maintainer script and so cannot have caused it. It failed on the riscv64 CPU matrix while
+`main` was green, which is the signature of a load-sensitive assertion rather than a regression.
+
+**It cannot take the fix above, and that is worth saying where a reader meets it.** The frame this
+test watches is the one an address space owns that *its region does not pay for*: the whole reason
+the test exists is that `memory_region::destroy` does not cover it and `Drop` must free it by hand.
+So there is no region whose usage could be queried instead, and a scoped counter is not available
+the way it was for `run_swap`. Fixing this one needs a different mechanism, and it has not been
+chased.
+
+***The paragraph above is the record of what was not available, and it is still true: there is no
+region to scope to. What was missed is that a scoped quantity does not have to be a region.***
+
+**The fix asks about the frame, not about a count.** The test holds the page's kernel virtual
+address while the space is alive (`current_cpu_page_kernel_va`), that address is the frame through
+the direct map, and `mmu::virt_to_phys` inverts the map, so the test can name the physical frame the
+allocator handed out. After the drop it asks `memory::is_page_frame_used(frame)`, which reads that
+one frame's bit in the bitmap:
+
+```rust
+let frame = {
+    let space = load(current_cpu_reader_image(), 0).expect("load failed").0;
+    let va = space.current_cpu_page_kernel_va().expect("...");
+    let frame = PageFrame::containing(mmu::virt_to_phys(va));
+    assert_eq!(memory::is_page_frame_used(frame), Some(true), "...");
+    frame
+};
+assert_eq!(memory::is_page_frame_used(frame), Some(false), "...");
+```
+
+**Why a global count could never work here, in one sentence: the quantity it measures is not the
+property.** `free_page_frames()` is a fact about the whole machine, so bracketing it asserts that
+nothing else in the kernel allocated or freed for the length of the window, which is a claim this
+test has no business making and cannot keep on any loaded run. The frame's own bit is the property
+itself: one bit, owned by this space, set by `attach_current_cpu_page` and cleared only by `Drop`.
+
+**Leak sensitivity is not merely preserved, it is sharper.** A frame `Drop` never returned stays
+marked used forever, so the defect fails this assertion on every run rather than on the runs where
+the arithmetic happens to be visible; and unlike the old form, a leak here cannot be masked by
+somebody else freeing the same number of frames in the same window (the coincidence caveat this
+page's BUGS section records against the `<=` sites). The vacuity guard before the drop is what keeps
+the inversion honest: `Some(true)` proves the address names a frame this allocator owns, so a wrong
+direct-map inversion fails loudly instead of returning `None` and reading as "not used".
+
+**The exposure that replaces the old one is far smaller and is recorded rather than hidden.** A
+neighbour that allocated *this exact frame* in the microseconds between the drop and the check would
+fail it falsely. That needs an allocation, where every observed failure of the old form was a
+*freeing* neighbour's late teardown, and it needs the allocator's linear scan to land on this one
+frame out of the machine's free set.
+
+**Proved by injection, 2026-09-23**, because this page's fifth round is emphatic that a clean run
+proves nothing about an assertion. Deleting the `crate::memory::free(frame)` call from
+`AddressSpace::drop`, which is this test's defect exactly, turns the leg red:
+
+```
+test kernel::user::current_cpu_tests::the_page_is_returned_when_the_space_is_dropped ...
+[PANIC] assertion `left == right` failed: dropping an address space did not return its
+current-cpu frame at 0x4002d000
+  left: Some(true)
+ right: Some(false)
+```
+
+The frame's address is in the message, which the old form could not print: a global delta names a
+quantity, not an object. Reverted; the same filtered run on the clean tree reports `test result: ok.
+1 passed`, and the full aarch64 leg is green.
+
+**The first sighting's open question is answered by construction rather than by investigation.** The
+paragraph below asked whether the surplus was a neighbour or a leak, and said it was worth a lane.
+It no longer is: the assertion can no longer be moved by a neighbour at all, so if it ever goes red
+the answer is "a leak" with nothing else to rule out first.
+
+**The original wording, kept because it is the question the fix retires:** this is not explained by
+load, and it may be a real
+bug. Every negative-direction case this page has actually chased turned out to be a test written
+against a global counter that something else could also move (the reaper count, the address-space
+frame count, both rescoped to a narrow `Tid`-scoped wait in the fourth round), never a kernel defect
+undiscovered underneath. Whether this one is the same shape or something a swap-system regression
+put there is not established, because it was not investigated here per this lane's brief. Proposed
+in this lane's report as a milestone of its own (provisional; the integrator mints the number),
+rather than chased in place. *(Retired by the fix above: there is nothing left for that lane to
+investigate.)*
 
 ### `kernel/src/arch/aarch64/timer.rs:680`, `holding_a_lock_masks_the_timer`: "the timer is not ticking at all"
 
