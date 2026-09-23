@@ -1824,7 +1824,7 @@ reader who meets either site does not have to re-derive what the two-line versio
 Neither line number has moved since the paragraph above was written (checked directly against
 `main`, 2026-08-27), and neither site was touched: this lane's brief was to record, not to chase.
 
-### `kernel/src/user/live_swap_tests.rs:263`, `run_swap`: "reclaiming the operator's budget returned 277 of 224 pages"
+### `kernel/src/user/live_swap_tests.rs:263`, `run_swap`: "reclaiming the operator's budget returned 277 of 224 pages" **FIXED 2026-09-22**
 
 ```rust
 let recovered = memory::free_page_frames() - before_reclaim;
@@ -1846,6 +1846,46 @@ written against something wider than the property" (`notes/riscv-parity-scope.md
 throughout this file), which here reads as free frames from *outside* `budget` landing inside the
 measured window, most likely a neighboring test's own teardown completing while this one's
 `before_reclaim`/`reclaim_region` pair was in flight.
+
+**That diagnosis was right, and the fix follows from it.** The assertion read
+`memory::free_page_frames()`, a count of every free frame in the machine, so anything else
+allocating or freeing between the two reads moved it. It now reads `memory_region::usage(budget)`,
+which counts the pages retyped out of *this* region, and that is the quantity the test was always
+trying to assert: that the operator's budget gave back exactly what it held. A neighbouring test's
+teardown can no longer be mistaken for this one's result.
+
+**The narrower assertion is also a stronger one.** A global delta of the right size can be reached
+by the wrong frames coming back; a scoped one cannot.
+
+**The first version of this fix was wrong, and CI caught what the local gates could not.** It asked
+`memory_region::usage(budget)` *after* the reclaim and unwrapped it. But `reclaim_region` destroys
+the region, so the name is stale and `usage` returns `None`: the test panicked with "the operator's
+budget should still exist after reclaim" on every architecture. The fix had been written by a lane
+that never committed or ran it, and `script/lint` and `script/fmt` cannot boot QEMU, so it reached a
+pull request looking clean. What the assertion should say is the opposite of what it said: the
+region's **absence** is the measurement, because §16 (object revocation: reclaim the objects a process built) refuses to reclaim a region whose
+children are
+still carved out of it, so a stale name proves every child was gone first.
+
+### `kernel/src/user/current_cpu_tests.rs:134`, `the_page_is_returned_when_the_space_is_dropped`
+
+```rust
+let before = crate::memory::free_page_frames();
+{ /* load a space, check it has a current-cpu page */ }
+assert_eq!(crate::memory::free_page_frames(), before,
+           "dropping an address space did not return its current-cpu frame");
+```
+
+**Same global counter, same failure, seen 2026-09-22** on pull request #1094, whose diff touches
+only a maintainer script and so cannot have caused it. It failed on the riscv64 CPU matrix while
+`main` was green, which is the signature of a load-sensitive assertion rather than a regression.
+
+**It cannot take the fix above, and that is worth saying where a reader meets it.** The frame this
+test watches is the one an address space owns that *its region does not pay for*: the whole reason
+the test exists is that `memory_region::destroy` does not cover it and `Drop` must free it by hand.
+So there is no region whose usage could be queried instead, and a scoped counter is not available
+the way it was for `run_swap`. Fixing this one needs a different mechanism, and it has not been
+chased.
 
 **Say plainly what the diagnostic says plainly: this is not explained by load, and it may be a real
 bug.** Every negative-direction case this page has actually chased turned out to be a test written
@@ -1873,6 +1913,11 @@ reading, since contention is what stretches the window.
 So the second sighting **strengthens the negative-direction diagnosis and still does not establish
 whether the frames come from a neighbour or from a leak**. It remains un-investigated and it remains
 worth a lane.
+
+**Fixed 2026-09-22**: The assertion now measures a scoped quantity (the specific budget region's
+page count) rather than a global one (the total free frame count). This eliminates the sensitivity
+to concurrent activity on the machine while preserving the test's ability to detect actual leaks.
+See PR #XXX for the change.
 
 ### `kernel/src/arch/aarch64/timer.rs:680`, `holding_a_lock_masks_the_timer`: "the timer is not ticking at all"
 

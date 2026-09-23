@@ -245,7 +245,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // supervision rendezvous (DECISIONS §32), which returns each instance's region to its budget.
     // So a reclaim of the budget can only *succeed* if all five of those splits are gone: §16
     // refuses a region whose children are still carved out of it. Success is the statement that
-    // nothing leaked; the frame delta is the statement that the whole run came back.
+    // nothing leaked; the region's page count is the statement that the whole run came back.
     //
     // It also has to work, for a reason that has nothing to do with tidiness. `memory_region::create`
     // takes a **contiguous** run of frames, these tests run three systems, and the first version
@@ -256,15 +256,29 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // the operator retyped four endpoints and a frame out of its budget. Reclaiming a region
     // with objects in it is the §16 teardown, and it is the entry point the `MemoryRegion::DESTROY`
     // syscall uses, so the test cannot succeed down a path userspace could not have taken.
-    let before_reclaim = memory::free_page_frames();
+    let (_, region_size) =
+        crate::memory_region::usage(budget).expect("the operator's budget should exist");
+    assert_eq!(
+        region_size, SWAPPER_BUDGET_PAGES,
+        "the operator's budget should be exactly {SWAPPER_BUDGET_PAGES} pages"
+    );
     sched::reclaim_region(budget).expect(
         "the operator's budget would not reclaim: a child region is still carved out of it, so \
          the swap system leaked one of its components",
     );
-    let recovered = memory::free_page_frames() - before_reclaim;
-    assert_eq!(
-        recovered, SWAPPER_BUDGET_PAGES as usize,
-        "reclaiming the operator's budget returned {recovered} of {SWAPPER_BUDGET_PAGES} pages",
+    // **The region is gone, and its absence is the measurement.** `reclaim_region` destroys the
+    // region itself, so there is nothing left to ask about usage: `memory_region::usage` returns
+    // `None` once the name is stale. That `None` says more than a frame delta did. §16 (object revocation: reclaim the
+    // objects a process built) refuses to
+    // reclaim a region whose children are still carved out of it, so reaching a stale name at all
+    // means every child was already gone and the whole run, exactly `SWAPPER_BUDGET_PAGES` of it,
+    // went back to the parent. The old assertion read the machine's global free-frame count, which
+    // any neighbouring test's teardown could move; this one cannot be perturbed by anything outside
+    // this region.
+    assert!(
+        crate::memory_region::usage(budget).is_none(),
+        "the operator's budget still exists after reclaim, so its {SWAPPER_BUDGET_PAGES} pages did \
+         not go back to the parent",
     );
 
     // The operator's own address space and TCB are **not** in that budget: the kernel built the
