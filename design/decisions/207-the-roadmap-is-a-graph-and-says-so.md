@@ -1,6 +1,6 @@
 # 207. The roadmap is a graph, and the block says so in fields a script can walk
 
-**Status: PROPOSED.** Raised by calef, 2026-09-22, after a week in which milestone promotion kept
+**Status: DECIDED.** Ratified by calef on 2026-09-23, field names as written. Raised by calef, 2026-09-22, after a week in which milestone promotion kept
 going wrong: *"I don't quite get why promotions are so hard. This has been killing us for weeks."*
 and then, once numbering turned out not to be the cause, *"Even more important is expressing
 dependencies between milestones so that we execute the graph of milestones efficiently."*
@@ -134,8 +134,72 @@ call under this tree's naming authority, and the block format is something every
 scripts agree on, which puts it in *anything two programs agree on* and therefore in the expensive
 category.
 
-## What would refute it
+## The measurements taken before ratifying, and what each one moved
 
-If the backfill of the 145 ready milestones finds that most have no dependencies worth stating, the
-graph is sparse by nature rather than by neglect, and this buys ordering nobody needed. The backfill
-should report the edge count it found, and a figure near today's 15 refutes the section.
+**The first refutation test in this section was wrong, and calef caught it** (2026-09-22): *"I think
+we have not captured the dependencies well because we create the dependent tasks after we've cleared
+the dependencies."* It proposed counting edges in the **ready** queue, which counts a population
+selected for having no live dependencies. Worse, this roadmap is written as work is taken up rather
+than planned ahead, so a task is usually filed after whatever it needed has landed, and forward edges
+are structurally under-recorded.
+
+**So the finished work was measured instead**, by four lanes reading all 547 blocks
+(notes/dependency-census.md):
+
+| | |
+|---|---|
+| References classified | **3,381** |
+| Genuine prerequisite edges | **128** |
+| Edges declared in `Gate:` fields | **15** |
+
+3.8% of references are prerequisites, which reads like a refutation and is not: **128 against 15 is
+an eightfold under-declaration.**
+
+**Then git was asked the same question, because calef doubted prose could see it**: *"Wouldn't the
+PRs or commits do a better job of identifying dependencies?"* It does, and the overlap is the finding.
+Of **13** edges confirmed from branch bases and pull request bodies, **zero** appear among the
+census's 128 prerequisites. Six are invisible to the prose entirely; seven were seen and filed as
+mere context.
+
+**That pass also found 18 census rows whose direction is impossible**, where the source merged before
+the target. About eleven hold up on inspection, including one whose own evidence field contains the
+string `RECLASSIFIED-NEGATION ... not gated on` and was filed as a prerequisite anyway.
+
+**Those 18 are the argument for the don't-clear rule**, stated here because it is easy to read them as
+an argument against the whole section. Every one is a claim about ordering. A computed `is_blocked()`
+catches all of them for free, from each target's own status; a hand-maintained field cannot, and
+today's clearing rule actively invites them.
+
+## How the fields get filled, which is not by remembering
+
+**A lane writing a field is rung four, and the measurement above says so.** The prose route missed
+every edge git found. So the fields are populated by a step rather than a duty:
+
+- **Branch base.** A lane cut from another lane's branch rather than `main` is an unambiguous
+  dependency recorded as a git fact. One API field, 100% precision on what it catches, and it fired
+  on only 7 of 1,066 merged pull requests, so it is cheap and low-recall.
+- **A narrow idiom regex**, over the small set of bolded forms this project already writes by
+  convention: `**Stacked on #N**`, `**Based on ... (#N)**`, `**Depends on #N**`, `Blocked-by: #N`.
+  Scoped to those, not to dependency vocabulary generally.
+- **Merge order as a periodic audit**, not a per-merge gate, since it needs both ends mapped and
+  merged to say anything and that holds for 61% of rows today.
+
+**A general dependency-word sweep is refused**, and the reason is the failure mode rather than the
+cost: *"this does not need #1088"* sliding through as a false edge is silent, and silence is what
+this whole section exists to remove.
+
+## The floor no mechanism gets past
+
+**A dependency that resolved before the dependent branch was cut leaves no trace in git or in prose.**
+Nobody wrote a sentence and no branch points anywhere. That is calef's creation-order observation
+stated as a limit: the backfill recovers history and pattern, the idiom parser catches what an author
+bothered to mark, and neither can recover a dependency that was simply satisfied before anyone needed
+to mention it. **This is why the fields are asked for going forward** rather than reconstructed, and
+why the backfill is evidence rather than the deliverable.
+
+## What would refute it now
+
+The section has survived the tests above, so what remains is an operational failure rather than an
+empirical one: if the fields are added and then go stale, because nothing populates them and no
+reader consults them, this will have bought a format instead of a graph. The tell would be
+`--unblocked` returning roughly what `NOT-STARTED` returns today.
