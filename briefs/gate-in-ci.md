@@ -57,12 +57,49 @@ Fix, commit, push, dispatch again. **Each round costs about half an hour of wall
 else**, which is the trade this brief is making: rounds are cheap because no person is waiting, and
 the laptop's memory is not spent at all.
 
+## Step 5: once it is green, wait before marking ready
+
+**The order is push, then let the run settle, then `gh pr ready`. The wait is the point, not the
+order.** `ready_for_review` and a `synchronize` from a push you just made land in the same per-ref
+concurrency group as `ci.yml`, `verify.yml`, and `architect-hold.yml` (Step 3's group, the one that
+cancels a second dispatch). If `ready_for_review` arrives while that push's own run is still
+starting or still running, GitHub cancels the run, not the event: the older run in the group dies
+and posts **CANCELLED**, permanently, with no way to hide it from the pull request's check list.
+Measured across the open pull requests on 2026-09-23: **15 cancelled runs against 1 apparent
+failure**, and every cancelled one traced back to a push and a `ready` landing within a second or
+two of each other (confirmed on #1123: a force-push and `ready_for_review` a second apart, three
+jobs cancelled at the same timestamp). `briefs/triage-a-failing-check.md` already names the reading
+half of this trap, that a cancelled job is not evidence of a defect; this is the writing half, which
+is to stop generating them.
+
+Wait for the checks on the head you just pushed to actually finish, then mark ready:
+
+    git push -u origin HEAD
+    gh pr checks <N> --watch
+    gh pr ready <N>
+
+`gh pr checks --watch` polls until every check on the pull request's current head has a conclusion,
+so it waits exactly as long as the run takes rather than a guessed interval. If you already dispatch
+explicitly per Step 2, watch that dispatched run to completion (`gh run watch <run-id>
+--exit-status`) before running `gh pr ready`; the dispatched run and the one `ready_for_review` would
+start share the same group, so the same collision applies.
+
+**A lane that opens as a draft (§90, the claim is a draft pull request, the status flip is a gate)
+and never pushes again before its one `gh pr ready` call has nothing to race against and can skip
+this step entirely.** The trap is
+specifically a push closely followed by a ready; a lane whose last push and only `ready` are not
+close in time never produces it. It bites hardest on the common case this brief itself creates: a
+fix pushed in response to Step 4, then marked ready right after, with no wait in between.
+
 ## What you must not do
 
 - **Do not run `script/verify` or `script/test` locally to "check first".** That is the cost this
   brief exists to avoid, and two of them at once is the out-of-memory kill.
 - **Do not mark the pull request ready** to make CI run. Dispatch instead. Ready means the work is
   finished and asking to merge; a lane still gating is neither.
+- **Do not mark ready right after a push, even once gating is green.** Wait for that push's own run
+  to finish first (Step 5); a `ready` a few seconds behind a push cancels the run instead of skipping
+  it, and the cancellation is what reads as a failure.
 - **Do not push to a branch that is in the merge queue.** GitHub refuses it with `GH006`, and
   `auto=false` does not mean unqueued.
 - **Do not enqueue anything.** Gating proves the work; merging is the maintainer's.
@@ -71,6 +108,17 @@ the laptop's memory is not spent at all.
 
 - **A dispatched run and a push-triggered run share a concurrency group**, so pushing immediately
   after dispatching cancels your own run. Push first, then dispatch, in that order.
+- **The same group is what makes Step 5 necessary**, and the fix there is to wait, not to reorder:
+  there is no event ordering that avoids the collision, only a gap wide enough that the earlier
+  event's run has already finished before the later one starts.
+- **Only some workflows are actually reachable by this trap on a normal lane.** A file carrying
+  `cancel-in-progress` is not enough by itself; the workflow also has to trigger on `pull_request`
+  for a lane's own ref, which only `ci.yml`, `verify.yml`, and `architect-hold.yml` do
+  unconditionally (`coe-architect-label.yml` triggers the same way but does not cancel;
+  `stick-maker-hosts.yml` cancels but only fires on a change under `crates/stick_maker/`). The rest
+  of this tree's `cancel-in-progress` workflows are schedule- or `workflow_dispatch`-only and never
+  see a lane's `synchronize` or `ready_for_review` at all. Count workflow files with the string
+  before trusting the count; it overstates the exposure.
 - **Nothing here measures what a CI round costs against a local one.** The claim that rounds are
   free rests on lanes being asynchronous, which is true today because one person reviews them. It
   stops being true the moment a lane blocks something a person is waiting for.
