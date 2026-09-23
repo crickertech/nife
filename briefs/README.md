@@ -15,6 +15,22 @@ doing lookup, not judgement, and lookup is what a cheap model is good at.
 Written from memory each time, that brief would lose a clause a month, and the clause it loses is
 the one that stops a wrong conflict resolution shipping as housekeeping.
 
+## The gates go to CI, not to this laptop
+
+**`briefs/gate-in-ci.md` is the one every other brief defers to**, and it is here for a reason that
+is about hardware rather than about models. Lanes gated locally until 2026-09-22: three
+architectures of QEMU and `script/verify` at about 3.5 GB a harness, on an 8-core M3 with 16 GB.
+That is the whole reason the lane count topped out at three or four, and it was the ceiling long
+after disk (the previously binding one) stopped mattering.
+
+Lanes are **asynchronous**: nobody sits waiting on one. So a CI round trip of 23 to 29 minutes costs
+a resource this project has in abundance and saves the one that actually binds. That trade is only
+available to lanes, which is why it is a brief rather than a rule for everything.
+
+The cheap gates stay local: `script/lint`, `script/roadmap --check`, `script/fmt` and
+`script/citations --ratchet` run in seconds, need no emulator, and catch most failures before a
+half-hour run is spent on them.
+
 ## What belongs here
 
 Work that recurs, whose failure modes are already known, and whose correctness a gate can check.
@@ -35,6 +51,9 @@ meets something new. The rebase brief is the worked example.
 - **`--bare` skips `AGENTS.md`**, so a brief inherits none of this project's rules. Every brief has
   to carry what it needs: that citations want glosses grounded in the target's H1, that a lane never
   edits another milestone's block, that invented names are provisional.
+- **Nothing here measures whether CI gating actually raised the lane ceiling.** The argument is
+  sound and the memory arithmetic is measured, but the number that would settle it is concurrent
+  lanes sustained without an out-of-memory kill, and that has not been run yet.
 - **Nothing here measures the redo rate**, which is the number that decides whether any of this
   saves anything. A delegated task that passes its gates and must be redone by hand costs more than
   never having delegated it. One sample so far, and it needed no redo.
