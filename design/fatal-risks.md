@@ -29,6 +29,29 @@ Three properties, and an entry that lacks one is a worry rather than a risk:
 **And the ranking is chance-of-fatal times cheapness-of-test**, which is why the running order at
 the bottom is not the numbering. The numbers are identity, like a milestone's.
 
+## What an entry's Experiment status says, and the three words it may say it in
+
+Every entry carries one **Experiment status** line, and it answers exactly one question: **has the
+experiment happened.** calef ratified the field and its three values on 2026-09-23.
+
+| value | what it asserts |
+|---|---|
+| `RUN` | the experiment has been performed, whatever it found |
+| `NOT-RUN` | it has not been performed, and could be |
+| `CANNOT-RUN` | it cannot be performed at all, and the entry says what would change that |
+
+**What it does not say is what the experiment found.** That is prose, in the entry, and it is where
+`GREEN`, `AMBER`, `MEASURED` and `AUDITED` live: the first two are verdicts about the world, the
+second two are statements about how well the experiment was done, and none of the four is a value of
+this field. A reader who wants to know whether nife is in trouble reads the paragraph, not the word.
+
+**The set is closed, and `script/fatal-risks` fails on a fourth value.** That is the whole reason it
+is ratified. On 2026-09-23 three separate lanes minted `NOT YET`, `UNRUN` and `UNTESTED` for this
+field in one day, none of them able to see the other two, and only one said the word was
+provisional. `NOT YET` was worse than a fourth word: the script's regex captured `[A-Z]+`, so it
+reported `NOT`, a word nobody had written. Adding a value is a naming decision and it is calef's;
+the enumeration in the script is a record of his ruling rather than a list to edit.
+
 ## 1. Only software written for nife runs on nife
 
 **The claim, stated so it can fail:** the platform can run hand-written Rust and nothing else, so
@@ -47,7 +70,7 @@ three.
 **The experiment:** milestone 121 (`ripgrep`: enumeration as a capability), chosen because `ripgrep`
 has a real dependency tree, walks a filesystem, and uses threads.
 
-**Status: RUN, 2026-08-31. GREEN on all three architectures since 2026-09-16, and the blocker is
+**Experiment status: RUN, 2026-08-31. GREEN on all three architectures since 2026-09-16, and the blocker is
 not what anyone predicted.**
 notes/ripgrep-on-nife.md has it; PR #600 for the first two, milestone 303 for x86_64.
 
@@ -119,7 +142,7 @@ positioned to see it.
 history, with a second pass over the harnesses asking which prove a property that could plausibly
 have been false.
 
-**Status: RUN, 2026-08-30. AMBER, and the red half is structural.** notes/proof-retrospective.md has
+**Experiment status: RUN, 2026-08-30. AMBER, and the red half is structural.** notes/proof-retrospective.md has
 the study; PR #589.
 
 - **No Kani harness in this tree has ever caught a defect after the day it was written.** All
@@ -221,7 +244,8 @@ about.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, 2026-09-19. AMBER, and the ground shifted under it on 2026-09-20.** calef ruled
+**Experiment status: RUN, 2026-09-19, and MEASURED rather than merely observed. AMBER, and
+the ground shifted under it on 2026-09-20.** calef ruled
 amber on the 2026-09-14 numbers, milestone 326 (nobody has been assigned to turn a mutation score
 upward) triaged everything the amber half named, and he asked for a fresh census before deciding
 whether it went green. **The verdict stands and the reason it was given does not**, which is the
@@ -430,7 +454,8 @@ to catch.
 crossing, and on workloads that cross constantly the cost is architectural rather than a matter of
 tuning.
 
-**Status: NOT YET, 2026-09-23. No verdict, and one bench evening stands between here and one.**
+**Experiment status: RUN, 2026-09-23. No verdict, and one bench evening stands between here
+and one.**
 This is the best-covered risk on the list by volume of measurement and it still has no answer,
 because everything measured so far is a single crossing and the claim is about a cost that cannot
 be **amortised**. Amortisation is a property of a workload. The instrument that produces a workload
@@ -556,9 +581,12 @@ about many.
 **The claim:** the concurrency is wrong in ways that QEMU cannot show and that arrive one at a time,
 forever.
 
-**Status: UNRUN, 2026-09-23. No verdict, and the reason no verdict is available is itself the
-finding.** `UNRUN` is a provisional word: this file's vocabulary is `RUN`, `MEASURED` and `AUDITED`,
-and none of the three fits an experiment that has not happened. Until this date the entry carried no
+**Experiment status: NOT-RUN, 2026-09-23. No verdict, and the reason no verdict is available is
+itself the finding.** This entry carried the provisional word `UNRUN` for the day between its own
+revision and calef's ruling, and said at the time that this file's vocabulary was `RUN`, `MEASURED`
+and `AUDITED`, which was never what `script/fatal-risks` implemented. The ratified vocabulary is
+three words and `NOT-RUN` is one of them, for exactly the case that sentence could not name. Until
+this date the entry carried no
 status at all and cited exactly one milestone where the other eight cite between four and twelve,
 and `script/fatal-risks`' own report is where that showed up. What the sweep behind this revision
 found is that the single citation was the smaller half of the problem: **the sentence this entry
@@ -721,7 +749,8 @@ kernel), and milestone 35 (prove the DMA-confinement boundary) built the DMA val
 virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist (milestone
 143).
 
-**Status: RUN, and as of 2026-09-16 all three of its parts are measured on silicon.** The two
+**Experiment status: RUN, and as of 2026-09-16 all three of its parts are measured on
+silicon.** The two
 2026-09-04 halves are below; the third was taken on 2026-09-16 and is the bullet that used to read
 *unmeasured*. **This does not retire the risk**, and the reason is in the third bullet and repeated
 at the foot of this entry: a TRNG is the smallest real device on the board, and throughput is what a
@@ -864,7 +893,7 @@ targets.
 **What is missing:** every one of those is a test written by the same people who wrote the thing
 being tested.
 
-**Status: RUN, 2026-08-31, and it found the thing this risk exists to find.**
+**Experiment status: RUN, 2026-08-31, and it found the thing this risk exists to find.**
 notes/confinement-claims.md; PR #614.
 
 - **26 claims enumerated**, each with where it is stated, which test checks it, and whether that test
@@ -882,10 +911,14 @@ notes/confinement-claims.md; PR #614.
   block warned about, on the day it was written: the break surfaced as a 234-second watchdog timeout
   reading *"a livelock, not a lost wakeup"*, a correct red with nothing in it about confinement.
 
-**Status: AUDITED, 2026-09-17, and the answer is a qualified yes with one exception found and
-fixed.** Milestone 313 (the security audit that was due since August) read this risk's question
-adversarially under the userspace-confinement lens, the first security audit since 2026-08-17.
-`design/audit-reports/2026-09-17-userspace-confinement.md` has it; findings fixed 3, minted 3,
+**The adversarial pass: AUDITED, 2026-09-17, and the answer is a qualified yes with one
+exception found and fixed.** This paragraph was a second `**Status:` line until 2026-09-23, and
+`script/fatal-risks` read only the first one per entry, so `AUDITED` was invisible to every tool
+reading this file. The Experiment status above is the entry's one status; how well the experiment
+was done belongs here, in prose, where it always was. Milestone 313 (the security audit that was
+due since August) read this risk's question adversarially under the userspace-confinement lens,
+the first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
+has it; findings fixed 3, minted 3,
 accepted 1.
 
 **One published claim was false as stated, on a path taken every boot.** DECISIONS §12 (Call/Reply
@@ -988,7 +1021,8 @@ way in one sweep is a reason to expect more.
 
 **The claim:** everything works and no one has a reason to run it.
 
-**Status: UNTESTED, and untestable by this project's own policy. No verdict, 2026-09-23.** That is
+**Experiment status: CANNOT-RUN, 2026-09-23. Untestable by this project's own policy, and no
+verdict.** That is
 the finding rather than an apology for not having one. The other eight entries can come back red;
 this one cannot come back at all, because the observation that would answer it is gated behind a
 precondition calef set and milestone 530 (name a customer, or admit the ranking function has nothing
@@ -1186,7 +1220,7 @@ milestone 182 reaches a shell over serial, which is also what a bench session ne
 decided no, the sentence above stands as written. Either way this risk's decisive experiment below
 is unaffected, because milestone 87 is about the boot entry and not about the shell.
 
-**Status: RUN, 2026-09-17. GREEN, and this is the verdict this entry was missing.** The sharpened
+**Experiment status: RUN, 2026-09-17. GREEN, and this is the verdict this entry was missing.** The sharpened
 claim is falsified: adding x86_64 did not require changing the kernel outside a new `arch/`
 directory. What follows is the evidence already gathered here, read together for the first time
 rather than left as a narrative with no stated conclusion.
@@ -1350,17 +1384,17 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
-| ~~1~~ | 2, the proofs | **RUN 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
+| ~~1~~ | 2, the proofs | **RUN, 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
-| ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN 2026-09-17: GREEN.** `nife self-test: 5 of 5 passed` on xenon; the boot entry, mapper and discovery seam it needed all landed inside `kernel/src/arch/x86_64/`, and `notes/x86-port.md` counts the diff above `arch/` at one type parameter and four files' worth of `cfg` arms | milestone 87 | done |
+| ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN, 2026-09-17: GREEN.** `nife self-test: 5 of 5 passed` on xenon; the boot entry, mapper and discovery seam it needed all landed inside `kernel/src/arch/x86_64/`, and `notes/x86-port.md` counts the diff above `arch/` at one type parameter and four files' worth of `cfg` arms | milestone 87 | done |
 | 4 | 9, the HAL, at the implementation grain the entry was widened to on 2026-09-23 | a second machine of an architecture nife already boots, which is one rented boot rather than a purchase | milestone 225 (run the soak on radon, argon and xenon) | unpriced; a lane is costing rented metal for this and for risk 4 together |
-| ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
-| ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
+| ~~4~~ | 1, the ecosystem | **RUN, 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
+| ~~5~~ | 3, the tests | **RUN, 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
-| -- | 5, multicore | the defect-discovery curve: a linear one is the red result. **Its three seed data points need re-deriving first (2026-09-23): the VisionFive 2's undelivered wake was retracted by that note's own fifth bench stop, and `ap_boot`'s two bugs have moved.** Milestone 315 and a two-core `NIFE_SMP` default are the cheap half and are a lane rather than bench time | milestone 201 | weeks, hardware |
-| ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
-| -- | 8, nobody needs it | **none, and none available.** The instrument is milestone 576 (how many systems are out there, and what do they run), which needs milestone 198 (a package manager, and the trivial install that makes a second customer possible) before there is anything to count | milestone 576 | blocked, not costed |
+| -- | 5, multicore | **NOT-RUN, 2026-09-23.** The defect-discovery curve: a linear one is the red result. **Its three seed data points need re-deriving first (2026-09-23): the VisionFive 2's undelivered wake was retracted by that note's own fifth bench stop, and `ap_boot`'s two bugs have moved.** Milestone 315 and a two-core `NIFE_SMP` default are the cheap half and are a lane rather than bench time | milestone 201 | weeks, hardware |
+| ~~7~~ | 7, confinement | **RUN, 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
+| -- | 8, nobody needs it | **CANNOT-RUN, 2026-09-23.** No experiment, and none available. The instrument is milestone 576 (how many systems are out there, and what do they run), which needs milestone 198 (a package manager, and the trivial install that makes a second customer possible) before there is anything to count | milestone 576 | blocked, not costed |
 
 ## BUGS
 

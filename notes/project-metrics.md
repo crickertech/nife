@@ -84,7 +84,9 @@ mechanism this page already documents for exactly this case rather than anything
 --first-parent` for the same range.** `milestones_built_this_week` went 2 to 16, `milestones_total`
 521 to 566 (`milestones_built` 232 to 246, `milestones_not_started` 198 to 226; the backlog again
 grew faster than it drained). `fatal_risks_tested` went 5 to 9 and `fatal_risks_untested` 4 to 0: all
-nine risks in `design/fatal-risks.md` now have an experiment on record. `names_total` moved 234 to
+nine risks in `design/fatal-risks.md` had a status line on record. Those two columns were replaced
+later the same day by `fatal_risks_run`, `fatal_risks_not_run` and `fatal_risks_cannot_run`, for the
+reason the chart's own section gives: a pair that reads nine and zero is a flat line. `names_total` moved 234 to
 244 (`names_provisional` 53 to 61) and `decisions_total` 203 to 207. `proposals_unnumbered` fell 17
 to 2, most of that pile promoted or resolved rather than abandoned.
 
@@ -122,14 +124,31 @@ from 62 to 64.
 
 ![Fatal risks](project-metrics/fatal-risks.svg)
 
-From `design/fatal-risks.md`, which is four days old, so this is one bar and will become a series.
-Four of the nine have had an experiment run; five have not.
+From `design/fatal-risks.md`, by **Experiment status**: the field calef ratified on 2026-09-23, with
+three values and no fourth. `RUN` means the experiment has been performed, `NOT-RUN` that it has not
+and could be, `CANNOT-RUN` that it cannot be performed at all. `script/fatal-risks` fails on any
+other word, which is why this can be charted as an enumeration rather than read out of a sentence.
 
-**Tested does not mean green.** A verdict column was considered and left out on purpose: three of the
-four statuses written so far say GREEN or AMBER in capitals and risk 7's says neither, so a colour
-series would be a script reading a sentence and guessing. The count of risks that have been put to an
-experiment at all is the fact that file actually carries. The verdicts are in the file, in prose,
-where a person can read them.
+**It says whether an experiment happened. It never says what it found.** That is the half of the
+2026-09-23 proposal calef did not take, and leaving it out is deliberate rather than pending:
+`GREEN`, `AMBER`, `MEASURED` and `AUDITED` are in the file, in prose, beside the argument that earns
+them, and a colour band on a chart would be a worse version of a paragraph. `CANNOT-RUN` is the one
+value that carries a judgement anyway, and it is the file's own: risk 8 cannot be observed until
+milestone 198 (a package manager, and the trivial install that makes a second customer possible)
+lands, and **a fatal risk that cannot be tested is the most dangerous state a fatal risk can be in**.
+
+**This replaced a tested/untested pair on 2026-09-23, and the pair's refusal of a verdict column was
+right when it was written.** It said a colour series would be "a script reading a sentence and
+guessing", which it would have been: four statuses, three of them ending in GREEN or AMBER and risk
+7's in neither. What changed is not the reading but the thing read. The pair had to go for a simpler
+reason as well: all nine entries carried a status line by 2026-09-23, so it sat at nine and zero and
+told a reader nothing.
+
+**Weeks before the field existed are read through the words the file used then**, so the early bars
+are shorter than nine: a risk with no status line at all counts in none of the three, because an
+entry that said nothing said nothing. `MEASURED` and `AUDITED` are read as `RUN` for those weeks,
+and `NOT YET`, `UNRUN` and `UNTESTED` as `NOT-RUN`, `NOT-RUN` and `CANNOT-RUN`. None of those five
+words may be written today.
 
 ## Kani proof harnesses, and what can falsify them
 
@@ -309,8 +328,9 @@ census**: any column added by one branch while another branch is independently a
 the same CSV needs a `--backfill` after the conflict is resolved, because `--update` treats every
 already-present row as already correct and will not notice that a resolved merge just introduced
 blank cells into it. Checked for the same shape elsewhere on 2026-09-23 and found nowhere else:
-every other column that could go this route (`milestones_superseded`, `milestones_refused`,
-`fatal_risks_tested`, `fatal_risks_untested`) was in fact backfilled at the commit that added it,
+every other column that could go this route (`milestones_superseded`, `milestones_refused`, and
+the fatal-risk columns, then `fatal_risks_tested` and `fatal_risks_untested`) was in fact backfilled
+at the commit that added it,
 and the flow columns (`milestones_built_this_week`, `merged_pull_requests`, the four cost columns)
 are recomputed for every row on every run regardless of mode, so they cannot hold a stale blank this
 way.

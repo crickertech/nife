@@ -22,8 +22,25 @@
 # What is checked, and which of the 2026-09-10 findings each one answers
 # ---------------------------------------------------------------------------------------------
 #
+# **0. An entry's Experiment status is one of the three words calef ratified**, and the running
+#    order restates it in the same three. `RUN`, `NOT-RUN`, `CANNOT-RUN`, ratified 2026-09-23;
+#    `design/fatal-risks.md`'s own vocabulary section carries the argument, and this check is
+#    numbered zero because every other check below reads the field it guards.
+#
+#    **It is the check this script was missing for its whole first fortnight.** Until 2026-09-23 the
+#    only test of a status word here was `sm.group(1) in ("RUN", "MEASURED")`, a two-element
+#    membership used as a FILTER: any other word parsed as `None` and was silently exempt. So a lane
+#    inventing a word cost nothing and was told nothing, and on 2026-09-23 three lanes independently
+#    minted `NOT YET`, `UNRUN` and `UNTESTED` for this field in one day. Only one said provisional.
+#    **The right response to this check firing is a ratification, never an edit to the enumeration**,
+#    and the failure message says so in those words.
+#
+#    **One entry states one status.** Risk 7 carried two `**Status:` lines and this script read the
+#    first, so `AUDITED` was invisible to every consumer of the file. A second line is not something
+#    to parse better; it is two answers to a question with one answer, and it now fails.
+#
 # **1. A risk whose experiment has run names a milestone that started.** A risk section carrying
-#    `**Status: RUN ...**` or `**Status: MEASURED ...**` asserts that its experiment happened. The
+#    `**Experiment status: RUN ...**` asserts that its experiment happened. The
 #    experiment is named on a bolded lead-in the `**The experiment:**` form, naming a milestone, and a
 #    milestone that is `NOT-STARTED` cannot be the thing that ran. This is the milestone-191 finding.
 #
@@ -117,12 +134,15 @@
 # That is script/roadmap's lesson taken whole, from the day its merged-branch check "spent a day
 # passing in CI while being unable to fail" for exactly this reason.
 #
-# **Three of the fixtures are negative**, and they are the more interesting half, because this
-# script's stated bias is that a false positive costs more than a false negative. They pin the three
+# **Five of the fixtures are negative**, and they are the more interesting half, because this
+# script's stated bias is that a false positive costs more than a false negative. They pin the
 # near-misses the real file produces today: a PARTIAL milestone is evidence for either claim and must
 # fire on neither; a pending running-order row over a BUILT owner is legitimate (row 5 owns risk 3 to
-# milestone 85, which is BUILT, while its experiment is a re-run that has not happened); and a
-# milestone built before a risk entry's own date is what the entry was written knowing.
+# milestone 85, which is BUILT, while its experiment is a re-run that has not happened); a milestone
+# built before a risk entry's own date is what the entry was written knowing; both hyphenated
+# ratified values parse whole, which is the fixture that would have caught the `([A-Z]+)`
+# truncation; and a running-order cell opening with prose is describing an experiment rather than
+# restating a status, which three of the ten rows legitimately do.
 #
 # # EXAMPLES
 #
@@ -143,8 +163,9 @@
 #   feature. Risk 8 ("nobody needs it") was the worked example here until 2026-09-23, on the
 #   reasoning that it was the one entry with no experiment. It now cites four records and carries a
 #   verdict of UNTESTED, which is the honest reading: the claim was never uncheckable, it was
-#   unchecked, and saying so out loud is what a fatal-risk file is for. No entry cites nothing today,
-#   so this check has no standing exception.
+#   unchecked, and saying so out loud is what a fatal-risk file is for. Its Experiment status is
+#   `CANNOT-RUN`, which is the value ratified on 2026-09-23 for exactly this case. No entry cites
+#   nothing today, so this check has no standing exception.
 # - **It reports, and cannot fix.** Every finding names the two records that disagree and leaves
 #   which one is wrong to the reader, because that is the half a script cannot know.
 # - **The selftest proves each check can fire, not that it fires on everything it should.** A fixture
@@ -160,6 +181,30 @@
 # different sense of the word (a harness's replayable falsification record, DECISIONS §134); and
 # refused `fatal-risk-drift`, which names the symptom and reads as a report of drift rather than a
 # gate against it. calef has not ratified it.
+#
+# **The VOCABULARY this script gates is ratified, even though the script's own name is not, and the
+# two are recorded together because there is nowhere else to put the first one.** `script/names`
+# walks crates, programs, `script/` entry points and Cargo packages; a field inside a design document
+# is none of those, and design/naming.md's own BUGS bullet says the tree has more kinds of name than
+# the mechanism covers. The precedent is `principal`, ratified 2026-09-14 as a term rather than a
+# filename with the record as the gate. This is the same shape, with one thing the precedent did not
+# have: here the record IS a gate, because `RATIFIED` below is what check 0 enforces.
+#
+# **Experiment status** is ratified 2026-09-23 (calef, reading the proposal raised that day), as the
+# name of the one field every entry in `design/fatal-risks.md` carries, with exactly three values:
+# `RUN`, `NOT-RUN`, `CANNOT-RUN`. Refused `UNRUN` (it is an abbreviation where the other two values
+# are hyphenated phrases, and it reads as a word rather than as the negation of `RUN`), `UNTESTED`
+# (it says the thing was not tested, where the case it was minted for is that it CANNOT be, which is
+# risk 8's whole finding), `MEASURED` and `AUDITED` (both are statements about how well an
+# experiment was done rather than about whether it happened, and they stay in the prose where they
+# already were). `NOT YET` was also written and is refused for the reason it is not in backticks
+# here: it is two words, it parsed as `NOT`, and a status field whose value contains a space is a
+# truncation waiting for a regex.
+#
+# The field was named **Experiment status** rather than plain `Status`, which is what the file
+# carried, because the word on its own invited the four different questions the five minted words
+# answered between them. Naming the field after what it asks is what makes a fourth value obviously
+# wrong rather than arguably fine.
 
 set -e
 
@@ -193,7 +238,20 @@ SECTION = re.compile(r"^## (?:(\d+)\. )?(.+)$", re.M)
 # than inferred from the absence of a status line, which is the difference between a check and a
 # guess.
 EXPERIMENT = re.compile(r"\*\*The [a-z ]*experiment\b([^*:]*)(?::\*\*|\*\*)", re.I)
-STATUS_LINE = re.compile(r"\*\*Status: ([A-Z]+)\b")
+
+# The ratified field, and the three words it may carry. calef ruled on 2026-09-23; the argument is
+# in `design/fatal-risks.md`'s own vocabulary section, which is where a reader meets it.
+#
+# **The character class is `[A-Z][A-Z-]*` and the hyphen is the point.** It was `([A-Z]+)`, which
+# captured `NOT` out of risk 4's `**Status: NOT YET` and reported a word nobody had written. Two of
+# the three ratified values are hyphenated, so the old class could not have read them either.
+STATUS_LINE = re.compile(r"\*\*Experiment status: ([A-Z][A-Z-]*)\b")
+RATIFIED = ("RUN", "NOT-RUN", "CANNOT-RUN")
+
+# A running-order row that opens by restating a verdict, which the table does for six of its ten
+# rows. Only the leading word is judged: risk 7's row goes on to say `AUDITED 2026-09-17` in the
+# same cell, and that is prose about how well the experiment was done rather than a second status.
+ROW_VERDICT = re.compile(r"^\*\*([A-Z][A-Z-]*)\b")
 PATHISH = re.compile(r"`((?:design|notes|script|scripts|crates|kernel|user|xtask)/[A-Za-z0-9_./-]+"
                      r"\.(?:md|rs|sh|toml|yml))`")
 PROPOSAL = re.compile(r"`(design/roadmap/proposals/[A-Za-z0-9_./-]+\.md)`")
@@ -248,8 +306,47 @@ def analyse(text, milestones, built_on, decisions, exists, last_touched):
 
     for num, title, start, body in risks:
         label = f"risk {num}"
-        sm = STATUS_LINE.search(body)
-        verdict = sm.group(1) if sm and sm.group(1) in ("RUN", "MEASURED") else None
+        # ---- 7: the status is one of the three ratified values ---------------
+        # This is the enumeration, and it is why the field is ratified at all. Until 2026-09-23 the
+        # only test of a status word in this script was the two-element membership below, used as a
+        # FILTER: anything outside it parsed as None and was silently exempt, so a lane inventing a
+        # word cost nothing and was told nothing. Three did, in one day.
+        statuses = list(STATUS_LINE.finditer(body))
+        for m in statuses:
+            if m.group(1) not in RATIFIED:
+                report("status-vocabulary", start + m.start(),
+                       f"{RISKS}:{lineno(start + m.start())}: {label} carries an Experiment status "
+                       f"of {m.group(1)}, which is not one of the three ratified values: "
+                       f"{', '.join(RATIFIED)}.\n"
+                       f"      The set is closed on purpose. calef ratified it on 2026-09-23, after "
+                       f"three lanes minted NOT YET, UNRUN and UNTESTED for this field in one day, "
+                       f"none of them able to see the other two. An open vocabulary is how that "
+                       f"happened, and a field that mixes 'did it run' with 'what did it find' is "
+                       f"what it produced.\n"
+                       f"      The right action is to get a new value ratified by calef, not to edit "
+                       f"the enumeration in this script. A value here is a name, names are his, and "
+                       f"this list is a record of his ruling rather than a list to extend. If what "
+                       f"you want to say is what the experiment FOUND, say it in the prose under "
+                       f"the status line, which is where this file keeps GREEN, AMBER, MEASURED "
+                       f"and AUDITED.")
+        # ---- 8: one entry, one status ----------------------------------------
+        # Risk 7 carried two `**Status:` lines for six days and this script read only the first, so
+        # `AUDITED` was invisible to every consumer of the file. A second line is not a thing to
+        # parse better; it is two answers to a question with one answer.
+        if len(statuses) > 1:
+            report("two-statuses", start + statuses[1].start(),
+                   f"{RISKS}:{lineno(start + statuses[1].start())}: {label} carries "
+                   f"{len(statuses)} Experiment status lines "
+                   f"({', '.join(m.group(1) for m in statuses)}), and only the first is read.\n"
+                   f"      That is how risk 7's AUDITED stayed invisible to every tool reading this "
+                   f"file. One entry states one Experiment status; how well the experiment was done, "
+                   f"and what it found, go in the prose beneath it.")
+
+        sm = statuses[0] if statuses else None
+        # `RUN` is the one value that asserts the experiment happened, which is what checks 1 and 2
+        # below need. `NOT-RUN` and `CANNOT-RUN` assert the opposite and make no claim about a
+        # milestone having started.
+        verdict = sm.group(1) if sm and sm.group(1) == "RUN" else None
 
         # ---- 1 and 2: the experiment -----------------------------------------
         for em in EXPERIMENT.finditer(body):
@@ -352,6 +449,32 @@ def analyse(text, milestones, built_on, decisions, exists, last_touched):
     # experiment rather than a milestone whose completion IS the experiment.
     order = next((b for n, t, st, b in sections if t.lower().startswith("the running order")), "")
     base = text.index(order) if order else 0
+
+    # ---- 7b: the table's own verdicts are in the same three words -------------
+    # The running order restates every verdict a second time, in its own cell, and for most of this
+    # file's life it did so in a third vocabulary: `**RUN 2026-08-30: amber.**` beside
+    # `**none, and none available.**`, with risk 5's row carrying no verdict at all. Two places in
+    # one file stating one fact in two shapes is the drift this script exists to catch, so the cell
+    # is held to the ratified set exactly as the entry is. Only the LEADING word is judged: a row
+    # that opens with prose instead of a verdict is describing an experiment rather than restating
+    # a status, and rows 2, 4 and 6 legitimately do.
+    for row in order.split("\n"):
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        if len(cells) != 5 or cells[0] == "order" or set(cells[2]) <= set("-"):
+            continue
+        lead = ROW_VERDICT.match(cells[2])
+        if lead and lead.group(1) not in RATIFIED:
+            report("status-vocabulary", base + order.index(row),
+                   f"{RISKS}:{lineno(base + order.index(row))}: the running order opens risk "
+                   f"{cells[1].split(',')[0]}'s cell with {lead.group(1)}, which is not one of the "
+                   f"three ratified values: {', '.join(RATIFIED)}.\n"
+                   f"      This table states every verdict a second time, so it is a second place a "
+                   f"word can be invented, and it was one: it carried its own vocabulary until "
+                   f"2026-09-23.\n"
+                   f"      The right action is to get a new value ratified by calef, not to edit the "
+                   f"enumeration in this script. Say what the experiment found in the rest of the "
+                   f"cell, which is where this table's GREEN, amber and AUDITED already live.")
+
     for row in order.split("\n"):
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
         if len(cells) != 5 or cells[0] == "order" or set(cells[0]) <= set("-"):
@@ -462,7 +585,18 @@ DATES = {7: "2026-09-09"}
 
 SELFTEST = [
     ("experiment-ran", "a risk whose experiment RAN over a NOT-STARTED milestone",
-     "## 1. A risk\n\n**The experiment:** milestone 8.\n\n**Status: RUN, 2026-09-10.**\n"),
+     "## 1. A risk\n\n**The experiment:** milestone 8.\n\n"
+     "**Experiment status: RUN, 2026-09-10.**\n"),
+    # ---- the enumeration, which is the check the ratification exists to make --
+    ("status-vocabulary", "an Experiment status outside the three ratified values",
+     "## 1. A risk\n\n**Experiment status: UNRUN, 2026-09-23.** No verdict.\n"),
+    ("status-vocabulary", "a running-order cell restating a verdict in a word nobody ratified",
+     "## 1. A risk\n\n## The running order\n\n| order | risk | experiment | owner | cost |\n"
+     "|---|---|---|---|---|\n| -- | 1, a risk | **UNTESTED.** none available | milestone 7 | "
+     "blocked |\n"),
+    ("two-statuses", "an entry carrying two Experiment status lines, of which one is unread",
+     "## 1. A risk\n\n**Experiment status: RUN, 2026-08-31.**\n\n"
+     "**Experiment status: RUN, 2026-09-17.**\n"),
     ("experiment-pending", "a risk whose experiment has NOT run over a BUILT milestone",
      "## 1. A risk\n\n**The decisive experiment that has not been run:** milestone 7.\n"),
     ("status-word", "a status word this file spells out that the roadmap contradicts",
@@ -480,7 +614,15 @@ SELFTEST = [
     ("no-history", "a git history too shallow to answer whether a cited proposal moved",
      "## 1. A risk\n\nAs of 2026-09-01, `design/roadmap/proposals/mute.md` is what would fix it.\n"),
     (None, "a RUN verdict over a PARTIAL milestone is evidence for either claim",
-     "## 1. A risk\n\n**The experiment:** milestone 9.\n\n**Status: RUN, 2026-09-10.**\n"),
+     "## 1. A risk\n\n**The experiment:** milestone 9.\n\n"
+     "**Experiment status: RUN, 2026-09-10.**\n"),
+    (None, "the two hyphenated values parse whole, which `([A-Z]+)` could not have done",
+     "## 1. A risk\n\n**Experiment status: NOT-RUN, 2026-09-23.**\n\n"
+     "## 2. Another risk\n\n**Experiment status: CANNOT-RUN, 2026-09-23.**\n"),
+    (None, "a running-order cell that opens with prose is describing, not restating a status",
+     "## 1. A risk\n\n## The running order\n\n| order | risk | experiment | owner | cost |\n"
+     "|---|---|---|---|---|\n| 2 | 1, a risk | the on-board test-suite exit | milestone 7 | "
+     "bench time |\n"),
     (None, "a pending running-order row over a BUILT owner is legitimate (the milestone-85 shape)",
      "## 1. A risk\n\n## The running order\n\n| order | risk | experiment | owner | cost |\n"
      "|---|---|---|---|---|\n| 5 | 1, a risk | re-run the sweep | milestone 7 | a day |\n"),
@@ -559,7 +701,8 @@ for num, title, start, body in risks:
     cited = sorted({int(m.group(1)) for m in CITE_M.finditer(body)})
     shown = ", ".join(f"{n}:{MILESTONES.get(n, '?')}" for n in cited) or "--"
     print(f"  risk {num:<2} {title[:58]}")
-    print(f"          verdict {sm.group(1) if sm else '--':<9} as of {max(dates) if dates else '--'}")
+    print(f"          status  {sm.group(1) if sm else '--':<11} as of "
+          f"{max(dates) if dates else '--'}")
     print(f"          cites   {shown}")
 if problems:
     print(f"\nPROBLEMS ({len(problems)})")
