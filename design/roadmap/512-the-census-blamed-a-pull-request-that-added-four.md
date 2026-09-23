@@ -1,12 +1,26 @@
 # 512. The census blamed one pull request for 55 survivors it did not write
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
-proposal `the-census-blamed-a-pull-request-that-added-four`, filed 2026-09-19, on calef's
-instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
-proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
-not the moment to improve it. Found by milestone 438 (would a diff-scoped mutation check have caught), whose first measurement was a replay of the
-pull request `design/fatal-risks.md` names, and which found four survivors where that record
-accounts for 55.
+**Status: BUILT 2026-09-23.** *(Number provisional until the merge queue lands it.)* Promoted from
+the proposal `the-census-blamed-a-pull-request-that-added-four`, filed 2026-09-19, on calef's
+instruction of 2026-09-20 to give every proposal on `main` a number. The paragraph below this one
+is the proposal's own, unedited: the argument is its author's and promotion was not the moment to
+improve it. Found by milestone 438 (would a diff-scoped mutation check have caught), whose first
+measurement was a replay of the pull request `design/fatal-risks.md` names, and which found four
+survivors where that record accounts for 55.
+
+**What this lane found on re-checking the proposal against the merged tree.** The premise held
+for the arithmetic but not for the target: between 2026-09-19 (when the proposal was filed) and
+2026-09-23 (when it was built), risk 3 was rewritten twice more (milestones 517 and 518), and the
+specific `machine_discovery` paragraph quoted below is no longer in `design/fatal-risks.md`; it
+was folded into a broader correction about the two censuses' timeout and rename conventions,
+which named the same shape of error ("a comparison across two records that were never made
+comparable") without the crate, the numbers, or the arithmetic that closes it. So the work was not
+a rewrite of a paragraph that no longer exists; it was restoring the specific case (with the exact
+numbers) to the paragraph that replaced it, and doing the part nobody had done yet: recording the
+trap where `script/mutation --report`'s own output and `notes/mutation-testing.md`'s scope section
+meet a reader, so the next person reading that column does not have to rediscover this. See
+`design/fatal-risks.md`'s risk 3, the paragraph dated 2026-09-23; `script/mutation`'s `report()`
+comments; and `notes/mutation-testing.md`'s `Scope and honest caveats` section.
 
 **Gate: NONE.** It is a correction to one paragraph of `design/fatal-risks.md` and to milestone 438's
 own premise, both already written and both readable. A lane could start today; the numbers it needs
@@ -55,5 +69,11 @@ that says the date out loud.
 
 ## Index row
 
-What the record says. `design/fatal-risks.md`'s risk 3, AMBER as of 2026-09-19: *"One crate accounts
-for the fall and it was not one of the eight.
+**Built:** 2026-09-23
+
+`design/fatal-risks.md` blamed milestone 319 (the crate that parses firmware)'s pull request for
+55 of `machine_discovery`'s survivors it did not write: 73 already existed, from `script/mutation
+--report`'s `(baseline missed)` column reading as a two-day delta when it is always a fixed diff
+against the 2026-08-03 baseline. Risk 3's paragraph now carries the crate, the arithmetic and the
+date; `script/mutation` and `notes/mutation-testing.md` now name the trap where a reader of that
+column meets it.

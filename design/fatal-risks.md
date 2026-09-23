@@ -299,6 +299,18 @@ regression. Both errors are one shape, **a comparison across two records that we
 comparable**, and both were available because the per-crate numbers were never written down. They are
 now, which is what made this correction possible at all.
 
+**2026-09-23: milestone 512, built, names the crate the "second time" paragraph above only pointed
+at.** `machine_discovery` read 22 survivors in the fixed 2026-08-03 baseline and 77 in the census
+that ran on 2026-09-19, two days after milestone 319 (the crate that parses firmware) landed, which
+is what made "two days of regression" look plausible. Replaying `cargo mutants --in-diff` against
+milestone 319's own pull request finds 4 survivors, and the crate already carried 73 on the commit
+immediately before that pull request merged: 73 + 4 is 77, the census's own number, to the unit. The
+other 73 predate the pull request; they accumulated while the crate grew from 212 mutants at the
+baseline to 693 at the census, over six weeks the `(baseline missed)` column cannot see, because it
+always diffs against 2026-08-03 rather than against the census before it. `script/mutation`'s own
+comments and `notes/mutation-testing.md`'s `Scope and honest caveats` section now name that trap
+where a reader of `--report` meets it.
+
 **One convention is now load-bearing and unchecked.** Whether a timeout counts as a kill moves this
 entry by about two points, and the rule rests on a hand-check of the baseline's 96 timeouts six weeks
 ago. There are 205 today and none of them has been checked.
