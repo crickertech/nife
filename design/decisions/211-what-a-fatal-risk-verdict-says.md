@@ -1,13 +1,15 @@
-# 209. What a fatal-risk verdict says, and what the chart can plot as a result
+# 211. What a fatal-risk verdict says, and what the chart can plot as a result
 
-**Status: PROPOSED.** Raised by calef, 2026-09-23, reading
+**Status: DECIDED.** Ratified by calef on 2026-09-23, **Experiment status** with values
+**RUN**, **NOT-RUN**, **CANNOT-RUN**. Raised by calef, 2026-09-23, reading
 `notes/project-metrics/fatal-risks.svg`: it seems like the wrong graph, because it plots tested
 against untested and all nine risks have now been put to an experiment, so it is a flat line at
-nine. He asked for risks by status instead. *(Section number provisional until the merge queue
-lands it. 208 was the lowest free number seen from `main` when this was drafted; 209 and 210 were
-both in flight the same night, and 210 landed while this was being written. Renumbered to 209 on
-2026-09-23 because a concurrently merged lane, `maintainer/installing-is-granting`, took 208
-first.)*
+nine. He asked for risks by status instead. Implementation on branch
+`maintainer/experiment-status-ratified`. *(Minted provisionally at 208; moved to 209 on
+2026-09-23 when `maintainer/installing-is-granting` landed §208 (installing a package is
+granting it, and the activation set is versioned) first; moved again to 211 the same day when a
+second lane, `maintainer/state-handoff-is-optional`, held §209 and §210 (a correction of error,
+and its action items are decisions, proposals or milestones) was already taken on `main`.)*
 
 ## What is being decided
 
@@ -113,58 +115,51 @@ with *can it run*, which is a chart whose categories are not alternatives to eac
 was the old problem. Incoherence is the current one, and it is worse, because a wrong reading of a
 sentence is visible as a wrong reading and a category error looks like data.
 
-## Proposal: two axes, not one
+## The decision
 
-*(Weigh it rather than adopt it. The words below are provisional; the words are calef's.)*
+**Axis A, split into two fields.** The status field is renamed **Experiment status** and takes three
+values: **RUN**, **NOT-RUN**, **CANNOT-RUN**, gated by an enumeration in `script/fatal-risks`.
+These are enforced, so that adding a fourth value forces a ratification rather than happening by
+accident.
 
-Split the status line into two fields, because the file is already trying to carry two facts in one
-word and losing one of them.
+**Axis B was considered and not adopted.** The proposal could not keep to its own three values,
+writing *"inconclusive leaning real"* twice and *"looks real in part"* once, which is three hedges
+in nine rows. That evidence is what axis B was written to find, and finding three that the
+framework cannot express is evidence that the finding does not compress into one word yet. The
+existing findings (`GREEN`, `AMBER`, `MEASURED`, `AUDITED` and the sentences around them) stay in
+the prose.
 
-**Axis A, has the experiment run.** Three values: **run**, **not run**, **cannot run yet**.
-**Axis B, what it found.** Three values: **the risk looks real**, **the risk looks false**,
-**inconclusive**, plus the empty case when A is not `run`.
+**Why axis A won on its own merits.** It needed no hedges; it partitions the nine cleanly. And
+`CANNOT-RUN` is exactly the value the current tested-versus-untested chart cannot express for
+risk 8 (which is untestable by this project's own policy until milestone 198 lands). One field,
+three values, one question each value answers: does an experiment have a status, and what is it. The
+chart can then ask a real question: over time, how many risks remain unrun, and for how long.
 
-Applied to the nine as they stand, using only what the entries already say:
+The proposal's table was read from entries that already say all this. Applied to the nine as they
+stand, using only what the entries already say:
 
-| risk | A: ran? | B: found |
-|---|---|---|
-| 1 | run | looks false (`GREEN`, three architectures) |
-| 2 | run | inconclusive leaning real (`AMBER`, the red half is structural) |
-| 3 | run | inconclusive leaning real (`AMBER`, and calef's verdict is not yet given) |
-| 4 | run | inconclusive: single-crossing numbers, and the claim is about amortisation |
-| 5 | not run | -- |
-| 6 | run | looks false (all three parts measured on silicon) |
-| 7 | run | looks real in part (one exception found and fixed) |
-| 8 | cannot run yet | -- |
-| 9 | run | looks false (`GREEN` on xenon) |
+| risk | Experiment status |
+|---|---|
+| 1 | RUN |
+| 2 | RUN |
+| 3 | RUN |
+| 4 | RUN |
+| 5 | NOT-RUN |
+| 6 | RUN |
+| 7 | RUN |
+| 8 | CANNOT-RUN |
+| 9 | RUN |
 
-**Why two axes and not one word with more values.** The two facts are independent, and the
-independence is the point of the file. Risk 8 has no finding because nobody may look, and risk 4 has
-no finding despite being the best-instrumented entry on the list; a single scale has to put those in
-the same bucket or in two buckets that a reader cannot tell apart. Axis A is a fact about this
-project's activity and axis B is a fact about the world, and they move for different reasons.
-
-**What it does to the chart.** Two charts, or one stacked chart per axis, and neither reads a
-sentence. Axis A is the honest successor to the current tested/untested series: it is that series
-with the third value the current one cannot express, which is precisely the value risk 8 needs.
-Axis B is the chart calef asked for, and it is the one that can go the wrong way, which is what a
-falsification chart is for.
-
-**What the proposal absorbs.** `MEASURED` and `AUDITED` are not verdicts under this shape. They are
-statements about the *quality* of the experiment, and they belong either in the entry's prose (where
-they already are, at length) or on a third axis nobody has asked for. Collapsing them into A=run is a
-real loss of information and is recorded here as one.
-
-## The alternative worth weighing: one word, defined
+## The one-word alternative, and its refusal
 
 **Keep a single verdict word and define the legal set precisely.** Something like `RUN-GREEN`,
 `RUN-AMBER`, `RUN-RED`, `UNRUN`, `UNTESTABLE`, gated by an enumeration in `script/fatal-risks`.
 
 **Its argument is real and is not a rounding error.** A single verdict is what a reader remembers,
 and this file exists to be remembered: nine claims, nine answers, and the entire point of a
-falsification list is that you can hold the state of it in your head. Two axes is eighteen cells. A
-reader scanning it has to do the join themselves, and the join is exactly the thing the one-word
-version does for them.
+falsification list is that you can hold the state of it in your head. Two fields is potentially
+eighteen cells. A reader scanning it has to do the join themselves, and the join is exactly the
+thing the one-word version does for them.
 
 **And the second half of its argument is sharper: two fields may be two things nobody fills in
 honestly.** This tree has measured that failure. `script/fatal-risks` exists because risk 2 carried
@@ -173,7 +168,7 @@ that is easy to leave at its last value is a field that goes stale, and doubling
 the surface. Under the one-word shape there is exactly one thing per risk that can be wrong, and a
 reader comparing the word against the prose beneath it catches a lie in one glance.
 
-**Why it loses anyway.** It loses on risk 8 and it loses for a reason this file itself calls the
+**Why it was not chosen.** It loses on risk 8 and it loses for a reason this file itself calls the
 most dangerous state a fatal risk can be in. `UNTESTABLE` is not a point on a scale that runs from
 green to red; it is a statement that the scale does not apply, because the observation is gated
 behind a precondition calef set and milestone 530 (name a customer, or admit the ranking function
@@ -190,7 +185,7 @@ three architectures).
 thing on the table and is refused because `NOT` is a truncation of `NOT YET`, `AUDITED` is a sixth
 word the script cannot see, and documenting a set that mixes four questions ratifies the category
 error rather than fixing it; the one thing it has going for it is that it is honest about what the
-file says today, and that honesty is available under either of the other two shapes. *A numeric
+file says today, and that honesty is available under the chosen shape. *A numeric
 confidence*, a probability per risk, is refused because nothing here is estimated that way and a
 number invites arithmetic across nine claims that share no scale, which is the overclaiming this
 file's rule 1 exists to prevent.
