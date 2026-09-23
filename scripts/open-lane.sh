@@ -25,6 +25,21 @@
 #
 #     export OPEN_LANE_BASE_URL=https://<cordoba>.<tailnet>.ts.net:4000
 #     export OPEN_LANE_MODEL=<model id the gateway exposes>
+#     export OPEN_LANE_EFFORT=low                        # optional; see below
+#
+# **`OPEN_LANE_EFFORT`** is passed straight through as `claude --effort <level>`. The CLI accepts
+# `low`, `medium`, `high`, `xhigh` or `max` (`claude --help`); this script does not second-guess that
+# list, so a typo here is the CLI's error to report, not this script's to pre-validate. Default is
+# `low`, and the reason is a measured null result rather than a guess: notes/effort-levels.md ran a
+# real, checkable repository query at all five levels, twice each, and every level answered
+# identically, including the ambiguous first version of the task where all five made the same wrong
+# call and the correct second version where all five got it exactly right. Higher effort bought more
+# wall-clock (about 5x from low to max) and more turns, not more correctness. **That measurement ran
+# directly against Claude, not through this gateway against an open-weight model**, because this lane
+# had no OpenRouter credentials; whether `--effort` does anything at all once LiteLLM's
+# `drop_params: true` has a chance to strip it for a model that does not know the parameter is
+# unmeasured. Override per run (`OPEN_LANE_EFFORT=max scripts/open-lane.sh ...`) for a lane worth
+# spending more on, and re-measure against the real backend before trusting this default there.
 #
 # The gateway has no password of its own (see `scripts/open-lane-gateway.sh`), but Claude Code under
 # `--bare` still insists on *some* credential, so this sends a placeholder. It is not a secret and
@@ -57,6 +72,7 @@ rounds=${3:-4}
 
 : "${OPEN_LANE_BASE_URL:?set OPEN_LANE_BASE_URL to the gateway that speaks /v1/messages}"
 : "${OPEN_LANE_MODEL:?set OPEN_LANE_MODEL to the model id the gateway exposes}"
+effort=${OPEN_LANE_EFFORT:-low}
 
 brief_text=$(cat "$brief")
 base_commit=$(cd "$worktree" && git rev-parse HEAD)
@@ -66,7 +82,7 @@ base_commit=$(cd "$worktree" && git rev-parse HEAD)
 feedback=""
 round=1
 while [ "$round" -le "$rounds" ]; do
-    echo "==> open-lane round $round of $rounds ($OPEN_LANE_MODEL)"
+    echo "==> open-lane round $round of $rounds ($OPEN_LANE_MODEL, effort=$effort)"
 
     prompt="$brief_text
 
@@ -87,7 +103,7 @@ $feedback"
         ANTHROPIC_AUTH_TOKEN="${OPEN_LANE_TOKEN:-unused-the-gateway-has-no-password}" \
         ANTHROPIC_MODEL="$OPEN_LANE_MODEL" \
         CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 \
-        claude --bare -p "$prompt" --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
+        claude --bare --effort "$effort" -p "$prompt" --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
     ) || echo "open-lane: the model's own run exited non-zero; the gates decide, not this"
 
     # **A green tree is not a delivered lane.** On 2026-09-22 a lane fixed a flaky assertion

@@ -159,3 +159,10 @@ it run the gate, did it read the exit code, and how many rounds did green take.
 - **Nobody has run this yet.** It is written from the documentation and from measured hardware, and
   it has not driven a single lane. The first run is the benchmark above, and until it happens this
   note describes an intention.
+- **`OPEN_LANE_EFFORT` exists and is unmeasured against this mechanism specifically.**
+  `scripts/open-lane.sh` now passes `claude --effort`, defaulting to `low`
+  ([effort-levels.md](effort-levels.md)), but that default was measured against Claude directly, not
+  through this gateway against an open-weight model. Whether the flag reaches the model at all once
+  `config/open-lane-litellm.yaml`'s `drop_params: true` has a chance to strip it is exactly the kind
+  of thing "nobody has run this yet" above already flags; this is the same gap, one layer more
+  specific.
