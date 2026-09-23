@@ -14,8 +14,11 @@ that renders a configuration page this program did not write stays inside its 96
 appends only at the offset it was given, and reports exactly what it wrote;
 `the_buffer_can_be_filled_exactly` is the `kani::cover!` that the boundary is reached, so the
 assertion is not proved by an assumption set that never gets near it. Relaxing one `<` to `<=` turns
-both red, and the patch is recorded (`user/falsifications/`). **Cost: 2.4 seconds** on
-`script/verify`'s ~650.
+both red, and the patch is recorded (`user/falsifications/` at the time; milestone 175 (split
+user/: components/ for services, fixtures/ for test and benchmark programs) moved `printenv`
+into `components/`, and the record now lives at `components/falsifications/`, corrected here
+2026-09-23 for milestone 323 (the falsification record is incomplete in five ways, and each was
+found by a different lane)). **Cost: 2.4 seconds** on `script/verify`'s ~650.
 
 **The premise above is half false, and that is the finding.** This block argued `user/` had a better
 claim on the prover than the kernel because it holds real parsers over untrusted bytes. It mostly
@@ -98,11 +101,17 @@ half of the same observation and is untouched.
   input can cost far more" was right in a way this block did not predict: the expensive shapes are
   not parsers but sums, symbolic indices into large structs, and values downstream of division, and
   three such properties were abandoned with the measurements recorded.
-- **`script/falsifications` walks `crates/` only.** This milestone's falsification record and patch
-  live under `user/`, and `kernel`'s two harnesses from milestone 193 carry no record at all, so the
-  ratio that script prints is over `crates/` rather than over the tree and it does not know it.
-  Closing it needs the walk derived from `cargo metadata` and `--sweep` taught that a package can
-  have binaries; proposed as its own milestone in this lane's report.
+- ~~**`script/falsifications` walks `crates/` only.** This milestone's falsification record and
+  patch live under `user/`, and `kernel`'s two harnesses from milestone 193 (put kernel/src
+  within reach of the prover) carry no record at all, so the ratio that script prints is over
+  `crates/` rather than over the tree and it does not know it. Closing it needs the walk derived
+  from `cargo metadata` and `--sweep` taught that a package can have binaries; proposed as its own
+  milestone in this lane's report.~~ **Closed.** Milestone 212 (script/falsifications walks
+  crates/ only, so the ratio it prints is not the tree's) fixed it; see `## Follow-on` below, and
+  `notes/falsification.md`'s "Milestone 212: the ratio was a fraction of one directory". This
+  entry was never struck for it. Found still standing as live prose 2026-09-23, part 5 of
+  milestone 323 (the falsification record is incomplete in five ways), whose whole subject is
+  exactly this shape: a `BUGS` entry nobody struck when the work it describes landed.
 - **Two harnesses is not coverage of 68 programs.** The editor's editing operations are the richest
   untrusted-input surface left in `user/` and are out of reach as the document is laid out today;
   moving a row's length out of the row would fix that and is a data-layout question, not a lane's.
