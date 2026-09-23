@@ -14,8 +14,9 @@ use crate::{RELEASE, RISCV_TARGET, RUNNER, TARGET, X86_TARGET, cargo_profiled, u
 /// Two instruments:
 /// - default: TCG with `-icount`, where virtual time is a deterministic function of instructions
 ///   executed. Counts are exact and reproducible; `--check` diffs them against
-///   `bench/baseline-aarch64.txt` and fails on drift, `--save` rewrites the baseline (a deliberate act,
-///   committed alongside whatever changed the numbers).
+///   `bench/baseline-aarch64.txt` and fails on drift, `--save --why "<reason>"` rewrites the
+///   baseline (a deliberate act, committed alongside whatever changed the numbers, and refused
+///   without a reason to record beside them: milestone 302).
 /// - `--real`: HVF, natively on the host core. Real caches and TLBs, statistical numbers,
 ///   reported in nanoseconds, never gating.
 ///
@@ -35,6 +36,37 @@ pub(crate) fn bench() -> bool {
     if real && (check || save) {
         let why = if release { "--release" } else { "--real" };
         eprintln!("bench: {why} numbers are statistical and never gate; no --check/--save");
+        return false;
+    }
+
+    // **A save that cannot say why it happened is refused, before anything is built.**
+    // milestone 302 (a baseline records what it was saved against), calef's ruling of 2026-09-16;
+    // milestone 415 (sub-tripwire drift accumulates across baseline saves) item 2 words the same
+    // requirement as "make a save record its own attribution, beside the number". A baseline row records a number and
+    // nothing about why it holds that value, so a reader cannot tell compiler drift from a real
+    // regression, and that is not hypothetical: on 2026-09-22 a lane read riscv64's `rfence_self`
+    // as a stale floor carrying 8% of dead margin, on 2026-09-23 another measured it back at 5991
+    // to the tick, and notes/benchmarks.md shows the row oscillating between 5991 and 6476 across
+    // seven consecutive saves under two pins. Two lanes, opposite conclusions, four days apart,
+    // because the file could not tell either of them anything.
+    //
+    // **Refusing is the top of AGENTS.md's ladder that this boundary can reach.** A reason cannot
+    // be made unrepresentable by a type here (the command line is strings), but it can be made
+    // impossible to omit, and that is one rung above a gate somebody has to remember to write. The
+    // cost is honest and is the reason §190 (must an icount baseline save
+    // record why it moved) hesitated: it changes what a person types on every
+    // bench evening on every board. That is the trade taken.
+    //
+    // **Checked here rather than at the write** so the refusal costs a second instead of a kernel
+    // build and a full emulator run. `run_bench` reads the same flag again at the write.
+    if save && save_reasons().is_empty() {
+        eprintln!("bench: --save needs --why \"<reason>\". A floor with no recorded reason cannot");
+        eprintln!("  tell the next reader drift from a regression. The reason goes in the file,");
+        eprintln!("  beside the numbers, because a commit message is read once, on the day it is");
+        eprintln!("  written, by one person.");
+        eprintln!();
+        eprintln!("  e.g. script/bench --save --why \"the cycle-counter grant at the switch\"");
+        eprintln!("  Repeat --why once per reason when one save covers several moves.");
         return false;
     }
 
@@ -292,6 +324,96 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     )
 }
 
+/// The `--why <reason>` values of this invocation, in the order they were given.
+///
+/// Repeatable, unlike `flag_value`, because one save often covers several moves with different
+/// causes: the 2026-09-15 saves blessed a real regression and a toolchain term into the same file
+/// and had one sentence between them. Each value becomes its own `# why:` line.
+///
+/// `--why` is a provisional name (milestone 302's lane); the `# why:` line it writes is the one
+/// calef ratified on 2026-09-16, and the flag is named after the line rather than the other way
+/// round.
+fn save_reasons() -> Vec<String> {
+    let mut out = Vec::new();
+    let mut args = std::env::args();
+    while let Some(a) = args.next() {
+        // **An empty or blank reason is not a reason**, and dropping it here is what makes the
+        // refusal above mean something: `--why ""` otherwise satisfies the check, runs a full
+        // emulator pass and writes a floor whose ledger line is blank. Found by typing it.
+        let given = if a == "--why" {
+            args.next()
+        } else {
+            a.strip_prefix("--why=").map(str::to_owned)
+        };
+        if let Some(v) = given.filter(|v| !v.trim().is_empty()) {
+            out.push(v);
+        }
+    }
+    out
+}
+
+/// Today, UTC, as `YYYY-MM-DD`.
+///
+/// Shelled out rather than taken as a dependency: §46 says thin primitives or whole subsystems and
+/// nothing in between, and a date crate for one line in one header is squarely in between. UTC
+/// because AGENTS.md says every date in this tree is UTC, and the machines writing most of them do
+/// not all agree with the architect's clock. `unrecorded` when `date(1)` cannot be asked, which is
+/// the same honest answer the `# qemu:` line already gives.
+fn today_utc() -> String {
+    Command::new("date")
+        .args(["-u", "+%Y-%m-%d"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unrecorded".into())
+}
+
+/// The `# why:` lines a baseline file carries, in the order they were written.
+///
+/// Empty for the three floors saved before milestone 302 and for any file that predates the
+/// ledger, which is why the caller prints nothing rather than claiming the numbers are unexplained
+/// on purpose.
+fn recorded_reasons(text: &str) -> Vec<&str> {
+    text.lines()
+        .filter_map(|l| l.trim_start().strip_prefix("# why:"))
+        .map(str::trim)
+        .collect()
+}
+
+/// The comment header a `--save` writes above the rows, built as a pure function of its four
+/// facts so it can be tested without running a benchmark or rewriting a committed floor.
+///
+/// **A floor is calef's to move**, so the only honest way to test the writer is not to call the
+/// writer: `--save` commits a performance floor, and there is no dry run that would not be one.
+/// Pulling the header out of the write is what makes the format checkable at all.
+fn baseline_header(
+    stem: &str,
+    toolchain: &str,
+    qemu: &str,
+    date: &str,
+    reasons: &[String],
+) -> String {
+    let why: String = reasons
+        .iter()
+        .map(|w| format!("# why: {}\n", w.trim()))
+        .collect();
+    format!(
+        "# toolchain: {toolchain}
+# qemu: {qemu}
+# date: {date}
+{why}# bench/{stem}: deterministic icount tick counts (cargo xtask bench --save).
+# Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
+# emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
+# PATH is not the pinned one, precisely because that is when a baseline comparison stops being
+# apples to apples.
+             # Updating this file is a statement that a performance change is intended and
+             # understood; do it in the commit that causes the change. Checked by --check, a coarse
+             # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
+"
+    )
+}
+
 /// The nightly `rust-toolchain.toml` pins, as the baseline header records it.
 ///
 /// A three-line parse rather than a TOML dependency: §46 (thin primitives or whole subsystems) is the
@@ -467,19 +589,22 @@ fn run_bench(
             Some(pin) if pin != ran => format!("{ran} (run; .qemu-version pins {pin})"),
             _ => ran,
         };
-        let mut out = format!(
-            "# toolchain: {pinned}
-# qemu: {qemu}
-# bench/{stem}: deterministic icount tick counts (cargo xtask bench --save).
-# Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
-# emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
-# PATH is not the pinned one, precisely because that is when a baseline comparison stops being
-# apples to apples.
-             # Updating this file is a statement that a performance change is intended and
-             # understood; do it in the commit that causes the change. Checked by --check, a coarse
-             # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-",
-        );
+        // **The third field of the ratified line, and the ledger itself.** calef ratified the
+        // format on 2026-09-16 as comment lines rather than a structured block, written as
+        // `# saved: <nightly>, qemu <version>, <date>` plus a `# why:` line. Commit `99f13dad`
+        // implemented the first of those decomposed into `# toolchain:` and `# qemu:`, one fact per
+        // line, and `script/lint` now reads `# toolchain:`. So this keeps that decomposition and
+        // adds the two parts it left out, rather than reuniting the line and breaking the gate:
+        // `# date:` is the ratified line's third field and `# why:` is the ledger.
+        //
+        // **One `# why:` line per `--why`, in the header rather than above the row that moved.**
+        // Milestone 415 item 2 words it as "beside the rows that moved", which is finer, and the
+        // ratified format is the header, which is what this follows. It is also the only one that
+        // survives: the save path rebuilds this file from a fixed header plus one `name ticks
+        // iters` line per result, so a per-row comment is destroyed by the next save, which is
+        // exactly what happened to the hand-written correction above `rfence_self` on 2026-09-21.
+        // A reason that concerns one counter names it in its own prose.
+        let mut out = baseline_header(stem, &pinned, &qemu, &today_utc(), &save_reasons());
         for (name, ticks, iters) in &results {
             out.push_str(&format!(
                 "{name} {ticks} {iters}
@@ -497,7 +622,7 @@ fn run_bench(
     if check {
         let Ok(text) = std::fs::read_to_string(&baseline_path) else {
             eprintln!(
-                "bench: no baseline at {} (run `cargo xtask bench --save` first)",
+                "bench: no baseline at {} (run `cargo xtask bench --save --why \"...\"` first)",
                 baseline_path.display()
             );
             return false;
@@ -594,12 +719,104 @@ fn run_bench(
             eprintln!("bench: check passed (all within 10% of baseline; coarse tripwire)");
         } else {
             eprintln!();
+            // **What the floor says about itself, printed where the reader is already looking.**
+            // The reasons are in the file, but a person reading a red gate in CI scrollback is not
+            // reading the file, and the question they are holding is exactly the one these lines
+            // answer: is this number a cost somebody chose, or drift nobody has explained? Empty
+            // on the three floors saved before milestone 302, which say `unrecorded` for the same
+            // reason the `# qemu:` line does.
+            let recorded = recorded_reasons(&text);
+            if !recorded.is_empty() {
+                eprintln!("bench: this baseline was last saved because:");
+                for r in &recorded {
+                    eprintln!("  {r}");
+                }
+                eprintln!();
+            }
             eprintln!(
-                "bench: a benchmark moved. If intended, rerun with --save and commit the new                  baseline WITH the change that moved it."
+                "bench: a benchmark moved. If intended, rerun with --save --why \"<reason>\" and                  commit the new baseline WITH the change that moved it."
             );
         }
         return ok;
     }
 
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::baseline_header;
+
+    /// The two lines `script/lint` and milestone 302 read, in the shape their readers expect.
+    ///
+    /// `script/lint`'s baseline-toolchain check matches `^#\s*toolchain:\s*(\S+)\s*$`, so the
+    /// stamp has to stay alone on its line with nothing appended; a `# why:` line carrying a
+    /// compiler name must not be mistakable for it. That is the regression this asserts.
+    #[test]
+    fn header_records_the_stamp_and_the_reasons() {
+        let h = baseline_header(
+            "baseline-riscv64.txt",
+            "nightly-2026-09-22",
+            "11.1.1",
+            "2026-09-23",
+            &[
+                "rfence_self back to 5991 at one hart".to_string(),
+                "nightly-2026-09-22: no codegen term, measured ~0".to_string(),
+            ],
+        );
+        let lines: Vec<&str> = h.lines().collect();
+        assert_eq!(lines[0], "# toolchain: nightly-2026-09-22");
+        assert_eq!(lines[1], "# qemu: 11.1.1");
+        assert_eq!(lines[2], "# date: 2026-09-23");
+        assert_eq!(lines[3], "# why: rfence_self back to 5991 at one hart");
+        assert_eq!(
+            lines[4],
+            "# why: nightly-2026-09-22: no codegen term, measured ~0"
+        );
+        assert!(lines[5].starts_with("# bench/baseline-riscv64.txt:"));
+        // Every line of the header is a comment: `--check` parses the file by skipping lines whose
+        // first non-space character is `#`, and a reason is free prose that would otherwise parse
+        // as a benchmark row named after its first word.
+        assert!(h.lines().all(|l| l.trim_start().starts_with('#')));
+    }
+
+    /// What `--save` writes is what `--check` reads back, including a reason whose prose would
+    /// parse as a benchmark row if the `#` were ever dropped.
+    #[test]
+    fn a_saved_file_reads_its_own_reasons_back() {
+        let mut file = baseline_header(
+            "baseline-aarch64.txt",
+            "nightly-2026-09-22",
+            "11.1.1",
+            "2026-09-23",
+            &["spawn_el0 1292192 100 is the switch cost the grant added".to_string()],
+        );
+        file.push_str("yield_switch 1134718 2000\n");
+        assert_eq!(
+            super::recorded_reasons(&file),
+            vec!["spawn_el0 1292192 100 is the switch cost the grant added"]
+        );
+        // The check path skips every line whose first non-space character is `#`, so exactly one
+        // line of this file is data. A reason that lost its prefix would be read as a floor.
+        let rows: Vec<&str> = file
+            .lines()
+            .filter(|l| !l.trim_start().starts_with('#'))
+            .collect();
+        assert_eq!(rows, vec!["yield_switch 1134718 2000"]);
+    }
+
+    /// No reasons at all still produces a well-formed header, because `--check` has to read the
+    /// three floors saved before this milestone and they carry none.
+    #[test]
+    fn header_without_reasons_has_no_why_line() {
+        let h = baseline_header(
+            "baseline-aarch64.txt",
+            "unrecorded",
+            "unrecorded",
+            "unrecorded",
+            &[],
+        );
+        assert!(!h.contains("# why:"));
+        assert!(h.lines().nth(3).unwrap().starts_with("# bench/"));
+    }
 }

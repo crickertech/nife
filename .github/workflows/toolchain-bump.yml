@@ -194,13 +194,15 @@ jobs:
 
           \`\`\`
           script/bench --check && script/bench --riscv --check && script/bench --x86 --check
-          script/bench --save && script/bench --riscv --save && script/bench --x86 --save
+          script/bench --save --why "nightly bump: <what moved>"
+          script/bench --riscv --save --why "..." && script/bench --x86 --save --why "..."
           \`\`\`
 
           **This job deliberately does not do that for you.** A bump that re-recorded the floors as
           part of raising the pin would make them track the compiler by construction, so a nightly
           that genuinely made this kernel slower would move the floor by as much as it moved the
-          kernel and report nothing. Say in the commit message what moved.
+          kernel and report nothing. \`--why\` is required and writes that account into the floor
+          itself, beside the numbers (milestone 302 (a baseline records what it was saved against)); say the same thing in the commit message.
 
           If CI here is red, upstream has moved away from us. Do not merge; the fix is a commit to this
           branch adding whatever the overlay now needs (usually a name in the \`pub use

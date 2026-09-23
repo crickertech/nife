@@ -3,7 +3,14 @@
 #
 #   script/bench             deterministic icount counts (TCG); the regression currency
 #   script/bench --check     diff against bench/baseline-aarch64.txt; FAILS on >10% drift
-#   script/bench --save      rewrite the baseline (do it in the commit that moved the numbers)
+#   script/bench --save --why "<reason>"
+#                            rewrite the baseline (do it in the commit that moved the numbers).
+#                            --why is REQUIRED and writes a `# why:` line into the file above the
+#                            numbers; repeat it once per reason when one save covers several
+#                            moves. Milestone 302 (a baseline records what it was saved
+#                            against): a floor that records only a number cannot tell
+#                            the next reader compiler drift from a regression, and twice in four
+#                            days it did not.
 #   script/bench --real      HVF: natively on the Apple Silicon core; per-core magnitudes, no gating
 #   script/bench --real --smp  HVF on 4 harts; adds the multi-hart throughput bench (smp_throughput)
 #                              and, with a RedoxFS disk attached, the filesystem ones: fs_read and
@@ -24,6 +31,17 @@
 # it.
 #
 # BUGS
+#
+#   - **A recorded reason is per file, not per row.** `--why` writes `# why:` lines into the header,
+#     so a save that moves twelve rows for one reason and one row for another records both at the
+#     top and relies on prose to say which is which. Per-row notes do not survive: the save path
+#     rebuilds the file from a fixed header plus one `name ticks iters` line per result, which is
+#     how the hand-written correction above riscv64's `rfence_self` was destroyed on 2026-09-21.
+#     Milestone 415 (sub-tripwire drift accumulates across
+#     baseline saves) item 2 asks for the finer shape and keeps it. Name a counter in the reason's
+#     own words meanwhile.
+#   - **Nothing checks that a reason says anything.** `--save --why x` passes. The gate is that a
+#     person had to type something and that the something is in front of the next reader.
 #
 #   - **The EXAMPLES above name one of three architectures.** `--riscv` and `--x86` both exist
 #     (`cargo xtask bench --help`, and `bench_riscv` / `bench_x86` in xtask), each gates against its

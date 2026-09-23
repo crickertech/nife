@@ -87,7 +87,8 @@ if [ "$have" != "$want" ]; then
     echo
     echo "  Pick one, deliberately:"
     echo "    - keep this QEMU and update the pin:  echo $have > .qemu-version   (commit it; CI"
-    echo "      rebuilds and re-caches, and re-run script/bench --save if the numbers actually moved)"
+    echo "      rebuilds and re-caches, and re-run script/bench --save --why \"new QEMU: ...\" if the"
+    echo "      numbers actually moved)"
     echo "    - keep the pin and hold QEMU still:   brew pin qemu"
     exit 0
 fi

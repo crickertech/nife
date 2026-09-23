@@ -1349,11 +1349,13 @@ numbers are revalued by a change no commit in this branch is responsible for.
 Re-record them HERE, in the commit that raises the pin, so the delta is seen by
 the person causing it:
 
-    script/bench --save
-    script/bench --riscv --save
-    script/bench --x86 --save
+    script/bench --save --why "nightly-<date>: <what the new compiler moved>"
+    script/bench --riscv --save --why "..."
+    script/bench --x86 --save --why "..."
 
-and say in the commit message what moved. If a floor moved a lot, that is the
+--why is not optional: a floor records the reason it holds its value, beside the
+number, because a commit message is read once on the day it is written (milestone
+302). Say the same thing in the commit message. If a floor moved a lot, that is the
 gate working: a nightly can make this kernel genuinely slower, and re-recording
 without reading the delta is the one outcome this refuses to automate.""", file=sys.stderr)
     sys.exit(1)

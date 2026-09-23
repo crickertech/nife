@@ -265,7 +265,7 @@ fn main() -> ExitCode {
                 "       cargo xtask undefined-behavior-check [extra cargo-miri-test args, e.g. -p <crate>]"
             );
             eprintln!(
-                "       cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save]"
+                "       cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save --why <reason>]"
             );
             eprintln!(
                 "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf] [--test <substring>]"
