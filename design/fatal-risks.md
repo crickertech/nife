@@ -1122,11 +1122,12 @@ available by the hour, from several vendors with different firmware. So the wide
 experiment the narrow one does not, which is the second property the rule at the top of this file
 demands.
 
-**The experiment is a second machine of an architecture nife already boots on**, and it is not
-specified here, because a lane is pricing rented metal right now against milestone 225 (run the soak
-on radon, argon and xenon) and risk 4, the per-crossing cost, both of which want the same rental.
-This entry's question rides along on that for the price of the boot rather than asking for hardware
-of its own, and what that pricing will conclude is not known yet. What a result would mean is worth
+**The experiment for the widened grain, which has not been run:** a second machine of an
+architecture nife already boots on, riding on milestone 225 (run the soak on radon, argon and
+xenon). It is not specified further here, because a lane is pricing rented metal right now against
+that milestone and against risk 4, the per-crossing cost, and both want the same rental. So this
+question costs a boot rather than a purchase, and what the pricing will conclude is not known
+yet. What a result would mean is worth
 fixing in advance, because all three outcomes are informative and only one of them looks like news.
 If a second x86_64 machine needs a change **outside** `arch/x86_64/`, this risk moves toward red at a
 grain the 2026-09-17 run never touched. If it needs a change **inside** `arch/x86_64/` that xenon did
