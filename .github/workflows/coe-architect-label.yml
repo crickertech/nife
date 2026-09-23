@@ -1,0 +1,191 @@
+name: coe architect label
+
+# **calef, 2026-09-23: he wants to review every correction of error, and asked that
+# `needs-architect` be added to each COE pull request by default.** "Default" is the requirement.
+# AGENTS.md already prices what happens when a label depends on someone remembering: it is rung
+# four of the ladder ("A note, a report, or a comment on a pull request... the floor, and it is
+# what everything that failed on 2026-08-04 was relying on"), and §88 (`needs-architect` as a
+# required check, rather than as a script's restraint) built the enforcement half of this label as
+# a required check, but said plainly what it does not do: *"It enforces the label; it cannot apply
+# the label... The mechanisms that could close that are separate and harder... a check that reads
+# the diff and demands the label when the syscall surface or the dependency graph moved. The
+# second is the real answer."* This workflow is that answer's shape, scoped to one case: a COE.
+#
+# **A separate workflow, not a change to architect-hold.yml.** That workflow's own header is
+# explicit: *"It is deliberately read-only... Nothing here writes anything, no comment, no label
+# change, no merge action -- so nothing beyond read access is asked for."* Adding a write path to
+# it would contradict a stance that file argues for on purpose, and would put a write permission on
+# a required check sitting in the merge queue's critical path (its own header calls out PR #546's
+# two-hour stall as the reason that check must never be the thing that gets stuck). A required
+# check earns its keep by being small, deterministic and read-only; a labeler earns its keep by
+# being best-effort. Mixing the two would cost architect-hold.yml its argument without buying this
+# job anything, since this job does not need to be required or fast to be useful.
+#
+# **What "a COE pull request" means here.** decision 210, "a correction of error, and its action
+# items are decisions, proposals or milestones", proposes that COE records live at
+# `notes/corrections/`, one file per correction. That decision is UNRATIFIED and UNMERGED as of
+# this writing (branch `maintainer/a-correction-names-its-action`, pull request #1148; deliberately
+# not written as a section-sign citation here, since that form is checked tree-wide against the
+# decisions this branch actually has, and this branch does not have that one yet). Its own number is
+# provisional per its first line too, because two other decision files were open on unmerged
+# branches the same night. So the directory this workflow watches is named once, as COE_DIR below,
+# with this comment as the only place that needs to change if calef ratifies a different layout or
+# number.
+#
+# **This is a convenience, not a gate.** It routes attention; it does not block anything, and
+# nothing here is added to branch protection's required checks. A COE must never fail to exist
+# because a label API call failed, so every step below is written to report and continue rather
+# than to fail the job. See the detection step's comment for the specific reasoning on why this
+# uses two different diffs (the whole PR vs. just the latest push) rather than one.
+
+on:
+  # `synchronize` needs `before`/`after` from the event payload (see the detection step), which is
+  # why this does not also listen for `labeled`/`unlabeled`/`ready_for_review` the way
+  # architect-hold.yml does: those events carry no new commits, so there is nothing new to detect
+  # a file addition against, and firing on them would only add cost with no chance of a different
+  # outcome. `reopened` is included because a closed-then-reopened PR is still a PR nobody has
+  # scanned since whatever happened while it was closed.
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+# `pull-requests: write` is the one thing this job needs beyond the `contents: read` every other
+# workflow here defaults to (see architect-hold.yml's header on the same point): adding a label to
+# a pull request. Nothing here reads or writes repository contents, opens a comment, or touches
+# anything else the token could reach, so nothing wider is asked for. This is deliberately NOT
+# `pull_request_target`: that trigger runs with base-repo token privileges against a fork's
+# workflow-controlled event, which is the wrong trade for a job this small. The cost is accepted
+# and stated rather than hidden: for a pull request opened from a fork, GitHub gives the
+# `GITHUB_TOKEN` read-only access regardless of this block (its own documented fork-safety
+# default), so the label call below will fail there and log why. That failure is silent to nobody:
+# it prints to the job log and, same as every other case, does not fail the build. A human already
+# has to review a fork's first-time run before anything in it executes, so the label being missing
+# for that one case is a smaller cost than widening this token to run against fork-controlled code.
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per PR at a time, so two events firing close together (e.g. `opened` immediately followed
+# by a `synchronize` from a force-push) cannot interleave their `gh` calls. `cancel-in-progress` is
+# false on purpose: unlike ci.yml/verify.yml, a superseded run here is not wasted work whose result
+# nobody wants -- an `opened` run and a later `synchronize` run can each be the one that finds a
+# COE file, over two different diffs (see below), and cancelling the first would silently drop that
+# detection instead of just being late with it.
+concurrency:
+  group: coe-architect-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  label:
+    name: label a new COE with needs-architect
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      # **Requirement 1 lives entirely in this step: it adds, and it must never re-add what a
+      # human took off.** The obvious approach, asking "does this PR's diff (base...head) add a
+      # file under COE_DIR", is wrong for a repeat-labelled PR: GitHub reports a file's status as
+      # `added` for as long as it exists in the head and did not exist in the base, for the WHOLE
+      # PR, on every single event, no matter which push introduced it. A maintainer who removes the
+      # label after reading a COE would see it silently reappear on this PR's very next push, which
+      # is worse than never having the mechanism: the label would stop meaning "unread."
+      #
+      # So the diff this step reads depends on the event:
+      #   - `opened` / `reopened`: no earlier event exists to compare against, so the only sensible
+      #     diff is the whole PR (base...head, via the pulls/files API), read exactly once at the
+      #     moment the PR (re)appears.
+      #   - `synchronize`: the event payload carries `before` (the previous head) and `after` (the
+      #     new head). Comparing just those two SHAs scopes the check to what THIS push changed. A
+      #     later push that does not touch COE_DIR finds nothing here, so a removed label stays
+      #     removed. A later push that adds a genuinely new COE file still gets caught, which is
+      #     the correct "add" behaviour for a second correction landing in the same PR.
+      - name: Detect whether this event adds a COE record
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+        run: |
+          # COE_DIR tracks decision 210 (a correction of error, and its action items are
+          # decisions, proposals or milestones; see this file's header), which is UNRATIFIED as of
+          # this writing. If calef ratifies a different path, this is the only line to change.
+          COE_DIR="notes/corrections/"
+
+          add=false
+          files=""
+
+          # `before` is the all-zero SHA on a few documented GitHub edge cases (a branch's very
+          # first push to an existing PR ref); treat that the same as "no usable before" rather
+          # than asking the compare API to explain a SHA that names nothing.
+          if [ "$EVENT_NAME" = "synchronize" ] && [ -n "$BEFORE_SHA" ] && [ -n "$AFTER_SHA" ] \
+             && [ "$BEFORE_SHA" != "$AFTER_SHA" ] \
+             && ! printf '%s' "$BEFORE_SHA" | grep -qE '^0+$'; then
+            echo "coe-label: synchronize event, diffing this push only ($BEFORE_SHA..$AFTER_SHA)"
+            if ! files="$(gh api "repos/$REPO/compare/$BEFORE_SHA...$AFTER_SHA" \
+                  --jq '.files[]? | select(.status=="added") | .filename' 2>&1)"; then
+              echo "coe-label: could not compare $BEFORE_SHA..$AFTER_SHA; skipping this run." >&2
+              echo "coe-label: gh said: $files" >&2
+              echo "add=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            echo "coe-label: $EVENT_NAME event, reading the whole PR's file list (base...head)"
+            if ! files="$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
+                  --jq '.[] | select(.status=="added") | .filename' 2>&1)"; then
+              echo "coe-label: could not read PR #$PR_NUMBER's file list; skipping this run." >&2
+              echo "coe-label: gh said: $files" >&2
+              echo "add=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          matches="$(printf '%s\n' "$files" | grep -F "$COE_DIR" || true)"
+          if [ -n "$matches" ]; then
+            echo "coe-label: newly added under $COE_DIR:"
+            printf '%s\n' "$matches" | sed 's/^/  /'
+            add=true
+          else
+            echo "coe-label: nothing newly added under $COE_DIR in this event; leaving the label alone"
+          fi
+          echo "add=$add" >> "$GITHUB_OUTPUT"
+
+      # **Requirement 2: least privilege was argued above, at the permissions block, not here.**
+      # **Requirement 3: this step must not fail the build.** `gh pr edit` can fail for reasons
+      # that have nothing to do with whether a COE was added: a fork PR's read-only token (see the
+      # permissions comment), a transient API error, or the label having been deleted from the
+      # repository entirely. None of those are reasons a correction of error should be blocked
+      # from existing, so failure here is logged and swallowed rather than propagated. The `if`
+      # guards the `gh` call, which keeps this step's own exit code at whatever the trailing `echo`
+      # leaves it (0), regardless of which branch ran; nothing later in this file depends on it.
+      - name: Add needs-architect (never removes it)
+        if: steps.check.outputs.add == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if gh pr edit "$PR_NUMBER" --add-label needs-architect 2>&1; then
+            echo "coe-label: needs-architect added (or already present) on PR #$PR_NUMBER"
+          else
+            echo "coe-label: could not add needs-architect to PR #$PR_NUMBER." >&2
+            echo "coe-label: not fatal -- a human reading the diff still sees the new COE file." >&2
+          fi
+          exit 0
+
+      # **Requirement 5: deliberately no `## What I need from you` comment here.** AGENTS.md pairs
+      # the label with that comment and says what makes the comment worth writing: it must be
+      # "answerable without reading the diff" and "name the specific ask." A script that only knows
+      # a file landed under COE_DIR cannot write that sentence -- it does not know whether the ask
+      # is "rule on the root cause," "pick between two proposed action items," or something the
+      # author has not framed yet.
+      #
+      # milestone 251 (a needs-architect label outlives the question that earned it, so the queue lies)
+      # already found the analogous automated comment -- an activity/age report on stale
+      # `needs-architect` PRs -- has to stop at reporting for the same reason: the tooling cannot
+      # tell what a human has and has not actually answered.
+      #
+      # A generic stub ("A COE was added, please review") would sit on the PR looking like the real
+      # thing AGENTS.md asks for while carrying none of its content, which is worse than the
+      # silence it would replace: a reader who trusts the convention would stop looking for the
+      # author's actual ask. Writing the specific ask stays the COE's author's job, same as it is
+      # for every other `needs-architect` PR today.
