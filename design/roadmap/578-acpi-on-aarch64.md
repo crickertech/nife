@@ -117,7 +117,8 @@ Each of these is a table or a field that nothing in this tree reads today. Check
    through `madt_entries`' final arm to `MadtEntry::Other(kind)`, which is the decoder behaving
    correctly and telling you nothing. This is the direct counterpart of what
    `machine_discovery::gic::discover` reads out of the device tree, including the GICv2-versus-GICv3
-   distinction that milestone 222 measured the cost of getting wrong.
+   distinction whose cost `kernel/src/memory.rs` records beside that call: a kernel that booted,
+   printed `interrupts ON`, and took none.
 2. **GTDT, the generic timer description, which has no decoder at all.** It is the table that carries
    the secure EL1, non-secure EL1, virtual and non-secure EL2 timer interrupt numbers and their
    flags, plus `CntControlBase` and `CntReadBase`. A device tree states the same four interrupts in
