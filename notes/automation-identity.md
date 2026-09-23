@@ -128,10 +128,48 @@ Once, by an owner of the `crickertech` organization.
    repositories** and pick **`nife`** alone. **Never "All repositories"**, then or later: add
    repositories to this list as they appear. An App installed on every repository holds authority
    over repositories it has no business in.
-10. Store both as **organization** secrets, scoped to exactly the repositories that may read them:
+10. Store both as **organization** secrets, scoped to exactly the repositories that may read them.
+    The commands are:
 
         gh secret set AUTOMATION_APP_ID  --org crickertech --repos nife --body '5053502'
         gh secret set AUTOMATION_APP_KEY --org crickertech --repos nife < ~/Downloads/smelter.private-key.pem
+
+    **Expect them to fail, and do not fix it the way `gh` suggests.** Unless your shell's token
+    already carries organization admin, both return:
+
+        failed to fetch public key: HTTP 403: You must be an org admin or have the
+        actions secrets fine-grained permission.
+        This API operation needs the "admin:org" scope.
+
+    `gh` offers `gh auth refresh -h github.com -s admin:org`, and it works. **Do not run it.** That
+    token is shared by every agent on this machine, and widening it permanently for a one-time task
+    grants organization-admin to automation: on 2026-09-23 eight lanes were using that token while
+    merging unattended. Least privilege says do the one-time thing by hand. The reasoning is the
+    durable part of this paragraph; the clicks below are not.
+
+    **So use the browser.** https://github.com/organizations/crickertech/settings/secrets/actions,
+    then **New organization secret**, twice:
+
+    - `AUTOMATION_APP_ID` = `5053502`
+    - `AUTOMATION_APP_KEY` = the whole `.pem`, including both the `-----BEGIN` and `-----END` lines
+      and the trailing newline.
+
+    Set **Repository access: Selected repositories → `nife`** on both. To get the key into the
+    clipboard without opening it in an editor, and to remove it afterwards:
+
+        pbcopy < ~/Downloads/*.private-key.pem
+        rm ~/Downloads/*.private-key.pem
+
+    **You cannot confirm this from the shell either**, and that is not something being broken:
+    `gh secret list --org crickertech` needs the same `admin:org` scope and returns the same 403. On
+    the browser path the secrets page itself is the confirmation, and the first real proof is the
+    identity probe in step 11, once the workflow change has merged.
+
+    **Storing them early is safe, and the argument is structural rather than an observation.** Until
+    the workflow change has merged, `main`'s `toolchain-bump.yml` contains no reference to
+    `AUTOMATION_APP_ID` or `AUTOMATION_APP_KEY` at all, so the secrets cannot reach it whatever they
+    contain; the daily bump keeps using the PAT. There is no window in which a half-provisioned App
+    can change what the scheduled job does.
 
     **`--repos nife` is what makes this safe, and it is why this is not the looser choice it looks
     like.** An organization secret naming exactly which repositories may read it has the same blast
@@ -152,8 +190,8 @@ Once, by an owner of the `crickertech` organization.
     secret and stays that way; the alternative is noted here so the next reader does not have to
     work out whether the choice was considered.
 
-    Then delete the downloaded `.pem`: `rm ~/Downloads/smelter.private-key.pem`. A key sitting in
-    a downloads folder is the leak this whole exercise is meant to reduce.
+    Either way, delete the downloaded `.pem` afterwards. A key sitting in a downloads folder is the
+    leak this whole exercise is meant to reduce.
 
     Both secret names are **provisional** until calef ratifies them. They were deliberately not
     renamed to match `smelter` when the App's name was ratified: a rename is a naming decision with
