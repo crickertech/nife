@@ -4,6 +4,68 @@
 models and should capture that somewhere durable. To start, Sonnet is already available under our
 Claude subscription."* *(Section number provisional until the merge queue lands it.)*
 
+## Amended 2026-09-22: four Claude tiers, not two, and the boundary that was costing most
+
+**calef, 2026-09-22: "Sonnet and Opus aren't comparable."** He is right, and this section's original
+two-way split (cheap model, expensive model) hid the boundary where the most money was actually
+going.
+
+**The prices, read from a provider's list rather than recalled**, per million tokens in and out:
+
+| tier | in / out | ratio to Haiku |
+|---|---|---|
+| Fable 5.1 | 10 / 50 | 10x |
+| Opus 4.6 | 5 / 25 | 5x |
+| Sonnet 4 | 3 / 15 | 3x |
+| **Haiku 4.5** | **1 / 5** | — |
+| Qwen3-Coder, rented | 0.30 / 1.00 | 0.3x |
+| DeepSeek V4 Flash, rented | 0.05 / 0.10 | 0.05x |
+
+**A thousandfold span from top to bottom**, so picking two tiers wrong is an order of magnitude.
+
+**And a correction that matters for what to rent:** Kimi K3 costs **exactly what Sonnet costs**,
+$3 and $15. A rented model in the middle buys nothing except not consuming the subscription's rate
+limit, and it writes no better. **There is no middle tier worth renting**: either the work is cheap
+and mechanical, where Qwen is 15x less and DeepSeek 150x less, or it needs judgement, where Sonnet
+is the same price and knows this tree.
+
+## The criterion, which is not difficulty
+
+The routing rule this section originally gave was about *mechanical versus not*. The sharper question
+is **whether the valuable output is something nobody specified**, which is what the evidence of
+2026-09-21 actually separates.
+
+Opus found that `size_of::<PerCpu>()` growing from 128 to 136 broke shift-based indexing and cost
+5.4% of the IPC fastpath; that a capability parked in a thread's hand-off slot survived every
+revocation sweep; that an x86 calibration was wrong by a factor of eleven. **None of those was
+asked for.** Sonnet did the promotion repair and the falsification refresh: complete specifications,
+executed correctly, and it caught an error in the maintainer's own brief.
+
+| tier | when |
+|---|---|
+| **Fable** | **unproven here.** No lane has been dispatched to one, and there is no evidence it earns twice Opus. Recorded as unknown rather than reserved for something |
+| **Opus** | the answer is not in the brief: design forks, adversarial passes, anything where *what did you notice* is the deliverable |
+| **Sonnet** | the specification is complete and the difficulty is in the execution |
+| **Haiku** | the specification is complete, the execution is routine, **and project conventions matter**, because it reads `AGENTS.md` and the brief can therefore be short |
+| **rented** | a gate is the entire standard, and the brief must carry every rule, because `--bare` discards the constitution |
+
+**The brief is part of the cost**, which is why Haiku's tier is cheaper than its token price suggests
+and a rented model's is dearer. Four briefs written on 2026-09-22 each re-carried the citation-gloss
+rule, the never-edit-another-block rule and the provisional-name rule, because a rented model cannot
+read them.
+
+**The boundary that was costing most was Opus against Sonnet, not Claude against rented.** Most lanes
+on 2026-09-21 had complete specifications, written by the maintainer, and went to Opus by habit. That
+is the 5x-against-3x error repeated twenty times, and in total it exceeds everything the rented
+gateway saves.
+
+## What this does not say
+
+**It is not a ceiling on spending.** calef, 2026-09-22: *"we can use more of any of the Claude
+models. We just have to pay for them."* The goal is **work per dollar**, not fewer dollars: a task
+Haiku does as well as Opus is five times the throughput for the same money, so reaching for the
+expensive model is not caution, it is waste with a good excuse.
+
 ## The constraint this answers
 
 calef's inference budget is $200 a month and the capacity runs out weekly. **The limit reached is a
