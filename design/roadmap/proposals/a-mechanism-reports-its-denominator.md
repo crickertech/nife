@@ -1,6 +1,8 @@
 # A mechanism that reports clean says over how many units, and zero is loud
 
-**Status: PROPOSED 2026-09-23.** Name provisional; calef names what a reader meets. Raised by the
+**Status: PROPOSED 2026-09-23.**
+`a-mechanism-reports-its-denominator`: ratified 2026-09-23 (calef, reviewing
+`notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md` on pull request #1166). Raised by the
 first correction of error in this tree,
 `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, whose fifth why reaches a habit
 rather than a bug and whose action items must resolve to something under §210 (a correction of

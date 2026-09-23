@@ -5,11 +5,20 @@ action items are decisions, proposals or milestones).
 
 ## What happened
 
-`.github/workflows/falsifications.yml` runs the weekly falsification sweep: it replays every
-recorded falsification patch against its own Kani harness to prove the harness can still be made to
-go red. §134 (a harness carries a machine-replayable falsification record, or it is not evidence) is
-the convention; milestone 194 (build §134: the falsification record, its lint, and the sweep that
-replays it) built it.
+A Kani harness is a proof that some property of the code holds, checked by a model checker rather
+than by running the code. A proof like that has a failure mode a test does not: it can be green
+because nothing it asserts can ever fail, and from outside that looks exactly like a proof of
+something. So each harness here carries a **falsification record**, a patch that deliberately breaks
+the code the harness covers. Applying the patch must turn the harness red. If it does not, the proof
+was never evidence about that code and nobody would have known. That is §134 (a harness carries a
+machine-replayable falsification record, or it is not evidence), and it is the reason the sweep
+exists at all.
+
+`.github/workflows/falsifications.yml` is that sweep, run weekly: it replays every recorded
+falsification patch against its own harness and reports any that stayed green. Milestone 194 (build
+§134: the falsification record, its lint, and the sweep that replays it) built it, on 2026-08-31,
+and **nobody ran it once**. Its first execution of any kind was the cron seven days later, which
+refused.
 
 The sweep step is
 
@@ -199,12 +208,12 @@ which is the same luck that found the three redone patches above and is not a me
   logging can no longer dirty the tree it is about to patch. Carried by pull request #1156, commit
   `401203294`, on branch `falsify/the-single-harness-crates`; that pull request owns
   `.github/workflows/falsifications.yml` and this record deliberately does not touch it.
-- **Proposed.** `design/roadmap/proposals/a-gate-is-not-evidence-until-it-has-failed.md` (name
-  provisional): a workflow that gates something is not deployed until it has been observed failing
+- **Proposed.** `design/roadmap/proposals/a-gate-is-not-evidence-until-it-has-failed.md`: a
+  workflow that gates something is not deployed until it has been observed failing
   on purpose, once, and the record of that observation lives with it, the way §134's falsification
   patch lives beside its harness. It may fold into the denominator proposal below rather than
   standing alone; that is calef's call.
-- **Proposed.** `design/roadmap/proposals/a-mechanism-reports-its-denominator.md` (name provisional):
+- **Proposed.** `design/roadmap/proposals/a-mechanism-reports-its-denominator.md`:
   survey the 5 `continue-on-error: true` steps and 19 `|| true` constructs across the 14 workflows,
   decide for each whether it suppresses a verdict or an outcome, and give every job that publishes a
   report a denominator it must assert is non-zero. It is the workflow-level counterpart of what
