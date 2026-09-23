@@ -222,9 +222,10 @@ Measured against the tree as it stands, not asserted.
 - **One thing that is not a cost.** Nothing outside these three files reads a status word. The
   vocabulary is local to `design/fatal-risks.md` and its two readers.
 
-## The §92 test (a caretaker is supervised by the client it serves), answered out loud
+## The effort test, answered out loud
 
-*Would I still choose two axes if both options cost the same?*
+§92 (a caretaker is supervised by the client it serves) carries the test this tree applies to any
+recommendation: *would I still choose this if both options were the same amount of work?*
 
 **Yes.** The one-word option is the cheaper of the two by a small margin (one field to parse, nine
 lines to rewrite rather than eleven, one chart rather than two), and cost is not what decides it.
