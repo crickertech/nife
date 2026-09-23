@@ -22,10 +22,6 @@ meet a reader, so the next person reading that column does not have to rediscove
 `design/fatal-risks.md`'s risk 3, the paragraph dated 2026-09-23; `script/mutation`'s `report()`
 comments; and `notes/mutation-testing.md`'s `Scope and honest caveats` section.
 
-**Gate: NONE.** It is a correction to one paragraph of `design/fatal-risks.md` and to milestone 438's
-own premise, both already written and both readable. A lane could start today; the numbers it needs
-are in milestone 438's block with the commands that produced them.
-
 **What the record says.** `design/fatal-risks.md`'s risk 3, AMBER as of 2026-09-19: *"One crate
 accounts for the fall and it was not one of the eight. `machine_discovery` went from 22 survivors to
 **77**, at 86.2% ... It is the crate milestone 319 proved on 2026-09-17: the proofs landed, the
@@ -66,6 +62,18 @@ which census each number comes from, and record the trap: **`--report`'s baselin
 2026-08-03 and is not the previous census.** The trap is the durable half. Every future reading of
 that column by anyone will make the same mistake, and the fix is either a second column or a header
 that says the date out loud.
+
+## Follow-on
+
+- **Recorded.** This lane did not build "a second column, or a header that says the date out
+  loud", the mechanical fix the proposal named as the alternative to a comment. It instead
+  recorded the trap where a reader already stands when they run `--report`: in `script/mutation`'s
+  own `report()` comments, beside the `(baseline missed)` header, and in
+  `notes/mutation-testing.md`'s `Scope and honest caveats` section (this file's `BUGS`-equivalent;
+  milestone 326 (nobody has been assigned to turn a mutation score upward) already cites it as
+  such). Rung three of AGENTS.md's ladder rather than rung two.
+  If the column keeps getting misread despite the comment, the mechanical fix is still there to
+  build.
 
 ## Index row
 
