@@ -25,8 +25,15 @@ pub const LINE_MAX: usize = 2048;
 /// unbounded recursion on adversarial input is a fault, not a slow render.
 pub const MAX_DEPTH: u8 = 3;
 
-/// Columns a table may have. Wider tables lose their right-hand columns.
-pub const TABLE_COLS: usize = 8;
+/// Columns a table may have.
+///
+/// A wider table is **not** truncated: everything past this many columns is folded into the last
+/// one, separator pipes and all, so the render gets ugly and loses nothing. That is the same
+/// failure mode [`TABLE_ROWS`] chose, for the same reason, and it was chosen here late: this was 8
+/// and it dropped the right-hand columns in silence until `notes/rented-metal.md` arrived with
+/// twelve of them on 2026-09-23 and the corpus test caught it. Sixteen is the repository's widest
+/// table (twelve) with room, so the fold is a guarantee rather than something a reader meets.
+pub const TABLE_COLS: usize = 16;
 
 /// Rows a table may hold at once.
 ///
@@ -495,8 +502,24 @@ impl Renderer {
             // one (`--arch aarch64\| riscv64`), and reading it as a separator gave that table a
             // third column nobody wrote and squeezed the other two to pay for it.
             let mut j = i;
-            while j < body.end && !(self.line[j] == b'|' && (j == i || self.line[j - 1] != b'\\')) {
-                j += 1;
+            if col + 1 == TABLE_COLS {
+                // The last slot swallows the rest of the row rather than splitting it, which is
+                // what makes a too-wide table lossy in layout only. Stopping here instead would
+                // drop every remaining cell without saying so, and that is the bug this arm exists
+                // to remove. The row's own trailing pipe is not part of the text.
+                j = body.end;
+                while j > i && (self.line[j - 1] == b' ' || self.line[j - 1] == b'\t') {
+                    j -= 1;
+                }
+                if j > i && self.line[j - 1] == b'|' && (j - 1 == i || self.line[j - 2] != b'\\') {
+                    j -= 1;
+                }
+            } else {
+                while j < body.end
+                    && !(self.line[j] == b'|' && (j == i || self.line[j - 1] != b'\\'))
+                {
+                    j += 1;
+                }
             }
             let cell = trim(&self.line[i..j.min(body.end)]);
             // A trailing pipe produces one empty cell that nobody typed; drop it rather than

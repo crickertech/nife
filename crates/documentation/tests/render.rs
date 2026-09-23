@@ -875,16 +875,39 @@ fn an_indented_block_quote_indents_by_its_rule_and_not_by_its_spaces() {
 }
 
 #[test]
-fn a_table_wider_than_the_column_bound_loses_its_right_hand_columns() {
-    // `TABLE_COLS` is a recorded limitation and it had no test, so the bound that enforces it could
-    // have been off by one into a fixed array. Ten columns in, eight out.
-    let src = "| a | b | c | d | e | f | g | h | i | j |\n\
-               |---|---|---|---|---|---|---|---|---|---|\n\
-               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 |\n";
+fn a_table_of_twelve_columns_keeps_all_twelve() {
+    // The minimal reproduction of the 2026-09-23 red `main`, reduced from `notes/rented-metal.md`:
+    // twelve columns against a `TABLE_COLS` of 8 meant the last four were dropped in silence, and
+    // `every_character_survives` found it an hour after the page landed. Ten columns used to be
+    // the case this file pinned, in the other direction; see the predecessor in git.
+    let src = "| a | b | c | d | e | f | g | h | i | j | k | l |\n\
+               |---|---|---|---|---|---|---|---|---|---|---|---|\n\
+               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z |\n";
     let out = plain(src, 80);
     assert_eq!(
         out,
-        "  a | b | c | d | e | f | g | h\n  --+---+---+---+---+---+---+--\n  1 | 2 | 3 | 4 | 5 | 6 | 7 | 8\n"
+        "  a | b | c | d | e | f | g | h | i | j | k | l\n  \
+         --+---+---+---+---+---+---+---+---+---+---+--\n  \
+         1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z\n"
+    );
+}
+
+#[test]
+fn a_table_wider_than_the_column_bound_folds_rather_than_drops() {
+    // Past `TABLE_COLS` the layout degrades and the text does not: the remaining cells are folded
+    // into the last column, separators and all. That is `TABLE_ROWS`' bargain applied sideways,
+    // and it is what makes the bound a rendering limit rather than a data loss.
+    let src = "| a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r |\n\
+               |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n\
+               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z | A | B | C | D | E | F |\n";
+    let out = plain(src, 200);
+    assert!(
+        out.contains("p | q | r"),
+        "the seventeenth column onward was dropped: {out:?}"
+    );
+    assert!(
+        out.contains("D | E | F"),
+        "the seventeenth cell onward was dropped: {out:?}"
     );
 }
 

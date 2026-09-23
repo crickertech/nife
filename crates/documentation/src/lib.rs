@@ -31,9 +31,10 @@
 //! somewhere to put it is a memory grant the program can otherwise do without.
 //!
 //! The cost is stated rather than hidden: a source line longer than [`LINE_MAX`] is truncated, and
-//! a table wider than [`TABLE_COLS`] loses its right-hand columns. A table *longer* than
-//! [`TABLE_ROWS`] does not lose rows; it spills into a second aligned chunk, because losing text is
-//! the one failure mode a documentation service cannot have. See `BUGS`.
+//! it is the only place this renderer still loses characters. A table *longer* than [`TABLE_ROWS`]
+//! does not lose rows; it spills into a second aligned chunk. A table *wider* than [`TABLE_COLS`]
+//! does not lose cells either; they fold into the last column. Losing text is the one failure mode
+//! a documentation service cannot have. See `BUGS`.
 //!
 //! # What it renders
 //!
@@ -113,6 +114,14 @@
 //!   its SGR handler implements only 0, 1, 7, 22, 27 and the colour ranges. On the serial console,
 //!   where the far end is the host's terminal, it shows. So emphasis is visible on one of the two
 //!   terminals this system has, and the choice was between that and spending a colour on it.
+//! - **A table wider than [`TABLE_COLS`] folds its remaining cells into the last column**, so the
+//!   layout degrades and the text does not. Until 2026-09-23 it dropped them instead, in silence,
+//!   and `notes/rented-metal.md` landed with twelve columns against a bound of 8 and turned `main`
+//!   red an hour later. The bound is now 16, which is this repository's widest table with room, so
+//!   the fold is a guarantee rather than something a reader here meets. The fold is deliberately
+//!   not loud: a renderer that refused input it could not lay out prettily would be worse than one
+//!   that lays it out badly, and [`Renderer::truncated`] stays what it says it is, a report that
+//!   characters were lost.
 //! - **A table that spills past [`TABLE_ROWS`] loses its header emphasis and its column alignment
 //!   in the second chunk.** Both are read off the delimiter row, which arrived in the first chunk
 //!   and is not carried across the flush that makes room. The rows themselves are never lost, which
