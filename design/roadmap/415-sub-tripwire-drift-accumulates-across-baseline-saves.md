@@ -157,7 +157,9 @@ compared against, which is a fact that other work starts depending on.
 ## How this bears on the toolchain-bump decision, which has since been answered
 
 **Corrected 2026-09-19.** This section was written against calef's then-open decision 2 from PR #883
-(`icount-baselines-drift-after-a-toolchain-bump.md`): should a toolchain bump re-baseline in the
+(`icount-baselines-drift-after-a-toolchain-bump.md`, since promoted as milestone 577 (the icount
+baselines predate the pinned nightly) and superseded in the same act): should a toolchain bump
+re-baseline in the
 same pull request, or fail loudly? **He ruled on 2026-09-16 and it is milestone 302**, a baseline
 that records what it was saved against and fails loudly when it is stale, which is the "fail
 loudly" half. The audit below remains the evidence for that ruling rather than an argument toward
