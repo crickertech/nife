@@ -450,20 +450,151 @@ project has the most evidence that it will not.
 **The claim:** the concurrency is wrong in ways that QEMU cannot show and that arrive one at a time,
 forever.
 
-**Why it is under-weighted:** it already fired once. The VisionFive 2 produced a receiver woken with
-nothing delivered, on three harts, that no emulator run had ever shown, and the fix
-(`wake_load_aware` refusing to make a waiting thread Ready unless the waker delivered) came out of a
-bench session rather than a test. This is the class where OS projects lose years without ever getting
-a clean red or green, which makes it the hardest entry on this list to run properly.
+**Status: UNRUN, 2026-09-23. No verdict, and the reason no verdict is available is itself the
+finding.** `UNRUN` is a provisional word: this file's vocabulary is `RUN`, `MEASURED` and `AUDITED`,
+and none of the three fits an experiment that has not happened. Until this date the entry carried no
+status at all and cited exactly one milestone where the other eight cite between four and twelve,
+and `script/fatal-risks`' own report is where that showed up. What the sweep behind this revision
+found is that the single citation was the smaller half of the problem: **the sentence this entry
+opened with had been retracted in the tree two weeks before this file was written.**
 
-**Evidence for the defence:** DECISIONS §4 rule 4 (assume weak memory ordering) is a deliberate bet
-that ARM-first development prevents hidden strong-ordering assumptions, and the tree has
-`script/repeat-under-load`, `script/interleaving-check`, the loom work (milestone 135) and
-`notes/load-sensitive-assertions.md`.
+### The one failure on record is not a failure, and this tree overturned it itself
 
-**The decisive experiment:** sustained multi-core stress on all three boards with the load-sensitive
-assertions live. Expensive, hardware-bound, and it produces a confidence rather than a verdict, which
-is honest about what this class of question can return.
+This entry used to say the risk had already fired, and that the VisionFive 2 had produced a receiver
+woken with nothing delivered on three harts that no emulator run had ever shown. That is
+`notes/visionfive2.md`'s **fourth** bench stop (boots 7 and 8, 2026-08-14), and the same note's
+**fifth** bench stop overturned it on **2026-08-15**: the dumps of boots 7 through 9 are the terminal
+state of a *completed* tour. The parked receivers are the UART demo's driver and its byte receiver,
+the wake was the worker's real send, and `svc=20` is the choreography's exact ecall total, each
+identified from the tree rather than from the dump. `notes/scheduler.md` states the consequence
+plainly: "So the gate has never fired on a field failure, and `refuse:` has never appeared on a board
+ring."
+
+The `wake_load_aware` gate and the pop-own-current guard stay, and they earn their keep on their own
+merits: the transition they forbid really would complete a rendezvous off a stale mailbox, they are
+proven red-then-green by injection tests that drive the real wake path, and
+`crates/thread_wake_handshake` models the protocol under loom. What is gone is the field failure they were built against.
+
+**So the honest statement of this risk's evidence is that it has never fired**, and the correction
+propagated badly. This file was written on 2026-08-30, milestone 201 (is multicore reliability
+converging) was minted on 2026-08-31, and milestone 225 (run the soak on radon, argon and xenon) on
+2026-09-02. All three repeat the retracted reading, and 201 additionally lists it as the first of the
+"first three data points" its curve is to be seeded from. **Those three data points need re-deriving
+before that milestone starts**: the first is retracted, and the other two are `ap_boot`'s open bugs
+in milestone 161 (the x86_64 kernel port), which is `BUILT` since 2026-09-19 and with
+milestone 316 (making `NIFE_SMP=2` mean something on x86_64) having fixed the boot-core-identity
+defect at its root.
+
+### Every multicore defect this project has found was found without silicon
+
+That cuts against the claim's second clause, and it is the strongest evidence this entry has:
+
+- **A release fence with no partner in the clock page's seqlock**, found by loom on 2026-08-04, in
+  milestone 80 (the hand-rolled atomic protocols, model-checked). A reader could revalidate
+  and return a state from one publish beside an offset from another. Milestone 116 (the fences with
+  no partner) is the sweep it triggered, and the same mistake was found the same day by a hand audit
+  that shared nothing with the harness.
+- **A double free on the untyped region claim**, found by loom and gated by a falsification witness
+  that passes only when the pre-fix protocol still double-frees, in
+  milestone 135 (the region claim, under loom).
+- **A boot-core-identity defect that failed `every_secondary_runs_scheduled_work` about half the time
+  at two cores** on x86_64, found and fixed under QEMU by
+  milestone 316 (which core booted).
+- **A port revocation that does not reach every core**, found the same way: of 12 two-core runs, all
+  seven failures are one assertion, the revoked holder's `out` succeeding. That is an open multicore
+  correctness defect today, and milestone 315 (a port revoke that reaches every core) is
+  `NOT-STARTED`.
+- **A test that hung in two of three full HVF runs** and passes in every TCG run and when run alone
+  (`notes/hvf-leg.md`), un-diagnosed.
+
+None of these needed a board. That does not refute the claim, because a defect emulation can find is
+not evidence about the class it cannot, but it does retire the version of this entry that treated
+silicon as the only productive instrument. **The instruments that have actually produced multicore
+defects here are loom and a two-core QEMU, and both are cheap.**
+
+### What the emulator cannot show, stated precisely rather than as a worry
+
+- **TCG's memory model is far stronger than real silicon's.** Guest accesses execute in the host's
+  program order and MTTCG serialises cross-vCPU visibility through host atomics
+  (`notes/visionfive2.md` says so before the runs rather than after). So an acquire that should have
+  been an acquire-release passes `script/test`, `script/cpu-matrix` and every CI leg.
+- **Loom models C11, not ARM and not RISC-V**, which `script/interleaving-check`'s own header states.
+  It narrows the gap rather than closing it, over five extracted protocols, not the kernel.
+- **The one real-silicon leg is aarch64 only and never runs in hosted CI.** `script/ci-build`'s `hvf`
+  row runs the kernel suite at guest EL1 on four physical Apple cores, which is
+  milestone 81 (an HVF leg: the test suite on the physical core), and GitHub's macOS arm64 runners
+  are themselves virtual machines
+  with no nested virtualization, so it exists on one laptop. It samples real orderings; it does not
+  search them.
+- **riscv64 and x86_64 have no real-silicon leg at all.** For those two architectures the whole of
+  this risk is reachable only on a bench boot.
+- **x86_64 has no multicore coverage by default anywhere.** `NIFE_SMP` defaults to 1, `script/soak-test
+  --arch x86_64` soaks one core and reports `remote=0` to say so, and the default flip waits on
+  milestone 315 above, per DECISIONS §153 (how a two-core x86_64 test earns its place).
+
+So the reachable fraction of this risk under CI is: five hand-extracted protocols under a C11 model,
+plus whatever a round-robin TCG interleaving happens to expose on two or four emulated cores. That is
+not nothing, and it is not the class the claim names.
+
+### The two load-sensitive reds of 2026-09-22, and which way they cut
+
+`live_swap_tests` (pull request #1101) and `current_cpu_tests` (#1120) were both chased to test
+defects rather than kernel defects: each asserted on `memory::free_page_frames()`, a count of every
+free frame in the machine, which any neighbouring test's teardown can move.
+`notes/load-sensitive-assertions.md` has both, and its own diagnostic sorted them correctly before
+either was opened, on direction alone: a slow machine produces a deficit, never a surplus, so
+"returned 277 of 224 pages" was never a timeout.
+
+**It cuts in the suite's favour in one specific way and against it in another, and both are worth
+saying.** In its favour: each was closed by *narrowing* the assertion rather than by widening a
+bound, which is the move milestone 62 (tests that assert on time) forbids by name, and a narrower
+assertion is the stronger one, since a global delta of the right size can be reached by the wrong
+frames coming back and a scoped one cannot. Against it: **a suite whose every load-sensitive red so
+far has resolved to a test bug has never once caught the thing this risk names**, and that is equally
+consistent with a healthy kernel and with an instrument that cannot see. The note itself refuses to
+close the second one, in its own words, that this is not explained by load and may be a real bug, and
+it was still un-investigated when the fix landed.
+
+**And a third reading is the one worth acting on, because it is cheap.** The defect class is not two
+sites. `memory::free_page_frames()` is read at 46 places in `kernel/src`, across
+`kernel/src/user/force_kill_tests.rs`, `kernel/src/user/cpu_time_tests.rs`,
+`kernel/src/user/tests.rs` and `kernel/src/testing.rs`, and many of those reads are the same
+before-and-after pair that produced both of these reds. One of them already carries a comment naming
+the hazard. So the same failure will recur on a different line, and every recurrence costs a lane an
+afternoon deciding whether it is the kernel. A sweep of those sites is worth a milestone of its own,
+and it is worth more to this risk than it looks: until a load-sensitive red can be trusted to mean
+something, this suite cannot be the instrument that this entry's experiment needs.
+
+**The decisive experiment, which has not been run:** milestone 225 (run the soak on radon, argon and
+xenon), which is `NOT-STARTED` and gated `HARDWARE`. Everything it needs exists and none of it did on
+2026-09-01: a workload that lasts, which is
+milestone 219 (the boot tour ends and the kernel halts, so there is nothing to soak); a hook that
+makes it cross cores, which is milestone 221 (the soak never crosses cores, so build the hook that
+makes it); a console that watches and judges, which is milestone 216 (nothing in this tree can read a
+board); and a boot that needs nobody typing, which is
+milestone 218 (every boot of the VisionFive 2 needs a human typing four commands into U-Boot).
+`script/soak-test` is its rehearsal under emulation, and it says on every green run that a clean run
+is a number and not a verdict.
+Milestone 201 (is multicore reliability converging) is the reframe that makes a red result possible at
+all, and the running order carries it rather than 225.
+
+### What would render a verdict, in the order it should be bought
+
+1. **A bench evening on radon with milestone 225's procedure followed**, which means reading the
+   first heartbeat before walking away: `wakerate` about `100 * harts`, and `crossings` **rising**
+   between beats. Eight hours of a non-crossing soak is milestone 219's experiment wearing 221's
+   name, and the difference is invisible afterwards.
+2. **Milestone 315 landed and `NIFE_SMP` defaulted to 2**, which is the cheapest item here and the
+   one that converts x86_64 from no evidence to some. It is a lane, not a bench evening.
+3. **Milestone 201's three seed data points re-derived from the record**, since one is retracted and
+   two have moved. A curve seeded from a retracted defect is worse than an unseeded one.
+4. **A stated duration.** Neither 201 nor 225 prescribes one, both because nobody knows what would
+   persuade, and a number chosen after the run is not a number.
+5. **argon**, which has never booted nife at all and sits behind milestone 127 (the seL4 machine).
+
+**What none of that would return is a green.** 201's own framing is the honest one: a flattening
+defect-discovery curve is a confidence, a linear one is the red result, and there is no experiment on
+this list that can come back saying the concurrency is correct.
 
 ## 6. A capability-confined userspace driver cannot drive real hardware at real speed
 
@@ -879,7 +1010,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
-| -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
+| -- | 5, multicore | the defect-discovery curve: a linear one is the red result. **Its three seed data points need re-deriving first (2026-09-23): the VisionFive 2's undelivered wake was retracted by that note's own fifth bench stop, and `ap_boot`'s two bugs have moved.** Milestone 315 and a two-core `NIFE_SMP` default are the cheap half and are a lane rather than bench time | milestone 201 | weeks, hardware |
 | ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
