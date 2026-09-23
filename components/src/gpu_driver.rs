@@ -66,7 +66,7 @@
 use graphics_protocol as gfx;
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::virtio::{
-    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+    virtio_notify, virtio_read_reg, virtio_ring_barrier, virtio_setup_queue, virtio_write_reg,
 };
 use user_mode_runtime::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
@@ -202,28 +202,6 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
-/// Order our stores to the rings and buffers against the device's reads, and against the kernel's
-/// notify. `dmb ish` on aarch64, one full `fence` on RISC-V, the same conservative pair the other
-/// drivers and `arch::dma_wmb` use.
-// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
-// body is empty, so nothing constrains the compiler from sinking a descriptor store past the index
-// store. This program builds for `x86_64-unknown-none` (`cargo xtask initrd-x86`) and passes
-// `script/lint`'s x86_64 user pass, because an empty function is not a warning. Same hole in
-// `crates/virtio`, `components/src/keyboard_driver.rs` and `components/src/net_transport.rs`; see
-// notes/architecture-list-sweep.md, finding 9.
-fn barrier() {
-    // SAFETY: a barrier has no operands and cannot be unsound.
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        core::arch::asm!("dmb ish", options(nostack, nomem, preserves_flags));
-    };
-    // SAFETY: as above.
-    #[cfg(target_arch = "riscv64")]
-    unsafe {
-        core::arch::asm!("fence", options(nostack, preserves_flags))
-    };
-}
-
 // SAFETY: the `MAP` loop in `_start` maps `DMA_PAGE_FRAMES` frames read/write at `DMA_VA` before any
 // command is written or the surface digested (milestone 139 round 4: this is the shared invariant
 // `dma_write`/`dma_read` used to assert by hand at every call site, now checked once here and
@@ -293,9 +271,9 @@ fn submit(dma_phys: u64, req_len: u32) -> u32 {
     let used_before: u16 = dma_read::<u16>(OFF_USED + 2);
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0); // ring[idx] = head 0
-    barrier(); // the descriptors and the ring slot must be visible before idx moves
+    virtio_ring_barrier(); // the descriptors and the ring slot must be visible before idx moves
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier(); // idx must be visible before the kernel rings the device
+    virtio_ring_barrier(); // idx must be visible before the kernel rings the device
 
     // The kernel validates both descriptors against our DMA region, copies them into the shadow
     // ring the device actually reads, and only then rings the doorbell.
@@ -313,7 +291,7 @@ fn submit(dma_phys: u64, req_len: u32) -> u32 {
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
         irq_ack(IRQ); // re-enable the line the kernel masked when it fired
-        barrier();
+        virtio_ring_barrier();
         if dma_read::<u16>(OFF_USED + 2) != used_before {
             return dma_read::<u32>(OFF_RESP);
         }

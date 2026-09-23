@@ -74,6 +74,7 @@
 
 use abi::irq;
 use filesystem_protocol::blk;
+use user_mode_runtime::virtio::virtio_ring_barrier;
 use user_mode_runtime::{exit, invoke, send};
 
 // The kernel maps the DMA page at this fixed VA (must match kernel/src/user/virtio_service.rs).
@@ -165,33 +166,6 @@ fn mr(off: u64) -> u32 {
 fn mw(off: u64, v: u32) {
     // SAFETY: `svc`.
     unsafe { invoke(VIRTIO, abi::virtio::WRITE_REG, off, v as u64, 0) };
-}
-
-/// Order our normal-memory accesses to the queue against the device's, and against the MMIO
-/// notify. On QEMU DMA is coherent, but the barrier is still needed so neither the compiler nor
-/// the CPU reorders "publish the descriptor" past "tell the device." `dmb ish` on aarch64; on
-/// RISC-V one full `fence`, the same conservative choice the kernel's `arch::dma_wmb` makes.
-// BUGS: **two arms, three architectures, and no fallback.** On x86_64 both `cfg`s compile out and
-// this function's body is empty, so it emits nothing at all: not the machine barrier (which TSO
-// makes unnecessary) and not a compiler barrier (which nothing makes unnecessary, since the
-// compiler is free to sink a descriptor store past the index store that advertises it). It
-// compiles clean under `script/lint`'s x86_64 pass because an empty function is not a warning,
-// which is precisely the failure that pass's own comment says it exists to catch. Latent rather
-// than live today: `scripts/qemu-runner-x86_64.sh` attaches no virtio device, so no x86_64 boot
-// reaches a ring. Closing it means deciding what this is on x86_64 (a `compiler_fence` is the
-// likely answer) and is a rule 4 memory-ordering call rather than a sweep's. Three other copies of
-// this function have the identical hole; see notes/architecture-list-sweep.md, finding 9.
-fn barrier() {
-    // SAFETY: a barrier has no operands and cannot be unsound.
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        core::arch::asm!("dmb ish", options(nostack, nomem, preserves_flags));
-    };
-    // SAFETY: as above; a fence only constrains ordering.
-    #[cfg(target_arch = "riscv64")]
-    unsafe {
-        core::arch::asm!("fence", options(nostack, preserves_flags));
-    };
 }
 
 fn dma_write<T>(off: u64, val: T) {
@@ -422,9 +396,9 @@ pub fn run_attack(dma_phys: u64) -> ! {
 
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
 
     // Submit. The kernel walks the descriptor, sees KERNEL_ADDR is outside our region, and refuses.
     // SAFETY: `svc`.
@@ -466,9 +440,9 @@ pub fn run_attack_indirect(dma_phys: u64) -> ! {
 
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
 
     // SAFETY: `svc`. The kernel refuses the indirect descriptor and never rings the device.
     let r = unsafe { invoke(VIRTIO, abi::virtio::NOTIFY, 0, 0, 0) };
@@ -543,9 +517,9 @@ fn submit_block(dma_phys: u64, sector: u64, req_type: u32) -> u16 {
     let used_before: u16 = dma_read::<u16>(OFF_USED + 2);
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0); // ring[idx] = head 0
-    barrier(); // the descriptor and ring entry must be visible before we bump idx
+    virtio_ring_barrier(); // the descriptor and ring entry must be visible before we bump idx
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier(); // idx must be visible before we notify
+    virtio_ring_barrier(); // idx must be visible before we notify
 
     // Submit THROUGH THE KERNEL. The kernel walks the descriptors we just published and, only if
     // every one stays inside our DMA region, rings the device. If we pointed one outside our
@@ -586,7 +560,7 @@ fn complete_block(used_before: u16) {
         // bad slot or method; it gets an error back.
         unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
 
-        barrier();
+        virtio_ring_barrier();
         if dma_read::<u16>(OFF_USED + 2) != used_before {
             break; // our request is on the used ring; this wakeup was really ours
         }
@@ -778,9 +752,9 @@ fn post_rx(dma_phys: u64, avail_idx: u16) {
         0,
     );
     dma_write::<u16>(NET_RX_AVAIL + 4 + (avail_idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(NET_RX_AVAIL + 2, avail_idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
     // SAFETY: `svc`. The kernel validates the receive descriptor (device-writable, in our region).
     if unsafe { invoke(VIRTIO, abi::virtio::NOTIFY, NET_RX_Q, 0, 0) } < 0 {
         report_code(0xE7);
@@ -802,9 +776,9 @@ fn send_frame(dma_phys: u64, frame_len: u64, avail_idx: u16) {
         0,
     );
     dma_write::<u16>(NET_TX_AVAIL + 4 + (avail_idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(NET_TX_AVAIL + 2, avail_idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
     // SAFETY: `svc`.
     if unsafe { invoke(VIRTIO, abi::virtio::NOTIFY, NET_TX_Q, 0, 0) } < 0 {
         report_code(0xE8);
@@ -901,7 +875,7 @@ fn wait_rx(rx_used_before: u16) -> bool {
         mw(INTERRUPT_ACK, istatus);
         // SAFETY: `svc`; re-enable the line the kernel masked when it fired.
         unsafe { invoke(IRQ, abi::irq::ACK, 0, 0, 0) };
-        barrier();
+        virtio_ring_barrier();
         if dma_read::<u16>(NET_RX_USED + 2) != rx_used_before {
             return true;
         }
@@ -1111,7 +1085,7 @@ fn complete_blk(used_before: u16) {
         mw(INTERRUPT_ACK, istatus);
         // SAFETY: as above: the kernel validates the capability and the method.
         unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
-        barrier();
+        virtio_ring_barrier();
         if dma_read::<u16>(OFF_USED + 2) != used_before {
             break; // our request is on the used ring; this wakeup was really ours
         }
@@ -1191,9 +1165,9 @@ fn submit_flush(dma_phys: u64) -> u16 {
     let used_before: u16 = dma_read::<u16>(OFF_USED + 2);
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
 
     // SAFETY: `svc`. As `submit_blk`: the kernel validates every descriptor against the region.
     if unsafe { invoke(VIRTIO, abi::virtio::NOTIFY, 0, 0, 0) } < 0 {
@@ -1212,7 +1186,7 @@ fn complete_flush(used_before: u16) -> bool {
         mw(INTERRUPT_ACK, istatus);
         // SAFETY: as above.
         unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
-        barrier();
+        virtio_ring_barrier();
         if dma_read::<u16>(OFF_USED + 2) != used_before {
             break; // our request is on the used ring; this wakeup was really ours
         }
@@ -1247,9 +1221,9 @@ fn submit_blk(dma_phys: u64, sector: u64, req_type: u32, count: u64) -> u16 {
     let used_before: u16 = dma_read::<u16>(OFF_USED + 2);
     let idx: u16 = dma_read::<u16>(OFF_AVAIL + 2);
     dma_write::<u16>(OFF_AVAIL + 4 + (idx as u64 % QSIZE as u64) * 2, 0);
-    barrier();
+    virtio_ring_barrier();
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
-    barrier();
+    virtio_ring_barrier();
 
     // SAFETY: `svc`. The kernel validates every descriptor against the 2-page region before ringing;
     // a refusal here is a block-server bug, so fault rather than limp on.
