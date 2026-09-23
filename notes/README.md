@@ -1548,6 +1548,17 @@ in the code or the conversation doesn't make sense, it belongs here.
   virtio-pci capability parsing, INTx via the PLIC) so a virtio disk can be driven over PCIe, the
   transport QEMU's riscv `virt` and real hardware use. Portable (both boards are ECAM-generic); the
   virtqueue/DMA-confinement machinery is reused. Unblocks parity C.
+- [What rented metal costs](rented-metal.md): the priced comparison §203 (capacity is rented rather
+  than bought) left open, for all three architectures, against four hard requirements (boot your own
+  kernel, a serial console, a power API, multiple cores) and a fifth column recording how each
+  provider expects a custom kernel to be delivered. Scaleway metal wins x86_64 at €0.077/hr and
+  riscv64 at €0.042/hr. **On aarch64 the offers qualify and nife does not**: AWS, Azure, Google and
+  Oracle all sell Arm compute that takes a custom image, and every one is UEFI plus ACPI with no
+  device tree, which `uefi_loader`'s aarch64 path requires and its own `BUGS` already said it
+  requires. Equinix Metal shut down on 30 June 2026 and Hetzner's Arm line is unorderable. Also: what
+  a second provider per architecture is an experiment for, what multi-vendor actually costs, and why
+  milestone 225 (run the soak on radon, argon and xenon)'s x86_64 leg is under a euro of machine
+  time. Carries a visible correction of its own first draft. Name provisional.
 
 ## Build
 
