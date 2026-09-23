@@ -306,11 +306,11 @@ does not, and this section has been saying otherwise for seven weeks.**
 
 **What changed.** This section was decided 2026-07-29, when nothing in this tree had `std`. The
 alternatives list above dismisses "btrfs / ZFS / F2FS" in one line, and the first half of that line
-is *"No `no_std` Rust implementation"*. Milestone 27 (Rust `std` on the native ABI) and milestone 184
-(extend the `std` port to x86_64, BUILT 2026-09-14) retired that premise: all three targets now
-declare `"std": true`, the `nife-dev` farm builds it, and an `fs_server` is an ordinary EL0 program
-exactly as `redoxfs_server` is. **A userspace filesystem may use `std` here, so `no_std` is no longer
-a filter on anything.**
+is *"No `no_std` Rust implementation"*. Milestone 27 (Rust `std` on the native ABI) retired that
+premise, and milestone 184 (extend the `std` port (milestone 27) to x86_64, BUILT 2026-09-14)
+finished the job: all three targets now declare `"std": true`, the `nife-dev` farm builds it, and an
+`fs_server` is an ordinary EL0 program exactly as `redoxfs_server` is. **A userspace filesystem may
+use `std` here, so `no_std` is no longer a filter on anything.**
 
 **What replaces it, because the bullet should not simply be deleted.** Three questions, none of
 which is the one that was asked:
@@ -318,8 +318,9 @@ which is the one that was asked:
 1. **Does a usable Rust implementation exist**, and at what completeness: read-only, read-write,
    maintained? This is now the live question and it is unanswered. It should be **measured against
    `targets/*-unknown-nife.json`** rather than looked up, which is the lesson milestone 442 (a crypto
-   provider `rustls` can use on all three bare-metal targets) paid for: DECISIONS §196's table was
-   measured against stock `-none` targets and every row of it was wrong about ours.
+   provider `rustls` can use on all three bare-metal targets) paid for: DECISIONS §196 (nife carries
+   TLS: `rustls` for the protocol, and a crypto provider we make work)'s table was measured against
+   stock `-none` targets and every row of it was wrong about ours.
 2. **Our `std` is not Linux's.** The targets are `singlethread = true` with `panic-strategy = abort`,
    so a crate that spawns threads or expects unwinding fails here whatever its filesystem logic is.
    That is a sharper filter than `no_std` ever was, and it is the one a probe actually hits.
