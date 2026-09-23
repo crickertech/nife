@@ -78,7 +78,7 @@
 use line_editor::proto;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::virtio::{
-    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+    virtio_notify, virtio_read_reg, virtio_ring_barrier, virtio_setup_queue, virtio_write_reg,
 };
 use user_mode_runtime::{call, irq_ack, irq_wait, send};
 
@@ -180,27 +180,6 @@ fn mr(off: u64) -> u32 {
 
 fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
-}
-
-// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
-// body is empty, so the very reordering the comment below names is unconstrained on that ISA: the
-// machine half is covered by TSO, the compiler half by nothing. Builds and lints clean there
-// anyway, because an empty function is not a warning. Same hole in `crates/virtio`,
-// `components/src/gpu_driver.rs` and `components/src/net_transport.rs`; see
-// notes/architecture-list-sweep.md, finding 9.
-fn barrier() {
-    // The device reads what we wrote, so a store the compiler or the machine reordered past the
-    // index that advertises it is a descriptor the device may act on before it is finished.
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: a barrier; no memory is accessed.
-    unsafe {
-        core::arch::asm!("dmb ish", options(nostack, nomem, preserves_flags));
-    };
-    #[cfg(target_arch = "riscv64")]
-    // SAFETY: as above.
-    unsafe {
-        core::arch::asm!("fence", options(nostack, preserves_flags))
-    };
 }
 
 fn write_desc(i: u64, addr: u64, len: u32, flags: u16) {
@@ -321,9 +300,9 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
         w16(EQ_AVAIL + 4 + slot * 2, i as u16);
         avail = avail.wrapping_add(1);
     }
-    barrier();
+    virtio_ring_barrier();
     w16(EQ_AVAIL + 2, avail);
-    barrier();
+    virtio_ring_barrier();
     // The kernel validates the newly published descriptors and copies them into the shadow ring
     // the device actually reads.
     virtio_notify(VIRTIO, EVENT_Q);
@@ -392,10 +371,10 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
             // Re-post the buffer. Its descriptor is permanent, so this is one index write.
             let aslot = (avail % QSIZE) as u64;
             w16(EQ_AVAIL + 4 + aslot * 2, id as u16);
-            barrier();
+            virtio_ring_barrier();
             avail = avail.wrapping_add(1);
             w16(EQ_AVAIL + 2, avail);
-            barrier();
+            virtio_ring_barrier();
             virtio_notify(VIRTIO, EVENT_Q);
         }
 

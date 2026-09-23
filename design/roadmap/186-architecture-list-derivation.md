@@ -1,6 +1,9 @@
 # 186. Derive the architecture list, and close what it does not reach
 
-**Status: NOT-STARTED.** Minted 2026-08-28, on calef's question against the sweep in pull request
+**Status: PARTIAL 2026-09-23.** Seven of the sweep's eleven silent gaps closed, three were already
+closed by other lanes before this one looked (findings 3, 6 and 11, which is the reason this block
+now says to re-check a row before acting on it), one is milestone 187's, and one is left open with
+its reason below. Phase 1 and phase 2 are done; phase 3 has one item left. Minted 2026-08-28, on calef's question against the sweep in pull request
 #568: is there a milestone for actually fixing these and driving parity, and there was not. The
 sweep is `notes/architecture-list-sweep.md` and **it is this milestone's worklist**; this block
 says what "done" means and in what order, and does not restate the table.
@@ -161,6 +164,67 @@ that does the wrong thing on an architecture is not something to schedule.
 Phase 1 is an hour. Phase 2 is a day, most of it in converting the four `case` blocks and checking
 that each caller still behaves. Phase 3 is unbounded on its own terms and bounded by this
 milestone's scope note: the widenings are small, and what they find is somebody else's lane.
+
+
+## What was done, 2026-09-23
+
+**Phase 1 and the derivation.** `script/bootstrap`, `script/toolchain-bump` and
+`.github/workflows/toolchain-bump.yml` (which the sweep did not list) now read
+`rust-toolchain.toml`'s `targets` array instead of spelling two of three bare-metal targets.
+`script/drift` had already done this, by milestone 312 (`script/drift`'s lists are derived), and its
+comment is the model the other three follow. **The toolchain-bump pair is the one that mattered**:
+both install against the *new* toolchain, which rustup does not apply the pin's array to, so their
+omission was not covered the way every other copy's was. `deny.toml` gained `x86_64-unknown-none`
+and lost a scope note that had gone false; `script/supply-chain` is green with the target in, so no
+advisory was hiding in that graph. TOML cannot call a script, so that copy stays hand-kept and says
+so in its own `BUGS`.
+
+**Option B, and it went further than the block priced.** The block said three lines at four sites.
+It was **five** sites: `components/src/entropy.rs` had the same two-arm `barrier()` and, unlike the
+other four, had no `BUGS` note recording it, so it was the copy nobody knew about. Rather than five
+`compile_error!` arms, the five are now one function,
+`user_mode_runtime::virtio::virtio_ring_barrier` (name provisional), in the module where four of
+those programs already get `virtio_read_reg` and its siblings. That is the higher rung: the fallback
+exists once, and a sixth driver gets the third architecture by calling the function rather than by
+remembering to write an arm.
+
+**x86_64 got a compiler fence, and the reason is per-site rather than a default.** Every call site
+in those five programs asks for store-store (descriptor before available index; index before notify)
+or load-load (used index before the payload it gates), both of which TSO gives for the write-back
+memory a coherent DMA agent shares, and the store-load case it does not give is unreachable because
+every notify and register access in these drivers leaves the process through a serializing syscall.
+`components/src/non_volatile_memory_express.rs` keeps `dmb sy` and a real `mfence` and did not join
+the shared function: its doorbell is a direct store to a device-typed page in this address space,
+with no syscall between the ring stores and it. Same hardware, different answer, which is what makes
+the compiler-fence argument falsifiable rather than convenient.
+
+**Phase 3, partly.** `script/bench`'s `EXAMPLES` now names all three architectures and their
+baselines, with `--real` stated as aarch64-only by construction rather than by omission. CI's
+`fastpath-footprint` job installed two bare-metal targets a month after `script/fastpath-footprint`
+widened its own `arches` to three; it now installs three. CI's `stack-frame-check` job stays at two
+and its comment now says that is a decision rather than repeating the parity rule while naming two
+of three.
+
+## Follow-on
+
+- **Done.** Findings 2, 4, 5, 7 and 9 are closed, and the CI target lists the sweep did not name
+  are closed with them.
+- **Outstanding.** The one phase-3 item left: `script/stack-depth-check` still reads
+  `arches="aarch64 riscv64"`, and widening it is not a word: its `TRAP_FRAME`, `DISPATCH` and `BODY`
+  tables each need an x86_64 row measured against that architecture's own `size_of::<TrapFrame>()`
+  and dispatch symbol names, and the gate may then find a real offender, which by this block's own
+  scope note is somebody else's lane. It is recorded in that script's `BUGS`, where it already was.
+  This milestone stops here rather than guessing at a trap-frame size.
+- **Recorded.** `virtio_ring_barrier` is a **provisional name**. It is a new public function, which
+  is calef's call; it sits in `user_mode_runtime::virtio` and carries that module's `virtio_` prefix,
+  which is the argument for it, and nothing about the fix depends on the spelling.
+- **Recorded.** The rung-1 limit this milestone's own note states still holds: deriving the list
+  removes the copy, not the incompleteness. Nothing stops a new gate writing
+  `for arch in aarch64 riscv64`, and `deny.toml` cannot read the derivation at all. The
+  `compile_error!` in `virtio_ring_barrier` is the one place in this territory where a missing
+  architecture now fails to build rather than failing to order.
+- **Milestone 187.** Finding 8, the unaudited x86_64 arch tree, is milestone 187 (read the x86_64
+  arch tree through the lens the first arch audit used), which was minted for it.
 
 ## Index row
 

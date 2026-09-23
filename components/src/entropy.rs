@@ -130,7 +130,7 @@ use abi::rendezvous;
 use entropy_protocol as proto;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::virtio::{
-    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+    virtio_notify, virtio_read_reg, virtio_ring_barrier, virtio_setup_queue, virtio_write_reg,
 };
 use user_mode_runtime::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
@@ -253,21 +253,6 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
-fn barrier() {
-    // The device reads what we wrote, so a store the compiler or the machine reordered past the
-    // index that advertises it is a descriptor the device may act on before it is finished.
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: a barrier; no memory is accessed.
-    unsafe {
-        core::arch::asm!("dmb ish", options(nostack, nomem, preserves_flags));
-    };
-    #[cfg(target_arch = "riscv64")]
-    // SAFETY: as above.
-    unsafe {
-        core::arch::asm!("fence", options(nostack, preserves_flags))
-    };
-}
-
 fn die(code: u64) -> ! {
     send(READY, proto::bringup_failure(code), 0, 0);
     exit();
@@ -306,10 +291,10 @@ impl Pool {
     fn request(&mut self) -> u64 {
         write_desc(self.dma_phys + POOL_OFF, POOL_LEN as u32);
         w16(Q_AVAIL + 4 + (self.avail % QSIZE) as u64 * 2, 0); // ring[idx] = descriptor head 0
-        barrier(); // the descriptor must be visible before the index that advertises it
+        virtio_ring_barrier(); // the descriptor must be visible before the index that advertises it
         self.avail = self.avail.wrapping_add(1);
         w16(Q_AVAIL + 2, self.avail);
-        barrier(); // and the index before the doorbell
+        virtio_ring_barrier(); // and the index before the doorbell
 
         // The kernel walks the descriptor we just published, refuses it if it leaves our region,
         // and only then rings the device.
@@ -335,7 +320,7 @@ impl Pool {
         // hang.
         let mut len = 0;
         for _ in 0..WAIT_WAKEUPS {
-            barrier();
+            virtio_ring_barrier();
             if r16(Q_USED + 2) != self.seen {
                 // used-ring element: { u32 id; u32 len }. `len` is the device saying how many
                 // bytes it actually wrote, and it is allowed to be short.

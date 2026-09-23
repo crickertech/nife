@@ -25,7 +25,7 @@ use smoltcp::time::Instant;
 use user_mode_runtime::irq_ack;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::virtio::{
-    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+    virtio_notify, virtio_read_reg, virtio_ring_barrier, virtio_setup_queue, virtio_write_reg,
 };
 
 /// The DMA page's virtual address, matching the kernel's `net_server` mapping.
@@ -121,27 +121,6 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
-// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
-// body is empty, so it orders nothing against the compiler, which is the half TSO does not cover.
-// Builds and lints clean there, because an empty function is not a warning. Same hole in
-// `crates/virtio`, `components/src/gpu_driver.rs` and `components/src/keyboard_driver.rs`; see
-// notes/architecture-list-sweep.md, finding 9.
-fn barrier() {
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: a barrier: no operands, and the options say it touches neither memory nor the
-    // stack, so it cannot break an invariant. It orders the descriptor writes against the
-    // device's reads, which is the whole reason this function exists.
-    unsafe {
-        core::arch::asm!("dmb ish", options(nostack, nomem, preserves_flags));
-    };
-    #[cfg(target_arch = "riscv64")]
-    // SAFETY: the RISC-V twin of the barrier above. `fence` carries no `nomem`, deliberately:
-    // ordering memory is precisely its job.
-    unsafe {
-        core::arch::asm!("fence", options(nostack, preserves_flags))
-    };
-}
-
 fn write_desc(desc_base: u64, i: u64, addr: u64, len: u32, flags: u16, next: u16) {
     let b = desc_base + i * 16;
     WINDOW.write(b, addr);
@@ -218,9 +197,9 @@ impl VirtioNet {
             w16(RX_AVAIL + 4 + slot * 2, i as u16);
             dev.rx_avail = dev.rx_avail.wrapping_add(1);
         }
-        barrier();
+        virtio_ring_barrier();
         w16(RX_AVAIL + 2, dev.rx_avail);
-        barrier();
+        virtio_ring_barrier();
         dev.notify(RX_Q);
         dev
     }
@@ -283,10 +262,10 @@ impl VirtioNet {
         // Re-post this buffer (its descriptor is permanent) so the device reuses it.
         let aslot = (self.rx_avail % QSIZE) as u64;
         w16(RX_AVAIL + 4 + aslot * 2, id as u16);
-        barrier();
+        virtio_ring_barrier();
         self.rx_avail = self.rx_avail.wrapping_add(1);
         w16(RX_AVAIL + 2, self.rx_avail);
-        barrier();
+        virtio_ring_barrier();
         self.notify(RX_Q);
         Some(v)
     }
@@ -324,10 +303,10 @@ impl VirtioNet {
         );
         let slot = (self.tx_avail % QSIZE) as u64;
         w16(TX_AVAIL + 4 + slot * 2, i as u16);
-        barrier();
+        virtio_ring_barrier();
         self.tx_avail = self.tx_avail.wrapping_add(1);
         w16(TX_AVAIL + 2, self.tx_avail);
-        barrier();
+        virtio_ring_barrier();
         self.notify(TX_Q);
         self.tx_next = (self.tx_next + 1) % TX_BUFS;
     }

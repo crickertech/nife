@@ -16,20 +16,28 @@
 # An advisory against a crate we do not compile is not a finding, it is noise, and noise is how an
 # alert list becomes wallpaper (DECISIONS §35).
 #
-# Two bare-metal targets (the kernel, user, and the EL0 redoxfs_server binary) and three hosts (the
-# Apple Silicon dev machine, CI's aarch64 Linux runner, and an x86_64 Linux contributor).
+# Three bare-metal targets (the kernel, user, and the EL0 redoxfs_server binary) and three hosts
+# (the Apple Silicon dev machine, CI's aarch64 Linux runner, and an x86_64 Linux contributor).
 #
-# BUGS: **the sentence that used to follow is now false, and a stale scope note is worse than an
-# absent one.** It read "x86_64 bare metal is declared in §19 but not started; it joins this list
-# when it does". It started: milestone 161 brought up the third architecture, the kernel builds and
-# tests for `x86_64-unknown-none`, and this array was never widened, so cargo-deny has never
-# resolved that target's graph. A crate reached only under `cfg(target_arch = "x86_64")` gets no
-# advisory, licence, or ban verdict. TOML cannot call a script, so unlike the `rustup target add`
-# lists in `script/`, this copy has to stay hand-maintained; see notes/architecture-list-sweep.md
-# for what would keep it honest.
+# `x86_64-unknown-none` joined on 2026-09-23, and the history is the useful part of this comment.
+# The array carried a scope note reading "x86_64 bare metal is declared in §19 (architectural
+# parity is a tenet; the targets are aarch64, riscv64, and x86_64) but not started; it joins this
+# list when it does". It started: milestone 161 (the x86_64 kernel port) brought up the third
+# architecture and nothing widened this, so a reader who checked was told a gap was tracked while
+# cargo-deny had never resolved that target's graph, and a crate reached only under
+# `cfg(target_arch = "x86_64")` got no advisory, licence, or ban verdict. A stale scope note is
+# worse than an absent one, because it answers the question a careful reader came to ask.
+#
+# BUGS: **TOML cannot call a script**, so unlike the `rustup target add` lists in `script/`, which
+# milestone 186 (derive the architecture list) derived from `rust-toolchain.toml`, this copy stays
+# hand-maintained and a fourth architecture will not appear here on its own. The UEFI targets in that pin are deliberately not
+# here: exactly one crate builds for them, so resolving the whole graph against them would assert
+# something untrue about every other crate, which is the same judgment `script/drift` makes when it
+# selects the `*-none` subset for its workspace build.
 targets = [
     "aarch64-unknown-none-softfloat",
     "riscv64imac-unknown-none-elf",
+    "x86_64-unknown-none",
     "aarch64-apple-darwin",
     "aarch64-unknown-linux-gnu",
     "x86_64-unknown-linux-gnu",

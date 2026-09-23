@@ -1213,7 +1213,8 @@ version**, and it settles risk 6 along the way.
 verifies rule 1 for the kernel. It never checked whether the rest of the tree keeps the same
 discipline, and `notes/architecture-list-sweep.md` (2026-08-27) is the sweep that asked exactly
 that question, tree-wide, and is milestone 186 (derive the architecture list, and close what it
-does not reach)'s worklist. Milestone 186 is `NOT-STARTED`. **None of what it found is inside
+does not reach)'s worklist. Milestone 186 is `PARTIAL` (seven of the eleven closed on 2026-09-23,
+including finding 9 below; `script/stack-depth-check` is the one left). **None of what it found is inside
 `kernel/src/arch/`, and none contradicts the port's own accounting above**; every one of its eleven
 silent gaps is a script, a CI leg, or a userspace driver's own hand-rolled `#[cfg(target_arch)]`
 arms, which rule 1 names by its own text ("all **architecture-specific code**") but which its own
@@ -1232,7 +1233,11 @@ compiles to an empty body: not a build failure, a silently missing compiler fenc
 table, found rereading it for this entry rather than in the original sweep. The sweep's own
 severity note argues the four it found are latent rather than live, because
 `scripts/qemu-runner-x86_64.sh` attaches no virtio device on any x86_64 boot today; that argument is
-unchanged for the fifth. `components/src/non_volatile_memory_express.rs`'s `barrier()` has all three
+unchanged for the fifth. **Closed 2026-09-23 by milestone 186**, and the argument above is kept as written because it is
+what the entry found rather than what the tree now holds: the five are one function,
+`user_mode_runtime::virtio::virtio_ring_barrier`, whose x86_64 arm is a compiler fence and whose
+fourth-architecture arm is a `compile_error!`.
+`components/src/non_volatile_memory_express.rs`'s `barrier()` has all three
 arms, because the NVMe driver was x86_64's own reason for existing (DECISIONS §86) and was written
 arch-complete from the start, which is the control case: when a driver is built *for* the new
 architecture, the third arm arrives with it; when it predates the architecture, it does not, unless

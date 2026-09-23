@@ -203,9 +203,14 @@ const STEP_FIRST_READ: u64 = 0xDEAD_0002;
 /// before the payload it gates.** The controller is another observer of this memory, and on a
 /// weakly-ordered CPU nothing else stops a doorbell write hoisting above the command it announces.
 ///
-/// Local rather than lifted into `user_mode_runtime`: `crates/virtio` carries its own copy for the
-/// same reason and lifting both is a naming decision (a new public function) rather than a
-/// deduplication this milestone should take on its own.
+/// **Local rather than shared, and now for a stated reason rather than for want of a name.**
+/// Milestone 186 (derive the architecture list) lifted the five virtqueue copies into
+/// [`user_mode_runtime::virtio::virtio_ring_barrier`], which is a weaker barrier: those drivers
+/// notify through a syscall instruction, so `x86_64` needs only a compiler fence and aarch64 only
+/// `dmb ish`. This one's doorbell is a direct store to a device-typed page in this address space,
+/// with no syscall between the ring stores and it, so it keeps `dmb sy` and a real `mfence`.
+/// Sharing the two would mean strengthening the ring barrier or weakening this one, and both are
+/// ordering changes rather than deduplication.
 fn barrier() {
     // SAFETY: a barrier has no operands and cannot be unsound; it only constrains ordering.
     #[cfg(target_arch = "aarch64")]
@@ -222,6 +227,17 @@ fn barrier() {
     unsafe {
         core::arch::asm!("mfence", options(nostack, nomem, preserves_flags));
     }
+    // A fourth architecture fails to build rather than silently ordering nothing. This function
+    // already had all three arms; the arm below is what stops it becoming the five that did not.
+    #[cfg(not(any(
+        target_arch = "aarch64",
+        target_arch = "riscv64",
+        target_arch = "x86_64"
+    )))]
+    compile_error!(
+        "barrier(): this architecture has no ordering named here. A ring publish must be visible \
+         before the doorbell that announces it; name the instruction that does that."
+    );
 }
 
 /// The server's whole mutable state: the two ring cursors and a command id.
