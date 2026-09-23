@@ -2893,11 +2893,12 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     let code = super::supervision_tests::REPORT_STUB;
     let expect_word = super::supervision_tests::REPORT_WORD;
 
-    // The report rendezvous is created before the baseline: it lives in the kernel's own pinned
-    // rendezvous region (never reclaimed here; rendezvous revocation is a later piece), so it must
-    // not count against the frame accounting.
+    // The report rendezvous lives in the kernel's own pinned rendezvous region (never reclaimed
+    // here; rendezvous revocation is a later piece), so it is not part of what this test accounts
+    // for. It used to be created before a machine-wide free-frame baseline for that reason; the
+    // accounting below is per-region now, so the ordering no longer matters and the frames it
+    // spends cannot be confused with the child's.
     let report = crate::sched::create_rendezvous();
-    let frames_before = crate::memory::free_page_frames();
 
     // The child's whole address space in one region: root, tables, code, and stack.
     let as_region = crate::memory_region::create(8).expect("no address space region");
@@ -2936,6 +2937,14 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
         crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
     );
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
+    // The two runs this test is responsible for, named while their regions are alive. A
+    // machine-wide free-frame delta could not survive this window: the child runs on whichever
+    // core §28 (SMP placement: two random choices at spawn) placed it on, the reaper frees its
+    // address space from that core's switch, and a neighbouring test's own late teardown lands
+    // here too. These ten frames cannot be moved by any of that. See `testing::RegionRun` and
+    // notes/load-sensitive-assertions.md.
+    let as_run = crate::testing::RegionRun::of(as_region);
+    let tcb_run = crate::testing::RegionRun::of(thread_control_block_region);
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
@@ -2982,11 +2991,8 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
         .expect("reclaim the TCB region after exit");
     crate::sched::reclaim_region(as_region).expect("reclaim the address-space region after exit");
 
-    assert_eq!(
-        crate::memory::free_page_frames(),
-        frames_before,
-        "every frame the child used must come back to baseline",
-    );
+    tcb_run.assert_returned("the child's TCB region did not give its frames back");
+    as_run.assert_returned("the child's address-space region did not give its frames back");
 }
 
 /// **Spawn-to-reap repeats without leaking: the whole milestone's payoff.** Build, start, run,
@@ -3004,7 +3010,6 @@ fn spawn_to_reap_repeats_without_leaking() {
     let expect_word = super::supervision_tests::REPORT_WORD;
 
     let report = crate::sched::create_rendezvous();
-    let baseline = crate::memory::free_page_frames();
 
     for round in 0..6 {
         let as_region = crate::memory_region::create(8).expect("address space region");
@@ -3041,6 +3046,12 @@ fn spawn_to_reap_repeats_without_leaking() {
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
         let thread_control_block_region = crate::memory_region::create(2).expect("tcb region");
+        // This round's own ten frames, by name. The leak this test hunts is a per-cycle one, so
+        // asking per round about the pages that round allocated is the question; the machine's
+        // free total was the question the assertion used to ask, and it could be moved by any
+        // other core in a window that contains a child running, a remote reap and two reclaims.
+        let as_run = crate::testing::RegionRun::of(as_region);
+        let tcb_run = crate::testing::RegionRun::of(thread_control_block_region);
         let tid =
             crate::sched::create_thread_control_block(thread_control_block_region).expect("tcb");
         crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
@@ -3070,11 +3081,11 @@ fn spawn_to_reap_repeats_without_leaking() {
         crate::sched::reclaim_region(thread_control_block_region).expect("reclaim tcb region");
         crate::sched::reclaim_region(as_region).expect("reclaim address space region");
 
-        assert_eq!(
-            crate::memory::free_page_frames(),
-            baseline,
-            "round {round}: spawn-to-reap leaked; the cycle does not return to baseline",
-        );
+        // The frame's address is in the failure, which is what says which round leaked; the
+        // whole-boot half of "nothing leaked anywhere" is the frame ledger's job
+        // (`testing::report_page_frame_ledger`), measured where it is not load-sensitive.
+        tcb_run.assert_returned("spawn-to-reap leaked the cycle's TCB region");
+        as_run.assert_returned("spawn-to-reap leaked the cycle's address-space region");
     }
 }
 
