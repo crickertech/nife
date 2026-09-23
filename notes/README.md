@@ -1244,6 +1244,9 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The redo rate](delegation/ledger.tsv): one row per task handed to a rented model, with a
   reviewer's verdict rather than a gate's. Read it with `script/redo-rate`. Five rows on
   2026-09-22: 40% clean, 40% defect, 20% redo, and **every one of them passed every gate**.
+- [The dependency census](dependency-census.md): what 547 milestones actually stood on, measured
+  rather than assumed. 128 real prerequisite edges against 15 declared, and a graph that turns out
+  to be flat rather than deep, which is why dependencies are not what bounds lane count.
 - [Prior art and reuse](prior-art.md): where to look before building (Redox, rCore, Tock,
   Hubris, seL4, Fuchsia) and the rule that decides build-vs-reuse: the reuse boundary is the
   TCB boundary. Inside it, always build; userspace components, actively prefer porting,
