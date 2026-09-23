@@ -62,21 +62,39 @@ nothing that matters: LiteLLM runs no model, so against cordoba's 3.6 GB free it
 rather than a load, while patagonia's 16 GB is the thing that actually caps the lane count.
 `config/open-lane-gateway.service` is the unit.
 
-**Leaving loopback changes what the master key is for**, which is worth stating rather than
-discovering. On `127.0.0.1` it guards against another local process using the OpenRouter key by
-accident. On a tailnet address it is **the only thing between any host on that network and the
-OpenRouter bill**. So: real entropy, kept in `/etc` rather than in this repository, bound to the
-tailnet interface rather than `0.0.0.0` (the launcher refuses `0.0.0.0` for that reason), with
-Tailscale ACLs as the second layer.
+**It never binds a network interface, and Tailscale does the exposing** (calef's question,
+2026-09-22: can the port be reachable only over the tailnet). It can, and the best form of that is
+not a firewall rule:
 
-**Why OpenRouter rather than a provider directly**, stated so the next person does not re-litigate
-it: one account and one key reach every open-weight model, so switching candidates is a line in a
-config rather than a new signup, and that is exactly what an unmeasured choice needs. The cost is a
-margin on top of the underlying provider's price and one more party in the path.
+```
+tailscale serve --bg --https=4000 http://127.0.0.1:4000
+```
 
-**The model is not chosen.** `config/open-lane-litellm.yaml` carries three candidates addressable by
-name so a benchmark can switch between them without editing the lane script. Nothing here has
-measured which of them drives a tool loop reliably, and the config says so.
+`tailscale serve` is **tailnet-only by definition**, which its own documentation states and
+contrasts with `tailscale funnel`, the command that publishes to the public internet. **Funnel must
+never be used for this.** Serve also provisions TLS, so callers reach
+`https://<host>.<tailnet>.ts.net:4000` rather than sending an API key over plaintext.
+
+**Three layers, and no gateway password** (calef, 2026-09-22: *"I already have a spend limit. Lets
+remove the key."*).
+
+| layer | what it decides |
+|---|---|
+| loopback bind | only cordoba's own processes can open the socket at all |
+| `tailscale serve` | the tailnet, and nothing else, reaches it |
+| Tailscale ACLs | *which* tailnet nodes reach it, and this is the authorization |
+
+The first matters most, because it is the only one that survives a later mistake: an interface that
+appears later, or a firewall rule edited wrongly, cannot reach a socket that was never bound.
+Binding `OPEN_LANE_HOST=<tailnet address>` is supported and is second best; `0.0.0.0` is refused
+outright.
+
+**What this accepts, recorded because it is a choice rather than an oversight.** LiteLLM listens on
+cordoba's loopback with no credential, so **any process on cordoba can spend the OpenRouter key**,
+and cordoba runs Immich. The tailnet cannot help there, because that traffic never crosses it. The
+backstop is the **spend limit on the OpenRouter key itself**, which calef had already set and which
+is the only control here that still works after a key has leaked. A gateway password would have
+narrowed the loopback case and nothing else; it was weighed and declined.
 
 ## What makes a cheaper model safe here, and it is not the model
 

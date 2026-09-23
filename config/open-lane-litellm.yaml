@@ -39,6 +39,6 @@ litellm_settings:
   drop_params: true          # strip request fields the upstream model does not know
   set_verbose: false
 
-general_settings:
-  # Bound to loopback on purpose: this holds an API key and has no authentication of its own.
-  master_key: os.environ/OPEN_LANE_TOKEN
+# No `master_key`. calef ruled on 2026-09-22: the tailnet is the boundary and the OpenRouter key
+# already carries a spend limit, so a second secret is ceremony. See notes/open-model-lanes.md for
+# what that accepts.
