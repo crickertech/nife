@@ -1,0 +1,211 @@
+# Nobody reads branches, so give the maintainer a command that does
+
+**Status: PROPOSED 2026-09-23.** Raised by the `maintainer/nobody-reads-branches` lane, written
+while surveying the 25 remote branches calef's 2026-09-23 sweep found carrying no open pull
+request, the oldest last touched nine days earlier. Verified independently against the live
+repository while drafting this: 24 of the 25 are real lane branches (`milestone/*`, `maintainer/*`,
+`fix/*`); the 25th, `gh-readonly-queue/main/pr-1080-...`, is the merge queue's own synthetic
+candidate branch, not a lane's, and any mechanism built from this proposal must exclude that shape
+the same way `lane-claim-check.sh` already excludes the ones it found.
+
+**Gate: NONE.** Nothing here touches the syscall surface, adds a dependency, or needs hardware.
+The only prerequisite is calef reading this and ratifying a name and a threshold, which is true of
+every proposal in this directory.
+
+## The failure is at least four shapes, and one bystander shape worth naming alongside them
+
+Lumping these into "orphaned branches" is how the existing tooling already missed most of them.
+Each shape has a different cost if handled wrong, and that is the reason to keep them apart rather
+than write one blanket rule.
+
+**1. A branch with real unmerged work and no pull request, ever.** The dangerous case: deleting it
+destroys work nobody landed anywhere else. Measured against today's tree: `maintainer/294-and-510`
+(6 commits, 47 files, +918/-1517), `milestone/434-retire-the-proposed-disposition` (8 commits, 10
+files, +503/-438), `milestone/326-machine-discovery-truncation` (5 commits, 26 files, +881/-21),
+`milestone/435-slice-a` (3/29), `milestone/435-slice-b` (3/17), `milestone/435-slice-c` (5/31), and
+`maintainer/metrics-2026-09-19` (1/7). Every file and commit count above was re-derived from
+`git diff --stat origin/main...origin/<branch>` while writing this, not copied from the sweep
+uncrosschecked, and it matches. Ages at measurement time ran two to four days.
+
+**2. A branch that never grew past its §90 claim commit.** §90 (the claim is a draft pull request;
+the status flip is a gate) is the mechanism this proposal leans on throughout: a lane died between
+`git push` and `gh pr create --draft`, or never even reached the push in the shape §90 expects.
+Zero cost to delete: nothing on the branch differs from `main`. `milestone/433-slice-1` through
+`-4` and
+`maintainer/ratify-boot-slot-format` carry no commits ahead of `main` at all; `fix/qemu-bounded-
+stdin-under-dash`, not named in the original sweep, is the same shape one prefix over, which is
+worth noting because it shows the pattern is not confined to the two prefixes `lane-claim-check.sh`
+and the sweep both happened to be looking at.
+
+**3. A branch whose pull request already merged and was never deleted.** Also zero-cost to delete;
+this is `lane-claim-check.sh`'s own `LEFTOVER` case, working exactly as designed, for the one
+prefix it watches. The gap is prefix, not shape: of five such branches found live
+(`maintainer/mutation-sweep-2026-09-14`, `maintainer/open-model-lanes`,
+`maintainer/the-counter-thesis`, `maintainer/what-a-component-costs`,
+`milestone/442-crypto-provider`), four are `maintainer/*`, which `lane-claim-check.sh`'s own `BUGS`
+section says it does not watch, on purpose, because widening its pattern would also catch the
+short-lived branches its narrow scope is protecting.
+
+**4. A branch whose pull request was closed without merging.** Two found:
+`maintainer/baselines-and-282` (PR #1078) and `maintainer/icount-baselines-stale` (PR #883). Both
+closed PRs carry a body and at least one comment, so the reasoning likely survives on GitHub even
+after the branch goes, but "likely" is doing real work in that sentence and `lane-claim-check.sh`
+today does not distinguish this from case 3: its `LEFTOVER` line fires on any non-`OPEN` state and
+recommends deleting either way. That conflation is a real bug in a script this proposal otherwise
+leans on, worth fixing on its own account; flagging it here is this proposal's way of giving it a
+home rather than letting it die a second time in a lane report nobody re-reads, which is the exact
+failure this whole document is about.
+
+**The bystander shape: a stale draft holding real work, whose one existing report already fired and
+was ignored.** PR #1087 is not branch-without-PR (it has one, open, draft), so it is out of this
+proposal's scope by definition. It earns a mention because it is the cleanest evidence available for
+the design argument below: `merge-drain.sh`'s `stale_drafts` check fired on it correctly, at
+2026-09-22T02:22:54Z, posting the comment it is built to post ("has not committed in over 75
+minutes... If its lane is finished: `gh pr ready`"). Twenty-four hours later the draft, 8 commits and
++1398/-83, was still sitting there, untouched, found again only because calef looked by hand. The
+mechanism worked. The report changed nothing. That is not a case this proposal fixes; it is the
+proof that adding a fifth one-shot reporter to the four failure shapes above would not fix them
+either.
+
+## What else was considered
+
+**Extend `scripts/merge-drain.sh`.** Refused: its whole domain is pull requests, and these branches
+are defined by the absence of one. Its `notify()` dedup logic posts a comment *on a pull request*;
+there is nowhere to attach that comment when there is no pull request. It also already carries three
+distinct single-purpose checks (admission, stuck workflow runs, stale drafts) for a reason: each is
+one act with its own threshold, and a fourth unrelated one blurs a script that earns its keep by
+staying narrow.
+
+**Extend `scripts/lane-claim-check.sh`** to cover every branch prefix and to escalate past its
+15-minute grace window into a days-long sweep. This is the closest real contender and the one worth
+the longest refusal. Its own `BUGS` section already explains why the `milestone/*` restriction is
+deliberate: widening it "would also sweep in short-lived maintainer branches that are not claims and
+are not meant to be." Today's data proves the restriction has teeth rather than being theoretical:
+`maintainer/capture-the-actions` and `maintainer/subscription-stays` were both pushed by the
+maintainer *during the same session* that produced the sweep this proposal answers, and
+`subscription-stays` had already resolved itself into PR #1106 before this proposal was finished.
+The two problems want thresholds three orders of magnitude apart (minutes to protect a lane between
+push and draft, versus days to catch one that never will) and different actions (a nudge to open a
+pull request, versus a person deciding whether to claim, land-and-delete, or just delete). Folding
+the second into the first risks breaking the tuning that is currently working.
+
+**A new `scripts/` watcher of the same shape**, run on the existing five-minute `launchd` cadence
+and reporting once per stall the way `merge-drain.sh`'s `notify()` already does. Refused on the
+strongest evidence available: this shape already exists for the nearest analogous case (`stale_drafts`)
+and PR #1087 shows it firing exactly on schedule and changing nothing. A fourth reporter, printing to
+a log on patagonia that nobody tails, repeats a failure this tree has already measured rather than
+fixing it.
+
+**A scheduled GitHub Actions workflow**, running independent of any session. `notes/merge-queue.md`
+records that calef declined exactly this shape on 2026-08-26 for the analogous case, "an unattended
+scheduled agent," preferring something that "shuts down when the session driving it does" over
+"standing on a timer with nobody watching." That reasoning was about an agent empowered to *resolve*
+a queue problem, and this proposal's mechanism only reports, so the objection does not transfer
+mechanically. But a pure report-only workflow still lands in a place nobody has an established habit
+of reading (a workflow run's log, or a check summary), which is the same failure as the option
+above with GitHub Actions minutes spent to reach it. If it were extended to also *act*, deleting
+branches unattended, that runs straight into AGENTS.md's own caution that deleting a branch destroys
+work and needs a person's judgment first.
+
+**Make it the steward's standing duty**, in prose, with no new script. Refused for a reason this
+proposal does not have to argue for, because AGENTS.md already argues it: the steward tried exactly
+this shape once and the tree's own record of what happened is "it reported and never acted."
+Assigning one more duty to a role that has already failed at prose-only duties, in the same
+document that names the failure, is rung four dressed as an assignment.
+
+**Do nothing; accept the cost.** The honest baseline, and the one this proposal has to out-argue
+with numbers rather than assert past. The oldest of today's 24 is nine days old
+(`maintainer/ratify-audits`). §90's own claim mechanism assumes a lane reaches a draft pull request
+inside one sitting; the branch that built the check measuring that assumption took three minutes.
+AGENTS.md names "somebody will notice" as rung zero and says plainly it "belongs on no list." The
+backlog also does not self-correct: nothing currently shrinks it, and every missed claim, closed PR,
+or forgotten `git push origin --delete` adds to it. Twenty-four today; the number has no reason to
+be smaller next month.
+
+## Which rung, and what this does about "reported and never acted"
+
+Honestly: this stays on rung four. A gate cannot fail a build over a branch that is not part of any
+pull request, which is the exact reason `lane-claim-check.sh` refused to be a gate for the narrower
+version of this same question, and that reasoning holds here without modification. There is also no
+single place in the tree to put rung three's "record beside the thing," because the thing, an
+abandoned branch, has no reader who meets it by default; that is the whole problem. So this proposal
+does not climb the ladder. What it changes is which rung-four channel the report lands in, and that
+distinction is not cosmetic: PR #1087's comment is also rung four, correctly built, and it changed
+nothing, because a PR comment and a `launchd` log are both channels nobody has a standing habit of
+rereading once the moment passes.
+
+**Two design choices aim this report at a channel that is already read**, rather than inventing one
+that will not be:
+
+- **Land the output next to the check AGENTS.md already makes a session read every time.**
+  AGENTS.md's own merge-queue section already tells a maintainer session to read
+  `gh pr list --json number,mergeStateStatus,statusCheckRollup` for `DIRTY`, `CONFLICTING`, or a
+  `FAILURE` conclusion, "a standing check, same priority as keeping lanes full." Every fact this
+  proposal is built on came from running commands in that same family by hand. Putting the orphan
+  survey there, as one more thing that command line checks, costs a maintainer nothing new to
+  remember; it extends a habit already proven to work rather than asking for a second one.
+- **Let branch age do the escalating, because it is already the only state that exists.** A branch
+  that shows up in this survey unresolved does not go quiet between one session and the next; it
+  shows up again, older. No counter, no database, no second file to keep synchronized with the
+  branches themselves, which is the same reasoning `lane-claim-check.sh` already applies by reading
+  the branch's own birth time instead of maintaining one. This does not make the report act on its
+  own, and it should not: deleting a branch is exactly the kind of judgment AGENTS.md reserves for a
+  person. What it does is make *not acting* visibly compound, the same age climbing every session,
+  instead of resetting to silence the moment the report has been printed once.
+
+## What this would cost, measured against today's twenty-four
+
+The false-alarm question is really a grace-window question, and today's data answers it directly.
+Of the 24, only `maintainer/capture-the-actions` was under a day old at measurement time; every
+other branch, including all seven holding real unmerged work, was at least two days old and up to
+nine. A grace window set at 24 hours, one order of magnitude above `lane-claim-check.sh`'s 15
+minutes (which protects the gap between a push and a draft) and comfortably inside the gap between
+two maintainer sessions, would have deferred exactly one branch today and flagged the other 23
+correctly. `maintainer/subscription-stays`, pushed the same session and in the same position as
+`capture-the-actions`, is the clean case for why the window has to exist at all: it stopped being
+orphaned on its own, gaining PR #1106, before anyone had to act on a report about it.
+
+**Judgment cost per flagged branch is small and case-dependent, which is the point of keeping the
+four shapes separate rather than a single list.** Six of the 24 (case 2) and five more (case 3) need
+no judgment at all, delete is always correct. Two (case 4) need one look at the closed pull
+request's own thread, which GitHub keeps regardless of the branch, to confirm the closure carries
+its reasoning. The remaining eleven, including the seven detailed above, are the ones actually worth
+a maintainer's attention, and that is eleven out of 24, not 24 out of 24, which is what "one blanket
+rule" would have cost instead.
+
+## Threshold and action, per shape
+
+No single threshold, because no single action fits every shape. All four share one constraint:
+**the mechanism reports; a person deletes.** Nothing here is proposed to run unattended and delete
+anything, for the reason the refused Actions-workflow option already names.
+
+| Shape | Past the 24h grace window | Action, and who decides |
+|---|---|---|
+| Real work, no pull request (case 1) | Report age, commit and file counts | A person's call: `gh pr create --draft` to claim it visibly per §90, or, if it is genuinely abandoned, land what it found in `notes/` and delete, per AGENTS.md's own line that "a branch holding a finding should have the finding landed in `notes/` first" |
+| Empty §90 claim, dead lane (case 2) | Report age | Delete; nothing is lost |
+| Merged, not deleted (case 3) | Report age and pull request number | Delete; this widens `lane-claim-check.sh`'s existing `LEFTOVER` check past `milestone/*` |
+| Closed, not merged (case 4) | Report age and pull request number, kept visually distinct from case 3 | Read the closed pull request's thread for the reason it closed, then delete; do not fold this into case 3's zero-judgment path |
+
+A provisional name for the mechanism: `scripts/orphan-branch-check.sh`, in `scripts/` rather than
+`script/` for the same reason `merge-drain.sh` and `lane-claim-check.sh` are there, a maintainer's
+tool rather than a front door a contributor types. `orphan` is doing the work `lane-claim-check.sh`'s
+own header already does with `claim`: naming the thing the branch is missing, not the branch itself.
+Unratified; calef's call per the naming rule.
+
+## What is out of scope
+
+- **Not a general queue-automation proposal.** This does not touch `merge-drain.sh`'s admission
+  policy, the stuck-checks report, or how the merge queue itself orders candidates.
+- **Not auto-deleting anything, ever**, regardless of which shape or how old. Every deletion in the
+  table above is a person's action after reading the report.
+- **Not resurfacing stale drafts.** PR #1087 is evidence for this proposal's design argument, not a
+  case it handles; that gap belongs to `merge-drain.sh`'s existing `stale_drafts` check, or to a
+  proposal of its own about re-surfacing a report that already fired once.
+- **Not fixing `lane-claim-check.sh`'s `LEFTOVER`/`CLOSED` conflation.** Named above so it has a
+  home; fixing it is a separate, smaller piece of work.
+- **Not replacing `lane-claim-check.sh`'s early-window check or `merge-drain.sh`'s stale-draft
+  check.** Both are tuned for a different clock, minutes rather than days, and both are working for
+  the case they were built for.
+- **Not a change to §90's claim mechanism itself.** The claim stays a draft pull request; this
+  proposal is about what happens when a branch never reaches one, or reaches one and then nobody
+  looks again.
