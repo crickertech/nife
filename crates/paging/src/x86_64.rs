@@ -520,7 +520,7 @@ mod verification {
     use crate::{Half, PAGE_SIZE, PageSize};
 
     /// **The walk never indexes past a table** (four levels here).
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.index_is_always_in_bounds.patch`
     #[kani::proof]
     fn index_is_always_in_bounds() {
         let va: u64 = kani::any();
@@ -530,7 +530,7 @@ mod verification {
     }
 
     /// **The four indices and the offset tile the low 48 bits exactly.**
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.the_indices_and_offset_tile_the_address.patch`
     #[kani::proof]
     fn the_indices_and_offset_tile_the_address() {
         let va: u64 = kani::any();
@@ -543,7 +543,7 @@ mod verification {
     }
 
     /// **Distinct pages take distinct paths** within the 48-bit VA.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.distinct_pages_take_distinct_paths.patch`
     #[kani::proof]
     fn distinct_pages_take_distinct_paths() {
         let a: u64 = kani::any::<u64>() & 0x0000_ffff_ffff_f000;
@@ -558,7 +558,7 @@ mod verification {
     }
 
     /// **The two halves are disjoint** at the canonical split (bit 47).
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.the_two_halves_are_disjoint.patch`
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
@@ -707,7 +707,7 @@ mod verification {
     /// **No table pointer ever reads as a block**, for every address: `table_entry` keeps `PS`
     /// clear, so the walk never stops early at an entry that points at a table and never takes a
     /// table's frame for 2 MiB of mapped memory.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.a_table_entry_is_never_a_block.patch`
     #[kani::proof]
     fn a_table_entry_is_never_a_block() {
         let pa: u64 = kani::any();
