@@ -1,17 +1,7 @@
 # The weekly falsification sweep replayed nothing and reported success
 
-**Correction of error, 2026-09-23.** The first one this tree has written, under
-§210 (a correction of error, and its action items are decisions, proposals or milestones), which
-sets the shape below and rules that an action item is a decision, a proposal or a milestone.
-
-**The path is provisional.** §210 proposes `notes/corrections/<date>-<slug>.md` and names it as a
-suggestion rather than a ratified name, because calef names what a reader meets. This file follows
-the suggestion and says so. `notes/corrections.md` stays the index and now points here.
-
-**Blameless, and that is load-bearing here rather than polite.** Both halves of this defect were
-written deliberately, by people who explained their reasoning in the file, and both were right on
-their own. Nobody was careless. What follows is about the interaction and about a habit, and it
-would be a worse document if it had a name in it.
+**Correction of error, 2026-09-23**, to the shape §210 sets (a correction of error, and its action
+items are decisions, proposals or milestones).
 
 ## What happened
 
@@ -50,12 +40,11 @@ into is the file that stopped the sweep.
 
 ## Timeline
 
-All times UTC. The workflow's whole life fits in one table.
-
 | When | What |
 |---|---|
 | 2026-08-31 18:18 | `24a1e0a7b` lands the lint hook, the weekly sweep, the per-pull-request gate and the note. The `tee` and the `continue-on-error` are both in that first commit, and the file has not been touched on `main` since. |
-| 2026-09-07 10:47:57 | First scheduled run, 34113314569. Refuses at 10:48:35.396, 0.5 s after the step starts. Reports success. |
+| 2026-08-31 to 2026-09-07 | Seven days in which the workflow is not run at all. There is no dispatch, no trial, and no run of any kind. |
+| 2026-09-07 10:47:57 | First scheduled run, 34113314569, and the first execution of this workflow in any form. Refuses at 10:48:35.396, 0.5 s after the step starts. Reports success. |
 | 2026-09-14 11:01:12 | Second scheduled run, 34836043991. Refuses at 11:01:46.017. Reports success. |
 | 2026-09-21 11:10:46 | Third scheduled run, 35592675887. Refuses at 11:11:24.014. Reports success. |
 | 2026-09-23 20:30:04 | `falsify/the-single-harness-crates` dispatches the workflow by hand to check its new records. Refuses at 20:30:52. That lane reads the log rather than the green tick and finds it. |
@@ -65,7 +54,7 @@ All times UTC. The workflow's whole life fits in one table.
 | 2026-09-23 20:37:53 | That dispatch refuses, on a branch without the fix. |
 | 2026-09-23 20:49:25 | `falsify/machine-discovery` dispatches. Refuses. |
 | 2026-09-23 20:50:57 | `falsify/crates-paging` posts the same finding as a comment on pull request #1159, deliberately not fixing it, because `.github/` is shared and two siblings were dispatching that workflow at the time. |
-| 2026-09-23 21:16:38 | This record's own pull request, #1166, trips a fifth instance of the same shape while being written. `coe-architect-label.yml`, merged hours earlier to put `needs-architect` on every COE by default, detects the new file correctly and then fails to apply the label, because `gh pr edit` was called without `--repo` in a job that never checks the repository out. The step's `if` takes the else arm as designed, the job reports **pass**, and no label appears. |
+| 2026-09-23 21:16:38 | This record's own pull request, #1166, trips another instance of the same shape while being written. `coe-architect-label.yml`, merged hours earlier to put `needs-architect` on every COE by default, detects the new file correctly and then fails to apply the label, because `gh pr edit` was called without `--repo` in a job that never checks the repository out. The step's `if` takes the else arm as designed, the job reports **pass**, and no label appears. |
 
 **Six completed runs, six refusals. The count of falsification patches this workflow has replayed in
 its lifetime is zero.** The one run that carried the fix was cancelled by its own concurrency group
@@ -149,7 +138,7 @@ Because a gate is written against the defect it hunts, and the empty-input case 
 author is not thinking about while writing it. From outside, checking nothing is indistinguishable
 from finding nothing, and it is what every new gate does on the day it lands, before its subject
 exists. The review that follows asks whether the gate catches the defect; nothing asks what it does
-when its input set is empty. **This was the fourth instance of the shape found in a single day, and a fifth arrived while
+when its input set is empty. **This was the fourth instance of the shape found in a single day, and two more arrived while
 this document was being written**; that recurrence, not the `tee`, is the finding:
 
 - **Milestone 401 (a gate that selects the set it judges can pass by checking nothing)**, pull
@@ -163,8 +152,15 @@ this document was being written**; that recurrence, not the `tee`, is the findin
   still satisfies a required check, so skipping is never the safe default. That file's `gate` job
   exists because it had to learn it more than once.
 - **This sweep**, where the skipped work is the whole subject of the workflow.
-- **And a fifth, found by this document's own pull request**, which is the strongest evidence in it
-  that the shape is a habit rather than four coincidences. The workflow that labels a COE for
+- **And the falsification ratio itself**, which is the strongest member because it is a measurement
+  rather than a gate. It counts harnesses, so code carrying no harness is not in its denominator and
+  a crate can read 100% falsified while proving nothing about most of itself. Milestone 524 (the
+  three x86_64 boot gates) put 338 new lines into `crates/machine_discovery/src/x86_64.rs` on
+  2026-09-21 with no harness of their own and the number stayed clean; the milestone 319 lane on
+  pull request #1155 closed that one hole and the blind spot is still open. `design/fatal-risks.md`'s
+  risk 2 is answered by this number.
+- **One found by this document's own pull request**, which is the strongest evidence in it that the
+  shape is a habit rather than four coincidences. The workflow that labels a COE for
   calef's attention reported success while applying no label. Its detection step names the
   repository explicitly and worked; its labelling step inferred the repository from a git remote
   that a checkout-free job does not have, and its deliberate report-and-continue arm turned the
@@ -177,12 +173,36 @@ mechanism proving it had something to hold. **A gate that reported clean should 
 many units**, and zero should be loud. That is a rung-two artefact this tree does not have a
 convention for, and building one is what the second action item below is.
 
+**And there is a sharper cause than any of the above, which is that this workflow was never once
+observed working.** It landed at 18:18 on 2026-08-31 and its first execution of any kind was the
+cron seven days later, which refused. No dispatch, no trial run, nothing. A defect that would have
+shown itself in 35 seconds of somebody's attention instead took three weeks and a lane reading a log
+for another reason.
+
+**This tree already knows the argument, in the one place where it is a ruling.** §134 (a harness
+carries a machine-replayable falsification record, or it is not evidence) says a Kani proof is not
+evidence until somebody has made it go red on purpose, because a proof that cannot fail proves
+nothing and looks exactly like one that can. **A CI gate is a claim of the same kind, and this tree
+requires nothing of it.** A gate ships green against a tree where its defect is absent, which is
+indistinguishable from a gate that cannot fire, and that is why 5's shape one level out: the gate's
+first green is the "checked nothing" case, and it is the case everybody reads as success.
+
+`coe-architect-label.yml` is the second instance, and the contrast is the measurement. It shipped
+the same way, unexercised, and reported success while applying no label. It was caught in hours
+rather than in three weeks only because a human happened to be reading its log for another reason,
+which is the same luck that found the three redone patches above and is not a mechanism.
+
 ## Action items
 
 - **Done.** The transcript goes to `$RUNNER_TEMP` instead of the checkout, so the sweep's own
   logging can no longer dirty the tree it is about to patch. Carried by pull request #1156, commit
   `401203294`, on branch `falsify/the-single-harness-crates`; that pull request owns
   `.github/workflows/falsifications.yml` and this record deliberately does not touch it.
+- **Proposed.** `design/roadmap/proposals/a-gate-is-not-evidence-until-it-has-failed.md` (name
+  provisional): a workflow that gates something is not deployed until it has been observed failing
+  on purpose, once, and the record of that observation lives with it, the way §134's falsification
+  patch lives beside its harness. It may fold into the denominator proposal below rather than
+  standing alone; that is calef's call.
 - **Proposed.** `design/roadmap/proposals/a-mechanism-reports-its-denominator.md` (name provisional):
   survey the 5 `continue-on-error: true` steps and 19 `|| true` constructs across the 14 workflows,
   decide for each whether it suppresses a verdict or an outcome, and give every job that publishes a

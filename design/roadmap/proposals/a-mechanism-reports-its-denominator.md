@@ -16,7 +16,7 @@ before its subject exists, and nothing in this tree's review asks about it. The 
 is "does this catch the defect". The question that goes unasked is "what does this do when its input
 set is empty".
 
-Five instances turned up in one day, 2026-09-23:
+Six instances turned up in one day, 2026-09-23:
 
 - **Milestone 401 (a gate that selects the set it judges can pass by checking nothing)** swept
   `script/` for the class and guarded eight selectors, enumerated in `notes/empty-selectors.md`.
@@ -34,6 +34,13 @@ Five instances turned up in one day, 2026-09-23:
   called without `--repo` in a job with no checkout; its deliberate never-fail arm reported the
   failure to the log and the job to GitHub as a pass. Fixed on the branch that found it, which was
   the branch writing the correction of error about the other four.
+
+- **And the falsification ratio**, which is not a gate at all but the same defect in a measurement.
+  It counts harnesses, so code with no harness is absent from its denominator and a crate can read
+  100% falsified while most of it is unproved. Milestone 524 (the three x86_64 boot gates) added 338
+  lines to `crates/machine_discovery/src/x86_64.rs` on 2026-09-21 with no harness of their own and
+  the number did not move; found and reported by the milestone 319 lane on pull request #1155, which
+  closed that instance and not the class.
 
 Milestone 401 fixed the `script/` half. **The workflow half is untouched**, and it is the half where
 the swallowing is explicit and deliberate rather than accidental.
@@ -82,6 +89,21 @@ silent on the verdict it was written to let through.
 3. **Consider rung one where it is cheap.** A script that exits non-zero when its own unit count is
    zero needs no workflow cooperation at all, and makes the wrong state unrepresentable from the
    workflow's side. Where it is not cheap, say so and take rung two.
+
+## And the same defect in the tree's own metrics
+
+**A reported percentage must say what it is a percentage of.** The four workflow constructs above
+hide a zero in an exit status; a ratio hides one in a denominator, and the second is worse because
+the number is published, quoted and used to answer `design/fatal-risks.md`'s risk 2 (the proofs
+prove trivia and the real bugs live where Kani cannot reach). `script/falsifications` reports 63 of
+180 harnesses, `script/metrics` carries several ratios of the same family, and none of them states
+the population it drew from or what it excluded.
+
+**The survey is the deliverable, not the fix.** Walk the ratios this tree publishes, and for each
+one write down what its denominator counts and what falls outside it, beside the number. Whether a
+better denominator exists for the falsification ratio (lines, functions, public surface) is a real
+question with real costs and this proposal deliberately does not answer it; naming which numbers
+have the problem is what makes answering it possible.
 
 ## What this deliberately is not
 
