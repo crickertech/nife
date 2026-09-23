@@ -3998,3 +3998,98 @@ of it, and this section is where its evidence lives.
 fired on PR #1112 exactly as designed. It proves a floor was saved under the pinned nightly. It
 cannot prove the numbers under that stamp are right, and this section is what that gap looks like
 from the reader's side.
+
+## 2026-09-23: five x86_64 counters left the tripwire and no benchmarked code had changed
+
+Milestone 315 (a port revoke that reaches every core) flipped
+`scripts/qemu-runner-x86_64.sh`'s `NIFE_SMP` default from 1 to 2, per DECISIONS §153. CI's
+`bench (icount regression tripwire)` then failed on x86_64 with five counters out of bounds, four
+of them *faster*:
+
+| counter | measured | baseline | change |
+|---|---|---|---|
+| `tss_iomap_lazy_switch` | 5,624,840 | 23,586,100 | -76% |
+| `tss_iomap_switch` | 8,094,599 | 23,937,905 | -66% |
+| `tss_iomap_lazy_nop` | 7,225,718 | 19,609,872 | -63% |
+| `yield_switch` | 16,763,552 | 19,188,747 | -13% |
+| `spawn_reap` | 21,026,750 | 2,846,009 | **+639%** |
+
+A 7.4x regression on `spawn_reap` and a fix that touched the scheduler's locked region fit that
+shape as well as the flip does, so it was measured rather than assumed.
+
+### `bench_x86` was the one arm that never pinned its core count
+
+`bench()` pins `NIFE_SMP=1` for aarch64 and `bench_riscv` pins it for riscv64, each with the reason
+written at the call site: a primitive benchmark measures per-core path length. `bench_x86` set the
+variable nowhere and took whatever the runner defaulted to, while both its `eprintln!`s said
+"single hart". The flip made that line false and nothing said so. It is pinned now.
+
+### The measurements
+
+Five builds, all `cargo xtask bench --x86`, TCG + `-icount shift=0,sleep=off`, QEMU 11.1.1,
+`spawn_reap` in ticks over 64 iterations:
+
+| tree | cores | `spawn_reap` |
+|---|---|---|
+| milestone 315 | 1 | 2,911,921 |
+| `main` (d53d6bb19) | 2 | 11,816,362 |
+| `main` + only the `install_port_grant` move | 2 | 14,409,216 |
+| milestone 315 | 2 | 21,026,750 |
+| milestone 315 + two `fetch_add` probes | 2 | 12,093,916 |
+
+**At one core this branch is honest against the old baseline**: `--check` passes, the worst row is
+`spawn_reap` at +2.3% and every other row is inside 1.2%. So no counter moved because of the code.
+
+**At two cores the flip alone accounts for most of it**: `main`, with none of milestone 315 in it,
+already runs `spawn_reap` at 4.15x the baseline.
+
+**And the counters that involve no cross-core scheduling do not move at all.** `ipc_rtt`,
+`relay_rtt`, `call_reply`, `broker_rtt` and `coremark` are within 0.4% at one core and two, which
+rules out the obvious systematic explanation: a second core is *not* inflating the shared icount
+clock, because a halted vCPU consumes no instructions.
+
+### `spawn_reap`, specifically
+
+`bench::spawn_reap` spawns a thread that exits immediately and then **busy-yields** until the
+reaper has returned `thread_count` to baseline. A probe counting the parent's spins and the
+cross-core rounds inside the timed window:
+
+| | 1 core | 2 cores |
+|---|---|---|
+| parent `yield_now` calls, 64 iterations | 22 | 4,205 |
+| shootdown broadcast rounds | 390 (all no-ops: no other core) | 384 (real NMI round trips) |
+
+That is the whole of it, and it is the benchmark's wait loop rather than any new work. At one core
+the child runs on the same core and is usually reaped before the first check, so the loop spins
+0.34 times per iteration. At two cores the child is placed on the other core and the parent spins
+66 times per iteration while waiting, 191x more, each spin a full `schedule()` taking `IPC_TABLES`.
+At about 2,200 ticks for a yield with nothing else runnable, 4,183 extra spins is ~9.2M ticks,
+which is the entire gap. The 384 cross-core TLB-shootdown NMIs (about six per iteration, each
+waking a halted core and spinning for its acknowledgement) are real new cost at two cores and are
+the smaller term; at one core `broadcast` finds no other core and returns.
+
+Milestone 315's own broadcast (`segments::revoke_port_grant_everywhere`) is **not** on this path at
+all: it runs from `PortRange::REVOKE`, which `spawn_reap` never calls.
+
+### The finding that matters more than the verdict
+
+**At two cores these counters stay deterministic and stop being a function of the code.** Three
+consecutive `NIFE_SMP=2` runs of the same binary were byte-identical on every row, so the
+instrument has not gone random. But the table above is not monotone and cannot be read as one:
+
+- Moving `install_port_grant` inside the lock, alone, on `main` (a `#[cfg]`-gated call of roughly
+  fifteen instructions) moved `tss_iomap_lazy_switch` +89% and `yield_switch` +15%.
+- Adding two `fetch_add`s for the probe, which changes no semantics whatsoever, moved
+  `spawn_reap` -42%, a swing as large as the whole difference between `main` and this branch.
+
+So the apparent 1.78x between `main` at two cores and this branch at two cores is **not
+attributable to milestone 315's code**. It is the instrument's sensitivity to which core wins a
+race, and a 10% tripwire over that would fire on unrelated changes forever.
+
+### What was done, and what is left
+
+The baseline was **not** re-saved: nothing it records has changed, because the x86_64 icount bench
+is single-core again, as its own output always claimed. Gating x86_64 at two cores wants its own
+baseline file, its own tolerance, and benchmarks whose wait loops are not races. That is a
+**proposed milestone** (unnumbered; a lane does not mint one) and until it exists the two-core
+numbers are available by hand with `NIFE_SMP=2 script/bench --x86` and are not gated.
