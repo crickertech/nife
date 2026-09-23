@@ -34,14 +34,17 @@ channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
 echo "==> Ensuring Rust toolchain '$channel' (components + bare-metal targets)"
 rustup toolchain install "$channel" --profile minimal
 rustup component add --toolchain "$channel" rust-src llvm-tools rustfmt clippy miri
-# BUGS: this list names TWO of the three supported targets. `x86_64-unknown-none` is missing,
-# which is visibly inconsistent with the paragraph immediately below that checks for all three
-# QEMU emulators because "`cargo xtask test` now needs the full set". It is harmless today only
-# because `rust-toolchain.toml` carries `targets = [all three]` and rustup honours that array,
-# which is also what makes this line dead weight rather than a source of truth. The fix is to
-# derive the list from that file, the way `channel` above already is; see
-# notes/architecture-list-sweep.md, option A.
-rustup target add --toolchain "$channel" aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
+# **Every target the pin declares**, read from `rust-toolchain.toml` rather than spelled here, the
+# way `channel` above already is and the way `script/drift` does it. The hand-written list this
+# replaces named two of the supported bare-metal targets and not `x86_64-unknown-none`, which was
+# visibly inconsistent with the paragraph below that checks for all three QEMU emulators because
+# "`cargo xtask test` now needs the full set". It was harmless only because rustup honours the
+# pin's `targets` array, which is also what made the line dead weight rather than a source of
+# truth: a fourth architecture is installed here the day it is added to the pin, and there is no
+# second list to forget. See notes/architecture-list-sweep.md, option A.
+all_targets="$(awk -F'"' '/^targets *=/ {for (i = 2; i < NF; i += 2) printf "%s ", $i}' rust-toolchain.toml)"
+# shellcheck disable=SC2086  # word splitting is the point: one flag per target
+rustup target add --toolchain "$channel" $all_targets
 
 # --- QEMU ---------------------------------------------------------------------------------
 # The kernel runs under qemu-system-aarch64, the riscv port under qemu-system-riscv64, and the

@@ -204,9 +204,9 @@ const STEP_FIRST_READ: u64 = 0xDEAD_0002;
 /// weakly-ordered CPU nothing else stops a doorbell write hoisting above the command it announces.
 ///
 /// **Local rather than shared, and now for a stated reason rather than for want of a name.**
-/// Milestone 186 lifted the five virtqueue copies into
+/// Milestone 186 (derive the architecture list) lifted the five virtqueue copies into
 /// [`user_mode_runtime::virtio::virtio_ring_barrier`], which is a weaker barrier: those drivers
-/// notify through a syscall instruction, so x86_64 needs only a compiler fence and aarch64 only
+/// notify through a syscall instruction, so `x86_64` needs only a compiler fence and aarch64 only
 /// `dmb ish`. This one's doorbell is a direct store to a device-typed page in this address space,
 /// with no syscall between the ring stores and it, so it keeps `dmb sy` and a real `mfence`.
 /// Sharing the two would mean strengthening the ring barrier or weakening this one, and both are

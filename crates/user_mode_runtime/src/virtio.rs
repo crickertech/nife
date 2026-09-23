@@ -62,8 +62,8 @@ pub fn virtio_notify(virtio_slot: u64, queue: u64) -> i64 {
 /// **Why one function rather than five.** This body was copied into `crates/virtio` and four
 /// programs under `components/src/`, and every copy had an `aarch64` arm, a `riscv64` arm, and no
 /// third arm, so on `x86_64-unknown-none` the whole function compiled to nothing: not the machine
-/// barrier that TSO makes unnecessary, and not the compiler barrier that nothing makes
-/// unnecessary. An empty function is not a warning, so `script/lint`'s x86_64 user pass, written
+/// barrier that `TSO` makes unnecessary, and not the compiler barrier that nothing makes
+/// unnecessary. An empty function is not a warning, so `script/lint`'s `x86_64` user pass, written
 /// to catch exactly this, could not. Five copies meant five places to be wrong and five places to
 /// fix; the `compile_error!` below now exists once, and a sixth driver gets it by calling this
 /// rather than by remembering. See notes/architecture-list-sweep.md, finding 9.
@@ -71,12 +71,12 @@ pub fn virtio_notify(virtio_slot: u64, queue: u64) -> i64 {
 /// **What each architecture needs, and why they differ.** aarch64 and riscv64 are weakly ordered,
 /// so both halves (machine and compiler) need a real instruction: `dmb ish` orders the inner
 /// shareable domain, which is where a coherent DMA agent observes, and RISC-V takes one full
-/// `fence`, the same conservative choice `kernel::arch::dma_wmb` makes. x86_64 is TSO, and the
+/// `fence`, the same conservative choice `kernel::arch::dma_wmb` makes. `x86_64` is TSO, and the
 /// only orderings this function is ever asked for are store-store (descriptor before index, index
 /// before notify) and load-load (used index before payload), both of which the machine already
 /// guarantees for the write-back memory a coherent device shares. The store-load case TSO does
 /// *not* give is not reachable here: every notify and every register access in these drivers
-/// leaves the process through a syscall instruction, which is serializing. So on x86_64 the
+/// leaves the process through a syscall instruction, which is serializing. So on `x86_64` the
 /// compiler is the entire exposure and [`core::sync::atomic::compiler_fence`] is the whole answer.
 /// `components/src/non_volatile_memory_express.rs` keeps its own stronger barrier because its
 /// doorbell is a direct store to a device-typed page in this address space rather than a syscall.
@@ -92,6 +92,13 @@ pub fn virtio_ring_barrier() {
         core::arch::asm!("fence", options(nostack, preserves_flags));
     }
     #[cfg(target_arch = "x86_64")]
+    // PAIR: none in this tree, and that is the whole point. The other observer is the virtio
+    // device itself, which reads the descriptor table and the available index by DMA and has no
+    // fence to name. So this is deliberately one-sided: the machine half of the pairing is TSO
+    // plus cache coherence, and this fence supplies only the half a compiler could break, which is
+    // sinking a descriptor store past the index store that advertises it. The aarch64 and riscv64
+    // arms above are one-sided for the same reason and against the same non-fence partner. See
+    // notes/memory-ordering.md.
     core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
 
     // A fourth architecture fails to build here rather than failing to order, which is the whole

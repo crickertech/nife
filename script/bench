@@ -16,6 +16,20 @@
 #                              and, with a RedoxFS disk attached, the filesystem ones: fs_read and
 #                              milestone 38's four throughput phases (fs_seq_read and friends)
 #
+# **All three architectures, each against its own baseline.** With no architecture flag the
+# instrument is aarch64 and the baseline is `bench/baseline-aarch64.txt`; `--riscv` and `--x86`
+# select the other two and their own `bench/baseline-<arch>.txt`. The flags compose with
+# everything above, so `--check` and `--save --why` mean the same thing on each:
+#
+#   script/bench --riscv --check    diff against bench/baseline-riscv64.txt. CI runs this on
+#                                   every pull request, beside the aarch64 leg
+#   script/bench --x86 --check      diff against bench/baseline-x86_64.txt
+#   script/bench --x86 --save --why "<reason>"
+#                                   rewrite that architecture's baseline, same rules
+#
+# `--real` is aarch64 only, by construction rather than by omission: it runs on
+# Hypervisor.framework, which executes the host's own ISA.
+#
 # --real is single-hart by default so the primitive magnitudes are per-core (the cross-OS comparison
 # reads them that way); --smp boots the whole machine for the aggregate-throughput bench.
 # See design/roadmap/21-benchmarks.md and notes/benchmarks.md.
@@ -43,13 +57,6 @@
 #   - **Nothing checks that a reason says anything.** `--save --why x` passes. The gate is that a
 #     person had to type something and that the something is in front of the next reader.
 #
-#   - **The EXAMPLES above name one of three architectures.** `--riscv` and `--x86` both exist
-#     (`cargo xtask bench --help`, and `bench_riscv` / `bench_x86` in xtask), each gates against its
-#     own `bench/baseline-<arch>.txt`, and CI runs `--riscv --check` on every pull request. None of
-#     that is discoverable from this header, which is the FreeBSD standard's own test: a page
-#     without the worked example has not finished explaining itself. Left as a record rather than
-#     fixed here because the sweep that found it was not the lane to change three architectures'
-#     documentation; see notes/architecture-list-sweep.md.
 
 set -e
 cd "$(dirname "$0")/.."

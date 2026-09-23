@@ -89,8 +89,13 @@ jobs:
         run: |
           rustup toolchain install "${{ steps.plan.outputs.target }}" --profile minimal \
             --component rust-src,llvm-tools,rustfmt,clippy
+          # Every target the pin declares, read from the file rather than spelled here, matching
+          # `script/toolchain-bump`. This installs against the NEW toolchain, which rustup does not
+          # apply the pin's `targets` array to, so an omission here is not covered the way it is
+          # elsewhere: the hand-written list named two and left out `x86_64-unknown-none`, and the
+          # first x86_64 build after a bump was what discovered it.
           rustup target add --toolchain "${{ steps.plan.outputs.target }}" \
-            aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
+            $(awk -F'"' '/^targets *=/ {for (i = 2; i < NF; i += 2) printf "%s ", $i}' rust-toolchain.toml)
 
       - uses: Swatinem/rust-cache@v2
         if: steps.install.outcome == 'success'
