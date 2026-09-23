@@ -39,7 +39,8 @@ Six instances turned up in one day, 2026-09-23:
   It counts harnesses, so code with no harness is absent from its denominator and a crate can read
   100% falsified while most of it is unproved. Milestone 524 (the three x86_64 boot gates) added 338
   lines to `crates/machine_discovery/src/x86_64.rs` on 2026-09-21 with no harness of their own and
-  the number did not move; found and reported by the milestone 319 lane on pull request #1155, which
+  the number did not move; found and reported by the milestone 319 (the crate that parses firmware
+  had no proofs, and three of its first ones were false) lane on pull request #1155, which
   closed that instance and not the class.
 
 Milestone 401 fixed the `script/` half. **The workflow half is untouched**, and it is the half where

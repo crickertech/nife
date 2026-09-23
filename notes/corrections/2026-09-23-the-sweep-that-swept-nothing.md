@@ -1,7 +1,7 @@
 # The weekly falsification sweep replayed nothing and reported success
 
-**Correction of error, 2026-09-23**, to the shape §210 sets (a correction of error, and its action
-items are decisions, proposals or milestones).
+**Correction of error, 2026-09-23**, to the shape set by §210 (a correction of error, and its
+action items are decisions, proposals or milestones).
 
 ## What happened
 
@@ -156,7 +156,8 @@ this document was being written**; that recurrence, not the `tee`, is the findin
   rather than a gate. It counts harnesses, so code carrying no harness is not in its denominator and
   a crate can read 100% falsified while proving nothing about most of itself. Milestone 524 (the
   three x86_64 boot gates) put 338 new lines into `crates/machine_discovery/src/x86_64.rs` on
-  2026-09-21 with no harness of their own and the number stayed clean; the milestone 319 lane on
+  2026-09-21 with no harness of their own and the number stayed clean; the milestone 319 (the crate
+  that parses firmware had no proofs, and three of its first ones were false) lane on
   pull request #1155 closed that one hole and the blind spot is still open. `design/fatal-risks.md`'s
   risk 2 is answered by this number.
 - **One found by this document's own pull request**, which is the strongest evidence in it that the

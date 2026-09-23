@@ -49,7 +49,8 @@ on purpose, once, and the record of that observation lives with it.**
   replayable version would cost more than it buys.
 - **It lives with the workflow**, in the file's header beside the reasoning already there, which is
   rung three of `AGENTS.md`'s ladder: a record at the thing itself, read by the next person to touch
-  it. The alternative, a registry, is the shape milestone 115 exists to refuse.
+  it. The alternative, a registry, is the shape milestone 115 (the names that were ratified, and the
+  ones that were refused) exists to refuse.
 - **It applies to new workflows and to a step whose failure arm is added later**, since that arm is
   what carries the claim. It does not apply retroactively to the 14 workflows already here; auditing
   those is the denominator proposal's survey.
