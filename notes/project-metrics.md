@@ -795,12 +795,17 @@ drawn for scale.
 ## How it stays current
 
 `script/metrics --update` recomputes the current week's row and redraws the charts.
-`.github/workflows/metrics.yml` runs it every Monday and opens a pull request if anything changed,
-following `toolchain-bump.yml`, which is the closest existing shape.
+`.github/workflows/metrics.yml` runs it daily (calef asked for this on 2026-09-23) and opens or
+refreshes a pull request if anything changed, following `toolchain-bump.yml`, which is the closest
+existing shape. Coverage stays weekly, taken on Monday only: it is the one column that needs a
+build, `script/metrics` carries the cell on every other day rather than recomputing it, and a daily
+build would be seven `script/coverage` runs for a column nobody reads more than once a week. The
+row is keyed by ISO week regardless, so the daily runs update the current week's row in place; they
+do not add rows between Mondays.
 
 ### One column the scheduled run cannot produce, and what stands in for it
 
-**The weekly workflow runs on a GitHub runner with a fresh checkout. It cannot see the session
+**The workflow runs on a GitHub runner with a fresh checkout, daily. It cannot see the session
 records the cost columns are measured from, and no workflow ever will.** Those records live under
 `~/.claude/projects/` on the machine the lanes ran on. So machine effort is captured by a person
 running `script/effort --update` on patagonia and committing the result, which is rung four of
