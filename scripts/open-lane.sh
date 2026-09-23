@@ -57,6 +57,7 @@ rounds=${3:-4}
 : "${OPEN_LANE_MODEL:?set OPEN_LANE_MODEL to the model id the gateway exposes}"
 
 brief_text=$(cat "$brief")
+base_commit=$(cd "$worktree" && git rev-parse HEAD)
 
 # The failure text from the last round is appended to the prompt, so the model is told what the
 # gate said rather than asked to guess. This is the loop that makes a cheaper model usable.
@@ -87,6 +88,23 @@ $feedback"
         claude --bare -p "$prompt" --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
     ) || echo "open-lane: the model's own run exited non-zero; the gates decide, not this"
 
+    # **A green tree is not a delivered lane.** On 2026-09-22 a lane fixed a flaky assertion
+    # correctly, never committed it, and this loop reported green after one round: both gates pass on
+    # an unchanged working tree, so "the model did nothing" and "the model did the work and forgot to
+    # commit" were indistinguishable. The oracle has to answer "did anything land", not only "is the
+    # tree clean", or every green it has ever printed is suspect.
+    if [ "$(cd "$worktree" && git rev-parse HEAD)" = "$base_commit" ]; then
+        feedback="
+
+## You have committed nothing
+
+The gates pass, but they pass on an unchanged tree, so that proves nothing. Commit your work. If you
+believe there is nothing to do, say so explicitly rather than leaving the worktree untouched."
+        echo "==> open-lane: no commit since the lane started; asking again"
+        round=$((round + 1))
+        continue
+    fi
+    if (cd "$worktree" && [ -z "$(git status --porcelain)" ]) || true; then :; fi
     if (cd "$worktree" && script/lint >/tmp/open-lane-lint.$$ 2>&1 \
         && script/citations --ratchet >/tmp/open-lane-cit.$$ 2>&1); then
         echo "==> open-lane: green after $round round(s)"
