@@ -3,8 +3,11 @@
 Three scripts, all maintainer tools rather than front doors. Two were born on 2026-08-04 out of the
 same evening's failures: `scripts/merge-drain.sh` lands what does not need calef, and
 `scripts/trunk-health.sh` says when `main` is red. `scripts/lane-claim-check.sh` joined them on
-2026-08-31 and watches one step earlier, for work that has not reached the queue at all. Names are
-provisional.
+2026-08-31 and watches one step earlier, for work that has not reached the queue at all. A fourth,
+`scripts/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
+sitting in a lane worktree; it has no watcher of its own and is called from `scripts/trunk-health.sh`'s
+loop instead, so "three things that watch" still names the count of things that run unattended. Names
+are provisional.
 
 ## Why they exist rather than being someone's job
 
@@ -190,6 +193,21 @@ he would rather this shut down when the session driving it does than run standin
 nobody watching. Resolving a conflict or a check failure needs the reading and judgment a person
 brings, which is this queue's own boundary: **a queue reports, it does not resolve.**
 
+**That restraint was weighed again on 2026-09-23, for `scripts/at-risk-check.sh` below, and did not
+apply.** Three things separate it from the agent calef declined:
+
+- **It is not an agent.** The declined thing had judgment: it would have read a stall and decided
+  something about it. This is a shell script reading `git status` and comparing a timestamp, the same
+  category as `scripts/lane-claim-check.sh`, which was built and accepted five days after this
+  decision without anyone re-raising it.
+- **It never acts**, the same boundary this section already draws for the two scripts above it. It
+  does not commit, stash, or delete; see `scripts/at-risk-check.sh`'s own header for why `git stash`
+  specifically is refused rather than merely unused.
+- **It runs where the two watchers already run**, on the interval `com.nife.trunk-health` already
+  fires at. Nothing new is scheduled: it was folded into `scripts/trunk-health.sh`'s existing loop
+  rather than given a third `launchd` job, precisely so this restraint would not have to be reweighed
+  for a third thing running unattended. See that script's own header for the reasoning.
+
 ## `scripts/trunk-health.sh`
 
 ```console
@@ -208,6 +226,63 @@ watcher produces.
 
 The phrase "nobody is assigned to this" is not filler. A red trunk with an owner is a task; a red
 trunk without one is the failure being surfaced.
+
+## `scripts/at-risk-check.sh`, folded into the loop above (2026-09-23)
+
+AGENTS.md gives the steward a second watch, named beside the idle-lane one and called the more
+valuable of the two: "a lane worktree with modifications and no commit in half an hour is
+uncommitted work one prune away from gone, which is the only failure in this system that destroys
+rather than delays." Nothing built it. `launchctl list` showed `com.nife.merge-drain` and
+`com.nife.trunk-health` on patagonia and nothing else, so the duty AGENTS.md assigns by name had no
+mechanism behind it.
+
+The cost was measured, not hypothetical: in one session on 2026-09-23 three pieces of work were
+found only by luck rather than by anything watching. A fix to `scripts/open-lane.sh` (later #1097)
+surfaced while pruning merged worktrees. A fix to `kernel/src/user/live_swap_tests.rs` (later #1101)
+survived two prunes uncommitted and had to be recovered twice. Sixty-two lines of a decisions
+amendment sat unsaved on `maintainer/202-four-tiers` for hours after the conversation had moved on.
+The maintainer pruned worktrees twice that same session; any of the three could have been destroyed
+outright.
+
+```console
+$ scripts/at-risk-check.sh
+at-risk-check: UNCOMMITTED. /Users/calef/projects/nife-worktrees/atrisk (maintainer/work-one-prune-from-gone) has 2 changed file(s), newest touched 41 minutes ago. One prune away from gone; commit and push.
+```
+
+**It reads every worktree but the main checkout** (`git worktree list --porcelain`), skips any
+already `prunable` (nothing left in them to lose), and for the rest reads `git status --porcelain`.
+The clock is the newest modification time among the changed files, tracked or untracked, **not the
+branch's last commit date**: a worktree can carry a commit from hours ago and be mid-edit again a
+moment later, and the fact that matters is how long the current uncommitted state has sat, not when
+it was last saved. `AT_RISK_MINUTES` (default 30, AGENTS.md's own "half an hour") overrides it, the
+same convention `GRACE_MINUTES` already sets in `scripts/lane-claim-check.sh`.
+
+**It reports and never acts**, the same boundary `scripts/lane-claim-check.sh` holds. It does not
+commit on a lane's behalf, and it does not use `git stash`: the stash stack is per-`.git`, shared
+across every worktree of this repository rather than scoped to one, so one worktree's `git stash`
+can be popped by a session working in a completely different worktree, which is action at a distance
+of exactly the kind this script exists to warn about rather than to commit. AGENTS.md's own note,
+"`git stash` is unsafe in these worktrees, for the same reason one level over," is the same finding
+from the other side.
+
+**Folded into `scripts/trunk-health.sh`'s own loop rather than given a third `launchd` job.** Two
+reasons, both named in that script's own header: a third watcher is a third thing to start and a
+third thing that can die silently, since neither existing script's BUGS section claims to report its
+own death; and folding it in means `com.nife.trunk-health`, already firing `--once` every five
+minutes on patagonia, picks up the new check with no new plist and no new schedule to keep alive.
+`scripts/at-risk-check.sh` is still a standalone, testable script; `trunk-health.sh` only calls it
+and relays what it prints.
+
+Unlike RED/GREEN and unlike the cadence check beside it, this does **not** dedupe by transition. A
+worktree still at risk on the next poll is still exactly as at risk, distinguishing "still true" from
+"newly true" would need a second piece of state this script does not otherwise keep, and the cost of
+not deduping is log lines rather than anything a reader has to act on twice.
+
+Verified against the live tree on 2026-09-23: of 42 lane worktrees, only this lane's own carried
+uncommitted work, and it was minutes old, inside the grace window. Nothing else was flagged; no
+false positive against a lane legitimately mid-work was observed, because nothing was over the
+threshold to test that against. `AT_RISK_MINUTES=0` against the same tree correctly flagged this
+lane's own worktree, confirming the mechanism fires.
 
 ## The prevention half, which is not these scripts
 
@@ -536,6 +611,10 @@ moment forgets.
   request has nowhere to be commented on, so its findings reach whoever reads the drain's log and
   nobody else. Its own header carries the rest (`milestone/*` only, one page of activity feed, and
   that it sees a missing claim rather than the duplicate claim §90 actually fears).
+- **`at-risk-check.sh` is only as alive as `trunk-health.sh` is**, the same dependency
+  `lane-claim-check.sh` has on the drain, for the same reason: it has no schedule of its own. It also
+  only sees the worktrees on the machine it runs from, so patagonia asleep means a worktree on a
+  laptop taken elsewhere is unwatched regardless, which the recorded gap above already names.
 - **`trunk-health.sh` polls at 90 seconds and reads only `main`.** A release branch, if this tree ever
   grows one, is invisible to it.
 - **Neither reports its own death, and on 2026-08-18 that cost hours of red trunk.** If the process

@@ -33,6 +33,27 @@
 # **Recovery is reported too, deliberately.** A watcher that only speaks on failure trains its reader
 # to treat silence as health, and silence is also what a dead watcher produces.
 #
+# # A second watch folded in here (2026-09-23): uncommitted work sitting in a lane worktree
+#
+# AGENTS.md gives the steward a duty this file's own header already names above and never built:
+# "a lane worktree with modifications and no commit in half an hour is uncommitted work one prune
+# away from gone, which is the only failure in this system that destroys rather than delays." It had
+# no mechanism, on any of the two existing watchers, for the same reason nothing else in this file's
+# history has a mechanism until something is lost: `launchctl list` showed `com.nife.merge-drain` and
+# `com.nife.trunk-health` and nothing else.
+#
+# `scripts/at-risk-check.sh` does the reading; this file decides when to speak. Folded in here rather
+# than as a third `launchd` job, on the reasoning `scripts/merge-drain.sh` already uses for
+# `scripts/lane-claim-check.sh`: a third watcher is a third thing to start, a third thing that can die
+# silently (this file's own BUGS section, and `scripts/merge-drain.sh`'s, both say neither reports its
+# own death), and a third entry in every "confirm the watchers are alive" step in AGENTS.md and
+# notes/merge-queue.md. Reusing a loop that already runs on this cadence costs one function call.
+#
+# Unlike RED/GREEN, this reports every pass rather than only the transition: see
+# `scripts/at-risk-check.sh`'s own BUGS section for why (a worktree still at risk on the next poll is
+# still exactly as at risk, and there is no cheap way to distinguish "still true" from "newly true"
+# without a second piece of state this script does not otherwise keep).
+#
 # # The thing that would prevent this rather than detect it
 #
 # GitHub's require-branches-to-be-up-to-date rule, applied 2026-08-04 (§73). Two pull requests, each
@@ -108,6 +129,12 @@ cadence() {
 	script/cadence-check --quiet 2>/dev/null || true
 }
 
+# See this file's own header ("A second watch folded in here") for why this lives here rather than
+# as a third `launchd` job. `scripts/at-risk-check.sh` reports and never acts; this only relays it.
+at_risk() {
+	scripts/at-risk-check.sh 2>/dev/null || true
+}
+
 if [ -n "$once" ]; then
 	s=$(state)
 	case "$s" in
@@ -117,6 +144,8 @@ if [ -n "$once" ]; then
 	esac
 	c=$(cadence)
 	[ -n "$c" ] && printf '%s\n' "$c"
+	a=$(at_risk)
+	[ -n "$a" ] && printf '%s\n' "$a"
 	exit 0
 fi
 
@@ -148,5 +177,10 @@ while true; do
 		fi
 		prev_cadence="$c"
 	fi
+
+	# Every pass, not only on change: see the header note on why this one does not dedupe.
+	a=$(at_risk)
+	[ -n "$a" ] && printf '%s\n' "$a"
+
 	sleep 90
 done
