@@ -62,9 +62,14 @@ calef's ranking, confirmed against the records:
   machine: a Jetson TX1, so identical silicon referees the comparison"*. Renting gives you *a*
   machine; the point is *the same* machine as the reference. `sel4bench` also times single operations
   through a PMU cycle counter that neither QEMU-TCG nor HVF provides.
-- **radon is next, for access rather than comparison.** riscv64 silicon is hard to reach, and radon is
-  where risk 5's only real evidence appeared: a receiver woken with nothing delivered, on three
-  harts, that no emulator run had shown.
+- **radon is next, for access rather than comparison.** riscv64 silicon is hard to reach, and that
+  access is the whole of the argument. **This section said until 2026-09-23 that radon is "where risk
+  5's only real evidence appeared: a receiver woken with nothing delivered, on three harts, that no
+  emulator run had shown". That reading was retracted on 2026-08-15**, two weeks before this section
+  was written: `notes/visionfive2.md`'s fifth bench stop identified the dumps five independent ways
+  as the terminal state of a completed tour, and `notes/scheduler.md` records that the gate built
+  against it has never fired on a field failure. Risk 5 has **no** confirmed silicon-only defect, so
+  radon's value here rests on reaching an architecture, not on evidence it has produced.
 - **xenon is the least valuable bench to sit at**, and the reason is sharper than "x86 is common": a
   rented machine does its job *better*, because it comes with a power API and a console instead of
   needing a person at a null modem.
