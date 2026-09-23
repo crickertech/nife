@@ -122,6 +122,14 @@
 //!   not loud: a renderer that refused input it could not lay out prettily would be worse than one
 //!   that lays it out badly, and [`Renderer::truncated`] stays what it says it is, a report that
 //!   characters were lost.
+//!
+//!   **The entry this replaces is why the bug survived**, and it is worth saying so here rather
+//!   than in a commit message. It read "wider tables lose their right-hand columns", which is an
+//!   honest sentence describing a permanent property, so every reader who met it treated a silent
+//!   text loss as a design and nobody asked what the bound should be. A `BUGS` entry is a fact,
+//!   and the convention holds; but an entry recording that this renderer *loses characters* is a
+//!   defect report with a deadline on it, not a property, and the next one written in this crate
+//!   should be read that way.
 //! - **A table that spills past [`TABLE_ROWS`] loses its header emphasis and its column alignment
 //!   in the second chunk.** Both are read off the delimiter row, which arrived in the first chunk
 //!   and is not carried across the flush that makes room. The rows themselves are never lost, which
