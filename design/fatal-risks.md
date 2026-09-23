@@ -1090,6 +1090,11 @@ kernel thread may answer there instead is `design/decisions/149-kernel-served-co
 sentence above stands as written. Either way this risk's decisive experiment below is unaffected,
 because milestone 87 is about the boot entry and not about the shell.
 
+**Status: RUN, 2026-09-17. GREEN, and this is the verdict this entry was missing.** The sharpened
+claim is falsified: adding x86_64 did not require changing the kernel outside a new `arch/`
+directory. What follows is the evidence already gathered here, read together for the first time
+rather than left as a narrative with no stated conclusion.
+
 **The decisive experiment was milestone 87 (the x86_64 bare-metal machine), and it RAN on
 2026-09-17. The result is green.**
 
@@ -1110,6 +1115,19 @@ rule 1 and §19 claim. Two boots were needed rather than one, and the defect bet
 (`AlreadyMapped`, a fill that mapped device ranges cacheably because the firmware's map does not
 describe the MMIO hole) was **machine-specific and fixed inside `arch/x86_64/mmu.rs`**, which is the shape
 this entry predicts for a healthy HAL rather than the shape it fears.
+
+**The port has a measured cost, not just a passing result, and it is the number this risk asked
+for.** `notes/x86-port.md`'s "What had to change above `arch/`" section counted it directly: making
+the whole kernel compile for the third architecture took **42 compiler errors, every one of them
+"this `arch::` name does not exist yet,"** and the diff outside `arch/` was three small, named
+things: `crates/paging` needed no change at all (`Ia32e` is sixty lines behind the existing
+`PageFormat` trait); `drivers/ns16550.rs` gained one type parameter, because the same 16550 is
+reached by MMIO on two architectures and by I/O ports on the third, which is a `RegisterSpace`
+implementation rather than a second driver; and `console.rs`, `user.rs`, `drivers/mod.rs` and
+`kernel/src/user/fs_service.rs` gained `cfg` arms "in the same places they already had two." The note's own
+conclusion: "That is the whole diff above `arch/`. A new ISA was a new directory." **That is the
+claim this risk exists to test, quoted rather than summarized, and it is what "GREEN" above is
+based on.**
 
 **Two things this does not claim.** The completion criterion was ruled by calef on the day to be the
 self-test rather than a byte over serial, because a byte was printed on 2026-09-04 while the
@@ -1160,6 +1178,40 @@ a lane rather than a bench session.
 **Journey 3 (the same story, on real silicon, on all three architectures) is the full-strength
 version**, and it settles risk 6 along the way.
 
+**A citation this entry owed and had not paid, closed today (2026-09-23).** Everything above
+verifies rule 1 for the kernel. It never checked whether the rest of the tree keeps the same
+discipline, and `notes/architecture-list-sweep.md` (2026-08-27) is the sweep that asked exactly
+that question, tree-wide, and is milestone 186 (derive the architecture list, and close what it
+does not reach)'s worklist. Milestone 186 is `NOT-STARTED`. **None of what it found is inside
+`kernel/src/arch/`, and none contradicts the port's own accounting above**; every one of its eleven
+silent gaps is a script, a CI leg, or a userspace driver's own hand-rolled `#[cfg(target_arch)]`
+arms, which rule 1 names by its own text ("all **architecture-specific code**") but which its own
+citation path (`kernel/src/arch/`) never covered. Ten of the eleven are hardcoded two-item lists in
+tooling that a third architecture walked past silently (`script/bench`'s own `EXAMPLES`, a CI bench
+leg, a stack-frame checker, `deny.toml`'s target array); one was a live defect, a panic handler with
+no x86_64 arm, since fixed.
+
+**The userspace half of that sweep is the shape this risk actually fears, one layer up from the
+kernel, and it is worth stating precisely rather than folding into the count above.** The sweep's
+finding 9 is four driver crates, `crates/virtio`, `components/src/gpu_driver.rs`,
+`components/src/keyboard_driver.rs` and `components/src/net_transport.rs`, whose `barrier()`
+function has an `aarch64` arm and a `riscv64` arm and no `x86_64` arm, so on x86_64 the function
+compiles to an empty body: not a build failure, a silently missing compiler fence.
+`components/src/entropy.rs`'s `barrier()` has the identical two-arm shape and is not in the sweep's
+table, found rereading it for this entry rather than in the original sweep. The sweep's own
+severity note argues the four it found are latent rather than live, because
+`scripts/qemu-runner-x86_64.sh` attaches no virtio device on any x86_64 boot today; that argument is
+unchanged for the fifth. `components/src/non_volatile_memory_express.rs`'s `barrier()` has all three
+arms, because the NVMe driver was x86_64's own reason for existing (DECISIONS §86) and was written
+arch-complete from the start, which is the control case: when a driver is built *for* the new
+architecture, the third arm arrives with it; when it predates the architecture, it does not, unless
+something goes and adds it. **This is a real, uncounted, non-fatal cost, and it does not overturn the
+verdict above.** It is not a kernel restructure: it is five small files a fourth architecture, or a
+device newly attached on x86_64, would find by nobody's list rather than by a compiler error, the
+same way `pgrep`'s panic handler was found. It argues for the fix the sweep already priced (a shared
+`arch::barrier()` behind a seam shaped like `crates/paging`'s `PageFormat`, or a `compile_error!`
+default arm) rather than for a different reading of this risk.
+
 **One honest cost, recorded here rather than left implied:** parity is a multiplier on every other
 risk on this list. Every driver, benchmark, proof and bring-up is three times the work. The tree's
 own evidence says the multiplier is smaller than it sounds once the HAL is right, which is what
@@ -1174,7 +1226,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 |---|---|---|---|---|
 | ~~1~~ | 2, the proofs | **RUN 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
-| 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
+| ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN 2026-09-17: GREEN.** `nife self-test: 5 of 5 passed` on xenon; the boot entry, mapper and discovery seam it needed all landed inside `kernel/src/arch/x86_64/`, and `notes/x86-port.md` counts the diff above `arch/` at one type parameter and four files' worth of `cfg` arms | milestone 87 | done |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
 | ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
