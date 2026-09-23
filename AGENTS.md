@@ -209,19 +209,19 @@ calef, 2026-09-23: *"We are all owners here so let's make certain we don't let t
 the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
 own it."*
 
-The complement to **"Nobody remembers, so build the mechanism that does not need them to"** above:
-that tenet says do not rely on anyone noticing, this one says that once you have, the problem is
-yours to route rather than to leave for whoever's pull request it lands on. A load-sensitive flake
-was written into `notes/load-sensitive-assertions.md` twice on 2026-09-22 and left both times.
+The complement to **"Nobody remembers, so build the mechanism that does not need them to"**: that
+tenet says do not rely on anyone noticing; this one says that once you have, the problem is yours to
+route, not to leave for whoever's pull request it lands on. A load-sensitive flake was written into
+`notes/load-sensitive-assertions.md` twice and left both times, because "every individual encounter
+looked like someone else's problem." Noticing is not owning until the problem has an owner.
 
 **And owning is not recording.** calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
 than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* The test
-is *move fast on what can be undone*'s, applied to the fix: cheap and reversible, make it now and
-the record is a byproduct; expensive or irreversible (a wire format, a name, a dependency, the
-syscall surface, a fact that leaves the machine), write it up and stop. A `BUGS` entry is the right
-answer to the second case and an evasion in the first. Acting on what you half understand is worse
-than reporting it, so **a refusal carrying its reason is an action**: milestone 323 (the
-falsification record is incomplete in five ways) declined two gaps for want of hardware.
+is *move fast on what can be undone*'s, applied to the fix: cheap and reversible, fix it now and the
+record is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS` entry is
+the right answer to the second case and an evasion in the first. Acting on what you half understand
+is worse than reporting it, so **a refusal carrying its reason is an action**: milestone 323 (the
+falsification record is incomplete in five ways) refused two gaps for want of hardware.
 
 ## Elegance and performance beat implementation convenience
 
