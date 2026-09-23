@@ -1,6 +1,6 @@
 # 385. When a milestone's status flips, tell the lane which notes cite it
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after six "is there a
+**Status: BUILT 2026-09-23.** Filed 2026-09-05 as an unnumbered proposal, written after six "is there a
 milestone for X" questions in one evening turned up four things wrong on `main` rather than four
 things missing; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read
 against the tree on 2026-09-19 and still true**: `script/citations` still takes `--check` and
@@ -10,8 +10,9 @@ corrected, which is the whole point of the block rather than a reason to close i
 block no longer claims a compressor among the things this tree has or is building, and the other
 three were fixed before the file was written. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** `script/citations` already parses milestone citations and CI already knows a pull
-request's base commit. This is an addition to machinery that exists.
+*(The `**Gate:**` line this block carried is retired by DECISIONS §207 (the roadmap is a graph, and
+the block says so in fields a script can walk), which this milestone's design had to be read
+against; it said `NONE` and was true.)*
 
 **Landed 2026-09-14, nine days late.** It was committed on 2026-09-05 to a maintainer branch that was
 never pushed, while milestone 259 (sweep `notes/` for claims that stopped being true), minted and
@@ -112,20 +113,103 @@ roadmap records. That is the same comparison in its strict form, scoped to one f
 a status word. This proposal is the loose form, over every note, and it lists rather than fails because
 most citations in `notes/` carry no status word to compare.
 
+## What was built
+
+`script/citations --moved`, a fourth mode on the script that already had both halves: the milestone
+table, the bare-citation regex `--census` reads, the file scanner that strips comment markers and
+blanks fences, and a diff-against-a-base machine `--ratchet` had already written. Neither
+`script/roadmap` nor a third script had more than one of those. It parses the `**Status:` line of
+every `design/roadmap/N-*.md` the branch touched, at the base commit and at the tip, and for each
+one that differs prints the files under `notes/` and `design/` that name that number.
+
+`script/lint` runs it after the ratchet, with `|| true`, and it is the only thing in that script
+that cannot fail a build. A report that can take the build down is a gate whatever its output says.
+
+**It tells, and does not oblige, which is the side of DECISIONS §207 (the roadmap is a graph, and
+the block says so in fields a script can walk) this had to land on.** §207 was ratified on
+2026-09-23 and cites this milestone by number as its evidence. It retired `Gate: MILESTONE N`
+because that rule *obliged an edit* in every dependent block whenever a dependency landed, made by
+somebody in another lane who was not looking. What §207 removed is an obligation to edit on a
+status flip. This is a duty to tell somebody on a status flip, addressed to the one lane already in
+the file: it asks for no edit, it is read and dismissed in a sentence, and no other branch goes red.
+A version that demanded edits would have reintroduced what §207 refused, three weeks after.
+
+**One of this block's own `BUGS` entries closed itself while the block sat.** It feared a status
+moving without the pull request touching the index and asked the implementation to read both. There
+is no longer a both: `design/roadmap/README.md` was generated from the blocks by
+milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) and retired by
+calef on 2026-09-21, so the `**Status:` line is the single record, and §76 (what catches a milestone
+status that is wrong in both places?) cannot recur.
+
+**It reads `design/` as well as `notes/`**, which this block's `BUGS` asked for and the proposal had
+not measured: two of the four instances that prompted the milestone were in `design/roadmap/`.
+
+### What it prints against the live tree
+
+Milestone 525 (a bad upgrade cannot brick the machine: two boot slots, tries and priority) turning
+`BUILT`, which is the case named in the brief:
+
+```
+$ script/citations --moved 5f850c367~1..5f850c367
+citations: milestone 525 moved NEW -> BUILT: A bad upgrade cannot brick the machine: two boot slots, tries an
+citations:   design/decisions/207-the-roadmap-is-a-graph-and-says-so.md:50
+citations:   design/roadmap/554-a-good-upgrade-sticks.md:10
+```
+
+The second hit is the defect: milestone 554 (a good upgrade sticks: what marks a trial boot
+successful)'s block still described 525 as the proposal it had been. Milestone 302 (a baseline
+records what it was saved against, and a stale one fails loudly) being promoted prints three files,
+which is the median-sized worklist the proposal predicted.
+
+**Measured over the 150 most recent merges into `main` on 2026-09-23: 50 moved at least one status
+and 100 printed one line saying nothing moved.** Of the 50, the median is 4 citing files. The tail
+is three merges, two of them sweeps that restatused dozens of blocks at once and one flip on a
+heavily cited number; notes/citations.md has the table and the worst single case,
+milestone 433 (drain the proposal pile to zero, and keep it there) at 108 citing files.
+
+**Name provisional.** `--moved` is the lane's, not calef's.
+
+## Follow-on
+
+- **Recorded.** `--moved` cannot tell a stale sentence from a current one, so a citation that is
+  right forever is listed every time the milestone's block is touched. If looking is usually wasted
+  the mode will be skipped. In `notes/citations.md`'s `BUGS`, with the rest.
+- **Recorded.** It walks `notes/` and `design/` and not `*.rs`. Nobody has measured how often a
+  code comment makes a present-tense claim about a milestone rather than recording provenance, so
+  the exclusion is a judgment. In `notes/citations.md`'s `BUGS`.
+- **Recorded.** A block deleted or renumbered prints nothing here; `script/roadmap --check` owns
+  that case. In `notes/citations.md`'s `BUGS`.
+- **Milestone 259.** The other half, minted and built already (sweep `notes/` for claims that
+  stopped being true, because the gate cannot see them). A page saying "there is no networking"
+  cites nothing, so no citation check can reach it. This milestone covers the half with an anchor
+  and says so rather than implying it covers the class.
+- **Recorded.** `--moved` is a provisional name, like every name a lane coins. In
+  `notes/scripts.md`'s row for `script/citations`.
+
 ## BUGS
 
 - **It cannot tell staleness from correctness.** A note saying *"milestone 30 built the net stack"*
-  is right forever and would be listed every time 30's row is touched. The output is a prompt to
+  is right forever and is listed every time 30's block is touched. The output is a prompt to
   look, and if looking is usually wasted the check will be skipped, which is the failure mode to
   watch for after it ships.
-- **It only sees `notes/`.** Milestone 66's stale table is in `design/roadmap/`, and 99's compressor
-  claim is too. Both would want the same treatment and this proposal has not measured the citation
-  density there.
-- **A status can move without a pull request touching the index**, since the file and the row are
-  two places, and §76 exists because they disagreed. This keys on whichever the implementation reads,
-  and it should read both.
-- **Nobody has built it**, so "cheap" is a judgment from the shape of `script/citations` rather than
-  a measurement, and §92's test applies.
+- **It sees prose and not code.** It walks `notes/` and `design/`, which answers this entry's
+  original form (`notes/` only) and the two instances it named: the stale gap table in
+  milestone 66 (Vaultwarden: somebody else's real application, running here) and the compressor
+  claim in milestone 99 (`git` on nife: the tool this project is built with), both in `design/roadmap/`. A `milestone N` in a Rust comment is usually
+  provenance for the code beneath it rather than a present-tense claim, so `*.rs` is out. Untested
+  rather than proved: nobody has measured how often a code comment makes such a claim.
+- ~~**A status can move without a pull request touching the index.**~~ **Closed by the tree rather
+  than by this milestone**, and it is left here struck through because the reasoning is still worth
+  a reader's time. There is no longer an index: `design/roadmap/README.md` was generated from the
+  blocks by milestone 294 and retired on 2026-09-21, so the block's own `**Status:` line is the
+  single record and §76's two-places disagreement cannot recur.
+- **A block deleted or renumbered is reported by nothing here.** `--moved` reads the status at the
+  tip and skips a file that is gone, so a number retired out from under its citers prints nothing.
+  That case is a hard failure elsewhere: `script/roadmap --check` fails a `milestone N` that
+  resolves to no block at all.
+- ~~**Nobody has built it**, so "cheap" is a judgment rather than a measurement.~~ Built
+  2026-09-23. The judgment held: the mode is one `**Status:` regex and a `git show` on top of
+  machinery `--ratchet` and `--census` had already written, and no third script was needed.
 - **The gate that should have caught this file's absence covers only half the places a proposal is
   cited.** `script/roadmap` refuses a `**Proposed.**` entry under `## Follow-on` whose file does not
   exist. Milestone 259 cites this file in its status line instead, so that check never ran, and a
@@ -134,6 +218,8 @@ most citations in `notes/` carry no status word to compare.
   unbuilt too.
 
 ## Index row
+
+**Built:** 2026-09-23
 
 Six "is there a milestone for X" questions in one evening turned up four things wrong on `main`
 rather than four things missing, all the same shape: prose that was true when written and went
