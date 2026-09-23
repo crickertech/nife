@@ -413,10 +413,18 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 925 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 929 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
-for 988 against its own smaller diff, which §155 (naming conventions) superseded): **Raised again from 924 to 925 on 2026-09-22**, for one line, because the disk ceiling it repriced
+for 988 against its own smaller diff, which §155 (naming conventions) superseded): **Raised from 925
+to 929 on 2026-09-23**, for four lines, and the considered act is that a session's own context had
+become the same shape of unrecorded fact this milestone exists to catch: real (233 million tokens
+against 5 million for twenty dispatched lanes, measured 2026-09-22), consequential (it inverts why
+delegation is worth doing here, context isolation before cost-per-token), and living only in one
+session's head. The full argument and the practices it earns went to `notes/what-a-session-carries.md`
+rather than here, per this section's own rule that the note carries the argument and the constitution
+carries the rule; what is here is three lines pointing at it. Nothing was removed to pay for it; that
+is the cost, stated. **Raised again from 924 to 925 on 2026-09-22**, for one line, because the disk ceiling it repriced
 was not merely stale but actively misleading: it told a reader the lane count was three or four for a
 reason that had stopped being true, and the paragraph that replaces it has to carry both the retired
 number and the lever that replaced it (lanes gate in CI). Compressed first, from an eleven-line

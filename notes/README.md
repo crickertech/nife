@@ -1234,6 +1234,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   cordoba is serving the family's photos), why a mechanical lane has to be a separate headless
   process, and the one thing that makes a cheaper model safe: the gates are the oracle, so the
   routing rule is about which work has a crisp gate rather than which work is easy.
+- [What a session carries, and why delegation is about context](what-a-session-carries.md): one
+  maintainer session measured at roughly 233 million tokens against 5 million for the twenty lanes
+  it dispatched, and the dominant term is carrying and re-reading a large context every turn, not
+  reasoning or output. Why that makes a lane's first value context isolation rather than
+  throughput, why lowering `--effort` spends quality on the wrong side of the ledger, and the six
+  practices each earned by a specific 2026-09-22/23 failure: never pull a CI log into the session,
+  ask a gate for its exit code, delegate conflict resolution, spot-check rather than re-derive.
 - [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md):
   milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not)'s run: the threshold was
   registered before the first call and all 55 transcripts are kept
