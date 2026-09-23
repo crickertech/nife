@@ -71,7 +71,8 @@
 //!
 //! Still Unsupported, each because no verb in the contract backs it: symlinks and hard links,
 //! `canonicalize`, permissions, access and creation times, setting a time through an open `File`,
-//! locks, and `duplicate` (a handle is a token the server minted; there is no dup verb).
+//! locks, and duplicating a handle (`File::try_clone`, and `Dir::try_clone` for anything but
+//! the granted directory: a handle is a token the server minted; there is no dup verb).
 //!
 //! See notes/std.md for the full list with reasons.
 
@@ -1276,6 +1277,24 @@ impl Dir {
         let mut opts = OpenOptions::new();
         opts.read(true);
         Dir::open(path, &opts)
+    }
+
+    /// **A second handle to the directory this one already holds**, which upstream added to every
+    /// backend on `nightly-2026-09-22` (`std::fs::Dir::try_clone`, still `#![feature(dirfd)]`).
+    /// Unix answers it with `dup`, Windows with `DuplicateHandle`, and both are cheap because a
+    /// descriptor is a copyable reference to an object the kernel owns.
+    ///
+    /// **Here it is the gap [`Dir::open_dir`] and [`File::duplicate`] already record**, arrived at
+    /// from a third direction: a handle is a token the FS server minted for one session, the
+    /// contract has no dup verb, and copying the number would forge a second owner of the same
+    /// handle, including its close. So this refuses for anything the server minted.
+    ///
+    /// The granted directory is the exception and costs nothing, for the reason [`Dir::root`]
+    /// gives: `proto::ROOT` is a sentinel rather than a minted handle, any number of `Dir`s may
+    /// hold it at once, and its `Drop` closes nothing. That is the same split `open_dir("")`
+    /// already makes, so the two answers cannot disagree.
+    pub fn duplicate(&self) -> io::Result<Dir> {
+        if self.at.0 == proto::ROOT { Ok(Dir::root()) } else { Err(unsupported_err()) }
     }
 
     /// Open a file **under this directory**, which is the call the whole type exists for: the name
