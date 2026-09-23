@@ -385,7 +385,7 @@ mod verification {
     /// **`containing` rounds down to an aligned frame that holds the address.** For every address,
     /// the frame it names is aligned, sits at or below the address, and the address is within the
     /// 4 KiB it covers.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/page_frames/falsifications/verification.containing_rounds_down_within_a_frame.patch`
     #[kani::proof]
     fn containing_rounds_down_within_a_frame() {
         let addr: u64 = kani::any();
@@ -397,7 +397,7 @@ mod verification {
 
     /// **The bitmap is always big enough.** `bitmap_bytes(n)` gives enough bytes to hold one bit per
     /// frame, for every frame count. An undersized bitmap would index out of bounds in `get`/`set`.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/page_frames/falsifications/verification.bitmap_bytes_covers_every_frame.patch`
     #[kani::proof]
     fn bitmap_bytes_covers_every_frame() {
         let frames: usize = kani::any();
@@ -408,7 +408,7 @@ mod verification {
     /// **`PageFrame` address and bitmap index are inverses.** A frame at `base + i * FRAME_SIZE`, for any
     /// in-range `i`, maps back to index `i`. This is what makes the allocator's naming unambiguous:
     /// no two indices share an address and no address is misfiled.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/page_frames/falsifications/verification.index_of_inverts_frame_addressing.patch`
     #[kani::proof]
     fn index_of_inverts_frame_addressing() {
         let base: u64 = kani::any();
@@ -434,7 +434,7 @@ mod verification {
     /// **Two allocations are never the same frame.** Over any bitmap state, if two back-to-back
     /// `alloc`s both succeed they return distinct physical frames. This is the property the whole
     /// isolation story rests on: the allocator cannot hand one physical page to two owners.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/page_frames/falsifications/verification.two_allocations_are_distinct.patch`
     #[kani::proof]
     #[kani::unwind(9)]
     fn two_allocations_are_distinct() {
@@ -455,7 +455,7 @@ mod verification {
 
     /// **An allocated frame is aligned and in range.** Whatever the bitmap holds, a frame `alloc`
     /// returns is frame-aligned and lies within `[base, base + total * FRAME_SIZE)`.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/page_frames/falsifications/verification.an_allocated_frame_is_aligned_and_in_range.patch`
     #[kani::proof]
     #[kani::unwind(9)]
     fn an_allocated_frame_is_aligned_and_in_range() {
