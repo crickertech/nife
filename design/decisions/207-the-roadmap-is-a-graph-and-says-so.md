@@ -35,7 +35,7 @@ number a milestone happened to be minted with, which encodes allocation order an
 
 **Today's gate clears, and the clearing is enforced.** `script/roadmap --check` fails when a
 `Gate: MILESTONE N` names a milestone that has since become BUILT. That is how the promotion lane
-found milestone 574's stale gate on 2026-09-22.
+found a stale gate on 2026-09-22, on a block whose named dependency had landed weeks earlier.
 
 **That rule is the defect, and it is a live source of the merge pain this project has been
 absorbing.** It means a milestone landing on `main` obliges an edit in every other block that
@@ -46,8 +46,8 @@ which notes cite it*) exists because of exactly this coupling.
 
 So:
 
-- **A dependency is a fact about the work and stays true forever.** That milestone 561 needed 527's
-  page before it could exist does not stop being true when 527 lands.
+- **A dependency is a fact about the work and stays true forever.** That milestone 554 (a good upgrade sticks: what marks a trial boot successful) needed
+  milestone 525 (a bad upgrade cannot brick the machine: two boot slots, tries and priority) before it could exist does not stop being true once 525 is built.
 - **Blocked is a question, not a stored field.** A milestone is blocked when any dependency it names
   is unresolved, computed at read time from the target's own status, which is recorded in exactly
   one place already.
@@ -67,7 +67,8 @@ Every milestone block carries all five. **A missing field is a defect rather tha
 `none` is written out and silence never means anything.
 
     **Milestone dependencies:** 527, 543
-    **Decision dependencies:** §92, §150
+    **Decision dependencies:** §92, §150   (a caretaker is supervised by the client it serves;
+                                             how a thread's CPU time reaches userspace)
     **Machine requirements:** riscv64 silicon; PMU cycle counter
     **Specific machine:** none
     **Needs a person:** no
