@@ -144,10 +144,11 @@ expiry from an outage into a fifteen-minute procedure someone can run without re
   token can read the repository; it cannot prove the installation still holds exactly Contents and
   Pull requests write, or that nobody widened it in the web UI.
 
-- **The App's display name is unratified.** `nife automation`, hence `nife-automation[bot]`, is a
-  lane's proposal. It is the byline a reader meets on every future bump pull request, so it is
-  `design/naming.md`'s call and calef's, and it is also globally unique across GitHub, so it can be
-  refused by someone outside this project entirely.
+- **The App's display name may already belong to somebody else.** `smelter` is ratified (calef,
+  2026-09-23), but App names are globally unique across the whole of GitHub rather than within an
+  organization, and that is discovered at the create-App screen and nowhere earlier. The fallback
+  is `nife smelter`, rendering `nife-smelter[bot]`; `notes/automation-identity.md` carries both and
+  says to bring a third choice back to calef rather than invent one.
 
 ## Follow-on
 
@@ -161,11 +162,17 @@ expiry from an outage into a fifteen-minute procedure someone can run without re
   credential a scheduled job may still reach for turns a preparation into an outage. The order and
   the reason are in `notes/automation-identity.md`.
 
-- **Outstanding.** Ratifying the App's display name. `nife automation` (rendering as
-  `nife-automation[bot]`) is a lane's provisional proposal, and it is the byline every future bump
-  pull request carries, so it is `design/naming.md`'s call. Checked 2026-09-23: it appears nowhere
-  in the tree except this block and `notes/automation-identity.md`, both of which mark it
-  provisional, so nothing has been built on it.
+- **Done.** The App's display name is **`smelter`**, ratified 2026-09-23 by calef, with
+  `nife smelter` as the fallback if the global namespace has taken the first. It is an agent noun,
+  matching this tree's convention for actors (`caretaker`, `undertaker`, `credentialer`,
+  `compositor`), and a smelter is where iron comes from. Carried by `notes/automation-identity.md`,
+  whose name block holds the date, the ratifier and the five refusals (`nife automation`, `dynamo`,
+  `mantle`, `lodestone`, `cobble`).
+
+- **Outstanding.** The two secret names, `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`, are still
+  provisional, as is `notes/automation-identity.md`. They were deliberately not renamed to match
+  `smelter`: a rename is a naming decision with extra steps, and nothing is blocked by leaving them.
+  Checked 2026-09-23: both appear only in `toolchain-bump.yml`, this block and that note.
 
 - **Recorded.** `coe-architect-label.yml` adds `needs-architect` with `GITHUB_TOKEN`, whose
   `labeled` event re-runs no workflow, so `architect-hold.yml`'s required check on the pull request

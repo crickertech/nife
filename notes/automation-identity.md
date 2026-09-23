@@ -1,9 +1,26 @@
 # The automation's own identity
 
-*Name: provisional. `automation-identity` is a lane's coinage; `design/naming.md` is the rule and
-calef ratifies. The alternatives considered were `github-app.md` (names the vendor's mechanism
-rather than what it is for, and this note would survive a move off GitHub only by lying) and
-`bot-identity.md` (`bot` is what GitHub calls the badge, not what the thing is).*
+*Name of the App: ratified 2026-09-23 (calef, milestone 128 (the automation gets its own identity)).
+**`smelter`**, hence the byline `smelter[bot]`. Refused `nife automation` (the lane's original: it
+names the mechanism rather than what the thing is, which is the failure mode `design/naming.md`
+warns about), `dynamo` (the maintainer's recommendation, on the grounds that the geodynamo is what
+a nickel-iron core actually does; calef chose otherwise), `mantle` (carries "take up the mantle",
+which is this milestone's own role-not-person thesis, but sits beside the namesake rather than in
+it), `lodestone` (connotes direction-finding rather than doing work), and `cobble` (the mascot; a
+byline sharing the mascot's name would confuse the two).*
+
+*Why `smelter` won, stated rather than implied: it is an agent noun, which is this tree's existing
+convention for actors (`caretaker`, `undertaker`, `credentialer`, `compositor`), and a smelter is
+where iron comes from, which suits the identity that will eventually author this project's
+artifacts. The maintainer argued against it on literal process-matching grounds and withdrew the
+objection: the tree's actor names are metaphors already, so convention-match is the stronger test.*
+
+*Name of this note: provisional. `automation-identity` is a lane's coinage; `design/naming.md` is
+the rule and calef ratifies. The alternatives considered were `github-app.md` (names the vendor's
+mechanism rather than what it is for, and this note would survive a move off GitHub only by lying)
+and `bot-identity.md` (`bot` is what GitHub calls the badge, not what the thing is). The two secret
+names below, `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`, are provisional too and are deliberately
+left alone rather than renamed to match `smelter`: a rename is a naming decision with extra steps.*
 
 The daily toolchain-bump workflow has to open a pull request that **gets CI**. GitHub's
 anti-recursion rule says a pull request opened with a workflow's own ephemeral `GITHUB_TOKEN`
@@ -42,10 +59,16 @@ Once, by an owner of the `crickertech` organization.
 1. Go to **https://github.com/organizations/crickertech/settings/apps** and press **New GitHub App**.
    (The path by clicking: your avatar, **Your organizations**, `crickertech`, **Settings**,
    **Developer settings**, **GitHub Apps**, **New GitHub App**.)
-2. **GitHub App name**: the display name is the `[bot]` byline a reader meets on every future pull
-   request, so it is a naming decision and calef's. The lane's proposal is **`nife automation`**,
-   which renders as `nife-automation[bot]`. Names are globally unique across GitHub, so a second
-   choice is worth having ready.
+2. **GitHub App name**: type **`smelter`**. Ratified 2026-09-23 by calef; the refusals and the
+   reasoning are in the name block at the top of this note.
+
+   **It may be taken.** App names are globally unique across the whole of GitHub, not just this
+   organization, and a one-word English name very likely already belongs to somebody. GitHub tells
+   you at this screen and nowhere earlier. If it is unavailable, use **`nife smelter`**, which
+   renders as `nife-smelter[bot]`. Do not invent a third; bring it back to calef.
+
+   Whichever of the two you get, the byline (`smelter[bot]` or `nife-smelter[bot]`) is what every
+   future bump pull request is authored by, so write down which one you took.
 3. **Homepage URL**: `https://github.com/crickertech/nife`. It is required and unused.
 4. **Webhook**: untick **Active**. Nothing here listens for webhooks, and an inactive webhook is one
    fewer endpoint to secure.
@@ -68,12 +91,15 @@ Once, by an owner of the `crickertech` organization.
     installed here, and a repository secret keeps the blast radius where the install is):
 
         gh secret set AUTOMATION_APP_ID  --repo crickertech/nife --body '<the App ID>'
-        gh secret set AUTOMATION_APP_KEY --repo crickertech/nife < ~/Downloads/<app-name>.private-key.pem
+        gh secret set AUTOMATION_APP_KEY --repo crickertech/nife < ~/Downloads/smelter.private-key.pem
 
-    Then delete the downloaded `.pem`: `rm ~/Downloads/<app-name>.private-key.pem`. A key sitting in
+    Then delete the downloaded `.pem`: `rm ~/Downloads/smelter.private-key.pem`. A key sitting in
     a downloads folder is the leak this whole exercise is meant to reduce.
 
-    Both names are **provisional** until calef ratifies them.
+    Both secret names are **provisional** until calef ratifies them. They were deliberately not
+    renamed to match `smelter` when the App's name was ratified: a rename is a naming decision with
+    extra steps, and `AUTOMATION_*` says what the secrets are for rather than what the App is
+    called, which survives the App being renamed.
 
 ## Confirming it took, and only then retiring the PAT
 
@@ -153,7 +179,7 @@ inheriting a reason to keep a PAT beside it:
   failure, but the diagnostic comes from the action rather than from this note.
 
 - **A bot byline changes what author filters see.** Bump pull requests will arrive as
-  `<app-name>[bot]` rather than as `calef`. Nothing in this tree filters pull requests by author
+  `smelter[bot]` (or `nife-smelter[bot]`) rather than as `calef`. Nothing in this tree filters pull requests by author
   today, and `scripts/merge-drain.sh` is the file to re-read if that changes.
 
 - **This note cannot tell you when the PAT expires**, and neither can anything else in the
