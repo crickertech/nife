@@ -3,7 +3,9 @@
 **Status: NOT-STARTED.** Promoted 2026-09-16 from
 `design/roadmap/proposals/a-toolchain-bump-that-leaves-the-baselines-stale.md`, which was Decision 2
 of the finding milestone 299's lane surfaced (originally
-`design/roadmap/proposals/icount-baselines-drift-after-a-toolchain-bump.md`, on PR #883). Milestone
+`design/roadmap/proposals/icount-baselines-drift-after-a-toolchain-bump.md`, which is now
+milestone 577 (the icount baselines predate the pinned nightly), promoted and superseded in one act
+on 2026-09-23, on PR #883). Milestone
 300 executed Decision 1, decompose and re-baseline. *(Number provisional until the merge queue lands
 it.)*
 
