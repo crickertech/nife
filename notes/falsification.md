@@ -544,8 +544,8 @@ independent implementation of `str_eq` standing on the expectation side on purpo
   that, and the failure surfaces as a path `--check` reports rather than as a silently wrong sweep,
   but it is a real limit of a 30-line derivation standing in for `syn`.
 - **`kernel/src/arch/` carries no harnesses and gains nothing here.** The architecture layer is
-  outside this record entirely, the same scope gap §134 ("a harness carries a machine-replayable
-  falsification record, or it is not evidence") names. (This entry used to say that is where "the
+  outside this record entirely, the same scope gap §134 (a harness carries a machine-replayable
+  falsification record, or it is not evidence) names. (This entry used to say that is where "the
   VisionFive 2's undelivered-wake defect actually lived." That reading is **retracted**,
   `notes/visionfive2.md`'s fifth bench stop, 2026-08-15: it was a completed tour's terminal state,
   not a stranded receiver, and never happened. Found still repeating it here 2026-09-23; §134 lives

@@ -22,7 +22,7 @@ corrected here rather than quietly replaced.**
 
 The section as minted (2026-08-31) said the risk "already fired once, and by luck," citing the
 VisionFive 2's "receiver woken with nothing delivered" plus x86_64's two then-unresolved `ap_boot`
-bugs (milestone 161, "the x86_64 kernel port: bring up the HAL's third architecture") as the curve's
+bugs (milestone 161 (the x86_64 kernel port: bring up the HAL's third architecture)) as the curve's
 first three data points.
 
 **The VisionFive 2 reading is void, not merely outdated.** `notes/visionfive2.md`'s fifth bench stop
@@ -41,8 +41,8 @@ claim**, not one.
 
 **The two `ap_boot` bugs are real defects, but "unresolved" is stale.** Both were open when this
 milestone was minted; both are now closed: the boot-core-identity bug (`arch::x86_64::ap_boot`'s
-`BUGS` #3) was fixed by milestone 316 ("which core booted: making `NIFE_SMP=2` mean something on
-x86_64", 2026-09-17), and the third-or-later-secondary race (`BUGS` #1) was fixed by milestone 161's
+`BUGS` #3) was fixed by milestone 316 (which core booted: making `NIFE_SMP=2` mean something on
+x86_64) on 2026-09-17, and the third-or-later-secondary race (`BUGS` #1) was fixed by milestone 161's
 own closing work (2026-09-19). A third x86_64 SMP bug from the same
 bring-up, a missing cross-core TLB shootdown (`BUGS` #2), was found and fixed the same day,
 2026-08-25, before this milestone existed, and this section never counted it.
@@ -59,8 +59,8 @@ cannot show, and QEMU showed all three of these.
    core through a stale TLB entry, so a recycled thread's context read back as stack paint.
    Reproduced 10 of 10 runs at `NIFE_SMP=2`; found and fixed 2026-08-25.
 2. **x86_64: a boot-core-identity mixup** (`ap_boot`'s `BUGS` #3). `boot_cpu_id` answered "which core
-   am I" instead of "which core booted," so a test body DECISIONS §28's ("SMP placement: two random
-   choices at spawn, message-shaped stealing, local wakes") placement migrated onto a secondary
+   am I" instead of "which core booted," so a test body DECISIONS §28 (SMP placement: two random
+   choices at spawn, message-shaped stealing, local wakes)'s placement migrated onto a secondary
    mistook that secondary for the boot core. Found 2026-08-25 (while verifying #2 above); fixed by
    milestone 316, 2026-09-17.
 3. **x86_64: a lost-checkin race in secondary bring-up** (`ap_boot`'s `BUGS` #1). `cpu_start`
