@@ -580,6 +580,14 @@ def git_touched(rel):
 # One fixture per check, each a minimal `design/fatal-risks.md` and a minimal record set. Positive
 # fixtures must fire the named code; negative ones must fire nothing, and they pin the three
 # near-misses the real file produces today.
+#
+# **The milestone numbers below are fixture identities, not citations.** They have to be small
+# integers the fake record set can answer for, and nothing in a fixture is about the milestone that
+# happens to carry its number. `script/citations` cannot tell those apart, and one gloss per number
+# per file answers it, so the three are glossed here once and never again:
+# milestone 7 (user mode: EL0, capabilities, the ELF loader, and IPC),
+# milestone 8 (the console driver leaves the kernel),
+# milestone 9 (a virtio-blk driver at EL0, and an interrupt becomes a message).
 MILE = {7: "BUILT", 8: "NOT-STARTED", 9: "PARTIAL"}
 DATES = {7: "2026-09-09"}
 

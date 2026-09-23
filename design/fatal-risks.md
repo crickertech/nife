@@ -915,11 +915,12 @@ notes/confinement-claims.md; PR #614.
 exception found and fixed.** This paragraph was a second `**Status:` line until 2026-09-23, and
 `script/fatal-risks` read only the first one per entry, so `AUDITED` was invisible to every tool
 reading this file. The Experiment status above is the entry's one status; how well the experiment
-was done belongs here, in prose, where it always was. Milestone 313 (the security audit that was
-due since August) read this risk's question adversarially under the userspace-confinement lens,
-the first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
-has it; findings fixed 3, minted 3,
-accepted 1.
+was done belongs here, in prose, where it always was.
+
+Milestone 313 (the security audit that was due since August: userspace confinement, read
+adversarially) read this risk's question adversarially under the userspace-confinement lens, the
+first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
+has it; findings fixed 3, minted 3, accepted 1.
 
 **One published claim was false as stated, on a path taken every boot.** DECISIONS §12 (Call/Reply
 IPC: a one-shot reply capability) says *a consumed capability cannot be used again*. On `x86_64` it
@@ -1393,7 +1394,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | **NOT-RUN, 2026-09-23.** The defect-discovery curve: a linear one is the red result. **Its three seed data points need re-deriving first (2026-09-23): the VisionFive 2's undelivered wake was retracted by that note's own fifth bench stop, and `ap_boot`'s two bugs have moved.** Milestone 315 and a two-core `NIFE_SMP` default are the cheap half and are a lane rather than bench time | milestone 201 | weeks, hardware |
-| ~~7~~ | 7, confinement | **RUN, 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
+| ~~7~~ | 7, confinement | **RUN, 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and the finding of milestone 305 (the six kernel confinement rows get a falsification a machine can replay) that **a confinement test could not fail**. The audit then found **DECISIONS §12 (call/reply IPC: a one-shot reply capability) false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
 | -- | 8, nobody needs it | **CANNOT-RUN, 2026-09-23.** No experiment, and none available. The instrument is milestone 576 (how many systems are out there, and what do they run), which needs milestone 198 (a package manager, and the trivial install that makes a second customer possible) before there is anything to count | milestone 576 | blocked, not costed |
 
 ## BUGS
