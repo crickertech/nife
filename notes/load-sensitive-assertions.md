@@ -1857,6 +1857,16 @@ teardown can no longer be mistaken for this one's result.
 **The narrower assertion is also a stronger one.** A global delta of the right size can be reached
 by the wrong frames coming back; a scoped one cannot.
 
+**The first version of this fix was wrong, and CI caught what the local gates could not.** It asked
+`memory_region::usage(budget)` *after* the reclaim and unwrapped it. But `reclaim_region` destroys
+the region, so the name is stale and `usage` returns `None`: the test panicked with "the operator's
+budget should still exist after reclaim" on every architecture. The fix had been written by a lane
+that never committed or ran it, and `script/lint` and `script/fmt` cannot boot QEMU, so it reached a
+pull request looking clean. What the assertion should say is the opposite of what it said: the
+region's **absence** is the measurement, because §16 (object revocation: reclaim the objects a process built) refuses to reclaim a region whose
+children are
+still carved out of it, so a stale name proves every child was gone first.
+
 ### `kernel/src/user/current_cpu_tests.rs:134`, `the_page_is_returned_when_the_space_is_dropped`
 
 ```rust
