@@ -69,9 +69,12 @@ aarch64)
     # There is no edk2-aarch64-vars.fd; the 32-bit Arm variable store is the same 64 MiB flash
     # layout, and is what QEMU's own documentation pairs with the aarch64 code image.
     cp "$SHARE/edk2-arm-vars.fd" "$VARS"
-    # acpi=off, because EDK2 withholds the device tree when it presents ACPI, and nife on aarch64
-    # reads a device tree (measured 2026-09-19; notes/boot-stick.md).
-    set -- -machine virt,acpi=off -cpu cortex-a72 -m "${NIFE_MEM:-256M}" \
+    # acpi=off by default, because EDK2 withholds the device tree when it presents ACPI and the
+    # device tree is the richer of the two descriptions this kernel can read (measured 2026-09-19;
+    # notes/boot-stick.md). NIFE_ACPI=on is how the other description is exercised: it is the state
+    # every aarch64 cloud machine is in, where SBBR forbids a device tree, and it exists so that
+    # path is bootable here for free rather than only on somebody's rented instance.
+    set -- -machine "virt,acpi=${NIFE_ACPI:-off}" -cpu cortex-a72 -m "${NIFE_MEM:-256M}" \
         -drive "if=pflash,format=raw,readonly=on,file=$SHARE/edk2-aarch64-code.fd" \
         -drive "if=pflash,format=raw,file=$VARS" "$@"
     QEMU=qemu-system-aarch64

@@ -268,9 +268,9 @@ pub fn parse_madt(body: &[u8]) -> Result<Madt, AcpiError> {
     })
 }
 
-/// One entry of the MADT's list. Only the four kinds this kernel will act on are decoded; the rest
-/// keep their type byte so a boot print can say what it skipped rather than pretending the list was
-/// shorter than it is.
+/// One entry of the MADT's list. Only the kinds this tree acts on are decoded, four for x86 and
+/// three for aarch64; the rest keep their type byte so a boot print can say what it skipped rather
+/// than pretending the list was shorter than it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MadtEntry {
     /// A CPU, named by its local APIC id. **`enabled` is what decides whether it can be started**:
@@ -299,6 +299,50 @@ pub enum MadtEntry {
     },
     /// The local APIC is not at the 32-bit address the fixed part gave; it is here.
     LocalApicAddressOverride(u64),
+    /// **An aarch64 core** (type 11, "GIC CPU Interface"), which is this architecture's
+    /// [`MadtEntry::LocalApic`]: the per-core entry, one per processor, carrying the id a bring-up
+    /// call has to name. There is no local APIC on an Arm machine, so a decoder that knew only the
+    /// x86 types read every core of an aarch64 server as [`MadtEntry::Other`] and found none.
+    GenericInterruptController {
+        /// `MPIDR_EL1[39:0]`, the affinity value PSCI's `CPU_ON` takes. The device tree spells the
+        /// same number in a `cpu@` node's `reg`, which is why `cpu_list::Cpu::hwid` needs no second
+        /// meaning for this path.
+        mpidr: u64,
+        /// The processor's ACPI UID, which is what the DSDT's `Processor` objects refer to. Kept
+        /// because it is the only handle AML has on this core, not because anything reads it yet.
+        uid: u32,
+        /// The core is usable now. Same meaning, and same consequence, as
+        /// [`MadtEntry::LocalApic`]'s.
+        enabled: bool,
+        /// Not enabled, but able to be brought online later. See [`MadtEntry::LocalApic`].
+        online_capable: bool,
+        /// The GICv2 CPU interface (`GICC`) for this core, zero on a GICv3 machine where the CPU
+        /// interface is system registers rather than memory.
+        cpu_interface: u64,
+        /// This core's GICv3 redistributor frame, zero when the machine instead states its
+        /// redistributors as [`MadtEntry::GenericRedistributor`] ranges. Both spellings are legal
+        /// and QEMU uses the second.
+        redistributor: u64,
+    },
+    /// **The GIC distributor** (type 12), one per machine, and the entry that says which GIC
+    /// architecture version this is. A device tree says the same thing through `compatible`, which
+    /// is why `version` is the field a tree writer needs.
+    GenericDistributor {
+        /// `GICD`, physical.
+        address: u64,
+        /// 0 unspecified, 1 GICv1, 2 GICv2, 3 GICv3, 4 GICv4. **Zero is common and means "work it
+        /// out"**, which a caller can only do from the other entries.
+        version: u8,
+    },
+    /// **A range of GICv3 redistributor frames** (type 14), the contiguous array `GICR_TYPER` is
+    /// then walked over. The alternative spelling is a per-core `redistributor` in
+    /// [`MadtEntry::GenericInterruptController`]; a machine states one or the other.
+    GenericRedistributor {
+        /// The first frame, physical.
+        address: u64,
+        /// How many bytes of frames, all cores' together.
+        length: u32,
+    },
     /// A kind this decoder does not act on, with its type byte.
     Other(u8),
 }
@@ -358,6 +402,27 @@ impl Iterator for MadtEntries<'_> {
                 flags: u16(e, 8),
             },
             5 if len >= 12 => MadtEntry::LocalApicAddressOverride(u64(e, 4)),
+            // The three aarch64 kinds. Their lengths have grown across ACPI revisions (a GICC
+            // entry was 40 bytes in 5.0, 76 in 5.1, 80 in 6.0 and 82 in 6.3), so every field is
+            // taken behind a length check for the offset it sits at rather than behind one check
+            // of the whole entry: a firmware writing an older, shorter revision still yields the
+            // fields it does carry instead of falling off the list as `Other`.
+            11 if len >= 16 => MadtEntry::GenericInterruptController {
+                uid: u32(e, 8),
+                enabled: u32(e, 12) & 1 != 0,
+                online_capable: u32(e, 12) & 2 != 0,
+                cpu_interface: if len >= 40 { u64(e, 32) } else { 0 },
+                redistributor: if len >= 68 { u64(e, 60) } else { 0 },
+                mpidr: if len >= 76 { u64(e, 68) } else { 0 },
+            },
+            12 if len >= 24 => MadtEntry::GenericDistributor {
+                address: u64(e, 8),
+                version: e[20],
+            },
+            14 if len >= 16 => MadtEntry::GenericRedistributor {
+                address: u64(e, 4),
+                length: u32(e, 12),
+            },
             other => MadtEntry::Other(other),
         })
     }
@@ -638,6 +703,139 @@ pub fn first_drhd(body: &[u8]) -> Option<Drhd> {
     dmar_structures(body).find_map(|e| match e {
         DmarEntry::Drhd(d) => Some(d),
         DmarEntry::Other(_) => None,
+    })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The tables an Arm machine has that an x86 one does not.
+// ---------------------------------------------------------------------------------------------
+
+/// **The Generic Timer Description Table** (signature `GTDT`), which is where an Arm machine states
+/// the architected timer's interrupts.
+///
+/// x86 has no counterpart: its timers are the HPET and the local APIC, both described elsewhere. On
+/// a device-tree machine the same facts are the `arm,armv8-timer` node's `interrupts` property, and
+/// the two describe the same four timers in the same order, which is what makes a tree writer able
+/// to carry one into the other.
+///
+/// **A GSIV is an absolute INTID**, not a bank-relative number: the virtual timer's 27 here is the
+/// same 27 the GIC delivers, where the device tree spells it `<1 11 ...>` (PPI 11, and PPIs start
+/// at 16). Converting between the two is the writer's job, not this parser's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Gtdt {
+    /// The secure EL1 timer's interrupt, and its flags. A kernel at EL1 non-secure never takes it.
+    pub secure_el1: (u32, u32),
+    /// The non-secure EL1 physical timer (`CNTP_*`).
+    pub non_secure_el1: (u32, u32),
+    /// **The virtual timer** (`CNTV_*`), which is the one this kernel arms.
+    pub virtual_el1: (u32, u32),
+    /// The EL2 physical timer (`CNTHP_*`).
+    pub el2: (u32, u32),
+}
+
+/// The GTDT flag bit that says the line is edge-triggered rather than level-triggered.
+pub const GTDT_EDGE_TRIGGERED: u32 = 1 << 0;
+/// The GTDT flag bit that says the line is asserted low rather than high.
+pub const GTDT_ACTIVE_LOW: u32 = 1 << 1;
+
+/// The bytes of a GTDT body this decoder needs, which is everything up to the platform-timer list.
+const GTDT_FIXED_LEN: usize = 60;
+
+/// Decode the GTDT's four architected timers. `body` begins after the SDT header.
+///
+/// The platform timers past the fixed part (the memory-mapped `CNTCTLBase` blocks and the watchdog
+/// entries) are **not** decoded: nothing here drives them, and the device tree binding this feeds
+/// has no place to put them.
+pub fn parse_gtdt(body: &[u8]) -> Result<Gtdt, AcpiError> {
+    if body.len() < GTDT_FIXED_LEN {
+        return Err(AcpiError::Truncated);
+    }
+    Ok(Gtdt {
+        secure_el1: (u32(body, 12), u32(body, 16)),
+        non_secure_el1: (u32(body, 20), u32(body, 24)),
+        virtual_el1: (u32(body, 28), u32(body, 32)),
+        el2: (u32(body, 36), u32(body, 40)),
+    })
+}
+
+/// **The Serial Port Console Redirection table** (signature `SPCR`): where the firmware's console
+/// is and which interrupt it raises.
+///
+/// It is the only fixed table that names a UART, and on an ACPI-only machine it is therefore the
+/// only place that fact exists outside AML. SBBR requires it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spcr {
+    /// The interface type byte: see [`SPCR_PL011`] and [`SPCR_SBSA_UART`].
+    pub interface: u8,
+    /// The register block's address, in whatever space `address_space` names.
+    pub address: u64,
+    /// 0 for system memory, 1 for system I/O. An Arm machine says 0.
+    pub address_space: u8,
+    /// The GSIV the port raises, absolute like every GSIV, or `None` when the table states only a
+    /// PC-AT IRQ (an x86 spelling an Arm machine does not use).
+    pub interrupt: Option<u32>,
+}
+
+/// [`Spcr::interface`] for a PL011, which is what QEMU `virt` and most Arm machines present.
+pub const SPCR_PL011: u8 = 0x03;
+/// [`Spcr::interface`] for the SBSA generic UART, a PL011 subset with no DMA and no modem lines.
+pub const SPCR_SBSA_UART: u8 = 0x0e;
+
+/// The bit of SPCR's interrupt-type byte that says a GSIV is stated rather than a PC-AT IRQ.
+const SPCR_INTERRUPT_TYPE_GSIV: u8 = 1 << 3;
+
+/// The bytes of an SPCR body this decoder reads.
+const SPCR_FIXED_LEN: usize = 22;
+
+/// Decode the SPCR. `body` begins after the SDT header.
+pub fn parse_spcr(body: &[u8]) -> Result<Spcr, AcpiError> {
+    if body.len() < SPCR_FIXED_LEN {
+        return Err(AcpiError::Truncated);
+    }
+    // The base address is a Generic Address Structure at offset 4: space id, width, offset, access
+    // size, then the 64-bit address. Only the space id and the address decide anything here.
+    let gsiv = u32(body, 18);
+    Ok(Spcr {
+        interface: body[0],
+        address_space: body[4],
+        address: u64(body, 8),
+        // A GSIV of zero is how a table that has no interrupt to state spells it; interrupt 0 is
+        // an SGI and no UART raises one, so zero is unambiguous rather than a value to defend.
+        interrupt: (body[16] & SPCR_INTERRUPT_TYPE_GSIV != 0 && gsiv != 0).then_some(gsiv),
+    })
+}
+
+/// **The two facts the FADT holds that only an Arm machine has**: whether firmware implements PSCI,
+/// and which instruction calls it.
+///
+/// They are two bits of the "ARM Boot Architecture Flags" word, which ACPI 5.1 added at a fixed
+/// offset and which is meaningless on every other architecture. A device tree states the same pair
+/// as `/psci`'s `compatible` and `method`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmBoot {
+    /// Firmware implements the PSCI interface, so cores can be started with `CPU_ON`.
+    pub psci: bool,
+    /// The call is `hvc` rather than `smc`. Meaningless when [`ArmBoot::psci`] is false.
+    pub hvc: bool,
+}
+
+/// Where the ARM Boot Architecture Flags sit **in the FADT body**, which is 36 bytes after the
+/// offset ACPI's own table states (129).
+const FADT_ARM_BOOT_AT: usize = 129 - SDT_HEADER_LEN;
+
+/// Decode the FADT's Arm boot flags. `body` begins after the SDT header.
+///
+/// A body too short to hold the word is an ACPI 5.0-or-earlier FADT, which predates PSCI's
+/// existence in this table; that is [`AcpiError::Truncated`] rather than "no PSCI", because the two
+/// are different claims and only the caller knows what to do with the first.
+pub fn parse_arm_boot(body: &[u8]) -> Result<ArmBoot, AcpiError> {
+    if body.len() < FADT_ARM_BOOT_AT + 2 {
+        return Err(AcpiError::Truncated);
+    }
+    let flags = u16(body, FADT_ARM_BOOT_AT);
+    Ok(ArmBoot {
+        psci: flags & 1 != 0,
+        hvc: flags & 2 != 0,
     })
 }
 
@@ -972,6 +1170,175 @@ mod tests {
         let r = parse_rsdp(&b).expect("a 20-byte RSDP is still an RSDP");
         assert_eq!(r.xsdt, 0);
         assert_eq!(r.root_table(), (0x7ffe_1a40, false));
+    }
+
+    /// **An aarch64 MADT is read as cores and a GIC, where an x86-only decoder saw nothing.**
+    ///
+    /// The body is QEMU `virt`'s shape with `acpi=on`: a GIC distributor stating version 3, a
+    /// redistributor range, and two GIC CPU interface entries carrying their MPIDRs. Before this
+    /// decoder knew the three types, every one of them came back as [`MadtEntry::Other`], which is
+    /// the same answer a machine with no cores and no interrupt controller would give.
+    #[test]
+    fn an_aarch64_madt_names_its_gic_and_its_cores() {
+        let mut body = [0u8; 128];
+        body[0..4].copy_from_slice(&0u32.to_le_bytes()); // no local APIC address
+        body[4..8].copy_from_slice(&0u32.to_le_bytes()); // no PCAT_COMPAT
+        // GIC distributor (type 12, 24 bytes).
+        let d = &mut body[8..32];
+        d[0] = 12;
+        d[1] = 24;
+        d[8..16].copy_from_slice(&0x0800_0000u64.to_le_bytes());
+        d[20] = 3;
+        // GIC redistributor (type 14, 16 bytes).
+        let r = &mut body[32..48];
+        r[0] = 14;
+        r[1] = 16;
+        r[4..12].copy_from_slice(&0x080a_0000u64.to_le_bytes());
+        r[12..16].copy_from_slice(&0x00f6_0000u32.to_le_bytes());
+        // Two GIC CPU interfaces at ACPI 5.0's length, which is 40 bytes and stops short of the
+        // MPIDR field that 5.1 added. A firmware writing this revision is exactly the case the
+        // per-offset length guards exist for.
+        for (i, at) in [48usize, 88].into_iter().enumerate() {
+            let c = &mut body[at..at + 40];
+            c[0] = 11;
+            c[1] = 40;
+            c[8..12].copy_from_slice(&(i as u32).to_le_bytes()); // uid
+            c[12..16].copy_from_slice(&1u32.to_le_bytes()); // enabled
+        }
+
+        let mut entries = [MadtEntry::Other(0); 8];
+        let mut count = 0;
+        for e in madt_entries(&body) {
+            entries[count] = e;
+            count += 1;
+        }
+        assert_eq!(count, 4, "two controller entries and two cores");
+        assert_eq!(
+            entries[0],
+            MadtEntry::GenericDistributor {
+                address: 0x0800_0000,
+                version: 3
+            }
+        );
+        assert_eq!(
+            entries[1],
+            MadtEntry::GenericRedistributor {
+                address: 0x080a_0000,
+                length: 0x00f6_0000
+            }
+        );
+        for entry in &entries[2..4] {
+            let MadtEntry::GenericInterruptController { enabled, mpidr, .. } = entry else {
+                panic!("a GIC CPU interface entry, got {entry:?}");
+            };
+            assert!(enabled, "both cores are enabled");
+            // A 40-byte entry is too short to carry the MPIDR field, and the decoder answers zero
+            // for the fields the firmware's revision does not have rather than dropping the entry.
+            assert_eq!(*mpidr, 0);
+        }
+    }
+
+    /// A full-length (ACPI 6.0, 80-byte) GIC CPU interface entry yields the two addresses and the
+    /// MPIDR, which is what a tree writer needs and what the shorter revisions cannot give.
+    #[test]
+    fn a_full_length_gic_cpu_interface_entry_yields_its_mpidr_and_frames() {
+        let mut body = [0u8; 8 + 80];
+        let c = &mut body[8..];
+        c[0] = 11;
+        c[1] = 80;
+        c[12..16].copy_from_slice(&1u32.to_le_bytes());
+        c[32..40].copy_from_slice(&0x0801_0000u64.to_le_bytes()); // GICC
+        c[60..68].copy_from_slice(&0x080a_0000u64.to_le_bytes()); // GICR
+        c[68..76].copy_from_slice(&0x0000_0001_0000_0003u64.to_le_bytes()); // MPIDR with Aff2 set
+        assert_eq!(
+            madt_entries(&body).next(),
+            Some(MadtEntry::GenericInterruptController {
+                uid: 0,
+                enabled: true,
+                online_capable: false,
+                cpu_interface: 0x0801_0000,
+                redistributor: 0x080a_0000,
+                mpidr: 0x0000_0001_0000_0003,
+            })
+        );
+    }
+
+    /// The GTDT's four timers, in the order the device tree binding also states them. The numbers
+    /// are QEMU `virt`'s: secure 29, non-secure 30, virtual 27, EL2 26, all level-triggered.
+    #[test]
+    fn the_gtdt_names_four_timers_and_their_trigger_modes() {
+        let mut body = [0u8; GTDT_FIXED_LEN];
+        for (at, gsiv) in [(12usize, 29u32), (20, 30), (28, 27), (36, 26)] {
+            body[at..at + 4].copy_from_slice(&gsiv.to_le_bytes());
+        }
+        // The virtual timer, and only it, marked edge-triggered and active low, so a decoder that
+        // read one flags word for all four would fail here.
+        body[32..36].copy_from_slice(&(GTDT_EDGE_TRIGGERED | GTDT_ACTIVE_LOW).to_le_bytes());
+        let g = parse_gtdt(&body).expect("a full-length GTDT");
+        assert_eq!(g.secure_el1, (29, 0));
+        assert_eq!(g.non_secure_el1, (30, 0));
+        assert_eq!(g.virtual_el1, (27, GTDT_EDGE_TRIGGERED | GTDT_ACTIVE_LOW));
+        assert_eq!(g.el2, (26, 0));
+        every_short_prefix_is_refused(&body, GTDT_FIXED_LEN, parse_gtdt);
+    }
+
+    /// The SPCR names a PL011 at QEMU `virt`'s address on GSIV 33, which is the INTID the kernel
+    /// has hardcoded since milestone 19 and now reads instead.
+    #[test]
+    fn the_spcr_names_a_pl011_and_its_global_interrupt() {
+        let mut body = [0u8; SPCR_FIXED_LEN];
+        body[0] = SPCR_PL011;
+        body[4] = 0; // system memory
+        body[8..16].copy_from_slice(&0x0900_0000u64.to_le_bytes());
+        body[16] = SPCR_INTERRUPT_TYPE_GSIV;
+        body[18..22].copy_from_slice(&33u32.to_le_bytes());
+        assert_eq!(
+            parse_spcr(&body).expect("a full-length SPCR"),
+            Spcr {
+                interface: SPCR_PL011,
+                address: 0x0900_0000,
+                address_space: 0,
+                interrupt: Some(33),
+            }
+        );
+        every_short_prefix_is_refused(&body, SPCR_FIXED_LEN, parse_spcr);
+    }
+
+    /// **A PC-AT IRQ is not a GSIV**, and a table that states only the former answers `None` rather
+    /// than handing back an ISA interrupt number as though it were a GIC INTID. That is the same
+    /// class of mistake `interrupt_id`'s bank bases exist to prevent, one table over.
+    #[test]
+    fn an_spcr_that_states_only_a_pc_at_irq_names_no_global_interrupt() {
+        let mut body = [0u8; SPCR_FIXED_LEN];
+        body[0] = SPCR_PL011;
+        body[16] = 1; // PC-AT compatible, not a GSIV
+        body[17] = 4;
+        body[18..22].copy_from_slice(&33u32.to_le_bytes());
+        assert_eq!(parse_spcr(&body).expect("well formed").interrupt, None);
+    }
+
+    /// The FADT's Arm boot flags, which are two bits at a fixed offset and the only place ACPI says
+    /// how to start a second core.
+    #[test]
+    fn the_fadt_says_whether_psci_is_there_and_which_instruction_calls_it() {
+        let mut body = [0u8; FADT_ARM_BOOT_AT + 2];
+        body[FADT_ARM_BOOT_AT..][..2].copy_from_slice(&0b11u16.to_le_bytes());
+        assert_eq!(
+            parse_arm_boot(&body).expect("a long enough FADT"),
+            ArmBoot {
+                psci: true,
+                hvc: true
+            }
+        );
+        body[FADT_ARM_BOOT_AT..][..2].copy_from_slice(&0b01u16.to_le_bytes());
+        assert_eq!(
+            parse_arm_boot(&body).expect("a long enough FADT"),
+            ArmBoot {
+                psci: true,
+                hvc: false
+            }
+        );
+        every_short_prefix_is_refused(&body, FADT_ARM_BOOT_AT + 2, parse_arm_boot);
     }
 
     /// Build a well-formed table: signature, length, revision, a sealed checksum at offset 9, and

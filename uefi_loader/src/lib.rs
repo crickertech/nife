@@ -12,6 +12,8 @@
 
 #![cfg_attr(not(test), no_std)]
 
+/// **A device tree written from ACPI**, for an aarch64 machine that describes itself only that way.
+pub mod device_tree_from_acpi;
 pub mod device_tree_patch;
 pub mod efi;
 pub mod handoff;
