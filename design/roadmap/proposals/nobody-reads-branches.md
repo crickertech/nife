@@ -67,6 +67,29 @@ mechanism worked. The report changed nothing. That is not a case this proposal f
 proof that adding a fifth one-shot reporter to the four failure shapes above would not fix them
 either.
 
+## Case 3's assumption was wrong, and this branch proved it
+
+Case 3 above, and `lane-claim-check.sh`'s `LEFTOVER` check that this proposal leans on, both treated
+"pull request merged" as "safe to delete," the same zero-cost case as case 2's dead claim. That
+looked right because it usually is: most of the time a branch tip is exactly the commit GitHub
+merged, nothing else lands on it afterward, so checking pull request state is a cheap stand-in for
+checking the tree itself.
+
+It is wrong whenever more commits get pushed to the branch after its pull request merges, and
+`maintainer/open-model-lanes` is the branch that disproved it. PR #1089, cut from this branch,
+merged; three more commits (on the gateway's no-key posture, the token, and the bind address) were
+then pushed to the same branch and never landed anywhere else. The old rule, "pull request merged,
+therefore delete the branch," would have told a reader those three commits were safe to discard,
+and they were not: this document is being written from the branch that carries them, being rebased
+onto `main` in the same pull request that adds this subsection.
+
+The fix does not trust pull request state at all: `git merge-base --is-ancestor <branch>
+origin/main` asks whether every commit on the branch is already reachable from `main`, which is the
+question "safe to delete" actually depends on. A merged-and-untouched branch and a merged-and-then-
+extended branch give pull request state the same answer and this test different ones.
+`scripts/lane-claim-check.sh` (PR #1116) now tests the tree this way instead of trusting the merge
+flag.
+
 ## What else was considered
 
 **Extend `scripts/merge-drain.sh`.** Refused: its whole domain is pull requests, and these branches
