@@ -267,6 +267,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
 | 207 | DECIDED | [The roadmap is a graph, and the block says so](207-the-roadmap-is-a-graph-and-says-so.md) |
 | 208 | DECIDED | [Installing a package is granting it, and the activation set is versioned](208-installing-is-granting.md) |
+| 209 | PROPOSED | [What a fatal-risk verdict says, and what the chart can plot as a result](209-what-a-fatal-risk-verdict-says.md) |
 | 210 | DECIDED | [A correction of error, and its action items are decisions, proposals or milestones](210-a-correction-names-its-action.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
