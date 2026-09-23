@@ -23,6 +23,35 @@ machine better than an IP address does. Any design that ships "the list this sys
 has shipped an identifier, whatever it calls the field. So the two things calef asked for pull in
 opposite directions and have to be answered separately rather than by one report format.
 
+## DECIDED 2026-09-23: Fedora's model, which is opt-out and carries no identifier
+
+calef, asked to choose between opt-in and opt-out, ruled **opt-out**, and then on seeing the prior
+art: *"Fedora's model seems like the right one."* That second ruling is the larger one, because it
+decides the mechanism rather than the posture, and the mechanism answers the questions below.
+
+**`countme` works by piggybacking on a request the system was already making.** The package client
+adds a small bucket to one repository request a week, saying roughly how long since this system first
+checked in, and the server counts **distinct addresses per bucket per week**. No unique value is sent
+and none is stored. The bucket is what separates a new install from a long-lived one without
+following either. *(The bucket boundaries are described from memory and must be read from Fedora's
+own implementation before anything is built.)*
+
+**Applied here, the design collapses in a way worth stating plainly: there is no reporter.**
+`basalt` already fetches packages from a repository, so:
+
+- **Package popularity is the fetch traffic**, counted per package, independently. No linkage between
+  one system's requests, so no list is ever assembled anywhere. This is the unlinkable shape question
+  2 asked for, and it arrives for free rather than by engineering.
+- **System count is the age bucket** on those same requests.
+- **Nothing extra leaves the machine** that was not already leaving it to fetch a package.
+
+**What this costs, recorded because this block argued the other way an hour earlier.** The original
+draft made much of a capability-confined reporter being a demonstration of the thesis, since a person
+could see and revoke exactly what it may reach. A design with no reporter has nothing to confine. The
+smaller version survives (whatever talks to the repository holds one endpoint and a person can see
+it), and it is ordinary rather than a showcase. The better design won and the argument for the other
+one is left here rather than quietly deleted.
+
 ## The prior art, which has already solved half of this
 
 - **Fedora's `countme`** is the strong one and it counts systems **with no identifier at all**. Each
@@ -50,12 +79,23 @@ telemetry is exactly where users have learned not to believe anyone.
 
 ## What calef has to decide, and none of it should be guessed
 
-1. **Opt-in or opt-out**, and if opt-in, what the installer asks and when. Every other decision is
-   downstream of this one.
-2. **Whether package subscriptions are reported at all**, given the paragraph above. There is a
-   middle option: report each package independently, with no linkage between reports from one
-   system, so popularity is countable and no list is ever assembled. It costs more requests and it
-   is the only shape that gets the number without the fingerprint.
+1. ~~**Opt-in or opt-out**~~ **DECIDED 2026-09-23: opt-out.** The reporter runs by default and can
+   be turned off. calef's call, and it is the one this block said every other decision is downstream
+   of, so the consequences are written into question 2 rather than left to be rediscovered.
+2. **Whether package subscriptions are reported at all**, and **opt-out has already narrowed this to
+   two answers.** A system that reports by default may report each package **independently, with no
+   linkage between reports from one system**, so popularity is countable and no list is ever
+   assembled. Or it may not report subscriptions at all. **What it may not do is ship an assembled
+   list**, because a few hundred package names identify a machine better than an address does, and
+   sending that without asking is Debian's popularity-contest data model without its consent model.
+   The unlinkable shape costs more requests, and under opt-out it is the only shape available that
+   still answers the question calef asked.
+
+   **This is what makes opt-out defensible rather than a gamble.** Fedora's `countme` is on by
+   default and nobody objects, because it carries no identifier at all. Homebrew's analytics were
+   opt-out *and* carried a persistent identifier *and* went to a third party, and the breach of
+   expectation cost more than the data was worth. Opt-out is a position about consent; it is only
+   survivable when paired with a position about identity, and this is that position.
 3. **What else is worth knowing.** Architecture and release are cheap and low-risk. A hardware
    profile is neither, and upgrade success or failure is arguably the most useful signal available
    and the most sensitive to get wrong.
@@ -67,6 +107,13 @@ telemetry is exactly where users have learned not to believe anyone.
 - **The wire format is `anything two programs agree on`**, so it is decided once and carefully.
 - **The thing that leaves the machine is the irreversible category.** §79 (password-equivalent material) is the precedent: an hour of argument was worth it because deleting the code
   afterwards does not unsend anything.
+- **Opt-out raises the bar on disclosure rather than lowering it.** A thing that runs by default has
+  to say so where a person installing will actually read it, and the way to turn it off has to be one
+  obvious step rather than a documented incantation. That is the whole of what Homebrew got wrong,
+  and it was a presentation failure rather than a data one.
+- **Somebody will have to check what opt-out means legally** wherever this is installed, which is not
+  a question this tree can answer by reasoning about capabilities. Naming it here so it is a known
+  open item rather than a surprise.
 - **A `BUGS` section states plainly what the reporter can and cannot see**, where a person meets it.
   A telemetry feature whose limits are documented anywhere other than beside the feature has
   learned nothing from why people distrust telemetry.
