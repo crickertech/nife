@@ -409,14 +409,97 @@ promotion, not filing, is where that is cheapest to catch.
 crossing, and on workloads that cross constantly the cost is architectural rather than a matter of
 tuning.
 
-**Evidence today, and this is the best-covered risk on the list.** Milestone 138 (close the read gap) measured 16x against where it started, including 5.67x on a read and 8.02x on a write
-from one wire change. `call_reply`'s steady state is measured and the live-replacement mechanism
-costs zero in it (DECISIONS §41). Milestone 25 (cross-OS performance comparison) has numbers against
-Linux and macOS with the honest ties recorded.
+**Status: NOT YET, 2026-09-23. No verdict, and one bench evening stands between here and one.**
+This is the best-covered risk on the list by volume of measurement and it still has no answer,
+because everything measured so far is a single crossing and the claim is about a cost that cannot
+be **amortised**. Amortisation is a property of a workload. The instrument that produces a workload
+number is built, gated and rehearsed on three architectures, and no sweep from its current form has
+ever run on silicon.
 
-**The decisive experiment that has not been run:** milestone 168 (a multi-tasking workload
-benchmark), whose own block calls it *"the number that would decide the event-kernel question."*
-Milestone 188 (the IPC fastpath) is the follow-on if the number is bad.
+**What is measured, and it is a lot.**
+
+- **Single crossings, against Linux and macOS on one core.** `notes/benchmarks.md`'s release table
+  puts nife and Linux on the same M-series core at the same HVF tier, with native macOS as the
+  bare-metal ceiling: null syscall ~27 ns against Linux's ~139, IPC round trip ~337 ns against
+  ~1,723, a derived context switch ~28 ns against ~415, and spawn ~7.7 us against `fork`+`exit`'s
+  ~19.7 us. Provisioning a page is a **three-way tie** near ~550 ns, which the note keeps out of the
+  win column because zeroing 4 KiB is bandwidth-bound and identical on all three. Four wins and one
+  tie, each with its caveat stated where the number is: the tie is zeroing, the switch is derived by
+  subtraction from two different mechanisms, and spawn builds a lighter object than `fork`
+  duplicates.
+- **A committed floor per crossing, in guest instructions.** `bench/baseline-aarch64.txt`:
+  `ipc_rtt` 1,032 ticks, `call_reply` 1,059, `relay_rtt` 2,058, `ctx_switch` 612, `spawn_reap`
+  3,383, `null_syscall` 20.5. Deterministic and comparable across runs, gated at a coarse 10%.
+- **A bounded footprint for the crossing itself**, which is the mechanism by which a per-crossing
+  cost would fail to amortise in the first place. `bench/fastpath-aarch64.txt`, written by
+  `script/fastpath-footprint`: `ipc_call_reply` 7,028 bytes plus `syscall_entry` 1,508. The first
+  three phases of milestone 188 (the IPC fastpath) took entry from 3,304 to 1,508 and
+  `ipc_send_recv` from 5,888 to 5,356, and found that the cheap extraction method of
+  milestone 156 (extract the rest and ratchet both ways) does not transfer to a closure walk, which
+  is a result rather than a shortfall.
+- **One real path closed against itself.** Milestone 138 (close the read gap) measured 16x against
+  where it started, including 5.67x on a read and 8.02x on a write from one wire change, and
+  `call_reply`'s steady state is measured with the live-replacement mechanism costing zero in it,
+  which is DECISIONS §41 (the endpoint is the broker).
+
+**Why none of that is a verdict, stated once so it is not re-litigated.** Every figure above is a
+single operation or a static size. Milestone 25 (cross-OS performance comparison)'s own block says
+its suite is entirely single-operation primitives, *"the same shape DECISIONS §96 (process kernel
+or event kernel) means by micro-benchmark"*, and milestone 168 (a multi-tasking workload benchmark)
+exists because milestone 25 has that hole. A per-crossing cost a workload can absorb and one it
+cannot look identical in these numbers.
+
+**The shape has been measured once on silicon and is not quotable.** Five radon boots on 2026-09-16:
+throughput rose to about four tasks and then **plateaued through 32 without declining**, on every
+boot, at 8x oversubscription, with `tasks=1` repeating to 0.0% across five cold power cycles. That
+is the shape a defence of this risk wants. It does not get to be one, for two reasons milestone 168
+records against itself. `tasks=4` spread 29.4% between boots and 37.3% within one, so a
+best-of-three there is a coin flip rather than a number. And the mix contained no page mapping and
+no process creation, which are the two jobs that go deepest into the kernel. The instrument was
+rewritten on 2026-09-19 (every point the median of 21 repeats, `map` and `spawn` jobs added), and
+**no sweep from it has run on a board**, so every stability claim about the current instrument is a
+resampling of the old one's data.
+
+**The decisive experiment has not been run, and it is now a bench evening rather than a lane:**
+milestone 168, one radon evening with the 2026-09-19 instrument, at least five boots, by
+`notes/job-mix.md`'s procedure. Its step 7 wrote down what each outcome means **before** the numbers
+exist, which is what keeps the reading from being a defence afterwards: flat or rising through 32
+with every point inside 10% across boots reads as no architectural per-crossing cost visible at this
+scale on this silicon; a repeatable knee followed by a **decline** says a cost exists and grows with
+load, with the `job-mix-kind:` lines naming which path pays; anything still wider than 10% is not a
+verdict and the spread gets recorded instead. Milestone 188 (the IPC fastpath) is the follow-on if
+the path that pays is `round_trip`.
+
+**A cheaper cross-check became available on 2026-09-19 and nobody has taken it.** calef asked that
+day for the sweep under HVF on patagonia's own cores, as a cross-check on the shape and never as a
+result. QEMU refused it five times because `kernel/src/drivers/gic.rs` was GICv2 only.
+Milestone 227 (a GICv3 driver) turned BUILT the same day, and its own block records that
+`script/job-mix --hvf` was not yet on `main` when that lane ran, so the cross-check still has not
+happened although its blocker is gone. It costs no board.
+
+**What was refused here, because the refusals are half of what makes the rest readable.**
+
+- **Every x86 `ns/iter` in this tree.** The 2026-08-24 table is marked suspect where it stands: the
+  boot calibrated the TSC from one 10 ms PIT window, a poll can only notice the terminal count late,
+  and 200 boots put the worst error at **+1153%**, always high. Milestone 571 (the x86 boot
+  calibrates the TSC once) fixed the estimator; it did not make the published figures quotable.
+- **Any nanosecond read off an `-icount` leg.** Under `-icount shift=0,sleep=off` a guest nanosecond
+  is a function of the instruction stream rather than of real time, and the implied rate moved 37%
+  between two workloads inside one boot (`notes/tsc-under-tcg.md`).
+- **`sel4bench`.** It builds and boots and has never produced a number, because it times one
+  operation through `PMCCNTR_EL0` and neither TCG nor HVF provides one. **This is the comparison the
+  risk most wants and does not have**: the cross-OS table's peer is Linux, not the state of the art
+  in minimal kernels. argon has been in hand since 2026-09-01, milestone 74 (cycle counters) is
+  what this side of the table needs to answer it, and nobody has run either half.
+- **The job mix's TCG rehearsals**, which milestone 168 already refuses to record as results, since
+  TCG models no cache.
+
+**What even a green answer would not cover**, put here rather than after the run. Nothing in the mix
+touches a disk, which is milestone 493 (a disk-file job mix needs a disk)'s territory, so a flat
+curve is evidence about compute, memory, trap, scheduling, IPC, mapping and process creation, and
+silent about the filesystem. The mix proportions are chosen rather than derived from an AIM7
+workfile, so no figure from it is quotable without naming the mix. And a flat curve on four usable harts says nothing about
+a machine with thirty-two.
 
 **The counter-thesis is published, and it is more specific than "microkernels are slow."** Two papers
 argue that the per-crossing cost is avoidable by removing the crossing: *The Case for Writing a
@@ -443,7 +526,9 @@ entry carries the obligation; the reading of both papers is a lane's, and its no
 here once it lands rather than promised from here.
 
 **Ranked fourth on purpose.** This is where a skeptic expects the project to die and it is where the
-project has the most evidence that it will not.
+project has the most evidence that it will not. **That evidence is the wrong shape**, which is this
+entry's whole finding: a great deal of it, all of it about one crossing at a time, and the claim is
+about many.
 
 ## 5. It cannot be made reliable on multicore, and the bugs appear only on silicon
 
@@ -877,7 +962,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
 | ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
-| 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
+| 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
 | ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
