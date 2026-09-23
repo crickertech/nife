@@ -176,8 +176,11 @@
 # - **`kernel/src/arch/` is barely covered here**, and the line above this one used to say it carried
 #   no harnesses at all, which stopped being true when milestone 255 proved
 #   `arch/aarch64/iommu.rs` in place. It is now four harnesses across two architectures and two
-#   files; the VisionFive 2's undelivered-wake defect, which is the reason this entry exists, is
-#   still on the far side of the `asm!` boundary and outside this record entirely.
+#   files; the timer re-arm drift, the reason this entry exists, is still on the far side of the
+#   `asm!` boundary and outside this record entirely. (This entry used to pair the timer drift with
+#   "the VisionFive 2's undelivered-wake defect." That reading is retracted, notes/visionfive2.md's
+#   fifth bench stop, 2026-08-15: it was a completed tour's terminal state, not a stranded receiver,
+#   and never happened. Found still repeating it here 2026-09-23.)
 # - **A file's module path is derived from the Cargo target it belongs to, and one shape defeats
 #   that.** `components/src` holds 49 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7
 #   permits (`net_transport.rs`, `socket_test_client.rs`). A root contributes no module segment and a

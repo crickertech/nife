@@ -340,8 +340,10 @@ where risk 5's one observed defect lived, on radon, and it had **exactly one cal
 - **Nothing exists in a production build.** Proved above, not asserted.
 - **It is architecture-neutral, and that is load-bearing.** riscv64 has no software-raisable line
   that reaches `irq_route` at all, so an aarch64 `send_sgi` or an x86 self-IPI would have left
-  **radon** out, and radon is the machine that produced the defect. The timer is the one source all
-  three share, through a function that is already portable.
+  **radon** out. (Radon was believed to be the machine that produced fatal risk 5's defect; that
+  reading is retracted, `notes/visionfive2.md`'s fifth bench stop, 2026-08-15, and it never
+  happened. Staying architecture-neutral is still the right call on its own merits.) The timer is
+  the one source all three share, through a function that is already portable.
 - **The timer is the one event a saturated workload cannot starve**, which is the whole reason this
   works where three existing balancing moments do not.
 

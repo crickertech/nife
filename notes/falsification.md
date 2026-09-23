@@ -543,9 +543,12 @@ independent implementation of `str_eq` standing on the expectation side on purpo
   comment at module scope would miscount and produce a wrong patch path. Nothing in this tree does
   that, and the failure surfaces as a path `--check` reports rather than as a silently wrong sweep,
   but it is a real limit of a 30-line derivation standing in for `syn`.
-- **`kernel/src/arch/` carries no harnesses and gains nothing here.** The architecture layer, where
-  the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely, the
-  same scope gap §134 names.
+- **`kernel/src/arch/` carries no harnesses and gains nothing here.** The architecture layer is
+  outside this record entirely, the same scope gap §134 names. (This entry used to say that is where
+  "the VisionFive 2's undelivered-wake defect actually lived." That reading is **retracted**,
+  `notes/visionfive2.md`'s fifth bench stop, 2026-08-15: it was a completed tour's terminal state,
+  not a stranded receiver, and never happened. Found still repeating it here 2026-09-23; §134 lives
+  in `design/decisions/` and was left for its own lane to correct, see that section's own text.)
 - **A file's module path comes from the Cargo target it belongs to, and one shape defeats that.**
   `components/src` holds 49 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7
   permits; `fixtures/src` holds 23.
