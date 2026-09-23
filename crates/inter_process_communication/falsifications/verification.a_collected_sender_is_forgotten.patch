@@ -3,7 +3,7 @@ Falsifies `inter_process_communication::verification::a_collected_sender_is_forg
 The defect: the collected sender is put back on the queue it came from, so collecting it is a
 peek rather than a take. This is a design error with an argument behind it rather than a typo:
 the caller is blocked and something has to be able to find it again, and leaving it queued looks
-like the cheapest way to keep it findable. DECISIONS §12 (one-shot Reply capabilities) is what
+like the cheapest way to keep it findable. DECISIONS §12 (a one-shot reply capability) is what
 says otherwise: after the collect, the kernel-minted Reply is meant to be the only name for that
 thread anywhere.
 

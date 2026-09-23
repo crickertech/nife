@@ -7,8 +7,8 @@ whether the waiter was there.
 
 Expected to fail: the harness's `assert!(!found || e.is_idle())`, on a hit. The invariant
 assertion survives, because one queue is still empty, which is why this harness states both:
-a remove that reports success while leaving the thread queued is how milestone 133's
-`DESTROY` ends a thread and then finds it again on a wait queue.
+a remove that reports success while leaving the thread queued is how milestone 133 (ending a
+permanently blocked thread) ends a thread and then finds it again on a wait queue.
 
 diff --git a/crates/inter_process_communication/src/lib.rs b/crates/inter_process_communication/src/lib.rs
 --- a/crates/inter_process_communication/src/lib.rs
