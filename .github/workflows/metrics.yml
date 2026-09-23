@@ -15,9 +15,32 @@ name: project metrics
 # that lands unreviewed is exactly the shape of the three instrument failures the page's own honesty
 # section lists.
 #
-# **Monday rather than daily**, because the row is keyed by ISO week and a daily run would rewrite
-# the same row six times for no reader. Running late in the week would also freeze the row at
-# whatever Thursday looked like.
+# **Daily recompute, weekly coverage.** calef asked for this on 2026-09-23: he is using the numbers
+# to drive decisions more often than once a week. The row is still keyed by ISO week, so a daily run
+# does not add a row; it rewrites the current week's row in place with whatever HEAD looks like that
+# morning, which is the point (a current number between Mondays) rather than a series with more
+# points in it.
+#
+# **Coverage stays on Monday, and every other day carries whatever cell the week already has.**
+# `script/metrics` never recomputes `coverage_lines_pct` itself (CARRIED_FIELDS, script/metrics's own
+# comment); it only ever writes that cell from an lcov file this workflow hands it. A day with no
+# coverage build hands it nothing, so `--update` leaves the current week's cell exactly as Monday
+# left it. Verified 2026-09-23 by forcing a sentinel value into the current week's row and running
+# `--update` with no `--coverage-from`: the sentinel survived. A daily coverage build would multiply
+# `script/coverage`'s cost by seven for a column nobody reads more than weekly, which is what made
+# Monday-only the right split rather than a compromise.
+#
+# **The Monday/daily split does not, on its own, protect the columns a schema change adds.** On
+# 2026-09-20 a merge conflict in `weekly.csv` was resolved by restoring an older copy (one still
+# missing that week's newly merged `unsafe_trust_*` columns) and then running `--update`, which only
+# ever rewrites the current week and any week missing entirely; every other existing row is left
+# exactly as read. So the restored columns stayed blank on every past row for three days, until
+# someone ran `--backfill`, which recomputes every row from git history rather than trusting what
+# is already there. That is `--update`'s documented contract, not a bug in it: `--update` doing this
+# more often (daily instead of weekly) does not add new exposure to that failure, because the trigger
+# was the wrong command after a merge conflict, not the run frequency. The narrower claim two
+# paragraphs below (`--update` heals a week that is entirely missing) is real and unrelated: verified
+# 2026-09-23 by deleting a past week's row outright and re-running `--update`, which restored it.
 #
 # **Monday does not close the week that just ended**, which this header used to claim. `--update`
 # writes the week HEAD's commit falls in, and on 2026-09-14 nine pull requests merged between 00:40
@@ -33,9 +56,11 @@ name: project metrics
 
 on:
   schedule:
-    # 06:00 UTC Monday. Before the toolchain jobs, so a bump PR opened later that morning is not
-    # competing with this one for a reviewer's attention on the same branch listing.
-    - cron: "0 6 * * 1"
+    # 06:00 UTC daily. Before the toolchain jobs, so a bump PR opened later that morning is not
+    # competing with this one for a reviewer's attention on the same branch listing. The coverage
+    # build inside the job still only runs on Mondays (see the "Is this the coverage day" step);
+    # the header above says why.
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -64,22 +89,36 @@ jobs:
           # clone on: a suite whose scope is too small goes green faster.
           fetch-depth: 0
 
+      # Runs every day; the build below does not. `coverage_lines_pct` is a CARRIED_FIELDS column
+      # in `script/metrics` (its own comment), so a day that skips the build leaves the current
+      # week's cell exactly as the last build left it rather than blanking it.
+      - name: Is this the coverage day?
+        id: day
+        run: |
+          if [ "$(date -u +%u)" = "1" ]; then
+            echo "coverage=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "coverage=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Coverage is the one metric `script/metrics` cannot re-derive, because it needs a build. It
-      # is taken here, or later by hand with `script/metrics --coverage-for` from a checkout of the
-      # week's commit, which costs a worktree and a toolchain. `continue-on-error` because a coverage failure is a coverage
-      # problem and the other twenty-odd columns should still be recorded: the alternative is a week
-      # missing from the series for a reason unrelated to anything the series measures.
+      # is taken here on Mondays only, or any day by hand with `script/metrics --coverage-for` from
+      # a checkout of the week's commit, which costs a worktree and a toolchain. `continue-on-error`
+      # because a coverage failure is a coverage problem and the other twenty-odd columns should
+      # still be recorded: the alternative is a week missing from the series for a reason unrelated
+      # to anything the series measures.
       - name: Install cargo-llvm-cov
         id: covtool
+        if: steps.day.outputs.coverage == 'true'
         continue-on-error: true
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - uses: Swatinem/rust-cache@v2
-        if: steps.covtool.outcome == 'success'
+        if: steps.day.outputs.coverage == 'true' && steps.covtool.outcome == 'success'
 
       - name: Measure host-crate coverage
         id: coverage
-        if: steps.covtool.outcome == 'success'
+        if: steps.day.outputs.coverage == 'true' && steps.covtool.outcome == 'success'
         continue-on-error: true
         run: script/coverage
 
@@ -94,8 +133,8 @@ jobs:
           fi
 
       # `script/metrics --update` is idempotent by construction (the CSV is rewritten from a dict
-      # keyed by week, never appended to), so "no diff" is the normal Monday outcome for a quiet
-      # week and must be silent rather than an empty PR.
+      # keyed by week, never appended to), so "no diff" is the normal outcome on a quiet day and
+      # must be silent rather than an empty PR.
       - name: Open or update the pull request
         env:
           GH_TOKEN: ${{ secrets.TOOLCHAIN_BUMP_PAT || github.token }}
@@ -131,8 +170,8 @@ jobs:
           (2026-09-02). A row that jumps for a reason nobody can name is a defect in an instrument
           until somebody says otherwise.
 
-          This branch is force-pushed weekly, so it proposes the newest row rather than accumulating
-          one pull request per week."
+          This branch is force-pushed on every run that changed something (daily, coverage refreshed
+          Mondays), so it proposes the newest row rather than accumulating one pull request per run."
           existing="$(gh pr list --head "$branch" --state open --json number --jq '.[].number')"
           if [ -z "$existing" ]; then
             gh pr create --head "$branch" --base main --title "$title" --body "$body"
