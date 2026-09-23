@@ -64,8 +64,8 @@ panics.
 
 ### First measurements, 2026-09-01, patagonia, QEMU
 
-Taken with `script/soak --for 30s`, four groups per machine except x86, whose runner defaults to one
-core. (That command is `script/soak-test` since 2026-09-14, milestone 297. The name is left as it
+Taken with `script/soak --for 30s`, four groups per machine except x86, whose runner defaulted to
+one core on the day (it defaults to two since 2026-09-23; see this page's `BUGS`). (That command is `script/soak-test` since 2026-09-14, milestone 297 (`soak` becomes `soak-test`). The name is left as it
 was typed here and everywhere else on this page that says how a number was taken, because how a
 measurement was made is an account of a day.) **These are QEMU numbers on a loaded laptop and are a baseline for comparison, not a
 benchmark**; `script/bench` is the instrument for cost.
@@ -103,9 +103,9 @@ were the host's load rather than this change. Everything above is from an idle m
   looser one. It is the architecture where a migration costs the most under TCG, and it is the one
   crossing most often, so a cost showing up here and not on aarch64 is consistent rather than
   puzzling.
-- **x86_64 pays about a third, and that is arithmetic rather than a finding.** Its runner is
-  single-core, so the two extra waiter threads are two more shares of the one core in a round-robin
-  scheduler, and `crossings=0` is what one core means.
+- **x86_64 pays about a third, and that is arithmetic rather than a finding.** Its runner was
+  single-core on the day, so the two extra waiter threads are two more shares of the one core in a
+  round-robin scheduler, and `crossings=0` is what one core means.
 
 **The round-trip rate fell far less than DECISIONS 138's spike saw**, which reported about 30% on
 aarch64 and about 55% on riscv64. That difference is recorded rather than explained away: the spike
@@ -587,7 +587,7 @@ rehearsal and the bench run are one experiment with different deadlines.
 ```
 script/soak-test                             # aarch64, one minute
 script/soak-test --arch riscv64 --for 10m    # radon's architecture
-script/soak-test --arch x86_64 --smp 1       # xenon's, single core (see BUGS)
+script/soak-test --arch x86_64 --smp 1       # xenon's, forced to one core (see BUGS)
 ```
 
 Exit statuses are `script/board-console`'s: `0` beat for the whole watch, `1` announced a failure,
@@ -1109,10 +1109,13 @@ hour count inherited from a tool's default.
   kernel thinks it printed them. The three-beat margin absorbs the ordinary case; a machine running
   a mutation sweep beside a soak can produce a false `WentQuiet`. `--quiet-after` is the knob, and
   not running a soak beside other heavy work is the better answer (`AGENTS.md`'s memory ceiling).
-- **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults to
-  one, and it stays there until milestone 315 closes the port-revocation window (DECISIONS §153;
-`arch::x86_64::ap_boot`'s BUGS #1 and #3, the bring-up bugs this line used to cite, are fixed). Its
-  `crossings=0` says so out loud, and a single-core soak is not a multicore soak.
+- **`--arch x86_64` soaked one core until 2026-09-23** unless `--smp` said otherwise, because that
+  runner defaulted to one. Milestone 315 (a port revoke that reaches every core) closed the
+  port-revocation window that was the last thing holding it there and moved the default to 2 per
+  DECISIONS §153 (how a two-core x86_64 test earns its place), so an x86 soak now crosses cores
+  like the other two. **Every x86_64 number in the tables above predates that**, was taken at one
+  core, and its `crossings=0` says so out loud; they are single-core soaks and should not be reread
+  as multicore ones.
 - **A soak build is not the binary that ships**, so its timing is not the shipping binary's timing.
   The numbers above quantify it. This is normal and accepted, and it is stated here because the
   round-trip figures would otherwise read as IPC benchmarks, which they are not.

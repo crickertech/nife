@@ -27,10 +27,12 @@ set -e
 ELF="$1"
 shift
 
-# One by default, NOT four like the other two runners. SMP bring-up (INIT-SIPI-SIPI through the
-# local APIC, milestone 161's SMP item) is built and NIFE_SMP moves this the same way it does on
-# the other two runners, but it is not the default here, and the reason changed on 2026-08-25
-# without the number changing.
+# Two by default since 2026-09-23, NOT four like the other two runners. SMP bring-up
+# (INIT-SIPI-SIPI through the local APIC, the SMP item of milestone 161 (the x86_64 kernel port)) is
+# built and NIFE_SMP moves this
+# the same way it does on the other two runners. It sat at 1 from 2026-08-25, for reasons that were
+# fixed one at a time; DECISIONS §153 (how a two-core x86_64 test earns its place) is the rule that
+# moved it, and milestone 315 (a port revoke that reaches every core) is the last of them.
 #
 # The crash that first held it at 1 (a fault partway through ordinary thread reaping, at RIP 0 or
 # at `stack::PAINT`) is FIXED: it was a missing cross-core TLB shootdown, since `invlpg` is local
@@ -46,15 +48,17 @@ shift
 # and waited for it to move again, so a core that checked in during the settle delay was counted as
 # absent. It reached two cores as well as three, which is the UEFI leg's one-in-three.
 #
-# The default still stays where it was, for one reason, and it is not an SMP bug at all:
-# `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes red intermittently at
-# two cores, because `PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core
-# only, so a holder on the other core keeps the ports for up to one tick. That is milestone 313's
-# audited window, recorded at `sched::delete_port_range_caps_impl`, and milestone 315 closes it.
-# `arch::x86_64::ap_boot`'s own BUGS section is the authoritative account; see also
-# design/roadmap/316-x86-smp-two-cores.md and design/roadmap/161-x86-64-kernel-port.md item 5.
-# DECISIONS §153 is the rule for moving it: close milestone 315, then default to 2.
-SMP="${NIFE_SMP:-1}"
+# The last reason it stayed at 1 was not an SMP bug at all:
+# `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` went red intermittently at
+# two cores, because `PortRange::REVOKE` reset the TSS I/O bitmap on the revoker's core only, so a
+# holder on the other core kept the ports for up to one tick. Milestone 315 closed that by
+# broadcasting the reset over the TLB shootdown's NMI (`segments::revoke_port_grant_everywhere`),
+# and DECISIONS §153's rule is why the flip is here rather than in a later lane: the two-core suite
+# going green IS the verification that the broadcast worked, so leaving it to be remembered is how
+# it would not happen. `arch::x86_64::ap_boot`'s own BUGS section is the authoritative account of
+# what is still open at three cores and above; see also design/roadmap/316-x86-smp-two-cores.md and
+# design/roadmap/161-x86-64-kernel-port.md item 5.
+SMP="${NIFE_SMP:-2}"
 
 # **`NIFE_TCG_THREAD=multi` gives this port parallel cores instead of interleaved ones** (milestone
 # 321). **Provisional name.** Empty by default, which changes nothing: QEMU keeps choosing, and on
