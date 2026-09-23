@@ -1082,7 +1082,7 @@ milestone 198 first and then needs a population this project does not have. Unti
 entry is the one above. **This risk is the question the other eight are in service of, and it is the
 only one with no answer and no scheduled way to get one.**
 
-## 9. The HAL is a fiction, and an architecture costs a restructure rather than a port
+## 9. The HAL is a fiction, and an architecture costs a restructure rather than a port, and so does the next machine
 
 **The claim, calef's, 2026-08-30:** *"another proof/disproof of the nife thesis is actual
 functioning on the three silicons. If we can't get it to run on one, that would also likely kill the
@@ -1092,6 +1092,49 @@ effort."*
 architectures is still an OS. What would be fatal is what a failure would reveal: that adding an
 architecture requires changing the kernel rather than adding a directory under `arch/`, which is
 exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) claim it does not.
+
+**Widened 2026-09-23 from architectures to machines, and the ruling is calef's.** He raised it about
+rented computers: *"A nife that runs on one cloud platform but not another is also its own form of
+risk."* Asked whether that was a tenth entry or a wider ninth, he widened this one. So the claim
+above now reads on two grains rather than one. An **architecture** is aarch64, riscv64, x86_64. An
+**implementation** is a particular machine of one of them: xenon, some provider's metal, a
+hypervisor's idea of a PC. (Both words are this entry's, provisional, and neither is ratified.) Two
+x86_64 machines from different vendors are the same silicon with different firmware, a different way
+of delivering the boot, and different tables handed to the kernel at entry. A nife that boots on
+xenon and not on a rented server falls through the old wording entirely, and it would fail for
+exactly the reason this entry names: the abstraction was not as real as the port made it look.
+
+Three reasons that belongs here rather than in an entry of its own, which is what the ruling turned
+on.
+
+**It is the same claim, asked twice.** Architecture and implementation are two grains of one
+question: is the seam real, or does each new machine cost a restructure? Splitting them into two
+entries would put one question's two halves on two lists and let each look answered by the other.
+
+**The implementation grain is the earlier warning.** A HAL that is a fiction shows up first as "boots
+on our board, not on theirs", long before it shows up as an architecture costing a restructure. By
+the time an ISA is expensive, the cheap evidence has already been available for months and nobody was
+reading it.
+
+**And it is the grain that can actually be bought.** A Jetson TX1's silicon twin is not for sale, and
+a second VisionFive 2 answers nothing a first one did not. Rented x86_64 and aarch64 metal is
+available by the hour, from several vendors with different firmware. So the widened claim has an
+experiment the narrow one does not, which is the second property the rule at the top of this file
+demands.
+
+**The experiment for the widened grain, which has not been run:** a second machine of an
+architecture nife already boots on, riding on milestone 225 (run the soak on radon, argon and
+xenon). It is not specified further here, because a lane is pricing rented metal right now against
+that milestone and against risk 4, the per-crossing cost, and both want the same rental. So this
+question costs a boot rather than a purchase, and what the pricing will conclude is not known
+yet. What a result would mean is worth
+fixing in advance, because all three outcomes are informative and only one of them looks like news.
+If a second x86_64 machine needs a change **outside** `arch/x86_64/`, this risk moves toward red at a
+grain the 2026-09-17 run never touched. If it needs a change **inside** `arch/x86_64/` that xenon did
+not, that is the `AlreadyMapped` shape again, a machine-specific fix behind the seam, and it is the
+cost this entry calls healthy rather than fatal. **And finding no difference at all is a result**,
+recorded rather than shrugged at: it would be the first evidence anyone here has that the port is a
+port and not one machine's configuration.
 
 **The status is asymmetric, and that is the useful part.** riscv64 already disproves the strong form:
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
@@ -1167,6 +1210,20 @@ wider. And **userspace was not reached on that boot**: the measured-boot gate re
 because `xtask::uefi_image` built the kernel before the archive, so the kernel vouched for the
 previous one. That is a defect in this project's build ordering, fixed the same day and verified
 under OVMF, and it is the second time that same ordering defect has reached a bench.
+
+**A third thing it does not claim, and the verdict above did not say so when it was written hours
+earlier today (2026-09-23).** Every number in it comes from **one machine per architecture**, and for
+one of the three not even that. x86_64 is xenon, a Core i5-7500T OptiPlex, on one firmware. riscv64
+is radon, one VisionFive 2. aarch64's silicon is patagonia's own cores under Apple's hypervisor
+(notes/hvf-leg.md) plus QEMU, because argon has never booted nife at all, which the multicore entry's
+own list says in as many words. The 42 compiler errors, the untouched `crates/paging` and the one
+type parameter measure what a third **architecture** cost. They say nothing about what a second
+**machine** of an existing architecture costs, because no second machine has been booted, and until
+the widening above was written there was no wording under which anyone would have noticed the gap.
+**This does not overturn the verdict.** The measurement is real, it answers the question the
+sharpened claim asked, and re-reading it changes not one of the numbers. What was unstated was its
+scope, and a verdict that states its scope is stronger than one that leaves it to be discovered by
+the next reader.
 
 **What remains on this edge is no longer first light.** It is the two-core defect under firmware,
 the boot entry's remaining work, and the orchestrator, all of which are schedule rather than
@@ -1248,6 +1305,16 @@ same way `pgrep`'s panic handler was found. It argues for the fix the sweep alre
 `arch::barrier()` behind a seam shaped like `crates/paging`'s `PageFormat`, or a `compile_error!`
 default arm) rather than for a different reading of this risk.
 
+**Read against the widening at the top, those five functions are the concrete instance of what it
+names, and they are still open.** The failure was not a restructure and not a build error. It was
+**silence**: five functions that compiled, linked, shipped and did nothing on a machine nobody had
+run them on, found by somebody rereading a table rather than by any gate. A platform difference
+presents the same way. A machine whose firmware leaves a bit set that xenon leaves clear, or whose
+memory map is shaped differently, does not announce itself; it produces a kernel that works
+everywhere anyone has tried it. Milestone 186 (derive the architecture list, and close what it does
+not reach) is where the fix lives and it has not started, so the five are empty bodies on x86_64
+today, latent only because no x86_64 boot attaches a virtio device.
+
 **One honest cost, recorded here rather than left implied:** parity is a multiplier on every other
 risk on this list. Every driver, benchmark, proof and bring-up is three times the work. The tree's
 own evidence says the multiplier is smaller than it sounds once the HAL is right, which is what
@@ -1263,6 +1330,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | ~~1~~ | 2, the proofs | **RUN 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN 2026-09-17: GREEN.** `nife self-test: 5 of 5 passed` on xenon; the boot entry, mapper and discovery seam it needed all landed inside `kernel/src/arch/x86_64/`, and `notes/x86-port.md` counts the diff above `arch/` at one type parameter and four files' worth of `cfg` arms | milestone 87 | done |
+| 4 | 9, the HAL, at the implementation grain the entry was widened to on 2026-09-23 | a second machine of an architecture nife already boots, which is one rented boot rather than a purchase | milestone 225 (run the soak on radon, argon and xenon) | unpriced; a lane is costing rented metal for this and for risk 4 together |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
 | ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
