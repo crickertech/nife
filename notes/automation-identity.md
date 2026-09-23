@@ -54,23 +54,34 @@ say in the meantime.
 
 ## Why `smelter` has no repository of its own
 
-calef asked, 2026-09-23. **No, and the reason is that there would be nothing in it.** A GitHub App
-is a registered identity plus a permission set, held at the organization level; it has no code
-unless it has a webhook handler, and this one deliberately has none. Its only artifacts are an App
-ID and a private key, both secrets on `nife`, so a repository for it would hold an empty tree and a
-README pointing back at this note. **The second reason is this tree's own standard**: this note
-lives beside `toolchain-bump.yml`, the workflow it documents, so the two version together, and
-moving it out means the next change to that workflow can silently invalidate it with nothing to
-catch the drift.
+calef asked, 2026-09-23. **No, and the reason was never scope.** A GitHub App is a registered
+identity plus a permission set, held at the organization level; it has no code unless it has a
+webhook handler, and this one deliberately has none. Its only artifacts are an App ID and a private
+key, both secrets. A repository for it would hold an empty tree and a README pointing back at this
+note. **The breakup of the monorepo does not change that**, because an App without a webhook still
+has no code to put anywhere.
 
-Three things would change the answer, and any one of them is enough: the App grows a **webhook
-handler**, a service receiving events and acting on them, which is real code with its own deploy and
-tests and does not belong inside an OS repository; it grows **custom actions** shared by several
-repositories and needing their own release cadence; or it **serves repositories beyond `nife`**,
-enough that `nife` stops being the natural home for its configuration. The milestone's stated reuse,
-a future workflow copying the two steps from `EXAMPLES` below, is **copied steps rather than shared
-code**, and so triggers none of the three. That distinction is the whole reason this is written
-down: "reuse is the compounding value" reads like an argument for a repository, and it is not one.
+Two things would change the answer, and either is enough: the App grows a **webhook handler**, a
+service receiving events and acting on them, which is real code with its own deploy and tests and
+does not belong inside an OS repository; or it grows **custom actions** shared by several
+repositories and needing their own release cadence. Note what is *not* on that list. The milestone's
+stated reuse, a future workflow copying the two steps from `EXAMPLES` below, is **copied steps
+rather than shared code**, and triggers neither. That distinction is the whole reason this is
+written down: "reuse is the compounding value" reads like an argument for a repository, and it is
+not one.
+
+**What the split does change is where this note lives, and that is an open question with a
+trigger rather than a decision to make now.** `smelter` is expected to serve several repositories:
+§151 (the goal of the repository split is independent release and third-party programs) is DECIDED,
+milestone 39 (repository structure for a loosely-coupled OS) names option C as the destination, and
+milestone 120 already put the manifest in a separate repository, `basalt`. Once `nife` is one
+repository among several it stops being the obvious home for organization-wide tooling
+documentation, and `basalt` is the plausible destination for this page. **The move happens at the
+split, not before**, because today the argument for keeping it here is the stronger one: it sits
+beside `toolchain-bump.yml`, the workflow it documents, so the two version together and a change to
+that workflow cannot silently invalidate this page. When it moves, §201 (one roadmap until a
+citation has to cross) already governs how the citations survive crossing a repository boundary, so
+this is an existing framework rather than a new problem.
 
 ## Creating the App
 
@@ -105,13 +116,23 @@ Once, by an owner of the `crickertech` organization.
    which downloads a `.pem` file. GitHub never shows it again; a lost key is regenerated rather than
    recovered.
 9. In the left sidebar, **Install App**, then **Install** next to `crickertech`. Choose **Only select
-   repositories** and pick **`nife`** alone. An App installed on every repository holds authority
+   repositories** and pick **`nife`** alone. **Never "All repositories"**, then or later: add
+   repositories to this list as they appear. An App installed on every repository holds authority
    over repositories it has no business in.
-10. Store both as **repository** secrets on `nife` (not organization secrets: the App is only
-    installed here, and a repository secret keeps the blast radius where the install is):
+10. Store both as **organization** secrets, scoped to exactly the repositories that may read them:
 
-        gh secret set AUTOMATION_APP_ID  --repo crickertech/nife --body '<the App ID>'
-        gh secret set AUTOMATION_APP_KEY --repo crickertech/nife < ~/Downloads/smelter.private-key.pem
+        gh secret set AUTOMATION_APP_ID  --org crickertech --repos nife --body '<the App ID>'
+        gh secret set AUTOMATION_APP_KEY --org crickertech --repos nife < ~/Downloads/smelter.private-key.pem
+
+    **`--repos nife` is what makes this safe, and it is why this is not the looser choice it looks
+    like.** An organization secret naming exactly which repositories may read it has the same blast
+    radius today as a repository secret on `nife`, because today that list is `nife`. What it buys
+    is the split: `smelter` is expected to serve several repositories once the monorepo is broken up
+    (see the section above), and adding one then is editing a list rather than re-provisioning a
+    key. Fewer moving parts at no cost now.
+
+    **Never "All repositories."** The list is the mechanism; a secret every repository can read is
+    the one shape this buys nothing over.
 
     Then delete the downloaded `.pem`: `rm ~/Downloads/smelter.private-key.pem`. A key sitting in
     a downloads folder is the leak this whole exercise is meant to reduce.
@@ -131,8 +152,8 @@ Once, by an owner of the `crickertech` organization.
 
     The **Say which identity this run is authenticating as** step must print
     `identity: the crickertech automation App`. If it prints the PAT line instead, the secrets are
-    not visible to the job: check the names, and check that they are repository secrets on
-    `crickertech/nife`.
+    not visible to the job: check the names, and check that the organization secrets list `nife`
+    among the repositories that may read them.
 
 12. **Only after a real bump pull request has been opened by the App and received checks**, retire
     the token, in this order:
@@ -203,7 +224,7 @@ inheriting a reason to keep a PAT beside it:
   today, and `scripts/merge-drain.sh` is the file to re-read if that changes.
 
 - **This note cannot tell you when the PAT expires**, and neither can anything else in the
-  repository: a repository secret is opaque to every API the project can call, and only the account
+  repository: an Actions secret's value is opaque to every API the project can call, and only the account
   that minted the token can see its expiry at
   https://github.com/settings/tokens?type=beta. That opacity is not a gap in this note, it is the
   flaw the App removes.
