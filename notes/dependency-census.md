@@ -44,8 +44,8 @@ Among prerequisite edges: **77 stated at creation, 50 added later.** So roughly 
 dependencies this roadmap records were discovered while doing the work rather than while planning it.
 
 **Read that number with care.** `git blame` records when a *sentence* was written, not when a
-*dependency* was known. Milestone 76 backfilled the first day's history on 2026-08-03 in a single
-sweep, so a large block of references date to that day regardless of when the relation was true. The
+*dependency* was known. Milestone 76 (the roadmap's own status was wrong in both records) backfilled the first day's history on 2026-08-03 in a
+single sweep, so a large block of references date to that day regardless of when the relation was true. The
 `discovery` column is therefore a lower bound on planning foresight and an upper bound on nothing.
 
 ## BUGS
@@ -56,7 +56,8 @@ sweep, so a large block of references date to that day regardless of when the re
   is why the forward convention in §207 is worth more than any backfill.
 - **Classification was done by a cheap model and its precision is about 80%.** A twenty-row sample
   found sixteen genuine. Every failure had one cause: **negation**. Sentences reading *"Nothing gated
-  this after milestone 107 merged"* and *"Independent of milestone 142's type-and-scanout work"* were
+  this after milestone 107 merged"* and *"Independent of milestone 142's type-and-scanout work"* (the
+  two milestones are cited here only as the text of the misread sentences, not as records this note relies on) were
   filed as dependencies although both say the opposite. Five such rows were found mechanically and
   demoted, and they carry `RECLASSIFIED-NEGATION:` in the evidence column. More certainly remain.
 - **The four shards disagreed with each other**, returning prerequisite rates of 7.0%, 3.3%, 1.9% and

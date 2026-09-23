@@ -516,7 +516,7 @@ if mode == "--census":
 
     files = subprocess.run(
         ["git", "-C", root, "ls-files", "--", ":!vendor/", ":!patches/", ":!*.lock", ":!*.log",
-         ":!script/citations", ":!design/roadmap/README.md"],
+         ":!*.tsv", ":!script/citations", ":!design/roadmap/README.md"],
         capture_output=True, text=True,
     ).stdout.split("\n")
 
