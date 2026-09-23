@@ -66,8 +66,8 @@ wrote, and that claim is a record of an observation rather than an assumption, b
 going into slot 0 are the bytes the firmware started that machine with seconds earlier. Nothing
 marks a *trial* boot successful yet, and the consequence is exact: an upgrade that came up perfectly
 still rolls back once its tries are spent. That fails safe and it means upgrades do not stick. The
-criterion it should use, and the program that would apply it, are in
-`design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md`.
+criterion it should use, and the program that applies it, are milestone 554 (a good
+upgrade sticks: what marks a trial boot successful), which built them.
 
 **What happens when both slots are bad.** The machine boots the image in the chooser's own file,
 which is a complete nife image the install wrote at the same moment as slot 0. Never-booting is a
@@ -139,7 +139,8 @@ collected once here because a roadmap block is what somebody reads before decidi
   the slot header's bytes, and the `NIFE_BOOT` type GUID. It is a format two programs agree on,
   which `AGENTS.md` puts in the irreversible category, so it is named as unsettled rather than
   shipped quietly.
-- **Nothing marks a trial boot successful.** See above; it is the largest missing piece.
+- **Nothing marks a trial boot successful.** Answered by milestone 554 (a good upgrade sticks:
+  what marks a trial boot successful); it was the largest missing piece.
 - **Nothing writes the second slot on a running machine.** There is no upgrader, so the rollback
   path is exercised by a gate and by nothing a person does.
 - **Two disks carrying boot slots is a refusal, not a choice.** The chooser falls back to its own
@@ -154,8 +155,8 @@ collected once here because a roadmap block is what somebody reads before decidi
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md`: what marks a
-  trial boot good, the program that would do it, and the wire the slot number crosses on.
+- **Milestone 554.** (a good upgrade sticks: what marks a trial boot successful) what marks a
+  trial boot good, the program that does it, and the wire the slot number crosses on.
 - **Recorded.** An upgrader: the program that writes the spare slot and puts it on trial. It is
   milestone 198 (a package manager, and the trivial install that makes a second customer possible)'s
   own territory and should not be built before the row above is answered, or it would ship a machine
