@@ -25,15 +25,23 @@ pub const LINE_MAX: usize = 2048;
 /// unbounded recursion on adversarial input is a fault, not a slow render.
 pub const MAX_DEPTH: u8 = 3;
 
-/// Columns a table may have.
+/// Columns a table may have before the fold.
 ///
 /// A wider table is **not** truncated: everything past this many columns is folded into the last
 /// one, separator pipes and all, so the render gets ugly and loses nothing. That is the same
-/// failure mode [`TABLE_ROWS`] chose, for the same reason, and it was chosen here late: this was 8
-/// and it dropped the right-hand columns in silence until `notes/rented-metal.md` arrived with
-/// twelve of them on 2026-09-23 and the corpus test caught it. Sixteen is the repository's widest
-/// table (twelve) with room, so the fold is a guarantee rather than something a reader meets.
-pub const TABLE_COLS: usize = 16;
+/// failure mode [`TABLE_ROWS`] chose, for the same reason, and it was chosen here late. Until
+/// 2026-09-23 the right-hand columns were dropped in silence, and `notes/rented-metal.md` arrived
+/// with twelve of them and turned `main` red.
+///
+/// **The number is still 8, and it was raised and put back on measured evidence rather than
+/// taste.** Widening it to 16, so that table could be twelve real columns, costs 1536 bytes in
+/// [`Renderer`], which lives in `components/src/mdr.rs` as a `static mut` inside a process whose
+/// whole memory is a grant the progenitor pays for out of a bounded untyped. CI's `x86_64`
+/// `shell-check` answered at once: `mdr gate.txt` began reporting "could not spawn (the progenitor
+/// is out of memory)" while aarch64 and riscv64 stayed green. So this renderer's static size is
+/// load-bearing, the fold is what makes 8 safe, and raising the bound is a decision about `mdr`'s
+/// memory grant rather than about rendering.
+pub const TABLE_COLS: usize = 8;
 
 /// Rows a table may hold at once.
 ///

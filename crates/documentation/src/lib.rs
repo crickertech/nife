@@ -117,11 +117,20 @@
 //! - **A table wider than [`TABLE_COLS`] folds its remaining cells into the last column**, so the
 //!   layout degrades and the text does not. Until 2026-09-23 it dropped them instead, in silence,
 //!   and `notes/rented-metal.md` landed with twelve columns against a bound of 8 and turned `main`
-//!   red an hour later. The bound is now 16, which is this repository's widest table with room, so
-//!   the fold is a guarantee rather than something a reader here meets. The fold is deliberately
-//!   not loud: a renderer that refused input it could not lay out prettily would be worse than one
-//!   that lays it out badly, and [`Renderer::truncated`] stays what it says it is, a report that
-//!   characters were lost.
+//!   red an hour later. That page still renders as eight columns with the last five cells of each
+//!   row inside the eighth, which is ugly and loses nothing.
+//!
+//!   **The bound stayed at 8 on measured evidence, having been raised and put back.** Sixteen
+//!   would have held that table as twelve real columns and costs 1536 bytes in [`Renderer`], which
+//!   `components/src/mdr.rs` holds as a `static mut` in a process whose whole memory is a grant the
+//!   progenitor pays for out of a bounded untyped. CI's `x86_64` `shell-check` answered at once:
+//!   `mdr gate.txt` began reporting "could not spawn (the progenitor is out of memory)" while
+//!   aarch64 and riscv64 stayed green. Raising it is a decision about `mdr`'s grant, not about
+//!   rendering, and it wants somebody who can price the untyped.
+//!
+//!   The fold is deliberately not loud: a renderer that refused input it could not lay out
+//!   prettily would be worse than one that lays it out badly, and [`Renderer::truncated`] stays
+//!   what it says it is, a report that characters were lost.
 //!
 //!   **The entry this replaces is why the bug survived**, and it is worth saying so here rather
 //!   than in a commit message. It read "wider tables lose their right-hand columns", which is an

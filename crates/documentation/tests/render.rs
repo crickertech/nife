@@ -875,40 +875,34 @@ fn an_indented_block_quote_indents_by_its_rule_and_not_by_its_spaces() {
 }
 
 #[test]
-fn a_table_of_twelve_columns_keeps_all_twelve() {
+fn a_table_of_twelve_columns_keeps_every_character() {
     // The minimal reproduction of the 2026-09-23 red `main`, reduced from `notes/rented-metal.md`:
-    // twelve columns against a `TABLE_COLS` of 8 meant the last four were dropped in silence, and
-    // `every_character_survives` found it an hour after the page landed. Ten columns used to be
-    // the case this file pinned, in the other direction; see the predecessor in git.
+    // twelve columns against a `TABLE_COLS` of 8. The last four used to be dropped in silence and
+    // `every_character_survives` found it an hour after the page landed. They are folded into the
+    // last column now, which is ugly and lossless, and lossless is the property that matters.
     let src = "| a | b | c | d | e | f | g | h | i | j | k | l |\n\
                |---|---|---|---|---|---|---|---|---|---|---|---|\n\
                | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z |\n";
-    let out = plain(src, 80);
-    assert_eq!(
-        out,
-        "  a | b | c | d | e | f | g | h | i | j | k | l\n  \
-         --+---+---+---+---+---+---+---+---+---+---+--\n  \
-         1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z\n"
-    );
+    let out = plain(src, 200);
+    for want in ["h | i | j | k | l", "8 | 9 | 0 | y | z"] {
+        assert!(out.contains(want), "{want:?} was dropped: {out:?}");
+    }
 }
 
 #[test]
-fn a_table_wider_than_the_column_bound_folds_rather_than_drops() {
-    // Past `TABLE_COLS` the layout degrades and the text does not: the remaining cells are folded
-    // into the last column, separators and all. That is `TABLE_ROWS`' bargain applied sideways,
-    // and it is what makes the bound a rendering limit rather than a data loss.
-    let src = "| a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r |\n\
-               |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n\
-               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | y | z | A | B | C | D | E | F |\n";
+fn the_fold_leaves_no_trailing_pipe_of_its_own() {
+    // The fold takes the rest of the line verbatim, so the row's own closing pipe would otherwise
+    // become part of the last cell's text and every folded table would end in a stray bar.
+    let src = "| a | b | c | d | e | f | g | h | i |\n\
+               |---|---|---|---|---|---|---|---|---|\n\
+               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |\n";
     let out = plain(src, 200);
-    assert!(
-        out.contains("p | q | r"),
-        "the seventeenth column onward was dropped: {out:?}"
-    );
-    assert!(
-        out.contains("D | E | F"),
-        "the seventeenth cell onward was dropped: {out:?}"
-    );
+    for line in out.lines() {
+        assert!(
+            !line.trim_end().ends_with('|'),
+            "the row's closing pipe survived the fold: {line:?}"
+        );
+    }
 }
 
 #[test]
