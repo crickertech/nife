@@ -1,4 +1,4 @@
-# toolchain: nightly-2026-09-22
+# toolchain: nightly-2026-09-23
 # qemu: 11.1.1
 # bench/baseline-x86_64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
@@ -8,14 +8,14 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 19288726 2000
-tss_iomap_switch 24037783 2000
-tss_iomap_lazy_switch 23695780 2000
-tss_iomap_lazy_nop 19719602 2000
-ipc_rtt 17249194 1000
-relay_rtt 34430628 1000
-call_reply 17786191 1000
-broker_rtt 35525755 1000
-spawn_reap 2894668 64
-map_new 180604 64
-coremark 306214481 256
+yield_switch 19188747 2000
+tss_iomap_switch 23937905 2000
+tss_iomap_lazy_switch 23586100 2000
+tss_iomap_lazy_nop 19609872 2000
+ipc_rtt 17202389 1000
+relay_rtt 34330887 1000
+call_reply 17733698 1000
+broker_rtt 35429246 1000
+spawn_reap 2846009 64
+map_new 176491 64
+coremark 306216611 256
