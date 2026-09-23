@@ -16,10 +16,16 @@ does not have. It also found that nife has counterparts for three of Linux v6.12
 moments, all event-driven, and that a saturated rendezvous workload starves all three of their
 triggers. That is the whole explanation.
 
-**So the second half of fatal risk 5's decisive experiment has never been runnable**, and it is the
-half that matters: the one defect this risk has produced, on radon, was a receiver made Ready with
-nothing delivered, on the `irq_notify` to `wake_load_aware` path. The existing soak exercises
-contention on shared kernel state. It does not exercise the path the defect was on.
+**So the second half of fatal risk 5's decisive experiment has never been runnable**, and it was
+believed to be the half that mattered: at the time this milestone was minted, the one defect this
+risk had produced, on radon, was read as a receiver made Ready with nothing delivered, on the
+`irq_notify` to `wake_load_aware` path. **That reading is retracted** (`notes/visionfive2.md`'s fifth
+bench stop, 2026-08-15, before this milestone was minted): the dumps were a completed tour's terminal
+state, not a stranded receiver, so radon has not actually produced a confirmed instance of risk 5's
+defining claim. Found still repeating the retracted reading here 2026-09-23. What still stands: the
+existing soak exercises contention on shared kernel state and does not exercise the
+`irq_notify`-to-`wake_load_aware` path at all, which is reason enough on its own to build the hook
+below.
 
 ## What it needs
 
@@ -41,8 +47,10 @@ Round-trip rate falls (aarch64 64,000 to 44,500 a second), which is expected and
 rather than hidden: the machine is doing more work per round trip.
 
 **Being architecture-neutral is load-bearing, not incidental.** riscv64 has no software-raisable
-line reaching `irq_route`, so an aarch64 `send_sgi` or an x86 self-IPI would have left **radon** out,
-and radon is the machine that produced the defect this milestone exists to hunt.
+line reaching `irq_route`, so an aarch64 `send_sgi` or an x86 self-IPI would have left **radon** out.
+(Radon was believed to be the machine that produced the risk-5 defect this milestone exists to hunt;
+that reading is retracted, see below. Staying architecture-neutral is still the right call regardless,
+since radon is the only board with no other software-raisable interrupt path to lean on.)
 
 ## What it must not claim
 

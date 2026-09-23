@@ -286,9 +286,11 @@ place rather than an assertion that they are.
 
 - **`kernel/src/arch/` is very nearly unproved, and the part that is proved is two files.**
   Milestone 255 put two harnesses into `arch/aarch64/iommu.rs` and milestone 304 two into
-  `arch/x86_64/irq.rs`; that is 1,279 of 16,225 lines. Two of the corpus's own defects (the timer
-  re-arm drift, the VisionFive 2 undelivered wake) are still on the far side of the `asm!` boundary
-  and nothing here touches them.
+  `arch/x86_64/irq.rs`; that is 1,279 of 16,225 lines. The corpus's own timer re-arm drift is still
+  on the far side of the `asm!` boundary and nothing here touches it. (This entry used to pair it
+  with "the VisionFive 2 undelivered wake." That reading is **retracted**,
+  `notes/visionfive2.md`'s fifth bench stop, 2026-08-15: it was a completed tour's terminal state,
+  not a stranded receiver, and never happened. Found still repeating it here 2026-09-23.)
 - **Only one architecture's `arch/` is compiled per run, and riscv64's is compiled by nothing.**
   Narrowed by milestone 304 rather than closed: the `kernel` row is now proved on an x86_64 runner
   as well as the aarch64 ones, so two of the three subtrees are reachable on some machine. The third

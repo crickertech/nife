@@ -10,9 +10,14 @@ interesting, and no board has run it yet.
 
 **In brief.** `design/fatal-risks.md` risk 5 (it cannot be made reliable on multicore, and the bugs
 appear only on silicon) names its decisive experiment as *sustained multi-core stress on the boards
-with the load-sensitive assertions live*. It is the risk that has already fired once, on radon, with
-a receiver woken and nothing delivered on three harts, found in a bench session rather than by any
-test.
+with the load-sensitive assertions live*. At the time this milestone was minted (2026-09-01) the risk
+was believed to have already fired once, on radon, with a receiver woken and nothing delivered on
+three harts, found in a bench session rather than by any test. **That reading is retracted**
+(`notes/visionfive2.md`'s fifth bench stop, 2026-08-15, before this milestone was minted): the dumps
+were the terminal state of a completed boot tour, not a stranded receiver, and `notes/scheduler.md:70`
+records that the gate built against it "has never fired on a field failure." Found still repeating the
+retracted reading here 2026-09-23. The rest of this milestone (a workload that lasts, so there is
+something to soak at all) does not depend on the retracted finding and stands regardless.
 
 **Nothing in this tree could sustain anything.** The kernel's boot tour ran its checks, printed
 `nife: the capability core runs on RISC-V.`, and called `halt()`. Captured on radon on 2026-09-01,

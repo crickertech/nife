@@ -136,9 +136,12 @@ Not a survey of what could be proved, and not a harness over a function moved ou
   is not thereby proved of the other two, and a harness that appears to cover all three by symmetry
   would be the overclaim this milestone is meant to remove rather than add.
 - **Two harnesses over one file is not the architecture layer.** 347 of 16,225 lines, on one of three
-  architectures, and the two defects the corpus records inside `arch/` (the timer re-arm drift, the
-  VisionFive 2 undelivered wake) are both still on the far side of the `asm!` boundary. This block
-  promised reachability and delivered reachability; it should not be quoted as more.
+  architectures, and the timer re-arm drift the corpus records inside `arch/` is still on the far
+  side of the `asm!` boundary. This block promised reachability and delivered reachability; it
+  should not be quoted as more. (The "VisionFive 2 undelivered wake" that used to sit beside the
+  timer drift here is **retracted**, 2026-08-15: `notes/visionfive2.md`'s fifth bench stop found the
+  dumps were a completed tour's terminal state, not a stranded receiver. It never happened, so it is
+  removed from this entry's count rather than corrected in place; found 2026-09-23.)
 - **The register offsets and the bit positions are unproved and unprovable in this tree.** Nothing
   here can check `CR0_SMMUEN`, or that CONFIG really is bits [3:1], against Arm IHI 0070; a harness
   asserting the constant it was given is a tautology. If the document was misread, the code and the

@@ -123,8 +123,10 @@ So **DECISIONS §4 (kernel shape: monolithic, deferred, with two cheap rules) ru
 architecture-specific code under `kernel/src/arch/`, has kept the construct-level residue to at most
 18% of the kernel, and it is exactly the 18% you would expect.**
 File granularity overstates it, because Kani refuses on the call graph rather than on the file. It is
-still the right order of magnitude, and it is still where the timer re-arm drift and the VisionFive 2
-undelivered wake live.
+still the right order of magnitude, and it is still where the timer re-arm drift lives. (This
+sentence used to add "and the VisionFive 2 undelivered wake." That reading is **retracted**,
+`notes/visionfive2.md`'s fifth bench stop, 2026-08-15: it was a completed tour's terminal state, not
+a stranded receiver, and never happened. Found still repeating it here 2026-09-23.)
 
 The 64,818 in risk 2 is also stale as a size: `kernel/src` is 81,413 lines today.
 
