@@ -113,16 +113,24 @@ Once, by an owner of the `crickertech` organization.
 
 ## Installing it and storing the secrets
 
-8. On the App's settings page, note the **App ID** near the top. Then **Generate a private key**,
-   which downloads a `.pem` file. GitHub never shows it again; a lost key is regenerated rather than
-   recovered.
+8. On the App's settings page, note the **App ID** near the top. For `smelter` it is **5053502**,
+   created 2026-09-23 by calef. Then **Generate a private key**, which downloads a `.pem` file.
+   GitHub never shows it again; a lost key is regenerated rather than recovered.
+
+   **The App ID is not sensitive** and the private key is the only thing here that is. An App ID is
+   visible to anyone who can see the App, which is why it can be written down in this note while
+   the key never is; finding one in a log or a diff is not an incident.
+
+   **The Client ID on the same page is not used.** `actions/create-github-app-token` authenticates
+   with the App ID and the private key; a Client ID exists for OAuth flows, which this App does not
+   do. It is deliberately not recorded here, because a value nothing reads is a value that rots.
 9. In the left sidebar, **Install App**, then **Install** next to `crickertech`. Choose **Only select
    repositories** and pick **`nife`** alone. **Never "All repositories"**, then or later: add
    repositories to this list as they appear. An App installed on every repository holds authority
    over repositories it has no business in.
 10. Store both as **organization** secrets, scoped to exactly the repositories that may read them:
 
-        gh secret set AUTOMATION_APP_ID  --org crickertech --repos nife --body '<the App ID>'
+        gh secret set AUTOMATION_APP_ID  --org crickertech --repos nife --body '5053502'
         gh secret set AUTOMATION_APP_KEY --org crickertech --repos nife < ~/Downloads/smelter.private-key.pem
 
     **`--repos nife` is what makes this safe, and it is why this is not the looser choice it looks
@@ -134,6 +142,15 @@ Once, by an owner of the `crickertech` organization.
 
     **Never "All repositories."** The list is the mechanism; a secret every repository can read is
     the one shape this buys nothing over.
+
+    **Why a non-secret is stored as a secret**, since the App ID is public and this looks wrong at
+    first reading. The workflow uses `AUTOMATION_APP_ID`'s *emptiness* as its inertness switch
+    (`if: env.AUTOMATION_APP_ID != ''`), so what is wanted is a per-repository value that is absent
+    until someone provisions it, and a secret is the kind of value the workflow already reads. A
+    repository or organization **variable** would serve that switch equally and read more honestly,
+    since it would not claim to protect something that needs no protection. It is provisioned as a
+    secret and stays that way; the alternative is noted here so the next reader does not have to
+    work out whether the choice was considered.
 
     Then delete the downloaded `.pem`: `rm ~/Downloads/smelter.private-key.pem`. A key sitting in
     a downloads folder is the leak this whole exercise is meant to reduce.
