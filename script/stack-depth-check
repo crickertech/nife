@@ -89,6 +89,11 @@
 #     the symbol names that arch actually uses. Widening it may also newly fail on a real
 #     offender, so it wants its own commit and its own green run. See
 #     notes/architecture-list-sweep.md, which found nine siblings of this in one sweep.
+#     **Still open after milestone 186 (derive the architecture list), deliberately**: that
+#     milestone closed seven of the sweep's eleven and stopped here rather than guessing at a
+#     trap-frame size it had not measured. It is the last phase-3 item on 186's block, and what the
+#     widening finds is somebody else's lane by that block's own scope note, the way
+#     `script/stack-frame-check`'s 12,504-byte `iommu::init` was.
 #   - The ceiling is shared with the watermark's thread row deliberately (14336 of 16384), so the
 #     two instruments fail at the same place from opposite directions. A trip is not automatically
 #     a bug: read the chain it prints, and if the growth is honest, raise both numbers together.

@@ -37,6 +37,65 @@ the model and is worth reading before writing another one.
 listed only so the next sweep does not spend an hour rediscovering that a device tree does not
 apply to a PC.
 
+## Disposition, 2026-09-23, by milestone 186
+
+Twenty-seven days after the sweep. **Seven of the eleven are closed, one is now a recorded gap, one
+is another milestone's, and two were already closed by other lanes before this one looked**, which
+is the finding worth carrying: a sweep's table is a snapshot, and a lane that acts on it without
+re-checking each row will fix something twice and miss what moved.
+
+| # | Where | Disposition |
+|---|---|---|
+| 1 | `script/stack-depth-check` | **Open.** Phase 3, and not a widening: its `TRAP_FRAME`, `DISPATCH` and `BODY` tables each need an x86_64 row measured against that architecture's own `size_of::<TrapFrame>()` and symbol names, and then the gate may find a real offender. Recorded in its own `BUGS`, which is where it already was |
+| 2 | `script/bootstrap` | **Closed.** Derived from `rust-toolchain.toml`'s `targets`, the way `channel` above it already was |
+| 3 | `script/drift` | **Was already closed**, by milestone 312 (`script/drift`'s lists are derived), which derives both the target list and the bare-metal subset. Its comment is the model the other two copied |
+| 4 | `script/toolchain-bump` | **Closed**, and `.github/workflows/toolchain-bump.yml` with it, which the sweep did not list. Both install against the **new** toolchain, so the pin's array does not cover them; this was the copy that actually bit |
+| 5 | `deny.toml` | **Closed.** `x86_64-unknown-none` added and the stale scope note replaced with what happened. `script/supply-chain` is green with the target in, so nothing was hiding in that graph. TOML cannot call a script, so it stays hand-kept and its `BUGS` now says so |
+| 6 | CI's bench job | **Was already closed**, on 2026-09-15: `script/ci-build`'s `bench` row runs three legs |
+| 7 | `script/bench`'s `EXAMPLES` | **Closed.** All three architectures and their baselines are in the header, with `--real` named as aarch64-only by construction rather than by omission |
+| 8 | `notes/arch-audit.md`'s scope | **Another milestone's**, 187 (read the x86_64 arch tree through the lens the first arch audit used), which was minted for it |
+| 9 | five driver `barrier()` functions | **Closed, and it was five rather than four.** See below |
+| 10 | `components/src/pgrep.rs` | **Was already closed** with the sweep itself |
+| 11 | `script/fastpath-footprint` | **Was already closed**: `arches` is three and x86_64 is measured. CI's job for it still installed two targets a month later, which this milestone fixed |
+
+### Finding 9 was five copies, not four, and the fix is one function
+
+The sweep named `crates/virtio`, `gpu_driver.rs`, `keyboard_driver.rs` and `net_transport.rs`. The
+fifth is **`components/src/entropy.rs`**, found by the fatal-risk-9 lane on 2026-09-23 and confirmed
+by re-running the sweep's own method 3: it had the same two arms, no third, and no `BUGS` note, so
+it was the one copy nobody had even recorded. A sixth `barrier()` exists in
+`components/src/non_volatile_memory_express.rs` and was never in this class: it has all three arms.
+
+**They are now one function**, `user_mode_runtime::virtio::virtio_ring_barrier` (name provisional),
+in the module where those four programs already get `virtio_read_reg` and its siblings. That is a
+higher rung than five `compile_error!` arms would have been, which is what option B priced: the
+fallback now exists **once**, and a seventh driver gets the third architecture by calling the
+function rather than by remembering to write an arm.
+
+**What x86_64 needed, which the sweep left open as a rule 4 call.** A compiler fence, and the
+reasoning is per-site rather than a default. Every call site in those five programs asks for one of
+two orderings: store-store (publish the descriptor before the available index; publish the index
+before the notify) or load-load (read the used index before the payload it gates). x86_64 gives both
+for the write-back memory a coherent DMA agent shares. The store-load case TSO does not give is
+unreachable here, because every notify and every register access in these drivers leaves the process
+through a syscall instruction, which is serializing. So the compiler is the entire exposure.
+
+`non_volatile_memory_express.rs` is the control that makes this argument falsifiable rather than
+convenient: it keeps `dmb sy` and a real `mfence`, because its doorbell is a direct store to a
+device-typed page in this address space with no syscall between the ring stores and it. Same
+hardware, different answer, for a stated reason.
+
+### What is still open after this milestone
+
+- Finding 1, `script/stack-depth-check`, which is phase 3 work that may surface an offender.
+- Finding 8, which is milestone 187 (read the x86_64 arch tree through the lens the first arch
+  audit used).
+- The rung-1 limit this note already stated and which still holds: deriving the list removes the
+  **copy**, not the **incompleteness**. Nothing stops a new gate writing `for arch in aarch64
+  riscv64`, and `deny.toml` cannot read the derivation at all. `virtio_ring_barrier`'s
+  `compile_error!` is the one place in this sweep's territory where a missing architecture now
+  fails to build rather than failing to order.
+
 ## The three classifications, and why the classification is the deliverable
 
 Rule 5 in `AGENTS.md`, from §19 (architectural parity is a tenet):
