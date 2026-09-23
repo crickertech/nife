@@ -42,6 +42,7 @@ mod inspect;
 mod install;
 mod manual;
 mod measure;
+mod package;
 mod rollback;
 mod scanout;
 mod screen;
@@ -166,6 +167,9 @@ fn main() -> ExitCode {
         // The same image, booted under OVMF and checked. Runs inside `script/test --arch x86_64`;
         // exposed on its own because the bench procedure starts by watching this pass locally.
         "uefi-boot" => uefi_boot(),
+        // Milestone 198's rung 3a, the producer half: a reviewed recipe in, one package file and
+        // its digest out. Name provisional (2026-09-23).
+        "package" => package::package(std::env::args().nth(2)),
         "install-boot" => install::install_boot(),
         "rollback-boot" => rollback::rollback_boot(),
         // Rung 2b's other half: a GOOD upgrade is tried, confirmed by the running system, and
@@ -245,7 +249,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|install-boot|rollback-boot|confirm-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|package|install-boot|rollback-boot|confirm-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(

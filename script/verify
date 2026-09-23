@@ -306,6 +306,7 @@ generational_table	4	the generational thread table
 intrusive_fifo	9	the scheduler's queue structure
 address_space_identifier	4	the TLB tag allocator
 nifefs	2	the initrd parser the kernel runs on boot input
+package_archive	4	a package file is refused or read entirely inside itself, on bytes the solver chose
 pci	6	config-space decode on hostile-device input
 non_volatile_memory_express	2	the queue rings never index out, and the doorbell/PRP arithmetic is total
 dma_validator	175	the DMA-confinement validator, no descriptor escapes the grant

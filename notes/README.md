@@ -1401,6 +1401,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
   the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
   bench steps for radon and argon**.
+- [What a nife package is, and what still cannot be done with one](packages.md): milestone 198 (a
+  package manager, and the trivial install)'s rung 3a, producer half, built 2026-09-23. The one
+  archive file DECISIONS §197 (a package is one archive file) ruled a package is, written and read by one crate so a host tool and a
+  target cannot drift; `cargo xtask package` turning a reviewed recipe into a package, a digest and
+  a catalogue line in `measured_boot`'s own manifest shape; why the recorded digest is checked
+  before anything is written, and why the first recipe deliberately records none. **Where it
+  stops**: the activation fork, milestone 507 (installing a package: mutate, compose, or widen what can be spawned),
+  is unruled, and its own finding is why no workaround
+  exists, since the program namespace is sealed at boot and nothing that builds processes can read
+  an installed program today.
 - [Two boot slots, so a bad upgrade cannot brick the machine](boot-slots.md): milestone 198 (a
   package manager, and the trivial install)'s rung 2b, built, on calef's ruling of 2026-09-21. An
   installed machine keeps two copies of its boot image, and the state choosing between them
