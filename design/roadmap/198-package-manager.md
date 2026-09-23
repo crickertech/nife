@@ -1,7 +1,14 @@
 # 198. A package manager, and the trivial install that makes a second customer possible
 
-**Status: NOT-STARTED.** Minted 2026-08-30 by calef. *(Number provisional until the merge queue
-lands it.)*
+**Status: PARTIAL.** Minted 2026-08-30 by calef. *(Number provisional until the merge queue
+lands it.)* **Rung 3a's producer half was built 2026-09-23** on
+`milestone/198-the-next-rung`: the one archive file §197 ruled a package is
+(`crates/package_archive`, written and read by one definition), `cargo xtask package` turning a
+reviewed recipe into a package, its digest and a catalogue line, and the fuzz target and Kani
+harnesses §197 accepted as the container's price. The first package this project has produced is
+`uptime 0.1.0 aarch64`, 882,475 bytes, and notes/packages.md has the run. **The consumer half is
+not built and is not blocked on effort**: installing waits on the activation fork below, whose own
+finding is that nothing which builds processes can read an installed program today.
 
 **Gate: DECISION.** The decisions are the package format, the activation shape and trust, each in
 its own proposal under "Scoped 2026-09-19" below, and since DECISIONS §157 also the install layout,
@@ -108,7 +115,7 @@ claim about PCs, and each rung's last exit criterion is that second machine.
 | **1d. A PC that is not xenon** | Nothing new if 1a to 1c hold | The same stick on one fleet machine reaches `$` at its own keyboard and monitor | 243's fleet; [a-stick-that-boots-with-secure-boot-on.md](500-a-stick-that-boots-with-secure-boot-on.md) (new) for machines whose owner will not turn Secure Boot off |
 | **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [milestone 421 (the block roster cannot name an NVMe)](421-a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
 | **2b. Installed onto xenon's disk** | The bench half | The 2a sequence on xenon's Micron 2450, photographed, stick removed before the second boot | 261 (PARTIAL: the disk wipe, calef's, then one bench boot) |
-| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block, after the format, activation and trust rulings; the scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half |
+| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block, after the format, activation and trust rulings; the scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md); the client half waits on the activation ruling, not on the transport, since §195's digest is what decides whether bytes may run |
 | **3b. The network card xenon has** | An Intel I219 (`e1000e` family) driver in 261's shape | Under QEMU `-device e1000e` behind `intel-iommu`, milestone 30 (the network stack as a confined component)'s DHCP and TCP gates pass through the new driver; on xenon, a lease from the house router and a measured transfer | [a-driver-for-the-network-card-a-pc-actually-has.md](494-a-driver-for-the-network-card-a-pc-actually-has.md) (new) |
 | **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [milestone 384](384-a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [DECISIONS §196](../decisions/196-nife-carries-tls-and-builds-the-provider.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
 | **4. The web page** | A published release and a page | A stranger with a PC, a USB stick and no prior knowledge follows the page to rung 3c's result; the stranger harness (`notes/stranger-test.md`) runs against the **download**, not the build | calef's act; the preconditions below |
@@ -142,7 +149,7 @@ One line each, in the form calef would answer, with the rung that waits on it.
 | Ruling | The question | Rung it blocks | Where the options are |
 |---|---|---|---|
 | ~~**Format**~~ | **Decided 2026-09-20. DECISIONS §197 (a package is one archive file) rules one archive file per package**, identified by name and version, with the reviewed recipe of §195 (a reviewed recipe vouches for a package) carrying its digest. Where the manifest travels and whether the digest is a Merkle root are still calef's, narrowed by the ruling. | 3a | [DECISIONS §197](../decisions/197-a-package-is-one-archive-file.md) |
-| **Activation** | Does installing write into shared directories, compose a read-only view, or only widen what may be spawned? | 3a | [installing-a-package-mutates-or-composes.md](507-installing-a-package-mutates-or-composes.md) |
+| **Activation** | Does installing write into shared directories, compose a read-only view, or only widen what may be spawned? | 3a's **consumer** half; the producer half was built without it, because what a package *is* and what installing one *does* are separable and only the second is unruled | [installing-a-package-mutates-or-composes.md](507-installing-a-package-mutates-or-composes.md) |
 | ~~**Trust**~~ | **Decided 2026-09-19 (DECISIONS §195): a reviewed recipe vouches, trust is scoped per source the owner opted into, and the owner may overrule.** No long-lived signing key is held for now; a per-source signature can be added later without changing that. | 3a | [DECISIONS §195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md) |
 | **Install layout** (new) | Is an installed disk an EFI system partition plus a data partition, the same with two boot slots, or a small loader plus a raw system partition? | 2a's merge (a lane can build under a provisional layout; nothing leaves the machine until 4) | the installer proposal |
 | ~~**Transport** (new)~~ | **Decided 2026-09-19 (DECISIONS §196): HTTPS, `rustls` for the protocol, and the crypto provider is milestone 442's work.** Under §195 a recipe's digest decides what may run, so rung 3a does not wait for TLS. | 3c (not 3a) | [DECISIONS §196](../decisions/196-nife-carries-tls-and-builds-the-provider.md) |
@@ -199,10 +206,50 @@ as host-side recipes, image composition from a declared set, and a run bundle te
 harness and not published until calef says so. Its details and what it unblocks are in the
 trivial-install proposal.~~
 
+## Follow-on
+
+Added 2026-09-23 by the lane that built rung 3a's producer half, and covering that half only: this
+block's other rungs carry their own exit criteria in the table above, and the rungs that are
+calef's acts are named there rather than here.
+
+- **Outstanding.** Rung 3a's consumer half: fetch, verify, install, run, survive a reboot, remove.
+  It waits on the activation ruling above, and milestone 507 (installing a package: mutate, compose, or widen what can be spawned)'s own finding is why no lane can route
+  around it: the program namespace is sealed at boot and the spawner gives the file service away,
+  so nothing that builds processes can read an installed program today. Checked by reading that
+  proposal and by `crates/system_initializer`, where every program's capability is spent at boot.
+- **Outstanding.** The two Kani harnesses in `crates/package_archive` have never been run. They were
+  written as §197's accepted price for choosing a container; the lane did not run `script/verify`
+  because another lane held the machine, and the next full run is what discharges them. Checked by
+  `git grep -c 'kani::proof' crates/package_archive/src/lib.rs`.
+- **Outstanding.** No gate runs `cargo xtask package` end to end, because it needs a built user
+  program and the gate that builds one is the archive gate. The host tests, the recipe tests and
+  the fuzz target do run. Checked by `git grep -n 'xtask package' script/ .github/`.
+- **Decision.** Where a program's manifest travels, and whether the digest is a Merkle root, are
+  both still calef's and both left open rather than answered by the built format:
+  `design/decisions/197-a-package-is-one-archive-file.md`.
+- **Recorded.** No compression, a `u32` ceiling on a member and on a package, a catalogue that is
+  one file in `target/` rather than a repository index, and a recipe that cannot say where its
+  source came from (`crates/package_archive`'s and `xtask/src/package.rs`'s BUGS sections, and
+  `notes/packages.md`).
+- **Recorded.** `packages/uptime.recipe` records no digest on purpose, because the program it names
+  is rebuilt by this checkout whenever anything it links changes (the recipe's own comment).
+
 ## BUGS
 
 - **This block prices nothing.** A package manager is a large piece of work and the estimate is not
   attempted; the sequencing claim is that it gates a customer, not that it is cheap.
+- **The package encoding is provisional, and so is `package_archive`'s name.** §197 ruled the
+  container, not the byte offsets, and two of its own open questions are left open by the built
+  format rather than answered: where a program's manifest travels (a sibling member is possible and
+  nothing requires one) and whether the digest is a Merkle root (the built format takes the plain
+  SHA-256 §197 records as the default). Reversible only until somebody outside this repository
+  fetches a package, which §197 says fixes the format.
+- **Nothing gates the producer end to end in CI.** `cargo xtask package` needs a built user program,
+  and wiring it to the archive gate was left to the lane that has a consumer to gate with it. The
+  host tests, the recipe tests and the fuzz target do run.
+- **The two Kani harnesses the built format carries have not been run.** They were written as §197's
+  accepted price and the lane that wrote them did not run `script/verify`, because another lane held
+  the machine. The next full run discharges or refutes them.
 - **It does not decide the format, the activation shape, or the repository split.** The scoping
   lane found the split's timing is not needed at all (see the gate proposal); the format,
   activation and trust forks are proposals awaiting calef, not decisions.
@@ -247,7 +294,10 @@ is what earns it, since the builders pay for its absence today, hand-wiring per 
 package would install once (milestone 40 already ships "installed by the package that owns it",
 against no package). Gate: DECISION (the format, activation and trust forks); `MILESTONE 23` was
 dropped by calef on 2026-09-19 because it closed a loop (§156). **Rescoped 2026-09-19 under §157**
-into four rungs, each shipping on its own: a stick reaching a prompt on a PC (1a on xenon over serial
+into four rungs, each shipping on its own, and **rung 3a's producer half is built** (2026-09-23:
+the one archive file §197 ruled a package is, and `cargo xtask package`, which turns a reviewed
+recipe into one; the client that installs what it produces waits on the activation ruling, not on
+the network): a stick reaching a prompt on a PC (1a on xenon over serial
 needs nothing new; the screen and the USB keyboard, milestone 242, are the rest), that system
 installed onto the disk (a new installer proposal plus milestone 261's bench step), growing by
 packages over the network (this milestone on a LAN first, then a real network card and the

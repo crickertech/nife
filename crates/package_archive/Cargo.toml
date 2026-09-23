@@ -1,0 +1,16 @@
+[package]
+name = "package_archive"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The digest DECISIONS §197 (a package is one archive file) rules on ("plain unless something measures otherwise") is the one this
+# tree already hand-wrote and tested against FIPS 180-4 vectors, and the kernel's trust root already
+# reads it. A second SHA-256 would be a second thing to be wrong about, on the one path where being
+# wrong is silent: a package whose digest is computed differently by the producer and the consumer
+# fails open only if the two agree on being wrong.
+measured_boot = { version = "0.1.0", path = "../measured_boot" }

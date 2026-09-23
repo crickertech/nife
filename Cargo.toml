@@ -29,6 +29,7 @@ members = [
     "crates/counter_frequency_protocol",
     "crates/login_protocol",
     "crates/nifefs",
+    "crates/package_archive",
     "crates/dma_validator",
     "crates/device_tree_blob",
     "crates/elf",

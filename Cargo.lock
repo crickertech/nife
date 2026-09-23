@@ -687,6 +687,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "package_archive"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
+
+[[package]]
 name = "page_frames"
 version = "0.1.0"
 
@@ -1161,6 +1168,7 @@ dependencies = [
  "graphics_protocol",
  "measured_boot",
  "nifefs",
+ "package_archive",
  "portable_executable",
  "sealed_pair",
  "video_terminal",
