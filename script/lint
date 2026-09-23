@@ -2112,22 +2112,15 @@ done
 #
 #    A detached HEAD (every CI pull_request run, since actions/checkout builds the merge commit)
 #    has no branch to judge and is skipped rather than guessed at, as before.
+#
+#    **The shape rule itself lives in scripts/branch-name-check.sh** (2026-09-22), not here. This
+#    check only ever sees a branch that already exists, which means it fires after the worktree is
+#    made, after the work is written, sometimes after commits; script/claim runs the identical
+#    refusal before any of that, and a shared case statement is what keeps the two answers from
+#    drifting apart. See that file for the near-miss reasoning.
 branch="$(git -C "$(dirname "$0")/.." symbolic-ref --quiet --short HEAD || true)"
-case "$branch" in
-    # Correctly spelled milestone claims, and everything that claims no milestone at all. The
-    # second group is deliberately unbounded: a prefix nothing reads is a convention, not a gate.
-    milestone/[0-9]*-*) ;;
-    # A near-miss on the one prefix with a mechanism behind it. Refused because it is INVISIBLE
-    # otherwise: 4b would not match it, so the block-must-move check would silently not run, and
-    # the failure would look like a lane that was simply never asked.
-    milestone/*|milestone-*|milestones/*|Milestone*)
-        echo "lint: branch '$branch' looks like a milestone claim but does not parse." >&2
-        echo "Spell it milestone/<N>-<slug>, so the roadmap-block check below can read it." >&2
-        echo "A near-miss is refused because it would skip that check in silence (§77, §90)." >&2
-        exit 1
-        ;;
-    *) ;;
-esac
+. "$(dirname "$0")/../scripts/branch-name-check.sh"
+nife_check_branch_name_shape "$branch" lint || exit 1
 
 # 4b. **A `milestone/N-*` branch must touch that milestone's roadmap file** (§90, 2026-08-16).
 #     The status field lagged the tree four times in one week: 43, 65 and 107 were BUILT for
