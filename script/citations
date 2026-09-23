@@ -230,16 +230,9 @@ ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?")
 # because the file was not staged yet, and CI failed on it minutes later. That is this tree's
 # recurring shape, a check invisible at the moment it is needed, and one word fixes it.
 # `--untracked` still honours .gitignore, so target/ and build output stay out.
-#
-# `*.tsv` is excluded because a data file QUOTES rather than cites. notes/dependency-census's
-# evidence column carries the sentence that justified each classification, verbatim from a milestone
-# block, so a row reading `milestone 9 (Processes: spawn, exit, wait)` is reporting what some other
-# file says and is not itself making that claim. Checking it fails on correct data, and the only
-# repairs available are mangling the evidence or adding an exemption per row. This is the same
-# category as vendor/ and patches/ above: text this tree carries rather than text it asserts.
 candidates = subprocess.run(
     ["git", "-C", root, "grep", "-I", "--untracked", "-l", "-E", r"(§[0-9]+|[Mm]ilestone [0-9]+),? \(",
-     "--", ":!vendor/", ":!patches/", ":!*.lock", ":!*.tsv", ":!script/citations"],
+     "--", ":!vendor/", ":!patches/", ":!*.lock", ":!script/citations"],
     capture_output=True, text=True,
 ).stdout.split()
 
@@ -516,7 +509,7 @@ if mode == "--census":
 
     files = subprocess.run(
         ["git", "-C", root, "ls-files", "--", ":!vendor/", ":!patches/", ":!*.lock", ":!*.log",
-         ":!*.tsv", ":!script/citations", ":!design/roadmap/README.md"],
+         ":!script/citations", ":!design/roadmap/README.md"],
         capture_output=True, text=True,
     ).stdout.split("\n")
 
