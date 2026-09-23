@@ -1,0 +1,19 @@
+Falsifies `inter_process_communication::verification::send_preserves_the_invariant`.
+
+The defect: a sender with nobody to meet joins the receiver queue. The two queues are twins,
+their pushes differ by one identifier, and `send` and `recv` are written as mirror images of
+each other a few lines apart, which is where this kind of slip lives.
+
+Expected to fail: the harness's `assert!(e.one_queue_invariant())`, on a rendezvous that already
+holds a queued sender, where the blocked sender lands on the other queue and both are then
+non-empty. Every other proof in this module rests on that invariant, and a later receive would
+rendezvous a sender with a sender.
+
+diff --git a/crates/inter_process_communication/src/lib.rs b/crates/inter_process_communication/src/lib.rs
+--- a/crates/inter_process_communication/src/lib.rs
++++ b/crates/inter_process_communication/src/lib.rs
+@@ -330,3 +330,3 @@ impl<T: Node> Rendezvous<T> {
+             // SAFETY: the caller's contract is exactly the queue's.
+-            unsafe { self.senders.push_back(me) };
++            unsafe { self.receivers.push_back(me) };
+             Send::Blocked

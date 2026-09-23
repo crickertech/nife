@@ -1,0 +1,24 @@
+Falsifies `inter_process_communication::verification::removing_a_waiter_preserves_the_invariant`.
+
+The defect: `remove_sender` notes the hit and then keeps the victim anyway. The drain-and-repush
+shape invites it: the loop's job reads as "rebuild the queue", the `else` is the only thing that
+drops anything, and the function still returns the right answer to every caller that only asks
+whether the waiter was there.
+
+Expected to fail: the harness's `assert!(!found || e.is_idle())`, on a hit. The invariant
+assertion survives, because one queue is still empty, which is why this harness states both:
+a remove that reports success while leaving the thread queued is how milestone 133's
+`DESTROY` ends a thread and then finds it again on a wait queue.
+
+diff --git a/crates/inter_process_communication/src/lib.rs b/crates/inter_process_communication/src/lib.rs
+--- a/crates/inter_process_communication/src/lib.rs
++++ b/crates/inter_process_communication/src/lib.rs
+@@ -271,6 +271,5 @@ impl<T: Node> Rendezvous<T> {
+                 found = true;
+-            } else {
+-                // SAFETY: just popped from this queue, so it is valid and on no queue.
+-                unsafe { kept.push_back(node) };
+             }
++            // SAFETY: just popped from this queue, so it is valid and on no queue.
++            unsafe { kept.push_back(node) };
+         }

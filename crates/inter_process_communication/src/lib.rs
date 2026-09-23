@@ -450,7 +450,7 @@ mod verification {
         }
     }
 
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.send_preserves_the_invariant.patch`
     #[kani::proof]
     fn send_preserves_the_invariant() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -465,7 +465,7 @@ mod verification {
         assert!(e.one_queue_invariant());
     }
 
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.recv_preserves_the_invariant.patch`
     #[kani::proof]
     fn recv_preserves_the_invariant() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -478,7 +478,16 @@ mod verification {
         assert!(e.one_queue_invariant());
     }
 
-    /// Falsification: unfalsified
+    /// Falsification: unfalsified. No minimal defect in `signal` can turn this harness red, and
+    /// that is a fact about the operation rather than a gap in the effort. The invariant is "at
+    /// most one queue is non-empty", and `signal` takes no node: its two branches pop a receiver
+    /// (which can only empty a queue) and increment a counter. Nothing it can be mistakenly
+    /// written to do enqueues anything, so every mutation of it either leaves the invariant true
+    /// or is caught by a neighbouring harness instead. The harness earns its place as a guard
+    /// against `signal` growing an enqueue path later, not as evidence about the code today.
+    /// Recording a patch here would mean patching a sibling operation and filing the red under
+    /// this name, which is the manufactured evidence DECISIONS §134 (a harness carries a
+    /// machine-replayable falsification record, or it is not evidence) exists to refuse.
     #[kani::proof]
     fn signal_preserves_the_invariant() {
         let (mut s, mut r) = (N::new(), N::new());
@@ -494,7 +503,7 @@ mod verification {
     /// **A send rendezvouses exactly when a receiver was waiting**, and with exactly *that*
     /// receiver, else blocks. So a message is never dropped, a sender never blocks past a ready
     /// receiver, and the rendezvous partner is the queued thread and no other.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.send_rendezvous_iff_a_receiver_waited.patch`
     #[kani::proof]
     fn send_rendezvous_iff_a_receiver_waited() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -546,7 +555,7 @@ mod verification {
     /// **One remove per run, chosen symbolically, rather than the four the kernel makes**, and
     /// nothing is lost by that: the removes share no state between calls, each reading one queue
     /// and writing it back, so proving one over an arbitrary seeded rendezvous covers a sequence.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.removing_a_waiter_preserves_the_invariant.patch`
     #[kani::proof]
     #[kani::unwind(3)]
     fn removing_a_waiter_preserves_the_invariant() {
@@ -582,7 +591,7 @@ mod verification {
     /// **A pending signal is taken before a queued sender.** A receive drains a counted signal
     /// first, so an async signal delivered with nobody waiting is never lost behind a later
     /// synchronous sender.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.recv_drains_a_pending_signal_first.patch`
     #[kani::proof]
     fn recv_drains_a_pending_signal_first() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -610,7 +619,7 @@ mod verification {
     /// queue cannot see: a blocked thread cannot run, so it cannot enqueue itself a second time.
     /// Stated through emptiness (the decision core's own vocabulary; a membership scan would hand
     /// the solver an unbounded loop for no added meaning).
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/inter_process_communication/falsifications/verification.a_collected_sender_is_forgotten.patch`
     #[kani::proof]
     fn a_collected_sender_is_forgotten() {
         let (mut s, mut r, mut me, mut me2) = (N::new(), N::new(), N::new(), N::new());
