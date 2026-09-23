@@ -38,6 +38,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   risk 3 has never once succeeded, and Miri has been red for three weeks on a missing environment
   variable rather than on undefined behaviour. Name provisional.
 
+- [Selectors that can select nothing](empty-selectors.md): the enumeration milestone 401 (a gate that selects the set it judges) asked for.
+  A gate that picks the things it judges with a pattern reports clean when the pattern stops
+  matching, and the rule that came out of the sweep is that a selector whose empty result is silent
+  (a shell glob, `git ls-files`, Python `glob`/`rglob`) needs a non-empty assertion, while one whose
+  empty result raises (`os.listdir`) does not. Eight sites guarded, `script/ci-build` the worst of
+  them: rename the tier column and it runs no checks and prints "all pass". Also the correction that
+  401's own exhibit does not hold, replayed against the tree: the contract-crate glob failed loudly
+  rather than passing silently. Name provisional.
+
 - [The roadmap](roadmap.md): how to add a milestone, the status, gate and follow-on vocabularies,
   and the rule that anybody may write a proposal. It also carries the history of the index table
   that used to sit at `design/roadmap/README.md`: derived from the blocks by milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) because

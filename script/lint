@@ -401,11 +401,23 @@ echo "rule 1: no asm outside kernel/src/arch/"
 # describe a frame the file never builds; see notes/cfi-unwind.md for what that would cost.
 echo "==> hand-written asm carries CFI"
 cfi_bad=""
+cfi_seen=0
+# The hazard is the pattern, not the check: milestone 401 (a gate that selects the set it judges).
+# `git ls-files` prints nothing for a pattern that matches nothing, so moving the `.s`
+# files one directory deeper would leave this loop with zero iterations and the gate would
+# announce that hand-written asm carries CFI having read no asm. The count below is what makes that a red rather than a green.
 for f in $(git ls-files 'kernel/src/arch/*/*.s'); do
+    cfi_seen=$((cfi_seen + 1))
     grep -q 'CFI-EXEMPT:' "$f" && continue
     grep -q '^\.global ' "$f" || continue
     grep -q '\.cfi_startproc' "$f" || cfi_bad="$cfi_bad $f"
 done
+if [ "$cfi_seen" -eq 0 ]; then
+    echo "lint: no .s files matched kernel/src/arch/*/*.s, so the CFI check judged nothing." >&2
+    echo "Hand-written assembly moved. Fix the pattern above; a selector that matches nothing" >&2
+    echo "passes by checking nothing (design/roadmap/401-a-gate-that-selects-the-set-it-judges.md)." >&2
+    exit 1
+fi
 if [ -n "$cfi_bad" ]; then
     echo "lint: hand-written .s files with an exported symbol and no CFI directives:" >&2
     for f in $cfi_bad; do echo "  $f" >&2; done
@@ -631,7 +643,9 @@ PYEOF
 # riscv one would have been split the moment it grew a second condition.
 echo "==> module-wide dead-code suppression"
 found=""
+rs_seen=0
 for f in $(git ls-files '*.rs' | grep -v '^vendor/' | grep -v '^patches/'); do
+    rs_seen=$((rs_seen + 1))
     hit=$(awk '
         /^[[:space:]]*#!\[/ { collecting = 1; buf = ""; ln = FNR; opens = 0; closes = 0 }
         collecting {
@@ -647,6 +661,11 @@ for f in $(git ls-files '*.rs' | grep -v '^vendor/' | grep -v '^patches/'); do
     [ -n "$hit" ] && found="$found
 $f:$hit"
 done
+if [ "$rs_seen" -eq 0 ]; then
+    echo "lint: the dead-code sweep read no .rs files at all, so it judged nothing" >&2
+    echo "(milestone 401). Either the filters above are wrong or this is not the repository." >&2
+    exit 1
+fi
 if [ -n "$found" ]; then
     echo "lint: module-wide dead-code suppression (an inner attribute blindfolds the whole module):" >&2
     echo "$found" >&2
@@ -962,7 +981,11 @@ lint = open("script/lint").read()
 # Every xtask source, not `main.rs` alone: milestone 365 split that file into a module per
 # command, and the exclusion list moved to the module that runs the host pass. What this check
 # means is "the list exists somewhere in xtask", so read the directory rather than one file.
-xtask = "".join(open(p).read() for p in sorted(pathlib.Path("xtask/src").glob("*.rs")))
+xtask_src = sorted(pathlib.Path("xtask/src").glob("*.rs"))
+if not xtask_src:
+    sys.exit("lint: xtask/src/*.rs matched no file, so the host-exclusion cross-check read an "
+             "empty xtask and would have reported every crate missing (or none). See milestone 401.")
+xtask = "".join(p.read_text() for p in xtask_src)
 coverage = open("script/coverage").read()
 mutants = open(".cargo/mutants.toml").read()
 missing = []
@@ -1202,9 +1225,19 @@ if [ -n "$missing" ]; then
     echo "lint: scripts with no entry in notes/scripts.md:$missing" >&2
     exit 1
 fi
+# The same hazard one line down (milestone 401): if README's phrasing stops spelling the scripts as
+# `script/<name>`, this grep selects nothing and the resolve check judges nothing.
+readme_refs=0
 for name in $(grep -oE "script/[a-z-]+" "$(dirname "$0")/../README.md" | sort -u | cut -d/ -f2); do
+    readme_refs=$((readme_refs + 1))
     [ -e "$(dirname "$0")/$name" ] || { echo "lint: README names script/$name, which does not exist" >&2; exit 1; }
 done
+if [ "$readme_refs" -eq 0 ]; then
+    echo "lint: README.md names no script/<name>, so nothing was resolved. Either the README" >&2
+    echo "stopped referencing scripts or its spelling moved; this check would otherwise pass" >&2
+    echo "by checking nothing." >&2
+    exit 1
+fi
 echo "script docs: every script documented, every README reference resolves"
 
 # The project's QEMU is on PATH (milestone 287). On Linux `script/ci-qemu` builds the pinned
@@ -1374,6 +1407,11 @@ gate working: a nightly can make this kernel genuinely slower, and re-recording
 without reading the delta is the one outcome this refuses to automate.""", file=sys.stderr)
     sys.exit(1)
 
+# An empty glob here would print "0 file(s)" and pass (milestone 401): the selector is
+# `bench/baseline-*.txt`, and renaming those files is a thing a benchmark milestone does.
+if checked == 0:
+    sys.exit("lint: bench/baseline-*.txt matched no file, so the toolchain-stamp check "
+             "judged nothing. The baseline file naming moved; move the glob with it.")
 print(f"the icount baselines name the pinned nightly: {checked} file(s) at {pin}")
 TOOLCHAINEOF
 
@@ -2085,13 +2123,29 @@ fi
 #    selects the crates it then judges, so a glob that matches nothing passes by checking nothing,
 #    which is the `--exclude`-goes-stale failure design/naming.md lists. `crates/*proto` stopped
 #    matching any directory the moment 265 landed and would have reported clean forever.
+#    **The counter is milestone 401's mechanism and it is belt over braces here.** Measured against
+#    the tree at 51fee8248^, the commit before 265 landed, this loop shape does NOT go quiet on an
+#    empty glob: `sh` leaves the unexpanded word in place, `basename` yields the literal `*proto`,
+#    and that falls through the `case` to the failure branch. The historical claim that it "passed
+#    by checking nothing" is wrong; it would have failed loudly with a confusing message about a
+#    crate named `*proto`. The counter is here anyway because the property should not depend on a
+#    `case` arm somebody could reorder, and because the message it prints says what actually went
+#    wrong instead of naming a crate that does not exist.
+protocol_crates=0
 for dir in "$(dirname "$0")"/../crates/*protocol; do
+    [ -d "$dir" ] || continue
+    protocol_crates=$((protocol_crates + 1))
     name="$(basename "$dir")"
     case "$name" in
         *_protocol) ;;
         *) echo "lint: contract crate $name should be spelled *_protocol (design/naming.md)" >&2; exit 1 ;;
     esac
 done
+if [ "$protocol_crates" -eq 0 ]; then
+    echo "lint: crates/*protocol matched no directory, so the contract-crate spelling check" >&2
+    echo "judged nothing. The suffix moved again; move the glob with it (design/naming.md)." >&2
+    exit 1
+fi
 
 # 4. **The one branch prefix that carries a mechanism, guarded against near-misses.**
 #
@@ -2212,6 +2266,13 @@ esac
 path_module_allow=" "
 shared_modules=""
 program_src="$(dirname "$0")/../components/src $(dirname "$0")/../fixtures/src"
+# **The directories have to exist** (milestone 401). Every grep below is `2>/dev/null`, so a renamed
+# source tree makes this check silently find no `#[path]` targets and report rule 7 upheld over a
+# tree it never read. milestone 175 (split `user/`) already moved `user/src` to `components/` and
+# `fixtures/`, which is exactly the move this guard is for.
+for d in $program_src; do
+    [ -d "$d" ] || { echo "lint: $d does not exist, so the #[path] scan read nothing (rule 7)" >&2; exit 1; }
+done
 # shellcheck disable=SC2086
 for target in $(grep -rhoE '#\[path = "[a-z_0-9]+\.rs"\]' $program_src 2>/dev/null |
                 sed 's/.*"\(.*\)\.rs".*/\1/' | sort -u); do
@@ -2471,7 +2532,11 @@ for f in md:
             bad.append(f'{f} -> {target}')
 
 index = open('notes/README.md', errors='replace').read()
-missing = [n for n in sorted(glob.glob('notes/*.md'))
+notes = sorted(glob.glob('notes/*.md'))
+if not md or not notes:
+    sys.exit('lint: the markdown sweep selected nothing (no **/*.md, or no notes/*.md), so the '
+             'link and index checks judged nothing. See milestone 401.')
+missing = [n for n in notes
            if os.path.basename(n) != 'README.md' and os.path.basename(n) not in index]
 
 if bad:
