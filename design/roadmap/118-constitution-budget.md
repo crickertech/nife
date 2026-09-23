@@ -413,10 +413,24 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 949 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 935 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
-for 988 against its own smaller diff, which §155 (naming conventions) superseded): **Raised from 925
+for 988 against its own smaller diff, which §155 (naming conventions) superseded):
+**Lowered from 949 to 935 on 2026-09-23**, the first time this ceiling has ever moved down, and the
+fourteen lines went to `briefs/merge-and-cleanup.md` and `briefs/session-start.md` rather than being
+deleted. The number was taken with `wc -l` from the finished file, not by arithmetic against the
+diff, because two branches earlier the same day each raised this ceiling honestly from the same base
+and produced a wrong number between them. The considered act, and it is a different one from every
+raise below: `design/roadmap/proposals/constitution-carry-vs-brief.md` classified every passage of
+the file by whether it has to fire when nobody is looking for it, and found **85% must be carried**,
+so this is a targeted extraction rather than the split this section has been asking for. The three
+passages that moved (the merge checklist's one line, the prune-the-worktree paragraph, the
+`nife-dev` relink) all fire at one event performed by one role, and the watcher pair moved because
+most of its nine lines already duplicated `briefs/survey-the-queue.md`. What stayed behind in each
+case is the ambient clause with no task to trigger it: prune promptly and never prune uncommitted
+work, expect every lane to take `nife-dev`, a queue reports and does not resolve.
+Before that, **raised from 925
 to 929 on 2026-09-23**, for four lines, and the considered act is that a session's own context had
 become the same shape of unrecorded fact this milestone exists to catch: real (233 million tokens
 against 5 million for twenty dispatched lanes, measured 2026-09-22), consequential (it inverts why

@@ -432,8 +432,8 @@ the day a report named it, and milestone 94 swept the tree for exactly this cate
 own inventory in a pull request body for twelve days, by which point the item-level list was gone and
 had to be re-derived. See notes/untracked-work-sweep.md.
 
-**The merge checklist grows one line**, in the same breath as pruning the worktree, deleting the
-branch and relinking `nife-dev`: every piece of identified work in the lane's report has a home.
+**The merge checklist grows one line**: every piece of identified work in the lane's report has a
+home. `briefs/merge-and-cleanup.md` has that checklist whole, with the prune and the relink.
 
 Two things this deliberately does not do. **It does not gate**: no check can tell an intention from an
 observation in prose, and a lint that tried would be `git grep -w TODO`'s 82% false-positive rate
@@ -529,29 +529,17 @@ destroys work rather than delaying it, and deletes keep succeeding while writes 
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
 `verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
 
-**Prune a lane's worktree the moment its pull request merges**, in the same breath as deleting the
-branch and relinking `nife-dev`, and then `git worktree prune`. Deleting the branch does not remove
-the ~2 GB of `target/` behind it. This has failed twice at opposite scales: eight finished worktrees
-accumulated before anyone looked, one holding 3.3 GB; and on 2026-07-31 the volume hit **zero bytes
-free** with 42 worktrees holding **78 GB**, at which point two lanes died mid-work and could not even
-run `pgrep` to check for leaked emulators, because every tool must create an output file before it
-runs. The warning signs were noted hours earlier, not acted on, and four more lanes launched on top
-of them. **If a lane is blocked, commit and push its work before removing anything**: a snapshot on
-the remote cannot be lost by a cleanup.
+**Prune a lane's worktree the moment its pull request merges**, and never prune one with
+uncommitted work in it. Those are the two clauses that have to be known before the cleanup starts;
+`briefs/merge-and-cleanup.md` has the commands, the order, and both recorded failures (eight
+finished worktrees, one at 3.3 GB; and 2026-07-31's zero bytes free with 42 worktrees holding
+78 GB, which killed two lanes mid-work).
 
-**Two watchers run unattended on patagonia via `launchd`** (calef, 2026-08-26). A session confirms
-both are alive (`launchctl list | grep nife`) and starts them the old way if not
-(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`), which is still how they run everywhere
-that is not patagonia.
-
-**And a maintainer session checks what they already found**, not only that they are running.
-`merge-drain.sh` posts once per stall and then goes quiet by design, so a stalled pull request does
-not re-announce itself every five minutes, and nothing re-announces it to a session that opens
-later. Read the queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for
-`DIRTY`/`CONFLICTING` or a `FAILURE` conclusion and treat each one found as a task to resolve, the
-same as a lane report naming work nobody is doing yet. A standing check, same priority as keeping
-lanes full. Resolving a conflict needs judgment a watcher does not have: a queue reports, it does
-not resolve.
+**Two watchers run unattended on patagonia via `launchd`**, and a session confirms they are alive
+*and reads what they already found*, because `merge-drain.sh` posts once per stall and then goes
+quiet by design (calef, 2026-08-26). `briefs/session-start.md` is that check, and it defers the
+queue read itself to `briefs/survey-the-queue.md`. Resolving a conflict needs judgment a watcher
+does not have: a queue reports, it does not resolve.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
@@ -611,13 +599,11 @@ Two kinds bit us on 2026-07-30:
 **Some shared state is global to the *machine*, not the repo**, and `rustup toolchain link` is the
 one that has bitten: `nife-dev` is one symlink for the whole user account, so it means whichever
 worktree ran `xtask std-src` last. **Every lane that gates takes it**, unavoidably, because
-`script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. So the
-integrator's duty is the only rule here: **expect every lane to take `nife-dev`, and relink from the
-main checkout at merge** (`rustup toolchain link nife-dev "$(pwd)/target/nife-farm"`), in the same
-breath as pruning the worktree, and tell a lane to say in its report that it took the link. Do not
-tell a lane not to do the thing gating requires. notes/std.md has the mechanism, the 2026-08-18
-cross-contamination that prompted it, and why `std_src` relinking loudly still does not make
-concurrent lanes safe.
+`script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. That is
+expected: **do not tell a lane not to do the thing gating requires**, tell it to say in its report
+that it took the link. Relinking is the integrator's duty at merge and the command is in
+`briefs/merge-and-cleanup.md`. notes/std.md has the mechanism, the 2026-08-18 cross-contamination
+that prompted it, and why `std_src` relinking loudly still does not make concurrent lanes safe.
 
 **An unmerged branch is either abandoned or it is
 holding knowledge that is not on `main`, and the second case is a bug in where the knowledge lives.**
