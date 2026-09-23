@@ -1,0 +1,21 @@
+Falsifies `memory_regions::proofs::split_stays_within_budget_and_progresses`.
+
+The defect: the watermark advance wraps rather than refusing, `wrapping_add` in place of
+`checked_add`. A 64-bit page count that overflows is unreachable on any machine, which is the
+argument that makes the check look like ceremony; the values are not page counts a machine has,
+they are numbers a caller passed.
+
+Expected to fail: the harness's `assert!(new > parent_watermark, "the carve strictly progresses,
+so it is fresh")`, at a `want` that wraps the watermark to a small number, which then passes the
+budget test. The carved run `[parent_watermark, new)` would overlap pages already handed to an
+earlier child, which is two owners for one page.
+
+diff --git a/crates/memory_regions/src/lib.rs b/crates/memory_regions/src/lib.rs
+index a381894c7..0ef63126b 100644
+--- a/crates/memory_regions/src/lib.rs
++++ b/crates/memory_regions/src/lib.rs
+@@ -72,3 +72,3 @@ pub fn split_new_watermark(parent_pages: u64, parent_watermark: u64, want: u64)
+     }
+-    let new = parent_watermark.checked_add(want)?; // no overflow: a wrap would forge budget
++    let new = parent_watermark.wrapping_add(want);
+     if new > parent_pages {

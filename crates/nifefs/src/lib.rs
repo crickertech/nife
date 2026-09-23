@@ -736,7 +736,7 @@ mod verification {
     /// span, parse refuses before touching a byte past the length check (which is what keeps the
     /// entry reads, up to offset [`HEADER_LEN`] + [`MAX_FILES`] * [`ENTRY_LEN`] inside
     /// [`DIR_BLOCKS`], in bounds).
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/nifefs/falsifications/verification.a_short_image_is_refused_not_indexed.patch`
     #[kani::proof]
     fn a_short_image_is_refused_not_indexed() {
         const SHORT: usize = DIR_BLOCKS * BLOCK - 1;

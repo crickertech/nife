@@ -1,0 +1,20 @@
+Falsifies `credential_protocol::proofs::no_reply_word_but_match_ever_authenticates`.
+
+The defect: the reply-code range loses its upper bound. Codes are a small run starting at `OK`,
+so "at least OK" looks like the whole test, and every word a live service sends still decodes
+correctly.
+
+Expected to fail: the harness's second claim, `None => assert!(!(OK..=MAX_CODE).contains(&r0))`,
+for any word above `MAX_CODE`: an arbitrary kernel error word now decodes as a reply code. The
+first assertion survives, because `authenticated` still asks for `MATCH` exactly, which is why
+this harness states the discrimination as well as the authentication.
+
+diff --git a/crates/credential_protocol/src/lib.rs b/crates/credential_protocol/src/lib.rs
+index 7dbe96c85..94433cfce 100644
+--- a/crates/credential_protocol/src/lib.rs
++++ b/crates/credential_protocol/src/lib.rs
+@@ -320,3 +320,3 @@ pub fn wipe(page: &mut [u8]) {
+ pub const fn code(r0: u64) -> Option<u64> {
+-    if r0 >= OK && r0 <= MAX_CODE {
++    if r0 >= OK {
+         Some(r0)
