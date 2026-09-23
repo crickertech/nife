@@ -139,8 +139,12 @@
 #   correct; one that adds a date while changing nothing else silences a real finding. The proxy is
 #   the file's own convention (every verdict in it is dated) rather than something invented here, but
 #   it is a proxy.
-# - **A risk entry that cites nothing makes no checkable claim.** Risk 8 ("nobody needs it") is the
-#   worked example and is not a defect: it is the one entry with no experiment.
+# - **A risk entry that cites nothing makes no checkable claim**, and that is a gap rather than a
+#   feature. Risk 8 ("nobody needs it") was the worked example here until 2026-09-23, on the
+#   reasoning that it was the one entry with no experiment. It now cites four records and carries a
+#   verdict of UNTESTED, which is the honest reading: the claim was never uncheckable, it was
+#   unchecked, and saying so out loud is what a fatal-risk file is for. No entry cites nothing today,
+#   so this check has no standing exception.
 # - **It reports, and cannot fix.** Every finding names the two records that disagree and leaves
 #   which one is wrong to the reader, because that is the half a script cannot know.
 # - **The selftest proves each check can fire, not that it fires on everything it should.** A fixture
