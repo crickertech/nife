@@ -98,9 +98,12 @@ than an absent one. The line goes in when there is a release to pin it to, which
   million runs in 46 seconds on the development Mac on 2026-09-23, no crashes.
 - **Two Kani harnesses** in the crate, the second half of that debt: a file the solver chose is
   either refused or reads only inside itself, and a file shorter than the header is refused rather
-  than indexed. **They were written but not run by the lane that wrote them**, because another lane
-  was gating on the same machine and `script/verify` is the heaviest thing this tree runs. The next
-  full `script/verify` is what discharges them.
+  than indexed. Both discharge, in **4 seconds** together, which is the row `script/verify`'s table
+  now carries. **The first run failed and the failure was the bound, not the code**: at
+  `#[kani::unwind(4)]` the eight-byte magic comparison reports an unwinding assertion inside
+  `<builtin-library-memcmp>` and leaves 270 of 271 checks undetermined, which reads exactly like a
+  refuted proof. 9 is the bound that covers it, and the reason is recorded at the attribute rather
+  than here, because that is where the next person raising it will be looking.
 - **The end-to-end run above**, which is the first package this project has produced.
 
 ## Where this stops, and it is a ruling rather than a gap

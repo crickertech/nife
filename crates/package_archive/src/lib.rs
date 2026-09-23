@@ -625,8 +625,13 @@ mod verification {
     /// the proof's own.
     ///
     /// Falsification: unfalsified
+    // **9, and the reason is `memcmp` rather than any loop in this file.** The magic comparison is
+    // eight bytes, which the model checker unwinds as a loop; at 4 it reports an unwinding
+    // assertion in `<builtin-library-memcmp>` and leaves 270 of 271 checks undetermined, which
+    // looks like a failed proof and is a bound that is too small. The member loop is bounded by the
+    // buffer: 272 bytes holds a table of at most two entries.
     #[kani::proof]
-    #[kani::unwind(4)]
+    #[kani::unwind(9)]
     fn a_parsed_package_reads_only_inside_itself() {
         const LEN: usize = HEADER_LEN + MEMBER_LEN * 2 + 16;
         let bytes: [u8; LEN] = kani::any();

@@ -217,10 +217,6 @@ calef's acts are named there rather than here.
   around it: the program namespace is sealed at boot and the spawner gives the file service away,
   so nothing that builds processes can read an installed program today. Checked by reading that
   proposal and by `crates/system_initializer`, where every program's capability is spent at boot.
-- **Outstanding.** The two Kani harnesses in `crates/package_archive` have never been run. They were
-  written as §197's accepted price for choosing a container; the lane did not run `script/verify`
-  because another lane held the machine, and the next full run is what discharges them. Checked by
-  `git grep -c 'kani::proof' crates/package_archive/src/lib.rs`.
 - **Outstanding.** No gate runs `cargo xtask package` end to end, because it needs a built user
   program and the gate that builds one is the archive gate. The host tests, the recipe tests and
   the fuzz target do run. Checked by `git grep -n 'xtask package' script/ .github/`.
@@ -247,9 +243,10 @@ calef's acts are named there rather than here.
 - **Nothing gates the producer end to end in CI.** `cargo xtask package` needs a built user program,
   and wiring it to the archive gate was left to the lane that has a consumer to gate with it. The
   host tests, the recipe tests and the fuzz target do run.
-- **The two Kani harnesses the built format carries have not been run.** They were written as §197's
-  accepted price and the lane that wrote them did not run `script/verify`, because another lane held
-  the machine. The next full run discharges or refutes them.
+- **The two Kani harnesses prove less than their names suggest.** They cover a 272-byte file, which
+  is the largest symbolic buffer that stays cheap, so the table they exercise holds at most two
+  members and `MAX_MEMBERS` is never approached. Both discharge in 4 seconds together, and
+  `script/verify`'s table carries the row.
 - **It does not decide the format, the activation shape, or the repository split.** The scoping
   lane found the split's timing is not needed at all (see the gate proposal); the format,
   activation and trust forks are proposals awaiting calef, not decisions.
