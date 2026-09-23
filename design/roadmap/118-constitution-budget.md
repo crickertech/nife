@@ -413,21 +413,10 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 968 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 935 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
 for 988 against its own smaller diff, which §155 (naming conventions) superseded):
-**Raised from 935 to 968 on 2026-09-23**, measured with `wc -l` on the finished file rather than
-by arithmetic against the diff, for a new tenet: calef, on being told about a defect instead of
-having it repaired, said *"Rather than raise it as a concern, wouldn't it make sense to address
-it?"* and named it Bias for Action. The considered act is that the file had three tenets about
-noticing and deciding and none about finishing, so a lane could satisfy all three and repair
-nothing; the section therefore spends a third of its lines saying in one sentence each how it
-differs from each neighbour, and another third on the counterweight, because a tenet that licensed
-acting on half-understood problems would cost this tree more than the defects it closes. Nothing was
-removed to pay for it; that is the cost, stated. The draft was cut from 35 lines to 32 before being
-applied, and the evidence was verified rather than quoted from a brief: two of the four exhibits
-offered did not survive checking and were dropped.
 **Lowered from 949 to 935 on 2026-09-23**, the first time this ceiling has ever moved down, and the
 fourteen lines went to `briefs/merge-and-cleanup.md` and `briefs/session-start.md` rather than being
 deleted. The number was taken with `wc -l` from the finished file, not by arithmetic against the

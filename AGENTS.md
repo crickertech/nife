@@ -209,52 +209,19 @@ calef, 2026-09-23: *"We are all owners here so let's make certain we don't let t
 the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
 own it."*
 
-The complement to **"Nobody remembers, so build the mechanism that does not need them to"** above,
-not a restatement of it: that section says do not rely on someone noticing; this one says that once
-you have noticed, the problem is yours to route, not to leave for whoever's pull request it happened
-to land on. Read alone, the first tenet lets a reader conclude that a problem outside their own lane
-is not their business. It is not.
+The complement to **"Nobody remembers, so build the mechanism that does not need them to"** above:
+that tenet says do not rely on anyone noticing, this one says that once you have, the problem is
+yours to route rather than to leave for whoever's pull request it lands on. A load-sensitive flake
+was written into `notes/load-sensitive-assertions.md` twice on 2026-09-22 and left both times.
 
-A load-sensitive test flake in `kernel/src/user/current_cpu_tests.rs` failed CI repeatedly across
-many pull requests on 2026-09-22 and 2026-09-23, correctly diagnosed and written into
-`notes/load-sensitive-assertions.md` twice, then left: every pull request that hit it was not the one
-that caused it, "every individual encounter looked like someone else's problem," and it was chased
-only after calef asked directly. The same day, pull request #1054 sat unassigned for a day because a
-workflow opened it and nothing assigned it, and a stale-draft warning `merge-drain.sh` correctly
-posted on #1087 went unacted on for 24 hours. Noticing is not owning until the problem has an owner.
-
-## Recording is not discharge: if the fix is cheap and reversible, the fix is the deliverable
-
-calef, 2026-09-23, after a maintainer reported a defect rather than repairing it: *"Rather than
-raise it as a concern, wouldn't it make sense to address it? That's Bias for Action, which should
-probably be a tenet."*
-
-**One sentence against each neighbour, since a fourth restatement would make all four cheaper.**
-*Nobody remembers* says do not rely on anyone noticing; *We are all owners* says that once you have
-noticed, route it to an owner and be one if there is none; *Move fast on what can be undone* says how
-much deliberation a decision deserves. This one says what **ends** the duty, and the answer is not a
-record: owning a problem and writing it down well is where all three are satisfied and nothing is
-repaired.
-
-**The test is the one *move fast* already gives, pointed at the fix rather than the decision.** Cheap
-and reversible: make it now, and the record is the byproduct. Expensive or irreversible, which is
-that tenet's list (a wire format, a name, a dependency, the syscall surface, a fact that leaves the
-machine): write it up and stop. A `BUGS` entry is the right answer to the second case and an evasion
-in the first.
-
-**The counterweight is not the small half: acting on what you half understand is worse than
-reporting what you understand.** Two of 2026-09-23's better outcomes were refusals.
-Milestone 323 (the falsification record is incomplete in five ways, and each was found by a
-different lane) declined two of its five gaps for want of hardware, and a mutation lane found its
-founding exhibit false and built nothing. **A refusal carrying its reason is an action**, so this
-is a bias for closing things rather than for volume.
-
-**The worked example is our own dashboard.** `script/metrics` says in its own comment that a
-`--backfill` silently erases any column not named in `CARRIED_FIELDS`, and cites a measured coverage
-figure vanishing that way. Nothing changed in response, so the trust-boundary columns landed on
-2026-09-20, a rebuild erased them on 2026-09-21, and eleven weeks of the series sat blank until they
-were restored by hand on 2026-09-23. Every step was recorded honestly, and the defect outlived all of
-it.
+**And owning is not recording.** calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
+than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* The test
+is *move fast on what can be undone*'s, applied to the fix: cheap and reversible, make it now and
+the record is a byproduct; expensive or irreversible (a wire format, a name, a dependency, the
+syscall surface, a fact that leaves the machine), write it up and stop. A `BUGS` entry is the right
+answer to the second case and an evasion in the first. Acting on what you half understand is worse
+than reporting it, so **a refusal carrying its reason is an action**: milestone 323 (the
+falsification record is incomplete in five ways) declined two gaps for want of hardware.
 
 ## Elegance and performance beat implementation convenience
 
