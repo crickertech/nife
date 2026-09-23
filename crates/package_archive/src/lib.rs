@@ -624,7 +624,7 @@ mod verification {
     /// bounds directly, so the harness's assertion is the arithmetic claim and the panic-freedom is
     /// the proof's own.
     ///
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/package_archive/falsifications/verification.a_parsed_package_reads_only_inside_itself.patch`
     // **9, and the reason is `memcmp` rather than any loop in this file.** The magic comparison is
     // eight bytes, which the model checker unwinds as a loop; at 4 it reports an unwinding
     // assertion in `<builtin-library-memcmp>` and leaves 270 of 271 checks undetermined, which
@@ -649,7 +649,7 @@ mod verification {
     /// boundary and for the same reason: the header read is the one place a short buffer would be
     /// indexed before anything had checked its length.
     ///
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/package_archive/falsifications/verification.a_short_file_is_refused.patch`
     #[kani::proof]
     fn a_short_file_is_refused() {
         let bytes: [u8; HEADER_LEN - 1] = kani::any();
