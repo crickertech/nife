@@ -278,7 +278,27 @@ fi
 #
 # NOT `exec`, and that is the one thing in this file that is not like the other two runners. See the
 # status translation below.
+#
+# **Because it is not `exec`, this script has to forward signals itself**, and until 2026-09-21 it
+# did not. `scripts/qemu-bounded.sh` bounds a run by sending SIGTERM to *the child it started*,
+# which on aarch64 and riscv64 is QEMU (both those runners `exec`) and here was this shell. The
+# shell died, QEMU was reparented to pid 1, and the bound did nothing: the `calib` lane's
+# calibration sweep orphaned an emulator on every single boot before anyone looked, and the
+# wrapper's own BUGS section ("a SIGKILL to the killer defeats all of it") named a different cause
+# than the one operating. So QEMU runs in the background, this shell waits for it, and a TERM or
+# HUP is passed along before this shell exits.
+#
+# `wait` returns >128 when it is interrupted by a trapped signal rather than by the child
+# finishing, so the status has to be read a second time after the child is actually reaped.
+#
+# The `exec 3<&0` / `<&3 3<&-` dance is not decoration either, and it is the same one
+# `scripts/qemu-bounded.sh` documents at length: POSIX gives a backgrounded command's stdin
+# /dev/null *before* its own redirections, so under dash (every CI runner's /bin/sh) a plain `<&0`
+# duplicates /dev/null onto itself and nothing piped in ever reaches the serial port. The
+# descriptor is saved before the job is backgrounded, and closed in the child so QEMU inherits no
+# stray fd.
 set +e
+exec 3<&0
 qemu-system-x86_64 \
     -machine q35 \
     $TCG_THREAD \
@@ -294,8 +314,18 @@ qemu-system-x86_64 \
     $NVME \
     -kernel "$ELF" \
     $INITRD \
-    "$@"
+    "$@" <&3 3<&- &
+QEMU=$!
+exec 3<&-
+trap 'kill -TERM "$QEMU" 2>/dev/null' TERM HUP
+wait "$QEMU"
 STATUS=$?
+# Interrupted by the trap rather than by QEMU exiting: reap it for real, then take that status.
+if [ "$STATUS" -gt 128 ]; then
+    wait "$QEMU" 2>/dev/null
+    STATUS=$?
+fi
+trap - TERM HUP
 
 # **isa-debug-exit cannot produce exit status 0.** It terminates QEMU with `(value << 1) | 1`, so
 # every status it can report is odd and "the suite passed" has to be some other agreed number. The

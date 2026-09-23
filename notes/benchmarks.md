@@ -2667,6 +2667,19 @@ per iteration (both threads resume once each), so the delta divided by two is th
 
 ### The numbers
 
+> **CORRECTION, 2026-09-21: every `ns/iter` in this section is suspect, and the `ns` column alone.**
+> These were computed from the guest's calibrated TSC, and on 2026-09-21 the x86 boot calibration
+> was found to be wrong by up to **+1153%**, always high, differently on every boot. An inflated
+> rate makes `ns/iter` come out proportionally **too small**, so these figures may read faster than
+> the run really was, by anything from a fraction of a per cent to a factor of several. Nothing can
+> recover the true values: the rate each of these eleven boots stored was not written down, and it
+> was a different number each time. The *ticks* they were derived from are unaffected, and so is
+> every conclusion here that rests on a ratio between two rows of the same run, which is all of
+> them: the debug-versus-release argument and the 4.2x are ratios within a boot, where the
+> calibration cancels exactly. **What is not safe is quoting any single figure below as a
+> nanosecond count.** See the 2026-09-21 section at the end of this file, and
+> `kernel/src/arch/x86_64/timer.rs`'s `BUGS`.
+
 QEMU 11.0.2 (`.qemu-version`, pinned), `-machine q35 -cpu max`, one hart, plain TCG. Six boots
 debug, five release; `ns/iter` computed from the guest's own calibrated TSC, the same arithmetic
 `xtask`'s `run_bench` already does for every other leg.
@@ -3842,3 +3855,85 @@ x86_64 icount regression passes CI silently". This is that entry's prediction, m
 baseline was deliberately left red rather than re-saved: blessing a 26% regression nobody has
 attributed is the opposite of what a tripwire is, and the entry above is the standard this one is
 held to.
+
+## 2026-09-21: the x86 boot calibration was wrong by up to 12x, and what that does to the numbers above
+
+The `tscdrift` lane measured the TSC against the CMOS RTC and found the counter ticks at exactly
+1000.000 MHz under plain TCG. It also found, without looking for it, that the rate the kernel
+*stores* had nothing to do with that: twenty-two boots of one binary wrote down 1001 MHz to 4330
+MHz. This lane took that further, fixed it, and this section is what the fix means for anything
+already published. `notes/tsc-under-tcg.md` owns the measurement; the fix is
+`kernel/src/arch/x86_64/timer.rs` and milestone 571 (the x86 boot calibrates the TSC once,
+and can be wrong by 4x).
+
+### The instrument, stated because two instruments wear the same name
+
+**`script/bench --x86` and `script/bench --x86 --real` are different instruments and neither is a
+stand-in for the other.** Without `--real`, `bench --x86` adds `-icount shift=0,sleep=off`, and
+under `-icount` a guest nanosecond is a function of the instruction stream rather than of real
+time: the `tscdrift` lane measured the implied rate moving **37% between two workloads inside one
+boot**. That is `-icount` working as designed, it is what makes the tripwire deterministic, and it
+means an icount leg's `ns` column is not wall time and never was. **Every section of this file that
+quotes x86 numbers should say which one it used, and from here on they do.**
+
+The calibration defect below affects the `--real` instrument only, and within it the `ns` column
+only. Ticks are raw `rdtsc` counts and are untouched.
+
+### What was wrong, and by how much
+
+`init_frequency` timed **one** 10 ms PIT window by polling. The poll can only notice the terminal
+count *late*, never early, and the whole TSC delta was then divided by exactly 10 ms, so a single
+descheduling of the QEMU thread inside that window inflated the stored rate without bound. Two
+hundred boots against a counter known to tick at 1000.000 MHz, on a host deliberately saturated to
+load 30 on eight cores:
+
+| Windows taken | Median error | 99th percentile | Worst of 200 | Boots wrong by >1% |
+|---|---|---|---|---|
+| 1 (what shipped) | +0.36% | +884% | **+1153%** | 56 / 200 |
+| 3 | +0.00% | +120% | +131% | 24 / 200 |
+| 5 | +0.00% | +20.6% | +51.4% | 11 / 200 |
+| 9 | +0.00% | +0.49% | +7.1% | 2 / 200 |
+| 16 | +0.00% | +0.01% | **+0.47%** | **0 / 200** |
+
+Every one of the 490 boots measured across three host loads was **high**, never low, which is the
+signature that named the mechanism rather than merely describing the spread.
+
+### Which published numbers this reaches
+
+- **The 2026-08-24 x86 `ns/iter` table** (`yield_switch`, `tss_iomap_switch`, debug and release) is
+  the one body of published x86 wall-clock figures derived from the stored rate. It is marked in
+  place, at the table, with what is and is not still safe to quote. The short version: an inflated
+  rate makes `ns/iter` too **small**, so those figures may read faster than the runs really were,
+  and every conclusion in that section that rests on a ratio between two rows of one boot survives
+  untouched, because the calibration cancels exactly in a ratio.
+- **The 2026-09-15 lazy-TSS section and the icount baselines are not affected.** They quote
+  deterministic ticks under `-icount` and say so; `bench/baseline-*.txt` holds ticks.
+- **`coremark`'s self-reported rate on x86** read the stored number, so any x86 CoreMark score
+  computed from it carried the same error. No such score is published; the 2026-09-21 section above
+  records that CoreMark "reports correctness, not yet a score".
+- **`Instant`, `uptime` and the shell's `time` on x86** all read it through
+  `counter_frequency_protocol`'s page. Not published figures, and not therefore harmless: every
+  process's sense of elapsed time was off by that boot's error.
+- **Nothing went red over any of it**, which is why it lasted. `kernel::user::wait_for` takes
+  `now()` plus two seconds, so an inflated rate makes a timeout *longer* in real time, never
+  shorter. The defect could only ever fail safe.
+
+### Before and after, as a controlled pair
+
+Two `script/bench --x86 --real` runs of the same tree, differing in one constant
+(`CALIBRATION_WINDOW_CAP` at 1 and at 16), so the before case is the old estimator exactly:
+
+| | Implied stored rate | Error against 1000.000 MHz |
+|---|---|---|
+| Before (one window) | 1003.7 MHz | +0.37% |
+| After (min of N) | 1000.1 MHz | +0.01% |
+
+**That before figure is one draw and a lucky one**, which is the honest caveat and the reason the
+table further up is the real evidence: at this host's load roughly one boot in four was wrong by
+more than a per cent, and the worst seen was +1153%. A single before-and-after pair cannot show a
+distribution, and quoting it alone would understate the defect by two orders of magnitude.
+
+**The `ticks` columns of those two runs differ by up to 4x, and that is not the calibration.** It
+is host load between the two runs, which is exactly what `--real` measures and exactly why
+`script/bench --x86` pins the virtual clock by default. A wall-clock bench on a shared Apple
+Silicon host running TCG is a magnitude to read, never a number to gate.

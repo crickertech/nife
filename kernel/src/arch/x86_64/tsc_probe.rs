@@ -40,7 +40,7 @@
 
 use super::port::out8;
 use super::timer;
-use crate::println;
+use crate::{print, println};
 
 /// The CMOS index port.
 const CMOS_INDEX: u16 = 0x70;
@@ -139,6 +139,19 @@ pub fn probe() {
         "tscprobe: calibrated tsc {hz} Hz (source {}), reference CMOS RTC seconds edge",
         timer::frequency_source(),
     );
+
+    // Every calibration window, not just the one that won. This is what turns the probe from "is
+    // the calibration right" into "is the *estimator* right": the truth is at or below the
+    // smallest of these, so a run where the smallest is close to the RTC-measured rate and the
+    // largest is far above it is the min-of-N argument being demonstrated rather than asserted.
+    // See `timer::calibration_windows`, and design/roadmap/525-min-of-n-tsc-calibration.md (the
+    // x86 TSC calibration takes the smallest of several windows) for the sweep that chose the
+    // count.
+    print!("tscprobe: calibration windows");
+    for window in timer::calibration().windows() {
+        print!(" {window}");
+    }
+    println!();
 
     // How long one poll iteration takes, in TSC counts. This is the resolution bound on every edge
     // timestamp below: the edge happened somewhere inside the last iteration.

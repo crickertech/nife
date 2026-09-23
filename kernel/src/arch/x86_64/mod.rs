@@ -62,6 +62,10 @@ pub mod rtc;
 pub mod segments;
 pub mod semihosting;
 pub mod timer;
+/// The TSC calibration's estimator and its two boot assertions. Test-only; see the file header for
+/// why they run under QEMU rather than on the host.
+#[cfg(test)]
+mod timer_calibration_tests;
 /// The TSC-vs-RTC measurement instrument. Off by default; see notes/tsc-under-tcg.md.
 #[cfg(feature = "tsc_probe")]
 pub mod tsc_probe;
