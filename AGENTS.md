@@ -307,6 +307,10 @@ Named 2026-08-04, after a night in which eleven agents shipped and the queue sti
 because nobody's job was noticing. The roles were already real; only their names and the top-up rule
 are new.
 
+**A maintainer session's own context, not lane count or token rate, is its largest cost**: one
+session measured at roughly 233 million tokens against 5 million for the twenty lanes it
+dispatched. See `notes/what-a-session-carries.md`.
+
 - **Maintainer.** One per session, the session itself, **and sessions are plural** (2026-08-15,
   the day two sessions' lanes met in one file). Three rules make plural maintainers safe, and two
   of them are machinery that already exists. The **merge queue is the single merge authority**:
