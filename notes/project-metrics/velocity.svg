@@ -25,9 +25,9 @@
 <path class="seg s0" d="M74.0,324.0 V301.4 Q74.0,297.4 78.0,297.4 H108.6 Q112.6,297.4 112.6,301.4 V324.0 Z"><title>2026W30, built that week: 8</title></path>
 <text class="mut" x="93.3" y="342" font-size="10" text-anchor="middle">2026W30</text>
 <text class="fg val" x="93.3" y="292.4" font-size="10" text-anchor="middle">8</text>
-<path class="seg s0" d="M132.6,324.0 V261.5 Q132.6,257.5 136.6,257.5 H167.2 Q171.2,257.5 171.2,261.5 V324.0 Z"><title>2026W31, built that week: 20</title></path>
+<path class="seg s0" d="M132.6,324.0 V258.2 Q132.6,254.2 136.6,254.2 H167.2 Q171.2,254.2 171.2,258.2 V324.0 Z"><title>2026W31, built that week: 21</title></path>
 <text class="mut" x="151.9" y="342" font-size="10" text-anchor="middle">2026W31</text>
-<text class="fg val" x="151.9" y="252.5" font-size="10" text-anchor="middle">20</text>
+<text class="fg val" x="151.9" y="249.2" font-size="10" text-anchor="middle">21</text>
 <path class="seg s0" d="M191.2,324.0 V224.9 Q191.2,220.9 195.2,220.9 H225.8 Q229.8,220.9 229.8,224.9 V324.0 Z"><title>2026W32, built that week: 31</title></path>
 <text class="mut" x="210.5" y="342" font-size="10" text-anchor="middle">2026W32</text>
 <text class="fg val" x="210.5" y="215.9" font-size="10" text-anchor="middle">31</text>
@@ -46,12 +46,12 @@
 <path class="seg s0" d="M484.2,324.0 V284.8 Q484.2,280.8 488.2,280.8 H518.8 Q522.8,280.8 522.8,284.8 V324.0 Z"><title>2026W37, built that week: 13</title></path>
 <text class="mut" x="503.5" y="342" font-size="10" text-anchor="middle">2026W37</text>
 <text class="fg val" x="503.5" y="275.8" font-size="10" text-anchor="middle">13</text>
-<path class="seg s0" d="M542.8,324.0 V121.8 Q542.8,117.8 546.8,117.8 H577.4 Q581.4,117.8 581.4,121.8 V324.0 Z"><title>2026W38, built that week: 62</title></path>
+<path class="seg s0" d="M542.8,324.0 V115.2 Q542.8,111.2 546.8,111.2 H577.4 Q581.4,111.2 581.4,115.2 V324.0 Z"><title>2026W38, built that week: 64</title></path>
 <text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W38</text>
-<text class="fg val" x="562.1" y="112.8" font-size="10" text-anchor="middle">62</text>
-<path class="seg s0" d="M601.4,324.0 V320.7 Q601.4,317.4 604.7,317.4 H636.7 Q640.0,317.4 640.0,320.7 V324.0 Z"><title>2026W39, built that week: 2</title></path>
+<text class="fg val" x="562.1" y="106.2" font-size="10" text-anchor="middle">64</text>
+<path class="seg s0" d="M601.4,324.0 V274.8 Q601.4,270.8 605.4,270.8 H636.0 Q640.0,270.8 640.0,274.8 V324.0 Z"><title>2026W39, built that week: 16</title></path>
 <text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W39</text>
-<text class="fg val" x="620.7" y="312.4" font-size="10" text-anchor="middle">2</text>
+<text class="fg val" x="620.7" y="265.8" font-size="10" text-anchor="middle">16</text>
 <rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
 <text class="fg" y="74" font-size="11"><tspan x="689" dy="0">built that week</tspan></text>
 </svg>
