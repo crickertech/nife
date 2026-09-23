@@ -25,7 +25,7 @@ they report and commit again. Do not push until all four are clean.
     gh workflow run ci.yml --ref "$(git branch --show-current)"
     gh workflow run verify.yml --ref "$(git branch --show-current)"
 
-**The second and third commands are not optional, and this is the whole trap.** §90 opens every lane
+**The second and third commands are not optional, and this is the whole trap.** §90 (the claim is a draft pull request; the status flip is a gate) opens every lane
 as a **draft** pull request, and both workflows begin with a `draft gate` job that asks the API
 whether the pull request is a draft right now and **skips the entire suite when it is**. So a push to
 a lane branch raises `synchronize`, the gate reads `draft: true`, and all thirteen checks report
