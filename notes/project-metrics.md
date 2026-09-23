@@ -790,7 +790,58 @@ is a change of scope rather than of testing: the measured set went from 15 files
 which is also the week rule 7 turned `#[path]` modules into crates.
 
 The floor `script/coverage` gates on is per file, not this aggregate; the dashed line is that floor
-drawn for scale.
+drawn for scale, and the panel below plots the number it is actually drawn against.
+
+## The lowest-covered file
+
+![Minimum per-file coverage](project-metrics/coverage-floor.svg)
+
+**The chart above is the trend; this one is the thing that can fail a build.** `script/coverage`
+gates at 80% **per file**, never on the aggregate, and the two can move in opposite directions
+without contradicting each other: the workspace can sit at 94.7% while one file slides from 85% to
+81% and the aggregate does not visibly twitch, because that file is a few hundred lines out of
+twenty-eight thousand. Reading the aggregate as "the coverage the floor is set against" is the
+natural reading and it is wrong; this panel exists so the page stops inviting it. The argument is
+`script/coverage`'s own, applied to the dashboard: a per-total number hides a hole, because a big
+well-tested crate subsidizes an untested one.
+
+**The series starts at 2026W39, and a short line here is a missing record rather than a new
+problem.** A per-file minimum needs that week's lcov, and only the aggregate was ever kept from
+each run, so there is nothing to recompute the earlier weeks from. Re-measuring them the way
+coverage itself was backfilled would not help either: the exemption list in `script/coverage` has
+changed several times (build scripts in 2026-08-30, the host half of `stick_maker` in 2026-09-19),
+so a minimum taken today over an old lcov would be a minimum over a population that week's gate did
+not have. Empty weeks are marked on the chart rather than drawn as zero, the same treatment
+`unsafe_trust_*` gets for the ten weeks before its census existed.
+
+**Where the number comes from, and why not from the lcov.** `script/coverage` writes
+`target/llvm-cov/floor.txt` beside its lcov, in the same awk pass that applies the floor, and
+`script/metrics --coverage-min-from <floor.txt>` reads it. Nothing re-parses the lcov to find a
+minimum, and that is deliberate rather than tidy: the lowest file in an unfiltered lcov is one of
+the files that cannot execute a line on the host (`virtio`, the protocol wrappers, a `build.rs`),
+so an independently derived minimum would be a number no build can ever fail on. The exemptions
+that decide the population live in `script/coverage` and nowhere else, so the minimum has to be
+taken there too.
+
+`floor.txt` carries more than the one plotted cell: which file is lowest, how many files are
+gated, and how many a floor of 85 or of 90 would newly fail. `script/coverage` prints the same
+three lines at the end of every run. That last pair is the number a proposal to raise the floor
+needs, and it is reported rather than left to be re-derived from the HTML report.
+
+**A higher floor is not automatically a better one, and this panel must not be read as a target.**
+`script/coverage` says it plainly: the floor is a floor, a file at 81% is not "done", and 100% is
+not the goal because tests have to prove something. `AGENTS.md` is blunter still: do not add filler
+tests. A floor raised above what the tree has earned pushes a lane toward writing whatever reaches
+the number, and this tree has already caught three variants of a test that passes while proving
+nothing. The number to watch on this chart is the direction, and a drop is worth more attention
+than the level.
+
+**BUGS.** The series cannot be backfilled, for the reason above. Nothing ties `floor.txt` to a
+commit any more than it ties the lcov to one, so `--coverage-min-from` believes the caller about
+which week it measured. The cell is carried across a `--backfill` like the aggregate, so after a
+row is repointed at a later commit of the same week the minimum describes the earlier one until
+someone re-measures. And the minimum is one file: two files at 81% and one at 81% draw the same
+bar, which is what `floor.txt`'s band counts are for and the chart is not.
 
 ## How it stays current
 

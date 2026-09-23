@@ -54,6 +54,13 @@
 #                                  because every merge moves the current week's numbers.
 #   script/metrics --charts        regenerate the SVGs from the CSV without touching the CSV
 #
+#   --coverage-min-from <floor.txt>
+#                                  fill the CURRENT week's MINIMUM per-file coverage cell from the
+#                                  summary `script/coverage` writes beside its lcov
+#                                  (target/llvm-cov/floor.txt). Separate from the lcov because the
+#                                  minimum is the gate's own view: it is taken over the files the
+#                                  floor actually acts on, and the exemptions that decide which
+#                                  those are live in `script/coverage` and nowhere else.
 #   --coverage-from <lcov.info>    fill the CURRENT week's coverage cell from an lcov file the
 #                                  caller produced (`script/coverage` writes
 #                                  target/llvm-cov/lcov.info). With --update or --backfill it
@@ -206,7 +213,7 @@ FIELDS = (['week', 'commit', 'date']
              'unsafe_trust_userspace_density',
              'unsafe_trust_shared', 'unsafe_trust_boot_chain', 'unsafe_trust_unclassified',
              'fatal_risks_tested', 'fatal_risks_untested',
-             'coverage_lines_pct']
+             'coverage_lines_pct', 'coverage_min_file_pct']
           # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them
           # up: person-weeks for the comparison against the verification literature, tokens with a
           # dated price for the argument about the method, cash for calef's own budgeting. 519
@@ -226,7 +233,7 @@ FIELDS = (['week', 'commit', 'date']
 # (milestone 519, which refuses time tracking and asks only for a correction when the datum stops
 # being true). Carrying it is what makes that correction survive: a hand-edited 0.4 for a week he
 # was away stays 0.4 through every later backfill, and nothing has to remember it was edited.
-CARRIED_FIELDS = ('coverage_lines_pct', 'human_person_weeks')
+CARRIED_FIELDS = ('coverage_lines_pct', 'coverage_min_file_pct', 'human_person_weeks')
 
 # calef's standing datum, applied to a week that has no cell yet. See CARRIED_FIELDS.
 DEFAULT_PERSON_WEEKS = '1.0'
@@ -862,6 +869,11 @@ def coverage_from_lcov(path):
     LF and LH are lines-found and lines-hit per file, which is the same pair `script/coverage`'s
     per-file floor reads. This is the aggregate rather than the floor: the floor's job is to make
     one bad file loud, and a trend wants the whole.
+
+    **The minimum is deliberately not computed here**, though the numbers to do it are in this same
+    file. It would be a different minimum: `script/coverage` exempts files that cannot execute a
+    line on the host, and the lowest file in an unfiltered lcov is one of those, so the answer would
+    be a number no build can ever fail on. `coverage_min_from_summary` below reads the gate's own.
     """
     found = hit = 0
     for line in pathlib.Path(path).read_text(errors='replace').split('\n'):
@@ -874,11 +886,26 @@ def coverage_from_lcov(path):
     return '%.1f' % (100.0 * hit / found)
 
 
-def row_for(rev, week, coverage='', person_weeks=''):
+def coverage_min_from_summary(path):
+    """The minimum per-file line coverage, read from what `script/coverage` wrote.
+
+    Plain `key value` lines. Only `min_file_pct` is plotted; the rest of the file (which file, how
+    many were gated, how many a floor of 85 or 90 would newly fail) is there for a person deciding
+    whether to raise the floor, and is not a series.
+    """
+    for line in pathlib.Path(path).read_text(errors='replace').split('\n'):
+        if line.startswith('min_file_pct '):
+            return '%.1f' % float(line.split()[1])
+    raise SystemExit('metrics: %s records no min_file_pct; is it script/coverage floor summary?'
+                     % path)
+
+
+def row_for(rev, week, coverage='', person_weeks='', coverage_min=''):
     tree = Tree(rev)
     when = git('show', '-s', '--format=%cI', rev).decode().strip()
     row = {'week': week, 'commit': rev[:12], 'date': when[:10],
            'coverage_lines_pct': coverage,
+           'coverage_min_file_pct': coverage_min,
            'human_person_weeks': person_weeks or DEFAULT_PERSON_WEEKS}
     ms = milestones(tree)
     for status in MILESTONE_STATUSES:
@@ -1296,6 +1323,15 @@ CHARTS = [
     ('coverage.svg', 'Host-crate line coverage, per cent',
      'each week by its own script/coverage; 2026W29 predates the script',
      [('line coverage', 'coverage_lines_pct')], 1.0, (80, 'floor'), 'coverage_lines_pct'),
+    # The aggregate above is the trend; this is the number that can fail a build. They move
+    # independently, which is the whole reason for a second panel: a workspace can hold at 94.7%
+    # while one file slides from 85% to 81% and the chart above does not twitch. Blank weeks are
+    # honest rather than new: a per-file minimum needs an lcov for that week, and only the
+    # aggregate was ever kept, so the series starts where the recording starts.
+    ('coverage-floor.svg', 'Lowest-covered single file, per cent',
+     'the number script/coverage gates on; empty before 2026W39, when nothing recorded it',
+     [('minimum per-file coverage', 'coverage_min_file_pct')], 1.0, (80, 'floor'),
+     'coverage_min_file_pct'),
 ]
 
 
@@ -1371,15 +1407,18 @@ def print_table(row):
 
 def main(argv):
     coverage = ''
+    coverage_min = ''
     coverage_week = ''
     args = []
     i = 0
     while i < len(argv):
-        if argv[i] in ('--coverage-from', '--coverage-for'):
+        if argv[i] in ('--coverage-from', '--coverage-min-from', '--coverage-for'):
             if i + 1 >= len(argv):
                 raise SystemExit('metrics: %s needs an argument' % argv[i])
             if argv[i] == '--coverage-from':
                 coverage = coverage_from_lcov(argv[i + 1])
+            elif argv[i] == '--coverage-min-from':
+                coverage_min = coverage_min_from_summary(argv[i + 1])
             else:
                 coverage_week = argv[i + 1]
             i += 2
@@ -1393,17 +1432,25 @@ def main(argv):
         # job and is not what a caller measuring one historical week asked for.
         if args:
             raise SystemExit('metrics: --coverage-for takes no mode; it writes one cell and redraws')
-        if not coverage:
-            raise SystemExit('metrics: --coverage-for needs --coverage-from <lcov.info>')
+        if not coverage and not coverage_min:
+            raise SystemExit('metrics: --coverage-for needs --coverage-from <lcov.info> or '
+                             '--coverage-min-from <floor.txt>')
         rows = read_csv()
         if coverage_week not in rows:
             raise SystemExit('metrics: %s is not a week in %s; --coverage-for only fills a row '
                              'that already exists' % (coverage_week, CSV_PATH))
-        rows[coverage_week]['coverage_lines_pct'] = coverage
+        # Either cell alone, because they come from different files and a caller may hold only
+        # one: a historical week has an lcov and no floor summary, and re-running the floor over an
+        # old lcov would apply today's exemptions to it.
+        if coverage:
+            rows[coverage_week]['coverage_lines_pct'] = coverage
+        if coverage_min:
+            rows[coverage_week]['coverage_min_file_pct'] = coverage_min
         CSV_PATH.write_text(write_csv(rows))
         draw_charts(rows)
-        print('metrics: %s coverage_lines_pct = %s, charts in %s/'
-              % (coverage_week, coverage, DATA_DIR))
+        print('metrics: %s coverage_lines_pct = %s, coverage_min_file_pct = %s, charts in %s/'
+              % (coverage_week, coverage or '(unchanged)', coverage_min or '(unchanged)',
+                 DATA_DIR))
         return 0
 
     mode = args[0] if args else '--table'
@@ -1420,7 +1467,7 @@ def main(argv):
     head = git('rev-parse', 'HEAD').decode().strip()
     if mode in ('--table', '--csv'):
         row = row_for(head, week_of(git('show', '-s', '--format=%cI', head).decode().strip()),
-                      coverage)
+                      coverage, coverage_min=coverage_min)
         if mode == '--csv':
             print(','.join(FIELDS))
             print(','.join(str(row.get(f, '')) for f in FIELDS))
@@ -1457,10 +1504,12 @@ def main(argv):
     # stamped one measurement across every week in the series and erased the backfilled cells.
     for week, rev in targets:
         fresh = coverage if week == current else ''
+        fresh_min = coverage_min if week == current else ''
         held = kept.get(week, {})
         rows[week] = row_for(rev, week,
                              fresh or held.get('coverage_lines_pct', ''),
-                             held.get('human_person_weeks', ''))
+                             held.get('human_person_weeks', ''),
+                             fresh_min or held.get('coverage_min_file_pct', ''))
 
     # Derived last, from HEAD and from the committed cost records, for every week at once: see
     # `fill_derived`. It runs before `--check` compares, so a stale cell is a failure there rather

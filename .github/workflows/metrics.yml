@@ -126,7 +126,12 @@ jobs:
         run: |
           set -e
           if [ "${{ steps.coverage.outcome }}" = "success" ] && [ -f target/llvm-cov/lcov.info ]; then
-            script/metrics --update --coverage-from target/llvm-cov/lcov.info
+            # Two files, two cells. The lcov gives the aggregate the trend chart plots; floor.txt
+            # gives the minimum per file, which is the number that can actually fail this build.
+            # Only `script/coverage` can produce the second, because the exemptions that decide
+            # which files the floor acts on live there.
+            script/metrics --update --coverage-from target/llvm-cov/lcov.info \
+              --coverage-min-from target/llvm-cov/floor.txt
           else
             echo "No lcov file; recording every column but coverage, which leaves the cell as it was."
             script/metrics --update
