@@ -286,13 +286,19 @@ are worth their place rather than an assertion that they are.
   a few lines above it. The honest reason this is recorded rather than fixed is that fixing it means
   either a row that cannot pass or machinery for a case that does not exist.
 
-- **`script/falsifications` walks `crates/` only, so this milestone's record is outside its census
-  and its sweep**, and so are `kernel`'s two harnesses from milestone 193, which carry no
-  `Falsification:` record at all. The count that script prints is therefore a ratio over `crates/`
-  rather than over the tree, and it does not know it. Two things are needed and neither is one line:
-  the walk has to be derived from `cargo metadata` the way `script/lint`'s verify-table check
-  already is, and `--sweep` shells `cargo kani -p <crate>`, which for the `components` package selects 49
-  binaries rather than one. Proposed as a milestone in this lane's report.
+- ~~**`script/falsifications` walks `crates/` only, so this milestone's record is outside its
+  census and its sweep**, and so are `kernel`'s two harnesses from milestone 193 (put `kernel/src`
+  within reach of the prover), which carry no `Falsification:` record at all. The count that
+  script prints is therefore a ratio over `crates/` rather than over the tree, and it does not
+  know it. Two things are needed and neither is one line: the walk has to be derived from `cargo
+  metadata` the way `script/lint`'s verify-table check already is, and `--sweep` shells `cargo
+  kani -p <crate>`, which for the `components` package selects 49 binaries rather than one.
+  Proposed as a milestone in this lane's report.~~ **Closed.** Milestone 212 (script/falsifications
+  walks crates/ only, so the ratio it prints is not the tree's), 2026-09-01: the walk comes from
+  `cargo metadata`, and `--sweep` derives `--bin` per package. Both this note's own harness and
+  `kernel`'s now carry records and are counted. Struck 2026-09-23, part 5 of milestone 323 (the
+  falsification record is incomplete in five ways), the same unstruck-`BUGS`-entry shape
+  found twice more in `design/roadmap/197-user-and-xtask-proofs.md`.
 - **Two harnesses is not coverage of 68 programs**, and the number to watch is not the count but
   whether the properties are ones a defect would violate. This one is: the same guard, one character
   different, is the whole failure.

@@ -15,13 +15,25 @@ it too because the state it is covering is exactly the boundary.
 Run on 2026-08-31, on a dev Mac (aarch64), Kani 0.67.0. Both harnesses are green in 2.4
 seconds with the guard as written and red in 2.5 with it relaxed.
 
-**Applying this by hand, because no script will.** `script/falsifications --sweep` walks
+**Retracted 2026-09-23 (milestone 323 (the falsification record is incomplete in five ways, and
+each was found by a different lane)): the paragraph below was true when written and is not true
+now, on two counts.** Milestone 212 (script/falsifications walks crates/ only, so the ratio it
+prints is not the tree's) moved the harness scope from `os.walk("crates")` to `cargo metadata` on
+2026-09-01, so `script/falsifications --sweep` sees this package. And `printenv` moved from the
+`user` package to `components` in milestone 175 (split user/: components/ for services,
+fixtures/ for test and benchmark programs), so `cargo kani -p user --bin printenv` was already
+naming the wrong package by the time this was next read. `script/falsifications --sweep
+components` (or `--sweep`, unscoped) now applies, replays, and reverts this patch on its own; the
+kept text below is what this record used to say, per this tree's convention of correcting in
+place rather than deleting.
+
+~~**Applying this by hand, because no script will.** `script/falsifications --sweep` walks
 `crates/` only, so it never sees this file, and its per-harness rerun shells
 `cargo kani -p <crate>`, which for the `user` package selects 68 binaries rather than one.
-notes/user-proofs.md's BUGS section carries that gap and what closing it needs. Until then:
+notes/user-proofs.md's BUGS section carries that gap and what closing it needs. Until then:~~
 
     git apply components/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
-    cargo kani -p user --bin printenv --output-format=terse   # expect 2 failures
+    cargo kani -p components --bin printenv --output-format=terse   # expect 2 failures
     git apply -R components/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
 
 diff --git a/components/src/printenv.rs b/components/src/printenv.rs
