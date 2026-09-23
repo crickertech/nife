@@ -848,6 +848,19 @@ this note records elsewhere.
   overstate the gap. Deferred, on the record, not forgotten.
 - **A survivor count is not a quality score across crates.** Crates differ in how much of their
   surface is host-assertable; compare a crate to its own last week, not to its neighbours.
+- **`script/mutation --report`'s `(baseline missed)` column is not "last week", it is
+  `.cargo/mutants-baseline.txt`, one fixed run from 2026-08-03**, recorded 2026-09-23 by milestone
+  512 (the census blamed one pull request for 55 survivors it did not write); the trap is also in
+  `script/mutation`'s own comments, beside the column. Read as a recent delta, it reads six weeks
+  of growth as however many days happen to sit between the reader and the last thing that touched
+  the crate. That is exactly what happened once: `design/fatal-risks.md`'s risk 3 blamed milestone
+  319 (the crate that parses firmware)'s pull request for `machine_discovery` going from 22
+  survivors to 77 because the crate had just been proved and the census ran two days later.
+  Replaying `cargo mutants --in-diff` against that pull request found 4 survivors; the crate
+  already carried 73 on the commit before it merged. The column cannot distinguish "22, six weeks
+  ago" from "22, two days ago", and nothing else in the tree recorded the crate's history until
+  milestone 518 (a census that cannot be attributed)'s per-crate census existed to compare against
+  instead.
 - **Timeouts are auto-derived** by cargo-mutants from each package's baseline build and test time,
   so a mutant that makes a loop spin forever is recorded as `timeout`, not hung. The baseline's
   timeouts were checked and are detected hangs (cursor arithmetic in walkers), which is the tests

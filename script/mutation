@@ -15,6 +15,9 @@
 #   script/mutation --report [DIR...]      per-crate table from finished run output, vs the baseline
 #   script/mutation --save-baseline [DIR...]  rewrite .cargo/mutants-baseline.txt from run output
 #
+# "vs the baseline" is always vs. 2026-08-03, never vs. the previous census: see the TRAP comment
+# in report() before treating that column as a recent delta.
+#
 # Each mutant's test binary runs under a memory ceiling (milestone 277), because cargo-mutants
 # bounds a mutant on time and the failure that kills this sweep is an allocation.
 # MUTATION_MEMORY_LIMIT_KB raises, lowers or (at 0) removes it; scripts/memory-bounded-runner.sh is
@@ -86,6 +89,16 @@ report() {
             exit 2
         fi
     done
+    # TRAP, recorded 2026-09-23 by milestone 512 (the census blamed one pull request for 55
+    # survivors it did not write): this column is always .cargo/mutants-baseline.txt, a SINGLE
+    # fixed run from 2026-08-03 (see $baseline_file above), never the previous census. A
+    # crate's own history has no other record in the tree, so "missed 77, baseline missed 22" reads
+    # exactly like two days of regression when it can just as easily be six weeks of untriaged
+    # growth. That misreading shipped once, in design/fatal-risks.md's risk 3, blaming a pull
+    # request for 55 survivors it did not write: 73 of machine_discovery's 77 predated the pull
+    # request and the baseline column could not say so. Diff two runs' own missed.txt (or
+    # script/mutation-census --compare) for a real between-census delta; this column only ever
+    # answers "since 2026-08-03".
     echo "crate                    caught  missed  timeout  unviable  (baseline missed)"
     counts "$@" | while read -r crate caught missed timeout unviable; do
         base="-"
