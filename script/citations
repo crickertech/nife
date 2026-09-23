@@ -390,6 +390,37 @@ if mode == "--ratchet":
     # back past the deletion.
     EXCLUDE = (":!vendor/", ":!patches/", ":!*.lock", ":!*.log", ":!script/citations",
                ":!design/roadmap/README.md")
+
+    # Reading the committed tip instead of the working tree is correct, for the reason above the
+    # diff below: line numbers from a `base..tip` diff are the tip's, and an edited file would
+    # report against the wrong lines. But "reads the tip, not the tree" was only ever documented,
+    # in this comment and in notes/citations.md, which is rung four of AGENTS.md's ladder, and a
+    # documented foot gun still has to be rediscovered by whoever steps on it. It cost the
+    # maintainer real time on 2026-09-22, more than once: add a gloss, rerun --ratchet, read the
+    # identical failure back, because the edit was sitting uncommitted and the tip had not moved.
+    # This moves the fact to rung two, where running the tool is what teaches it, instead of a
+    # note nobody was reading in the moment they needed it.
+    status = subprocess.run(
+        ["git", "-C", root, "status", "--porcelain", "--untracked-files=all", "--"] +
+        list(EXCLUDE),
+        capture_output=True, text=True,
+    ).stdout
+    dirty = []
+    for line in status.splitlines():
+        xy, path = line[:2], line[3:]
+        if "D" in xy:
+            # Deleted, staged or not: there is no content left to gloss-check, and reporting a
+            # deletion here would just be noise next to the files that actually hide a check.
+            continue
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        dirty.append(path)
+    if dirty:
+        dirty.sort()
+        print(f"citations: {len(dirty)} modified file(s) not checked; --ratchet reads the "
+              "committed tip. Commit first.")
+        print(f"citations:   {', '.join(dirty)}")
+
     diff = subprocess.run(
         ["git", "-C", root, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--"] +
         list(EXCLUDE),
