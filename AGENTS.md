@@ -31,130 +31,31 @@ reviews architecture and outcomes, not every line.
 
 ## Three principles, and what makes each one hold
 
-These are not aspirations. Each names a mechanism that keeps it true when nobody is watching, which
-is the only kind of principle a free software project can enforce: a volunteer cannot be made to
-care, so the work has to carry the standard on its own.
+Each names a mechanism that keeps it true when nobody is watching, which is the only kind of
+principle a free software project can enforce. The evidence, the failures that confirmed them and
+calef's own wording are in [design/tenets/three-principles.md](design/tenets/three-principles.md).
 
-### 1. The ranking function is the shortest path to a system a customer runs
+**1. The ranking function is the shortest path to a system a customer runs.** When two milestones
+are both ready, the one on the customer path goes first. **As of 2026-08-30 that path is vacant**,
+so the tie breaks toward [design/fatal-risks.md](design/fatal-risks.md), nine claims that, if false,
+mean the project should stop. A real workload with a real user outranks everything on that list the
+moment one exists. A first customer must be something nife can plausibly be adequate at within a
+milestone or two. **Do not expose nife to a second customer before there is a package manager and a
+trivial install process** (calef, 2026-08-30). Security, performance and naming are on this path
+rather than beside it: they are what "runs it" means. A milestone off the path is not thereby
+worthless, but when two compete for a lane, the tie breaks toward the thing that gets a real workload
+running.
 
-**A customer running it is the only test that cannot be gamed.** A benchmark can be chosen, a gate
-can be written to pass, a note can describe a system that no longer exists. A backup somebody
-depends on either works on a Tuesday or it does not, and the failure arrives as their own data
-missing rather than as a red check.
+**2. The method is a result, and it is currently undocumented.** The scale and the rate are worth
+recording, with the caveats attached: they measure size, never correctness. Take any count that spans
+the tree from the merged tree at merge, never from a branch.
 
-**This principle has now been confirmed in the only way that counts, which is by failing.** It was
-written on 2026-08-05 pointing at milestone 55, a Time Machine target the family's Macs back up to,
-whose own block called it *"The actual goal, and probably the largest single piece of work in the
-project."* On **2026-08-30** calef reported that the family's backups run on **borg over SSH on
-cordoba**, with **Immich** for images, built with the existing Linux ecosystem while nife was not
-ready; Time Machine and SMB are both out of that path. Journey 2 was retired the same day and
-milestone 55's premise went with it.
-
-That is not the principle failing. A customer with a real deadline went elsewhere because this
-system could not meet it, which is **the principle working**, and is the outcome it exists to make
-visible early rather than late.
-
-**calef is the first customer, not the audience** (his correction on this section, 2026-08-05:
-*"It isn't about me running it. It is about customers. I'm just the first customer."*). That
-distinction is
-load-bearing rather than modest. "The architect runs it" ranks work by one person's convenience and
-has no answer when that person's taste and a stranger's needs diverge; "a customer runs it" ranks it
-by what anyone taking this system on would require. The two agree today because there is exactly one
-customer. They stop agreeing the moment there are two, and the wording that survives that is the one
-worth writing now.
-
-What that means concretely, and it is a reordering rather than a slogan:
-
-- When two milestones are both ready, **the one on the customer path goes first.** **As of
-  2026-08-30 that path is vacant**, and saying so plainly is the point: a roadmap that still named
-  one would be ranking by a workload nobody runs. It was 54 (a network file service a Mac can mount)
-  and 55 (Time Machine) until that date; both are repriced in their own blocks.
-- **The first customer was too big, and that is the lesson worth carrying.** A family backup server
-  is among the largest things a home system can be asked to be: a filesystem it did not format, a
-  network protocol, crash consistency, and somebody's only copy. This principle said to rank by the
-  shortest path to a customer, and the path chosen was one of the longest available. **A first
-  customer should be something nife can plausibly be adequate at within a milestone or two.**
-- **While the path is vacant the tie breaks toward design/fatal-risks.md**, nine claims that, if
-  false, mean the project should stop. It is a stand-in for a customer, not a replacement: a real
-  workload with a real user outranks everything on it the moment one exists.
-- **And the path is vacant for a second reason, which is ours rather than the customer's** (calef,
-  2026-08-30): *"I don't think we expose nife to third parties (aka other customers) until we have a
-  package manager and a trivial install process."* So there is a **precondition on the ranking
-  function itself**. Package management and an install story are not items on the customer path; they
-  are what makes one possible, and until they exist a second customer cannot be accepted if one
-  appeared. He wants them **early, for our own sake as much as anyone's**: the people building this
-  are the ones repeatedly hand-wiring what a package would install.
-- A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
-  are what make the demonstrator a demonstrator. But when they compete for a lane, the tie breaks
-  toward the thing that gets a real workload running.
-- **Security and performance are not separate goals; they are what "runs it" means.** No customer
-  runs a backup server they do not trust with the only copy, and none runs one that takes a week.
-  That is why the audit cadence, the confinement claims and the benchmark tripwire are on this path
-  rather than beside it.
-- Naming is on this path too, and it is the least obvious member. A person using the system meets a
-  name before they meet anything else, and in a capability system the name is often the only thing
-  that says what a program may *do*.
-
-**The honest caveat: the system is not ready for a customer, this one included, and 2026-08-30
-settled how far off that is rather than leaving it as a feeling.** Saying the principle out loud is
-what stops the roadmap drifting into a collection of interesting kernels, and the drift is a live
-risk now rather than a hypothetical one, because with no customer named there is nothing but this
-principle and the fatal-risk list holding the ordering together.
-
-### 2. The method is a result, and it has to be recorded with its caveats
-
-From a first commit on 2026-07-12, this tree passed two hundred thousand lines of Rust on three
-architectures in under three months, with a booting kernel on real RISC-V silicon, a shell, a
-filesystem, a network stack and a compositor. That order of magnitude was written 2026-09-24.
-
-**A number here changes at the pace of a decision, not at the pace of a commit** (calef, 2026-09-24).
-Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot; read them in code
-lines, since this tree comments heavily. (The 2026-08-05 and 2026-08-30 figures are in git.)
-
-That is not a normal rate for one architect, and the reason is that the work is done by many agents
-in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
-therefore two claims, not one**: that a capability microkernel can run real workloads, and that a
-system of this size can be built this way at all. The second is at least as interesting to a
-stranger, and `notes/how-this-is-built.md` is where the tree now states it.
-
-**It has to be recorded the way everything else here is recorded, with the caveats attached**, or it
-is marketing:
-
-- The figures there are **size and rate, not quality.** A built milestone is a block marked BUILT,
-  and §76 (what catches a milestone status that is wrong in both places) records a sweep that found
-  nine misrecorded. Take the count as a scale, never as a claim about correctness.
-- **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
-  the review discipline. The same method without them produces a great deal of code that nobody can
-  trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
-  against `origin/main` and staged four other lanes' files, the blind `sed` that rewrote the row
-  recording a name's refusal, the three agents that clobbered work with `git reset --hard` in one
-  day.
-- **The bottleneck moves, and pretending otherwise wastes the method.** On 2026-08-04 the constraint
-  stopped being how fast lanes could produce and became how fast one merge queue could land, and
-  eleven lanes made that worse rather than better.
-
-### 3. A newcomer must be able to succeed without asking anyone
-
-This is the principle that most of this file already serves without naming it, and it is the one that
-inverts hardest for a project like this one. In a company a high standard can be enforced through
-people, because they are paid and can be managed. **Here the only enforcement is that the work
-answers its own questions**, because a contributor who has to ask will simply leave, and will do so
-silently.
-
-So a standard that is not also generous produces an empty repository. That is why:
-
-- **The documentation standard is FreeBSD's**: task-oriented, in-tree, real `EXAMPLES`, and an honest
-  `BUGS` section next to the feature rather than in a tracker. A page without a worked example has
-  not finished explaining itself.
-- **`BUGS` sections are not modesty, they are the mechanism.** A newcomer who hits a limitation the
-  docs named will trust the docs. One who hits a limitation the docs hid will not trust anything
-  again, and there is no relationship to fall back on.
-- **A name is a claim, and the reader meets it first.** `script/names --unratified` is a worklist
-  rather than a wall precisely so that an unratified name never blocks anyone's build.
-- **Every decision has a written reason.** `design/decisions/` records why, including for decisions
-  that were refused, so a newcomer can disagree with an argument rather than with an authority.
-- **Anything that only works because someone knows it is a defect.** That is the previous section's
-  ladder, read from the newcomer's side.
+**3. A newcomer must be able to succeed without asking anyone.** Documentation is task-oriented and
+in-tree, with real `EXAMPLES` and an honest `BUGS` section beside the feature rather than in a
+tracker.
+Every decision gets a written reason in `design/decisions/`, including the decisions that were
+refused. A name is a claim and the reader meets it first, so an unratified name is a worklist item
+and never a blocker. **Anything that only works because someone knows it is a defect.**
 
 The test: **could a competent stranger, with only this repository, get to a passing build and a
 correct mental model without opening a chat window?** Where the answer is no, that is a bug in the
@@ -182,8 +83,8 @@ fits:
    saying so**. A pull request comment had been written to remind the integrator of the same thing;
    the type made the reminder redundant.
 2. **A gate that fails loudly**, in `script/lint` or CI. Weaker, because somebody has to write it and
-   it can be wrong about the tree: the check rejected the repository's second-commonest prefix until
-   §77 (the branch-prefix list now describes the tree). But it fires without being remembered.
+   it can be wrong about the tree (§77 is a live example: the branch-prefix check rejects the
+   repository's second-commonest prefix). But it fires without being remembered.
 3. **A written record at the thing itself**, which is milestone 115's shape: provenance beside the
    name, not in a registry. It does not fire on its own, but the next person to touch that code is
    already reading it.
@@ -367,9 +268,9 @@ dispatched. See `notes/what-a-session-carries.md`.
   harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing
   in the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the
-  author GitHub shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App
-  exists and the scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull
-  request with calef's `gh` token. This is rung four and it is honest about being rung four:
+  author GitHub shows.` Until milestone 128 gives the automation a real identity, every artifact
+  in this repository carries calef's name whether he wrote it or not, and a reader cannot tell
+  the architect's voice from a lane's. This is rung four and it is honest about being rung four:
   the mechanism is 128's App, and this is what the record says in the meantime. (calef, 2026-08-16:
   *"it looks like I'm talking to myself a lot and the record would be nice to clarify who is
   talking."*)
@@ -527,7 +428,7 @@ appears in `git worktree list`; and prune promptly, because disk is still the on
 destroys work rather than delaying it, and deletes keep succeeding while writes fail.
 
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
-`verify` is still running, every time. Milestone 119 (the merge queue) measured that and is BUILT.
+`verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
 
 **Prune a lane's worktree the moment its pull request merges**, and never prune one with
 uncommitted work in it. Those are the two clauses that have to be known before the cleanup starts;
@@ -716,7 +617,7 @@ These come from `design/decisions/`. They are cheap to follow and expensive to r
 3. **The syscall surface stays narrow and explicit.** It is a boundary, not a habit.
 
 5. **Architectural parity is a gate, not an aspiration** (DECISIONS §19). The targets are
-   aarch64, riscv64, and x86_64, all three of which now boot on real hardware. A kernel capability ships on every
+   aarch64, riscv64, and x86_64 (declared, not yet started). A kernel capability ships on every
    supported architecture, proven by the same suite, or a scope note records the gap and the
    plan. If a feature works on one ISA and silently not another, that is the bug.
 
@@ -731,8 +632,8 @@ the requirements are known.
 
 6. **Taking a dependency is a decision, not a convenience** (DECISIONS §46). The tree's shape is
    thin architectural primitives (`aarch64-cpu`, `spin`, `tock-registers`) or whole subsystems we
-   would never write (`smoltcp`, vendored RedoxFS), with **nothing in between**: most crates here
-   have no external dependencies at all. Write it if it is on the verification path, because you cannot
+   would never write (`smoltcp`, vendored RedoxFS), with **nothing in between**: thirty crates have
+   no external dependencies at all. Write it if it is on the verification path, because you cannot
    restructure someone else's crate to make a model checker tractable. Vendor it if correctness is
    won by *exposure* rather than by reading the spec, which is why §46 says write the calendar and
    vendor the crypto.
@@ -749,11 +650,11 @@ the requirements are known.
    48 programs and 3 modules with nothing distinguishing them.
 
       And it makes location self-enforcing for free. Once shared definitions live in `crates/`,
-   everything in `components/src/` is a program, with **no files moved** and nothing to remember.
+   everything in `user/src/` is a program, with **no files moved** and no convention to remember.
 
-   This was already the tree's practice for seven crates (`filesystem_protocol`, `byte_sink_protocol`,
-   `credential_protocol`, `clock_protocol`, `entropy_protocol`, `network_time_protocol`,
-   `graphics_protocol`); `cseam.rs`, now the `c_seam` crate, never justified the `#[path]` mechanism.
+   This was already the tree's practice for seven crates (`fs_proto`, `sink_proto`, `cred_proto`,
+   `clock_proto`, `entropy_proto`, `ntp_proto`, `gfx_proto`) and the exceptions had no recorded
+   reason; `cseam.rs`'s header describes the `#[path]` mechanism without ever justifying it.
 
 ## calef names the crates, the programs, and the shared modules
 
@@ -797,8 +698,8 @@ pass/fail via semihosting. The `script/*` commands are the normalized "Scripts t
 front door (`setup`, `test`, `server`, `console`, ...); they delegate to `cargo xtask`, which is
 still the engine and exposes more (`gdb`, `objdump`, `image`). See notes/scripts.md.
 
-Tests should prove something specific that nothing else would have done for us. The boot
-self-tests in `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned
+Tests should prove something specific that nothing else would have done for us. The four in
+`main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned
 (a bug here is a mystery crash), we're at EL1 (we are where we think we are). Don't add
 filler tests.
 
