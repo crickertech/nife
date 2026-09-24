@@ -1,14 +1,17 @@
 # The baseline ledger: every survivor's disposition
 
-An appendix of [notes/mutation-testing.md](../mutation-testing.md), moved there verbatim on 2026-09-24.
+The accounting behind the baseline half of [the triage rule](../mutation-testing.md#the-triage-rule)'s
+claim that nothing stays untriaged. [notes/mutation-testing.md](../mutation-testing.md) quotes its
+totals.
 
 ## The ledger: every survivor's disposition
 
-The triage rule says nothing stays untriaged, so this is the accounting that backs the claim. Rows
-are the run's survivors (missed plus timeout); "killed" means a test was written and **verified by
-applying the mutation and watching that named test fail**, "equivalent" means the mutant provably
-cannot differ from the original, and "hang" means a timeout that was confirmed to be an infinite
-loop rather than an undetected bug.
+Rows are the 2026-08-03 run's survivors, missed plus timeout. The columns mean:
+
+- killed: a test was written and verified by applying the mutation and watching that named test
+  fail;
+- equivalent: the mutant provably cannot differ from the original;
+- hang: a timeout confirmed to be an infinite loop, not an undetected bug.
 
 | crate | survivors | killed | equivalent | hang | deferred |
 |---|---|---|---|---|---|
@@ -40,28 +43,41 @@ loop rather than an undetected bug.
 | the 1-survivor crates | 4 | 0 | 4 | 0 | 0 |
 | **total** | **487** | **225** | **170** | **95** | **0** |
 
-The 2-survivor crates are `asid`, `credential_protocol`, `entropy_protocol`, `byte_sink_protocol`, `socket_protocol` and
-`generational_table`' siblings; the 1-survivor crates are `abi`, `block_roster`, `c_seam` and `capability`. Their
-survivors are the recurring patterns named at the top of this section, one or two each.
+The 2-survivor crates are `asid`, `credential_protocol`, `entropy_protocol`, `byte_sink_protocol`,
+`socket_protocol` and `generational_table`'s siblings. The 1-survivor crates are `abi`,
+`block_roster`, `c_seam` and `capability`. Their survivors are the
+[recurring patterns](baseline-2026-08-03.md#patterns-that-recur-named-once), one or two each.
 
-**Nothing is deferred, and that is a claim worth being suspicious of**, so here is what it rests on.
-Every "equivalent" in the table was argued from the code, and in the crates a later pass audited
-(compositor, frames, calendar, cred, clock_protocol, gpt, fs_proto, dtb, glob) every one was also
-**re-run under its mutation**. That audit changed six verdicts: five mutants called equivalent were
-real gaps (`frames::index_of`'s upper bound, `calendar::from_hm`'s sign guard and its offset-length
-check, `cred`'s memory ceiling, `gpt::check_partitions`' one-block partition), and glob's entire
-first pass turned out to have written its tests where `cargo test` could not see them. **A verdict
-reached by reading is wrong about ten percent of the time; a verdict reached by running is not.**
-The crates that were not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`, `network_time_protocol`, `ipc`,
-`intrusive_fifo`) had their kills verified the same way when they were written, but their *equivalence*
-claims rest on argument alone, and the weekly run is what will check them.
+### Nothing is deferred, and here is what that rests on
 
-**The alarming survivors, named.** A survivor in a security boundary is worth more attention than
-fifty in a display crate, so: `capability`, `memory_regions`, `dma_validator`, `nifefs` and `elf` have
-**zero real survivors** between them, and the three trust-boundary parsers score 100%. The one
-security-relevant survivor the run found anywhere was `filesystem_protocol::xattr::store::write_record`, whose
-value limit stopped being enforced under a single `||` to `&&`, on a path that re-emits records
-whose lengths come off the blob rather than from a bounds-checked caller. It is closed. The
-next-most-serious were `paging`'s user-VA gate and `Mapper::root` (a constant there installs the
-wrong table in silicon), `machine_discovery`'s widest-wins fold (an rv32 hart booting an rv64 answer), and
-`generational_table::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
+Every "equivalent" in the table was argued from the code. In the crates a later pass audited
+(`compositor`, `frames`, `calendar`, `cred`, `clock_protocol`, `gpt`, `fs_proto`, `dtb`, `glob`),
+every one was also re-run under its mutation.
+
+That audit changed six verdicts. Five mutants called equivalent were real gaps:
+`frames::index_of`'s upper bound, `calendar::from_hm`'s sign guard and its offset-length check,
+`cred`'s memory ceiling, and `gpt::check_partitions`' one-block partition. And `glob`'s entire first
+pass had written its tests where `cargo test` could not see them.
+
+So a verdict reached by reading is wrong about ten percent of the time; a verdict reached by running
+is not. The crates not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`,
+`network_time_protocol`, `ipc`, `intrusive_fifo`) had their kills verified the same way when they
+were written. Their equivalence claims rest on argument alone, and the weekly run is what will
+check them.
+
+### The alarming survivors, named
+
+A survivor in a security boundary deserves more attention than fifty in a display crate.
+`capability`, `memory_regions`, `dma_validator`, `nifefs` and `elf` have zero real survivors between
+them, and the three trust-boundary parsers score 100%.
+
+The one security-relevant survivor the run found anywhere was
+`filesystem_protocol::xattr::store::write_record`. Its value limit stopped being enforced under a
+single `||` to `&&`. The path re-emits records whose lengths come off the blob, not from a
+bounds-checked caller. It is closed.
+
+The next most serious, all closed:
+
+- `paging`'s user-VA gate, and `Mapper::root`, where a constant installs the wrong table in silicon;
+- `machine_discovery`'s widest-wins fold, where an rv32 hart would boot an rv64 answer;
+- `generational_table::get_mut`, a `None` the kernel `unwrap()`s on the switch path.
