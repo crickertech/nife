@@ -12,7 +12,7 @@ use core::arch::asm;
 const SIE: usize = 1 << 1;
 
 /// Are S-mode interrupts currently enabled?
-pub fn enabled() -> bool {
+pub fn is_enabled() -> bool {
     let sstatus: usize;
     // SAFETY: reads a CSR. No side effects.
     unsafe { asm!("csrr {}, sstatus", out(reg) sstatus, options(nomem, nostack, preserves_flags)) };

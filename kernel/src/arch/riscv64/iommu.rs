@@ -271,7 +271,7 @@ pub fn print_summary() {
     }
 }
 
-pub fn active() -> bool {
+pub fn is_active() -> bool {
     IOMMU.lock().is_some()
 }
 

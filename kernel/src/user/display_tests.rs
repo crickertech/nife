@@ -59,7 +59,7 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
     // command payload, not in a descriptor, so the transport's validator never sees them and the
     // IOMMU is the only thing bounding them (notes/framebuffer-contract.md).
     assert!(
-        crate::iommu::active(),
+        crate::iommu::is_active(),
         "a virtio-gpu is present but the IOMMU is not active: the GPU's pixel reads are \
          unconfined (is iommu=smmuv3 / -device riscv-iommu-pci or iommu_platform=on missing?)",
     );
@@ -199,7 +199,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
         crate::testing::skip!("no virtio-gpu-pci function on the bus (NIFE_GPU not set?)");
     };
     assert!(
-        crate::iommu::active(),
+        crate::iommu::is_active(),
         "a virtio-gpu is present but the IOMMU is not active: nothing would refuse this escape, \
          so the test would pass or fail on a fiction",
     );
@@ -444,7 +444,7 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
         crate::testing::skip!("no virtio-input function on the bus (NIFE_KEYBOARD not set?)");
     };
     assert!(
-        crate::iommu::active(),
+        crate::iommu::is_active(),
         "a keyboard is present but the IOMMU is not active: the device's event buffers are \
          unconfined, and a keyboard's buffers are where every keystroke lands",
     );

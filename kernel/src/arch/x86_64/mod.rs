@@ -252,7 +252,7 @@ pub fn percpu_matches_hart() -> bool {
 /// *is* that trampoline page (see `secondary_boot_entry`'s own doc), so this holds by construction
 /// today; it is not re-derived here because there is nowhere else it could sensibly come from.
 pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
-    if !irq::local_apic_ready() {
+    if !irq::is_local_apic_ready() {
         return -1;
     }
     debug_assert_eq!(
@@ -346,12 +346,12 @@ fn busy_wait_us(us: u64) {
 /// Can this machine start a secondary CPU at all? Yes, once the local APIC is up: INIT-SIPI-SIPI is
 /// sent *through* it, unlike PSCI or SBI, which need no device at all before the first call.
 pub fn can_start_secondaries() -> bool {
-    irq::local_apic_ready()
+    irq::is_local_apic_ready()
 }
 
 /// Print how this machine starts a CPU. One line, on every boot, beside the SMP count.
 pub fn print_bring_up_mechanism() {
-    if irq::local_apic_ready() {
+    if irq::is_local_apic_ready() {
         crate::println!(
             "  smp: init-sipi-sipi via the local apic, trampoline at {:#x}",
             ap_boot::trampoline_phys()

@@ -326,7 +326,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
 /// parity twin of the aarch64 test). Same six steps, same property, same words.
 #[test_case]
 fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
-    if !fs_service::crash_disk_present() {
+    if !fs_service::is_crash_disk_present() {
         crate::testing::skip!("no crash disk attached");
     }
     assert_a_kill_mid_transaction_recovers(

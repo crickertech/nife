@@ -44,9 +44,10 @@ const BUS_BYTES: u64 = 0x10_0000;
 /// before anything can read it, and nothing compiled in can know which bus that is.
 static ECAM_BUSES: AtomicU16 = AtomicU16::new(0);
 
-/// The ECAM window's physical base, cached from `memory::pci_regions` by [`host_bridge_present`].
-/// Zero means "not cached yet, or no bridge", and cannot collide with a real value: no machine
-/// puts config space at physical zero (that is RAM or a vector table everywhere this runs).
+/// The ECAM window's physical base, cached from `memory::pci_regions` by
+/// [`is_host_bridge_present`]. Zero means "not cached yet, or no bridge", and cannot collide with a
+/// real value: no machine puts config space at physical zero (that is RAM or a vector table
+/// everywhere this runs).
 static ECAM_BASE: AtomicU64 = AtomicU64::new(0);
 
 /// The shared bump cursor for kernel-assigned BARs, starting at the discovered 32-bit memory
@@ -123,7 +124,7 @@ pub fn ecam_bytes() -> u64 {
 /// version is not built until a machine asks for it.
 #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub fn survey() -> usize {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return 0;
     }
     // The whole window the machine described, which is what is readable right now and is never
@@ -184,7 +185,7 @@ pub fn survey() -> usize {
 /// as an absent virtio-mmio device. Single-hart boot-path code (see `BAR_NEXT`); the store order
 /// (cursor and limit before the base that stands for "present") is documentation, not
 /// synchronization.
-fn host_bridge_present() -> bool {
+fn is_host_bridge_present() -> bool {
     if ECAM_BASE.load(Ordering::Relaxed) != 0 {
         return true;
     }
@@ -230,9 +231,9 @@ fn host_bridge_present() -> bool {
 /// architectures (their BARs still always arrive at 0).
 fn place_bars(bdf: Bdf, bars: &mut [Option<Bar>; 6]) -> bool {
     // The window `mmu::map_everything` actually mapped: `memory::pci_regions()`'s mem32 half for
-    // the lower bound (immutable once `host_bridge_present` caches it), `BAR_LIMIT` for the upper
-    // (the same `PCI_BAR_MAPPED.min(bar_size)` clamp that call computed, so this always agrees
-    // with what is really mapped even on the two architectures whose device tree describes a
+    // the lower bound (immutable once `is_host_bridge_present` caches it), `BAR_LIMIT` for the
+    // upper (the same `PCI_BAR_MAPPED.min(bar_size)` clamp that call computed, so this always
+    // agrees with what is really mapped even on the two architectures whose device tree describes a
     // PCIe memory window larger than `PCI_BAR_MAPPED`).
     let mapped_lo = crate::memory::pci_regions().map(|(_, (base, _))| base);
     let mapped_hi = BAR_LIMIT.load(Ordering::Relaxed);
@@ -340,7 +341,7 @@ fn adopt(bdf: Bdf, index: usize, bar: &pci::Bar) -> bool {
     true
 }
 
-/// Callers sit behind [`host_bridge_present`], which is what makes the cached base nonzero and
+/// Callers sit behind [`is_host_bridge_present`], which is what makes the cached base nonzero and
 /// the window below it device-mapped.
 fn cfg_read32(bdf: Bdf, off: u64) -> u32 {
     let va = mmu::phys_to_virt(ECAM_BASE.load(Ordering::Relaxed) + bdf.ecam_offset() + (off & !3));
@@ -425,7 +426,7 @@ pub fn find_block_device() -> Option<PciVirtioDevice> {
 /// into an ordering that spans a bus they are deliberately not on.
 #[cfg_attr(not(test), allow(dead_code))] // the mmio half answers first on both virt boards
 pub fn find_block_device_n(n: usize) -> Option<PciVirtioDevice> {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return None;
     }
     let mut seen = 0;
@@ -512,7 +513,7 @@ pub fn find_rng_device() -> Option<PciVirtioDevice> {
 /// config space and nothing else, which is all a roster is entitled to know
 /// (`crates/block_roster`).
 pub fn count_block_devices() -> usize {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return 0;
     }
     let mut n = 0;
@@ -567,7 +568,7 @@ pub fn count_block_devices() -> usize {
 // arch-neutral and stays here rather than in `arch/`, so this allow is the cost of that.
 #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub fn bar_census() -> (usize, usize) {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return (0, 0);
     }
     let lo = crate::memory::pci_regions().map_or(0, |(_, (base, _))| base);
@@ -610,7 +611,7 @@ pub fn bar_census() -> (usize, usize) {
 /// (virtio-gpu): there is then no such warning to give, and inventing an id to compare against
 /// would be a fact nobody checked.
 fn find_virtio_bdf(modern: u16, transitional: Option<u16>, kind: &str) -> Option<Bdf> {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return None;
     }
     let mut found: Option<Bdf> = None;
@@ -836,7 +837,7 @@ pub struct PciNvmeDevice {
 /// permission is granted at the final moment, and on a machine with an IOMMU the device still
 /// cannot reach a byte until `iommu::confine` maps its region (denied by default, milestone 16b).
 pub fn find_nvme_device() -> Option<PciNvmeDevice> {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return None;
     }
     let mut found: Option<Bdf> = None;
@@ -890,7 +891,7 @@ const IOMMU_DEVICE: u16 = 0x0014;
 /// Bus-Master: the IOMMU is not a DMA initiator, it is the thing that polices them.
 #[cfg(target_arch = "riscv64")]
 pub fn init_iommu() {
-    if !host_bridge_present() {
+    if !is_host_bridge_present() {
         return;
     }
     let mut found: Option<Bdf> = None;
@@ -1006,7 +1007,7 @@ mod tests {
     #[test_case]
     fn acpi_mcfg_wires_a_real_ecam_window_that_finds_the_host_bridge() {
         assert!(
-            host_bridge_present(),
+            is_host_bridge_present(),
             "ACPI's MCFG did not leave a usable window in memory::pci_regions()"
         );
 
@@ -1078,7 +1079,7 @@ mod tests {
     #[cfg(target_arch = "x86_64")]
     #[test_case]
     fn a_controller_behind_a_bridge_is_found_on_the_bus_behind_it() {
-        assert!(host_bridge_present(), "no ECAM window on this machine");
+        assert!(is_host_bridge_present(), "no ECAM window on this machine");
 
         let (mut bridged_to, mut controller_on) = (None, None);
         pci::walk(ecam_buses(), &mut |b, o| cfg_read32(b, o), &mut |f| {

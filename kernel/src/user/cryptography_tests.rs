@@ -132,7 +132,7 @@ fn a_tls_crypto_provider_computes_what_the_specifications_say() {
     // program, and a panic would end it with a missing line **and** a fault. Checking both
     // separates "a vector is wrong" from "the program died on the way".
     assert!(
-        super::wait_for(|| !crate::sched::thread_present(tid)),
+        super::wait_for(|| !crate::sched::is_thread_present(tid)),
         "cryptography_exerciser never left: it is neither exited nor faulted",
     );
     assert_eq!(

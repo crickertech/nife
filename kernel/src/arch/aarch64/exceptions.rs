@@ -209,7 +209,7 @@ pub static BRK_COUNT: AtomicUsize = AtomicUsize::new(0);
 pub fn self_test() -> usize {
     let before = BRK_COUNT.load(Ordering::Relaxed);
     // SAFETY: `brk #0` raises a synchronous exception the dispatcher handles, and the guard in that
-    // arm (`!from_lower_el`) admits this one because it comes from EL1. It has no other effect.
+    // arm (`!is_from_lower_el`) admits this one because it comes from EL1. It has no other effect.
     unsafe { core::arch::asm!("brk #0") };
     BRK_COUNT.load(Ordering::Relaxed) - before
 }
@@ -331,7 +331,7 @@ unsafe extern "C" {
 /// mechanisms.
 #[unsafe(no_mangle)]
 extern "C" fn exception_dispatch(frame: &mut TrapFrame, index: u64) {
-    let top = crate::interrupt_stack::top_for_trap(from_lower_el(index));
+    let top = crate::interrupt_stack::top_for_trap(is_from_lower_el(index));
     let deferred_switch = if top == 0 {
         // **The common case, and it must not pay for the uncommon one.** Every syscall arrives here
         // (a trap from EL0 never switches), and routing it through the trampoline anyway cost 8.6
@@ -380,7 +380,7 @@ extern "C" fn exception_body(frame: &mut TrapFrame, index: u64) -> bool {
         // one of ours, and a user program could park a `brk` in a loop and burn the kernel's
         // time forever, immortal. A breakpoint is a debugging affordance for code we trust.
         // From EL0 it is a fault, and it falls through to `user_fault` below.
-        ec::BRK64 if !from_lower_el(index) => {
+        ec::BRK64 if !is_from_lower_el(index) => {
             // `brk` is a deliberate trap: a breakpoint the program asked for.
             //
             // The subtlety: ELR_EL1 points AT the `brk` instruction, not past it.
@@ -427,7 +427,7 @@ extern "C" fn exception_body(frame: &mut TrapFrame, index: u64) -> bool {
         // `dispatch` writes the result into `frame.x[0]`, and RESTORE_CONTEXT pops that into the
         // register the user program is waiting on. **Writing to the trap frame is writing to the
         // user's registers.**
-        ec::SVC64 if from_lower_el(index) => {
+        ec::SVC64 if is_from_lower_el(index) => {
             SVC_COUNT.fetch_add(1, Ordering::Relaxed);
             crate::syscall::dispatch(frame);
         }
@@ -436,7 +436,7 @@ extern "C" fn exception_body(frame: &mut TrapFrame, index: u64) -> bool {
         //
         // **It dies. The kernel does not.** That is the whole promise of a privilege boundary,
         // and this is the first moment in the project's life that we can keep it.
-        _ if from_lower_el(index) => user_fault(frame, esr),
+        _ if is_from_lower_el(index) => user_fault(frame, esr),
 
         // Everything else is a KERNEL bug, and fatal. As the kernel grows, cases move out of
         // `fatal` and into real handlers: IRQs at milestone 5, `svc` here, and data aborts
@@ -462,7 +462,7 @@ extern "C" fn exception_body(frame: &mut TrapFrame, index: u64) -> bool {
 // clippy wants `(8..=11).contains(&index)` here and it is right about the reading; the `allow` is a
 // measured exception rather than a preference, for the reason the body gives.
 #[allow(clippy::manual_range_contains)]
-fn from_lower_el(index: u64) -> bool {
+fn is_from_lower_el(index: u64) -> bool {
     // Two comparisons, written out. `(8..=11).contains(&index)` is the same thing and reads better,
     // and in a debug build it is a real call into `RangeInclusive::<u64>::contains::<u64>` on **every
     // trap**, which the icount tripwire priced at about a tick per `null_syscall` iteration once

@@ -155,8 +155,8 @@ pub struct BlockDevice {
 /// **Resolving a PCI ordinal brings the function up**, which sizes and assigns its BARs and enables
 /// memory decoding and bus mastering; the mmio half reads two identity registers and nothing else.
 /// That asymmetry is `pci::bring_up`'s, not this function's, and it is why a bare *presence* probe
-/// (`fs_service::crash_disk_present`) should be read as "this ordinal exists", with the side effects
-/// of having asked.
+/// (`fs_service::is_crash_disk_present`) should be read as "this ordinal exists", with the side
+/// effects of having asked.
 #[cfg_attr(not(test), allow(dead_code))] // fs_service is the caller, and the phase-2 test drives it
 pub fn find_block_device_n(n: usize) -> Option<BlockDevice> {
     if let Some(d) = mmio_block_device_n(n) {
@@ -328,8 +328,8 @@ const PCI_QUEUE_DEVICE: u64 = 0x30;
 /// userspace driver could therefore ring a queue it had never set up, and this module would
 /// `write_volatile` a `u16` through `phys_to_virt(0)`: not inside any BAR, which is exactly what
 /// the comment claimed could not happen. [`notify`] now refuses that queue
-/// ([`Transport::doorbell_ready`]). The mmio transport was never exposed, because it has one fixed
-/// notify register rather than a per-queue address to resolve.
+/// ([`Transport::is_doorbell_ready`]). The mmio transport was never exposed, because it has one
+/// fixed notify register rather than a per-queue address to resolve.
 fn pread<T: Copy>(phys: u64) -> T {
     // SAFETY: `phys` is a field of a `Transport::Pci`, plus at most a common-config offset. Those
     // fields come from `pci.rs`'s BAR resolution and reach this module only through
@@ -488,7 +488,7 @@ impl Transport {
     /// [`notify`] is the gate that uses this. It exists because the SAFETY comment on [`pread`]
     /// claimed every address reaching it was inside a device-mapped BAR, and this was the path where
     /// that was false.
-    fn doorbell_ready(&self, q: u16) -> bool {
+    fn is_doorbell_ready(&self, q: u16) -> bool {
         match self {
             Transport::Mmio { .. } => true,
             Transport::Pci { notify_addr, .. } => notify_addr[q as usize] != 0,
@@ -496,8 +496,8 @@ impl Transport {
     }
 
     /// Ring the doorbell for queue `q`. Only [`notify`] calls this, after validation and after
-    /// [`Transport::doorbell_ready`]. On mmio the notify register carries the queue number as its
-    /// value; on PCI each queue has its own doorbell address, resolved at [`setup_queue`].
+    /// [`Transport::is_doorbell_ready`]. On mmio the notify register carries the queue number as
+    /// its value; on PCI each queue has its own doorbell address, resolved at [`setup_queue`].
     fn notify_queue(&self, q: u16) {
         match self {
             Transport::Mmio { mmio_phys } => reg_write(*mmio_phys, REG_QUEUE_NOTIFY, q as u32),
@@ -720,7 +720,7 @@ pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<
     // lock: building the domain allocates page-table frames, and the IOMMU attach takes its own
     // lock, so keeping both off the VIRTIO rank keeps the lock order a plain leaf (sync::rank).
     if let Some(rid) = rid
-        && crate::iommu::active()
+        && crate::iommu::is_active()
     {
         let regions = crate::iommu::virtio_regions(dma_base, dma_size, shadow_base);
         crate::iommu::confine(rid, &regions);
@@ -955,7 +955,7 @@ pub fn notify(id: usize, queue: u16) -> Result<(), TransportError> {
     // `notify_addr[queue]` was still zero here and the ring below wrote a u16 through
     // `phys_to_virt(0)`, which is a kernel store at an address the driver chose the timing of. The
     // range check above was not enough: an in-range queue can still be an unconfigured one.
-    if !dev.transport.doorbell_ready(queue) {
+    if !dev.transport.is_doorbell_ready(queue) {
         return Err(TransportError::BadQueue);
     }
 
@@ -1334,8 +1334,8 @@ mod tests {
     /// path would need a live PCI function, which only one of the boot configurations has.
     #[test_case]
     fn a_pci_queue_has_no_doorbell_until_it_is_set_up() {
-        // Plausible-looking BAR addresses. Nothing here is ever dereferenced: `doorbell_ready` only
-        // compares the resolved doorbell against zero.
+        // Plausible-looking BAR addresses. Nothing here is ever dereferenced: `is_doorbell_ready`
+        // only compares the resolved doorbell against zero.
         let mut t = Transport::Pci {
             common: 0x4010_0000,
             notify_base: 0x4010_3000,
@@ -1346,7 +1346,7 @@ mod tests {
             msix_vector: pci::VIRTIO_MSIX_NO_VECTOR,
         };
         assert!(
-            !t.doorbell_ready(0),
+            !t.is_doorbell_ready(0),
             "a PCI queue reported a doorbell before setup_queue resolved one; ringing it would \
              write through phys_to_virt(0)",
         );
@@ -1356,11 +1356,11 @@ mod tests {
             notify_addr[0] = 0x4010_3000;
         }
         assert!(
-            t.doorbell_ready(0),
+            t.is_doorbell_ready(0),
             "a resolved doorbell was still reported as absent, which would refuse every notify",
         );
         assert!(
-            !t.doorbell_ready(1),
+            !t.is_doorbell_ready(1),
             "setting up queue 0 must not vouch for queue 1: each queue resolves its own doorbell",
         );
 
@@ -1369,7 +1369,7 @@ mod tests {
             mmio_phys: 0x0a00_0000,
         };
         assert!(
-            m.doorbell_ready(0) && m.doorbell_ready(1),
+            m.is_doorbell_ready(0) && m.is_doorbell_ready(1),
             "the mmio transport gained a per-queue doorbell it does not have",
         );
     }
@@ -1521,7 +1521,7 @@ mod tests {
         // The IOMMU must be up. If it is not while a PCIe disk is present, every PCIe DMA is
         // bypassing translation: fail loudly, do not skip.
         assert!(
-            crate::iommu::active(),
+            crate::iommu::is_active(),
             "a PCIe disk is present but the IOMMU is not active: DMA is bypassing translation \
              (is iommu=smmuv3 / -device riscv-iommu-pci missing from the runner?)",
         );

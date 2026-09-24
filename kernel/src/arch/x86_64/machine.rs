@@ -373,7 +373,7 @@ const BOOT_DIRECT_MAP_LIMIT: u64 = 0x1_0000_0000;
 /// so `read_acpi` says so per table rather than skipping quietly. A machine that puts its tables
 /// above 4 GiB (none seen; firmware keeps ACPI in low memory precisely so 32-bit loaders can read
 /// it) needs the boot map widened, not this loosened.
-fn reachable(at: u64, len: usize) -> bool {
+fn is_reachable(at: u64, len: usize) -> bool {
     at != 0 && at.saturating_add(len as u64) <= BOOT_DIRECT_MAP_LIMIT
 }
 
@@ -390,7 +390,7 @@ fn reachable(at: u64, len: usize) -> bool {
 /// thing separating a real hit from a coincidence. That is why nothing here does its own comparison
 /// and calls it found.
 pub fn find_rsdp(hint: u64) -> Option<(u64, Rsdp)> {
-    if reachable(hint, 36)
+    if is_reachable(hint, 36)
         // SAFETY: `reachable` checked the range is in the direct map, and firmware places this
         // structure in ordinary memory.
         && let Ok(rsdp) = parse_rsdp(unsafe { phys_slice(hint, 36) })
@@ -417,7 +417,7 @@ pub fn find_rsdp(hint: u64) -> Option<(u64, Rsdp)> {
 fn scan_for_rsdp(range: core::ops::Range<u64>) -> Option<(u64, Rsdp)> {
     let mut at = range.start & !0xf;
     while at + 36 <= range.end {
-        if reachable(at, 36) {
+        if is_reachable(at, 36) {
             // SAFETY: `reachable` checked the range; the low megabyte is memory.
             let bytes = unsafe { phys_slice(at, 36) };
             if let Ok(rsdp) = parse_rsdp(bytes) {
@@ -439,7 +439,7 @@ fn table_at(at: u64) -> Option<(SdtHeader, &'static [u8])> {
     // the two ask for opposite things from whoever reads the line: a checksum failure is a table
     // to distrust, an unreachable address is a boot map to widen. Conflating them is what let the
     // 1 GiB bound above sit unnoticed.
-    if !reachable(at, acpi::SDT_HEADER_LEN) {
+    if !is_reachable(at, acpi::SDT_HEADER_LEN) {
         crate::println!(
             "                {at:#012x}  outside the boot map's low {} GiB, cannot be read",
             BOOT_DIRECT_MAP_LIMIT / (1024 * 1024 * 1024),
@@ -448,7 +448,7 @@ fn table_at(at: u64) -> Option<(SdtHeader, &'static [u8])> {
     }
     // SAFETY: `reachable` checked the header's range.
     let header = parse_sdt_header(unsafe { phys_slice(at, acpi::SDT_HEADER_LEN) }).ok()?;
-    if !reachable(at, header.length as usize) {
+    if !is_reachable(at, header.length as usize) {
         crate::println!(
             "                {at:#012x}  {} bytes long, which runs past the boot map",
             header.length,

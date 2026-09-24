@@ -1012,7 +1012,7 @@ mod tests {
             "core {here} never received a placement made from core {other}",
         );
         assert!(
-            wait_for(|| !crate::sched::thread_present(placer)),
+            wait_for(|| !crate::sched::is_thread_present(placer)),
             "the placer thread on core {other} was never reaped",
         );
     }
@@ -1046,7 +1046,7 @@ mod tests {
         );
         // Leave nothing behind for a later test's thread or frame accounting to find in flight.
         assert!(
-            wait_for(|| !crate::sched::thread_present(tid)),
+            wait_for(|| !crate::sched::is_thread_present(tid)),
             "the probe placed on core {target} was never reaped",
         );
     }
@@ -1189,7 +1189,7 @@ mod tests {
                      rode a hart migration (DECISIONS §28; trap.s S-mode tp handling)",
                 );
                 assert!(
-                    !budget.expired(),
+                    !budget.is_expired(),
                     "migration workers never drained ({}/{} done) within {} delivered ticks",
                     DONE.load(Ordering::Relaxed),
                     total,

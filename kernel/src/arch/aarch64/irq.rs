@@ -39,7 +39,7 @@ const _: () = assert!(crate::cpu::MAX_CPUS <= gicv3::SLOTS);
 
 /// A version-3 machine? One byte, read on every dispatch below.
 #[inline(always)]
-fn v3() -> bool {
+fn is_v3() -> bool {
     VERSION.load(Ordering::Relaxed) == 3
 }
 
@@ -109,7 +109,7 @@ fn target_cpu(intid: u32) -> usize {
 /// makes on each core, and the one a test makes to arm an SGI.
 pub fn enable(intid: u32) {
     let target = if intid < 32 { 0 } else { target_cpu(intid) };
-    if v3() {
+    if is_v3() {
         gicv3::enable(
             crate::cpu::id(),
             intid,
@@ -123,7 +123,7 @@ pub fn enable(intid: u32) {
 /// Mask an interrupt source at the controller: the IRQ handler's first act for a line routed to a
 /// userspace driver, undone by [`enable`] when the driver ACKs. A PPI is masked on the calling core.
 pub fn disable(intid: u32) {
-    if v3() {
+    if is_v3() {
         gicv3::disable(crate::cpu::id(), intid);
     } else {
         gic::disable(intid);
@@ -135,7 +135,7 @@ pub fn disable(intid: u32) {
 /// folded into it, because none of them is an interrupt this kernel can complete.
 #[inline(always)]
 pub fn acknowledge() -> u32 {
-    if v3() {
+    if is_v3() {
         let intid = gic_cpu_interface::acknowledge();
         if intid >= gicv3::SPECIAL_FIRST {
             SPURIOUS
@@ -151,7 +151,7 @@ pub fn acknowledge() -> u32 {
 /// lower priority to this core.
 #[inline(always)]
 pub fn end_of_interrupt(intid: u32) {
-    if v3() {
+    if is_v3() {
         gic_cpu_interface::end_of_interrupt(intid);
     } else {
         gic::end_of_interrupt(intid);
@@ -161,7 +161,7 @@ pub fn end_of_interrupt(intid: u32) {
 /// Raise software-generated interrupt `intid` (0-15) on `target_cpu`. The reschedule IPI is one
 /// ([`send_reschedule`]); the tests raise others to prove an interrupt becomes a message.
 pub fn send_sgi(intid: u32, target_cpu: usize) {
-    if v3() {
+    if is_v3() {
         gic_cpu_interface::send_sgi(intid, affinity_of(target_cpu));
     } else {
         gic::send_sgi(intid, target_cpu);
@@ -241,7 +241,7 @@ pub fn init() {
 /// interface is banked MMIO; on a GICv3 the core finds and wakes its own redistributor, then turns on
 /// its system-register CPU interface. Either way every core enables its own.
 pub fn init_this_cpu() {
-    if v3() {
+    if is_v3() {
         gicv3::init_this_cpu(
             crate::cpu::id(),
             gic_cpu_interface::redistributor_affinity(),

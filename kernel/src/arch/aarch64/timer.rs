@@ -218,7 +218,7 @@ fn close_cycle_counter_to_el0() {
     // `ID_AA64DFR0_EL1.PMUVer` reports it: 0 means no PMU, 0xf means an IMPLEMENTATION DEFINED PMU
     // that does not follow PMUv3 and so does not carry this register either. Both are boards where
     // there is no EL0 cycle-counter door to close.
-    if !super::pmu::pmuv3_present() {
+    if !super::pmu::is_pmuv3_present() {
         return;
     }
     // Milestone 229 reads this back on the context-switch path, where re-reading an ID register
@@ -256,7 +256,7 @@ fn close_cycle_counter_to_el0() {
 // and deliberately did not fold the two: a counter can be grantable and stuck.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-pub fn cycle_counter_grantable() -> bool {
+pub fn is_cycle_counter_grantable() -> bool {
     PMU_PRESENT[cpu::id()].load(Ordering::Relaxed)
 }
 
@@ -699,7 +699,7 @@ mod tests {
     /// zero, which is where `init` left it and where every other test expects it.
     #[test_case]
     fn the_cycle_counter_grant_moves_cr_and_nothing_else() {
-        if !super::cycle_counter_grantable() {
+        if !super::is_cycle_counter_grantable() {
             crate::testing::skip!("this core has no PMUv3, so there is no register to grant");
         }
         super::set_cycle_counter_grant(true);
@@ -720,13 +720,13 @@ mod tests {
     }
 
     /// `PMUSERENR_EL0`, read back out of the core. Only call this where
-    /// [`cycle_counter_grantable`](super::cycle_counter_grantable) is true: without `FEAT_PMUv3` the
-    /// read is as UNDEFINED as the write.
+    /// [`is_cycle_counter_grantable`](super::is_cycle_counter_grantable) is true: without
+    /// `FEAT_PMUv3` the read is as UNDEFINED as the write.
     fn read_pmuserenr() -> u64 {
         let value: u64;
-        // SAFETY: the caller has checked `cycle_counter_grantable`, so the register exists and an
-        // `mrs` from it is a legal EL1 operation. It touches no memory and clobbers no flags, which
-        // the options state.
+        // SAFETY: the caller has checked `is_cycle_counter_grantable`, so the register exists and
+        // an `mrs` from it is a legal EL1 operation. It touches no memory and clobbers no flags,
+        // which the options state.
         unsafe {
             core::arch::asm!("mrs {}, pmuserenr_el0", out(reg) value, options(nomem, nostack, preserves_flags));
         }
@@ -1001,7 +1001,10 @@ mod tests {
 
         static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
-        assert!(interrupts::enabled(), "test setup: interrupts should be on");
+        assert!(
+            interrupts::is_enabled(),
+            "test setup: interrupts should be on"
+        );
 
         // The timer is alive. Core-scoped, for `ticks_on`'s reason.
         let alive_on = crate::cpu::id();

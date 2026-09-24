@@ -258,7 +258,7 @@ const CY: u64 = 1 << 0;
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-pub fn cycle_counter_grantable() -> bool {
+pub fn is_cycle_counter_grantable() -> bool {
     true
 }
 
@@ -917,7 +917,10 @@ mod tests {
 
         static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
-        assert!(interrupts::enabled(), "test setup: interrupts should be on");
+        assert!(
+            interrupts::is_enabled(),
+            "test setup: interrupts should be on"
+        );
 
         // The timer is alive. Hart-scoped, for `ticks_on`'s reason.
         let alive_on = crate::cpu::id();

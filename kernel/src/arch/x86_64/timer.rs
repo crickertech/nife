@@ -367,7 +367,7 @@ pub(super) fn calibration_has_converged(samples: &[u64]) -> bool {
 pub fn init_frequency(boot_info_pointer: usize) {
     let _ = boot_info_pointer;
     assert!(
-        irq::local_apic_ready(),
+        irq::is_local_apic_ready(),
         "the timer calibrates the local APIC's counter, so the APIC must be up first",
     );
 
@@ -587,7 +587,7 @@ pub fn init() {
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-pub fn cycle_counter_grantable() -> bool {
+pub fn is_cycle_counter_grantable() -> bool {
     true
 }
 

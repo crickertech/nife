@@ -98,7 +98,7 @@ fn unmodified_ripgrep_runs_and_has_no_arguments_to_run_on() {
     // program that printed a perfect transcript and then trapped would look identical from here
     // without this.
     assert!(
-        super::wait_for(|| !crate::sched::thread_present(rg.thread)),
+        super::wait_for(|| !crate::sched::is_thread_present(rg.thread)),
         "rg never left: it is neither exited nor faulted",
     );
     assert_eq!(

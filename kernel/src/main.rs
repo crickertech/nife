@@ -485,7 +485,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // and produce no interrupts and no error, so routing this line is simultaneously the
         // easiest device to reach and the strongest test of the override table.
         if let (Some((io_id, io_addr, gsi_base)), true) =
-            (acpi.io_apic, arch::irq::local_apic_ready())
+            (acpi.io_apic, arch::irq::is_local_apic_ready())
         {
             // SAFETY: the address and global-interrupt base came from the machine's own ACPI MADT,
             // and the boot map covers the whole low 4 GiB this device sits in.
@@ -2319,14 +2319,14 @@ fn x86_hand_over() {
     // Ten seconds of TCG is far past the progenitor's first console build, which is microseconds of
     // real time after it starts. The bound exists so the boot thread parks rather than waits.
     let deadline = arch::timer::now() + 10 * arch::timer::frequency();
-    while sched::thread_present(tid) && arch::timer::now() < deadline {
+    while sched::is_thread_present(tid) && arch::timer::now() < deadline {
         sched::yield_now();
     }
 
     let faults = arch::exceptions::USER_FAULTS
         .load(Ordering::Acquire)
         .wrapping_sub(faults_before);
-    if sched::thread_present(tid) {
+    if sched::is_thread_present(tid) {
         println!(
             "nife x86_64: the progenitor is running at ring 3; {faults} of the processes it built \
              stopped on purpose."
@@ -2453,7 +2453,11 @@ fn print_machine_description(boot_info_pointer: usize) {
             "  timer           : {} Hz tick, counter at {} MHz, interrupts {}",
             timer::TICK_HZ,
             timer::frequency() / 1_000_000,
-            if interrupts::enabled() { "ON" } else { "off" },
+            if interrupts::is_enabled() {
+                "ON"
+            } else {
+                "off"
+            },
         );
     }
 

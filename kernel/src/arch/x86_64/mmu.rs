@@ -603,9 +603,9 @@ pub(super) fn revoke_port_grant_others(base: u16, count: u16) {
 /// body [`shoot_down_others`] and [`revoke_port_grant_others`] share; the doc above
 /// `shoot_down_others` is the design, because that is the caller the design was written for.
 fn broadcast(kind: u8, word: u64) {
-    // Nothing to tell, or nothing to tell it with. `local_apic_ready` is the earlier of the two:
+    // Nothing to tell, or nothing to tell it with. `is_local_apic_ready` is the earlier of the two:
     // `mmu::init` maps the whole machine before `init_local_apic` runs.
-    if !super::irq::local_apic_ready() {
+    if !super::irq::is_local_apic_ready() {
         return;
     }
     let others = crate::smp::online_harts_mask() & !(1usize << crate::cpu::id());

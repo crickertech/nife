@@ -122,7 +122,7 @@ impl Series {
         self.n.store(0, Ordering::Relaxed);
     }
 
-    fn full(&self) -> bool {
+    fn is_full(&self) -> bool {
         self.n.load(Ordering::Relaxed) >= SAMPLES
     }
 
@@ -413,12 +413,12 @@ impl El0Slot {
     /// This role has started at least one series and every series it started is full, so painting
     /// can stop. The "at least one" matters: before the first sample every series is empty, and an
     /// `all` over nothing is true.
-    fn done(&self) -> bool {
+    fn is_done(&self) -> bool {
         self.series.iter().any(|s| s.n.load(Ordering::Relaxed) > 0)
             && self
                 .series
                 .iter()
-                .all(|s| s.n.load(Ordering::Relaxed) == 0 || s.full())
+                .all(|s| s.n.load(Ordering::Relaxed) == 0 || s.is_full())
     }
 }
 
@@ -465,7 +465,7 @@ pub fn after_syscall(nr: u64, method: u64) {
     let Some(s) = EL0.iter().find(|s| s.tid.load(Ordering::Acquire) == me) else {
         return;
     };
-    if s.done() {
+    if s.is_done() {
         return;
     }
     let (bottom, top) = (
@@ -616,9 +616,9 @@ fn call_reply_el0() -> Option<()> {
     // Wall clock, not a yield count, for `Holding`'s own reason (threads may run on other cores).
     let deadline = crate::arch::timer::now() + 30 * crate::arch::timer::frequency();
     let filled = || {
-        EL0[0].series[abi::rendezvous::RECV_CAP as usize].full()
-            && EL0[0].series[abi::reply::REPLY as usize].full()
-            && EL0[1].series[abi::rendezvous::CALL as usize].full()
+        EL0[0].series[abi::rendezvous::RECV_CAP as usize].is_full()
+            && EL0[0].series[abi::reply::REPLY as usize].is_full()
+            && EL0[1].series[abi::rendezvous::CALL as usize].is_full()
     };
     while !filled() && crate::arch::timer::now() < deadline {
         sched::yield_now();
