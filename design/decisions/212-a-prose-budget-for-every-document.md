@@ -29,7 +29,10 @@ graph in the metrics deck.**
 The ratchet is what the recommendation below describes. A document already over the cap may not
 grow. A document under it may not cross. A new document, or one rewritten wholesale, meets the cap
 outright. An exception is marked in the document itself and carries its reason, which is the rung the
-ladder permits when the higher one costs more than the failure does. No migration sweep: the 174
+ladder permits when the higher one costs more than the failure does. calef granted
+`design/fatal-risks.md` a marked exception on 2026-09-24 (UTC) at 4,235 words against the cap, the
+first exception granted under this section, and the marker lives in that file with its reason. No
+migration sweep: the 174
 documents over the cap are worked worst-first by words times readers, and the ones nobody reads are
 left alone or archived.
 
