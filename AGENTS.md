@@ -32,8 +32,7 @@ is the goal. Proceed autonomously, produce whole pieces, and let calef steer at 
 ## How to work
 
 Default to autonomous execution. Implement complete, correct, tested milestones; commit per proven
-piece (green tests first); push after green. You are building the demonstrator. calef reviews
-architecture and outcomes, not every line.
+piece (green tests first); push after green.
 
 ## Three principles, and what makes each one hold
 
@@ -140,6 +139,12 @@ is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS
 answer to the second case and an evasion in the first. Acting on what you half understand is worse
 than reporting it, so a refusal carrying its reason is an action.
 
+## Measure first, then decide
+
+When the problem is not understood, measuring is the action: name the question the data will
+answer, and decide the remediation separately, with the data in hand
+([design/tenets/measure-first.md](design/tenets/measure-first.md)).
+
 ## Elegance and performance beat implementation convenience
 
 calef, 2026-08-16: "We wouldn't be building this project out of convenience. This whole enterprise
@@ -155,9 +160,7 @@ words, so the reader can weigh it as effort rather than mistake it for judgment.
 
 It is not a licence to gold-plate. Elegance here means the option with fewer moving parts, fewer
 things to remember, and fewer places to be wrong. It does not mean more abstraction, more
-generality, or more machinery: those are usually *less* elegant and always more to maintain. Do not
-speculatively trait-ify, and do not take a dependency for tidiness: §46 (thin primitives or whole
-subsystems).
+generality, or more machinery: those are usually *less* elegant and always more to maintain.
 
 Performance belongs in the sentence for the same reason. Measure rather than argue (`script/bench`,
 the icount tripwire, the honest ties). A recommendation that trades measurable performance for a
@@ -307,8 +310,7 @@ can tell an intention from an observation in prose, and it does not touch the `B
 
 Open decisions live in a file, not in a conversation. One waiting on calef goes in `design/decisions/`
 marked [`status: PROPOSED`](design/decisions/README.md), one file each: what is being decided, the
-options, the recommendation with its reason, and what is blocked until it is answered. The number is
-the integrator's at merge.
+options, the recommendation with its reason, and what is blocked until it is answered.
 
 And work waiting on calef carries its own label and its own ask (calef, 2026-08-04), both at the
 moment the decision to hold is made and not later:
@@ -385,10 +387,10 @@ write it down. The anecdotes behind these four are in
 ## A fork reaches calef with its questions already answered
 
 calef, 2026-08-18: *"my intent is not just to have a lane surface a problem, but to investigate and
-propose solutions so that the questions I usually ask to help decide I don't need to ask."* The
-scarcest thing in this project is his attention. A fork that reaches him having spent it on lookups
-anyone could have run has been mishandled, even if it arrived with a tidy list of options. This
-binds whoever presents the fork, which is usually the maintainer rather than a lane.
+propose solutions so that the questions I usually ask to help decide I don't need to ask."* A fork
+that reaches him having spent his attention on lookups anyone could have run has been mishandled,
+even if it arrived with a tidy list of options. This binds whoever presents the fork, which is
+usually the maintainer rather than a lane.
 
 The seven questions. A proposal that cannot answer one should say so rather than leave it implied.
 
@@ -408,11 +410,10 @@ all lookups. If the presenter is reaching for an adjective where a command would
 finished.
 
 Two limits, so this does not become a tax. Recommend on reversible forks; give options only on
-irreversible ones (the *move fast* tenet's list: anything two programs agree on, a name, a
-dependency, the syscall surface, a fact that leaves the machine). And a fork only earns a lane when
-nobody can say what the options cost: if calef can answer in a sentence, researching first spends
-more than a wrong answer would. Guard against proposal-shaped procrastination, because a lane is not
-a place to put a question you are avoiding.
+irreversible ones (the *move fast* tenet's list). And a fork only earns a lane when nobody can say
+what the options cost: if calef can answer in a sentence, researching first spends more than a wrong
+answer would. Guard against proposal-shaped procrastination, because a lane is not a place to put a
+question you are avoiding.
 
 ## The rules that hold the codebase together
 
@@ -473,11 +474,10 @@ name.
 ## The syscall surface is a boundary, not a habit
 
 Milestone 7's process-model question is decided: capabilities, an `svc` + `x8` ABI with a narrow,
-explicit surface (DECISIONS §10, §16). The discipline that remains: the surface stays small and
-every method is deliberate. New methods are fine within the established capability model (object
-revocation added `Untyped::SPLIT` and `DESTROY` this way); record each new method's semantics in
-`design/decisions/`, not just in code. A method that does not fit the model, or a brand-new syscall
-number, is a design fork, raise it before building it.
+explicit surface (DECISIONS §10, §16). New methods are fine within the established capability model
+(object revocation added `Untyped::SPLIT` and `DESTROY` this way); record each new method's
+semantics in `design/decisions/`, not just in code. A method that does not fit the model, or a
+brand-new syscall number, is a design fork, raise it before building it.
 
 ## Testing
 

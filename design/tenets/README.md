@@ -12,7 +12,8 @@ which is what `design/` holds), and refused the reason first offered for `design
 rows would crowd the glossary index: `script/lint` reads `notes/*.md` without recursing, so a
 `notes/tenets/` subdirectory would have cost that index nothing and the argument was never real.
 `project-history.md` arrived after that ruling and was named on its own: Name: ratified 2026-09-24
-(calef, approving #1189).*
+(calef, approving #1189). `measure-first.md` was named the same way: Name: ratified
+2026-09-24 (calef, approving #1182).*
 
 | appendix | what it explains |
 |---|---|
@@ -20,6 +21,7 @@ rows would crowd the glossary index: `script/lint` reads `notes/*.md` without re
 | [mechanisms-not-memory.md](mechanisms-not-memory.md) | the ladder's rungs, the evening that produced it, and what rung zero cost |
 | [elegance-over-convenience.md](elegance-over-convenience.md) | why an argument from implementation cost is the weakest one available here |
 | [reversibility.md](reversibility.md) | why each category is irreversible, and the two failures that shaped the rule |
+| [measure-first.md](measure-first.md) | why measuring is the action when the problem is not understood, and the case that overruled both sides |
 | [documentation-standard.md](documentation-standard.md) | why FreeBSD's Handbook and man pages are the standard, and what each part buys |
 | [lane-count.md](lane-count.md) | the measurement that retired queue depth, and the memory and disk ceilings |
 | [roles-and-the-queue.md](roles-and-the-queue.md) | the night that named the roles, and why each holds the authority it holds |
