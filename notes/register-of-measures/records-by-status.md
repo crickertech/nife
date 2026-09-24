@@ -115,14 +115,18 @@ has it at zero.
 ## Unnumbered proposals
 
 74 at 2026W36, and zero in every week before it: the `proposals_unnumbered` column in the CSV.
-`design/roadmap/proposals/` was created on 2026-09-04 by milestone 247 (follow-on work named by a
+The counts in this section were each taken on a different day, and each says which. The pile grew
+to 83 at 2026W37 and fell to 2 at 2026W38 when most of it was promoted to numbers, so no two of
+them should be read against each other without their dates.
+`design/roadmap/proposals/` was created on 2026-09-04 (UTC) by milestone 247 (follow-on work named by a
 finished milestone goes nowhere, and this is the third time).
 
 Since 2026-09-19 they are drawn on top of the milestones chart, as the eighth series. The register
 used to say there was no chart because there was one bar. That was true at 2026W36 and stopped being
 true two weeks later without anybody revisiting it; the column had been collected every week and
-drawn nowhere. The bar totals on that chart now include them. So 2026W38 reads 431, which is 324
-numbered milestones and 107 proposals. The jump at 2026W36 is the pile appearing when the directory
+drawn nowhere. The bar totals on that chart now include them. On 2026-09-18, mid-week, 2026W38 read
+431: 324 numbered milestones and 107 proposals. The finished week reads 515 and 2, after the
+promotions. The jump at 2026W36 is the pile appearing when the directory
 did, not a burst of milestones. They sit on top because they are work that has not entered the
 roadmap yet. A new slot is appended so that no existing series changes colour.
 
@@ -142,8 +146,8 @@ nothing is waiting on it. An identified piece of work nobody has scheduled is a 
 something was found wrong or missing, and the finding is parked. That is closer to debt. But the
 count alone cannot tell you whether the pile is stalling, for two reasons.
 
-It is a net count, and the flow is gross. Five proposals have left the directory since it existed,
-so 86 have been written and 81 remain. They left in two ways. One was promoted to a number the
+It is a net count, and the flow is gross. On 2026-09-11, five proposals had left the directory
+since it existed, so 86 had been written and 81 remained. They left in two ways. One was promoted to a number the
 ordinary way: milestone 256 (x86_64 places PCI BARs in a hardcoded window, and on xenon that window
 is RAM). The others were done by a lane that picked the file up and fixed the thing. Sometimes that
 lane filed a narrower proposal in its place: `the-tcb-capability-that-outlives-start` became a fix
@@ -152,8 +156,10 @@ draining as fast as it fills, and nothing here tells them apart.
 
 Age is the tell, and age is not in this column. `script/roadmap`'s own header says so. A gate on age
 ("no proposal older than N days") would be routed around by not writing proposals, which is worse.
-So it prints the count and the date of the oldest on every `script/lint` run. Today the oldest is
-2026-09-03 and the directory is a week old, so nothing has had time to go stale. **The number to
+So it prints the count and the date of the oldest on every `script/lint` run. On 2026-09-11 the
+oldest was dated 2026-09-03 and the directory was a week old, so nothing had had time to go stale.
+The oldest predates the directory only by time zone: both are the commit of 2026-09-03 19:56
+Pacific, which is 2026-09-04 in UTC. **The number to
 watch is this one going up while the oldest date stops moving.** `script/roadmap --proposed` lists
 them oldest first and is the view that answers it.
 
@@ -162,8 +168,8 @@ are read once, by one person, on the day they are written. `AGENTS.md` records t
 Milestone 90 (a guard page under the per-CPU secondary stacks) exists only because calef happened to be at his
 desk the day a report named it. Milestone 94 (the untracked-work sweep, and the convention that ends
 the category) swept the tree for this category, then left its own inventory in a pull request body
-for twelve days. A count of 74 visible proposals is worse than 74 scheduled milestones. It is far
-better than 74 findings nobody can enumerate.
+for twelve days. A count of 74 visible proposals (2026W36) is worse than 74 scheduled milestones.
+It is far better than 74 findings nobody can enumerate.
 
 ## Milestones by status
 
@@ -196,17 +202,19 @@ Two statuses were missing from this chart's vocabulary until 2026-09-20, and one
 for five days without anyone noticing. `script/metrics` keys the count on a fixed list. A token it
 does not hold is counted as nothing rather than as an error, so `milestones_total` went short by
 exactly the blocks it could not see. `SUPERSEDED` was minted 2026-09-15 and never added. Seven
-blocks were invisible, and 2026W38's total read 435 where the tree had 442. Milestone 448 (a refusal
+blocks were invisible, and on 2026-09-20 2026W38's total read 435 where the tree had 442. That is
+before the 42 refusals below, and a different day from the 431 in the proposals section. Milestone 448 (a refusal
 gets a number, a status, and a condition that would change it) added `SUPERSEDED` and `REFUSED`
 together. It restated the history with `--backfill`, so the correction reaches the weeks already
 written, not only the next one. A chart that undercounts silently looks exactly like a chart that is
 right.
 
 `REFUSED` will move every denominator in the deck, and it is not work appearing. Milestone 448
-backfilled 42 blocks for refusals that name executable work, taking the roadmap from 444 milestones
-to 487. None of them is a backlog item. They are excluded from `script/roadmap --ready`, from the
+backfilled 42 blocks for refusals that name executable work. The roadmap went from 444 milestones
+to 487, which is those 42 plus milestone 448's own block (its "before and after" table, 2026-09-20;
+corrected 2026-09-24, when this sentence read as though 444 + 42 made 487). None of them is a backlog item. They are excluded from `script/roadmap --ready`, from the
 gate classification and from every count that reads as outstanding. The ready count was 120 before
 and 120 after. The numbers that move are the totals a stranger quotes, so they are recorded in the
-register rather than left to be rediscovered as a cliff in a bar chart. When this was written on 2026-09-20 the column reached this chart only when the index table was
-regenerated at merge, because the chart read index rows and a lane never edits that table. The index
+register rather than left to be rediscovered as a cliff in a bar chart. When this was written on 2026-09-20, the column reached
+this chart only when the index table was regenerated at merge, because the chart read index rows and a lane never edits that table. The index
 was retired on 2026-09-21.
