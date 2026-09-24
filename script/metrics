@@ -193,6 +193,72 @@ DECISION_STATUSES = ['DECIDED', 'AMENDED', 'SUPERSEDED', 'PROPOSED', 'UNRECORDED
 # case where the other two are upper, because these are the words a `Name:` block literally spells.
 NAME_STATUSES = name_provenance.STATUSES
 
+# ---------------------------------------------------------------------------------------------
+# Which model wrote it (the commits-and-lines-by-model milestone, provisional).
+#
+# **The source is the `Co-Authored-By` trailer, and the richer source was refused on purpose.** The
+# agent harness's own session records carry tokens per model, which is a better measure of effort
+# than either of the two columns below. They are not usable here and the reasons are structural
+# rather than a matter of taste: they are not in git, they live on one laptop and nothing promises
+# to keep them (`script/effort`'s header already records 2026W29 through 2026W33 as unrecoverable);
+# they cannot be backfilled, and git can; they see one machine, which is not hypothetical, because
+# `Claude Fable 5` signs 360 commits here and appears in NO session record on the machine those
+# records live on; and this script may not read anything but git, by the rule at the top of this
+# file, because `.github/workflows/metrics.yml` runs it on a GitHub runner where none of that
+# exists. A trailer-based series can live here. A token-based one cannot.
+#
+# **Every commit falls in exactly one of three buckets, and the sum is checked** (calef,
+# 2026-09-24). `attributed` (a trailer, counted per model), `unattributed` (authored, no trailer),
+# and `merge`. `models_by_week` asserts that the three add up to the week's whole commit count, and
+# a mismatch is a hard failure rather than a note. That assertion is the point of the shape: every
+# other miscount this tree has written up was a count over a set nobody could see, and this one is
+# auditable by arithmetic. If normalization ever drops a name, or a rule is wrong, the total stops
+# balancing and something says so.
+#
+# **Normalization collapses a variant, never a version.** `Claude Opus 5 (1M context)` and
+# `Claude Opus 5` are one model addressed through two context windows, so the trailing parenthetical
+# is stripped. `Claude Fable 5.1` keeps its own column, because a version is a different model and
+# folding it into `Claude Fable 5` would be exactly the silent merge this table exists to prevent.
+#
+# **A name this table has never seen is counted in `other_models` AND printed by name on every
+# run.** It is not dropped and it does not quietly become an existing model. That is this tree's
+# recurring "checked nothing, found nothing" failure (MILESTONE_STATUSES above carries the same
+# scar: a status missing from a list was counted as zero for five days), and the difference here is
+# that the bucket is visible in the CSV, the value is named on stderr, and the invariant still
+# balances, so the reader is told rather than reassured.
+MODEL_SLUGS = ['opus_5', 'opus_4_8', 'sonnet_5', 'fable_5', 'fable_5_1', 'other_models']
+
+# Every trailer value this repository has ever carried, mapped to its column. Checked 2026-09-24
+# against all 5,487 commits: 2,934 carry a trailer and these seven spellings are all of them.
+# `Claude Code` is the tool rather than a model; it signs exactly one commit, from before the
+# convention settled, and it is recorded here so that it lands in `other_models` as a decision
+# rather than as an unrecognized value warned about on every run for the rest of the project.
+MODEL_TRAILERS = {
+    'Claude Opus 5': 'opus_5',
+    'Claude Opus 4.8': 'opus_4_8',
+    'Claude Sonnet 5': 'sonnet_5',
+    'Claude Fable 5': 'fable_5',
+    'Claude Fable 5.1': 'fable_5_1',
+    'Claude Code': 'other_models',
+}
+MODEL_UNKNOWN = 'other_models'
+
+# The three buckets no model owns. `pre_convention` is split out of `unattributed` because the two
+# hide different facts: a commit made before the first trailer ever appeared could not have carried
+# one, and a commit made after it and carrying none is a gap. Only the second is a defect.
+MODEL_EXTRA = ['unattributed', 'pre_convention', 'merge']
+
+
+def _model_col(kind, slug):
+    return 'model_' + kind + '_' + slug
+
+
+def normalize_model(raw):
+    """A trailer value, reduced to the model it names. See MODEL_TRAILERS above."""
+    name = raw.split('<')[0].strip()
+    return re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
+
+
 
 def _col(prefix, status):
     return prefix + '_' + status.lower().replace('-', '_')
@@ -226,6 +292,14 @@ MEASURES = [
      + ['milestones_total', 'proposals_unnumbered']),
     ('velocity', ['milestones_built_this_week']),
     ('pull-requests', ['merged_pull_requests']),
+    # The model-attribution columns (file name `models.csv`, provisional, 2026-09-24). Commits
+    # and lines are one measure and one file rather than two, because a single pass over the same
+    # git log produces both and a week that has one always has the other. The two charts it feeds
+    # keep their own names, `models-commits.svg` and `models-lines.svg`, the way `cost` feeds
+    # `effort.svg`.
+    ('models', [_model_col('commits', s) for s in MODEL_SLUGS + MODEL_EXTRA]
+     + ['model_commits_total']
+     + [_model_col('lines', s) for s in MODEL_SLUGS + ['unattributed', 'pre_convention']]),
     ('decisions', [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']),
     ('names', [_col('names', s) for s in NAME_STATUSES] + ['names_total']),
     ('lines', ['kernel_code_lines', 'kernel_comment_lines',
@@ -498,6 +572,136 @@ def merges_by_week(rev):
         key = week_of(when)
         counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def models_by_week(rev):
+    """Commits and lines by the model that signed them, per ISO week, from git alone.
+
+    **The third flow on this page, and it answers a question the other two cannot**: the velocity
+    and pull-request columns say how much landed, and this says who wrote it. The source is the
+    `Co-Authored-By` trailer `AGENTS.md` has every agent commit carry; MODEL_TRAILERS above has the
+    argument for why the harness's own token records were refused as the spine.
+
+    Read from HEAD for every week rather than from each week's own revision, exactly like
+    `merges_by_week`: a commit's trailer and its diff are facts that do not change, so one pass
+    over one log answers every week at once.
+
+    **Three buckets, mutually exclusive, and the sum is asserted.**
+
+    - `merge`, first, because a merge commit is not authored work. On this repository
+      `allow_squash_merge` is false and the merge queue creates them, so a merge commit IS a pull
+      request landing, which makes this a throughput count worth having on its own terms rather
+      than a residue. 95 merge commits do carry a trailer, from an agent resolving a conflict, and
+      the bucket still wins: the commit records a landing, not a piece of writing.
+    - `attributed`, per model, for a non-merge commit whose trailer this table knows.
+    - `unattributed`, for a non-merge commit with no trailer, split into `pre_convention` (before
+      the first trailer this repository ever carried) and `unattributed` proper (after it, which is
+      the half that is actually a gap).
+
+    **Merges carry a commit count and no line count**, and the reason is that a merge's diff
+    against its first parent is the whole of what landed on the branch, every line of which is
+    already counted on the branch's own commits. Adding it would double the tree.
+
+    **Lines are `added + removed`, the churn, not the net.** Net is the wrong quantity twice over:
+    a commit that only deletes reads negative, and a careful mechanical sweep across 246 files can
+    net out near zero while being the largest diff of the week. The tree's net size already has a
+    series of its own (`lines.svg`), which is a stock; this is a flow, and what flows is how much
+    text was touched.
+
+    A week entirely before the convention gets EMPTY cells for every model column and for
+    `unattributed`, not zeroes, which is the same absent-is-not-zero rule milestone 519's cost
+    columns follow. `pre_convention`, `merge` and `model_commits_total` are still filled for such a
+    week, because those three are countable without any trailer existing.
+    """
+    slugs = MODEL_SLUGS + MODEL_EXTRA
+    weeks = {}
+    unknown = {}
+
+    def bucket(week):
+        return weeks.setdefault(week, {s: 0 for s in slugs})
+
+    # One `git log --numstat` over the whole history: two numbers and a trailer per commit, in one
+    # process, the same economy `Tree` buys with one `cat-file --batch`. RS separates the records
+    # because a commit subject can hold anything, US separates trailers because a trailer value can
+    # hold a comma.
+    fmt = '%x1e%H%x09%cI%x09%(trailers:key=Co-Authored-By,valueonly,separator=%x1f)'
+    log = git('log', '--numstat', '--format=' + fmt, rev).decode('utf-8', 'replace')
+    merge_parents = set(git('log', '--min-parents=2', '--format=%H', rev).decode().split())
+    first_trailer = None
+    records = []
+    for chunk in log.split('\x1e'):
+        if not chunk.strip():
+            continue
+        head, _, rest = chunk.partition('\n')
+        sha, when, trailers = head.split('\t')
+        names = [normalize_model(t) for t in trailers.split('\x1f') if t.strip()]
+        churn = 0
+        for line in rest.split('\n'):
+            if not line.strip():
+                continue
+            added, removed, _ = line.split('\t', 2)
+            churn += (int(added) if added != '-' else 0) + (int(removed) if removed != '-' else 0)
+        records.append((sha, when, names, churn))
+        if names and sha not in merge_parents and (first_trailer is None or when < first_trailer):
+            first_trailer = when
+
+    for sha, when, names, churn in records:
+        week = week_of(when)
+        row = bucket(week)
+        row['_commits'] = row.get('_commits', 0) + 1
+        if sha in merge_parents:
+            row['merge'] += 1
+            continue
+        if names:
+            # **A commit with more than one trailer is counted once, under the first, and named on
+            # stderr.** Counting it twice would break the invariant this function asserts, and
+            # splitting a commit in half would put a fraction in a column of counts. Measured
+            # 2026-09-24: no commit in this repository carries two, so the rule has never fired and
+            # the warning is what would tell us it started to.
+            if len(names) > 1:
+                unknown.setdefault('(%d trailers on one commit) %s' % (len(names), sha), 0)
+                unknown['(%d trailers on one commit) %s' % (len(names), sha)] += 1
+            slug = MODEL_TRAILERS.get(names[0])
+            if slug is None:
+                unknown[names[0]] = unknown.get(names[0], 0) + 1
+                slug = MODEL_UNKNOWN
+            row[slug] += 1
+            row[_model_col('lines', slug)] = row.get(_model_col('lines', slug), 0) + churn
+        elif first_trailer is not None and when < first_trailer:
+            row['pre_convention'] += 1
+            row['model_lines_pre_convention'] = row.get('model_lines_pre_convention', 0) + churn
+        else:
+            row['unattributed'] += 1
+            row['model_lines_unattributed'] = row.get('model_lines_unattributed', 0) + churn
+
+    if unknown:
+        # Named, never swallowed. See MODEL_TRAILERS.
+        print('metrics: %d commit trailer value(s) this script has never seen, counted in '
+              'other_models: %s' % (sum(unknown.values()),
+                                    '; '.join('%s (%d)' % (k, v) for k, v in sorted(unknown.items()))),
+              file=sys.stderr)
+
+    out = {}
+    for week, row in weeks.items():
+        total = row.pop('_commits')
+        counted = sum(row[s] for s in slugs)
+        if counted != total:
+            # Loud, because a denominator that leaks quietly is the failure this whole shape was
+            # built to make impossible. There is no softer self-check in this script to follow.
+            raise SystemExit('metrics: %s does not balance: %d commits, %d bucketed '
+                             '(attributed + unattributed + merge must be every commit)'
+                             % (week, total, counted))
+        cells = {_model_col('commits', s): row[s] for s in slugs}
+        cells['model_commits_total'] = total
+        for s in MODEL_SLUGS + ['unattributed', 'pre_convention']:
+            cells[_model_col('lines', s)] = row.get(_model_col('lines', s), 0)
+        # A week wholly before the first trailer could not have carried one. Absent, not zero.
+        if first_trailer is not None and week < week_of(first_trailer):
+            for s in MODEL_SLUGS + ['unattributed']:
+                cells[_model_col('commits', s)] = ''
+                cells[_model_col('lines', s)] = ''
+        out[week] = cells
+    return out
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1410,7 +1614,22 @@ def _tokens_per_milestone(row):
     return tokens / 1_000_000.0 / built
 
 
+def _fold(kind):
+    """The chart's `other models` band: every model outside the four that have a hue.
+
+    The palette has eight fixed slots and its own comment rules that a ninth series folds into
+    another rather than inventing a colour. The CSV keeps `fable_5_1` and `other_models` apart,
+    because that is where a reader checks arithmetic; the chart adds them, because a band of seven
+    commits is a legend entry and not a shape.
+    """
+    def derive(row):
+        return sum(_cell(row, _model_col(kind, s)) for s in ('fable_5_1', 'other_models'))
+    return derive
+
+
 DERIVED = {
+    'model_commits_other_shown': _fold('commits'),
+    'model_lines_other_shown': _fold('lines'),
     'names_no_block': lambda row: max(
         0.0, _cell(row, 'names_total') - sum(_cell(row, _col('names', s)) for s in NAME_STATUSES)),
     'tokens_per_milestone': _tokens_per_milestone,
@@ -1489,6 +1708,25 @@ CHARTS = [
     ('pull-requests.svg', 'Pull requests merged each week',
      'first-parent merge commits on main; a milestone is one of these, and most of these are not',
      [('merged that week', 'merged_pull_requests')], 1.0, None, None),
+    ('models-commits.svg', 'Commits each week, by the model that signed them',
+     'from the Co-Authored-By trailer; attributed + unattributed + merge is every commit that '
+     'week, and a merge is a pull request landing rather than a piece of writing',
+     [('Opus 5', 'model_commits_opus_5'), ('Opus 4.8', 'model_commits_opus_4_8'),
+      ('Sonnet 5', 'model_commits_sonnet_5'), ('Fable 5', 'model_commits_fable_5'),
+      ('other models', 'model_commits_other_shown'),
+      ('unattributed', 'model_commits_unattributed'),
+      ('before the convention', 'model_commits_pre_convention'),
+      ('merge (a pull request landing)', 'model_commits_merge')], 1.0, None,
+     'model_commits_unattributed'),
+    ('models-lines.svg', 'Lines touched each week, by the model that signed them, in thousands',
+     'added plus removed, not net. VOLUME, NOT EFFORT: the hardest change of 2026-09-23 was a '
+     'dozen lines and the largest was a mechanical sweep. Merges carry no line count',
+     [('Opus 5', 'model_lines_opus_5'), ('Opus 4.8', 'model_lines_opus_4_8'),
+      ('Sonnet 5', 'model_lines_sonnet_5'), ('Fable 5', 'model_lines_fable_5'),
+      ('other models', 'model_lines_other_shown'),
+      ('unattributed', 'model_lines_unattributed'),
+      ('before the convention', 'model_lines_pre_convention')], 1000.0, None,
+     'model_lines_unattributed'),
     ('effort.svg', 'Machine effort per milestone built, in millions of tokens',
      'a ratio, not a total: down means the method got cheaper. Weeks with no surviving records are '
      'marked, not zeroed',
@@ -1541,11 +1779,13 @@ def fill_derived(rows, rev):
     """
     built = built_by_week(Tree(rev))
     merged = merges_by_week(rev)
+    models = models_by_week(rev)
     effort = effort_by_week()
     cash = cash_by_week(date.today())
     for week, row in rows.items():
         row['milestones_built_this_week'] = built.get(week, 0)
         row['merged_pull_requests'] = merged.get(week, 0)
+        row.update(models.get(week, {}))
         tokens, hours, blended = effort.get(week, (None, None, ''))
         row['lane_tokens'] = '' if tokens is None else tokens
         row['lane_wall_clock_hours'] = '' if hours is None else '%.1f' % hours
