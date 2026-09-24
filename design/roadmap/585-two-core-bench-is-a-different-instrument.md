@@ -1,6 +1,10 @@
-# Two cores is not a different number for the x86_64 bench, it is a different instrument
+# 585. Two cores is not a different number for the x86_64 bench, it is a different instrument
 
-**Status: PROPOSED 2026-09-23.** Raised by the lane that explained CI's `bench (icount regression
+**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+`two-core-bench-is-a-different-instrument`, filed 2026-09-23, on calef's instruction of 2026-09-24 to promote the proposals.
+The text below is the proposal's own, unedited except for this paragraph and the
+`## Index row` section: the argument is its author's and promotion is not the moment to
+improve it. As filed: raised by the lane that explained CI's `bench (icount regression
 tripwire)` failure on milestone 315 (a port revoke that reaches every core). The evidence is in
 notes/benchmarks.md, the 2026-09-23 section; this block is the work that evidence leaves behind.
 
@@ -54,3 +58,7 @@ what a spawn costs.
 - **Leave `bench_x86` inheriting the runner default and accept the flip.** Refused: it is the only
   arm of three that did so, its own output already claimed otherwise, and the inheritance is how a
   runner change with nothing to do with benchmarking became a benchmark failure.
+
+## Index row
+
+At two cores the x86_64 icount bench stays deterministic but stops being a function of the code: a semantically empty change moved `spawn_reap` by 42% because its wait loop measures who won a race. It asks for race-free wait loops, a baseline file per core count, and a tolerance taken from measured spread, so that the two-core x86_64 configuration milestone 315 made the default can be benchmarked at all.
