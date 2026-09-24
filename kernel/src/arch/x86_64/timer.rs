@@ -631,6 +631,19 @@ pub fn ticks() -> u64 {
     TICKS.load(Ordering::Relaxed)
 }
 
+/// **Is this CPU's tick raised and waiting?** The local APIC timer's bit in the IRR.
+///
+/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
+/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds late, so a
+/// test that assumes a tick is pending after a fixed masked spin can be measuring the host. See
+/// notes/load-sensitive-assertions.md.
+///
+/// **Provisional name** (a lane's, 2026-09-24).
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn tick_pending() -> bool {
+    irq::timer_pending()
+}
+
 /// Spin for `counter_ticks` of the TSC.
 pub fn spin_for(counter_ticks: u64) {
     let start = now();

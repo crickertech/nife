@@ -18,6 +18,18 @@
 //!
 //! These tests spin against the wall clock rather than counting instructions, so they hold under
 //! `-icount` and under HVF alike: the counter `now()` reads advances in both.
+//!
+//! **What they do not trust the wall clock for is the tick being raised.** Both used to assume that
+//! a masked spin of three tick periods guarantees a tick is pending when it ends. It does not: the
+//! emulator raises the timer from its own main loop, and on 2026-09-24 that measured 1 to 5 ms
+//! after the deadline typically and **86 ms** at worst, over 2,000 masked windows on the riscv64
+//! `sifive-u54` model. So `unmasking_delivers_the_tick_that_was_held` failed CI once on `rv64`
+//! (pull request #1195, a change to `design/decisions/` alone) saying the held tick had been
+//! dropped. The same measurement found the kernel taking the tick at the unmask in every one of
+//! 4,000 windows once it was pending, so the likely reading of that red is a tick not yet raised
+//! rather than one dropped; the log cannot say which, and that is the gap. Each window now ends only once the
+//! architecture says the tick is pending ([`until_the_tick_is_raised`]), which makes the first test
+//! non-vacuous and takes the host out of the second. See notes/load-sensitive-assertions.md.
 
 use crate::sched;
 
@@ -27,6 +39,36 @@ use crate::sched;
 fn three_tick_periods() -> u64 {
     3 * crate::arch::timer::frequency() / crate::arch::timer::TICK_HZ
 }
+
+/// How long a masked window waits for the host to raise a tick that is already due, in scheduler
+/// tick periods: one second, against a worst case measured at under nine periods (86 ms).
+///
+/// **A leak trap, not a timing claim.** Nothing the kernel does is inside this bound: the deadline
+/// has passed and the rest is the emulator getting round to it. A timer that is genuinely broken
+/// never raises at all, and this is what turns that into a failure that says so rather than a hang.
+const RAISE_BOUND_PERIODS: u64 = 100;
+
+/// With interrupts **already masked**, spin until this core's tick is architecturally pending, or
+/// the bound runs out. Returns whether it was raised.
+///
+/// This is the difference between "a tick was held" and "enough wall clock passed that a tick
+/// should have been held". Only the first is the property these tests are about.
+fn until_the_tick_is_raised() -> bool {
+    let bound = RAISE_BOUND_PERIODS * crate::arch::timer::frequency() / crate::arch::timer::TICK_HZ;
+    let start = crate::arch::timer::now();
+    while !crate::arch::timer::tick_pending() {
+        if crate::arch::timer::now().wrapping_sub(start) >= bound {
+            return false;
+        }
+        core::hint::spin_loop();
+    }
+    true
+}
+
+/// The message both tests give when the host never raised the tick at all.
+const NEVER_RAISED: &str = "the timer was never raised in a second of masked spinning, so this \
+     window held nothing and proves nothing: the timer is not being armed, or the emulator has \
+     stopped delivering it";
 
 /// **Interrupts masked means no preemption is taken, however long the window is.**
 ///
@@ -46,9 +88,14 @@ fn a_masked_window_takes_no_preemption() {
     let was_enabled = crate::arch::interrupts::disable();
     let before = sched::preemptions_here();
     crate::arch::timer::spin_for(three_tick_periods());
+    // **And a tick must actually be waiting**, or the window is vacuous: a host that had not yet
+    // raised the timer would pass this test with interrupts wide open. Still masked, so still on
+    // this core, and `preemptions_here` below reads the same counter as above.
+    let raised = until_the_tick_is_raised();
     let during = sched::preemptions_here();
     crate::arch::interrupts::restore(was_enabled);
 
+    assert!(raised, "{}", NEVER_RAISED);
     assert_eq!(
         during,
         before,
@@ -68,30 +115,43 @@ fn a_masked_window_takes_no_preemption() {
 /// delivered at `restore`, which is why `map_new`'s own probe can report a non-zero preemption
 /// count for a window that took none.
 ///
-/// The spin after `restore` is one tick period, which is generous: the pending interrupt is
-/// delivered immediately, and the spin only covers the case where the mask happened to close a
-/// hair before the tick was due.
+/// **The tick is raised before the mask comes off, and that is what makes this test about the
+/// kernel.** It used to spin three periods, unmask, spin one more and assert, which asks the host to
+/// have raised the timer within forty milliseconds of wall clock; the host once did not, and this
+/// assertion reported a dropped tick on `rv64` in a run that changed no code. Now the window waits
+/// for the pending bit ([`until_the_tick_is_raised`]), so by the unmask the interrupt is already
+/// waiting at this core and delivery is a matter of instructions. The spin after `restore` is kept,
+/// bounded at one tick period, because real hardware may take a few cycles to take an interrupt
+/// after unmasking, and a period is far beyond that.
 #[test_case]
 fn unmasking_delivers_the_tick_that_was_held() {
-    // **Which core is read is fixed before the mask, not after.** The preemption this asserts on
-    // may migrate this thread, and `preemptions_here()` would then read whichever core it landed
-    // on: a counter that was never the one being watched. `preemptions_on` pins it to the core
+    let was_enabled = crate::arch::interrupts::disable();
+    // **Which core is read is fixed under the mask, not before it.** The preemption this asserts
+    // on may migrate this thread, and `preemptions_here()` would then read whichever core it
+    // landed on: a counter that was never the one being watched. Read here, nothing can move this
+    // thread before the interrupt is taken, and `preemptions_on` pins every later read to the core
     // that held the tick.
     let core = crate::cpu::id();
     let count = || sched::preemptions_on(core);
     let before = count();
 
-    let was_enabled = crate::arch::interrupts::disable();
     crate::arch::timer::spin_for(three_tick_periods());
+    let raised = until_the_tick_is_raised();
     crate::arch::interrupts::restore(was_enabled);
 
-    crate::arch::timer::spin_for(three_tick_periods() / 3);
+    assert!(raised, "{}", NEVER_RAISED);
+
+    let start = crate::arch::timer::now();
+    let period = three_tick_periods() / 3;
+    while count() == before && crate::arch::timer::now().wrapping_sub(start) < period {
+        core::hint::spin_loop();
+    }
     let after = count();
 
     assert!(
         after > before,
-        "no preemption was taken in the tick period after unmasking, so the ticks held across the \
-         mask were dropped rather than deferred; masking a benchmark window would then be \
-         starving the scheduler rather than excluding it",
+        "a tick was pending when the mask came off and no preemption followed within a tick \
+         period, so the tick held across the mask was dropped rather than deferred; masking a \
+         benchmark window would then be starving the scheduler rather than excluding it",
     );
 }

@@ -443,6 +443,31 @@ pub fn ticks_on(hart: usize) -> u64 {
     TICKS[hart].load(Ordering::Relaxed)
 }
 
+/// **Is this hart's tick raised and waiting** (`sip.STIP`)? True from the moment the deadline has
+/// been signalled to this hart until the handler's `sbi_set_timer` clears it, whether or not
+/// interrupts are masked.
+///
+/// It exists for the tests that hold a tick across a masked window and then ask whether unmasking
+/// delivered it (`kernel/src/preemption_window_tests.rs`, and `holding_a_lock_masks_the_timer`
+/// below). Those tests used to assume that three tick periods of counter time guarantee a tick is
+/// pending by the end of the window. **They do not, and the gap is the host's, not this kernel's**:
+/// QEMU raises the timer from its main loop, and on 2026-09-24 the delay from the deadline to
+/// `STIP` measured 1 to 5 ms typically, 18 ms at worst on `rv64` and **86 ms** at worst on
+/// `sifive-u54`, over 2,000 masked windows each on a loaded laptop. A window that ends before the
+/// host has raised anything proves nothing about unmasking, so these tests now wait for this bit
+/// rather than for the clock. See notes/load-sensitive-assertions.md.
+///
+/// **Provisional name** (a lane's, 2026-09-24): the three architectures' copies are named alike on
+/// purpose, and the name is calef's to ratify.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn tick_pending() -> bool {
+    let sip: u64;
+    // SAFETY: reads a CSR. No side effects.
+    unsafe { asm!("csrr {}, sip", out(reg) sip, options(nomem, nostack, preserves_flags)) };
+    // `sip.STIP` is bit 5, the same bit position `sie.STIE` enables.
+    sip & STIE != 0
+}
+
 /// Milliseconds since boot, from the free-running counter (independent of the tick interrupt).
 ///
 /// Part of the arch timer contract rather than of any caller; this file's tests are what exercise
@@ -649,11 +674,14 @@ mod tests {
         // steal at any preemption point, which would compare two unrelated counters (`ticks_on`).
         let hart = crate::cpu::id();
         let before = timer::ticks_on(hart);
-        timer::spin_for(timer::interval() * 3);
-        let after = timer::ticks_on(hart);
+        // **Waited for, not spun for.** A fixed three periods asked the emulator to have raised the
+        // timer within 30 ms of wall clock, and it raises it from its own main loop: measured on
+        // 2026-09-24 at up to 86 ms after the deadline (`tick_pending`'s comment has the numbers).
+        // A timer that is genuinely dead still fails, a second later.
+        let ticked = within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(hart) > before);
 
         assert!(
-            after > before,
+            ticked,
             "no timer interrupt in three tick periods: SBI set_timer, sie.STIE, or the scause=5 \
              arm of the trap dispatcher is not delivering"
         );
@@ -893,9 +921,12 @@ mod tests {
         // The timer is alive. Hart-scoped, for `ticks_on`'s reason.
         let alive_on = crate::cpu::id();
         let t0 = timer::ticks_on(alive_on);
-        timer::spin_for(timer::interval() * 2);
+        // Waited for rather than spun for, for `the_timer_is_ticking`'s reason: the emulator can
+        // raise a tick tens of milliseconds late, and this assertion (aarch64's copy) went red that
+        // way before the suite's userspace half on 2026-08-27. See
+        // notes/load-sensitive-assertions.md.
         assert!(
-            timer::ticks_on(alive_on) > t0,
+            within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(alive_on) > t0),
             "the timer is not ticking at all"
         );
 
@@ -925,6 +956,27 @@ mod tests {
                  sstatus.SIE, and the deadlock in notes/locking.md is live: a handler that touched \
                  this lock would spin forever waiting for code that cannot run."
             );
+
+            // **And a tick is now raised and waiting**, which is what makes the release below a
+            // test of `restore` rather than of the host. The spin above is thirty milliseconds of
+            // wall clock, and the emulator raises the timer from its own main loop, as much as 86
+            // ms after the deadline (measured 2026-09-24; `tick_pending`'s comment). This twin
+            // failed CI once exactly that way, on `sifive-u54`, "interrupts did not resume" after
+            // twenty periods of waiting for a tick nobody had raised. Still masked, so still this
+            // hart, and the assertion above is repeated because the wait is part of the window.
+            assert!(
+                within_raise_bound(timer::tick_pending),
+                "the timer was never raised in a second with the lock held, so the release below \
+                 would test nothing: the timer is not being armed, or the emulator stopped \
+                 delivering it"
+            );
+            assert_eq!(
+                timer::ticks_on(hart),
+                before,
+                "A TIMER INTERRUPT FIRED WHILE A LOCK WAS HELD. IrqSafeMutex is not masking \
+                 sstatus.SIE, and the deadlock in notes/locking.md is live: a handler that touched \
+                 this lock would spin forever waiting for code that cannot run."
+            );
             (hart, before)
         };
 
@@ -945,6 +997,27 @@ mod tests {
     /// delivered, a miss being counted), which is the direction where a busy host produces a late
     /// pass rather than a wrong answer. The fixed spins these replaced turned a late delivery into
     /// a failure. See notes/load-sensitive-assertions.md.
+    /// How long a wait on the timer being raised may take, in tick periods: one second, against a
+    /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
+    /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    const RAISE_BOUND_PERIODS: u32 = 100;
+
+    /// Spin until `cond`, bounded by [`RAISE_BOUND_PERIODS`] of the free-running counter, checking
+    /// continuously rather than once a period. For waits made **with interrupts masked**, where
+    /// nothing can change `cond` except the hardware and a period's granularity would only add
+    /// latency.
+    fn within_raise_bound(mut cond: impl FnMut() -> bool) -> bool {
+        let bound = u64::from(RAISE_BOUND_PERIODS) * crate::arch::timer::interval();
+        let start = crate::arch::timer::now();
+        while !cond() {
+            if crate::arch::timer::now().wrapping_sub(start) >= bound {
+                return false;
+            }
+            core::hint::spin_loop();
+        }
+        true
+    }
+
     fn within_periods(periods: u32, mut cond: impl FnMut() -> bool) -> bool {
         for _ in 0..periods {
             if cond() {

@@ -138,6 +138,9 @@ mod reg {
     pub const TIMER_CURRENT: u64 = 0x390;
     /// How much the timer divides the bus clock by.
     pub const TIMER_DIVIDE: u64 = 0x3e0;
+    /// The Interrupt Request Register, 256 bits as eight 32-bit words 0x10 apart: bit `v` is set
+    /// while vector `v` has been accepted by this local APIC and not yet delivered to the core.
+    pub const IRR: u64 = 0x200;
 }
 
 /// Bit 8 of the spurious-interrupt register: the local APIC's software enable.
@@ -328,6 +331,15 @@ pub fn arm_periodic_timer(count: u32) {
     write(reg::TIMER_INITIAL, count);
     // Unmasked and periodic. Written last, so the count is already loaded when delivery begins.
     write(reg::LVT_TIMER, LVT_TIMER_PERIODIC | TIMER_VECTOR as u32);
+}
+
+/// **Is the timer's vector raised and waiting in this local APIC** (its bit in the IRR)? True from
+/// the moment the countdown expires until the core accepts the interrupt, which with `IF` clear is
+/// not until interrupts are unmasked. See `timer::tick_pending`, the caller.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn timer_pending() -> bool {
+    let v = TIMER_VECTOR as u64;
+    read(reg::IRR + (v / 32) * 0x10) & (1 << (v % 32)) != 0
 }
 
 /// Stop the timer delivering.
