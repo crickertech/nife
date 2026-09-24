@@ -16,3 +16,4 @@ name in this tree.*
 | [documentation-standard.md](documentation-standard.md) | why FreeBSD's Handbook and man pages are the standard, and what each part buys |
 | [lane-count.md](lane-count.md) | the measurement that retired queue depth, and the memory and disk ceilings |
 | [roles-and-the-queue.md](roles-and-the-queue.md) | the night that named the roles, and why each holds the authority it holds |
+| [routing-work-and-decisions.md](routing-work-and-decisions.md) | why a report is not a record, and what the label and the ask are for |
