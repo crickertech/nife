@@ -364,7 +364,7 @@ doubling. `notes/frames.md`'s "held" list is where that account would start.
 rather than the occupancy (the capability sweep, and `revoke`'s space registry). Both are bounded
 by live occupancy now, which left that benchmark 41% below where it had been at 128 slots and, more
 to the point, flat against the constant: doubling to 512 moves it 0.05%. So the next raise is
-cheap in the one place this one was not. `notes/benchmarks.md`'s 2026-08-27 section has the
+cheap in the one place this one was not. `notes/benchmarks/spawn-el0.md`'s 2026-08-27 section has the
 attribution, and `MILESTONE 183` is the structural fix the mitigation does not replace.
 
 ### The general lesson

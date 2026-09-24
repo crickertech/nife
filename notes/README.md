@@ -184,7 +184,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 
 ## Performance
 
-- [Benchmarks with teeth](benchmarks.md): deterministic regression gating plus real-hardware magnitudes, measured.
+- [Benchmarks with teeth](benchmarks.md): the current numbers and their gates, with the dated history in `notes/benchmarks/` appendices.
 - [The instruction clock](instruction-clock.md): timing claims measured in instructions retired, not wall time.
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md).
 - [Taking a benchmark on radon](footprint-perturbation.md): running the cache-footprint experiments on the small-cache board.
