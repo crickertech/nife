@@ -72,7 +72,7 @@ RECORDS_REFUSAL = re.compile(r"\bRefused\s+`[A-Za-z][A-Za-z0-9_-]*`")
 # A surface's block prefix says which language's comments to read, not which marker the block must
 # wear: a header written `///` in a `//!` file is exactly the mistake this is looking for, so the
 # wider set is scanned and the marker is then part of the answer.
-COMMENT_MARKERS = {"//!": ("//!", "///", "//"), "#": ("#",)}
+COMMENT_MARKERS = {"//!": ("//!", "///", "//"), "///": ("///",), "#": ("#",)}
 
 # Markdown a header can wear while still reading as one: bold and italic (`**Name:`), a heading
 # (`# Name:`), a block quote. **Backticks are deliberately absent.** `` `Name:` `` at the start of a
@@ -330,3 +330,154 @@ def classify(text):
     if status == "recorded" and not CITED.match(text):
         return None, None, refused, NO_CITATION
     return status, date, refused, None
+
+
+# ---- the kinds that are not a file's header: Rust items and documentation directories ------------
+#
+# Added 2026-09-24, when calef asked that provisional names enter a queue rather than reach him one
+# at a time. His authority covers public functions since 2026-08-23, and lanes had been minting
+# function, constant, module and appendix-directory names all day with nothing the worklist could
+# see: the four surfaces above are one-name-per-file, and these are many-names-per-file.
+#
+# **The grammar is the same `Name:` block.** What is new is only WHERE a block may sit and what it
+# is attached to, so `classify` judges every one of them unchanged. A lane minting a name writes the
+# marker; a name without one is simply not tracked. That is deliberate: thousands of `pub fn`s exist
+# with no record of why, and failing them would be the wall milestone 115 refused to build.
+
+# An item a doc comment can sit on, after its attributes. `const fn` is a function, so the keyword
+# list is scanned for the LAST keyword before the identifier.
+_ITEM = re.compile(
+    r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?"
+    r"(?:(?:const|async|unsafe|default|extern(?:\s+\"[^\"]*\")?)\s+)*"
+    r"(fn|const|static|struct|enum|union|trait|type|mod|macro_rules!)\s*(?:mut\s+)?"
+    r"([A-Za-z_][A-Za-z0-9_]*)")
+# A struct field or an enum variant, the two things a `///` can document that are not items.
+_FIELD = re.compile(r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?([a-z_][A-Za-z0-9_]*)\s*:(?!:)")
+_VARIANT = re.compile(r"^\s*([A-Z][A-Za-z0-9_]*)\s*(?:[,({=]|$)")
+ITEM_KINDS = {"fn": "function", "const": "constant", "static": "constant", "struct": "type",
+              "enum": "type", "union": "type", "trait": "type", "type": "type", "mod": "module",
+              "macro_rules!": "macro"}
+
+# An ad-hoc marker: a doc line that opens by calling itself a provisional name in bold, which is
+# how lanes wrote it before this grammar reached items. It reads as a record to a person and is
+# invisible to the worklist, which is the exact failure `strays` exists for, one level along.
+AD_HOC = re.compile(r"^\*\*Provisional names?\b")
+
+
+def attached(lines, i):
+    """(what, name) for the item a doc run ending just above line `i` (0-based) documents, or None."""
+    depth = 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if depth or s.startswith("#[") or s.startswith("#!["):
+            depth += s.count("[") - s.count("]")
+            depth = max(depth, 0)
+            i += 1
+            continue
+        if not s or s.startswith("//"):
+            i += 1
+            continue
+        m = _ITEM.match(lines[i])
+        if m:
+            return ITEM_KINDS[m.group(1)], m.group(2)
+        m = _FIELD.match(lines[i])
+        if m:
+            return "field", m.group(1)
+        m = _VARIANT.match(lines[i])
+        if m:
+            return "variant", m.group(1)
+        return None
+    return None
+
+
+def rust_items(text):
+    """Every `///` doc run in one Rust file that carries or imitates a provenance header.
+
+    Yields dicts: `line` (1-based, of the header), `what` (function, constant, type, module, macro,
+    field, variant) and `name`, or `None` for both when the run documents nothing the parse can
+    name; `block` (as `block()` reads it, or None); `strays` (as `strays()` reports them, against
+    the run alone); `ad_hoc` (line numbers of bold `Provisional name` openers).
+    """
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        if not re.match(r"^\s*///(?!/)", lines[i]):
+            i += 1
+            continue
+        start = i
+        while i < len(lines) and re.match(r"^\s*///(?!/)", lines[i]):
+            i += 1
+        run = [line.strip() for line in lines[start:i]]
+        run_text = "\n".join(run)
+        found = block(run_text, "///")
+        loose = strays(run_text, "///")
+        ad_hoc = [start + 1 + k for k, line in enumerate(run)
+                  if AD_HOC.match(line[3:].strip())]
+        if found is None and not loose and not ad_hoc:
+            continue
+        where = attached(lines, i)
+        header = next((start + 1 + k for k, line in enumerate(run)
+                       if _head("///").match(line)), start + 1)
+        yield {"line": header, "what": where[0] if where else None,
+               "name": where[1] if where else None, "block": found,
+               "strays": [(start + n, line, why) for n, line, why in loose], "ad_hoc": ad_hoc}
+
+
+# ---- documentation directories -----------------------------------------------------------------
+#
+# §75 already said a directory under `design/` or `notes/` records its name in its own README, and
+# nothing read it. A README block is a markdown PARAGRAPH (or list item) that opens `Name:`, once
+# emphasis is stripped, because that is how every existing README already wrote it (`*Name: ...*`).
+# A paragraph opening with a backticked file stem and then `Name:` is that stem's own block, and a
+# stem with none inherits the directory's: an appendix directory is minted in one piece, so one
+# block usually speaks for every file in it.
+
+_MD_WRAP = re.compile(r"^(?:[-+]\s+|\d+\.\s+)?[*_]*")
+_MD_STEM = re.compile(r"^`([^`]+)`\s*[:.,]?\s*Name:\s*(.*)$", re.S)
+
+
+def markdown_blocks(text):
+    """(directory block or None, {stem: block}, [(line, paragraph) strays]) for one README.
+
+    A stray is a paragraph that reads as a header and is not one this parse takes: bold `**Name:`,
+    a second directory block, or a bold `**Provisional name**` opener.
+    """
+    paragraphs, cur, first, fence = [], [], None, False
+    for number, line in enumerate(text.split("\n"), 1):
+        if line.strip().startswith("```"):
+            fence = not fence
+        if fence or not line.strip() or line.lstrip().startswith(("|", "#")):
+            if cur:
+                paragraphs.append((first, " ".join(cur)))
+                cur = []
+            continue
+        if re.match(r"^\s*(?:[-+]|\d+\.)\s", line) and cur:
+            paragraphs.append((first, " ".join(cur)))
+            cur = []
+        if not cur:
+            first = number
+        cur.append(line.strip())
+    if cur:
+        paragraphs.append((first, " ".join(cur)))
+
+    directory, stems, loose = None, {}, []
+    for number, para in paragraphs:
+        opener = re.match(r"^(?:[-+]\s+|\d+\.\s+)?", para)
+        body = para[opener.end():]
+        plain = body.lstrip("*_")
+        bold = body.startswith("**")
+        if plain.startswith("Name:") and not bold:
+            content = plain[len("Name:"):].strip().rstrip("*_").strip()
+            if directory is None:
+                directory = content
+            else:
+                loose.append((number, para))
+            continue
+        m = _MD_STEM.match(plain)
+        if m and not bold:
+            stem = re.sub(r"(\.md|/)$", "", m.group(1).strip())
+            stems[stem] = m.group(2).strip().rstrip("*_").strip()
+            continue
+        if (plain.startswith("Name:") and bold) or AD_HOC.match(body):
+            loose.append((number, para))
+    return directory, stems, loose

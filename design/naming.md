@@ -129,6 +129,16 @@ were refused). A crate's `lib.rs` header, a program's module doc, a `script/` en
 Cargo package's manifest each carry one `Name:` block. Adding a name touches one file, so lanes
 cannot collide.
 
+Four more kinds are read by marker (2026-09-24), in the same grammar:
+
+- `item`: a `/// Name:` paragraph in the doc of a function, constant, type, field or variant.
+- `module`: a `//! Name:` block in a Rust file that is not a crate root or a program.
+- `directory`: the `Name:` paragraph of a documentation directory's `README.md`, per §75.
+- `document`: a README paragraph opening `` `stem` Name: ``, else the directory's block.
+
+A lane minting any of these writes the marker, so the name joins `--unratified`. An unmarked item is
+not tracked and never fails.
+
 The refusals are the valuable half. A refused name is visible nowhere else, and the person who most
 needs it is the one about to propose it again.
 
@@ -283,8 +293,8 @@ The directory and stems are provisional, minted 2026-09-24.
 
 ## BUGS
 
-- Crates, programs, `script/` entries and Cargo packages carry blocks, and directories carry a
-  README. Types do not, and nothing gates them.
+- An item without a marker is invisible to the worklist, and nothing gates that. Only the lane
+  that minted a name can say it is new.
   [provenance-limits.md](naming/provenance-limits.md) says which kinds of name are uncovered.
 - `scripts/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
   says what it covers). None of their paragraphs recorded a refusal when that was priced.
