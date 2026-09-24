@@ -172,6 +172,23 @@ The third cost is the ratchet's own: it never finishes. A monotone check on 994 
 only as documents are rewritten for other reasons, so most of the tree stays over the bold number for
 a long time. That is the price of not running a migration.
 
+## Markup a gate parses is counted, and frontmatter is the likely answer
+
+**Ratified by calef on 2026-09-24 (UTC).** The budget counts every bolded span, including markup a
+gate reads. No exclusion was carved, and the table-cell precedent was not extended to it.
+
+The collision is real and appears in three subsystems. `design/decisions/` writes `**Status:`,
+`design/fatal-risks.md` writes `**The ... experiment ...:**`, and every citation in the tree writes
+`**milestone 41**`. Each is a field a script parses, wearing emphasis. `design/fatal-risks.md`
+measures exactly 4.0 per 1,000 words with all seventeen of its spans being machinery, so it meets
+the budget and has nothing left for emphasis.
+
+calef's reasoning, 2026-09-24: *"We likely want to use something different like frontmatter. Let's
+see how our frontmatter experiment goes before deciding."* So this is deferred rather than settled.
+Pull request #1195 (decision status becomes frontmatter) is the experiment, and if it holds, the fields
+move out of bold entirely and the collision stops existing instead of being carved around. Until
+then a document whose budget is spent on markup records that in its own `BUGS` section.
+
 ## BUGS
 
 - The corpus numbers were measured on 2026-09-23 with a regular expression, and the first pass of
