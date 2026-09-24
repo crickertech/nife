@@ -69,6 +69,24 @@ host-tested while the program keeps the IO: `line_editor`, `compositor`, `corema
 them apart as "the `line_editor` crate" and "the `line_editor` binary". The crate `video_terminal`
 (named for its protocol) and the program `display_terminal` (named for its role) differ on purpose.
 
+## Functions that answer yes or no
+
+Follow Rust (calef, ratified 2026-09-24, reviewing `tick_pending`). A function that answers a
+question and changes nothing is named in one of four shapes:
+
+- `is_` before an adjective, participle or noun phrase: `is_empty`, `is_tick_pending`.
+- `has_` before a thing held (`has_rdseed`), or `can_` before a verb (`can_read`).
+- A third-person verb phrase, std's shape for a relation: `contains`, `starts_with`, `overlaps`,
+  `allows`, `needs_drop`.
+
+A bare adjective, participle or noun (`enabled`, `pending`, `present`, `truncated`) reads as a
+getter, and std spells those `is_enabled`. Exempt: a function that acts and reports whether it
+worked (`insert`, `push`, `claim`, a `take_` that clears a flag); test functions, which are
+sentences here; fields; a trait method or a name another project owns (`eq`, `readonly`); and an
+`extern` symbol. The prior art and the exceptions std keeps are in
+[boolean-predicates.md](naming/boolean-predicates.md), and the pass that applied the rule is
+[boolean-predicates-worklist.md](naming/boolean-predicates-worklist.md).
+
 ## Spelling, per domain
 
 | Domain | Form | Because |
@@ -286,6 +304,8 @@ The directory and stems are provisional, minted 2026-09-24.
 | [provenance-limits.md](naming/provenance-limits.md) | the provenance BUGS |
 | [documents-numbers-and-gates.md](naming/documents-numbers-and-gates.md) | Where a document goes; `§N`; Branches; What is checked |
 | [vocabulary-rulings.md](naming/vocabulary-rulings.md) | the rulings above, the received abbreviation, and the casing of `nife` |
+| [boolean-predicates.md](naming/boolean-predicates.md) | new, 2026-09-24: the argument for functions that answer yes or no |
+| [boolean-predicates-worklist.md](naming/boolean-predicates-worklist.md) | new, 2026-09-24: every non-conforming predicate, and what became of it |
 | [rename-what-moves.md](naming/rename-what-moves.md) | Performing a ratified rename, through A quotation never moves |
 | [rename-where-names-hide.md](naming/rename-where-names-hide.md) | program strings, copied crates, crates outside the compiler, the census |
 | [rename-traps.md](naming/rename-traps.md) | A sweep can turn a stale pointer into a fabricated one, and six other traps |
