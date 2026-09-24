@@ -36,8 +36,8 @@ posture working as designed; the whole point is to route intentions *into* it ra
 **Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
 only in chat scrollback is in exactly the medium milestone 94 was written to abolish, and on
 2026-08-04 five of them accumulated there in one day while that milestone was being built. They go
-in `design/decisions/` with `**Status: PROPOSED.**`, one section each: what is being decided, the
-options, the recommendation with its reason, and what is blocked until it is answered. (They lived
+in `design/decisions/` marked [`status: PROPOSED`](../decisions/README.md), one file each: what is
+being decided, the options, the recommendation with its reason, and what it blocks. (They lived
 briefly in `design/open-decisions.md`; milestone 114 (split `DECISIONS.md`, and give a decision a
 status) absorbed that file, and the numbering is the integrator's at merge like every other section
 number.)
