@@ -18,3 +18,4 @@ name in this tree.*
 | [roles-and-the-queue.md](roles-and-the-queue.md) | the night that named the roles, and why each holds the authority it holds |
 | [routing-work-and-decisions.md](routing-work-and-decisions.md) | why a report is not a record, and what the label and the ask are for |
 | [shared-state.md](shared-state.md) | the 2026-07-30 collisions, the nife-dev link, and the branch that held a finding |
+| [working-with-calef.md](working-with-calef.md) | the seven questions with their worked examples, and the anecdotes behind the conduct rules |
