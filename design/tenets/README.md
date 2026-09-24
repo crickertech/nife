@@ -19,3 +19,4 @@ name in this tree.*
 | [routing-work-and-decisions.md](routing-work-and-decisions.md) | why a report is not a record, and what the label and the ask are for |
 | [shared-state.md](shared-state.md) | the 2026-07-30 collisions, the nife-dev link, and the branch that held a finding |
 | [working-with-calef.md](working-with-calef.md) | the seven questions with their worked examples, and the anecdotes behind the conduct rules |
+| [codebase-rules.md](codebase-rules.md) | what each of the seven codebase rules buys, with its examples |
