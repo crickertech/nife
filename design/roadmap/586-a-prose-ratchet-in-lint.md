@@ -66,6 +66,9 @@ a correction to risk 2 landed. `AGENTS.md`'s marker says 6,279 and the file meas
 should treat the marker's number as the file's baseline: growth past it fails like growth past any
 other baseline, and raising it is a new grant, which is calef's.
 
+calef ruled the same day to cut `design/fatal-risks.md` back rather than raise its grant, and it is
+back at 4,235 words, within the grant, as of 2026-09-24. `AGENTS.md` was not part of that ruling.
+
 ## What would make it not worth doing
 
 If the baseline file churns on every pull request, the ratchet costs more attention than it saves.
