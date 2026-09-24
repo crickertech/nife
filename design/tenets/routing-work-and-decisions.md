@@ -62,36 +62,6 @@ not later, because the failure this prevents is the maintainer forgetting it is 
   milestone 115 (the names that were ratified, and the ones that were refused) takes `unrecorded` as
   a truthful answer precisely so that provisional names never block.
 
-**Lane count is set against the collision surface, not against queue depth** (calef, 2026-08-16,
-overturning his own 2026-08-04 delegation on measured evidence). **Throughput is measured in merged
-work.** The question to ask before launching is not "how deep is the queue" but **"what files will
-this lane touch, and who else is in them"**. The measurement that overturned the old rule, and the
-three ceilings below, are in [design/tenets/lane-count.md](design/tenets/lane-count.md).
-
-- **Disjoint subsystems: launch freely.** Four is a reasonable working number, not a ceiling.
-- **Two lanes in the test-wiring hotspot** (`kernel/src/user/tests.rs`, the QEMU runners,
-  `xtask/src/main.rs`): **expect to resolve a conflict by hand**, and brief the second one to fold
-  into the first's shape rather than inventing a third. It is often cheaper to sequence those two.
-- **The real ceilings are elsewhere**, and they are worth naming so they are decided rather than
-  discovered: the attention to read reports and resolve conflicts, the token budget, and runner
-  concurrency.
-
-**The second ceiling is memory, and it is independent of the collision surface. So: at most one full
-`script/verify` at a time on this machine, and never a mutation sweep beside lanes.** When two lanes
-must gate together, `VERIFY_JOBS=2` each shares the budget rather than doubling it. The tell is easy
-to misread: a heavy job dying with no failing assertion, reported as a cancellation or a timing
-failure rather than as memory.
-
-**The third ceiling was disk, and the lever moved with it: lanes gate in CI rather than here**
-([`briefs/gate-in-ci.md`](briefs/gate-in-ci.md)), which takes QEMU and `script/verify` off this
-machine. Lanes are asynchronous, so the wall-clock cost is nobody's wait. Two habits survive: **run
-any local gate from a lane's worktree rather than the main checkout**, and **prune promptly**,
-because disk is the only pressure here that destroys work rather than delaying it.
-
-**Prune a lane's worktree the moment its pull request merges**, and never prune one with uncommitted
-work in it. [`briefs/merge-and-cleanup.md`](briefs/merge-and-cleanup.md) has the commands, the
-order, and both recorded failures.
-
 **The watchers run unattended as `nife-smelter[bot]` in scheduled Actions workflows** (calef,
 2026-09-23; the watch that reads a machine's own lane worktrees stays per developer), and a session
 confirms they are alive *and reads what they already found*, because `merge-drain.sh` posts once per
@@ -116,15 +86,3 @@ worse than an error. Assignees and labels do work; reviewers do not.
 **Stop and bring it to calef only when it is genuinely his call:** a design fork not already
 decided, a test that will not pass after real effort, a hardware or external dependency, or the
 machine contradicting the plan. Otherwise proceed and report what you did.
-
-**Keep the documentation current, because a demonstrator's docs are part of the deliverable.** Every
-design decision goes in `design/decisions/`; every concept and finding gets a note in `notes/`,
-indexed in `notes/README.md`. Record the *why* and the honest caveats.
-
-**The standard to aim at is FreeBSD's** (calef, 2026-07-30), and it is four things: task-oriented,
-so "how do I do X" in order with the actual commands; in-tree and versioned with the code; real
-`EXAMPLES`, because a page without a worked example has not finished explaining itself; and an
-honest `BUGS` section. **Name the limitation where the reader meets the feature**, not only in a
-tracker. When a limitation graduates from record to plan is §71's convention: a `BUGS` entry is a
-fact, a roadmap row is intent. See
-[design/tenets/documentation-standard.md](design/tenets/documentation-standard.md).
