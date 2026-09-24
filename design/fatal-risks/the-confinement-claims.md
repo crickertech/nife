@@ -1,0 +1,145 @@
+# Appendix to risk 7: The confinement claim is false
+
+*An appendix to [`design/fatal-risks.md`](../fatal-risks.md)'s risk 7. **That entry is the claim of
+record**, and it is written so that a reader can decide what to work on next without opening this
+file. This one exists to be verified or challenged: it holds the evidence, the dates, the numbers,
+the corrections and the refusals behind the verdict, at the length they need rather than the length
+the six-pager has. Where a study has its own home in `notes/` this page links it rather than copying
+it. **Name provisional** (`design/fatal-risks/` and this file's stem), minted 2026-09-23 by the lane
+that split the file; naming is calef's.*
+
+**The claim:** a confined component escapes, and the property the whole system is built to provide
+does not hold.
+
+**Evidence today:** DECISIONS §31 (the foreign-language seam) proves a C component faulting on a
+deliberate out-of-bounds write, restarted by its supervisor, with two witness pages answering two
+different questions. `notes/untrusted-input-audit.md` surveys the attack surface, and there are fuzz
+targets.
+
+**What is missing:** every one of those is a test written by the same people who wrote the thing
+being tested.
+
+**Verdict of record (see the main entry for the Experiment status field): RUN, 2026-08-31, and it found the thing this risk exists to find.**
+notes/confinement-claims.md; PR #614.
+
+- **26 claims enumerated**, each with where it is stated, which test checks it, and whether that test
+  has been shown to fail when the claim is broken. **Three were stated nowhere**, including one the
+  system deliberately does *not* make: a confined device's **values** are not confined, only its
+  reach. The IOMMU and the DMA validator constrain placement, never content.
+- **25 harnesses now carry a replayable falsification**, up from 6. The sweep is 25 swept, 0
+  survivors, and every patch names the assertion it expects to fail.
+- **DECISIONS §31's headline assertion never runs.** Mapping `WITNESS_RO` read/write does turn the C
+  seam test red, but `assert_eq!(v[2], CONFINED)`, the line that prints *"read-only witness intact"*,
+  is not what catches it: **a component that is not confined does not fault, no fault means no death
+  report, and the witness check is reachable only by an escape that faults anyway.** The sentence the
+  seam is quoted for is not the sentence doing the work.
+- **And the first attempt failed for the wrong reason**, which is the hazard this milestone's own
+  block warned about, on the day it was written: the break surfaced as a 234-second watchdog timeout
+  reading *"a livelock, not a lost wakeup"*, a correct red with nothing in it about confinement.
+
+**The adversarial pass: AUDITED, 2026-09-17, and the answer is a qualified yes with one
+exception found and fixed.** This paragraph was a second `**Status:` line until 2026-09-23, and
+`script/fatal-risks` read only the first one per entry, so `AUDITED` was invisible to every tool
+reading this file. The Experiment status above is the entry's one status; how well the experiment
+was done belongs here, in prose, where it always was.
+
+Milestone 313 (the security audit that was due since August: userspace confinement, read
+adversarially) read this risk's question adversarially under the userspace-confinement lens, the
+first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
+has it; findings fixed 3, minted 3, accepted 1.
+
+**One published claim was false as stated, on a path taken every boot.** DECISIONS §12 (Call/Reply
+IPC: a one-shot reply capability) says *a consumed capability cannot be used again*. On `x86_64` it
+was not: `SYS_CAP_DELETE` cleared the capability table and **not** the cached grant the context
+switch installs into the TSS I/O bitmap, so a thread that dropped its `PortRange` kept COM1 for the
+rest of its life. `system_initializer` performs exactly that delete on every x86 boot. Fixed in
+`sched::delete_current_cap`, with a test and a falsification replayed red.
+
+**A second published sentence about the hardware was false and is now true.** `crates/paging`'s
+decoder reports user pages as not kernel-executable, and milestone 307 (which assertion actually
+fires when a confinement claim is broken) wrote that the hardware makes it so; on x86 that holds
+only with `CR4.SMEP`, which nothing set. The bit is now set per core where CPUID offers it, and
+307's sentence is struck through with the correction beside it rather than edited away.
+
+**The headline claim was not found false anywhere this audit looked**, and what it looked at is
+stated rather than implied: components that took device or network authority since the last audit,
+which reading every capability mint site shrank from 45 counted components to **two objects**; the
+six claims milestone 307 marked quotable-but-unreachable, none of which turned out weaker than its
+claim; and the two new machine classes, radon and xenon.
+
+**Three things this does not settle.** The syscall surface and IPC model are the remaining untaken
+lens and want their own audit. The adversarial half this entry has always called for, an outsider
+trying to escape rather than us demonstrating a planned escape fails, is now **partly built** and
+still gated behind milestone 198 (the trivial install that makes a second customer possible). An adversarial pass on 2026-09-21 asked where authority lives
+outside a cspace and **found a claim false**: every revocation sweep walked a thread's capability
+table and stopped, so a capability parked in `Thread::outgoing_cap` (the hand-off slot a `SEND_CAP`
+writes when no receiver waits) survived the sweep and was delivered afterwards. `MemoryRegion::DESTROY`
+sweeps capabilities precisely so that no capability still names a page the allocator is about to hand
+out, and an in-flight one reopened that. Fixed in the three sweeps that lacked it, with a test red
+first on all three architectures; `notes/confinement-claims.md` carries it and the eight attacks that
+held. **The caveat is the one that keeps the gate closed**: it was us attacking our own system, which
+is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And
+one window was accepted rather than closed at the time: `PortRange::REVOKE` reached one core, so a
+revoked holder on another core kept its bitmap for at most one tick. That window is recorded in
+§152 (the port-range capability)'s `BUGS`, corrected the same day, and in
+[milestone 315](../roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and
+calef promoted out of this entry's proposal on 2026-09-17.
+
+**Corrected 2026-09-23: that window is closed.** Milestone 315 (a port revoke that reaches every
+core) is BUILT. The revoke now resets this core and rides the TLB shootdown's NMI to the rest, and
+`install_port_grant` moved inside the locked region so no core can reinstall a grant the sweep just
+cleared. Proved by 12 of 12 full two-core suites, 36 boots, against 3 of 12 failing before.
+
+**What it does to this risk, which is less than it sounds.** It removes an accepted hole from the
+confinement claim, so the claim is stronger than the audit left it. It does not change the caveat
+above, which is the one that matters: the attacking was still us attacking our own system. A window
+we closed ourselves, found by our own test, is the same category of evidence as the audit that found
+it, and this entry's verdict rests on that category rather than on any single hole.
+
+**And the audit produced a third instance of this file's recurring shape.** Milestone 299 (the
+serial console becomes a userspace driver)'s two port tests could not fail in the direction they
+exist for: a wrongly permitted `out` was followed by a `SEND` nobody received, so the run hung
+instead of going red. That is row 26's shape one object over, found only because a draft of finding
+1 hung. After milestone 305's vacuous `U`-bit test and milestone 307's six unreachable assertions,
+**three independent sweeps have now each found confinement tests that could not fail**, which is the
+strongest evidence in this file that the question risk 3 asks is answered differently inside the
+kernel than outside it.
+
+**What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
+was the point: these named claims are tested, and each has been shown to fail when the claim is
+broken. The adversarial exercise this entry originally called for is still unbuilt: an outsider
+trying to escape, rather than us demonstrating that a planned escape fails. That wants outside eyes
+and is gated behind milestone 198 by calef's no-third-parties position.
+
+**The six kernel rows got their mechanism on 2026-09-16, and one of them was not testing its own
+claim.** This entry said until that day that those rows had none; milestone 305 (the six kernel
+confinement rows get a falsification a machine can replay) built it, on top of milestone 210 (no
+kernel test can be run by name)'s `cargo xtask test --test <substring>` (built 2026-08-31, and the
+note claiming the mechanism "does not exist" had been stale for sixteen days). Seven of the eight
+tests behind rows 21 to 26 now carry a replayable falsification. The sweep is **48 swept, 0
+survivors, 2 min 55 s warm**.
+
+**The finding is the one this risk exists to produce, and it is worse than a missing test.**
+`the_page_tables_say_u_mode_cannot_read_the_kernels_memory` was patched to remove the `U`-bit check
+from `mmu::user_can_read` **outright**, and the test still passed. `user_can_read` went through
+`translate_user`, whose `Mapper` is built with `Half::Low` *always*, so a high-half kernel address
+returned `None` before any leaf was read. **The assertion answered "U-mode cannot read the kernel"
+by refusing to look**, and had done so since milestone 41 (dead code: triage the suppressions, and
+un-blindfold the gate), with every gate in this tree green throughout. `is_mapped_in_current_space`
+exists forty lines away for exactly this case and says so in its own doc comment. Fixed in 305
+(`translate_in_either_half`) and measured both ways.
+
+That is the shape of failure this file's rule 1 is about: **a test that cannot come back red is
+indistinguishable from a test that passes**, and nothing but a falsification can tell them apart.
+Risk 3's mutation census measures the same property over host crates and cannot see kernel tests at
+all, so this class was invisible to every instrument the project owned.
+
+**Two further things were recorded rather than smoothed over.** Row 26 (a client of a rendezvous
+cannot become its server) is **`unfalsified`**, honestly: the complete break produces a 60-second
+lost-wakeup watchdog rather than a claim-shaped red, because `RECV_CAP` blocks, so an attacker the
+kernel fails to refuse takes the honest server's message instead of reporting an escape. Filling it
+with an easier defect would have fired an assertion while leaving the claim untested, which is
+precisely what the row above shows costs eight months. And **§31's assertion-order hazard has a
+second independent instance**: row 24's quotable crossing assertion sits below two per-shell bitmap
+equalities that catch any crossing one call earlier, so it cannot run. Two instances found the same
+way in one sweep is a reason to expect more.
