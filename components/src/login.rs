@@ -969,7 +969,7 @@ fn serve_login(
     let (cr0, _) = call(VERIFY, cw0, 0);
     credential_protocol::wipe(cred_page);
 
-    if !credential_protocol::authenticated(cr0) {
+    if !credential_protocol::is_authenticated(cr0) {
         send(channel.result, login_protocol::DENIED, 0, 0);
         return;
     }

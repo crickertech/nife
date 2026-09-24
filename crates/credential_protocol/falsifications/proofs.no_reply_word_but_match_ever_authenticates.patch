@@ -6,7 +6,7 @@ correctly.
 
 Expected to fail: the harness's second claim, `None => assert!(!(OK..=MAX_CODE).contains(&r0))`,
 for any word above `MAX_CODE`: an arbitrary kernel error word now decodes as a reply code. The
-first assertion survives, because `authenticated` still asks for `MATCH` exactly, which is why
+first assertion survives, because `is_authenticated` still asks for `MATCH` exactly, which is why
 this harness states the discrimination as well as the authentication.
 
 diff --git a/crates/credential_protocol/src/lib.rs b/crates/credential_protocol/src/lib.rs

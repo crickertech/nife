@@ -45,7 +45,7 @@ fn clock() -> clock_service::Wiring {
     let w = clock_service::start(image);
     let report = crate::sched::ipc_recv(w.report);
     assert!(
-        state::known(report[1]),
+        state::is_known(report[1]),
         "the clock service does not know the time, so there is nothing for NTP to correct",
     );
     w

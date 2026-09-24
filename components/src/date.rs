@@ -158,7 +158,7 @@ pub extern "C" fn _start(fmt: u64, offset_minutes: u64, provenance: u64) -> ! {
         end();
     };
     let r = page.read();
-    if !state::known(r.state) {
+    if !state::is_known(r.state) {
         complain(b"date: the time is unknown: the machine has no clock it believes");
         // Still worth saying which nothing it was, when asked: an unknown clock has a generation
         // too, and "nobody has ever published" reads differently from "somebody published unknown".

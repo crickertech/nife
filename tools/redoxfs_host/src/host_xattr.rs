@@ -20,11 +20,11 @@
 //! no `user.` prefix; `E2BIG` means the value is over that filesystem's ceiling. A recovery tool
 //! that printed "failed" for all three would be telling somebody at 2am to guess.
 //!
-//! *Names are bytes.* The store holds bytes ([`filesystem_protocol::xattr::valid_name`] refuses only NUL and
-//! over-length), and both platform calls take a NUL-terminated C string, so the only conversion
-//! needed is the terminator. Nothing here invents a namespace prefix: a tool that silently rewrote
-//! `foo` to `user.foo` to satisfy Linux would hand back a file whose metadata does not say what the
-//! backup said.
+//! *Names are bytes.* The store holds bytes ([`filesystem_protocol::xattr::is_valid_name`] refuses
+//! only NUL and over-length), and both platform calls take a NUL-terminated C string, so the only
+//! conversion needed is the terminator. Nothing here invents a namespace prefix: a tool that
+//! silently rewrote `foo` to `user.foo` to satisfy Linux would hand back a file whose metadata does
+//! not say what the backup said.
 
 use std::ffi::CString;
 use std::io;
@@ -39,9 +39,9 @@ const XATTR_NOFOLLOW: libc::c_int = 0x0001;
 /// A path and an attribute name as C strings, or an error naming which one could not be one.
 ///
 /// A NUL inside either is the only way this fails. It cannot come from a store the FS server wrote
-/// (`valid_name` refuses it on the way in), so reaching this arm means the blob is damaged or was
-/// written by something else, and a recovery tool must say that rather than truncate the name at the
-/// NUL and set a *different* attribute.
+/// (`is_valid_name` refuses it on the way in), so reaching this arm means the blob is damaged or
+/// was written by something else, and a recovery tool must say that rather than truncate the name
+/// at the NUL and set a *different* attribute.
 fn c_args(path: &Path, name: &[u8]) -> io::Result<(CString, CString)> {
     let c_path = CString::new(path.as_os_str().as_bytes())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "the path contains a NUL"))?;

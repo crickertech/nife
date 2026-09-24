@@ -135,10 +135,11 @@ fn bcd_to_binary(v: u8) -> u8 {
 ///
 /// `None` when the reading does not describe a real calendar date: every field zero, which is what
 /// a CMOS with a dead battery and no host to seed it reads as, is the case this actually exists to
-/// catch (`calendar::Civil::new` refuses month 0 and day 0). A machine this kernel can otherwise run
-/// on has no way to make CMOS report a well-formed but implausible date; `components/src/clock.rs` still
-/// runs whatever it is handed through `clock_protocol::policy::plausible` before publishing it, the
-/// same as every other RTC binding.
+/// catch (`calendar::Civil::new` refuses month 0 and day 0). A machine this kernel can otherwise
+/// run on has no way to make CMOS report a well-formed but implausible date;
+/// `components/src/clock.rs` still runs whatever it is handed through
+/// `clock_protocol::policy::is_plausible` before publishing it, the same as every other RTC
+/// binding.
 pub fn read_unix_nanos() -> Option<u64> {
     let raw = loop {
         while is_update_in_progress() {

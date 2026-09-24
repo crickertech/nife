@@ -23,7 +23,7 @@ fn start() -> (clock_service::Wiring, [u64; 5]) {
 ///
 /// It is a **plausibility** check, not an accuracy one, and deliberately so. Nothing in the
 /// guest knows the host's clock to compare against, so the honest claim is "this is a time a
-/// machine running this code could be at", which is exactly what `policy::plausible` is for and
+/// machine running this code could be at", which is exactly what `policy::is_plausible` is for and
 /// exactly what the previous behaviour (1970 plus uptime) fails.
 #[test_case]
 fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
@@ -44,7 +44,7 @@ fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
         "the clock should be set from the RTC"
     );
     assert!(
-        policy::plausible(report[2]),
+        policy::is_plausible(report[2]),
         "the RTC read back {} ns, which is outside the sanity window",
         report[2],
     );
@@ -78,7 +78,10 @@ fn a_proposer_can_ask_and_cannot_tell() {
     }
     let (w, _) = start();
     let before = w.page().read();
-    assert!(state::known(before.state), "needs a running clock to step");
+    assert!(
+        state::is_known(before.state),
+        "needs a running clock to step"
+    );
 
     let now = w.wall_nanos();
     for (proposed, want, what) in [

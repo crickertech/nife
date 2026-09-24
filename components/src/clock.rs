@@ -90,7 +90,7 @@ pub extern "C" fn _start(rtc_kind: u64, rtc_seed: u64, _a2: u64) -> ! {
     // meaningful for `rtc::CMOS`, where it is the kernel's own reading rather than a register to
     // poll; every other kind ignores it.
     if let Some(unix_nanos) = read_rtc(rtc_kind, rtc_seed)
-        && policy::plausible(unix_nanos)
+        && policy::is_plausible(unix_nanos)
     {
         page.publish(
             state::RTC,
@@ -143,7 +143,7 @@ fn serve(page: ClockPage) -> ! {
 /// is the absence of one, and the state word next to it is what says which.
 fn wall_now(page: &ClockPage) -> u64 {
     let r = page.read();
-    if state::known(r.state) {
+    if state::is_known(r.state) {
         clock_protocol::wall_nanos(r.offset_nanos, monotonic_nanos())
     } else {
         0
