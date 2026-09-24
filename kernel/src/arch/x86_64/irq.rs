@@ -335,9 +335,12 @@ pub fn arm_periodic_timer(count: u32) {
 
 /// **Is the timer's vector raised and waiting in this local APIC** (its bit in the IRR)? True from
 /// the moment the countdown expires until the core accepts the interrupt, which with `IF` clear is
-/// not until interrupts are unmasked. See `timer::tick_pending`, the caller.
+/// not until interrupts are unmasked. See `timer::is_tick_pending`, the caller.
+///
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `timer_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn timer_pending() -> bool {
+pub fn is_timer_pending() -> bool {
     let v = TIMER_VECTOR as u64;
     read(reg::IRR + (v / 32) * 0x10) & (1 << (v % 32)) != 0
 }

@@ -647,15 +647,16 @@ pub fn uptime_ms() -> u64 {
 /// passed and the timer has signalled it, until the handler moves `CNTV_CVAL_EL0` forward, whether
 /// or not interrupts are masked.
 ///
-/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
-/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds after the
-/// deadline, so a test that assumes a tick is pending after a fixed masked spin can be measuring
-/// the host. The tests that hold a tick across a mask wait for this bit instead. See
+/// The twin of the riscv64 `is_tick_pending`, whose comment has the measurement: the emulator
+/// raises the timer from its own main loop, milliseconds and occasionally tens of milliseconds
+/// after the deadline, so a test that assumes a tick is pending after a fixed masked spin can be
+/// measuring the host. The tests that hold a tick across a mask wait for this bit instead. See
 /// notes/load-sensitive-assertions.md.
 ///
-/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `tick_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn tick_pending() -> bool {
+pub fn is_tick_pending() -> bool {
     CNTV_CTL_EL0.is_set(CNTV_CTL_EL0::ISTATUS)
 }
 
@@ -742,8 +743,8 @@ mod tests {
         let before = timer::ticks_on(core);
         // **Waited for, not spun for.** A fixed three periods asked the emulator to have raised the
         // timer within 30 ms of wall clock, and it raises it from its own main loop: measured on
-        // 2026-09-24 at up to 86 ms after the deadline (`tick_pending`'s comment has the numbers).
-        // A timer that is genuinely dead still fails, a second later.
+        // 2026-09-24 at up to 86 ms after the deadline (`is_tick_pending`'s comment has the
+        // numbers). A timer that is genuinely dead still fails, a second later.
         let ticked = within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(core) > before);
 
         assert!(
@@ -1044,12 +1045,12 @@ mod tests {
             // **And a tick is now raised and waiting**, which is what makes the release below a
             // test of `restore` rather than of the host. The spin above is thirty milliseconds of
             // wall clock, and the emulator raises the timer from its own main loop, as much as 86
-            // ms after the deadline (measured 2026-09-24; `tick_pending`'s comment). This twin
+            // ms after the deadline (measured 2026-09-24; `is_tick_pending`'s comment). This twin
             // failed CI once exactly that way, on `sifive-u54`, "interrupts did not resume" after
             // twenty periods of waiting for a tick nobody had raised. Still masked, so still this
             // core, and the assertion above is repeated because the wait is part of the window.
             assert!(
-                within_raise_bound(timer::tick_pending),
+                within_raise_bound(timer::is_tick_pending),
                 "the timer was never raised in a second with the lock held, so the release below \
                  would test nothing: the timer is not being armed, or the emulator stopped \
                  delivering it"
@@ -1082,8 +1083,9 @@ mod tests {
     /// pass rather than a wrong answer. The fixed spins these replaced turned a late delivery into
     /// a failure. See notes/load-sensitive-assertions.md.
     /// How long a wait on the timer being raised may take, in tick periods: one second, against a
-    /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
-    /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    /// worst case measured at under nine periods (86 ms, `is_tick_pending`'s comment). **A leak
+    /// trap, not a timing claim**: nothing the kernel does is inside it once the deadline has
+    /// passed.
     ///
     /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     const RAISE_BOUND_PERIODS: u32 = 100;

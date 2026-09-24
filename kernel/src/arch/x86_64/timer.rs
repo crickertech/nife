@@ -633,15 +633,16 @@ pub fn ticks() -> u64 {
 
 /// **Is this CPU's tick raised and waiting?** The local APIC timer's bit in the IRR.
 ///
-/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
-/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds late, so a
-/// test that assumes a tick is pending after a fixed masked spin can be measuring the host. See
-/// notes/load-sensitive-assertions.md.
+/// The twin of the riscv64 `is_tick_pending`, whose comment has the measurement: the emulator
+/// raises the timer from its own main loop, milliseconds and occasionally tens of milliseconds
+/// late, so a test that assumes a tick is pending after a fixed masked spin can be measuring the
+/// host. See notes/load-sensitive-assertions.md.
 ///
-/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `tick_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn tick_pending() -> bool {
-    irq::timer_pending()
+pub fn is_tick_pending() -> bool {
+    irq::is_timer_pending()
 }
 
 /// Spin for `counter_ticks` of the TSC.
