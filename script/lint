@@ -2599,6 +2599,10 @@ echo "tracked-but-ignored files: none"
 #     self-test checks it against fixtures and checks that both consumers still splice it.
 echo "==> the merge queue's admission predicate"
 "$(dirname "$0")/../scripts/queue-eligible-selftest.sh"
+#     And the enqueue predicate on top of it (2026-09-24): the drain now calls `enqueuePullRequest`
+#     for a pull request the platform left armed and green outside the queue, and the self-test's
+#     load-bearing fixture is a fork that is stranded by every other measure and must be refused.
+"$(dirname "$0")/../scripts/queue-stranded-selftest.sh"
 
 echo "==> markdown links and the notes index"
 # Two checks, and deliberately NOT a markdown linter. A survey of all 95 markdown files found zero

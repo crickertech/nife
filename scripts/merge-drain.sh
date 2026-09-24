@@ -192,9 +192,11 @@ dequeue_held() {
 # the program below because jq cannot compose `-f` with inline text. If that file is missing, jq
 # refuses the program and the `|| echo '[]'` arms nothing, which is the direction to fail in.
 ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"
+# `statusCheckRollup` rides along for `stranded_numbers` and the unreported-checks case below; it
+# is the one field here that is a list rather than a scalar, at forty-odd entries per pull request.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest,isCrossRepository 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest,isCrossRepository,statusCheckRollup 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" "$(cat "$ELIGIBLE_JQ")"'
 			[ .[]
 			  | eligible
@@ -342,6 +344,27 @@ blocked_by() {
 	printf '%s' "$1" | sed -n 's/.*[Bb]locked-by:[[:space:]]*#\([0-9][0-9]*\).*/\1/p' | head -1
 }
 
+# **Enqueue what the platform promised to and did not** (2026-09-24). Auto-merge is GitHub's promise
+# to put a pull request into the queue when its checks go green. On 2026-09-24 #1202, #1200 and
+# #1207 each sat armed, CLEAN, every required check green, and never entered `mergeQueue.entries`;
+# each went in only when a person called the `enqueuePullRequest` mutation by hand, and a session
+# watcher was doing that as a stopgap. This is that call, made by the drain, on the predicate in
+# scripts/queue-stranded.jq: eligible (the same admission every arming passes, spliced first so the
+# enqueue path cannot admit a head the drain would not arm), armed, CLEAN, absent from the queue,
+# and in that state since before now minus STRANDED_MINUTES. **The minutes stand in for "two
+# consecutive passes"**: each `merge-drain.yml` run is one `--once` pass in a fresh process, five
+# minutes apart, so a pull request stranded for one interval is one that two passes in a row have
+# seen stranded, and the default is that interval. No `jump`: the queue's order is the queue's.
+STRANDED_MINUTES=${STRANDED_MINUTES:-5}
+STRANDED_JQ="$(dirname "$0")/queue-stranded.jq"
+# The numbers to enqueue, given `queue()`'s output and the numbers already queued (one per line).
+stranded_numbers() {
+	cutoff=$(( $(date +%s) - STRANDED_MINUTES * 60 ))
+	queued_json=$(printf '%s\n' "$2" | jq -R 'select(length > 0) | tonumber' | jq -cs '.')
+	printf '%s' "$1" | jq -r --argjson queued "$queued_json" --argjson cutoff "$cutoff" \
+		"$(cat "$ELIGIBLE_JQ")$(cat "$STRANDED_JQ")"'[ .[] | stranded($queued; $cutoff) | .number ] | .[]' 2>/dev/null
+}
+
 # The numbers currently IN the merge queue. One call, asked once per pass and reused, because
 # `mergeQueue.entries` is the only thing that knows about a pull request whose arming has already
 # become membership. See the verification block in `pass` for why neither field alone covers both
@@ -373,6 +396,8 @@ queued_numbers() {
 #
 #     merge-drain: ARMED #N ...        this pass put #N into the queue, or armed it to enter
 #     merge-drain: DEQUEUED #N ...     this pass took #N back out
+#     merge-drain: ENQUEUED #N ...     this pass put an armed, green #N into the queue itself,
+#                                      because the platform had not (2026-09-24, see stranded_numbers)
 #
 # **What makes them events rather than snapshots is the suppression, not the wording.** Arming is
 # idempotent and is attempted on every eligible pull request on every pass, so printing on every
@@ -410,7 +435,8 @@ pass() {
 	# What was ALREADY armed when this pass began. Both shapes, because the pull request object
 	# reports a null `autoMergeRequest` once arming has become queue membership. This is the
 	# baseline the `ARMED` event is printed against; see the events comment above `pass`.
-	armed_before=" $(printf '%s' "$q" | jq -r '.[] | select(.autoMergeRequest != null) | .number' 2>/dev/null | tr '\n' ' ')$(queued_numbers | tr '\n' ' ')"
+	queued_now=$(queued_numbers)
+	armed_before=" $(printf '%s' "$q" | jq -r '.[] | select(.autoMergeRequest != null) | .number' 2>/dev/null | tr '\n' ' ')$(printf '%s\n' "$queued_now" | tr '\n' ' ')"
 
 	armed=0
 	stalled=0
@@ -465,6 +491,24 @@ pass() {
 			continue
 		fi
 
+		# A fourth shape, detected and not fixed here (2026-09-24): BLOCKED with nothing failing and
+		# nothing running, and a CANCELLED check at the head. That is the "N of M required checks
+		# expected" page: a same-SHA CI run was cancelled by concurrency and the cancelled checks
+		# will never report, so the queue waits for a status that is not coming. The lane
+		# `ci/push-skips-tested-commits` owns the cause; this names the shape once so the log
+		# stops reading it as a pull request that is merely slow. Read from `q`, so it costs no
+		# call.
+		if [ "$state" = "BLOCKED" ] && [ "$(printf '%s' "$q" | jq -r --arg n "$num" '
+				.[] | select(.number == ($n | tonumber)) | .statusCheckRollup
+				| (map(select(.status == "QUEUED" or .status == "IN_PROGRESS" or .status == "PENDING")) | length) == 0
+				  and (map(select(.conclusion == "CANCELLED")) | length) > 0' 2>/dev/null)" = "true" ]; then
+			msg="$ME: STALLED. #$num has required checks that will never report: a run at its head was cancelled and nothing is re-running it (ci/push-skips-tested-commits owns the cause; push an empty commit) ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:unreported-checks" "$msg"
+			stalled=$((stalled + 1))
+			continue
+		fi
+
 		# A third stall shape: neither DIRTY nor FAILURE, a run just never started. See
 		# `stuck_checks`'s own comment for why this needs a person rather than a retry.
 		head=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .headRefName')
@@ -496,6 +540,28 @@ pass() {
 		fi
 
 		attempted="$attempted $num"
+	done
+
+	# What the platform left behind: armed, green, and not in the queue for a whole interval. The
+	# `enqueuePullRequest` mutation is what a person types by hand for the same case; the drain
+	# types it, once per stranded pull request per pass, and says so as an event. Verified below
+	# with everything else that was attempted, so a call that took and changed nothing is a
+	# `STALLED.` line and not a silent success.
+	for num in $(stranded_numbers "$q" "$queued_now"); do
+		title=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .title')
+		id=$(gh api "repos/$REPO/pulls/$num" --jq '.node_id' 2>/dev/null)
+		if [ -z "$id" ] || ! gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"$id\"}){clientMutationId}}" >/dev/null 2>&1; then
+			msg="$ME: STALLED. #$num is armed and green but the queue refused it ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:would-not-enqueue" "$msg"
+			stalled=$((stalled + 1))
+			continue
+		fi
+		echo "$ME: ENQUEUED #$num (armed and green for $STRANDED_MINUTES minutes with no queue entry; the platform had not) ($title)"
+		case " $attempted " in
+		*" $num "*) ;;
+		*) attempted="$attempted $num" ;;
+		esac
 	done
 
 	# **Verify, and know that "armed" has two shapes, because neither field alone covers both.**

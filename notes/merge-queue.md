@@ -37,6 +37,7 @@ $ scripts/merge-drain.sh --once
 merge-drain: DEQUEUED #918 (needs-architect arrived after it was enqueued): the loader stops guessing
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
 merge-drain: ARMED #214 (the caretaker outlives its job)
+merge-drain: ENQUEUED #1207 (armed and green for 5 minutes with no queue entry; the platform had not) (the metrics page is a deck)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
 $ scripts/merge-drain.sh            # loop until nothing is left to enqueue
@@ -45,7 +46,7 @@ merge-drain: queue empty; nothing open that does not need calef
 ```
 
 **Two of those lines are events and the rest are snapshots, and only the events can be counted.**
-`ARMED` and `DEQUEUED` say what this pass *did*; every other line says what was *true* when the pass
+`ARMED`, `DEQUEUED` and `ENQUEUED` say what this pass *did*; every other line says what was *true* when the pass
 ended. Summing `4 armed` across passes double counts every pull request that was still armed on the
 next pass, which is why 3,355 passes of this log could not answer "how often does the drain act"
 when calef asked on 2026-09-23. `STALLED.` has the same defect: a stall that persists is re-printed
@@ -56,6 +57,7 @@ So:
 ```console
 $ grep -c 'merge-drain: ARMED #' ~/Library/Logs/nife/merge-drain.log      # enqueues, countable
 $ grep -c 'merge-drain: DEQUEUED #' ~/Library/Logs/nife/merge-drain.log   # withdrawals, countable
+$ grep -c 'merge-drain: ENQUEUED #' ~/Library/Logs/nife/merge-drain.log   # the platform's promise, kept by the drain, countable
 $ grep -c 'merge-drain: [0-9]* armed' ~/Library/Logs/nife/merge-drain.log # passes, not enqueues
 ```
 
