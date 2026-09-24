@@ -378,7 +378,7 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// raise and lower this device's interrupt line with two register writes, no transfer, no
     /// external stimulus and nothing to read back. That is what `kernel::sched`'s RISC-V
     /// interrupt-delivery tests use in place of aarch64's SGI, which RISC-V has no equivalent of
-    /// (notes/interrupts.md, "Testing it with no device on RISC-V").
+    /// (notes/interrupts.md, "Testing it on RISC-V, which has no SGI").
     ///
     /// It is 16550 architecture, not a QEMU behaviour, so it should carry to any 16550-compatible
     /// part (the VisionFive 2's UART is a `DesignWare` 8250). Nothing in this kernel drives transmit

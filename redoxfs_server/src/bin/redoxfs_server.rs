@@ -67,9 +67,10 @@ const BLOCK: usize = blk::BLOCK_SIZE;
 const HEAP_MAX: u64 = 8 * 1024 * 1024;
 
 /// **How many single blocks [`redoxfs_server::CachedDisk`] holds** (milestone 138 step 2). One open
-/// file's tree spine is five blocks (notes/fs-server.md, "the same five blocks every time"); 64
-/// gives more than twelve times that so several open handles stay hot at once without thrashing
-/// each other out, at `64 * (8 + BLOCK) = 262,656` bytes, about 257 KiB.
+/// file's tree spine is five blocks
+/// (notes/benchmarks/read-path-block-contract-and-metadata-cache.md, "the same five blocks every
+/// time"); 64 gives more than twelve times that so several open handles stay hot at once without
+/// thrashing each other out, at `64 * (8 + BLOCK) = 262,656` bytes, about 257 KiB.
 ///
 /// **One constant for every FS server this build starts**, including milestone 37's two crash-test
 /// instances, whose heap budget is a fraction of [`HEAP_MAX`] (`CRASH_BUDGET_PAGES` in

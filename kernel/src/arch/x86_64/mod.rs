@@ -311,15 +311,16 @@ pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
     // **`hlt` between checks, not a tight spin.** TCG runs each vCPU as one host thread, and
     // `spin_loop`'s `pause` hint does nothing for *host* scheduling; a CPU 0 that never stops
     // consuming its host thread's time slice can only make it harder for the vCPU thread whose
-    // progress this loop is waiting on to get scheduled, on a busy host (this project's own recorded
-    // condition; AGENTS.md, "other lanes running in parallel"). `wait_for_interrupt` parks CPU 0 on
-    // `hlt` until its own local APIC timer (armed at `TICK_HZ`, already ticking: interrupts are
-    // enabled before `bring_up_secondaries` runs) wakes it, which costs at most one tick of latency
-    // per check and, unlike the spin, actually yields host CPU time. Measured to turn an occasional
-    // full hang (waiting past even a sixty-second budget) into a reliable, clean give-up within the
-    // stated budget when a core does not come up. The "deeper reason a core sometimes does not come
-    // up" that this paragraph used to defer to was the re-read `before` fixes above: the cores were
-    // coming up, and this loop was not counting them (`ap_boot`'s BUGS #1).
+    // progress this loop is waiting on to get scheduled, on a busy host (this project's own
+    // recorded condition; AGENTS.md, "What bounds lane count, and the three ceilings").
+    // `wait_for_interrupt` parks CPU 0 on `hlt` until its own local APIC timer (armed at `TICK_HZ`,
+    // already ticking: interrupts are enabled before `bring_up_secondaries` runs) wakes it, which
+    // costs at most one tick of latency per check and, unlike the spin, actually yields host CPU
+    // time. Measured to turn an occasional full hang (waiting past even a sixty-second budget) into
+    // a reliable, clean give-up within the stated budget when a core does not come up. The "deeper
+    // reason a core sometimes does not come up" that this paragraph used to defer to was the
+    // re-read `before` fixes above: the cores were coming up, and this loop was not counting them
+    // (`ap_boot`'s BUGS #1).
     let budget = 10 * crate::arch::timer::frequency();
     let start = crate::arch::timer::now();
     while crate::smp::online_count() == before {

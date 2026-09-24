@@ -35,22 +35,22 @@
 // here and the Rust side silently reads the wrong field. There is a compile-time size
 // assertion over there, which catches half of the ways to get this wrong.
 //
-// CFI: see notes/cfi-unwind.md, "trap entries". `.cfi_signal_frame` tells the unwinder this is
-// not an ordinary call frame (a PC saved here is the interrupted instruction itself, not one past
-// a `bl`, which matters for symbolizing it correctly). The GP-register offsets below are plain,
-// correct arithmetic on this macro's own pushes and hold regardless of what interrupted: a
-// debugger can recover x0-x29 of the interrupted context from any PC inside a vector entry.
-// **x30 (lr) is deliberately left `.cfi_undefined`**, not described, even though its real value
-// IS saved a few lines down: describing it under DWARF's default return-address column (30, the
-// same column ordinary code uses for lr) would tell an unwinder "the interrupted code's caller is
-// at this x30 value", which is false. The interrupted code's actual resume point is `elr_el1`, a
+// CFI: see notes/cfi-unwind.md, "The hard case: a trap is not a call". `.cfi_signal_frame` tells
+// the unwinder this is not an ordinary call frame (a PC saved here is the interrupted instruction
+// itself, not one past a `bl`, which matters for symbolizing it correctly). The GP-register offsets
+// below are plain, correct arithmetic on this macro's own pushes and hold regardless of what
+// interrupted: a debugger can recover x0-x29 of the interrupted context from any PC inside a vector
+// entry. **x30 (lr) is deliberately left `.cfi_undefined`**, not described, even though its real
+// value IS saved a few lines down: describing it under DWARF's default return-address column (30,
+// the same column ordinary code uses for lr) would tell an unwinder "the interrupted code's caller
+// is at this x30 value", which is false. The interrupted code's actual resume point is `elr_el1`, a
 // data value, not a register restored by the exception itself, and AArch64 DWARF has a dedicated
 // register for exactly this (`ELR_mode`, number 33; see aadwarf64), which this macro also states,
 // spec-correctly, in case a future unwinder honours it -- **today's GDB does not**: it hardcodes
 // column 30 as the return address column and ignores `.cfi_return_column`
 // (sourceware.org/pipermail/gdb/2023-January/050488.html). So leaving 30 undefined is the
-// non-misleading choice with the tool this project actually uses; see the BUGS section in the
-// note for what that costs.
+// non-misleading choice with the tool this project actually uses; see the BUGS section in the note
+// for what that costs.
 .macro SAVE_CONTEXT
     .cfi_def_cfa_offset 0
     sub     sp,  sp,  #272
