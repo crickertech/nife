@@ -35,8 +35,9 @@ name: coe architect label
 # **This is a convenience, not a gate.** It routes attention; it does not block anything, and
 # nothing here is added to branch protection's required checks. A COE must never fail to exist
 # because a label API call failed, so every step below is written to report and continue rather
-# than to fail the job. See the detection step's comment for the specific reasoning on why this
-# uses two different diffs (the whole PR vs. just the latest push) rather than one.
+# than to fail the job. See the detection step's comment for why a `synchronize` asks one extra
+# question of the pull request's own diff (did this file exist before the push) rather than
+# reading a different diff.
 #
 # BUGS: **a rebase or amended force-push used to make the label return after a human removed it**,
 # observed twice on pull request #1166 within three hours, 2026-09-24 UTC. Two stacked causes, both
@@ -71,6 +72,17 @@ name: coe architect label
 #     rebase old enough that GitHub drops the orphaned commit), the contents-API check 404s for a
 #     reason other than genuine absence and the file reads as new again, same failure shape as
 #     cause 2, just narrower. Not fixed; recorded here if it recurs.
+#
+#  3. **A rebase labelled a pull request that adds no COE at all**, 2026-09-24 20:20 UTC, pull
+#     request #1194 (272 files, none under `notes/corrections/`), minutes after #1166's COE merged
+#     to `main`. The `synchronize` path diffed `compare/BEFORE...AFTER`, which is what the push
+#     changed, and a rebase onto a `main` that has just gained a COE record changes the branch by
+#     exactly that record. The cause-2 check could not help: the record really was absent at
+#     `before`, so it verified as new. The mistake was the diff, not the check, so the fix is the
+#     diff: every event now reads the pull request's own file list (`pulls/N/files`, base...head),
+#     which cannot name a file `main` added, and a `synchronize` keeps the cause-2 question for
+#     each candidate from that list. The compare call is gone, and cause 2's `diverged` case with
+#     it. Replayed against #1194's 20:20 event (no label) and #1166 (label) before merging.
 
 on:
   # `synchronize` needs `before`/`after` from the event payload (see the detection step), which is
@@ -122,26 +134,18 @@ jobs:
       # label after reading a COE would see it silently reappear on this PR's very next push, which
       # is worse than never having the mechanism: the label would stop meaning "unread."
       #
-      # So the diff this step reads depends on the event:
-      #   - `opened` / `reopened`: no earlier event exists to compare against, so the only sensible
-      #     diff is the whole PR (base...head, via the pulls/files API), read exactly once at the
-      #     moment the PR (re)appears.
-      #   - `synchronize`: the event payload carries `before` (the previous head) and `after` (the
-      #     new head). Comparing just those two SHAs scopes the check to what THIS push changed. A
-      #     later push that does not touch COE_DIR finds nothing here, so a removed label stays
-      #     removed. A later push that adds a genuinely new COE file still gets caught, which is
-      #     the correct "add" behaviour for a second correction landing in the same PR.
+      # So every event reads the same diff, the pull request's own (base...head, via the
+      # pulls/files API), and the event decides one extra question:
+      #   - `opened` / `reopened`: no earlier event exists, so every COE file the PR adds counts.
+      #   - `synchronize`: the payload's `before` is the previous head. A file the PR adds counts
+      #     only if it did not exist at `before`, so a push that does not add a COE finds nothing
+      #     and a removed label stays removed, while a push that adds a second correction to the
+      #     same PR is still caught.
       #
-      #     **That was the design; it did not hold on its own, for two stacked reasons found on PR
-      #     #1166 (see this file's BUGS).** This branch never ran at all -- `EVENT_NAME` compared
-      #     against a value it could never equal, so every event took the `else` branch below,
-      #     forever, for every PR -- which is fixed by reading `github.event.action`. And even once
-      #     reachable, the `compare` call itself is not safe across a rebase or amended force-push:
-      #     `before` and `after` can diverge, and GitHub then diffs their merge base rather than the
-      #     actual pushed delta, so a file added earlier on the branch can read `added` again. The
-      #     verification loop after the `compare` call below is what actually makes "a removed
-      #     label stays removed" true: it does not trust the compare API's `status` field for a
-      #     `synchronize` event, it asks whether the candidate file already existed at `BEFORE_SHA`.
+      # **This took three tries, all recorded in BUGS.** The `synchronize` path never ran (cause 1);
+      # once it ran it read `compare/BEFORE...AFTER`, which a rebase makes lie in two directions:
+      # it re-reported this PR's own old file as added (cause 2), and it reported a file `main`
+      # had just gained as this PR's (cause 3, #1194). Reading only the PR's own diff removes both.
       - name: Detect whether this event adds a COE record
         id: check
         env:
@@ -163,38 +167,36 @@ jobs:
 
           # `before` is the all-zero SHA on a few documented GitHub edge cases (a branch's very
           # first push to an existing PR ref); treat that the same as "no usable before" rather
-          # than asking the compare API to explain a SHA that names nothing.
+          # than asking the contents API about a SHA that names nothing.
+          #
+          # **Every event reads the pull request's own diff, base...head.** It used to read
+          # `compare/BEFORE...AFTER` on a `synchronize`, which is what THIS push changed, and after a
+          # rebase onto a `main` that had just gained a COE that push includes `main`'s record (see
+          # BUGS, cause 3). The pulls/files list is the one diff that can only name files this pull
+          # request adds. What the `synchronize` path still needs from `before` is not a diff but a
+          # question, "did this file already exist before this push", and the verification loop below
+          # asks it per candidate.
           if [ "$EVENT_NAME" = "synchronize" ] && [ -n "$BEFORE_SHA" ] && [ -n "$AFTER_SHA" ] \
              && [ "$BEFORE_SHA" != "$AFTER_SHA" ] \
              && ! printf '%s' "$BEFORE_SHA" | grep -qE '^0+$'; then
-            echo "coe-label: synchronize event, diffing this push only ($BEFORE_SHA..$AFTER_SHA)"
+            echo "coe-label: synchronize event; this PR's own added files, each checked against $BEFORE_SHA"
             synchronize_diff=true
-            if ! files="$(gh api "repos/$REPO/compare/$BEFORE_SHA...$AFTER_SHA" \
-                  --jq '.files[]? | select(.status=="added") | .filename' 2>&1)"; then
-              echo "coe-label: could not compare $BEFORE_SHA..$AFTER_SHA; skipping this run." >&2
-              echo "coe-label: gh said: $files" >&2
-              echo "add=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
           else
             echo "coe-label: $EVENT_NAME event, reading the whole PR's file list (base...head)"
-            if ! files="$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
-                  --jq '.[] | select(.status=="added") | .filename' 2>&1)"; then
-              echo "coe-label: could not read PR #$PR_NUMBER's file list; skipping this run." >&2
-              echo "coe-label: gh said: $files" >&2
-              echo "add=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          fi
+          if ! files="$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
+                --jq '.[] | select(.status=="added") | .filename' 2>&1)"; then
+            echo "coe-label: could not read PR #$PR_NUMBER's file list; skipping this run." >&2
+            echo "coe-label: gh said: $files" >&2
+            echo "add=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           matches="$(printf '%s\n' "$files" | grep -F "$COE_DIR" || true)"
 
-          # A `synchronize` event's `status` field is not safe to trust on its own: a rebase or
-          # amended force-push leaves `before` and `after` without linear history, GitHub reports
-          # the compare `diverged`, and it diffs against their merge base rather than the pushed
-          # delta -- so a file added on an earlier, ordinary push can read `added` again (see this
-          # file's BUGS; reproduced against PR #1166's real SHAs). Re-verify each candidate
-          # directly against BEFORE_SHA's tree before counting it as new. A 404 there means the
+          # On a `synchronize`, a file the PR adds is only NEW if it did not exist before this
+          # push; otherwise every push would re-add a label a human removed (requirement 1). So
+          # each candidate is checked directly against BEFORE_SHA's tree before counting it. A 404 there means the
           # file was genuinely absent before this push. Any other failure (rate limit, transient
           # error) is treated as "already existed" rather than "new": the requirement this step
           # exists for is that a removed label must not return, and an uncertain answer should fail
@@ -204,7 +206,7 @@ jobs:
             while IFS= read -r candidate; do
               [ -z "$candidate" ] && continue
               if err="$(gh api "repos/$REPO/contents/$candidate?ref=$BEFORE_SHA" 2>&1 >/dev/null)"; then
-                echo "coe-label: $candidate already existed at $BEFORE_SHA (compare said added; a rewritten history lied); not counting it as new"
+                echo "coe-label: $candidate already existed at $BEFORE_SHA; not new in this push"
               elif printf '%s' "$err" | grep -q 'HTTP 404'; then
                 if [ -z "$verified" ]; then
                   verified="$candidate"
