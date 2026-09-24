@@ -139,6 +139,26 @@ report_lock_holders() {
     done
 }
 
+# The child and everything beneath it, leaves included. Signalling only `$CHILD` bounds the process
+# this script started, and that is QEMU only when the command execs it. `cargo xtask shell` is
+# cargo, then xtask, then the runner that execs QEMU; `scripts/qemu-runner-x86_64.sh` is a shell
+# with QEMU beneath it. In both, a TERM to the child alone ends the child and leaves QEMU running
+# under pid 1 (found 2026-09-24: three bounded `cargo xtask shell` runs in a row, three orphans).
+# So the list is taken before anything is signalled, because a killed parent re-parents its
+# children to pid 1 and `pgrep -P` then cannot find them. `echo` before recursing, not after:
+# the loop variable is global in sh, and the recursive call overwrites it.
+descendants() {
+    for d in $(pgrep -P "$1" 2>/dev/null); do
+        echo "$d"
+        descendants "$d"
+    done
+}
+# shellcheck disable=SC2329 # called from the trap strings below, which shellcheck cannot see
+signal_tree() {
+    # shellcheck disable=SC2046
+    kill -"$1" $(descendants "$2") "$2" 2>/dev/null
+}
+
 exec 3<&0
 "$@" <&3 3<&- &
 CHILD=$!
@@ -157,7 +177,7 @@ PARENT=$$
     set +e
     SLEEPER=""
     # Signalled: kill the child on the way out. Nothing else knows its pid.
-    trap 'kill "$SLEEPER" 2>/dev/null; kill -TERM "$CHILD" 2>/dev/null; exit 0' TERM HUP
+    trap 'kill "$SLEEPER" 2>/dev/null; signal_tree TERM "$CHILD"; exit 0' TERM HUP
     # Stood down by the parent, which means the child finished on its own.
     trap 'kill "$SLEEPER" 2>/dev/null; exit 0' USR1
 
@@ -174,15 +194,18 @@ PARENT=$$
         waited=$((waited + 1))
     done
 
-    kill -TERM "$CHILD" 2>/dev/null
+    TREE="$(descendants "$CHILD") $CHILD"
+    # shellcheck disable=SC2086
+    kill -TERM $TREE 2>/dev/null
     sleep 2
-    kill -KILL "$CHILD" 2>/dev/null
+    # shellcheck disable=SC2086
+    kill -KILL $TREE 2>/dev/null
     exit 0
 ) >/dev/null 2>&1 &
 KILLER=$!
 
 # Signalled while waiting: take the child down now rather than making the killer notice.
-trap 'kill -TERM "$CHILD" 2>/dev/null; kill -TERM "$KILLER" 2>/dev/null; exit 143' TERM HUP INT
+trap 'signal_tree TERM "$CHILD"; kill -TERM "$KILLER" 2>/dev/null; exit 143' TERM HUP INT
 
 set +e
 wait "$CHILD"
