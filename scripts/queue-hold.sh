@@ -182,13 +182,16 @@ ensure_label() {
 # Open, ready, into `main`, not already needing calef. The same admission set `merge-drain.sh`
 # computes, and for the same reasons: a draft is not asking to be merged, a stacked pull request
 # targets a branch with no queue, and `needs-architect` is a hold this one must not overwrite.
+#
+# The first three of those tests are scripts/queue-eligible.jq, shared with merge-drain.sh since
+# the 2026-09-24 security audit found both copies admitting a fork's pull request; see that file.
+ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"
 holdable() {
 	gh pr list --repo "$REPO" --state open --limit 200 \
-		--json number,isDraft,baseRefName,labels,title 2>/dev/null |
-		jq -r --arg A "$ARCHITECT_LABEL" --arg H "$HELD_LABEL" --arg F "${fix:-0}" '
+		--json number,isDraft,baseRefName,labels,title,isCrossRepository 2>/dev/null |
+		jq -r --arg A "$ARCHITECT_LABEL" --arg H "$HELD_LABEL" --arg F "${fix:-0}" "$(cat "$ELIGIBLE_JQ")"'
 			[ .[]
-			  | select(.isDraft == false)
-			  | select(.baseRefName == "main")
+			  | eligible
 			  | select((.number | tostring) != $F)
 			  | select((.labels | map(.name) | index($A)) | not)
 			  | select((.labels | map(.name) | index($H)) | not) ]

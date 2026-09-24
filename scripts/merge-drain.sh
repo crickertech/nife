@@ -182,13 +182,22 @@ dequeue_held() {
 # because it rode into main inside #963; a trap in general, because a stacked PR whose base is later
 # abandoned reads as merged and is on no branch anyone lands. A stacked PR is left alone here, and
 # GitHub retargets it to `main` when its base branch merges and is deleted, which is when it is armed.
+#
+# **And a head that lives in another repository is not a lane** (2026-09-24 security audit). Until
+# that audit this predicate was "open, not a draft, against main", which admitted a fork's pull
+# request from anyone on GitHub; with the ruleset on `main` requiring zero approving reviews, a
+# stranger whose checks went green was one pass of this loop from merged by `nife-smelter[bot]`,
+# unread. The predicate now lives in scripts/queue-eligible.jq, shared with queue-hold.sh and
+# checked by scripts/queue-eligible-selftest.sh under script/lint, and it is spliced in front of
+# the program below because jq cannot compose `-f` with inline text. If that file is missing, jq
+# refuses the program and the `|| echo '[]'` arms nothing, which is the direction to fail in.
+ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest 2>/dev/null |
-		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" '
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest,isCrossRepository 2>/dev/null |
+		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" "$(cat "$ELIGIBLE_JQ")"'
 			[ .[]
-			  | select(.isDraft == false)
-			  | select(.baseRefName == "main")
+			  | eligible
 			  | select((.labels | map(.name) | index($L)) | not)
 			  | select((.labels | map(.name) | index($R)) | not) ]
 			| sort_by(.number)' 2>/dev/null || echo '[]'

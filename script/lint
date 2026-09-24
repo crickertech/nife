@@ -2515,6 +2515,14 @@ if [ -n "$ignored" ]; then
 fi
 echo "tracked-but-ignored files: none"
 
+# 11. **The merge queue's admission predicate says what it means** (2026-09-24 security audit). The
+#     drain arms auto-merge as `nife-smelter[bot]` on every eligible pull request, the ruleset on
+#     `main` requires zero approving reviews, and until that audit "eligible" admitted a pull request
+#     from any fork on GitHub. The predicate is now one file, scripts/queue-eligible.jq, and this
+#     self-test checks it against fixtures and checks that both consumers still splice it.
+echo "==> the merge queue's admission predicate"
+"$(dirname "$0")/../scripts/queue-eligible-selftest.sh"
+
 echo "==> markdown links and the notes index"
 # Two checks, and deliberately NOT a markdown linter. A survey of all 95 markdown files found zero
 # broken relative links and exactly one unindexed note, so generic style rules (heading case, line
