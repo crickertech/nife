@@ -4,41 +4,43 @@ calef, 2026-08-30: *"something that would kill nife for me as a project is a fat
 that would demonstrate the approach isn't viable... We should then try to prove or disprove those
 things."*
 
-This file is the falsification list. Not a risk register in the project-management sense, which
-tracks things that might go badly; **a list of claims that, if false, mean the project should
-stop.** A risk you can mitigate belongs in a milestone. A risk you can only answer belongs here. It
-was written the same week the project's first customer left, when the family's backups moved to borg
-over SSH on cordoba because nife was not ready, so: **with no customer, the ranking function has
-nothing to rank by**, and the honest substitute is "find out whether this can work at all."
+This file is the falsification list. Not a risk register, which tracks things that might go badly. It
+is a list of claims that, if false, mean the project should stop. A risk you can mitigate belongs in
+a milestone. A risk you can only answer belongs here.
 
-**It is a six-pager, and the depth is in appendices** (calef, 2026-09-23). It had reached 1,392
-lines and cost a maintainer session most of a context window to read once, so the falsification list
-had become something a session could not afford before choosing what to work on. **A reader can
-decide what to work on next without opening a single appendix.** Each entry links one, under
-[`design/fatal-risks/`](fatal-risks/), holding that risk's evidence, numbers, corrections and
-refusals for anyone who wants to verify or challenge a verdict. Studies with a home of their own
-stay in `notes/`; superseded numbers are in `git log -p design/fatal-risks.md`.
+It was written the same week the project's first customer left, when the family's backups moved to
+borg over SSH on cordoba because nife was not ready. With no customer, the ranking function has
+nothing to rank by. The honest substitute is not "pick interesting work" but "find out whether this
+can work at all."
+
+It is a six-pager, and the depth is in appendices (calef, 2026-09-23). It had reached 1,392 lines and
+17,742 words, and reading it once cost a maintainer session most of a context window. A falsification
+list a session cannot afford is one nobody consults. A reader can decide what to work on next here,
+without opening a single appendix. Each entry links one, under
+[`design/fatal-risks/`](fatal-risks/), holding that risk's evidence, numbers, corrections and refusals
+for anyone who wants to verify or challenge a verdict. Studies with a home of their own stay in
+`notes/`. Superseded numbers are in `git log -p design/fatal-risks.md`.
 
 ## The rule an entry has to meet
 
 Three properties, and an entry that lacks one is a worry rather than a risk:
 
-1. **It can come back red.** An experiment that can only confirm is not a test. Where an experiment
+1. It can come back red. An experiment that can only confirm is not a test. Where an experiment
    is structurally confirmation-biased, the entry says so and names the second pass that fixes it
    (risk 2 is the worked example).
-2. **The experiment is cheap relative to the project.** A test that costs a year answers a question
+2. The experiment is cheap relative to the project. A test that costs a year answers a question
    the year would have answered anyway.
-3. **It does not wait on more of the project being built.** Otherwise it is a schedule, not a test.
+3. It does not wait on more of the project being built. Otherwise it is a schedule, not a test.
 
-**And the ranking is chance-of-fatal times cheapness-of-test**, which is why the running order at
-the bottom is not the numbering. The numbers are identity, like a milestone's.
+The ranking is chance-of-fatal times cheapness-of-test, which is why the running order at the bottom
+is not the numbering. The numbers are identity, like a milestone's.
 
 ## What an entry's Experiment status says, and the three words it may say it in
 
-Every entry carries one **Experiment status** line, answering one question: **has the experiment
-happened.** calef ratified the field and its three values on 2026-09-23, and `script/fatal-risks`
-fails on a fourth value because the set was open until then and three lanes minted three words in
-one day. `script/fatal-risks`' own header carries the ratification and the refusals.
+Every entry carries one Experiment status line. It answers one question: has the experiment happened.
+calef ratified the field and its three values on 2026-09-23. `script/fatal-risks` fails on a fourth
+value, because the set was open until then and three lanes minted three words in one day. The script's
+own header carries the ratification and the refusals.
 
 | value | what it asserts |
 |---|---|
@@ -46,265 +48,274 @@ one day. `script/fatal-risks`' own header carries the ratification and the refus
 | `NOT-RUN` | it has not been performed, and could be |
 | `CANNOT-RUN` | it cannot be performed at all, and the entry says what would change that |
 
-**What it does not say is what the experiment found.** That is prose, and it is where `GREEN`,
-`AMBER`, `MEASURED` and `AUDITED` live: none of the four is a value of this field. **A reader who
-wants to know whether nife is in trouble reads the paragraph, not the word.**
+What it does not say is what the experiment found. That is prose, and it is where `GREEN`, `AMBER`,
+`MEASURED` and `AUDITED` live. None of the four is a value of this field. A reader who wants to know
+whether nife is in trouble reads the paragraph.
 
 ## 1. Only software written for nife runs on nife
 
-**The claim, stated so it can fail:** the platform runs hand-written Rust and nothing else, so every
-piece of software anyone wants has to be rewritten. **It is the most dangerous entry because it is
-structural**: optimization cannot fix "nothing runs here", and a system in this state is a research
+The claim, stated so it can fail: the platform runs hand-written Rust and nothing else, so every
+piece of software anyone wants has to be rewritten. It is the most dangerous entry because it is
+structural. Optimization cannot fix "nothing runs here". A system in this state is a research
 demonstrator forever, which is not what DECISIONS §14 (a verified-Rust capability microkernel that
 runs real workloads) claims.
 
 **The experiment:** milestone 121 (`ripgrep`: enumeration as a capability), for its real dependency
 tree, its filesystem walk and its threads.
 
-**Experiment status: RUN, 2026-08-31. GREEN on all three architectures since 2026-09-16, and the
-blocker is not what anyone predicted.** Unmodified `ripgrep` 14.1.1, forty transitive crates, **zero
-patches**, three byte-identical transcripts from three separately built binaries
-([`notes/ripgrep-on-nife.md`](../notes/ripgrep-on-nife.md)). **What stops it is that the ABI has no
-argument vector**, so it reaches its own error path instead, which is a better result than a failing
-build; the gap is milestone 205 (how a foreign program is told what to do). **DECISIONS
-§105 (`std::thread::spawn` stays declined, until a customer needs it) was never reached, and that
-reverses the premise**: `ripgrep` asks `available_parallelism()` rather than assuming it, nife
-answers `Ok(1)` honestly, and **a platform answering `Unsupported` there would have failed this
-program.**
+**Experiment status: RUN, 2026-08-31.** GREEN on all three architectures since 2026-09-16, and the
+blocker is not what anyone predicted. Unmodified `ripgrep` 14.1.1, forty transitive crates, zero
+patches, and three byte-identical transcripts from three separately built binaries
+([`notes/ripgrep-on-nife.md`](../notes/ripgrep-on-nife.md)). What stops it is that the ABI has no
+argument vector, so it reaches its own error path instead. That is a better result than a failing
+build, and the gap has a name: milestone 205 (how a foreign program is told what to do).
 
-**The caveat.** The structural fear is retired, and the one published argument that speaks to this
-says it goes badly: clean-slate kernels have *"significantly fewer features than Linux ... impeding
+DECISIONS §105 (`std::thread::spawn` stays declined, until a customer needs it) was never reached,
+and that reverses the premise. `ripgrep` asks `available_parallelism()` rather than assuming it, and
+nife answers `Ok(1)` honestly. A platform answering `Unsupported` there would have failed this
+program.
+
+The caveat. The structural fear is retired. The one published argument that speaks to this says it
+goes badly: clean-slate kernels have *"significantly fewer features than Linux ... impeding
 adoption"*, risk 8's paper ([`notes/incremental-path.md`](../notes/incremental-path.md)).
 [Appendix](fatal-risks/somebody-elses-software.md).
 
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach
 
-**The claim:** the verification half of DECISIONS §14 is real but narrow, and narrow in the
-direction that does not matter.
+The claim: the verification half of DECISIONS §14 is real but narrow, and narrow in the direction
+that does not matter.
 
-**The experiment:** milestone 191 (did the proofs catch the bugs?), against this project's own
-defect history, plus a reverse pass asking which harnesses prove a property that could plausibly be
-false.
+**The experiment:** milestone 191 (did the proofs catch the bugs?), against this project's own defect
+history, plus a reverse pass asking which harnesses prove a property that could plausibly be false.
 
-**Experiment status: RUN, 2026-08-30. AMBER, and the red half is structural.** **No Kani harness in
-this tree has ever caught a defect after the day it was written**, and the cause is one line of
-`script/verify`'s own header: *"`cargo kani -p <crate>` never compiles the kernel, the user
-programs, or xtask."* **64,818 lines of `kernel/src` were out of reach by construction**, which is
-where every concurrency, hardware-contract and resource-accounting defect lived
-([`notes/proof-retrospective.md`](../notes/proof-retrospective.md); PR #589). Two follow-ons have
-since aimed the prover into `kernel/src` and at x86_64, where the first proof went red on a latent
-defect: **the class this risk exists to ask about, and the first instance of it.**
+**Experiment status: RUN, 2026-08-30.** AMBER, and the red half is structural. No Kani harness in
+this tree has ever caught a defect after the day it was written. The cause is one line of
+`script/verify`'s own header: *"`cargo kani -p <crate>` never compiles the kernel, the user programs,
+or xtask."* So 64,818 lines of `kernel/src` were out of reach by construction, which is where every
+concurrency, hardware-contract and resource-accounting defect lived
+([`notes/proof-retrospective.md`](../notes/proof-retrospective.md); PR #589).
 
-**The caveat, and it is this entry's most valuable line.** Every defect a proof has caught here was
-caught *while the harness was being written*, which is **weaker evidence than a standing proof
-catching a regression**: the survivorship asymmetry rule 1 warned about. `arch/`, `user/` and
-`xtask` are still out of reach and **riscv64 is unreachable to the prover with nothing anyone here
-can do about it**, so state the claim as what it is: proofs over the pure crates, kernel largely
-unverified. [Appendix](fatal-risks/proofs-and-their-reach.md).
+Two follow-ons have since aimed the prover into `kernel/src` and at x86_64. The first x86_64 proof
+went red on a latent defect: the class this risk exists to ask about, and the first instance of it.
+
+The caveat, and it is this entry's most valuable line. Every defect a proof has caught here was
+caught *while the harness was being written*. That is weaker evidence than a standing proof catching
+a regression, and it is the survivorship asymmetry rule 1 warned about. `arch/`, `user/` and `xtask`
+are still out of reach, and riscv64 is unreachable to the prover with nothing anyone here can do
+about it. So state the claim as what it is: proofs over the pure crates, kernel largely unverified.
+[Appendix](fatal-risks/proofs-and-their-reach.md).
 
 ## 3. The tests do not test anything, and the quality is illusory
 
-**The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and
-the review discipline. If the suite would not notice the code being wrong, that sentence is
-decoration.
+The claim: AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
+review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
 **The experiment:** milestone 85 (mutation testing over the host crates), read as a census and
 re-read against the baseline.
 
-**Experiment status: RUN, 2026-09-19, and MEASURED rather than merely observed. AMBER, and the
-ground shifted under it on 2026-09-20.** calef ruled amber on the 2026-09-14 numbers; **the verdict
-stands and the reason it was given does not**, because **the fall this entry was built on did not
-happen**: read consistently, like-for-like is **94.7%** against the baseline's 92.4% and survivors
-fell 771 to 563 ([`notes/mutation-testing.md`](../notes/mutation-testing.md)). **It stays amber on
-the standard this entry holds**, milestone 85's rule that every survivor becomes a test, an
-exclusion carrying its reason, or a recorded gap: 563 are untriaged, and milestone 326 (nobody has
-been assigned to turn a mutation score upward) owns the repair. **Green is a ruled condition rather
-than a number** (calef, 2026-09-20): **inflow**, the survivors a merged pull request adds on its own
-lines being triaged.
+**Experiment status: RUN, 2026-09-19.** MEASURED rather than merely observed, and AMBER. calef ruled
+amber on the 2026-09-14 numbers, and the ground shifted under it on 2026-09-20: the verdict stands
+and the reason it was given does not. The fall this entry was built on did not happen. Read
+consistently, like-for-like is 94.7% against the baseline's 92.4%, and survivors fell 771 to 563
+([`notes/mutation-testing.md`](../notes/mutation-testing.md)).
 
-**Two caveats.** **This verdict speaks for the host-testable corpus and not for the kernel**, where
-a census is roughly 500 runner-hours against 52 minutes today. And **one convention is load-bearing
-and unchecked**: whether a timeout counts as a kill moves this entry two points, and that rule rests
-on a hand-check of 96 timeouts six weeks ago, where there are 205 today and none has been checked.
+It stays amber on the standard this entry holds: milestone 85's rule that every survivor becomes a
+test, an exclusion carrying its reason, or a recorded gap. 563 are untriaged, and 
+milestone 326 (nobody has been assigned to turn a mutation score upward) owns the repair. Green is a ruled
+condition rather than a number (calef, 2026-09-20): inflow, meaning the survivors a merged pull
+request adds on its own lines are triaged.
+
+Two caveats. This verdict speaks for the host-testable corpus and not for the kernel, where a census
+is roughly 500 runner-hours against 52 minutes today. And one convention is load-bearing and
+unchecked: whether a timeout counts as a kill moves this entry two points. That rule rests on a
+hand-check of 96 timeouts six weeks ago, and there are 205 today.
 [Appendix](fatal-risks/the-mutation-verdict.md).
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
-**The claim, and calef named this one first:** a capability microkernel pays on every boundary
-crossing, and on workloads that cross constantly the cost is architectural rather than a matter of
-tuning.
+The claim, and calef named this one first: a capability microkernel pays on every boundary crossing,
+and on workloads that cross constantly the cost is architectural rather than a matter of tuning.
 
-**Experiment status: RUN, 2026-09-23. No verdict, and one bench evening stands between here and
-one.** This is the best-covered risk on the list by volume of measurement and still has no answer,
-because **everything measured is a single crossing and the claim is about a cost that cannot be
-amortised.** Amortisation is a property of a workload. The single-crossing numbers are four wins and
-a tie against Linux on the same core ([`notes/benchmarks.md`](../notes/benchmarks.md), every caveat
-beside its number) over committed floors
+**Experiment status: RUN, 2026-09-23.** No verdict, and one bench evening stands between here and
+one. This is the best-covered risk on the list by volume of measurement and still has no answer.
+Everything measured is a single crossing, and the claim is about a cost that cannot be amortised.
+Amortisation is a property of a workload. The single-crossing numbers are four wins and a tie against
+Linux on the same core, every caveat beside its number
+([`notes/benchmarks.md`](../notes/benchmarks.md)), over committed floors
 ([`bench/baseline-aarch64.txt`](../bench/baseline-aarch64.txt)).
 
 **The decisive experiment that has not been run:** milestone 168 (a multi-tasking workload
 benchmark), one radon evening, at least five boots, by [`notes/job-mix.md`](../notes/job-mix.md)'s
-procedure, which wrote down what each outcome means **before** the numbers exist, so the reading
+procedure. Its step 7 wrote down what each outcome means before the numbers exist, so the reading
 cannot become a defence afterwards. The one silicon sweep so far is not quotable: 29.4% spread
 between boots at four tasks, and no page mapping or process creation in the mix.
 
-**Two caveats.** **The counter-thesis is published**, and it is that the crossing can be removed
-rather than made cheap: **if RedLeaf and the 2017 Rust-kernel paper are right, a capability crossing
-is a cost this project chose rather than inherited**, and **their open problem is risk 5.** **And
-`sel4bench` has never produced a number**, so the peer is Linux rather than the state of the art in
-minimal kernels. **Ranked fourth on purpose**: this is where a skeptic expects the project to die
-and where it has the most evidence that it will not, and **that evidence is the wrong shape** (one
-crossing at a time). [Appendix](fatal-risks/the-crossing-cost.md).
+Two caveats. The counter-thesis is published: the crossing can be removed rather than made cheap. If
+RedLeaf and the 2017 Rust-kernel paper are right, a capability crossing is a cost this project chose
+rather than inherited, and their open problem is risk 5. And `sel4bench` has never produced a number,
+so the peer is Linux rather than the state of the art in minimal kernels.
+
+Ranked fourth on purpose. This is where a skeptic expects the project to die, and where it has the
+most evidence that it will not. That evidence is the wrong shape: one crossing at a time.
+[Appendix](fatal-risks/the-crossing-cost.md).
 
 ## 5. It cannot be made reliable on multicore, and the bugs appear only on silicon
 
-**The claim:** the concurrency is wrong in ways that QEMU cannot show and that arrive one at a time,
+The claim: the concurrency is wrong in ways that QEMU cannot show and that arrive one at a time,
 forever.
 
-**Experiment status: NOT-RUN, 2026-09-23. No verdict, and the reason no verdict is available is
-itself the finding.** Until that date this entry had no status at all, and **the sentence it opened
-with had been retracted in the tree two weeks before this file was written**: the VisionFive 2's
-receiver woken with nothing delivered was overturned by `notes/visionfive2.md`'s own fifth bench
-stop on 2026-08-15, so **the gate has never fired on a field failure**
-([`notes/scheduler.md`](../notes/scheduler.md)). **The correction propagated badly**, so **
-milestone 201 (is multicore reliability converging)'s three seed data points need re-deriving before it
-starts.** Meanwhile **every multicore defect this project has found was found without silicon**, two
-by loom and two under two-core QEMU, which retires the reading that treated silicon as the only
-productive instrument.
+**Experiment status: NOT-RUN, 2026-09-23.** No verdict, and the reason no verdict is available is
+itself the finding. Until that date this entry had no status at all, and the sentence it opened with
+had been retracted in the tree two weeks before this file was written. The VisionFive 2's receiver
+woken with nothing delivered was overturned by `notes/visionfive2.md`'s own fifth bench stop on
+2026-08-15. So the gate has never fired on a field failure
+([`notes/scheduler.md`](../notes/scheduler.md)). The correction propagated badly, so
+milestone 201 (is multicore reliability converging)'s three seed data points need re-deriving before
+it starts.
+
+Meanwhile every multicore defect this project has found was found without silicon, two by loom and
+two under two-core QEMU. Both instruments are cheap. A defect emulation can find is not evidence
+about the class it cannot. But it retires the reading that treated silicon as the only productive
+instrument.
 
 **The decisive experiment, which has not been run:** milestone 225 (run the soak on radon, argon and
 xenon), gated `HARDWARE`. Everything it needs now exists and none of it did on 2026-09-01.
 
-**Two caveats.** **Every load-sensitive red so far has resolved to a test bug**, equally consistent
+Two caveats. Every load-sensitive red so far has resolved to a test bug, which is equally consistent
 with a healthy kernel and with an instrument that cannot see
-([`notes/load-sensitive-assertions.md`](../notes/load-sensitive-assertions.md)), and the reachable
-fraction of this risk under CI is five protocols under loom's C11 model plus a TCG interleaving,
-with **no real-silicon leg at all on riscv64 or x86_64.** **And none of it can return a green**: a
-flattening defect-discovery curve is a confidence and a linear one is the red result.
+([`notes/load-sensitive-assertions.md`](../notes/load-sensitive-assertions.md)). The reachable
+fraction of this risk under CI is five protocols under loom's C11 model plus a TCG interleaving, with
+no real-silicon leg at all on riscv64 or x86_64. And none of it can return a green: a flattening
+defect-discovery curve is a confidence, and a linear one is the red result.
 [Appendix](fatal-risks/multicore-reliability.md).
 
 ## 6. A capability-confined userspace driver cannot drive real hardware at real speed
 
-**The claim:** the thing that makes the thesis interesting, drivers outside the kernel behind an
-IOMMU, does not survive contact with a real device.
+The claim: the thing that makes the thesis interesting, drivers outside the kernel behind an IOMMU,
+does not survive contact with a real device.
 
-**Experiment status: RUN, and as of 2026-09-16 all three of its parts are measured on silicon.** The
-risk names three things and they were never one claim. On radon, milestone 159 (a real hardware
-entropy source: the JH7110's TRNG)'s driver is an EL0 process reaching the TRNG **through a
-capability that names no device**: **confined** 2026-09-03, **driving real hardware** 2026-09-04
-reproducibly, and **at real speed MEASURED** 2026-09-16 at 955,223 bytes/s, about 8.4 us per round
-trip.
+**Experiment status: RUN, 2026-09-16.** All three of its parts are now measured on silicon, and they
+were never one claim. On radon, milestone 159 (a real hardware entropy source: the JH7110's TRNG)'s
+driver is an EL0 process reaching the TRNG through a capability that names no device. Confined,
+2026-09-03. Driving real hardware, 2026-09-04, reproducibly. At real speed, MEASURED 2026-09-16 at
+955,223 bytes/s, about 8.4 us per round trip.
 
 **The decisive experiment:** one real, non-virtio device on real silicon, confined, at throughput.
-**Every piece now exists and the remaining distance is a bench evening.** Milestone 261 (the NVMe
-driver leaves the kernel, on the machine that can finally confine it) is §86 (whether an NVMe driver
-can leave the kernel, and what capability would let it)'s option 2a; xenon has a plain PCIe NVMe
-function behind VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
+Every piece now exists and the remaining distance is a bench evening. Milestone 261 (the NVMe driver
+leaves the kernel, on the machine that can finally confine it) is §86 (whether an NVMe driver can
+leave the kernel, and what capability would let it)'s option 2a. xenon has a plain PCIe NVMe function
+behind VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
 
-**Two caveats.** **This does not retire the risk, and the reason is the device**: a TRNG has no DMA
-and one register window, so **it is the smallest real device on the board**, and the rate is **not
-comparable to a Linux `hwrng` figure**, a read from an in-kernel driver with no IPC in it. **And on
-the night two things must hold, neither of them code**: the DMAR's device scope must cover the NVMe
-function, and the LBA size must give `blocks_per` in `1..=8`, or the line reads `skipped`. **A skip
-is not a pass.** [Appendix](fatal-risks/the-confined-driver.md).
+Two caveats. This does not retire the risk, and the reason is the device. A TRNG has no DMA and one
+register window, so it is the smallest real device on the board. The rate is not comparable to a
+Linux `hwrng` figure either, which is a read from an in-kernel driver with no IPC in it. And on the
+night two things must hold, neither of them code: the DMAR's device scope must cover the NVMe
+function, and the LBA size must give `blocks_per` in `1..=8`, or the line reads `skipped`. A skip is
+not a pass. [Appendix](fatal-risks/the-confined-driver.md).
 
 ## 7. The confinement claim is false
 
-**The claim:** a confined component escapes, and the property the whole system is built to provide
-does not hold. **What was missing:** every test of it was written by the same people who wrote the
-thing being tested.
+The claim: a confined component escapes, and the property the whole system is built to provide does
+not hold. What was missing: every test of it was written by the same people who wrote the thing being
+tested.
 
 **The experiment:** milestone 202 (every confinement test is a ritual until somebody breaks the
 confinement and watches it fail).
 
-**Experiment status: RUN, 2026-08-31, and it found the thing this risk exists to find.** 26 claims
-enumerated, three of them stated nowhere, and **25 harnesses now carry a replayable falsification,
-up from 6** ([`notes/confinement-claims.md`](../notes/confinement-claims.md); PR #614). **The
-finding is worse than a missing test**: a page-table assertion was patched to remove the check it
-exists for and still passed, because **it answered "U-mode cannot read the kernel" by refusing to
-look**, since milestone 41 (dead code: triage the suppressions, and un-blindfold the gate), with
-every gate green throughout. **A test that cannot come back red is indistinguishable from a test
-that passes**, and **three independent sweeps have each found confinement tests that could not
-fail.** The adversarial pass is **AUDITED, 2026-09-17, a qualified yes with one exception**:
-milestone 313 (the security audit that was due since August) found DECISIONS §12 (call/reply IPC: a
-one-shot reply capability)'s claim that a consumed capability cannot be used again **false on
-x86_64, on a path every boot takes**.
+**Experiment status: RUN, 2026-08-31.** It found the thing this risk exists to find. 26 claims
+enumerated, three of them stated nowhere, and 25 harnesses now carry a replayable falsification, up
+from 6 ([`notes/confinement-claims.md`](../notes/confinement-claims.md); PR #614). The finding is
+worse than a missing test. A page-table assertion was patched to remove the check it exists for and
+still passed, because it answered "U-mode cannot read the kernel" by refusing to look. It had done so
+since milestone 41 (dead code: triage the suppressions, and un-blindfold the gate), with every gate
+green throughout. A test that cannot come back red is indistinguishable from a test that passes, and
+three independent sweeps have each found confinement tests that could not fail.
 
-**The caveat that keeps the gate closed: it was us attacking our own system**, so a hole we closed
-ourselves is the same category of evidence as the audit that found it. **The outsider trying to
-escape is gated behind milestone 198 (a package manager, and the trivial install that makes a second
-customer possible)** by calef's no-third-parties position. Nothing here says the confinement holds;
-what it supports is that these named claims are tested and each shown to fail when broken.
+The adversarial pass is AUDITED, 2026-09-17: a qualified yes with one exception, found and fixed.
+Milestone 313 (the security audit that was due since August) found DECISIONS §12 (call/reply IPC: a
+one-shot reply capability)'s claim that a consumed capability cannot be used again false on x86_64,
+on a path every boot takes.
+
+The caveat that keeps the gate closed: it was us attacking our own system. A hole we closed ourselves
+is the same category of evidence as the audit that found it. The outsider trying to escape is gated
+behind milestone 198 (a package manager, and the trivial install that makes a second customer
+possible), by calef's no-third-parties position. Nothing here says the confinement holds. What it
+supports is that these named claims are tested, and each shown to fail when broken.
 [Appendix](fatal-risks/the-confinement-claims.md).
 
 ## 8. Nobody needs it
 
-**The claim:** everything works and no one has a reason to run it.
+The claim: everything works and no one has a reason to run it.
 
-**Experiment status: CANNOT-RUN, 2026-09-23. Untestable by this project's own policy, and no
-verdict.** That is the finding rather than an apology for not having one. The other eight can come
-back red; this one cannot come back at all. **A fatal risk that cannot be tested is the most
-dangerous state a fatal risk can be in**, and rule 1 says why: an entry that cannot fail is
-indistinguishable from one that passed. Risks 3 and 7 found tests of that shape inside the kernel;
-**this is the same defect one level out, in the file that judges the project.** **It has already
-fired once**: in August 2026 the customer had a real deadline, nife could not meet it, and he solved
-the problem with Linux, which is principle 1 working as designed. **What it changed: a first
-customer should be something nife can plausibly be adequate at within a milestone or two.**
+**Experiment status: CANNOT-RUN, 2026-09-23.** Untestable by this project's own policy, and no
+verdict. That is the finding rather than an apology. The other eight can come back red. This one
+cannot come back at all, and a fatal risk that cannot be tested is the most dangerous state a fatal
+risk can be in. Rule 1 says why: an entry that cannot fail is indistinguishable from one that passed.
+Risks 3 and 7 found tests of that shape inside the kernel. This is the same defect one level out, in
+the file that judges the project.
 
-**Why no verdict can be rendered, as the loop it is.** Nobody can be asked to run nife until it
-installs; it will not install until milestone 198 lands; 198 is `PARTIAL` behind a `DECISION` gate
-only calef can answer, and milestone 530 (name a customer, or admit the ranking function has nothing
-to rank) ruled on 2026-09-21 that the path **stays vacant, and is blocked rather than empty**. So
-the strongest reading of principle 1 while it is blocked is that **198 inherits the ranking
-function's top slot.** **What would falsify it:** somebody who is not calef installs nife on purpose
-and is still running it two months later, where **the install is the weak half and retention is the
-claim.**
+It has already fired once, which is the most useful thing about it. In August 2026 the customer had a
+real deadline, nife could not meet it, and he solved the problem with Linux. That is principle 1
+working as designed. What it changed: a first customer should be something nife can plausibly be
+adequate at within a milestone or two.
 
-**Two caveats, and they are what this entry is for.** **What the green results buy is narrower than
-it reads**: risks 1 and 9 answer *could somebody run this*, this entry asks *does somebody want to*,
-and **treating capability as demand is the error this entry exists to prevent.** **And the rest is a
-hope, recorded as one**: one user, who left, zero others, nobody yet offered this system, and **no
-evidence here supports the expectation that users arrive once it installs.**
+Why no verdict can be rendered, as the loop it is. Nobody can be asked to run nife until it installs.
+It will not install until milestone 198 lands, and 198 is `PARTIAL` behind a `DECISION` gate only
+calef can answer. Milestone 530 (name a customer, or admit the ranking function has nothing to rank)
+ruled on 2026-09-21 that the path stays vacant, and is blocked rather than empty. So while it is
+blocked, 198 inherits the ranking function's top slot. What would falsify it: somebody who is not
+calef installs nife on purpose and is still running it two months later. The install is the weak
+half, and retention is the claim.
+
+Two caveats, and they are what this entry is for. What the green results buy is narrower than it
+reads: risks 1 and 9 answer *could somebody run this*, and this entry asks *does somebody want to*.
+Treating capability as demand is the error this entry exists to prevent. And the rest is a hope,
+recorded as one: one user, who left, zero others, and no evidence here that users arrive once it
+installs.
 [Appendix](fatal-risks/nobody-needs-it.md).
 
 ## 9. The HAL is a fiction, and an architecture costs a restructure rather than a port, and so does the next machine
 
-**The claim, calef's, 2026-08-30:** *"another proof/disproof of the nife thesis is actual
-functioning on the three silicons. If we can't get it to run on one, that would also likely kill the
-effort."* **Sharpened, because the ISA count is not the fatal part:** what would be fatal is a
-failure revealing that adding an architecture requires changing the kernel rather than adding a
-directory under `arch/`, which is what DECISIONS §4 (kernel shape, with two cheap rules)'s rule 1
-and §19 (architectural parity is a tenet) claim it does not. **Widened 2026-09-23 from architectures
-to machines, and the ruling is calef's**: *"A nife that runs on one cloud platform but not another
-is also its own form of risk."* So it now reads at two grains, an **architecture** and an
-**implementation**, a particular machine of one (both words provisional). **The implementation grain
-is the earlier warning**, and the only one that can be bought.
+The claim, calef's, 2026-08-30: *"another proof/disproof of the nife thesis is actual functioning on
+the three silicons. If we can't get it to run on one, that would also likely kill the effort."*
 
-**Experiment status: RUN, 2026-09-17. GREEN, and this is the verdict this entry was missing.**
+Sharpened, because the ISA count is not the fatal part. What would be fatal is what a failure would
+reveal: that adding an architecture requires changing the kernel rather than adding a directory under
+`arch/`. That is what DECISIONS §4 (kernel shape, with two cheap rules)'s rule 1 and 
+§19 (architectural parity is a tenet) claim it does not.
+
+Widened 2026-09-23 from architectures to machines, and the ruling is calef's: *"A nife that runs on
+one cloud platform but not another is also its own form of risk."* So it reads at two grains now, an
+architecture and an implementation, a particular machine of one. Both words are provisional. The
+implementation grain is the earlier warning, and the only one that can be bought.
+
+**Experiment status: RUN, 2026-09-17.** GREEN, and this is the verdict this entry was missing.
 Milestone 87 (the x86_64 bare-metal machine) reached `nife self-test: 5 of 5 passed` on xenon's own
-firmware, so **nife runs on all three declared architectures on real hardware**, with everything it
-needed under `kernel/src/arch/x86_64/` and its one defect fixed inside `arch/x86_64/mmu.rs`. The
+firmware, so nife runs on all three declared architectures on real hardware. Everything it needed
+lives under `kernel/src/arch/x86_64/`, and its one defect was fixed inside `arch/x86_64/mmu.rs`. The
 cost was measured rather than merely passed: 42 compiler errors, every one "this `arch::` name does
-not exist yet", with `crates/paging` unchanged. [`notes/x86-port.md`](../notes/x86-port.md): *"That
-is the whole diff above `arch/`. A new ISA was a new directory."*
+not exist yet", with `crates/paging` unchanged.
+[`notes/x86-port.md`](../notes/x86-port.md): *"That is the whole diff above `arch/`. A new ISA was a
+new directory."*
 
-**The experiment for the widened grain, which has not been run:** a second machine of an
-architecture nife already boots, riding on milestone 225 (run the soak on radon, argon and xenon), a
-boot rather than a purchase, where **finding no difference at all is a result** rather than a shrug.
+**The experiment for the widened grain, which has not been run:** a second machine of an architecture
+nife already boots, riding on milestone 225 (run the soak on radon, argon and xenon). It is a boot
+rather than a purchase. All three outcomes are informative and only one looks like news, since
+finding no difference at all is a result rather than a shrug.
 
-**Three caveats.** **The verdict is one machine per architecture**, and for aarch64 not even that,
-since argon has never booted nife, so those 42 errors price a third *architecture* and say nothing
-about a second *machine*. **The failure this grain fears is silence**, and the appendix has a worked
-instance closed on 2026-09-23 by milestone 186 (derive the architecture list, and close what it does
-not reach): five functions that compiled, shipped and did nothing on the architecture nobody had run
-them on. **And parity multiplies every other risk here: if the project ever needs to buy time,
-dropping to two architectures is the largest single lever available**, and it should be a decision
-rather than a drift. [Appendix](fatal-risks/the-hal-and-the-next-machine.md).
+Three caveats. The verdict is one machine per architecture, and for aarch64 not even that, since
+argon has never booted nife. So those 42 errors price a third *architecture* and say nothing about a
+second *machine*. The failure this grain fears is silence. The appendix has a worked instance, closed
+on 2026-09-23 by milestone 186 (derive the architecture list, and close what it does not reach): five
+functions that compiled, shipped and did nothing on the architecture nobody had run them on. And
+parity multiplies every other risk here. If the project ever needs to buy time, dropping to two
+architectures is the largest single lever available, and it should be a decision rather than a drift.
+[Appendix](fatal-risks/the-hal-and-the-next-machine.md).
 
 ## The running order
 
-Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's verdict is the
-entry's; the argument for it is up there, not here.
+Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's verdict is the entry's.
+The argument for it is up there, not here.
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
@@ -316,37 +327,41 @@ entry's; the argument for it is up there, not here.
 | ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 94.7% like-for-like against 92.4%, and 563 untriaged survivors hold the amber | milestone 326 | done; the triage remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
-| -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result, and three seed points need re-deriving first | milestone 201 | weeks, hardware |
+| -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result, and three seed points need re-deriving first | milestone 201 (is multicore reliability converging) | weeks, hardware |
 | ~~7~~ | 7, confinement | **RUN, 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** A confinement test could not fail, and DECISIONS §12 was false on x86_64. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
 | -- | 8, nobody needs it | **CANNOT-RUN, 2026-09-23.** No experiment, and none available: milestone 576 (how many systems are out there, and what do they run) is behind milestone 198 (a package manager, and the trivial install that makes a second customer possible) | milestone 576 | blocked, not costed |
 
 ## BUGS
 
-- ~~**Nothing gates this file.**~~ Closed 2026-09-11 for the mechanical half by milestone 275 (a gate
-  that diffs `design/fatal-risks.md` against the roadmap it cites): `script/fatal-risks --check` runs in
-  `script/lint` and compares what this file says about a milestone or a decision against what the
-  roadmap and the decision index record, finding four live disagreements on its first run.
+- ~~Nothing gates this file.~~ Closed 2026-09-11 for the mechanical half by milestone 275 (a gate
+  that diffs `design/fatal-risks.md` against the roadmap it cites). `script/fatal-risks --check` runs
+  in `script/lint` and compares what this file claims about a milestone or a decision against what
+  the record holds. It found four live disagreements on its first run.
 
-  **What is not closed is the larger half.** A gate can see a status word contradicting the record. It
+  What is not closed is the larger half. A gate can see a status word contradicting the record. It
   cannot see a premise being overtaken, which is what happened to risk 9's cost line: it priced
-  milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks PVH.
-  **A green `script/fatal-risks` means no status word in this file contradicts the record it names; it
-  is not a warrant that the arguments still hold.**
-- **Nothing gates an appendix.** `script/fatal-risks` parses this file alone, so a verdict restated
-  under `design/fatal-risks/` can drift from the one above it and no check will say so. The appendices
-  therefore do not carry the `Experiment status` field at all, and each says at its head that this
-  document is the claim of record: rung three of AGENTS.md's ladder, and honest about being rung three.
-- ~~**Two entries have no owner.**~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202, both
+  milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks
+  PVH. A green `script/fatal-risks` means no status word here contradicts the record it names. It is
+  not a warrant that the arguments still hold.
+- Nothing gates an appendix. `script/fatal-risks` parses this file alone, so a verdict restated under
+  `design/fatal-risks/` can drift and no check will say so. The appendices therefore do not carry the
+  Experiment status field at all, and each says at its head that this document is the claim of
+  record. That is rung three of AGENTS.md's ladder, and honest about being rung three.
+- The bold this document carries is the gate's, not the prose's. `script/fatal-risks` reads the
+  Experiment status lines, the experiment lead-ins and the running order's verdict cells as markup,
+  so those spans are machinery rather than emphasis. Every other bold span is gone, and what is left
+  spends nearly the whole writing-convention budget of four per thousand words. Editing this file
+  means spending the gate's budget, not your own.
+- ~~Two entries have no owner.~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202, both
   scoped by calef and both reframed in the process, risk 7's by §134 (a harness carries a
-  machine-replayable falsification record, or it is not evidence). **Neither can return a clean green**,
+  machine-replayable falsification record, or it is not evidence). Neither can return a clean green,
   and both blocks say so where a reader meets them.
-- **The ranking is a judgement, not a calculation.** "Chance of fatal" is nobody's measurement, and two
+- The ranking is a judgement, not a calculation. "Chance of fatal" is nobody's measurement, and two
   readers could order this differently on the same evidence.
-- **A green result is not proof of anything.** Every experiment here can only fail to kill the project,
-  which is the nature of falsification and worth saying before a clean run gets quoted as a claim.
-- **The word budget is a constraint on this document, not on the truth.** calef asked for 3,000 words
-  and this is about 4,000, because nine entries that each keep a claim, a status, an experiment with an
-  owner and a cost, and their load-bearing caveats did not compress below that without dropping one of
-  the five, and the running order plus this section are a quarter of the budget on their own. The
-  overage is named rather than hidden, and the next editor should take it out of the entries rather than
-  out of the caveats. Where this document is thin, the appendix beside it is not.
+- A green result is not proof of anything. Every experiment here can only fail to kill the project,
+  which is the nature of falsification, and worth saying before a clean run gets quoted as a claim.
+- The word budget is a constraint on this document, not on the truth. calef asked for 3,000 words and
+  this is about 4,200. Nine entries that each keep a claim, a status, an experiment with an owner and
+  a cost, and their caveats did not compress below that without dropping one of the five. The running
+  order and this section are a fifth of the budget alone. Take the overage out of the entries rather
+  than out of the caveats. Where this document is thin, the appendix beside it is not.
