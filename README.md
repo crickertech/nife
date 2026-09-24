@@ -284,9 +284,10 @@ and IPC arrive together.
 
 **[notes/project-metrics.md](notes/project-metrics.md)** is one row per ISO week: milestones and
 decisions by status, code against comments, `BUGS` sections, Kani harnesses and what can falsify
-them, `unsafe` density, and how many of the nine fatal risks have been put to an experiment. The data
-is [`notes/project-metrics/weekly.csv`](notes/project-metrics/weekly.csv), in the tree, and
-`script/metrics` regenerates all of it from git history.
+them, `unsafe` density, how many of the nine fatal risks have been put to an experiment, and how far
+the tree's prose runs over its own 3,000-word cap. The data is one CSV per measure in
+[`notes/project-metrics/`](notes/project-metrics/), in the tree, and `script/metrics` regenerates all
+of it from git history.
 
 **Read the page's first section before you quote a bar.** Every row is a restatement: the series
 applies today's definitions to old commits, which is what makes it comparable and is not what any of

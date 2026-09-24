@@ -98,7 +98,7 @@
 # - **`--check` is stale for the length of a commit, by construction.** The current week's row
 #   records HEAD's sha in its `commit` column, so committing anything, including the CSV this
 #   command just wrote, changes what the next run computes. A working tree that has just committed
-#   therefore reports `weekly.csv is stale` and is not. It matters less than it reads: this check is
+#   therefore reports `weeks.csv` stale when it is not. It matters less than it reads: this check is
 #   run by the weekly workflow rather than by `script/lint` or CI, so nothing gates on it, and the
 #   next scheduled run heals it. Noted 2026-09-20 after a maintainer chased it twice in one session.
 # - **Which files carry a name is written twice**: here in `name_surfaces`, and in `script/names`'
@@ -167,7 +167,8 @@ from rust_source import non_blank, strip_non_code                           # no
 
 PAGE = 'notes/project-metrics.md'
 DATA_DIR = pathlib.Path('notes/project-metrics')
-CSV_PATH = DATA_DIR / 'weekly.csv'
+# The data files themselves are one per measure and are named by `MEASURES` below. There is no
+# single joined file; milestone 581 (one metrics file per measure) retired `weekly.csv`.
 # Milestone 519 (what this project costs, tracked where it cannot rot) needs two inputs that no
 # revision of this tree can produce. `effort.csv` is written by
 # `script/effort` from session records that exist only on the machine the lanes ran on; `ledger.md`
@@ -197,29 +198,67 @@ def _col(prefix, status):
     return prefix + '_' + status.lower().replace('-', '_')
 
 
-FIELDS = (['week', 'commit', 'date']
-          + [_col('milestones', s) for s in MILESTONE_STATUSES] + ['milestones_total']
-          + [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']
-          + [_col('names', s) for s in NAME_STATUSES] + ['names_total']
-          + ['proposals_unnumbered', 'milestones_built_this_week', 'merged_pull_requests']
-          + ['kernel_code_lines', 'kernel_comment_lines',
-             'other_code_lines', 'other_comment_lines',
-             'bugs_markdown', 'bugs_rust',
-             'harnesses_falsified', 'harnesses_unfalsified', 'harnesses_total',
-             'unsafe_outside_arch', 'unsafe_inside_arch', 'unsafe_thread_safety',
-             'unsafe_code_lines', 'unsafe_density',
-             'unsafe_trust_kernel', 'unsafe_trust_kernel_code_lines', 'unsafe_trust_kernel_density',
-             'unsafe_trust_userspace', 'unsafe_trust_userspace_code_lines',
-             'unsafe_trust_userspace_density',
-             'unsafe_trust_shared', 'unsafe_trust_boot_chain', 'unsafe_trust_unclassified',
-             'fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run',
-             'coverage_lines_pct', 'coverage_min_file_pct']
-          # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them
-          # up: person-weeks for the comparison against the verification literature, tokens with a
-          # dated price for the argument about the method, cash for calef's own budgeting. 519
-          # refuses a single headline number, so this file does not compute one.
-          + ['human_person_weeks', 'lane_tokens', 'lane_wall_clock_hours',
-             'price_per_mtok_at_date', 'cash_spend'])
+# One file per measure, which is what makes a new measure a new file rather than a new column
+# (milestone 581, one metrics file per measure). `weekly.csv` held all of these side by side and
+# was 58 columns wide, so every branch that added a measure rewrote the same header line and the
+# same eleven data lines. Two pull requests adding disjoint measures collided with each other and
+# with `main`; two of them aborted a rebase in one batch on 2026-09-23. A measure in its own file
+# cannot collide with a measure in another one, which is AGENTS.md's top rung: the wrong state is
+# unrepresentable rather than merely discouraged.
+#
+# The boundaries are the charts'. `notes/project-metrics.md` already presents these as separate
+# panels, so a reader who knows the page knows the files, and `CHARTS` below is the index that
+# names both. `weeks` is the one entry that is not a measure: it is the series index, recording
+# which commit and date each week's numbers were read at.
+#
+# Two consequences worth knowing before reading `read_csv` and `render_csvs`. A row is written only
+# when its measure has something to say for that week, so a series that began in 2026W39 starts
+# there instead of carrying ten blank cells. And `read_csv` merges every file back into one row per
+# week, so everything downstream of it, the charts included, still sees the flat row it always saw.
+#
+# `cost` rather than `effort`, because `effort.csv` in this same directory is `script/effort`'s
+# output and an input to this script. The chart it feeds keeps its own name, `effort.svg`.
+WEEK = 'week'
+
+MEASURES = [
+    ('weeks', ['commit', 'date']),
+    ('milestones', [_col('milestones', s) for s in MILESTONE_STATUSES]
+     + ['milestones_total', 'proposals_unnumbered']),
+    ('velocity', ['milestones_built_this_week']),
+    ('pull-requests', ['merged_pull_requests']),
+    ('decisions', [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']),
+    ('names', [_col('names', s) for s in NAME_STATUSES] + ['names_total']),
+    ('lines', ['kernel_code_lines', 'kernel_comment_lines',
+               'other_code_lines', 'other_comment_lines']),
+    ('bugs', ['bugs_markdown', 'bugs_rust']),
+    ('harnesses', ['harnesses_falsified', 'harnesses_unfalsified', 'harnesses_total']),
+    ('unsafe', ['unsafe_outside_arch', 'unsafe_inside_arch', 'unsafe_thread_safety',
+                'unsafe_code_lines', 'unsafe_density']),
+    ('unsafe-trust', ['unsafe_trust_kernel', 'unsafe_trust_kernel_code_lines',
+                      'unsafe_trust_kernel_density',
+                      'unsafe_trust_userspace', 'unsafe_trust_userspace_code_lines',
+                      'unsafe_trust_userspace_density',
+                      'unsafe_trust_shared', 'unsafe_trust_boot_chain',
+                      'unsafe_trust_unclassified']),
+    ('fatal-risks', ['fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run']),
+    ('coverage', ['coverage_lines_pct', 'coverage_min_file_pct']),
+    # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them up:
+    # person-weeks for the comparison against the verification literature, tokens with a dated
+    # price for the argument about the method, cash for calef's own budgeting. 519 refuses a single
+    # headline number, so this file does not compute one.
+    ('cost', ['human_person_weeks', 'lane_tokens', 'lane_wall_clock_hours',
+              'price_per_mtok_at_date', 'cash_spend']),
+]
+
+# The flat row every metric function and `--table` still speaks in, derived from the split rather
+# than maintained beside it, so the two cannot disagree about which columns exist.
+FIELDS = [WEEK] + [column for _name, columns in MEASURES for column in columns]
+if len(set(FIELDS)) != len(FIELDS):
+    raise SystemExit('metrics: MEASURES names a column twice; a column belongs to one measure')
+
+
+def measure_path(name):
+    return DATA_DIR / (name + '.csv')
 
 # Columns a rewrite must CARRY rather than recompute, because nothing in git can produce them and
 # the only copy is the cell itself. `--backfill` drops every row and rebuilds it, so a column not
@@ -1003,33 +1042,69 @@ def week_commits():
 
 
 def read_csv():
-    if not CSV_PATH.exists():
-        return {}
-    text = CSV_PATH.read_text().strip().split('\n')
-    header = text[0].split(',')
+    """Every measure file merged into one row per week: `{week: {column: cell}}`.
+
+    The join is on `WEEK` alone, which is why every file spells and formats it identically. A week
+    a measure has no row for contributes no keys, so the cell comes back absent rather than empty,
+    and `_cell` and `row.get` already treat those the same. That is what lets a series start at the
+    week it was first measured instead of carrying blanks back to 2026W29.
+
+    A column is read only from the file `MEASURES` assigns it to. A stray column left in another
+    file by a hand edit or a half-finished rename is ignored rather than silently winning, and the
+    next `--update` drops it.
+    """
     rows = {}
-    for line in text[1:]:
-        if not line.strip():
+    for name, columns in MEASURES:
+        path = measure_path(name)
+        if not path.exists():
             continue
-        values = line.split(',')
-        row = dict(zip(header, values))
-        rows[row['week']] = row
+        text = path.read_text().strip().split('\n')
+        header = text[0].split(',')
+        for line in text[1:]:
+            if not line.strip():
+                continue
+            cells = dict(zip(header, line.split(',')))
+            week = cells.get(WEEK)
+            if not week:
+                continue
+            row = rows.setdefault(week, {WEEK: week})
+            for column in columns:
+                if column in cells:
+                    row[column] = cells[column]
     return rows
 
 
-def write_csv(rows):
-    """Rewrite the whole file from the dict, sorted, fixed columns, fixed formatting.
+def render_csvs(rows):
+    """`{path: text}` for every measure, sorted, fixed columns, fixed formatting.
 
     Never appended to. This is the whole of the idempotence guarantee: the week being written
     replaces its own entry rather than adding one, so running twice in a week produces the same
     bytes, and so does running the backfill against a history that has not moved.
+
+    A week with nothing to say is omitted rather than written blank, and that is the point of the
+    split rather than a tidiness. A measure introduced in 2026W39 used to leave ten empty cells
+    behind it in a wide file, and an empty cell is ambiguous between "measured zero" and "nobody
+    looked"; the charts needed an `absent` flag per column to tell a reader which. An absent row
+    says only the true thing. A week the measure answered for partially still gets its row, with
+    the cell it could not fill left empty, because there the ambiguity is real and local.
     """
-    lines_out = [','.join(FIELDS)]
-    for week in sorted(rows):
-        row = rows[week]
-        lines_out.append(','.join(str(row.get(field, '')) for field in FIELDS))
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return '\n'.join(lines_out) + '\n'
+    out = {}
+    for name, columns in MEASURES:
+        lines_out = [','.join([WEEK] + columns)]
+        for week in sorted(rows):
+            row = rows[week]
+            cells = [str(row.get(column, '')) for column in columns]
+            if not any(cells):
+                continue
+            lines_out.append(','.join([week] + cells))
+        out[measure_path(name)] = '\n'.join(lines_out) + '\n'
+    return out
+
+
+def write_csvs(rendered):
+    for path, text in rendered.items():
+        path.write_text(text)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1049,7 +1124,7 @@ def write_csv(rows):
 # yellow read at 1.32:1 on white, which made the milestones chart's "Removed" band nearly
 # invisible, and its gray failed the chroma floor. Three light steps still sit under 3:1 on white,
 # which is legal only with relief, and each chart carries three kinds: the legend, a <title> on
-# every segment, and weekly.csv as the table view. Slots are assigned in this fixed order and never
+# every segment, and the measure files as the table view. Slots are in this fixed order and never
 # cycled. The eighth slot was added on 2026-09-19 for the milestones chart's proposals, appended
 # rather than inserted so that no existing series changed colour, and all eight were validated
 # again in both modes before it shipped. A ninth series is never a new hue; it folds into another.
@@ -1060,7 +1135,7 @@ PALETTE_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'
                 '#e66767']
 
 CHART_W, CHART_H = 860, 380
-# The charts show the most recent CHART_WEEKS weeks; weekly.csv keeps every week, and a backfill
+# The charts show the most recent CHART_WEEKS weeks; the measure files keep every week, and a
 # still restates all of them. calef, 2026-09-19: ten weeks, so W29 leaves the charts when W39
 # arrives. Old weeks are not deleted, only no longer drawn, because the CSV is the table view
 # the charts' relief rule leans on and a table that forgets is not one.
@@ -1490,7 +1565,7 @@ def main(argv):
         rows = read_csv()
         if coverage_week not in rows:
             raise SystemExit('metrics: %s is not a week in %s; --coverage-for only fills a row '
-                             'that already exists' % (coverage_week, CSV_PATH))
+                             'that already exists' % (coverage_week, measure_path('weeks')))
         # Either cell alone, because they come from different files and a caller may hold only
         # one: a historical week has an lcov and no floor summary, and re-running the floor over an
         # old lcov would apply today's exemptions to it.
@@ -1498,7 +1573,7 @@ def main(argv):
             rows[coverage_week]['coverage_lines_pct'] = coverage
         if coverage_min:
             rows[coverage_week]['coverage_min_file_pct'] = coverage_min
-        CSV_PATH.write_text(write_csv(rows))
+        write_csvs(render_csvs(rows))
         draw_charts(rows)
         print('metrics: %s coverage_lines_pct = %s, coverage_min_file_pct = %s, charts in %s/'
               % (coverage_week, coverage or '(unchanged)', coverage_min or '(unchanged)',
@@ -1568,18 +1643,23 @@ def main(argv):
     # than a surprise on the next write.
     rows = fill_derived(rows, head)
 
-    text = write_csv(rows)
+    rendered = render_csvs(rows)
     if mode == '--check':
-        current_text = CSV_PATH.read_text() if CSV_PATH.exists() else ''
-        if current_text != text:
-            print('metrics: %s is stale; run script/metrics --update' % CSV_PATH, file=sys.stderr)
+        # Every measure, and the message names all of the stale ones rather than the first. A
+        # caller told one name at a time learns nothing, and `--update` rewrites them all anyway.
+        stale = [path for path, text in rendered.items()
+                 if (path.read_text() if path.exists() else '') != text]
+        if stale:
+            print('metrics: %s stale; run script/metrics --update'
+                  % ', '.join(str(path) for path in sorted(stale)), file=sys.stderr)
             return 1
-        print('metrics: %s is current' % CSV_PATH)
+        print('metrics: %d measure files in %s/ are current' % (len(rendered), DATA_DIR))
         return 0
 
-    CSV_PATH.write_text(text)
+    write_csvs(rendered)
     draw_charts(rows)
-    print('metrics: %d weeks in %s, charts in %s/' % (len(rows), CSV_PATH, DATA_DIR))
+    print('metrics: %d weeks across %d measure files in %s/, charts in the same directory'
+          % (len(rows), len(rendered), DATA_DIR))
     return 0
 
 

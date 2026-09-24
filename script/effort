@@ -10,7 +10,7 @@
 # human effort, cash, and machine effort. The first two are statements a person makes and they live
 # in a ledger. The third is a measurement, and it is the one with a deadline.
 #
-# **Every other column in `notes/project-metrics/weekly.csv` is computed from a git revision**, so
+# **Every other column in `notes/project-metrics/` is computed from a git revision**, so
 # history backfills by reading the tree at a past commit. Tokens and wall clock are not in git. They
 # live in the agent harness's own session records under `~/.claude/projects/`, outside this
 # repository, on one laptop, and nothing promises to keep them. When 519 was written the first ten

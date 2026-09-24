@@ -7,10 +7,11 @@
 have a home in this directory. `script/metrics` and the directory `notes/project-metrics/` are
 **provisional**; naming is calef's, and a lane ships a provisional name and says so.*
 
-One row per ISO week, computed by `script/metrics` from git history. The data is
-[`notes/project-metrics/weekly.csv`](project-metrics/weekly.csv), in the tree, versioned with the
-code it describes, so this page renders the repository's own numbers rather than holding a copy of
-them that can rot.
+One row per ISO week, computed by `script/metrics` from git history. The data is one CSV per
+measure in [`notes/project-metrics/`](project-metrics/), in the tree, versioned with the code it
+describes, so this page renders the repository's own numbers rather than holding a copy of them that
+can rot. A measure's file carries the weeks it has something to say about and no others, so a series
+that began in 2026W39 starts there rather than trailing ten blank cells behind it.
 
 This is the half of `notes/register-of-measures.md` that moves. That register says which numbers
 this kernel **owes itself**: which ones a decision rests on, which ones a constant is sized against,
@@ -57,7 +58,7 @@ bars are.
 2026W29 and there is no 2026W28.
 
 **The charts show the ten most recent weeks; the CSV keeps every one** (calef, 2026-09-19). So
-2026W29 leaves the charts when 2026W39 arrives, and stays in `weekly.csv`, which is the table view
+2026W29 leaves the charts when 2026W39 arrives, and stays in its measure's CSV, the table view
 the charts rely on for the three colours that sit under 3:1 on a white page. A week is never
 deleted, only no longer drawn.
 
@@ -1022,8 +1023,9 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   a merge that resolves two branches' concurrently-added columns into one header needs a `--backfill`
   afterward or the older rows carry the new columns as empty cells. This happened to
   `unsafe_trust_*` from 2026-09-21 to 2026-09-23 (see "That backfill was lost for two days" above)
-  and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on `weekly.csv`
-  after any commit that merges two metrics branches is worth a look before trusting the row count.
+  and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on
+  `notes/project-metrics/` after any commit that merges two metrics branches is worth a look before
+  trusting the row count.
 - **`milestones_built_this_week` will not equal the week-on-week change in the `Built` stock, in
   any week.** It is deliberate and it is the section above, but it reads as an error to anyone who
   differences two rows and expects the flow to fall out, which is what happened on 2026-09-23.
