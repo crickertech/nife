@@ -72,6 +72,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   than the person. The click path and the commands to create it, what it does not fix (commit
   authorship stays with whoever holds the git identity), and why the PAT is retired only after a run
   has been observed taking the App path.
+- [What to do when `main` goes red](main-is-red.md): the response calef named as missing on
+  2026-09-23, when three scripts watched the queue and none of them answered. Hold the queue, land
+  one fix alone, give the queue back: `scripts/queue-hold.sh` does the mechanical half and
+  [briefs/main-is-red.md](../briefs/main-is-red.md) holds the judgement, including how to tell a real
+  trunk failure from a stale base or a cancelled shard. The four things that fail (dequeuing does not
+  stick while auto-merge is armed, `--disable-auto` does not dequeue, GitHub leaves orphaned group
+  builds running, and a green CI conclusion does not mean a healthy tree), why the held set is a
+  label rather than a script's memory, and the two bugs the scratch-repository rehearsal caught.
+  Names provisional.
 - [Counted claims](counted-claims.md): a number in the prose is a claim, and unlike a name it is one
   a machine can check. The `<!--count:NAME-->` marker, the registry of derivations in `script/lint`,
   and why it is a ratchet rather than a sweep. Three claimed counts were tested against the tree and

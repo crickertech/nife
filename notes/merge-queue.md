@@ -47,6 +47,11 @@ auto-merge on every one of them, and names anything that is conflicted or failin
 script. Arming is one API call that changes nothing until the checks pass, so there is no reason to
 ration it, and an armed pull request enters GitHub's merge queue on its own when it goes green.
 
+**It never merges anything labelled `held-for-red-trunk` either**, added 2026-09-23 after it
+re-enqueued a held set three times in one evening: that label means `main` is broken and one fix is
+landing alone, which is a reason about the queue rather than about a pull request, and the drain's
+admission policy had no way to express one. See [notes/main-is-red.md](main-is-red.md).
+
 **It never merges anything labelled `needs-architect`**, which is the one policy the platform does
 not know. That label means the work is outside standing merge authority: it touches the syscall
 surface, adds a dependency, or owes a `DECISIONS` section.
@@ -316,6 +321,18 @@ watcher produces.
 
 The phrase "nobody is assigned to this" is not filler. A red trunk with an owner is a task; a red
 trunk without one is the failure being surfaced.
+
+**What to do once it speaks is [notes/main-is-red.md](main-is-red.md)**, added 2026-09-23 because
+calef asked whether the response existed and it did not: this watcher reported a red trunk and
+`scripts/merge-drain.sh` carried on arming pull requests into it every five minutes. The response is
+`scripts/queue-hold.sh` (hold the queue, land one fix alone, release) with the judgement in
+[briefs/main-is-red.md](../briefs/main-is-red.md). It stays a person's to run, for the reason this
+note gives throughout: a queue reports, it does not resolve.
+
+**And this watcher has a blind spot worth knowing here**, now recorded in its own `BUGS`: it reads
+CI's *conclusion*, and a required check whose steps were skipped posts `success` having run nothing.
+On 2026-09-23 a documentation-only commit broke a `crates/documentation` test that `ci.yml` had
+skipped, and `main` was red for hours while this script said green.
 
 ## `scripts/at-risk-check.sh`, the one watch that stays on your own machine
 

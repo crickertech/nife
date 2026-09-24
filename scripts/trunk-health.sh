@@ -17,9 +17,20 @@
 # breaks `main`, and the role that exists to compensate for the merger being busy was not pointed at
 # the thing merging breaks.
 #
-# **The signal was never missing.** CI runs on every push to `main` and has all along. On 2026-08-04
-# `main` went red and was found by someone running `script/lint` by hand after a merge, which is luck
-# rather than process. This reads the signal that already exists.
+# **The signal was never missing** was this file's claim from 2026-08-04, and on 2026-09-23 it was
+# **falsified and is corrected here rather than deleted**, because the correction is the lesson. CI
+# does run on every push to `main` and has all along; what was wrong is the step after it, which is
+# this script's own: that a green CI conclusion means a healthy tree. It does not. `ci.yml` skips the
+# steps of `build + test` when every changed path matches `notes/`, `design/` or a root `*.md`, so a
+# documentation-only commit posts a green required check having built and run nothing. That is a
+# sound rule for a kernel and a false one for `crates/documentation`, whose tests RENDER those very
+# files: `every_character_survives` never ran, `main` was broken for hours, and every signal a reader
+# or this watcher could reach said green. Pull request #1168 fixes the skip. The durable lesson is
+# about this file: **a conclusion is a claim about what ran, not about the tree.**
+#
+# The original point stands underneath it. On 2026-08-04 `main` went red and was found by someone
+# running `script/lint` by hand after a merge, which is luck rather than process. This reads the
+# signal that already exists, and now says what that signal does not cover.
 #
 # # What it says, and what it deliberately does not
 #
@@ -59,6 +70,21 @@
 # green against the base it was cut from, merged in an order neither had ever been tested in and put
 # `main` red. That rule forces a re-run against the new `main`, turning that failure into one re-run
 # instead of a broken trunk. This script is the detection half; the rule is the prevention half.
+#
+# # BUGS
+#
+#   - **A green conclusion is not a healthy tree, and this script cannot tell the difference.** See
+#     the correction above: a check whose steps were skipped reports `success`, so this watcher says
+#     GREEN while the test that would have caught the breakage never ran. Nothing here reads whether
+#     a job did any work, and a fix would mean reading each run's steps rather than its conclusion,
+#     which is a different and much chattier API. Until then, a docs-only merge is a moment to
+#     distrust this watcher rather than to be reassured by it.
+#   - **It reports and never resolves**, deliberately, which was the whole gap calef named on
+#     2026-09-23. The response now exists as `scripts/queue-hold.sh` and briefs/main-is-red.md, and
+#     a person still has to run it: this script does not, because holding the queue needs the
+#     judgement notes/merge-queue.md argues a watcher must not exercise.
+#   - **It does not report its own death.** Shared with `scripts/merge-drain.sh`, accepted rather
+#     than solved; notes/merge-queue.md has the reasoning and the `launchd` plists.
 #
 # Name: unrecorded. Provisional, minted 2026-08-04 and not yet put to calef. `trunk` rather than
 # `main` because the branch could be renamed and the concept could not, and because "trunk health"
