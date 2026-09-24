@@ -101,28 +101,28 @@ what stops the roadmap drifting into a collection of interesting kernels, and th
 risk now rather than a hypothetical one, because with no customer named there is nothing but this
 principle and the fatal-risk list holding the ordering together.
 
-### 2. The method is a result, and it is currently undocumented
+### 2. The method is a result, and it has to be recorded with its caveats
 
-Measured on **2026-08-30**, from a first commit on 2026-07-12: **49 days, 103 milestones built of
-193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099
-commits**, on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a
-filesystem, a network stack and a compositor.
+From a first commit on 2026-07-12, this tree passed two hundred thousand lines of Rust on three
+architectures in under three months, with a booting kernel on real RISC-V silicon, a shell, a
+filesystem, a network stack and a compositor. That order of magnitude was written 2026-09-24.
 
-**That line count includes comments**, and `kernel/src` measures 40% of them, so a size comparison
-against another project belongs in code lines. (The superseded 2026-08-05 figures are in git.)
+**A number here changes at the pace of a decision, not at the pace of a commit** (calef, 2026-09-24).
+Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot; read them in code
+lines, since this tree comments heavily. (The 2026-08-05 and 2026-08-30 figures are in git.)
 
 That is not a normal rate for one architect, and the reason is that the work is done by many agents
 in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
 therefore two claims, not one**: that a capability microkernel can run real workloads, and that a
 system of this size can be built this way at all. The second is at least as interesting to a
-stranger, and nothing in this tree currently states it.
+stranger, and `notes/how-this-is-built.md` is where the tree now states it.
 
 **It has to be recorded the way everything else here is recorded, with the caveats attached**, or it
 is marketing:
 
-- The numbers above are **size and rate, not quality.** 63 built milestones is a count of blocks
-  marked BUILT, and this tree found nine of them misrecorded in a single sweep (§76). Take the number
-  as a scale, never as a claim about correctness.
+- The figures there are **size and rate, not quality.** A built milestone is a block marked BUILT,
+  and §76 (what catches a milestone status that is wrong in both places) records a sweep that found
+  nine misrecorded. Take the count as a scale, never as a claim about correctness.
 - **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
   the review discipline. The same method without them produces a great deal of code that nobody can
   trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
@@ -182,8 +182,8 @@ fits:
    saying so**. A pull request comment had been written to remind the integrator of the same thing;
    the type made the reminder redundant.
 2. **A gate that fails loudly**, in `script/lint` or CI. Weaker, because somebody has to write it and
-   it can be wrong about the tree (§77 is a live example: the branch-prefix check rejects the
-   repository's second-commonest prefix). But it fires without being remembered.
+   it can be wrong about the tree: the check rejected the repository's second-commonest prefix until
+   §77 (the branch-prefix list now describes the tree). But it fires without being remembered.
 3. **A written record at the thing itself**, which is milestone 115's shape: provenance beside the
    name, not in a registry. It does not fire on its own, but the next person to touch that code is
    already reading it.
@@ -367,9 +367,9 @@ dispatched. See `notes/what-a-session-carries.md`.
   harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing
   in the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the
-  author GitHub shows.` Until milestone 128 gives the automation a real identity, every artifact
-  in this repository carries calef's name whether he wrote it or not, and a reader cannot tell
-  the architect's voice from a lane's. This is rung four and it is honest about being rung four:
+  author GitHub shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App
+  exists and the scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull
+  request with calef's `gh` token. This is rung four and it is honest about being rung four:
   the mechanism is 128's App, and this is what the record says in the meantime. (calef, 2026-08-16:
   *"it looks like I'm talking to myself a lot and the record would be nice to clarify who is
   talking."*)
@@ -527,7 +527,7 @@ appears in `git worktree list`; and prune promptly, because disk is still the on
 destroys work rather than delaying it, and deletes keep succeeding while writes fail.
 
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
-`verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
+`verify` is still running, every time. Milestone 119 (the merge queue) measured that and is BUILT.
 
 **Prune a lane's worktree the moment its pull request merges**, and never prune one with
 uncommitted work in it. Those are the two clauses that have to be known before the cleanup starts;
@@ -716,7 +716,7 @@ These come from `design/decisions/`. They are cheap to follow and expensive to r
 3. **The syscall surface stays narrow and explicit.** It is a boundary, not a habit.
 
 5. **Architectural parity is a gate, not an aspiration** (DECISIONS §19). The targets are
-   aarch64, riscv64, and x86_64 (declared, not yet started). A kernel capability ships on every
+   aarch64, riscv64, and x86_64, all three of which now boot on real hardware. A kernel capability ships on every
    supported architecture, proven by the same suite, or a scope note records the gap and the
    plan. If a feature works on one ISA and silently not another, that is the bug.
 
@@ -731,8 +731,8 @@ the requirements are known.
 
 6. **Taking a dependency is a decision, not a convenience** (DECISIONS §46). The tree's shape is
    thin architectural primitives (`aarch64-cpu`, `spin`, `tock-registers`) or whole subsystems we
-   would never write (`smoltcp`, vendored RedoxFS), with **nothing in between**: thirty crates have
-   no external dependencies at all. Write it if it is on the verification path, because you cannot
+   would never write (`smoltcp`, vendored RedoxFS), with **nothing in between**: most crates here
+   have no external dependencies at all. Write it if it is on the verification path, because you cannot
    restructure someone else's crate to make a model checker tractable. Vendor it if correctness is
    won by *exposure* rather than by reading the spec, which is why §46 says write the calendar and
    vendor the crypto.
@@ -749,11 +749,11 @@ the requirements are known.
    48 programs and 3 modules with nothing distinguishing them.
 
       And it makes location self-enforcing for free. Once shared definitions live in `crates/`,
-   everything in `user/src/` is a program, with **no files moved** and no convention to remember.
+   everything in `components/src/` is a program, with **no files moved** and nothing to remember.
 
-   This was already the tree's practice for seven crates (`fs_proto`, `sink_proto`, `cred_proto`,
-   `clock_proto`, `entropy_proto`, `ntp_proto`, `gfx_proto`) and the exceptions had no recorded
-   reason; `cseam.rs`'s header describes the `#[path]` mechanism without ever justifying it.
+   This was already the tree's practice for seven crates (`filesystem_protocol`, `byte_sink_protocol`,
+   `credential_protocol`, `clock_protocol`, `entropy_protocol`, `network_time_protocol`,
+   `graphics_protocol`); `cseam.rs`, now the `c_seam` crate, never justified the `#[path]` mechanism.
 
 ## calef names the crates, the programs, and the shared modules
 
@@ -797,8 +797,8 @@ pass/fail via semihosting. The `script/*` commands are the normalized "Scripts t
 front door (`setup`, `test`, `server`, `console`, ...); they delegate to `cargo xtask`, which is
 still the engine and exposes more (`gdb`, `objdump`, `image`). See notes/scripts.md.
 
-Tests should prove something specific that nothing else would have done for us. The four in
-`main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned
+Tests should prove something specific that nothing else would have done for us. The boot
+self-tests in `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned
 (a bug here is a mystery crash), we're at EL1 (we are where we think we are). Don't add
 filler tests.
 
