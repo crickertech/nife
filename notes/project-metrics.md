@@ -80,6 +80,21 @@ The second flow, counted from `main`'s merge subjects rather than the GitHub API
 backfills to the first commit. 2026W29 and 2026W30 are genuine zeros: the practice starts in
 2026W31.
 
+## Which model wrote it
+
+![Commits each week, by the model that signed them](project-metrics/models-commits.svg)
+
+From the `Co-Authored-By` trailer. Attributed plus unattributed plus merge is every commit that
+week, and **a merge is a pull request landing rather than a piece of writing**. 2026W29 predates
+the convention, so it is absent rather than zero.
+
+## Lines touched, by the model that signed them
+
+![Lines touched each week, by the model that signed them](project-metrics/models-lines.svg)
+
+**Added plus removed, not net, and volume rather than effort.** The hardest change of 2026-09-23
+was a dozen lines and the largest was a mechanical sweep. Merges carry no line count.
+
 ## What this project costs
 
 ![Machine effort per milestone built](project-metrics/effort.svg)
@@ -247,5 +262,12 @@ snapshot's `launchd` shape, why the file is idempotent, and which commit represe
 - **`merged_pull_requests` can only see GitHub's default merge subject.** A merge made any other way
   is not counted and cannot be distinguished from an ordinary merge commit afterwards. The total
   matches what a maintainer counted by hand on 2026-09-21, which is evidence and not proof.
+- **A band that goes to zero across the whole chart window changes the colours of the bands after
+  it.** `series_of` drops an all-zero series and the palette is indexed over what survives, so when
+  2026W30 leaves the ten-week window the `before the convention` band disappears and every band
+  below it in the by-model legend shifts one hue. The legend is redrawn with it, so nothing is
+  mislabelled; a reader comparing two screenshots taken a week apart will still see a colour move.
+  It is pre-existing behaviour of every chart here and it is recorded because the by-model panel is
+  the first one certain to hit it.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
