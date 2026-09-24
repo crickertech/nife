@@ -78,7 +78,13 @@
 //! assert!(!in_region(u64::MAX - 4, 1500, base, 16));
 //! ```
 //!
-//! Name: ratified 2026-08-01 (calef, milestone 63), replacing `dma_validate`. Refused
+//! Name: provisional, deratified. calef ratified `dma_validator` on 2026-08-01, per milestone 63
+//! (directory and package names), replacing `dma_validate`, and §154 (the acronym test is whether
+//! the phrase is spoken) deratified it on 2026-09-18, because "direct memory access" is a phrase
+//! people say. The block stays `provisional` until calef rules the new name and the rename is
+//! performed, which is the shape §154's own sequencing paragraph gives every name it deratified, so
+//! `script/names --unratified` carries the work. Corrected 2026-09-24: until then this line read
+//! `ratified 2026-08-01`, and the worklist counted a deratified name as settled. Refused
 //! `dma_validate` (a verb, while the crate's own first line already called itself "the
 //! DMA-confinement validator": it had named itself a noun and carried a verb).
 

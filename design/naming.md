@@ -289,7 +289,7 @@ The directory and stems are provisional, minted 2026-09-24.
 - `scripts/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
   says what it covers). None of their paragraphs recorded a refusal when that was priced.
 - A `ratified` is never checked against calef, and a `recorded` citation is never followed.
-- `dma_validator`'s block still reads `ratified 2026-08-01`, though §154 deratified the name, so
-  `script/names` counts it settled. Found 2026-09-24; it waits on calef's ruling.
+- `dma_validator` is deratified by §154 and not yet renamed. Its block reads `provisional` since
+  2026-09-24 (it said `ratified` until then); the new name waits on calef's ruling.
 - The boot mode is still `shell` (`cargo xtask shell`) while the program is `swish`.
 - `design/capsicum-and-the-retrofit-question.md` still names `worker` in a present-tense claim.
