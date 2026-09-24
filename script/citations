@@ -605,8 +605,14 @@ if mode == "--ratchet":
               "committed tip. Commit first.")
         print(f"citations:   {', '.join(dirty)}")
 
+    # `--diff-algorithm=myers` is pinned because which lines count as ADDED depends on it, and a
+    # user's `diff.algorithm` config otherwise decides. Found 2026-09-24 on milestone 582's branch:
+    # under a local `patience` a heading moved below new frontmatter was unchanged and the ratchet
+    # passed; CI's default Myers diff called the same heading added and failed on it. Pinning git's
+    # own default makes a local run answer what CI will.
     diff = subprocess.run(
-        ["git", "-C", root, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--"] +
+        ["git", "-C", root, "diff", "--diff-algorithm=myers", "--unified=0", "--no-color",
+         f"{base}..{tip}", "--"] +
         list(EXCLUDE),
         capture_output=True, text=True,
     ).stdout
