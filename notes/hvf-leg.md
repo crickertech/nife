@@ -1,6 +1,6 @@
 # The HVF leg: the aarch64 suite on the physical core
 
-*(Milestone 81. `script/ci-build`, `cargo xtask test --hvf`, `helpers/qemu-runner-aarch64.sh`.
+*(Milestone 81 (an HVF leg: the test suite on the physical core). `script/ci-build`, `cargo xtask test --hvf`, `helpers/qemu-runner-aarch64.sh`.
 The leg rode `script/gates` from 2026-08-04 until milestone 286 retired that script into
 `script/ci-build`'s table on 2026-09-13; every measurement below was taken under the old name.)*
 

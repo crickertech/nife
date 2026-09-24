@@ -713,7 +713,8 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Milestone 164.** `fs_server` builds for `x86_64-unknown-none`. One build flag turned exit 101
   into exit 0; `redoxfs_server` and `mkfs` ride the x86_64 archive, and the 21 skips this item
   blamed on `aes` are gone.
-- **Milestone 215.** The runner attaches a PCI device now: `helpers/qemu-runner-x86_64.sh` carries
+- **Milestone 215.** Milestone 215 (a PCI function's interrupt reaches nothing on x86_64, so no
+  userspace driver can run there) is why the runner attaches a PCI device now: `helpers/qemu-runner-x86_64.sh` carries
   a `virtio-blk-pci` line with `iommu_platform=on` plus an `nvme` line, so the 15 skips that wanted
   an enumerated bus with something on it no longer have that cause.
 - **Done.** Item 6's "no PCI device is confined through it yet" is closed by that same disk: it
