@@ -104,9 +104,8 @@ numbers. The three baseline files today carry `# why: unrecorded, predates miles
 treated as data" by "a column-0-only check". The filter below it is
 `.filter(|l| !l.trim_start().starts_with('#'))`, which handles indented comments correctly. It was
 left as a finding, because `xtask/src/bench.rs` was shared scaffolding another lane was in.
-*(Checked 2026-09-24: the comment now opens by explaining why `trim_start` matters, which is
-accurate. Its next sentence, "They survive today only because they happen to split into more than
-three tokens", still describes the column-0 hazard as live. Partly fixed.)*
+*(Fixed 2026-09-24: the comment now says the column-0 hazard is what `trim_start` prevents,
+rather than describing it as live.)*
 
 ## 2026-09-23: `rfence_self` has now been read two ways, and the file cannot settle it
 
