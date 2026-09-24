@@ -61,7 +61,7 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
 - **DMA escape.** A device programmed by a userspace driver to read or write memory outside the
   grant it was given, through the software descriptor validator or past the IOMMU domain (DECISIONS
   §20 (IOMMU-backed DMA isolation), §23 (multi-queue DMA confinement), §30 (the DMA boundary is
-  proved for descriptors); `crates/dma_validator`, notes/iommu.md).
+  proved for descriptors); `crates/direct_memory_access_validator`, notes/iommu.md).
 
   **On the VisionFive 2 there is no IOMMU at all**, so on that board the confinement is the software
   validator and nothing else. That is a property of the silicon rather than a defect, and it is

@@ -111,10 +111,10 @@ pub struct NonVolatileMemoryExpress {
     regs: u64,
     /// The doorbell stride from CAP, needed for every ring.
     dstrd: u32,
-    /// The DMA region, both addresses: commands are built through `dma_va`, the controller is
-    /// told `dma_phys`.
-    dma_phys: u64,
-    dma_va: u64,
+    /// The DMA region, both addresses: commands are built through `direct_memory_access_va`, the
+    /// controller is told `direct_memory_access_phys`.
+    direct_memory_access_phys: u64,
+    direct_memory_access_va: u64,
     admin_sq: SqState,
     admin_cq: CqState,
     /// The namespace's geometry, from IDENTIFY: size and blocks-per-filesystem-block.
@@ -125,22 +125,22 @@ pub struct NonVolatileMemoryExpress {
 }
 
 impl NonVolatileMemoryExpress {
-    /// Bring the controller from reset to ready to serve I/O: reset, admin queues, enable,
-    /// identify the namespace, create the I/O queue pair. `regs_va` is BAR0's virtual base;
-    /// `dma_phys`/`dma_va` name the same zeroed, physically contiguous [`DMA_PAGES`]-page region
-    /// through the two address spaces. The caller has already confined the device to that region
-    /// if an IOMMU is active; nothing in here can tell, which is the point of the confinement
-    /// being outside.
+    /// Bring the controller from reset to ready to serve I/O: reset, admin queues, enable, identify
+    /// the namespace, create the I/O queue pair. `regs_va` is BAR0's virtual base;
+    /// `direct_memory_access_phys`/`direct_memory_access_va` name the same zeroed, physically
+    /// contiguous [`DMA_PAGES`]-page region through the two address spaces. The caller has already
+    /// confined the device to that region if an IOMMU is active; nothing in here can tell, which is
+    /// the point of the confinement being outside.
     pub fn new(
         regs_va: u64,
-        dma_phys: u64,
-        dma_va: u64,
+        direct_memory_access_phys: u64,
+        direct_memory_access_va: u64,
     ) -> Result<NonVolatileMemoryExpress, Error> {
         let mut c = NonVolatileMemoryExpress {
             regs: regs_va,
             dstrd: 0,
-            dma_phys,
-            dma_va,
+            direct_memory_access_phys,
+            direct_memory_access_va,
             admin_sq: SqState::new(ENTRIES),
             admin_cq: CqState::new(ENTRIES),
             ns: IdentifyNamespace {
@@ -176,18 +176,18 @@ impl NonVolatileMemoryExpress {
         c.wr32(regs::AQA, (ENTRIES as u32 - 1) << 16 | (ENTRIES as u32 - 1));
         c.wr64(
             regs::ASQ,
-            dma_phys + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE,
+            direct_memory_access_phys + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE,
         );
         c.wr64(
             regs::ACQ,
-            dma_phys + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE,
+            direct_memory_access_phys + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE,
         );
         c.wr32(regs::CC, non_volatile_memory_express::cc_enabled());
         c.wait_rdy(true)?;
 
         // IDENTIFY the namespace: its block count and LBA format are the two facts the block
         // arithmetic below stands on, and refusing an exotic format here beats corrupting it later.
-        let prp = dma_phys + IDENTIFY_PAGE * page_frames::FRAME_SIZE;
+        let prp = direct_memory_access_phys + IDENTIFY_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::identify(
             c.next_cid(),
             non_volatile_memory_express::CNS_NAMESPACE,
@@ -200,7 +200,7 @@ impl NonVolatileMemoryExpress {
         // guarantee); the barrier in `transact` ordered those writes before this read.
         let data = unsafe {
             core::slice::from_raw_parts(
-                (dma_va + IDENTIFY_PAGE * page_frames::FRAME_SIZE) as *const u8,
+                (direct_memory_access_va + IDENTIFY_PAGE * page_frames::FRAME_SIZE) as *const u8,
                 page_frames::FRAME_SIZE as usize,
             )
         };
@@ -215,10 +215,10 @@ impl NonVolatileMemoryExpress {
         // **Both rings are inside the data plane's half of the region**, which is what makes the
         // EL0 server able to reach them at all; it is the kernel that decided so, here, and the
         // server has no command it could issue to change it.
-        let cq_prp = dma_phys + IO_CQ_PAGE * page_frames::FRAME_SIZE;
+        let cq_prp = direct_memory_access_phys + IO_CQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_cq(c.next_cid(), IO_QID, ENTRIES, cq_prp);
         c.transact(cmd)?;
-        let sq_prp = dma_phys + IO_SQ_PAGE * page_frames::FRAME_SIZE;
+        let sq_prp = direct_memory_access_phys + IO_SQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_sq(c.next_cid(), IO_QID, ENTRIES, IO_QID, sq_prp);
         c.transact(cmd)?;
         Ok(c)
@@ -241,7 +241,8 @@ impl NonVolatileMemoryExpress {
                 .blocks_per(BLOCK_SIZE as u64)
                 .expect("new() refuses a namespace whose format 4096 is not a multiple of"),
             entries: ENTRIES,
-            data_plane_phys: self.dma_phys + DATA_PLANE_PAGE * page_frames::FRAME_SIZE,
+            data_plane_phys: self.direct_memory_access_phys
+                + DATA_PLANE_PAGE * page_frames::FRAME_SIZE,
             size_bytes: self.size_bytes(),
         }
     }
@@ -257,15 +258,17 @@ impl NonVolatileMemoryExpress {
         // SAFETY: slot < ENTRIES and ENTRIES 64-byte entries fit one frame, so the write stays
         // inside the admin submission ring's page of our own DMA region.
         unsafe {
-            let dst = (self.dma_va + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE + slot as u64 * 64)
-                as *mut [u32; 16];
+            let dst = (self.direct_memory_access_va
+                + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE
+                + slot as u64 * 64) as *mut [u32; 16];
             core::ptr::write_volatile(dst, cmd.0);
         }
         // Publish the command before the doorbell: the controller is another observer, and the
-        // doorbell write must not be reordered ahead of the entry it announces. dma_wmb is a full
-        // barrier on both ISAs (DSB SY / fence), so it also orders the poll reads below against
-        // this ring, which is why one barrier a side is enough.
-        crate::arch::dma_wmb();
+        // doorbell write must not be reordered ahead of the entry it announces.
+        // direct_memory_access_write_barrier is a full barrier on both ISAs (DSB SY / fence), so it
+        // also orders the poll reads below against this ring, which is why one barrier a side is
+        // enough.
+        crate::arch::direct_memory_access_write_barrier();
         self.wr32(
             non_volatile_memory_express::doorbell(0, Doorbell::SubmissionTail, self.dstrd),
             self.admin_sq.tail() as u32,
@@ -274,8 +277,9 @@ impl NonVolatileMemoryExpress {
         // Poll the completion ring at the head slot until the phase tag says the entry is this
         // lap's. Volatile reads through the direct map; the controller DMAs into the same page.
         let head = self.admin_cq.head();
-        let cqe = (self.dma_va + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE + head as u64 * 16)
-            as *const [u32; 4];
+        let cqe = (self.direct_memory_access_va
+            + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE
+            + head as u64 * 16) as *const [u32; 4];
         let mut done: Option<Completion> = None;
         for _ in 0..SPIN_BOUND {
             // SAFETY: head < ENTRIES and ENTRIES 16-byte entries fit one frame; reads of our own
@@ -294,7 +298,7 @@ impl NonVolatileMemoryExpress {
         // Order the completion's phase read before the payload reads that follow (the identify
         // parse): on a weakly-ordered CPU nothing else stops the data read hoisting above the flag
         // read. Full barrier, as above.
-        crate::arch::dma_wmb();
+        crate::arch::direct_memory_access_write_barrier();
 
         // Consume: advance the head (flipping phase on wrap), tell the controller, and let the
         // submission ring reuse what the controller has read.

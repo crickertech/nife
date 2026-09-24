@@ -312,7 +312,7 @@ harness goes **red**. Both directions were checked for every one, because the wh
 | `component_plan::the_device_split_partitions_the_mappings` | `PageKind::mode`, which `plan` fills the word from | device registers mapped `MAP_RW` |
 | `component_plan::dependents_finds_exactly_the_non_target_instances_that_declared_it` | `str_eq`, which `dependents` decides membership with | `str_eq` true for strings of different lengths |
 | `credential_protocol::no_request_word_makes_the_parse_read_outside_the_page` | `id_len`, which `read` slices with | the identity length read from the wrong four bits of the request word |
-| `dma_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
+| `direct_memory_access_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
 | `jh7110_entropy::ready_requires_rand_rdy_and_carries_the_words_untouched` | `assemble`, which `interpret` calls | entropy laid out big-endian |
 | `network_time_protocol::accepting_is_total_and_a_sample_is_coherent` | `Interval::is_negative`, which `accept` guards on | the predicate never true, so a negative delay is accepted |
 | `paging::sv39::the_leaf_keeps_address_and_permissions_apart` | `entry_pa`, the decoder for the encoder under test | `PPN_SHIFT` moved, so both agree on the wrong bits |
@@ -428,13 +428,13 @@ holds.
 `be32`'s answer: subject from the crate, expectation from the format. `nifefs`'s harness wrote
 both sides itself. Same shape at a glance, opposite in what they prove.
 
-**A second question, for duplication on the assumption side**, where a harness restates a guard
-in order to reach the state it wants: **which way does drift fail?** If the implementation moves
-and the harness's assumed set becomes *wider* than the code's accepted set, the harness asserts on
+**A second question, for duplication on the assumption side**, where a harness restates a guard in
+order to reach the state it wants: **which way does drift fail?** If the implementation moves and
+the harness's assumed set becomes *wider* than the code's accepted set, the harness asserts on
 inputs the code now refuses and goes red, which is the safe direction.
-`dma_validator::an_oversized_batch_is_refused` restates the batch guard's condition and fails
-this way. If drift makes the assumed set narrower, or if the assertion is the harness's own
-arithmetic too, it goes green and says nothing. That is the `nifefs` case, and it is why the
+`direct_memory_access_validator::an_oversized_batch_is_refused` restates the batch guard's condition
+and fails this way. If drift makes the assumed set narrower, or if the assertion is the harness's
+own arithmetic too, it goes green and says nothing. That is the `nifefs` case, and it is why the
 implication in it was the whole harness rather than a detail of it.
 
 ### The finding: one, and it is the one the block named
@@ -502,10 +502,11 @@ rather than a function: there is nothing to extract and call. It stays, with the
 expiry recorded at the harness.
 
 Two more were looked at and dismissed on sight, and are named so nobody re-derives them.
-`dma_validator`'s `walk` and `inter_process_communication`'s `seed` look like harness-side reimplementations and are not:
-`walk` calls the real `shadow_one_head` and `seed` builds its symbolic state through the real
-`push_back`. `component_plan::declares_by_core_eq` is the good version in its purest form, an
-independent implementation of `str_eq` standing on the expectation side on purpose.
+`direct_memory_access_validator`'s `walk` and `inter_process_communication`'s `seed` look like
+harness-side reimplementations and are not: `walk` calls the real `shadow_one_head` and `seed`
+builds its symbolic state through the real `push_back`. `component_plan::declares_by_core_eq` is the
+good version in its purest form, an independent implementation of `str_eq` standing on the
+expectation side on purpose.
 
 `script/falsifications` reads **36 of 146** after this lane, from 35.
 

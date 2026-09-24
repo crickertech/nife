@@ -274,7 +274,7 @@ fn write_desc(addr: u64, len: u32) {
 struct Pool {
     /// The DMA region's physical base. Descriptors speak physical addresses; a process knows
     /// virtual ones, so the spawner passes this in (rule 2: the driver is told, never told to look).
-    dma_phys: u64,
+    direct_memory_access_phys: u64,
     /// Available-ring index we have published up to.
     avail: u16,
     /// Used-ring index we have drained up to.
@@ -289,7 +289,7 @@ impl Pool {
     /// Ask the device for a bufferful and wait for it. Returns how many bytes arrived, which the
     /// spec allows to be fewer than asked for and, on a dry device, zero.
     fn request(&mut self) -> u64 {
-        write_desc(self.dma_phys + POOL_OFF, POOL_LEN as u32);
+        write_desc(self.direct_memory_access_phys + POOL_OFF, POOL_LEN as u32);
         w16(Q_AVAIL + 4 + (self.avail % QSIZE) as u64 * 2, 0); // ring[idx] = descriptor head 0
         virtio_ring_barrier(); // the descriptor must be visible before the index that advertises it
         self.avail = self.avail.wrapping_add(1);
@@ -397,7 +397,7 @@ impl Pool {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, direct_memory_access_phys: u64, _arg2: u64) -> ! {
     if mode == MODE_INSTRUCTION {
         // No virtio device, no DMA page, no IRQ: the kernel would not have spawned this mode
         // unless it already confirmed the instruction's feature bit (aarch64's `ID_AA64ISAR0_EL1`,
@@ -447,7 +447,7 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     );
 
     let mut pool = Pool {
-        dma_phys,
+        direct_memory_access_phys,
         avail: 0,
         seen: 0,
         cursor: 0,

@@ -386,7 +386,7 @@ pub struct BootEndowment {
     /// own doc: the board's hart-lottery hazard means only the kernel, which knows the true boot
     /// hart, may enable it, and it already did before granting this).
     pub virtio_rng_irq: u64,
-    /// **The DMA page the kernel wrote `dma_phys` into**, at its own last eight bytes; see
+    /// **The DMA page the kernel wrote `direct_memory_access_phys` into**, at its own last eight bytes; see
     /// [`virtio_rng`](BootEndowment::virtio_rng). `READ | WRITE | GRANT`: this process maps it to
     /// read that value back out (entropy needs its own DMA region's physical base as a plain
     /// value; no capability exposes one), then delegates the same frame to the entropy service it
@@ -1003,7 +1003,7 @@ pub fn boot(
                 // SAFETY: just mapped read/write, one page, ours alone until entropy is built and
                 // holds its own copy of the same frame; `RNG_DMA_PHYS_OFFSET` is inside it and
                 // outside entropy's own ring-and-buffer layout (that constant's own doc).
-                let dma_phys = unsafe {
+                let direct_memory_access_phys = unsafe {
                     core::ptr::read_unaligned(
                         (RNG_DMA_PEEK_VA as *const u8)
                             .add(RNG_DMA_PHYS_OFFSET as usize)
@@ -1028,7 +1028,12 @@ pub fn boot(
                         ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
-                must_ok(start_child(entropy, RNG_MODE_VIRTIO, dma_phys, 0));
+                must_ok(start_child(
+                    entropy,
+                    RNG_MODE_VIRTIO,
+                    direct_memory_access_phys,
+                    0,
+                ));
                 cap_delete(g.virtio_rng_irq);
                 cap_delete(g.virtio_rng);
                 cap_delete(g.virtio_rng_dma);

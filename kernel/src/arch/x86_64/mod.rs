@@ -571,7 +571,7 @@ pub fn current_sp() -> u64 {
 /// ARM's weak model and RISC-V's RVWMO is correct here by construction; nothing about developing on
 /// x86 first could have said the reverse, and the tree would have accumulated invisible
 /// strong-ordering assumptions that only a real port would have found.
-pub fn dma_wmb() {
+pub fn direct_memory_access_write_barrier() {
     // SAFETY: a fence has no memory effect of its own; it only constrains ordering.
     unsafe { asm!("sfence", options(nostack, preserves_flags)) };
 }

@@ -299,15 +299,16 @@ Four in `crates/pci/src/lib.rs`, the config-space decode the kernel runs on **de
 | `read_bars_is_total_for_any_device` | the BAR size probe never panics on garbage device answers (`!mask + 1` cannot overflow: the type bits are masked first) |
 | `the_capability_walk_terminates_on_any_device` | a capability list forming ANY graph, cycles included, is walked at most 64 hops; the bounded-walk discipline proved rather than argued |
 
-Seven in `crates/dma_validator/src/lib.rs`, the DMA-confinement validator (milestone 35). This is the
-last isolation boundary in the system that was attacker-tested but never proved. It confines a
-userspace virtio driver's DMA: on every `NOTIFY` the kernel walks the driver's descriptors, refuses
-any whose buffer escapes the driver's granted region (or is indirect), and copies the validated ones
-into a kernel-private **shadow ring** the device reads, so the driver cannot touch what the device
-acts on. The logic was lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it)
-so it could be proved, the same Phase-2 move `memory_regions` and `inter_process_communication` made; the kernel's QEMU attacker
-suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged and green, so
-the extraction is faithful.
+Seven in `crates/direct_memory_access_validator/src/lib.rs`, the DMA-confinement validator
+(milestone 35 (prove the DMA-confinement boundary)). This is the last isolation boundary in the
+system that was attacker-tested but never proved. It confines a userspace virtio driver's DMA: on
+every `NOTIFY` the kernel walks the driver's descriptors, refuses any whose buffer escapes the
+driver's granted region (or is indirect), and copies the validated ones into a kernel-private
+**shadow ring** the device reads, so the driver cannot touch what the device acts on. The logic was
+lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it) so it could be
+proved, the same Phase-2 move `memory_regions` and `inter_process_communication` made; the kernel's
+QEMU attacker suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged
+and green, so the extraction is faithful.
 
 | Harness | Property |
 |---|---|
@@ -337,7 +338,7 @@ with its justification:
 
 | Bound | Value | Why it is adequate |
 |---|---|---|
-| queue size (`QS`) | 8 | **It is the system's own bound, not a proof convenience.** `dma_validator::LAYOUT_QSIZE` is the kernel's `QSIZE`, `setup_queue` refuses `num > QSIZE`, and the kernel now *aliases* the crate's constant rather than keeping a copy. So the proof is over the shipping configuration, and no larger ring can exist to be unproved. |
+| queue size (`QS`) | 8 | **It is the system's own bound, not a proof convenience.** `direct_memory_access_validator::LAYOUT_QSIZE` is the kernel's `QSIZE`, `setup_queue` refuses `num > QSIZE`, and the kernel now *aliases* the crate's constant rather than keeping a copy. So the proof is over the shipping configuration, and no larger ring can exist to be unproved. |
 | chain length | ≤ `qsize` = 8 | The walk is `for _ in 0..qsize`, and a chain cannot usefully be longer: there are only 8 descriptors, so any longer walk is revisiting one. A **cycle** is therefore covered rather than excluded: `next` is fully symbolic, so `0 → 1 → 0 → …` is among the proved inputs, and the loop bound is what makes it terminate instead of hanging. |
 | loop unrolling | `unwind(10)` / `unwind(11)` | One more than each loop can need, so Kani's *unwinding assertion* is part of the proof: if any input could drive a loop longer, verification fails. That turns the bound from an assumption into the **termination proof**. Checked by falsification: delete `validate_and_shadow`'s batch-size guard and the unwinding assertion fails at iteration 11. |
 | batch size | ≤ `qsize` | Proved as a property (`an_oversized_batch_is_refused`), not assumed: a claim of more than `qsize` new entries is refused before a single read. |
@@ -452,7 +453,7 @@ So the two paths have genuinely different evidence, and conflating them is the e
 
 | Path | What confines it | Strength of the evidence |
 |---|---|---|
-| Addresses in **descriptors** (disk, NIC, and the GPU's own command ring) | the shadow-ring validator, plus the IOMMU where present | **machine-checked for every input** (`crates/dma_validator`), plus end-to-end attacker tests on both ISAs and both transports |
+| Addresses in **descriptors** (disk, NIC, and the GPU's own command ring) | the shadow-ring validator, plus the IOMMU where present | **machine-checked for every input** (`crates/direct_memory_access_validator`), plus end-to-end attacker tests on both ISAs and both transports |
 | Addresses in a **command payload** (virtio-gpu backings) | the IOMMU, and *only* the IOMMU | **the barrier's allow-list is proved exact; the hardware honouring it is attacker-tested.** `an_enumerated_page_lies_inside_the_grant` and `every_whole_page_of_the_grant_is_enumerated` prove the domain maps exactly the granted pages, which is the property that makes an out-of-grant payload address untranslatable; `the_iommu_refuses_the_gpu_a_framebuffer_outside_the_drivers_grant` then points a backing at a frame left out of the domain and asserts the IOMMU's fault queue recorded a fault there, on both ISAs |
 
 The middle column of that second row is the one useful thing this milestone could prove about the payload

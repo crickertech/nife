@@ -240,7 +240,7 @@ fn direct_send(buf: &[u8], n: &mut usize) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, direct_memory_access_phys: u64, _arg2: u64) -> ! {
     if mode != MODE_RING && mode != MODE_DIRECT {
         die(E_MODE);
     }
@@ -292,7 +292,7 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     for i in 0..EVENTS {
         write_desc(
             i as u64,
-            dma_phys + event_buf(i),
+            direct_memory_access_phys + event_buf(i),
             EVENT_LEN as u32,
             VIRTQ_DESC_F_WRITE,
         );
@@ -332,10 +332,11 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
             // used-ring element: { u32 id; u32 len }.
             let id = r32(EQ_USED + 4 + slot * 8) as usize;
             // **`id` is a 32-bit value the DEVICE wrote** (notes/shared-page-audit.md, finding 6).
-            // The IOMMU and `crates/dma_validator` confine where the device may *touch*, not what
-            // it may *say*, and the used ring is inside this driver's own DMA page, which the
-            // device is entitled to write. Unchecked, `event_buf(id) = 0x400 + id * 8` leaves the
-            // one-page region at `id = 462` and reads this process's own memory as a keystroke.
+            // The IOMMU and `crates/direct_memory_access_validator` confine where the device may
+            // *touch*, not what it may *say*, and the used ring is inside this driver's own DMA
+            // page, which the device is entitled to write. Unchecked,
+            // `event_buf(id) = 0x400 + id * 8` leaves the one-page region at `id = 462` and reads
+            // this process's own memory as a keystroke.
             //
             // Consume and drop a completion naming a buffer we never posted, without re-posting
             // it: a bogus `id` does not say which buffer it was, and a device that lies about its

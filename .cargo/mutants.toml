@@ -41,9 +41,10 @@ exclude_globs = [
     # split of what a host test could and could not have reached.
     "crates/system_initializer/**",
 
-    # Driver whose entry points each orchestrate a live virtio device; two volatile ops per
-    # thousand lines of orchestration. Its security-critical logic lives in crates/dma_validator
-    # (milestone 35), which IS mutated. Same exemption, same wording, as the coverage floor.
+    # Driver whose entry points each orchestrate a live virtio device; two volatile ops per thousand
+    # lines of orchestration. Its security-critical logic lives in
+    # crates/direct_memory_access_validator (milestone 35 (prove the DMA-confinement boundary)),
+    # which IS mutated. Same exemption, same wording, as the coverage floor.
     "crates/virtio/**",
 
     # **The UEFI application itself, and it is here for a THIRD reason** neither of the two above:

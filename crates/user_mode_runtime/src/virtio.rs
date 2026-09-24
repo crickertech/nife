@@ -71,10 +71,11 @@ pub fn virtio_notify(virtio_slot: u64, queue: u64) -> i64 {
 /// **What each architecture needs, and why they differ.** aarch64 and riscv64 are weakly ordered,
 /// so both halves (machine and compiler) need a real instruction: `dmb ish` orders the inner
 /// shareable domain, which is where a coherent DMA agent observes, and RISC-V takes one full
-/// `fence`, the same conservative choice `kernel::arch::dma_wmb` makes. `x86_64` is TSO, and the
-/// only orderings this function is ever asked for are store-store (descriptor before index, index
-/// before notify) and load-load (used index before payload), both of which the machine already
-/// guarantees for the write-back memory a coherent device shares. The store-load case TSO does
+/// `fence`, the same conservative choice `kernel::arch::direct_memory_access_write_barrier` makes.
+/// `x86_64` is TSO, and the only orderings this function is ever asked for are store-store
+/// (descriptor before index, index before notify) and load-load (used index before payload), both
+/// of which the machine already guarantees for the write-back memory a coherent device shares. The
+/// store-load case TSO does
 /// *not* give is not reachable here: every notify and every register access in these drivers
 /// leaves the process through a syscall instruction, which is serializing. So on `x86_64` the
 /// compiler is the entire exposure and [`core::sync::atomic::compiler_fence`] is the whole answer.

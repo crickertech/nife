@@ -1350,9 +1350,10 @@ To see a triple fault instead of a blank terminal, add `-d int,cpu_reset -D /tmp
 
 Rule #4 says to assume weak memory ordering because ARM is the weak one and that is a gift. This is
 the port where the bet settles, and it settles in the direction it was made: code proven correct
-under ARM's model and RISC-V's RVWMO is correct on x86's TSO by construction. `dma_wmb` is an
-`sfence` here and is nearly free, because stores are already globally ordered; the fence is there
-only for non-temporal stores and write-combining memory, which TSO does not cover.
+under ARM's model and RISC-V's RVWMO is correct on x86's TSO by construction.
+`direct_memory_access_write_barrier` is an `sfence` here and is nearly free, because stores are
+already globally ordered; the fence is there only for non-temporal stores and write-combining
+memory, which TSO does not cover.
 
 `sync_icache` does **nothing** on x86, and that is the one place this architecture's complexity buys
 something: the instruction cache is architecturally coherent with the data caches. aarch64 needs a

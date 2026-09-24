@@ -85,11 +85,12 @@ So the region is **wider, not special**:
 registered whole as the driver's DMA region. Three things follow, and they are the reason this is the
 right shape:
 
-1. The shadow-ring validator bounds every descriptor to `[dma_base, dma_base + dma_size)`, and the
-   surface is inside that. **`crates/dma_validator` needed no change at all**, because it bounds
-   addresses against a region whose size is a parameter; the region got nine times bigger and the
-   proof still covers it. (This was the one place the increment could have tempted a change to a
-   proved crate, and it did not.)
+1. The shadow-ring validator bounds every descriptor to
+   `[direct_memory_access_base, direct_memory_access_base + direct_memory_access_size)`, and the
+   surface is inside that. **`crates/direct_memory_access_validator` needed no change at all**,
+   because it bounds addresses against a region whose size is a parameter; the region got nine times
+   bigger and the proof still covers it. (This was the one place the increment could have tempted a
+   change to a proved crate, and it did not.)
 2. `iommu::confine` maps exactly that region plus the kernel's shadow page, frame-granular. The
    device can reach the pixels and nothing else.
 3. The client maps only pages 1..8, so it cannot touch a descriptor ring even though it shares

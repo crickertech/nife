@@ -305,7 +305,7 @@ pub fn spsel() -> u64 {
 /// guarantees it. On QEMU DMA is coherent and the notify is processed synchronously, so this is
 /// effectively free; on real hardware it is load-bearing. Arch-specific by rule 1, so it lives here
 /// rather than in the transport (kernel/src/virtio.rs).
-pub fn dma_wmb() {
+pub fn direct_memory_access_write_barrier() {
     aarch64_cpu::asm::barrier::dsb(aarch64_cpu::asm::barrier::SY);
 }
 
