@@ -245,7 +245,7 @@ Gates, records and the merge queue: the machinery that keeps many lanes honest.
 - [The register of measures](register-of-measures.md): the numbers this kernel holds itself to. Name provisional.
 - [Project metrics: what moved, week by week](project-metrics.md): weekly charts of the project's measures, from git history. Script and data names provisional.
 - [The violation ledger](rule-violations.md): counting how often each written rule is broken. Name provisional.
-- [Load-sensitive assertions](load-sensitive-assertions.md): assertions that failed under host load, with verdicts.
+- [Load-sensitive assertions](load-sensitive-assertions.md): the register of assertions that fail under host load, how to fix one, and each site's status. Appendix names provisional.
 - [The CI log baseline](ci-log-baseline.md): which check failed each CI job, from expiring logs. Names provisional.
 - [Every place that enumerates architectures, and whether the list is complete](architecture-list-sweep.md).
 - [Rustdoc coverage](doc-coverage.md): the doc-example floor and the `missing_docs` ratchet.
