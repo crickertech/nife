@@ -1,19 +1,42 @@
 Falsifies `nifefs::verification::a_short_image_is_refused_not_indexed`.
 
-The defect: the length guard covers the first block rather than the whole directory span. The
-header does live in block zero, so "the image must be at least a block" reads as the right
-check; what it misses is that the entry table runs on to the end of `DIR_BLOCKS`, and the
-comment above the line is the only thing that says so.
+The defect: the magic check moved ahead of the length guard. It reads as the cheaper rejection,
+since most images a server is handed that are wrong are not nifefs images at all, and "is this
+ours" before "is this complete" is the order plenty of parsers use. What it gives up is the
+harness's whole claim: parse now reads the image before it has measured it. On an image shorter
+than the magic, `image[0..8]` panics, which is a filesystem server brought down by an image a
+client handed it; on any other short image the verdict depends on bytes nobody should have read.
 
-Expected to fail: the harness's `assert_eq!(Fs::parse(&image).err(), Some(Error::Truncated))` on
-an image one byte short of the directory span. The parse continues into entry reads past the end
-of the buffer, which is a filesystem server indexing an image a client handed it.
+Expected to fail: the harness's `assert_eq!(Fs::parse(&image).err(), Some(Error::Truncated))`,
+because a short image whose first eight bytes are not the magic now comes back `BadMagic`. Red in
+0.79 s of verification (2.5 s wall, crate already built) on 2026-09-24.
+
+**Replaces the record #1156 landed, which never reached a verdict.** That one weakened the guard to
+`image.len() < BLOCK`, a more realistic defect, and CI cancelled its replay at the 45-minute job
+timeout (run 35953923275). The reason is the harness's shape, not the solver: any guard weak
+enough to admit the harness's one concrete length lets symbolic execution into `parse`'s entry loop,
+whose bound is a `count` read from symbolic bytes, and with no unwind bound CBMC unrolls it without
+end. An off-by-one at the exact boundary (`< DIR_BLOCKS * BLOCK - 1`) was tried first, as the
+smaller mutation, and hung the same way (killed at 420 s with no verdict). This mutation keeps the
+length check concrete, so the loop stays unreachable and the solver answers at once. The harness's
+own comment records what that leaves uncaught.
 
 diff --git a/crates/nifefs/src/lib.rs b/crates/nifefs/src/lib.rs
 --- a/crates/nifefs/src/lib.rs
 +++ b/crates/nifefs/src/lib.rs
-@@ -254,3 +254,3 @@ impl<'a> Fs<'a> {
+@@ -262,12 +262,12 @@ impl<'a> Fs<'a> {
+         // The directory blocks must be present before any entry offset (up to HEADER_LEN +
+         // MAX_FILES*ENTRY_LEN, which sits inside DIR_BLOCKS) is read; this guard is what makes
          // those reads sound.
 -        if image.len() < DIR_BLOCKS * BLOCK {
-+        if image.len() < BLOCK {
-             return Err(Error::Truncated);
+-            return Err(Error::Truncated);
+-        }
+         if image[0..8] != MAGIC {
+             return Err(Error::BadMagic);
+         }
++        if image.len() < DIR_BLOCKS * BLOCK {
++            return Err(Error::Truncated);
++        }
+ 
+         let count = u32le(image, 8) as usize;
+         if count > MAX_FILES {
