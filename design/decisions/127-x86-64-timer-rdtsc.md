@@ -1,6 +1,11 @@
+---
+status: DECIDED
+ratified_by: calef
+---
+
 # 127. x86_64's `now()`/`cntfrq()`: PIT-calibrated `rdtsc`, ratifying what PR #476 already built
 
-**Status: DECIDED.** Ratifying an implementation already built, tested, and merged (PR #476,
+Ratifying an implementation already built, tested, and merged (PR #476,
 2026-08-25) rather than proposing something new. Surfaced while surveying PARTIAL milestones for
 genuine open decisions: [milestone 161](../roadmap/161-x86-64-kernel-port.md) named this as "a
 design fork" awaiting calef's call, but the fork was answered in code before it was answered in

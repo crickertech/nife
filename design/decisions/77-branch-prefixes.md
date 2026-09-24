@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 77. The branch-prefix list now describes the tree
 
-**Status: DECIDED.** calef, 2026-08-16, taking the recommendation as written: **`roadmap/`,
+calef, 2026-08-16, taking the recommendation as written: **`roadmap/`,
 `decisions/`, `toolchain/` and `ci/` are legitimate**, `dependabot/` is exempt as
 machine-generated, `docs/` and `design/` stay out with their single uses standing as history, and
 **`audit/` and `finalize/` are kept** as declared intent despite never having been used, because

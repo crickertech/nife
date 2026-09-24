@@ -1,8 +1,12 @@
+---
+status: DECIDED
+decided: 2026-07-13
+ratified_by: calef
+---
+
 # 9. Locking: IrqSafeMutex, plus a discipline
 
-**Status: DECIDED.**
-
-Decided 2026-07-13, before milestone 5 brings interrupts.
+Settled before milestone 5 brings interrupts.
 
 **The problem.** A plain spinlock in a kernel that takes interrupts is a guaranteed hang.
 On **one core**: kernel code takes the lock, a timer interrupt fires, the handler tries to

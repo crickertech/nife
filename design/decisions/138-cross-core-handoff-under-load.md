@@ -1,6 +1,11 @@
+---
+status: DECIDED
+ratified_by: calef
+---
+
 # 138. How a saturated workload is made to hand threads across cores
 
-**Status: DECIDED.** Answered by calef on 2026-09-02, on the one question that was blocking.
+Answered by calef on 2026-09-02, on the one question that was blocking.
 Written by a research lane
 on 2026-09-01, after milestone 219 (the boot tour ends and the kernel halts, so there is nothing to
 soak) measured that it never happens today.

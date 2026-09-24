@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-16
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 88. `needs-architect` as a required check, rather than as a script's restraint
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
+calef, 2026-08-25, in conversation, ratifying the recommendation below as
 written: *"Ratify it."* (raised 2026-08-16, when the merge queue reduced `scripts/merge-drain.sh` to
 an admission policy and made the weakness of that policy the only thing left in it.)
 

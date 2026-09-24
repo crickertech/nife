@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-04
+ratified_by: calef
+---
+
 # 144. The fastpath footprint gate gets a delta and a ceiling, and the ceiling is 16 KiB
 
-**Status: DECIDED.** calef, 2026-09-04, after three failures of the stored-baseline design in three
+calef, 2026-09-04, after three failures of the stored-baseline design in three
 days. *(Number provisional until the merge queue lands it.)*
 
 ## What is being decided

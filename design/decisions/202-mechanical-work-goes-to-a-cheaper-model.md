@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 202. Mechanical work goes to a cheaper model, and the gates are why that is safe
 
-**Status: DECIDED.** calef, 2026-09-20: *"You have permission to route mechanical work to cheaper
+calef, 2026-09-20: *"You have permission to route mechanical work to cheaper
 models and should capture that somewhere durable. To start, Sonnet is already available under our
 Claude subscription."* *(Section number provisional until the merge queue lands it.)*
 

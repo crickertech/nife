@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-15
+ratified_by: calef
+---
+
 # 68. `BootEndowment::unused` wants a truer name: it is `for_test_roles`
 
-**Status: DECIDED.** calef, 2026-08-15: **`for_test_roles`**. Refused `not_ours`, and the
+calef, 2026-08-15: **`for_test_roles`**. Refused `not_ours`, and the
 refusal sharpened the rule: "ours" is caller-relative, which is the same one-seat viewpoint bug
 `unused` had with the sign flipped; both callers read one struct, so the name must state whose
 the capabilities are absolutely. Refused `test_roles_only` for bolting an adverb onto a noun.

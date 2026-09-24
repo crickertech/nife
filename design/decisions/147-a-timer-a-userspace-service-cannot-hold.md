@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-05
+ratified_by: calef
+---
+
 # 147. A timer a userspace service cannot hold
 
-**Status: DECIDED.** calef, 2026-09-05: **option 1, the new object.** Option 2 was ruled out first
+calef, 2026-09-05: **option 1, the new object.** Option 2 was ruled out first
 (*"§19 exists to make this expensive"*, and a scope note recording something that **cannot** be done
 is not the thing a scope note is for). Between 1 and 3 his reason was one sentence: *"A new object
 seems like the winner. A deadline argument seems like a work around to reduce effort."*

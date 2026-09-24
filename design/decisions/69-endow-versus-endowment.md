@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-15
+ratified_by: calef
+---
+
 # 69. `Endow` is a verb, and names the same idea as `Endowment`: it is `ChildEndowment`
 
-**Status: DECIDED.** calef, 2026-08-15: **`ChildEndowment`**. The family now reads as a system:
+calef, 2026-08-15: **`ChildEndowment`**. The family now reads as a system:
 `BootEndowment` is what boot hands the first process, `ChildEndowment` is what a parent hands a
 child, and `grant_plan::Endowment` is the plan either delivers on; same noun, distinguished by
 recipient, the possessive-absolute principle §68 settled the same day. Refused `Construction`

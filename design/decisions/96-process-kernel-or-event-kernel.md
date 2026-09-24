@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-18
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 96. Process kernel or event kernel, and how to decide it
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, on the recommendation below as written:
+calef, 2026-08-25, in conversation, on the recommendation below as written:
 *"Don't decide yet."* Raised 2026-08-18 by calef, asking how to *think about* this as a decision
 rather than asking for the answer. It exists because notes/l4-lessons.md found that this tree has a
 process kernel, that seL4, OKL4 and NOVA all replaced theirs with event kernels, and that **nothing

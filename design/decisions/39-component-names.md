@@ -1,6 +1,10 @@
-# 39. A component is named for what it is, and nothing is named for a daemon
+---
+status: DECIDED
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 39. A component is named for what it is, and nothing is named for a daemon
 
 **Decided 2026-07-30 (calef).** Userspace components take names that describe what they do.
 Specifically: **no `-d` suffix**, and no term of art that requires archaeology to parse.

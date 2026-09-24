@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-18
+ratified_by: calef
+---
+
 # 155. The naming conventions move out of the constitution, and the note becomes the rule
 
-**Status: DECIDED.** calef, 2026-09-18: **`AGENTS.md` keeps the naming authority and nothing else;
+calef, 2026-09-18: **`AGENTS.md` keeps the naming authority and nothing else;
 `design/naming.md` becomes the authority for the conventions.** The file moves from `notes/` in the
 same ruling, because a document that is normative is not a note.
 

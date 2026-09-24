@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-03
+ratified_by: calef
+---
+
 # 143. A machine's name is not a hardware fact, and source comments should say the hardware
 
-**Status: DECIDED.** calef, 2026-09-03, asking who a comment naming `radon` is written for:
+calef, 2026-09-03, asking who a comment naming `radon` is written for:
 *"But I'm thinking of readers that are not me. How are they to know what radon is? Is it relevant to
 them at all?"* *(Number provisional until the merge queue lands it.)*
 

@@ -1,6 +1,9 @@
-# 60. Fuzzing complements the proofs, and the parsers are exactly where it wins
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 60. Fuzzing complements the proofs, and the parsers are exactly where it wins
 
 Milestone 42 put `cargo-fuzz` over the four parsers that read bytes we did not write: `dtb_walk` (`device_tree_blob_walk` since 2026-09-19),
 `elf_parse`, `gpt_table`, `nifefs_roundtrip`. Those four are the tree's actual trust boundary;

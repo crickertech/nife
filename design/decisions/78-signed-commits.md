@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 78. Signed commits: worth doing, and not as a side effect
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation: *"Let's decide not to do signing with a note
+calef, 2026-08-25, in conversation: *"Let's decide not to do signing with a note
 on those conditions that would cause us to reconsider."* (raised 2026-08-04 when §73 closed, so the
 deferral does not die with the section that carried it.)
 

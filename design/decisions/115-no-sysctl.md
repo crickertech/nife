@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 115. No `sysctl`: each subsystem's tuning goes through its own service, not a bolted-on aggregator
 
-**Status: DECIDED.** calef, 2026-08-23, on milestone 126's `sysctl` fork: *"Agreed, go with option
+calef, 2026-08-23, on milestone 126's `sysctl` fork: *"Agreed, go with option
 B."*
 
 ## The question

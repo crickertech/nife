@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 192. Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 423's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 423's
 `DECISION` gate naming no section. Filed 2026-09-17 by milestone 319, which proved the parsing half
 and so narrowed what the volatile half is actually for. *(Section number provisional until the merge
 queue lands it.)*

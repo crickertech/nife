@@ -1,6 +1,12 @@
+---
+status: AMENDED
+decided: 2026-07-28
+ratified_by: calef
+---
+
 # 26. The fault endpoint: thread death becomes a message a supervisor holds
 
-**Status: AMENDED.** (the opening line still says 'not yet built'; milestone 22 phases A and B are recorded below.)
+(the opening line still says 'not yet built'; milestone 22 phases A and B are recorded below.)
 
 **Decided 2026-07-28 (calef), the five sub-decisions settled one at a time; not yet built.** The
 kernel is the only witness to a thread's fault, so it is the one that must pass the news along.

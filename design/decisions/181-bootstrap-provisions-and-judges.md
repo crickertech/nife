@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 181. May `script/bootstrap` say "installed everything I could, and this machine is still not good enough" without failing?
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 397's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 397's
 `DECISION` gate naming no section. *(Section number provisional until the merge queue lands it.)*
 
 ## What is being decided

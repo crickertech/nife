@@ -1,6 +1,13 @@
+---
+status: AMENDED
+raised: 2026-08-23
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 121. What a device capability is when the device has no page: x86 port I/O
 
-**Status: AMENDED.** Reopened and reversed 2026-09-15. The original ruling (calef, 2026-08-25, *"Ratify option 2
+Reopened and reversed 2026-09-15. The original ruling (calef, 2026-08-25, *"Ratify option 2
 permanently"*) stood on a premise the boot-to-a-prompt goal has since falsified; calef reversed it to
 **option 1, the port-range capability**, on 2026-09-15, on this file's own named trigger. The
 reasoning below is kept as the record of what was decided and why it held while it held; the reversal

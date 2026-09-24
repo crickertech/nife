@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-15
+ratified_by: calef
+---
+
 # 87. MIT OR Apache-2.0, and why the GPL's lesson does not transfer
 
-**Status: DECIDED.** calef, 2026-08-15, ratifying as a recorded decision what had lived since the
+calef, 2026-08-15, ratifying as a recorded decision what had lived since the
 first commit as a Cargo.toml convention. Raised from a conversation about why Linux beat the
 BSDs, which is the argument this entry exists to answer: the tree is permissively licensed, and
 the best-known story in free software says copyleft is why the biggest free kernel won.

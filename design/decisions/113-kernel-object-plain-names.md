@@ -1,6 +1,12 @@
+---
+status: AMENDED
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 113. Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term
 
-**Status: AMENDED.** (the 2026-09-13 amendment below ends the crate-name exemption.)
+(the 2026-09-13 amendment below ends the crate-name exemption.)
 
 **Decided 2026-08-23 (calef), after repeatedly having to ask what `Aspace`, `Endpoint`,
 `Untyped`, and `Tcb` meant in the course of ordinary conversation about this tree: *"I have

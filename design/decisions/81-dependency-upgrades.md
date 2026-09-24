@@ -1,6 +1,11 @@
+---
+status: DECIDED
+ratified_by: calef
+---
+
 # 81. A dependency stays upgradable; we suppress churn, never the upgrade
 
-**Status: DECIDED.** calef decided this on 2026-08-13, on the pull request that corrected the
+calef decided this on 2026-08-13, on the pull request that corrected the
 mistake described below: *"We want the upgrades on all of our dependencies. We don't want to
 foreclose upgrades."*
 

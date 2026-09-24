@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-24
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 125. What tells boot-time re-derivation which identities have pending work
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
+calef, 2026-08-25, in conversation, ratifying the recommendation below as
 written: *"Yes."* The number held: nothing else claimed 125 in the merged index between this
 decision being raised and ratified, so it needed no renumbering.
 

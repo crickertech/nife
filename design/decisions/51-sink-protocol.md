@@ -1,6 +1,9 @@
-# 51. The sink protocol: a writer must not be able to tell what it is writing to
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 51. The sink protocol: a writer must not be able to tell what it is writing to
 
 Milestone 50. `crates/sink_proto`, `fixtures/src/sink.rs`, `kernel::user::start_file_sink`, and
 `abi::Error::Gone`. See `notes/sink-protocol.md`.

@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 75. Directories under `design/` and `notes/` carry provenance in their own README
 
-**Status: DECIDED.** calef, 2026-08-16, adopting the recommendation below: **a directory under
+calef, 2026-08-16, adopting the recommendation below: **a directory under
 `design/` or `notes/` carries its name's provenance as a line in its own `README.md`.** Package
 directories stay out, because a package directory's name is the package's name and milestone
 115's existing mechanism already covers it at the crate header. Everything else the naming tenet

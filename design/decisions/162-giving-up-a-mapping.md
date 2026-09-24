@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 162. Whether a holder can give up a mapping, and what gives it up
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 95 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 95 gated on
 `DECISION` with no decision anywhere a reader can open. The block has called it *"a design fork for
 calef before it is a task"* since it was raised on 2026-08-04 out of milestone 22's closing lane.
 *(Section number provisional until the merge queue lands it.)*

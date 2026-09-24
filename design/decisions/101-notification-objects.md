@@ -1,6 +1,12 @@
+---
+status: DECIDED
+raised: 2026-08-20
+ratified_by: calef
+---
+
 # 101. Notification objects: async multiplexing without wait-any
 
-**Status: DECIDED.** Raised 2026-08-20 by the architect's question ("let's decide on the seL4
+Raised 2026-08-20 by the architect's question ("let's decide on the seL4
 model"), at the point where milestone 40's remaining fork exposed the single-wait-point limitation
 as the structural constraint every component in this tree is working around. Decided the same day:
 the seL4 notification object model is the right long-term solution for this kernel, and this file is

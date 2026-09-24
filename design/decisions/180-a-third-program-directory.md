@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 180. Whether `components/` splits again, for the tools a person invokes
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 395's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 395's
 `DECISION` gate naming no section. Milestone 175 asked this question in its own block and correctly
 did not answer it, because the answer is a top-level directory name. *(Section number provisional
 until the merge queue lands it.)*

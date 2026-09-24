@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-24
+decided: 2026-08-24
+ratified_by: calef
+---
+
 # 122. The on-disk, per-user schedule store: format, write path, read-at-boot path
 
-**Status: DECIDED.** calef, 2026-08-24, ratified option 1: reuse `timetable::parse`'s document
+calef, 2026-08-24, ratified option 1: reuse `timetable::parse`'s document
 format unchanged, one file per identity inside that identity's own subtree, written and read through
 ordinary `filesystem_proto` verbs. Confirmed this is a persistence-format decision only, not an
 invitation to adopt cron's calendar syntax, which stays milestone 129's own deliberately deferred

@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 175. Where the kernel's own output goes once userspace owns the console
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 342's
+Raised 2026-09-19 by milestone 435's slice B, which read milestone 342's
 `DECISION` gate and found it naming no section. Milestone 230 named the fork while fixing something
 else, and the 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the
 merge queue lands it.)*

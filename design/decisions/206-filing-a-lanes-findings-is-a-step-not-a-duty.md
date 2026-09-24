@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-22
+---
+
 # 206. Filing a lane's findings is a step, not a duty somebody remembers
 
-**Status: PROPOSED.** Raised by calef, 2026-09-22: *"it is the actions that aren't captured as
+Raised by calef, 2026-09-22: *"it is the actions that aren't captured as
 proposals. That I see and prompt from the summaries. There is still a non-trivial number of those
 that are not tracked in the tree at all until I prompt."* *(Section number provisional until the
 merge queue lands it.)*

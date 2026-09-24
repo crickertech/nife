@@ -1,6 +1,10 @@
-# 25. Socket identity: a socket id in phase one, minted endpoints as the tracked later step
+---
+status: DECIDED
+decided: 2026-07-28
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 25. Socket identity: a socket id in phase one, minted endpoints as the tracked later step
 
 **Decided 2026-07-28 (calef), resolving the milestone 30 piece-3 fork (notes/net.md).** A process
 holds one `Stack` endpoint capability; opening a connection yields a **socket id**, a small

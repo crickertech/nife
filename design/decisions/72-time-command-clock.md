@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 72. `time` needs no clock: duration is ambient, wall-clock identity is authority
 
-**Status: DECIDED.** calef, 2026-08-16: **counter-only `time`**, adopting the objection the lane
+calef, 2026-08-16: **counter-only `time`**, adopting the objection the lane
 that built it raised against its own specification. The boundary this draws is the reusable part:
 **wall-clock identity is authority and a capability gates it (§43, `date`'s manifest); a duration
 is ambient, because the ABI already opened the counter to EL0.** `user_rt::monotonic_nanos` says

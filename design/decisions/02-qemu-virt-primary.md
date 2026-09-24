@@ -1,6 +1,9 @@
-# 2. Primary target: QEMU `virt`, Raspberry Pi as a later port
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 2. Primary target: QEMU `virt`, Raspberry Pi as a later port
 
 The QEMU `virt` machine has a PL011 UART, a GIC interrupt controller, and virtio
 devices, all well-specified. Boots in a second, debuggable with GDB, scriptable in

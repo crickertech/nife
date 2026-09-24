@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 129. Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation: "Build it when we have a customer."
+calef, 2026-08-25, in conversation: "Build it when we have a customer."
 [DECISIONS §42](42-truthful-filesystem.md) declined `renameat2`-shaped `NOREPLACE`/`EXCHANGE`
 rename flags, giving two reasons: they are not portable (native support is Linux-only), and
 emulating `NOREPLACE` via separate `link`+`unlink` calls is racy. Milestone 55's own SMB work found

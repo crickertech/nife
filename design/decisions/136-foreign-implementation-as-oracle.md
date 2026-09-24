@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-30
+ratified_by: calef
+---
+
 # 136. A mature foreign implementation earns its place as an oracle, not as a dependency
 
-**Status: DECIDED.** calef, 2026-08-30. Decided for ext4 in milestone 190 (ext4, read and write: a
+calef, 2026-08-30. Decided for ext4 in milestone 190 (ext4, read and write: a
 Rust implementation with libext2fs as the host-side oracle) and generalized here at his direction,
 because the position is not about filesystems and was discoverable only by reading one. *(Section
 number provisional until the merge queue lands it.)*

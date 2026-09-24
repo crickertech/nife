@@ -1,6 +1,12 @@
+---
+status: AMENDED
+decided: 2026-08-20
+ratified_by: calef
+---
+
 # 100. The terminal font
 
-**Status: AMENDED.** (2026-08-20: the answer changed and most of the reasoning did not, which is
+(2026-08-20: the answer changed and most of the reasoning did not, which is
 what this token is for.) **The font is now an original 7x8 drawing in the Kaypro II's style**, not
 gohufont-14. calef ran a poll and the Kaypro's look won.
 

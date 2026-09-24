@@ -1,6 +1,11 @@
+---
+status: DECIDED
+ratified_by: calef
+---
+
 # 200. Two crates the documentation system refused, and why each loses on its own terms
 
-**Status: DECIDED.** Milestone 40 (documentation as a system service), 2026-08-26, minted as a
+Milestone 40 (documentation as a system service), 2026-08-26, minted as a
 section on 2026-09-20 by the integrator, on the finding by milestone 448 (a refusal gets a number, a status, and a condition) that two
 dependency refusals were living as prose in a BUILT block where §46 (thin primitives or whole subsystems) is the record that
 judges them. *(Section number provisional until the merge queue lands it.)*

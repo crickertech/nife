@@ -1,6 +1,10 @@
-# 94. What may live in a userspace library, and what must be per-binary
+---
+status: DECIDED
+decided: 2026-08-17
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 94. What may live in a userspace library, and what must be per-binary
 
 **Decided 2026-08-17 (calef), from milestone 130's finding rather than from a proposal.** The lane
 that unified the panic handler found a recorded constraint half of which had gone stale, kept the

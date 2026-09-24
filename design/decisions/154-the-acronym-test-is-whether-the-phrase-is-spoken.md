@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-18
+ratified_by: calef
+---
+
 # 154. The acronym test is whether the phrase is spoken, applied recursively
 
-**Status: DECIDED.** calef, 2026-09-18: **an acronym expands where its expansion is a phrase people
+calef, 2026-09-18: **an acronym expands where its expansion is a phrase people
 actually say, and stays whole where nobody says it; ask the same question of any acronym left
 inside the expansion.** This replaces the 2026-09-05 test in AGENTS.md and the boundary milestone
 265 drew on 2026-09-13, both of which are superseded rather than refined.

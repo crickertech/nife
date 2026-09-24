@@ -1,6 +1,12 @@
+---
+status: DECIDED
+raised: 2026-09-09
+ratified_by: calef
+---
+
 # 149. May the kernel answer on an endpoint, where §121 leaves no userspace holder?
 
-**Status: DECIDED.** 2026-09-15, and the answer is no. Raised 2026-09-09 by the maintainer. Resolved
+2026-09-15, and the answer is no. Raised 2026-09-09 by the maintainer. Resolved
 not by picking one of its three options but by **dissolving its premise**: this section asked what to
 do *given that §121 leaves no userspace holder on x86*, and on 2026-09-15 calef reopened §121 to give
 x86 exactly that holder (the port-range capability). So the kernel does **not** answer on an endpoint;

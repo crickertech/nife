@@ -1,6 +1,11 @@
+---
+status: SUPERSEDED
+superseded_by: 102
+---
+
 # 103. What a `Frame` names
 
-**Status: SUPERSEDED BY 102.** Kept because the survey outlives the decision.
+Kept because the survey outlives the decision.
 
 **The fork this was researching was answered while it was being researched.** calef chose option 1
 on 2026-08-20 (§102, a `Frame` names a run), which is the same answer L4 reached and which this
