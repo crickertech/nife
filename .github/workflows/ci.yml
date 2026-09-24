@@ -127,10 +127,22 @@ jobs:
   #
   # **It fails safe in the direction that costs minutes rather than correctness.** A job whose
   # dependency failed reports an empty output, and `!= 'false'` admits that, so a broken or
-  # cancelled gate runs the whole suite instead of skipping it. `always()` is what lets the
+  # cancelled gate runs the whole suite instead of skipping it. `!cancelled()` is what lets the
   # condition be evaluated at all when a dependency did not succeed. The failure this whole file
   # keeps relearning is that **a skipped job still posts a conclusion and still satisfies a
   # required check**, so skipping is never the safe default.
+  #
+  # **`!cancelled()`, not `always()`, and the difference is a superseded run that will not die.**
+  # `always()` makes a job immune to cancelling its own run. Found 2026-09-24 on #1202 and #1206:
+  # a lane opens as a draft and is marked ready seconds later, so `opened` and `ready_for_review`
+  # raise two runs in one concurrency group. The newer one cancels the older, which cancels this
+  # gate mid-step; its output is then empty, `!= 'false'` admits that, and `always()` let every job
+  # below run the full suite anyway. The newer run sat `pending` behind it for the whole time: on
+  # #1202 the fresh jobs started at 15:46:16, thirty-three seconds after the zombie finished, 21
+  # minutes after the ready event. `!cancelled()` still reaches the condition when the gate
+  # *failed*, which is the fail-safe above; it only stops the jobs when the *run* was cancelled,
+  # and a cancelled run is by construction one a newer run on the same ref replaced. A merge-queue
+  # ref and `main` are never cancelled (see the concurrency block), so nothing there changes.
   gate:
     name: draft gate
     runs-on: ubuntu-24.04-arm
@@ -161,7 +173,7 @@ jobs:
     name: build + test (host + QEMU)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # A hung kernel means QEMU never exits and the runner would block until the 6-hour default.
     # Fail loudly instead. Local runs finish in well under a minute once built.
     timeout-minutes: 30
@@ -306,7 +318,7 @@ jobs:
     name: cpu matrix (riscv64 across QEMU CPU models)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # Five QEMU boots plus a std-farm build. Generous because a hung guest must fail loudly rather
     # than sit on the runner's 6-hour default, the same reason the test job has one.
     timeout-minutes: 45
@@ -387,7 +399,7 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       - name: Install rustfmt (pinned nightly)
@@ -398,7 +410,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -441,7 +453,7 @@ jobs:
     name: fastpath footprint (the IPC path must stay L1i-sized)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       # Every bare-metal target, because this gates every one of them.
@@ -464,7 +476,7 @@ jobs:
     name: reproducible build (the same commit builds the same bytes)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # Measured, not guessed: 11.1 seconds for both builds on this runner (2026-09-18, its own first
     # run), against 5 seconds for one cold `-p kernel` release build on the dev machine. This job
     # was first written with a 45-minute timeout on the assumption that two cold builds are slow.
@@ -488,7 +500,7 @@ jobs:
     name: image permissions (no kernel image ships a writable-executable segment)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       # All three bare-metal targets, because this gates all three (§19, architectural parity is a
@@ -514,7 +526,7 @@ jobs:
     name: stack frames (no frame over a third of a thread stack)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       # Two of the three bare-metal targets, and this one is a decision rather than a stale list:
@@ -553,7 +565,7 @@ jobs:
     name: bench (icount regression tripwire)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -646,7 +658,7 @@ jobs:
     name: supply chain (advisories, licences, vendored integrity)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # No permissions block of its own: the workflow-level `contents: read` above already gives every
     # job the least privilege that works, and this job wants exactly that (read the source, read the
     # advisory database, fetch a tarball from crates.io). Adding a redundant per-job copy would make
@@ -679,7 +691,7 @@ jobs:
     name: fuzz (parsers, 60s per target)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # Build, then four one-minute runs. Generous against a cold `-Zbuild-std`, which compiles the
     # standard library with the sanitizer on the first run of the day.
     timeout-minutes: 30
@@ -755,7 +767,7 @@ jobs:
     name: coverage (host crates)
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
         with:
