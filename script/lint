@@ -2602,18 +2602,18 @@ echo "tracked-but-ignored files: none"
 # 11. **The merge queue's admission predicate says what it means** (2026-09-24 security audit). The
 #     drain arms auto-merge as `nife-smelter[bot]` on every eligible pull request, the ruleset on
 #     `main` requires zero approving reviews, and until that audit "eligible" admitted a pull request
-#     from any fork on GitHub. The predicate is now one file, scripts/queue-eligible.jq, and this
+#     from any fork on GitHub. The predicate is now one file, helpers/queue-eligible.jq, and this
 #     self-test checks it against fixtures and checks that both consumers still splice it.
 echo "==> the merge queue's admission predicate"
-"$(dirname "$0")/../scripts/queue-eligible-selftest.sh"
+"$(dirname "$0")/../helpers/queue-eligible-selftest.sh"
 #     And the enqueue predicate on top of it (2026-09-24): the drain now calls `enqueuePullRequest`
 #     for a pull request the platform left armed and green outside the queue, and the self-test's
 #     load-bearing fixture is a fork that is stranded by every other measure and must be refused.
-"$(dirname "$0")/../scripts/queue-stranded-selftest.sh"
+"$(dirname "$0")/../helpers/queue-stranded-selftest.sh"
 #     And the cancelled-duplicate detection (2026-09-24): the drain reruns, once, the CI run a
 #     concurrency group cancelled beside its same-second sibling; the self-test's fixtures are the
 #     ordinary supersede that must not be rerun and the attempt-2 run that must not be rerun again.
-"$(dirname "$0")/../scripts/cancelled-duplicate-selftest.sh"
+"$(dirname "$0")/../helpers/cancelled-duplicate-selftest.sh"
 
 echo "==> markdown links and the notes index"
 # Two checks, and deliberately NOT a markdown linter. A survey of all 95 markdown files found zero

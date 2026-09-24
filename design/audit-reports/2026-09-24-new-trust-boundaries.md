@@ -5,7 +5,7 @@ read adversarially where the week's change piled up. That is three places: the a
 merges, the bytes a file supplies, and the state a core carries for a thread. **Findings:** fixed
 5, minted 1, accepted 5.
 
-**One path to `main` was open to anyone on GitHub, and it is closed.** `scripts/merge-drain.sh`
+**One path to `main` was open to anyone on GitHub, and it is closed.** `helpers/merge-drain.sh`
 armed auto-merge, as `nife-smelter[bot]`, on every open non-draft pull request against `main`.
 The ruleset on `main` requires zero approving reviews. The repository is public and forkable. So a
 stranger whose checks went green was one drain pass from merged, unread, and the merge-group build
@@ -47,7 +47,7 @@ subject and was not read here; see below.
   chain lens, still untaken, and it wants a lane with the time to do it properly.
 - The syscall surface as a whole. Only the four new ABI constants and the revoke paths were
   read. Still the third untaken lens.
-- The Stop hook's configuration. `scripts/handoff-check.py` landed on `main` (#1202) while this
+- The Stop hook's configuration. `helpers/handoff-check.py` landed on `main` (#1202) while this
   report was being rebased, so it was read. It takes a transcript path from the harness's own event
   on stdin, regex-searches the assistant's final text, and emits either nothing or a fixed block
   reason. It executes nothing, writes nothing, and echoes none of what it read. The `.claude/`
@@ -121,7 +121,7 @@ What a viewer learns about threads it cannot name is findings 9 and 10.
 
 ### 1. FIXED: the drain merged any green pull request from anyone, unread
 
-`scripts/merge-drain.sh`'s `queue()` selected on `isDraft == false` and `baseRefName == "main"`
+`helpers/merge-drain.sh`'s `queue()` selected on `isDraft == false` and `baseRefName == "main"`
 and nothing else. The `main` ruleset (`gh api repos/crickertech/nife/rules/branches/main`) has
 `required_approving_review_count: 0`; the repository is public with forking on. A fork's pull
 request, once its checks passed, was armed by the App and merged by the queue. Its checks pass
@@ -132,10 +132,10 @@ pull request added. That last step was read from GitHub's documentation and not 
 
 Exposure: none realised. 991 pull requests by calef, 9 by dependabot, zero cross-repository, ever.
 
-Fix: the predicate is now one file, `scripts/queue-eligible.jq`, spliced into both consumers, and
+Fix: the predicate is now one file, `helpers/queue-eligible.jq`, spliced into both consumers, and
 it adds `isCrossRepository == false`. Every lane pushes its branch here, so a foreign head is not a
 lane. A missing field is refused, so a consumer that stops asking `gh` for it fails closed.
-`scripts/queue-eligible-selftest.sh` is red on the tree before the fix and green after, and
+`helpers/queue-eligible-selftest.sh` is red on the tree before the fix and green after, and
 `script/lint` check 11 runs it.
 
 ### 2. MINTED: the platform does not require a review, and the App's secrets reach a merge group

@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-# scripts/queue-eligible-selftest.sh: the merge queue's admission predicate, checked against
+# helpers/queue-eligible-selftest.sh: the merge queue's admission predicate, checked against
 # fixtures, and its two consumers checked for still using it.
 #
 # Written by the 2026-09-24 security audit for the finding that `merge-drain.sh` armed auto-merge on
-# a pull request from any fork (see scripts/queue-eligible.jq for the path). This is the test that
+# a pull request from any fork (see helpers/queue-eligible.jq for the path). This is the test that
 # fails on the tree before that fix and passes after it: with the predicate absent, or with a
 # consumer that stopped splicing it, or with a `--json` list that dropped `isCrossRepository`, one
 # of the three checks below goes red. script/lint runs it, so the property is a gate rather than a
@@ -48,7 +48,7 @@ fi
 for consumer in merge-drain.sh queue-hold.sh; do
 	f="$here/$consumer"
 	if ! grep -q 'queue-eligible.jq' "$f"; then
-		echo "$me: $consumer no longer uses scripts/queue-eligible.jq; its own copy of the predicate is how a fork got armed." >&2
+		echo "$me: $consumer no longer uses helpers/queue-eligible.jq; its own copy of the predicate is how a fork got armed." >&2
 		exit 1
 	fi
 	if ! grep -q -- '--json [^ ]*isCrossRepository' "$f"; then

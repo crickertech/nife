@@ -187,8 +187,8 @@ dequeue_held() {
 # that audit this predicate was "open, not a draft, against main", which admitted a fork's pull
 # request from anyone on GitHub; with the ruleset on `main` requiring zero approving reviews, a
 # stranger whose checks went green was one pass of this loop from merged by `nife-smelter[bot]`,
-# unread. The predicate now lives in scripts/queue-eligible.jq, shared with queue-hold.sh and
-# checked by scripts/queue-eligible-selftest.sh under script/lint, and it is spliced in front of
+# unread. The predicate now lives in helpers/queue-eligible.jq, shared with queue-hold.sh and
+# checked by helpers/queue-eligible-selftest.sh under script/lint, and it is spliced in front of
 # the program below because jq cannot compose `-f` with inline text. If that file is missing, jq
 # refuses the program and the `|| echo '[]'` arms nothing, which is the direction to fail in.
 ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"

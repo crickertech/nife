@@ -1,4 +1,4 @@
-# scripts/queue-eligible.jq: what "eligible for the merge queue" means, in one place.
+# helpers/queue-eligible.jq: what "eligible for the merge queue" means, in one place.
 #
 # Two scripts arm auto-merge (`merge-drain.sh` on a schedule as `nife-smelter[bot]`, `queue-hold.sh`
 # when a person releases a hold), and until the 2026-09-24 security audit each carried its own copy
@@ -13,9 +13,9 @@
 # working from a fork arms their own pull request by hand.
 #
 # `jq` cannot compose `-f` with an inline program, so the consumers splice this file's text in front
-# of theirs: jq -r "$(cat scripts/queue-eligible.jq)" '[ .[] | eligible | ... ]'. A missing file
+# of theirs: jq -r "$(cat helpers/queue-eligible.jq)" '[ .[] | eligible | ... ]'. A missing file
 # leaves `eligible` undefined, jq refuses the program, and the consumer's `|| echo '[]'` arms
-# nothing, which is the direction to fail in. scripts/queue-eligible-selftest.sh checks the
+# nothing, which is the direction to fail in. helpers/queue-eligible-selftest.sh checks the
 # predicate against fixtures and checks that both consumers still splice it, and script/lint runs
 # that self-test.
 #
