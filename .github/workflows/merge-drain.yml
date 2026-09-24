@@ -50,6 +50,13 @@ concurrency:
 
 permissions:
   contents: read
+  # `actions: write` is for exactly one call, `gh run rerun` on a CI run a concurrency group
+  # cancelled as a same-second duplicate (2026-09-24, notes/merge-queue.md BUGS). The App's token
+  # does the rest of the pass and cannot rerun a workflow: milestone 128 (automation identity) minted it with Contents
+  # and Pull requests only. This token is passed to the script as MERGE_DRAIN_RERUN_TOKEN and is
+  # read nowhere else, so the rerun shows as `github-actions[bot]` while the log line, which is
+  # what the record counts, carries the drain's own instance tag.
+  actions: write
 
 jobs:
   drain:
@@ -92,4 +99,5 @@ jobs:
           # caller, so the instance has to travel in the content. A laptop run tags itself with its
           # hostname; this tags itself with the run that can be opened and read.
           MERGE_DRAIN_INSTANCE: actions:${{ github.run_id }}
+          MERGE_DRAIN_RERUN_TOKEN: ${{ github.token }}
         run: scripts/merge-drain.sh --once

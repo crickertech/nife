@@ -38,6 +38,7 @@ merge-drain: DEQUEUED #918 (needs-architect arrived after it was enqueued): the 
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
 merge-drain: ARMED #214 (the caretaker outlives its job)
 merge-drain: ENQUEUED #1207 (armed and green for 5 minutes with no queue entry; the platform had not) (the metrics page is a deck)
+merge-drain: RERAN #1203 run 36022256151 (CI was cancelled as a same-second duplicate and hid the green one) (the loader stops guessing)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
 $ scripts/merge-drain.sh            # loop until nothing is left to enqueue
@@ -46,7 +47,7 @@ merge-drain: queue empty; nothing open that does not need calef
 ```
 
 **Two of those lines are events and the rest are snapshots, and only the events can be counted.**
-`ARMED`, `DEQUEUED` and `ENQUEUED` say what this pass *did*; every other line says what was *true* when the pass
+`ARMED`, `DEQUEUED`, `ENQUEUED` and `RERAN` say what this pass *did*; every other line says what was *true* when the pass
 ended. Summing `4 armed` across passes double counts every pull request that was still armed on the
 next pass, which is why 3,355 passes of this log could not answer "how often does the drain act"
 when calef asked on 2026-09-23. `STALLED.` has the same defect: a stall that persists is re-printed
@@ -58,6 +59,7 @@ So:
 $ grep -c 'merge-drain: ARMED #' ~/Library/Logs/nife/merge-drain.log      # enqueues, countable
 $ grep -c 'merge-drain: DEQUEUED #' ~/Library/Logs/nife/merge-drain.log   # withdrawals, countable
 $ grep -c 'merge-drain: ENQUEUED #' ~/Library/Logs/nife/merge-drain.log   # the platform's promise, kept by the drain, countable
+$ grep -c 'merge-drain: RERAN #' ~/Library/Logs/nife/merge-drain.log      # cancelled duplicates rerun, countable
 $ grep -c 'merge-drain: [0-9]* armed' ~/Library/Logs/nife/merge-drain.log # passes, not enqueues
 ```
 
@@ -807,6 +809,14 @@ that needs distinct GitHub identities rather than a better log; the proposal is
   The same-second condition is what separates this from the ordinary supersede. #1207, #1209 and
   #1211 each have a cancelled CI run followed 20 to 66 seconds later by a successful one, which is
   a draft marked ready, and none of them was stranded.
+
+  **The drain does this now** (#1252, 2026-09-24): the query above is `scripts/cancelled-duplicate.jq`,
+  spliced into `merge-drain.sh`, and a pull request in this shape gets its cancelled duplicate
+  rerun once, logged as `RERAN #N run <id>`. Once is decided by the run's own `run_attempt`, so no
+  file or label holds the state; a duplicate already at attempt 2 is a `STALLED.` line for a person.
+  The rerun uses the workflow's own token with `actions: write`, because the App's token cannot
+  rerun a workflow; adding `Actions: read/write` to the App is calef's, and would let the rerun
+  carry the App's identity.
 - **A branch stacked on another pull request, then merged with `main`, has two merge bases, and
   GitHub calls that a conflict that git does not see** (#1220, 2026-09-24). #1220 was cut from
   #1213's branch. After #1213 landed and `main` was merged back in, `git merge-base --all` gave

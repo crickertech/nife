@@ -196,7 +196,7 @@ ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"
 # is the one field here that is a list rather than a scalar, at forty-odd entries per pull request.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest,isCrossRepository,statusCheckRollup 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,headRefOid,baseRefName,autoMergeRequest,isCrossRepository,statusCheckRollup 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" "$(cat "$ELIGIBLE_JQ")"'
 			[ .[]
 			  | eligible
@@ -365,6 +365,40 @@ stranded_numbers() {
 		"$(cat "$ELIGIBLE_JQ")$(cat "$STRANDED_JQ")"'[ .[] | stranded($queued; $cutoff) | .number ] | .[]' 2>/dev/null
 }
 
+# **Rerun the CI run a concurrency group cancelled as a duplicate, once** (2026-09-24, #1203's
+# cause, found by the A′ lane and written up in notes/merge-queue.md's BUGS). One push can raise two
+# `synchronize` events; the group cancels the newer copy before any job exists; GitHub reads the
+# newest run per workflow, so the empty cancelled suite hides the green one and the queue answers
+# "11 of 13 required status checks are expected". No workflow-level fix is sound, so the drain
+# reruns the run it finds. The detection is scripts/cancelled-duplicate.jq, the note's own query,
+# and `rerunnable` is what decides: only a run at `run_attempt` 1, so the same run is never rerun
+# twice and the run itself is the record. The rerun needs `actions: write`, which the App's token
+# does not carry, since milestone 128 (the automation gets its own identity) minted it with
+# Contents and Pull requests; `merge-drain.yml`
+# passes the workflow's own token as MERGE_DRAIN_RERUN_TOKEN for this one call, and a laptop run
+# uses whatever `gh` is logged in as.
+CANCELLED_JQ="$(dirname "$0")/cancelled-duplicate.jq"
+# The runs still owed a rerun at `$1` (a head SHA): "<id> <workflow name>" per line.
+cancelled_duplicate_runs() {
+	gh api "repos/$REPO/actions/runs?head_sha=$1&event=pull_request&per_page=100" 2>/dev/null |
+		jq -r "$(cat "$CANCELLED_JQ")"'rerunnable | "\(.id) \(.name)"' 2>/dev/null
+}
+# `gh run rerun` with the token that may do it: the workflow's own under Actions, `gh`'s login on a
+# laptop. Exported only for this call, and only when set, so a laptop run with no GH_TOKEN keeps
+# its keyring login rather than an empty variable.
+rerun_run() {
+	if [ -n "$MERGE_DRAIN_RERUN_TOKEN" ]; then
+		GH_TOKEN="$MERGE_DRAIN_RERUN_TOKEN" gh run rerun "$1" --repo "$REPO" >/dev/null 2>&1
+	else
+		gh run rerun "$1" --repo "$REPO" >/dev/null 2>&1
+	fi
+}
+# Whether any duplicate at `$1` has already had its one rerun: "yes" or nothing.
+cancelled_duplicate_spent() {
+	gh api "repos/$REPO/actions/runs?head_sha=$1&event=pull_request&per_page=100" 2>/dev/null |
+		jq -r "$(cat "$CANCELLED_JQ")"'[ cancelled_duplicates | select(.run_attempt > 1) ] | if length > 0 then "yes" else empty end' 2>/dev/null
+}
+
 # The numbers currently IN the merge queue. One call, asked once per pass and reused, because
 # `mergeQueue.entries` is the only thing that knows about a pull request whose arming has already
 # become membership. See the verification block in `pass` for why neither field alone covers both
@@ -398,6 +432,8 @@ queued_numbers() {
 #     merge-drain: DEQUEUED #N ...     this pass took #N back out
 #     merge-drain: ENQUEUED #N ...     this pass put an armed, green #N into the queue itself,
 #                                      because the platform had not (2026-09-24, see stranded_numbers)
+#     merge-drain: RERAN #N run <id> .. this pass reran the CI run a concurrency group cancelled as a
+#                                      same-second duplicate, once (2026-09-24, see cancelled_duplicate_runs)
 #
 # **What makes them events rather than snapshots is the suppression, not the wording.** Arming is
 # idempotent and is attempted on every eligible pull request on every pass, so printing on every
@@ -491,18 +527,42 @@ pass() {
 			continue
 		fi
 
-		# A fourth shape, detected and not fixed here (2026-09-24): BLOCKED with nothing failing and
-		# nothing running, and a CANCELLED check at the head. That is the "N of M required checks
-		# expected" page: a same-SHA CI run was cancelled by concurrency and the cancelled checks
-		# will never report, so the queue waits for a status that is not coming. The lane
-		# `ci/push-skips-tested-commits` owns the cause; this names the shape once so the log
-		# stops reading it as a pull request that is merely slow. Read from `q`, so it costs no
-		# call.
+		# A fourth shape (2026-09-24): BLOCKED with nothing failing and nothing running, and a
+		# CANCELLED check at the head. That is the "N of M required checks expected" page, and its
+		# one known cause is the same-second duplicate `cancelled_duplicate_runs` detects. The
+		# rollup in `q` is the cheap pre-filter, so the runs API is asked only for a pull request
+		# in this shape; then the cancelled duplicate is rerun once and said so as an event, a
+		# duplicate already rerun is a stall a person must read, and a cancellation with no
+		# same-second sibling is the older, unexplained stall line.
 		if [ "$state" = "BLOCKED" ] && [ "$(printf '%s' "$q" | jq -r --arg n "$num" '
 				.[] | select(.number == ($n | tonumber)) | .statusCheckRollup
 				| (map(select(.status == "QUEUED" or .status == "IN_PROGRESS" or .status == "PENDING")) | length) == 0
 				  and (map(select(.conclusion == "CANCELLED")) | length) > 0' 2>/dev/null)" = "true" ]; then
-			msg="$ME: STALLED. #$num has required checks that will never report: a run at its head was cancelled and nothing is re-running it (ci/push-skips-tested-commits owns the cause; push an empty commit) ($title)"
+			sha=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .headRefOid')
+			# The loop runs in a subshell (a pipe), so its lines are collected and printed here
+			# rather than counted there; the one thing the outer shell needs to know is whether
+			# any rerun took.
+			reran=$(cancelled_duplicate_runs "$sha" | while IFS=' ' read -r run_id run_name; do
+				[ -n "$run_id" ] || continue
+				if rerun_run "$run_id"; then
+					echo "$ME: RERAN #$num run $run_id ($run_name was cancelled as a same-second duplicate and hid the green one) ($title)"
+				else
+					echo "$ME: STALLED. #$num run $run_id ($run_name) is a cancelled duplicate and the rerun was refused; the token may lack actions:write ($title)"
+				fi
+			done)
+			if [ -n "$reran" ]; then
+				printf '%s\n' "$reran"
+				case "$reran" in
+				*"RERAN #$num "*) continue ;;
+				esac
+				stalled=$((stalled + 1))
+				continue
+			fi
+			if [ "$(cancelled_duplicate_spent "$sha")" = "yes" ]; then
+				msg="$ME: STALLED. #$num has a cancelled duplicate run that was already rerun once and is still not reporting; a person should read it ($title)"
+			else
+				msg="$ME: STALLED. #$num has required checks that will never report: a run at its head was cancelled with no same-second sibling, which is not the shape the drain reruns (push an empty commit) ($title)"
+			fi
 			echo "$msg"
 			notify "$num" "merge-drain:unreported-checks" "$msg"
 			stalled=$((stalled + 1))

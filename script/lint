@@ -2603,6 +2603,10 @@ echo "==> the merge queue's admission predicate"
 #     for a pull request the platform left armed and green outside the queue, and the self-test's
 #     load-bearing fixture is a fork that is stranded by every other measure and must be refused.
 "$(dirname "$0")/../scripts/queue-stranded-selftest.sh"
+#     And the cancelled-duplicate detection (2026-09-24): the drain reruns, once, the CI run a
+#     concurrency group cancelled beside its same-second sibling; the self-test's fixtures are the
+#     ordinary supersede that must not be rerun and the attempt-2 run that must not be rerun again.
+"$(dirname "$0")/../scripts/cancelled-duplicate-selftest.sh"
 
 echo "==> markdown links and the notes index"
 # Two checks, and deliberately NOT a markdown linter. A survey of all 95 markdown files found zero
