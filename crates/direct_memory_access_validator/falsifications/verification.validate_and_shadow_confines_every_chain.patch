@@ -1,4 +1,4 @@
-Falsifies `dma_validator::validate_and_shadow_confines_every_chain`.
+Falsifies `direct_memory_access_validator::validate_and_shadow_confines_every_chain`.
 
 The defect: `shadow_one_head` copies the descriptor into the shadow *before*
 validating it, and returns false afterwards. The refusal is unchanged, so
@@ -18,15 +18,20 @@ is checked as each descriptor lands, so those two carry it. Confirmed: Kani
 reports exactly two failing checks, at `ChainMem::write64` lines 468 and 472,
 which are those two assertions and nothing else.
 
-diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
-index 9a6d0500..8ab9fdde 100644
---- a/crates/dma_validator/src/lib.rs
-+++ b/crates/dma_validator/src/lib.rs
-@@ -274,16 +274,15 @@ fn shadow_one_head(
+diff --git a/crates/direct_memory_access_validator/src/lib.rs b/crates/direct_memory_access_validator/src/lib.rs
+index 459a98410..36c978edd 100644
+--- a/crates/direct_memory_access_validator/src/lib.rs
++++ b/crates/direct_memory_access_validator/src/lib.rs
+@@ -286,21 +286,20 @@ fn shadow_one_head(
              word: read64(src + 8),
          };
  
--        if !check_descriptor(dma_base, dma_size, qsize, desc) {
+-        if !check_descriptor(
+-            direct_memory_access_base,
+-            direct_memory_access_size,
+-            qsize,
+-            desc,
+-        ) {
 -            return false;
 -        }
 -
@@ -37,7 +42,12 @@ index 9a6d0500..8ab9fdde 100644
          write64(dst, desc.addr);
          write64(dst + 8, desc.word);
  
-+        if !check_descriptor(dma_base, dma_size, qsize, desc) {
++        if !check_descriptor(
++            direct_memory_access_base,
++            direct_memory_access_size,
++            qsize,
++            desc,
++        ) {
 +            return false;
 +        }
 +

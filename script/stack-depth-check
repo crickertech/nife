@@ -62,7 +62,8 @@
 #     object is invisible, so the answer is a lower bound on the true worst case rather than an
 #     upper one. The one indirect call that matters here is resolved by hand: `thread_entry` calls
 #     its closure through `call_closure::<F>`, and every instantiation of that is added as an edge.
-#     The rest (the `core::fmt` vtables, `pci`'s bar walk, `dma_validator`'s shadow callback) are
+# The rest (the `core::fmt` vtables, `pci`'s bar walk, `direct_memory_access_validator`'s shadow
+# callback) are
 #     counted and printed so a reader can see how much is unaccounted for, never guessed at.
 #   - **Assembly is invisible.** `-Z emit-stack-sizes` is a rustc flag, so a hand-written `.s` frame
 #     has no entry: `switch_to`'s 96 bytes, `user_entry_trampoline`'s 272-byte trap-frame

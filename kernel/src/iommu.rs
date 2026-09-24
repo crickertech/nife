@@ -76,7 +76,7 @@ pub fn confine(rid: u32, regions: &[DmaRegion]) {
     // The tables are read by the IOMMU, a separate observer: publish them before it is pointed at
     // the root. The driver's `attach` issues its own invalidation + sync after installing the STE /
     // device context, so a stale cached entry cannot survive either.
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
 
     // The domain's cache tag (ASID on aarch64, PSCID on riscv). One per device; the requester id is
     // unique per device and never zero for a real PCI function (dev >= 1), so it is a fine tag.
@@ -87,11 +87,15 @@ pub fn confine(rid: u32, regions: &[DmaRegion]) {
 /// used half and its data buffers) and the kernel-private shadow page (the descriptor table and
 /// available ring the device actually reads). Both are frame-granular. See notes/dma.md for why the
 /// device reads a shadow the driver cannot write.
-pub fn virtio_regions(dma_base: u64, dma_size: u64, shadow_base: u64) -> [DmaRegion; 2] {
+pub fn virtio_regions(
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
+    shadow_base: u64,
+) -> [DmaRegion; 2] {
     [
         DmaRegion {
-            base: dma_base,
-            size: dma_size,
+            base: direct_memory_access_base,
+            size: direct_memory_access_size,
         },
         DmaRegion {
             base: shadow_base,

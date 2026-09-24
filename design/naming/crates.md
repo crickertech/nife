@@ -147,7 +147,8 @@ rename that size is not a side effect of a rule change.
 
 *Corrected 2026-09-24: four of the five have since been renamed, to `device_tree_blob`,
 `globally_unique_identifier_partition_table`, `inter_process_communication` and
-`address_space_identifier`. `crates/dma_validator` still carries its deratified name.*
+`address_space_identifier`. `crates/dma_validator` became `crates/direct_memory_access_validator`
+on 2026-09-24, calef ruling on #1229.*
 
 One constraint: `nifefs` caps archive names at `NAME_LEN = 32` bytes, so a program's name is
 bounded. Crates are not in the archive and are unbounded.
@@ -168,7 +169,8 @@ known gap rather than a decision.
 
 - Kernel logic, host-tested and Kani-reachable: `capability`, `paging`, `page_frames`,
   `memory_regions`, `generational_table`, `address_space_identifier`, `intrusive_fifo`,
-  `inter_process_communication`, `dma_validator`, `measured_boot`, `user_mode_heap`.
+  `inter_process_communication`, `direct_memory_access_validator`, `measured_boot`,
+  `user_mode_heap`.
 - Wire contracts, spelled `*_protocol` and checked for it by `script/lint`:
   `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
   `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,

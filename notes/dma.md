@@ -104,32 +104,33 @@ unconfined there by standing default.
 
 ## The validator
 
-Since milestone 35 the validation logic lives in `crates/dma_validator`, a host-testable pure-logic
-crate the kernel's `validate_and_shadow` calls, and it is **machine-checked**: seven Kani harnesses
-prove no descriptor the walk copies into the shadow escapes the granted region or is indirect, for
-every input (both directions, multi-queue, chain cycles, ring-index wraparound, and the
-mutated-after-validation race), and that the walk terminates. This was the last isolation boundary
-that was attacker-tested but not proved; notes/verification.md has the harness table and, more
-important, **the bounds with their justifications** (the short version: the queue size the proof fixes
-is the system's own `QSIZE`, not a proof convenience, and the loop bounds are set one above what the
-code can need so Kani's unwinding assertion turns them into a termination proof). The crate also now
-*owns* the ring layout constants that `kernel/src/virtio.rs` aliases, because a proof about a copy of
-the layout proves nothing about the layout that runs. The rest of this section describes what that
-logic does.
+Since milestone 35 (prove the DMA-confinement boundary) the validation logic lives in
+`crates/direct_memory_access_validator`, a host-testable pure-logic crate the kernel's
+`validate_and_shadow` calls, and it is
+**machine-checked**: seven Kani harnesses prove no descriptor the walk copies into the shadow
+escapes the granted region or is indirect, for every input (both directions, multi-queue, chain
+cycles, ring-index wraparound, and the mutated-after-validation race), and that the walk terminates.
+This was the last isolation boundary that was attacker-tested but not proved; notes/verification.md
+has the harness table and, more important, **the bounds with their justifications** (the short
+version: the queue size the proof fixes is the system's own `QSIZE`, not a proof convenience, and
+the loop bounds are set one above what the code can need so Kani's unwinding assertion turns them
+into a termination proof). The crate also now *owns* the ring layout constants that
+`kernel/src/virtio.rs` aliases, because a proof about a copy of the layout proves nothing about the
+layout that runs. The rest of this section describes what that logic does.
 
 `kernel/src/virtio.rs::validate_and_shadow` is the security-critical code. On `NOTIFY` it walks the
 available ring from the last-validated index to the current one, and for each new head follows the
 descriptor chain, checking that every `addr..addr+len` (with overflow rejected) lies within
-`[dma_base, dma_base + dma_size)`. Each validated descriptor is *copied into the shadow ring the
-device reads* (see the shadow-ring section below); that copy, not the validation alone, is what
-closes the race. The chain walk is bounded by the queue size, so a malicious `next`-pointer cycle
-cannot hang the kernel. The *outer* walk is bounded too: the available ring holds only `QSIZE` slots,
-so a batch claiming more than `QSIZE` newly-available entries is malformed and refused before a
-single descriptor is touched. Without that guard a driver could set `avail.idx` tens of thousands
-past the last-validated index and spin the loop up to 65535 times, all under the `DEVICES` lock with
-interrupts masked (bounded, single-core, but a needless latency spike). It is written to take the
-driver and shadow ring addresses and read/write word pairs, so a test builds fake regions and
-exercises it directly.
+`[direct_memory_access_base, direct_memory_access_base + direct_memory_access_size)`. Each validated
+descriptor is *copied into the shadow ring the device reads* (see the shadow-ring section below);
+that copy, not the validation alone, is what closes the race. The chain walk is bounded by the queue
+size, so a malicious `next`-pointer cycle cannot hang the kernel. The *outer* walk is bounded too:
+the available ring holds only `QSIZE` slots, so a batch claiming more than `QSIZE` newly-available
+entries is malformed and refused before a single descriptor is touched. Without that guard a driver
+could set `avail.idx` tens of thousands past the last-validated index and spin the loop up to 65535
+times, all under the `DEVICES` lock with interrupts masked (bounded, single-core, but a needless
+latency spike). It is written to take the driver and shadow ring addresses and read/write word
+pairs, so a test builds fake regions and exercises it directly.
 
 ## The proof
 
@@ -229,10 +230,11 @@ copy), which is the real argument for doing it rather than masking feature bits 
 in the driver's region so the driver still reads its own completions. `validate_and_shadow` replaces
 the old in-place `validate_avail`: for each newly-available head it walks the driver's chain,
 validates every descriptor, and copies the validated bytes into the shadow at the same index, then
-mirrors the head into the shadow available ring and publishes the shadow's `avail.idx` last. A
-`dsb` (`arch::dma_wmb`) orders the shadow writes before the `QUEUE_NOTIFY`, because the device is a
-separate observer. The driver's ABI does not change at all: it still builds its rings at the same
-offsets in its own region and reads the same used ring, unaware that the device now reads a copy.
+mirrors the head into the shadow available ring and publishes the shadow's `avail.idx` last. A `dsb`
+(`arch::direct_memory_access_write_barrier`) orders the shadow writes before the `QUEUE_NOTIFY`,
+because the device is a separate observer. The driver's ABI does not change at all: it still builds
+its rings at the same offsets in its own region and reads the same used ring, unaware that the
+device now reads a copy.
 
 The invariant that makes it airtight: **the kernel only ever writes a validated descriptor into the
 shadow.** So every descriptor the device can reach in the shadow has an in-region address, the

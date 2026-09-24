@@ -55,15 +55,15 @@ pub fn check(ok: bool) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
+pub extern "C" fn _start(role: u64, direct_memory_access_phys: u64, _arg2: u64) -> ! {
     match role {
-        VIRTIO_BLK => virtio::run(dma_phys),
-        VIRTIO_ATTACK => virtio::run_attack(dma_phys),
-        VIRTIO_ATTACK_INDIRECT => virtio::run_attack_indirect(dma_phys),
-        VIRTIO_BLK_WRITE => virtio::run_write(dma_phys),
-        VIRTIO_BLK_WRITE_ABANDON => virtio::run_write_abandon(dma_phys),
-        VIRTIO_NET => virtio::run_net(dma_phys),
-        VIRTIO_BLK_SERVER => virtio::run_blk_server(dma_phys),
+        VIRTIO_BLK => virtio::run(direct_memory_access_phys),
+        VIRTIO_ATTACK => virtio::run_attack(direct_memory_access_phys),
+        VIRTIO_ATTACK_INDIRECT => virtio::run_attack_indirect(direct_memory_access_phys),
+        VIRTIO_BLK_WRITE => virtio::run_write(direct_memory_access_phys),
+        VIRTIO_BLK_WRITE_ABANDON => virtio::run_write_abandon(direct_memory_access_phys),
+        VIRTIO_NET => virtio::run_net(direct_memory_access_phys),
+        VIRTIO_BLK_SERVER => virtio::run_blk_server(direct_memory_access_phys),
         _ => panic!(),
     }
 }

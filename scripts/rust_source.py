@@ -166,13 +166,13 @@ def unsafe_census(files):
 # nife" 561 -- and flagged in its own BUGS that nothing keeps it computed. This is that mechanism.
 #
 # **The split that hand computation did NOT make, and the one this file exists to make**: crates/
-# is not one population. `crates/paging` and `crates/dma_validator` were lifted out of `kernel/src`
-# on purpose so a model checker could reach them (see the BUGS in notes/trusted-base.md, which
-# names exactly this risk: "a tree can shrink [the kernel line count] by moving code out of
-# `kernel/src` without reducing what anyone has to trust"). A crate that ships ONLY in the kernel
-# binary is the trusted base wherever it lives on disk; a crate that ships ONLY in a userspace
-# program is confined wherever it lives; and roughly half of `crates/` ships in BOTH, which this
-# split reports as a bucket of its own rather than guessing.
+# is not one population. `crates/paging` and `crates/direct_memory_access_validator` were lifted out
+# of `kernel/src` on purpose so a model checker could reach them (see the BUGS in
+# notes/trusted-base.md, which names exactly this risk: "a tree can shrink [the kernel line count]
+# by moving code out of `kernel/src` without reducing what anyone has to trust"). A crate that ships
+# ONLY in the kernel binary is the trusted base wherever it lives on disk; a crate that ships ONLY
+# in a userspace program is confined wherever it lives; and roughly half of `crates/` ships in BOTH,
+# which this split reports as a bucket of its own rather than guessing.
 #
 # **How the tables below were derived, 2026-09-20, on this worktree.** `cargo metadata
 # --format-version 1`, once, at the repository root: every workspace member's `resolve.nodes[*].
@@ -201,7 +201,7 @@ def unsafe_census(files):
 # five) `SHARED` crates that carry any `unsafe`, which this pass did not do; it is recorded as
 # future work rather than guessed at.
 KERNEL_ONLY_CRATES = frozenset({
-    'address_space_identifier', 'capability', 'cpu_set', 'dma_validator',
+    'address_space_identifier', 'capability', 'cpu_set', 'direct_memory_access_validator',
     'firmware_configuration', 'generational_table', 'inter_process_communication',
     'intrusive_fifo', 'jh7110_clock_and_reset', 'memory_corruption_canary_gate',
     'memory_regions', 'page_frames', 'paging', 'pci', 'thread_wake_handshake',

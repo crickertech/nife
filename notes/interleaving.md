@@ -83,7 +83,7 @@ pokes it with a reschedule interrupt, and the victim swaps the slot back to zero
 scheduler entry and hands one thread into the thief's inbox. The slot was an `AtomicU32` field on
 `PerCpu` with the compare-exchange written inline in `sched.rs`; it is now a crate, and the kernel
 calls it rather than keeping a copy of the protocol. Same Phase-2 move `memory_regions`, `inter_process_communication` and
-`dma_validator` made for Kani.
+`direct_memory_access_validator` made for Kani.
 
 | Harness | Property |
 |---|---|

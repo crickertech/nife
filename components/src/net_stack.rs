@@ -157,23 +157,23 @@ const SOCK_BUF: usize = 2048;
 /// every outbound-only test uses) refuses every `LISTEN` and every `BIND_UDP`. The client half
 /// ignores it.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, dma_phys: u64, a2: u64) -> ! {
+pub extern "C" fn _start(role: u64, direct_memory_access_phys: u64, a2: u64) -> ! {
     if role == 0 {
-        server(dma_phys, a2)
+        server(direct_memory_access_phys, a2)
     } else {
         socket_test_client::run(role)
     }
 }
 
 /// The net server: bring the NIC up, run DHCP, then serve the socket contract.
-fn server(dma_phys: u64, grant_word: u64) -> ! {
+fn server(direct_memory_access_phys: u64, grant_word: u64) -> ! {
     HEAP.init(
         MEMORY_REGION,
         user_mode_runtime::heap::DEFAULT_BASE,
         HEAP_MAX,
     );
 
-    let mut dev = net_transport::VirtioNet::bring_up(dma_phys);
+    let mut dev = net_transport::VirtioNet::bring_up(direct_memory_access_phys);
     let mut config = Config::new(HardwareAddress::Ethernet(EthernetAddress(MAC)));
     config.random_seed = now();
     let mut iface = Interface::new(config, &mut dev, instant());

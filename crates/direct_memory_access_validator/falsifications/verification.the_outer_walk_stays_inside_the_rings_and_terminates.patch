@@ -1,4 +1,4 @@
-Falsifies `dma_validator::the_outer_walk_stays_inside_the_rings_and_terminates`.
+Falsifies `direct_memory_access_validator::the_outer_walk_stays_inside_the_rings_and_terminates`.
 
 The defect: `validate_and_shadow` no longer refuses a head index that names a slot
 outside the descriptor table. The head is a `u16` the driver writes into its own
@@ -13,10 +13,10 @@ closures rather than in its body, so that assertion is where this property is
 actually stated. Confirmed: one failing check, located in this harness's
 `read64` closure at the line holding that assertion.
 
-diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+diff --git a/crates/direct_memory_access_validator/src/lib.rs b/crates/direct_memory_access_validator/src/lib.rs
 index 9a6d0500..a049d19d 100644
---- a/crates/dma_validator/src/lib.rs
-+++ b/crates/dma_validator/src/lib.rs
+--- a/crates/direct_memory_access_validator/src/lib.rs
++++ b/crates/direct_memory_access_validator/src/lib.rs
 @@ -212,9 +212,6 @@ pub fn validate_and_shadow(
      while idx != to_idx {
          let slot = (idx % qsize) as u64;

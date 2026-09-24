@@ -169,9 +169,10 @@ them exists *because* isolation is hardware:
 - **System-register access per architecture.** `isa.rs`, `timer.rs`, `pmu.rs`, `fp.rs` on three ISAs.
   A single-ISA embedded kernel does not pay this three times.
 - **DMA, which is the one hole hardware isolation does not plug by itself.** A device reads physical
-  memory with no MMU in front of it, so `crates/dma_validator` checks every descriptor and the device
-  reads a shadow the driver cannot touch. `notes/dma.md` and `notes/iommu.md` have the software and
-  hardware halves. RedLeaf declines this: *"We trust devices to be non-malicious."*
+  memory with no MMU in front of it, so `crates/direct_memory_access_validator` checks every
+  descriptor and the device reads a shadow the driver cannot touch. `notes/dma.md` and
+  `notes/iommu.md` have the software and hardware halves. RedLeaf declines this: *"We trust devices
+  to be non-malicious."*
 - **Secondary-core bring-up and per-CPU state.** `kernel/src/smp.rs`, `kernel/src/cpu.rs`,
   `kernel/src/interrupt_stack.rs`, all `UnsafeCell` over static per-CPU storage. Levy's paper
   explicitly did not evaluate this (*"we did not evaluate our design in a multi-processor setting"*),
@@ -234,8 +235,9 @@ that must keep running on a battery, which is the system Tock is.
 - **Line counts are a poor proxy for a proof obligation and a worse one across languages.** 39,892
   lines of Rust and 10 kSLOC of C are not the same unit of anything, and a tree can shrink this
   number by moving code out of `kernel/src` without reducing what anyone has to trust. The move to
-  `crates/paging` and `crates/dma_validator` is exactly that shape, and it was done for the prover
-  rather than for the number, but a future reader cannot tell those two motives apart from the series.
+  `crates/paging` and `crates/direct_memory_access_validator` is exactly that shape, and it was done
+  for the prover rather than for the number, but a future reader cannot tell those two motives apart
+  from the series.
 - **The `unsafe` block count is a regex over stripped source** (`scripts/rust_source.py`), so it
   counts `unsafe {` and `unsafe fn` and cannot see how much code is inside one.
 - **The six-category audit is a reading, not a proof.** "nife has no allocator in the kernel" was

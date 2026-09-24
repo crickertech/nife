@@ -44,7 +44,7 @@ way on purpose. A device is the exception. The virtio device is *not* behind our
 IOMMU on QEMU `virt`), so when the driver puts a buffer address in a descriptor, it must be the
 **physical** address the device will actually read and write. The driver cannot compute that from a
 virtual address, so the kernel hands it the DMA region's physical base at spawn, and the driver
-works out physical addresses as `dma_phys + offset`.
+works out physical addresses as `direct_memory_access_phys + offset`.
 
 On real hardware there is a second concern: cache coherence between the CPU and a DMA-capable
 device. QEMU's DMA is coherent, so we get away with just compiler/CPU ordering (`dmb ish`) around

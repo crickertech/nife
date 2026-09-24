@@ -15,7 +15,7 @@ A RISC-V arch adds `#[cfg(target_arch = "riscv64")] mod riscv64; pub use riscv64
 rest of the kernel calls through `crate::arch`:
 
 - **Top-level:** `set_percpu`/`percpu` (the per-CPU pointer), `psci_cpu_on` (start a secondary),
-  `init`, `halt`, `wait_for_interrupt`, `dma_wmb`.
+  `init`, `halt`, `wait_for_interrupt`, `direct_memory_access_write_barrier`.
 - **`mmu`:** `KERNEL_VA_BASE`, `phys_to_virt`/`virt_to_phys`, `init`/`init_secondary`, the user-mapping
   surface (`map_current_user_page/frame`, `unmap_user_at`, `translate_at`, `map_page`/`unmap_page`,
   `activate_user`/`deactivate_user`, `switch_user_root`, `reserved_root`, `flush_asid`, `flush_tlb`,

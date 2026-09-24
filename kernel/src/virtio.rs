@@ -511,25 +511,25 @@ impl Transport {
 /// These offsets are **relative to a queue's ring block**; a device's queue `q` puts its rings at
 /// `q * RING_BLOCK + {DESC,AVAIL,USED}_OFF` (see `RING_BLOCK`).
 ///
-/// **These are aliases, not copies.** The layout is defined in `crates/dma_validator`, where
+/// **These are aliases, not copies.** The layout is defined in `crates/direct_memory_access_validator`, where
 /// `distinct_queues_occupy_disjoint_blocks` proves the isolation that follows from it (a queue's ring
 /// area fits inside its own block, blocks do not overlap, and the descriptor table a validation walk
 /// writes ends before the available ring begins). Milestone 35 first duplicated them here, which left
 /// the proof quantifying over constants this file could drift away from silently; aliasing makes the
 /// proved layout the layout that runs, the same discipline that has the kernel *call*
-/// `dma_validator::validate_and_shadow` rather than keep a parallel copy of it.
-pub const QSIZE: u16 = dma_validator::LAYOUT_QSIZE;
-const DESC_OFF: u64 = dma_validator::DESC_OFF; // 16 * QSIZE
-const AVAIL_OFF: u64 = dma_validator::AVAIL_OFF; // 6 + 2*QSIZE
-const USED_OFF: u64 = dma_validator::USED_OFF; // 6 + 8*QSIZE
+/// `direct_memory_access_validator::validate_and_shadow` rather than keep a parallel copy of it.
+pub const QSIZE: u16 = direct_memory_access_validator::LAYOUT_QSIZE;
+const DESC_OFF: u64 = direct_memory_access_validator::DESC_OFF; // 16 * QSIZE
+const AVAIL_OFF: u64 = direct_memory_access_validator::AVAIL_OFF; // 6 + 2*QSIZE
+const USED_OFF: u64 = direct_memory_access_validator::USED_OFF; // 6 + 8*QSIZE
 /// The whole ring area of one queue must fit under this; a queue's data buffers live above it.
-const RING_END: u64 = dma_validator::RING_END;
+const RING_END: u64 = direct_memory_access_validator::RING_END;
 
 /// The most virtqueues the confinement drives per device. A virtio-net device needs two (receive =
 /// queue 0, transmit = queue 1); the disk uses only queue 0. Fixed and small on purpose: one
 /// kernel-private shadow frame per device holds every queue's shadow rings, so the ceiling is what
 /// fits there (`MAX_QUEUES * RING_BLOCK <= FRAME_SIZE`), asserted below, not a policy dial.
-pub const MAX_QUEUES: usize = dma_validator::MAX_QUEUES as usize;
+pub const MAX_QUEUES: usize = direct_memory_access_validator::MAX_QUEUES as usize;
 
 /// The stride between successive queues' ring areas, in **both** the driver's DMA region and the
 /// kernel-private shadow. Queue `q`'s descriptor table, available ring, and used ring sit at
@@ -537,7 +537,7 @@ pub const MAX_QUEUES: usize = dma_validator::MAX_QUEUES as usize;
 /// (`RING_END`) and keeps queue 0 byte-identical to the single-queue layout the disk driver already
 /// uses: the disk's data buffers begin at 0x200 (= queue 1's block), which is free because a disk
 /// has no queue 1, so the disk needs no change at all.
-const RING_BLOCK: u64 = dma_validator::RING_BLOCK;
+const RING_BLOCK: u64 = direct_memory_access_validator::RING_BLOCK;
 
 // The shadow frame must hold every queue's ring block, and a queue's ring area must fit in its
 // block. Both are compile-time facts, so break the build if a future edit violates either.
@@ -553,15 +553,16 @@ const _: () = assert!(
 /// Queue `q`'s ring block base, relative to a region (driver DMA or shadow) base. The proved
 /// function, for the same reason the constants above are aliases.
 const fn queue_block(q: u16) -> u64 {
-    dma_validator::queue_block(q)
+    direct_memory_access_validator::queue_block(q)
 }
 
 // The descriptor flags the validator acts on. The validation logic that reads them now lives in
-// `crates/dma_validator` (as `dma_validator::F_NEXT` / `F_INDIRECT`); these copies remain for the
-// attacker tests below, which build descriptor words by hand. Bit 2 (`INDIRECT`) points a
-// descriptor at a table of further descriptors the validator never copies into the shadow, so it is
-// refused (and the feature that enables it is negotiated off in `sanitize_driver_features`), which
-// is the confinement failing closed if that negotiation ever regresses.
+// `crates/direct_memory_access_validator` (as `direct_memory_access_validator::F_NEXT` /
+// `F_INDIRECT`); these copies remain for the attacker tests below, which build descriptor words by
+// hand. Bit 2 (`INDIRECT`) points a descriptor at a table of further descriptors the validator
+// never copies into the shadow, so it is refused (and the feature that enables it is negotiated off
+// in `sanitize_driver_features`), which is the confinement failing closed if that negotiation ever
+// regresses.
 #[cfg(test)]
 const VIRTQ_DESC_F_NEXT: u16 = 1;
 #[cfg(test)]
@@ -570,8 +571,8 @@ const VIRTQ_DESC_F_INDIRECT: u16 = 4;
 /// One block device the kernel operates the transport for.
 struct Device {
     transport: Transport,
-    dma_base: u64,
-    dma_size: u64,
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
     /// The last available-ring index we have already validated and forwarded, **per queue**.
     /// Descriptors are only ever *added* by the driver, so we validate the new ones each notify;
     /// RX and TX advance independently, so each queue keeps its own high-water mark.
@@ -707,7 +708,12 @@ static DEVICES: IrqSafeMutex<Devices> = IrqSafeMutex::new(
 /// reach (its DMA region plus the shadow page) before it is entered in the table: from that moment
 /// any other address it emits faults at the IOMMU. The software shadow ring stays either way, now
 /// as defence in depth (notes/dma.md).
-pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<u32>) -> usize {
+pub fn register(
+    transport: Transport,
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
+    rid: Option<u32>,
+) -> usize {
     // The shadow page the device reads its rings from. One frame per device, kernel-owned and never
     // mapped into the driver, so the driver cannot touch what the device sees.
     // Zeroed so a stale word can never look like a valid descriptor before the first copy fills
@@ -722,7 +728,11 @@ pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<
     if let Some(rid) = rid
         && crate::iommu::active()
     {
-        let regions = crate::iommu::virtio_regions(dma_base, dma_size, shadow_base);
+        let regions = crate::iommu::virtio_regions(
+            direct_memory_access_base,
+            direct_memory_access_size,
+            shadow_base,
+        );
         crate::iommu::confine(rid, &regions);
     }
 
@@ -734,8 +744,8 @@ pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<
     let id = devs.count;
     devs.entries[id] = Some(Device {
         transport,
-        dma_base,
-        dma_size,
+        direct_memory_access_base,
+        direct_memory_access_size,
         last_avail: [0; MAX_QUEUES],
         driver_features_sel: 0,
         shadow_base,
@@ -756,22 +766,22 @@ fn reg_write(mmio_phys: u64, off: u64, v: u32) {
 
 /// Read `n` bytes from a physical address in the DMA region, through the direct map. Used by the
 /// validator to walk the driver's descriptor table and available ring.
-fn dma_read16(phys: u64) -> u16 {
+fn direct_memory_access_read16(phys: u64) -> u16 {
     // SAFETY: `phys` lies in the DMA region, which `mmu::map_everything` covers, so `phys_to_virt` names mapped memory. Volatile because this is the DRIVER's memory: the validator must read what is there now, not a value the compiler cached.
     unsafe { core::ptr::read_volatile(mmu::phys_to_virt(phys) as *const u16) }
 }
-fn dma_read64(phys: u64) -> u64 {
+fn direct_memory_access_read64(phys: u64) -> u64 {
     // SAFETY: `phys` lies in the DMA region, which `mmu::map_everything` covers, so `phys_to_virt` names mapped memory. Volatile because this is the DRIVER's memory: the validator must read what is there now, not a value the compiler cached.
     unsafe { core::ptr::read_volatile(mmu::phys_to_virt(phys) as *const u64) }
 }
 
 /// Write into the kernel-private shadow ring, through the direct map. The shadow page is a
 /// kernel-owned frame, so this is a plain store to memory only the kernel names.
-fn dma_write16(phys: u64, v: u16) {
+fn direct_memory_access_write16(phys: u64, v: u16) {
     // SAFETY: the shadow ring is a kernel-owned frame reached through the direct map, so this is an ordinary store to memory only the kernel names.
     unsafe { core::ptr::write_volatile(mmu::phys_to_virt(phys) as *mut u16, v) }
 }
-fn dma_write64(phys: u64, v: u64) {
+fn direct_memory_access_write64(phys: u64, v: u64) {
     // SAFETY: the shadow ring is a kernel-owned frame reached through the direct map, so this is an ordinary store to memory only the kernel names.
     unsafe { core::ptr::write_volatile(mmu::phys_to_virt(phys) as *mut u64, v) }
 }
@@ -779,19 +789,20 @@ fn dma_write64(phys: u64, v: u64) {
 /// **The security-critical step: validate the driver's descriptors AND copy them into the shadow
 /// ring the device reads.**
 ///
-/// The logic lives in `crates/dma_validator` (milestone 35), lifted out so Kani can prove it for
-/// every input: no descriptor the device reads out of the shadow references memory outside
-/// `[dma_base, dma_base + dma_size)`, in either direction, with indirect descriptors refused, over
-/// any batch. This is the thin kernel adapter: it passes the driver and shadow ring *physical
-/// addresses* and the direct-map read/write closures, plus `QSIZE`, straight through to the proved
-/// walk. The device reads the shadow (see [`setup_queue`]), which the driver cannot write, so the
-/// bytes the device acts on are exactly the bytes validated here; mutating a descriptor after this
-/// returns changes only the driver's own copy, which nothing reads. See notes/dma.md and
-/// notes/verification.md.
+/// The logic lives in `crates/direct_memory_access_validator` (milestone 35 (prove the
+/// DMA-confinement boundary)), lifted out so Kani can prove it for every input: no descriptor the
+/// device reads out of the shadow references memory outside
+/// `[direct_memory_access_base, direct_memory_access_base + direct_memory_access_size)`, in either
+/// direction, with indirect descriptors refused, over any batch. This is the thin kernel adapter:
+/// it passes the driver and shadow ring *physical addresses* and the direct-map read/write
+/// closures, plus `QSIZE`, straight through to the proved walk. The device reads the shadow (see
+/// [`setup_queue`]), which the driver cannot write, so the bytes the device acts on are exactly the
+/// bytes validated here; mutating a descriptor after this returns changes only the driver's own
+/// copy, which nothing reads. See notes/dma.md and notes/verification.md.
 #[allow(clippy::too_many_arguments)]
 fn validate_and_shadow(
-    dma_base: u64,
-    dma_size: u64,
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
     driver_desc: u64,
     driver_avail: u64,
     shadow_desc: u64,
@@ -803,9 +814,9 @@ fn validate_and_shadow(
     write16: &dyn Fn(u64, u16),
     write64: &dyn Fn(u64, u64),
 ) -> bool {
-    dma_validator::validate_and_shadow(
-        dma_base,
-        dma_size,
+    direct_memory_access_validator::validate_and_shadow(
+        direct_memory_access_base,
+        direct_memory_access_size,
         driver_desc,
         driver_avail,
         shadow_desc,
@@ -925,7 +936,7 @@ pub fn setup_queue(id: usize, num: u16, queue: u16) -> Result<(), TransportError
     // Every queue's ring block must lie inside the driver's DMA region. The last block ends at
     // `MAX_QUEUES * RING_BLOCK`, but this queue only needs its own block plus a ring area.
     let block = queue_block(queue);
-    if num == 0 || num > QSIZE || dev.dma_size < block + RING_END {
+    if num == 0 || num > QSIZE || dev.direct_memory_access_size < block + RING_END {
         return Err(TransportError::BadQueue);
     }
     if dev.transport.queue_num_max(queue) < num {
@@ -934,7 +945,7 @@ pub fn setup_queue(id: usize, num: u16, queue: u16) -> Result<(), TransportError
 
     let desc = dev.shadow_base + block + DESC_OFF; // the SHADOW descriptor table (device-read)
     let avail = dev.shadow_base + block + AVAIL_OFF; // the SHADOW available ring
-    let used = dev.dma_base + block + USED_OFF; // the used ring stays in the driver's region
+    let used = dev.direct_memory_access_base + block + USED_OFF; // the used ring stays in the driver's region
     dev.transport.setup_queue(queue, num, desc, avail, used);
     Ok(())
 }
@@ -960,25 +971,25 @@ pub fn notify(id: usize, queue: u16) -> Result<(), TransportError> {
     }
 
     let block = queue_block(queue);
-    let driver_desc = dev.dma_base + block + DESC_OFF;
-    let driver_avail = dev.dma_base + block + AVAIL_OFF;
+    let driver_desc = dev.direct_memory_access_base + block + DESC_OFF;
+    let driver_avail = dev.direct_memory_access_base + block + AVAIL_OFF;
     let shadow_desc = dev.shadow_base + block + DESC_OFF;
     let shadow_avail = dev.shadow_base + block + AVAIL_OFF;
-    let to_idx = dma_read16(driver_avail + 2); // the driver's avail.idx for this queue
+    let to_idx = direct_memory_access_read16(driver_avail + 2); // the driver's avail.idx for this queue
 
     let ok = validate_and_shadow(
-        dev.dma_base,
-        dev.dma_size,
+        dev.direct_memory_access_base,
+        dev.direct_memory_access_size,
         driver_desc,
         driver_avail,
         shadow_desc,
         shadow_avail,
         dev.last_avail[queue as usize],
         to_idx,
-        &|p| dma_read16(p),
-        &|p| dma_read64(p),
-        &|p, v| dma_write16(p, v),
-        &|p, v| dma_write64(p, v),
+        &|p| direct_memory_access_read16(p),
+        &|p| direct_memory_access_read64(p),
+        &|p, v| direct_memory_access_write16(p, v),
+        &|p, v| direct_memory_access_write64(p, v),
     );
     if !ok {
         return Err(TransportError::DmaEscape);
@@ -986,8 +997,9 @@ pub fn notify(id: usize, queue: u16) -> Result<(), TransportError> {
     dev.last_avail[queue as usize] = to_idx;
 
     // The shadow writes above must be globally visible before the device is rung: the device is a
-    // separate observer that will read the shadow by DMA. See arch::dma_wmb.
-    crate::arch::dma_wmb();
+    // separate observer that will read the shadow by DMA. See
+    // arch::direct_memory_access_write_barrier.
+    crate::arch::direct_memory_access_write_barrier();
     dev.transport.notify_queue(queue);
     Ok(())
 }
@@ -1039,7 +1051,7 @@ pub(crate) fn provoke_iommu_escape(id: usize, avail_out_of_domain: u64) {
     // region, available ring pointed OUT of the domain. Then DRIVER_OK to make the queue live.
     let num = dev.transport.queue_num_max(0).min(QSIZE);
     let desc = dev.shadow_base + DESC_OFF;
-    let used = dev.dma_base + USED_OFF;
+    let used = dev.direct_memory_access_base + USED_OFF;
     dev.transport
         .setup_queue(0, num, desc, avail_out_of_domain, used);
     dev.transport
@@ -1047,10 +1059,10 @@ pub(crate) fn provoke_iommu_escape(id: usize, avail_out_of_domain: u64) {
 
     // Publish an available head from the CPU side (bypassing the IOMMU) so the device has a reason to
     // read the available ring. avail = { u16 flags; u16 idx; u16 ring[] }.
-    dma_write16(avail_out_of_domain, 0); // flags
-    dma_write16(avail_out_of_domain + 2, 1); // idx = 1: one entry available
-    dma_write16(avail_out_of_domain + 4, 0); // ring[0] = head 0
-    crate::arch::dma_wmb();
+    direct_memory_access_write16(avail_out_of_domain, 0); // flags
+    direct_memory_access_write16(avail_out_of_domain + 2, 1); // idx = 1: one entry available
+    direct_memory_access_write16(avail_out_of_domain + 4, 0); // ring[0] = head 0
+    crate::arch::direct_memory_access_write_barrier();
 
     // Kick. The device now reads the available ring at an unmapped IOVA and the IOMMU faults. Under
     // TCG QEMU processes the kick synchronously in this vCPU thread, so the fault is already in the

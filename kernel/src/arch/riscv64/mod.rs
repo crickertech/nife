@@ -388,7 +388,7 @@ pub fn current_sp() -> u64 {
 /// A DMA write memory barrier: order all prior stores before any device sees a later one. RISC-V's
 /// `fence ow, ow` orders outer (device/IO) writes; the plain `fence` here is the conservative full
 /// barrier, matching aarch64's `dsb sy`. Tightened when a real DMA driver lands.
-pub fn dma_wmb() {
+pub fn direct_memory_access_write_barrier() {
     // SAFETY: a fence has no memory effect of its own; it only constrains ordering.
     unsafe { asm!("fence", options(nostack, preserves_flags)) };
 }
