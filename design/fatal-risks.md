@@ -44,9 +44,10 @@ is not the numbering. The numbers are identity, like a milestone's.
 ## What an entry's Experiment status says, and the three words it may say it in
 
 Every entry carries one Experiment status line. It answers one question: has the experiment happened.
-calef ratified the field and its three values on 2026-09-23. `script/fatal-risks` fails on a fourth
-value, because the set was open until then and three lanes minted three words in one day. The script's
-own header carries the ratification and the refusals.
+calef ratified the field and its three values on 2026-09-23, in
+§211 (what a fatal-risk verdict says, and what the chart can plot as a result).
+`script/fatal-risks` fails on a fourth value, because the set was open until then and three lanes
+minted three words in one day. The script's own header carries the ratification and the refusals.
 
 | value | what it asserts |
 |---|---|
