@@ -242,6 +242,7 @@ MEASURES = [
                       'unsafe_trust_unclassified']),
     ('fatal-risks', ['fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run']),
     ('coverage', ['coverage_lines_pct', 'coverage_min_file_pct']),
+    ('prose-budget', ['prose_excess_words', 'prose_documents_over_cap']),
     # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them up:
     # person-weeks for the comparison against the verification literature, tokens with a dated
     # price for the argument about the method, cash for calef's own budgeting. 519 refuses a single
@@ -880,6 +881,61 @@ def harnesses(tree):
     return {'harnesses_' + key: value for key, value in counts.items()}
 
 
+# The prose budget: 3,000 words of main body per document, with appendices under the same cap.
+# calef ratified it on 2026-09-23 (UTC) and asked for a graph in the same breath, because a ratchet
+# nobody plots is a rule that holds for months with nobody able to say whether the tree is gaining
+# ground or losing it. Its decision section is proposed in pull request #1187 and has no number
+# minted yet, so nothing here cites one; when it lands, this comment gets the citation.
+#
+# Two series rather than one, and they answer different questions. The excess above the cap is the
+# DEBT: how many words would have to move into appendices for the tree to meet its own rule. The
+# count of documents over the cap is how many places that work sits in. A tree can cut the debt by
+# splitting one book and move the count not at all, and the pair is what shows that.
+#
+# Every document is counted, one carrying a marked exception included. The exception mechanism
+# belongs to the gate, which is a different milestone and does not exist yet, and a graph that
+# subtracted exempted documents would hide the debt rather than measure it. When the gate arrives it
+# wants its own column for what it excuses; it does not get to edit this one.
+#
+# The scope is the ruling's own evidence paragraph: every `.md` directly under these five directories,
+# plus `AGENTS.md`. Directly under, not recursively, so `design/roadmap/proposals/` and
+# `notes/project-metrics/` are out, exactly as the ratified figures had them. `AGENTS.md` is in
+# because a cap the tree's own rulebook is exempt from is not a cap; the ratified headline figures were
+# measured without it, and `design/roadmap/581-one-metrics-file-per-measure.md` reconciles the two.
+PROSE_DIRS = ('design/', 'design/decisions/', 'design/roadmap/', 'notes/', 'briefs/')
+PROSE_ROOT_FILES = ('AGENTS.md',)
+PROSE_CAP = 3000
+
+
+def _prose_documents(tree):
+    for path, text in tree.markdown():
+        if path in PROSE_ROOT_FILES or (
+                '/' in path and path.rsplit('/', 1)[0] + '/' in PROSE_DIRS):
+            yield path, text
+
+
+def prose_budget(tree):
+    """Words over the 3,000-word cap, and how many documents hold them.
+
+    Whitespace-separated words over the whole file, which is what was measured and what was
+    ratified. Main body and whole file are the same number today, because no document in the tree
+    has an appendix yet. The day one does, this counts the parent's body and the appendix
+    separately, as two documents under the same cap, which is what the ruling intends and needs no
+    change here.
+
+    Read from each week's own revision, unlike the cost columns: a week's prose debt is a property
+    of that week's tree and git can answer for it, so `--backfill` restates the whole history.
+    """
+    excess = 0
+    over = 0
+    for _path, text in _prose_documents(tree):
+        words = len(text.split())
+        if words > PROSE_CAP:
+            over += 1
+            excess += words - PROSE_CAP
+    return {'prose_excess_words': excess, 'prose_documents_over_cap': over}
+
+
 # The ratified field and its three values, as `script/fatal-risks` gates them. calef ruled on
 # 2026-09-23 and `design/fatal-risks.md`'s vocabulary section carries the argument; the enumeration
 # is duplicated here rather than imported because `script/fatal-risks` is a shell wrapper around a
@@ -998,7 +1054,8 @@ def row_for(rev, week, coverage='', person_weeks='', coverage_min=''):
         row[_col('names', status)] = nm[status]
     row['names_total'] = named
     for part in (proposals(tree), lines(tree), bugs(tree), harnesses(tree),
-                 unsafe_census(tree), unsafe_trust_census(tree), fatal_risks(tree)):
+                 unsafe_census(tree), unsafe_trust_census(tree), fatal_risks(tree),
+                 prose_budget(tree)):
         row.update(part)
     return row
 
@@ -1448,6 +1505,18 @@ CHARTS = [
      'the number script/coverage gates on; empty before 2026W39, when nothing recorded it',
      [('minimum per-file coverage', 'coverage_min_file_pct')], 1.0, (80, 'floor'),
      'coverage_min_file_pct'),
+    # Two panels for one measure, the coverage pair's reason: these series stack with nothing, and
+    # with each other least of all, since one is words and one is a count of files. The debt is the
+    # headline and the document count is where the work sits; the tree can halve one without moving
+    # the other, and a reader has to see both to know which happened.
+    ('prose-budget.svg', 'Words over the 3,000-word cap, in thousands',
+     'the debt the 3,000-word cap names: what would move into appendices. Every document counts, an '
+     'exempted one included, because the graph exists to show the debt rather than excuse it',
+     [('words over the cap', 'prose_excess_words')], 1000.0, None, 'prose_excess_words'),
+    ('prose-budget-documents.svg', 'Documents over the 3,000-word cap',
+     'the same debt by where it sits; one split book moves the chart above and not this one',
+     [('documents over the cap', 'prose_documents_over_cap')], 1.0, None,
+     'prose_documents_over_cap'),
 ]
 
 

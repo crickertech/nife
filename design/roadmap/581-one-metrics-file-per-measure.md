@@ -2,11 +2,12 @@
 
 **Status: BUILT.**
 
-The number is **provisional**: the integrator mints it at merge. 580 was the highest in the tree when
+The number is provisional: the integrator mints it at merge. 580 was the highest in the tree when
 this lane cut its branch. The file name and every name this block invents are provisional too.
 
 calef asked the question on 2026-09-23 (UTC), reading a batch of rebases: *"Maybe we need multiple
-files rather than a single file with all the metrics?"*
+files rather than a single file with all the metrics?"* He asked it because the file had just
+aborted two rebases in one batch.
 
 ## The problem, which was a conflict class rather than a conflict
 
@@ -69,23 +70,27 @@ per-file minimum. A week a measure answered partially still gets its row.
 
 ## The new measure, which is what proves the split
 
-calef ratified a prose budget on 2026-09-23 (UTC), 3,000 words of main body per document with
-appendices under the same cap, and asked for a graph in the same breath, because a ratchet nobody plots is a rule that holds for months with
-nobody able to say whether the tree is gaining ground. That series was added here, created the way
+calef ratified a prose budget on 2026-09-23 (UTC): 3,000 words of main body per document, with
+appendices under the same cap. He asked for a graph in the same breath. A ratchet nobody plots is a
+rule that holds for months with nobody able to say whether the tree is gaining ground. That series
+was added here, created the way
 any future measure would be: a function, an entry in `MEASURES`, a new file. No existing file's
 header moved.
 
-Two series. The **excess above the cap** in words is the debt: what would have to move into
-appendices. The **count of documents over the cap** is where that work sits. Two panels rather than
+Two series. The excess above the cap, in words, is the debt: what would have to move into
+appendices. The count of documents over the cap is where that work sits. Two panels rather than
 one, because the series stack with nothing and one split book moves the first without moving the
 second.
 
-**Every document is counted, including one carrying a marked exception.** The exception mechanism
-belongs to the gate that ruling asks for, which is a different milestone and does not exist yet. A chart
+### Every document is counted, a marked exception included
+
+The exception mechanism
+belongs to the gate that ruling asks for, which is a different milestone and does not exist yet. A
+chart
 that subtracted exempted documents would hide the debt, and the debt is what the chart is for. When
 the gate arrives it wants its own column for what it excuses; it does not get to edit this one.
 
-Measured on this branch's base at 2026-09-23: **578,737 words over the cap, across 175 documents**,
+Measured on this branch's base at 2026-09-23: 578,737 words over the cap, across 175 documents,
 against 1,011 documents and 2,089,538 words in scope. The ratified figures are 569,775 and 174,
 taken at `29fa47181`. The difference is `AGENTS.md`, which they were measured without and this
 counts, at
@@ -103,7 +108,7 @@ with their row, both of them 2026W29 coverage, which is the absent-rather-than-b
 
 The second check is stronger and was not planned. Running `script/metrics --backfill` over the
 migrated files recomputes all eleven weeks from git history. Every week from 2026W29 to 2026W38 came
-back **byte-identical**. Only 2026W39 moved, because this branch's base is a later commit of the
+back byte-identical. Only 2026W39 moved, because this branch's base is a later commit of the
 same week than the one `weekly.csv` was last written at. An independent recomputation reproducing
 ten weeks exactly is better evidence than any diff of the migration itself.
 
@@ -125,22 +130,30 @@ longer be checked.
 
 ## BUGS
 
-**`script/metrics --check` now names every stale file rather than one.** The message lists them,
+### `--check` now names every stale file rather than one
+
+The message lists them,
 because a caller told one name at a time learns nothing and `--update` rewrites them all anyway. The
 pre-existing staleness-after-a-commit caveat is unchanged and is in the script's own header: the
 current week's row records HEAD's sha, so committing anything makes `weeks.csv` read stale until the
 next run.
 
-**The split does not make two branches measuring the same week safe.** It dissolves the
+### The split does not make two branches measuring the same week safe
+
+It dissolves the
 disjoint-columns collision and nothing else. Two branches that both run `--update` in the same week
 still conflict on that week's row, in whichever measures moved. `briefs/rebase-onto-main.md` carries
 the resolution, which is to take `main`'s side and re-run the measurement.
 
-**A measure's file is not gated against drifting from `MEASURES`.** `read_csv` reads a column only
+### A measure's file is not gated against drifting from `MEASURES`
+
+`read_csv` reads a column only
 from the file `MEASURES` assigns it to, so a stray column left by a hand edit is ignored and the
 next `--update` drops it. Nothing warns that it was there.
 
-**A reader wanting every measure for one week has to join fifteen files.** That was one line in
+### A reader wanting one week's every measure has to join fifteen files
+
+That was one line in
 `weekly.csv`. `script/metrics --table` still prints the joined row, and that is the whole of the
 answer today.
 
@@ -171,6 +184,7 @@ file and a new file cannot conflict. A measure's rows begin at the week it was f
 rather than trailing blank cells, which is what the record actually says. Every cell was migrated
 rather than recomputed and checked twice: cell by cell against the old file, and then by a full
 `--backfill` that reproduced 2026W29 through 2026W38 byte-identically. The prose budget calef
-ratified on 2026-09-23 was added through the new mechanism as the proof that it works, at 578,737
-words over the 3,000-word cap across 175 documents, reconciling exactly with the ratified 569,775
-and 174 once `AGENTS.md` is counted. `weekly.csv` is deleted, because keeping a joined file would keep the conflict class.
+ratified on 2026-09-23 was added through the new mechanism, as the proof that it works. It stands at
+578,737 words over the 3,000-word cap across 175 documents, which reconciles exactly with the
+ratified 569,775 and 174 once `AGENTS.md` is counted. `weekly.csv` is deleted, because keeping a
+joined file would keep the conflict class.

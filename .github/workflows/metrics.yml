@@ -31,8 +31,8 @@ name: project metrics
 # Monday-only the right split rather than a compromise.
 #
 # **The Monday/daily split does not, on its own, protect the columns a schema change adds.** On
-# 2026-09-20 a merge conflict in the data (then one wide `weekly.csv`, split per measure by
-# milestone 581, one metrics file per measure) was resolved by restoring an older copy (one still
+# 2026-09-20 a merge conflict in the data, then one wide `weekly.csv` and since split per measure
+# by milestone 581 (one metrics file per measure), was resolved by restoring an older copy (one still
 # missing that week's newly merged `unsafe_trust_*` columns) and then running `--update`, which only
 # ever rewrites the current week and any week missing entirely; every other existing row is left
 # exactly as read. So the restored columns stayed blank on every past row for three days, until
