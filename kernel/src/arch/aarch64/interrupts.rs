@@ -24,7 +24,7 @@ use core::arch::asm;
 const I_BIT: u64 = 1 << 7;
 
 /// Are IRQs currently *unmasked*, i.e. can one fire right now?
-pub fn enabled() -> bool {
+pub fn is_enabled() -> bool {
     let daif: u64;
     // SAFETY: reads a system register. No side effects.
     unsafe { asm!("mrs {}, daif", out(reg) daif, options(nomem, nostack)) };
@@ -38,7 +38,7 @@ pub fn enabled() -> bool {
 /// on release, inside a handler, which is a fine way to get a fault you cannot explain.
 #[must_use = "the previous interrupt state must be restored, not discarded"]
 pub fn disable() -> bool {
-    let was_enabled = enabled();
+    let was_enabled = is_enabled();
 
     // SAFETY: masking IRQs is always sound. If an IRQ fires between the read above and
     // this instruction, it simply runs, and the state we read is still the truth about

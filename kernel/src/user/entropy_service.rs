@@ -172,7 +172,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
 
-    let confined_by_iommu = rid.is_some() && crate::iommu::active();
+    let confined_by_iommu = rid.is_some() && crate::iommu::is_active();
     let vid = crate::virtio::register(transport, dma, DMA_PAGE_FRAMES * FRAME_SIZE, rid);
 
     let ready = crate::sched::create_rendezvous();
@@ -218,7 +218,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
 /// cannot check `FEAT_RNG` itself, the same way it cannot check whether a `Virtio` capability really
 /// names a device; it trusts what it was spawned with.
 #[cfg(target_arch = "aarch64")]
-fn instruction_backend_available() -> bool {
+fn is_instruction_backend_available() -> bool {
     crate::arch::isa::get().rndr
 }
 
@@ -229,23 +229,23 @@ fn instruction_backend_available() -> bool {
 /// has no way to execute `CPUID` and trust the answer the way ring 0 does; it trusts what it was
 /// spawned with, same as aarch64's `entropy.rs` trusts `FEAT_RNG`.
 #[cfg(target_arch = "x86_64")]
-fn instruction_backend_available() -> bool {
+fn is_instruction_backend_available() -> bool {
     crate::arch::isa::get().rdseed()
 }
 
 /// riscv64: neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA. Milestone 159's JH7110 TRNG is
 /// the real hardware source there, wired through the JH7110 driver rather than through this file.
 #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-fn instruction_backend_available() -> bool {
+fn is_instruction_backend_available() -> bool {
     false
 }
 
 /// **Wire and spawn the entropy service in instruction mode**: no virtio device, no DMA page, no
-/// IRQ. `None` if this machine does not implement the instruction its architecture would use
-/// (see [`instruction_backend_available`]), the same "no source, no service" answer the virtio path
+/// IRQ. `None` if this machine does not implement the instruction its architecture would use (see
+/// [`is_instruction_backend_available`]), the same "no source, no service" answer the virtio path
 /// gives for a missing device.
 fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
-    if !instruction_backend_available() {
+    if !is_instruction_backend_available() {
         return None;
     }
 

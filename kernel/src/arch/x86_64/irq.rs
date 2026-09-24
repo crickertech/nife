@@ -307,7 +307,7 @@ pub fn local_apic_version() -> u8 {
 
 /// Is the local APIC up? False until [`init_local_apic`] has run, which is what the timer checks
 /// before trying to arm anything.
-pub fn local_apic_ready() -> bool {
+pub fn is_local_apic_ready() -> bool {
     LOCAL_APIC.load(Ordering::Relaxed) != 0
 }
 
@@ -961,7 +961,7 @@ pub fn raise_self_interrupt(vector: u8) {
 /// online core (`smp::online_cpus`), and an online core is by construction a seated one.
 pub fn send_reschedule(target_cpu: usize) {
     debug_assert!(
-        local_apic_ready(),
+        is_local_apic_ready(),
         "a reschedule IPI before the local APIC is up has nothing to send it with"
     );
     let apic_id = crate::smp::hwid(target_cpu).unwrap_or_else(|| {

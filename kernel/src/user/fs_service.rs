@@ -524,7 +524,7 @@ static CRASH_BLK_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::Ato
 /// issues at least one block write and a larger count is a server that never dies and a test that
 /// hangs.
 /// The mmio slot the crash test's dedicated disk arrives on, named once so [`start_crash`] and
-/// [`crash_disk_present`] cannot drift apart about which device this test owns.
+/// [`is_crash_disk_present`] cannot drift apart about which device this test owns.
 const CRASH_DISK_INDEX: usize = 2;
 
 /// **Is the crash test's own disk attached to this boot?**
@@ -537,7 +537,7 @@ const CRASH_DISK_INDEX: usize = 2;
 /// passes. This is the same guard-then-run shape those tests already use for
 /// [`NO_FS_SERVER`], and it belongs in this module because the device index does.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn crash_disk_present() -> bool {
+pub fn is_crash_disk_present() -> bool {
     crate::virtio::find_block_device_n(CRASH_DISK_INDEX).is_some()
 }
 

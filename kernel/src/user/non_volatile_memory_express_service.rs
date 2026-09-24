@@ -157,7 +157,7 @@ pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
 /// **Bring the controller up in the kernel, then hand its data plane to a process.**
 fn start(image: &'static [u8]) -> Option<Wiring> {
     let found = crate::non_volatile_memory_express::bring_up()?;
-    let confined_by_iommu = crate::iommu::active();
+    let confined_by_iommu = crate::iommu::is_active();
     let handoff = found.controller.handoff();
     let words = handoff.pack();
 

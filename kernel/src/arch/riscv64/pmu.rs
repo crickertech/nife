@@ -285,9 +285,10 @@ fn stop_counter(idx: usize) {
 /// whole reason this exists beside the `time` CSR rather than instead of it.
 // The consumers are the bench probe (`bench::cycles_per_tick`, `--features bench`) and this
 // module's own tests. A production boot has nothing to measure, so it has no caller, and marking
-// that rather than manufacturing one is the same call `arch::timer::cycle_counter_grantable` makes
-// four files over. The counter is still configured and printed in every build, because *whether
-// this machine has one* is a fact about the machine and belongs on the boot line either way.
+// that rather than manufacturing one is the same call `arch::timer::is_cycle_counter_grantable`
+// makes four files over. The counter is still configured and printed in every build, because
+// *whether this machine has one* is a fact about the machine and belongs on the boot line either
+// way.
 #[cfg_attr(not(any(test, feature = "bench")), allow(dead_code))]
 pub fn cycles() -> Option<u64> {
     if outcome() != CycleCounter::Running {

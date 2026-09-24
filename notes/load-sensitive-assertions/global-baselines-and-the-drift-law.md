@@ -45,12 +45,12 @@ baseline. Eight reaped threads cannot produce that, but one baseline-counted thr
 does. The test sampled `thread_count()` at the top and asserted the table returned to it, so its
 baseline was a number the rest of the system moves on its own.
 
-Now each batch keeps the eight `Tid`s it spawned and waits for `thread_present` to go false on each.
-That is the property the test is responsible for ("the threads this batch created were reaped").
-It is immune to neighbours by construction: a generational `Tid` resolving to nothing means this
-thread is gone, whatever else the table is doing. This is the third appearance of this exact fix.
-`reclaim_frees_a_started_then_exited_childs_regions` got it first (see riscv-parity-scope.md), and
-`thread_present`'s doc comment already argued it.
+Now each batch keeps the eight `Tid`s it spawned and waits for `is_thread_present` to go false on
+each. That is the property the test is responsible for ("the threads this batch created were
+reaped"). It is immune to neighbours by construction: a generational `Tid` resolving to nothing
+means this thread is gone, whatever else the table is doing. This is the third appearance of this
+exact fix. `reclaim_frees_a_started_then_exited_childs_regions` got it first (see
+riscv-parity-scope.md), and `is_thread_present`'s doc comment already argued it.
 
 The frame half of the test also changed direction. The second batch's cost is asserted as
 `used() <= before` (waited on, clock-bounded) rather than `==`. A leak, the milestone 6 (threads,
@@ -68,8 +68,8 @@ succeed. The frames arrived from outside the measured window. The test's own set
 agreeing samples before taking the baseline) already rules out its own in-flight frees, which is how
 we know the source is a neighbour.
 
-It took the same two changes as the reaper test. The reap waits are per-`Tid` (`thread_present` on
-the outlaw just spawned, replacing `thread_count() <= baseline`). The final assertion waits for
+It took the same two changes as the reaper test. The reap waits are per-`Tid` (`is_thread_present`
+on the outlaw just spawned, replacing `thread_count() <= baseline`). The final assertion waits for
 `used() <= before`. Leak sensitivity is unchanged: every frame an outlaw's address space keeps holds
 `used()` above `before` forever.
 

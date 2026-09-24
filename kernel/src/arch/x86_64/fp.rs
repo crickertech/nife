@@ -97,7 +97,7 @@ impl FpState {
     }
 
     /// Has this thread ever executed an FP or SSE instruction?
-    pub fn live(&self) -> bool {
+    pub fn is_live(&self) -> bool {
         self.live != 0
     }
 

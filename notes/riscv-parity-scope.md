@@ -155,10 +155,10 @@ tests came along unchanged once three things moved.
   table, and the top of the test is exactly when the previous tests' processes are still tearing
   down, so the baseline was a number the system would move on its own. It failed that way once on
   RISC-V, where the slower machine leaves more teardown in flight, and passed on a re-run, which is
-  the signature of a wait written against something wider than the property. `sched::thread_present`
-  asks whether *this* child was reaped. Third time for this shape: the wait was a yield count until
-  §28's cross-core placement broke it, then a clock-bounded headcount until this. **Widening the
-  timeout would have hidden it each time.**
+  the signature of a wait written against something wider than the property.
+  `sched::is_thread_present` asks whether *this* child was reaped. Third time for this shape: the
+  wait was a yield count until the cross-core placement of §28 (SMP placement) broke it, then a
+  clock-bounded headcount until this. **Widening the timeout would have hidden it each time.**
 
 **The assertions were broken on purpose to check they still bite** (a ported test that has never
 failed is not evidence it still catches what the original caught). Four representative properties,
@@ -307,7 +307,8 @@ armed kill, the tier §24's `^C` escalation stands on). What is missing is only 
 1. `sched::kill_thread(tid: Tid)`, test-support, roughly ten lines: take `SCHED`, resolve `tid`, set
    `killed = true`. No new syscall and no change to the user-visible surface (rule 3 is about the
    syscall boundary; this is an in-kernel function for in-kernel tests).
-2. The two tests above kill their subject after asserting, and wait for `thread_present` to go false.
+2. The two tests above kill their subject after asserting, and wait for `is_thread_present` to go
+   false.
 3. `no_leaked_threads` then moves to run last, and polices the module for the first time.
 
 **The risk that makes it its own piece of work rather than a footnote:** killing `untyped_demo` frees
@@ -339,11 +340,12 @@ logs the whole time: `a_batch_of_cpu_bound_work_reaches_every_core` and `all_sec
 **pass** in the runs where this fails, so the cores are online and running work and only the per-core
 attribution breaks.
 
-**This is the second time §28 has invalidated a placement assumption in a test**, and both are in this
-file. The reap wait above was a yield count until §28's cross-core placement broke it. The shape is
-worth naming: a test that spawns a thread and then asserts something about *where* it ran is relying
-on placement, and §28 made placement random. `sched::spawn` is now the wrong call in any test whose
-subject is a particular core; `spawn_on` is the one that means what such a test says.
+**This is the second time §28 has invalidated a placement assumption in a test**, and both are in
+this file. The reap wait above was a yield count until the cross-core placement of §28 (SMP
+placement) broke it. The shape is worth naming: a test that spawns a thread and then asserts
+something about *where* it ran is relying on placement, and §28 made placement random.
+`sched::spawn` is now the wrong call in any test whose subject is a particular core; `spawn_on` is
+the one that means what such a test says.
 
 The load sensitivity below is **real and separately measured**, and the 60 s bound was kept for it.
 It was the wrong explanation for this failure, not a wrong measurement.

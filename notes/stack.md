@@ -891,12 +891,13 @@ because they are properties of the *debug* build rather than of the code:
 - `interrupt_stack::top_for_trap` and `contains` are `#[inline(always)]`, for a measured reason. A
   debug build inlines nothing, so a policy function that answers on its first branch still costs a
   frame, a prologue and a return on every trap.
-- `from_lower_el` was `(8..=11).contains(&index)`, which compiles to a **real call into
-  `RangeInclusive::<u64>::contains::<u64>`** at `-O0`, on every trap, three times over. Written as
-  two comparisons it is free, and that alone more than paid for this milestone's extra dispatcher
-  frame: `null_syscall` ended **11.7% faster than its old baseline on aarch64** while riscv64, which
-  had no equivalent generic call to lose, paid the split at +10.1%. Both baselines were re-recorded
-  in their own commit; nothing else moved by more than 1.9%, so nothing else was touched.
+- `from_lower_el` (now `is_from_lower_el`) was `(8..=11).contains(&index)`, which compiles to a
+  **real call into `RangeInclusive::<u64>::contains::<u64>`** at `-O0`, on every trap, three times
+  over. Written as two comparisons it is free, and that alone more than paid for this milestone's
+  extra dispatcher frame: `null_syscall` ended **11.7% faster than its old baseline on aarch64**
+  while riscv64, which had no equivalent generic call to lose, paid the split at +10.1%. Both
+  baselines were re-recorded in their own commit; nothing else moved by more than 1.9%, so nothing
+  else was touched.
 
 ## BUGS
 
