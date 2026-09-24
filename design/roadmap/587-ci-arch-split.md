@@ -1,18 +1,37 @@
-# Most CI jobs do not need an arm64 host, and the arm64 queue is where the wait is
+# 587. Most CI jobs do not need an arm64 host, and the arm64 queue is where the wait is
 
-**Status: PROPOSED 2026-09-24.** Raised by the `maintainer/ci-arch-split` lane, which the maintainer
-briefed after watching three merge-group builds wait over an hour at 19:05 UTC with 13 jobs running,
-all of them `ubuntu-24.04-arm`. **Name provisional**: `ci-arch-split.md` is a lane's coinage.
+**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+`ci-arch-split`, filed 2026-09-24 by the `maintainer/ci-arch-split` lane, which the maintainer
+briefed after three merge-group builds waited over an hour at 19:05 UTC with 13 jobs running, all
+of them `ubuntu-24.04-arm`. **calef ruled option B on 2026-09-24** (*"Yes, proceed with B"*), below
+under "The ruling". The text after this paragraph is the proposal's own except for that section,
+the gate line and the `## Index row` section.
 
-**Gate: DECISION.** Which host architecture CI tests on is calef's call. `ci.yml`'s header argues
-for `ubuntu-24.04-arm` on weak-memory grounds, and this proposal says that argument holds for fewer
-jobs than it covers today. **Nothing here has been implemented.** The measurement ran from a
-temporary branch whose workflows were never merged; the branch is deleted.
+**Gate: NONE.** The decision this was gated on is made (option B, calef, 2026-09-24). What is
+left is the edit to `ci.yml` and `verify.yml` and the measurement that says whether it worked.
 
 ## What is being decided
 
 Whether to move the jobs that do not need an arm64 host onto `ubuntu-24.04` (x86_64), keeping
 arm64 only where the host architecture changes what a job proves.
+
+## The ruling
+
+**Option B, calef, 2026-09-24:** move the 15 jobs listed under "The recommendation" to
+`ubuntu-24.04`; keep `build + test`, `cpu matrix` and `re-falsify` on arm64; add `prove the kernel
+on aarch64` inside the `verify (Kani proofs)` aggregate; and correct `ci.yml`'s header, which says
+testing on aarch64 is "the one place CI catches" ordering bugs, a claim the host tests do not bear
+out (see "What is lost").
+
+**Done means**: the implementation's own run shows every moved job green on x86_64 and the aarch64
+kernel proof green; this block becomes BUILT in that pull request; and the first merge-group builds
+after it lands are measured against the 16:00 to 18:00 rows of the table below.
+
+**The re-measure trigger.** One week after the implementation merges, re-run the created-to-started
+queue measurement over that week's `ci.yml` and `verify.yml` jobs, by label. If the arm64 jobs that
+remain still wait a median over ten minutes in busy hours, the next lever is option D (the x86_64
+guest legs out of `build + test`); if the x86_64 jobs have started waiting like arm64 did, the
+premise that x86_64 supply is looser was a single afternoon and this is revisited.
 
 ## The evidence that arm64 supply, not our quota, is the constraint
 
@@ -211,3 +230,7 @@ rather than bought) already names "merge throughput" as one of the three things 
   which is its own piece of work.
 - **The x86_64 guest under multi-threaded TCG on an x86_64 host was not confirmed.** It passed at
   `-smp 2`; whether QEMU chose parallel cores or round-robin there was not checked.
+
+## Index row
+
+On 2026-09-24 arm64 hosted runners were the bottleneck, not the 60-job cap: ~20 jobs ran while 150+ waited. One measured x86_64 run of every job matched arm64's results, so 15 of 18 jobs move to `ubuntu-24.04`, the two SMP QEMU jobs and the arch falsification replay stay on arm64, and a one-minute aarch64 kernel proof keeps `arch/aarch64/` proved.
