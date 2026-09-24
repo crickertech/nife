@@ -8,8 +8,9 @@ nine. He asked for risks by status instead. Implementation on branch
 `maintainer/experiment-status-ratified`. *(Minted provisionally at 208; moved to 209 on
 2026-09-23 when `maintainer/installing-is-granting` landed §208 (installing a package is
 granting it, and the activation set is versioned) first; moved again to 211 the same day when a
-second lane, `maintainer/state-handoff-is-optional`, held §209 and §210 (a correction of error,
-and its action items are decisions, proposals or milestones) was already taken on `main`.)*
+second lane, `maintainer/state-handoff-is-optional`, held §209 (state handoff is an opaque blob
+over a granted frame, and it is optional) and §210 (a correction of error, and its action items
+are decisions, proposals or milestones) was already taken on `main`.)*
 
 ## What is being decided
 
