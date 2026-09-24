@@ -1,14 +1,12 @@
 # 587. Most CI jobs do not need an arm64 host, and the arm64 queue is where the wait is
 
-**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+**Status: BUILT, 2026-09-24** (pull request #1249). *(Number minted at promotion.)* Promoted from the proposal
 `ci-arch-split`, filed 2026-09-24 by the `maintainer/ci-arch-split` lane, which the maintainer
 briefed after three merge-group builds waited over an hour at 19:05 UTC with 13 jobs running, all
 of them `ubuntu-24.04-arm`. **calef ruled option B on 2026-09-24** (*"Yes, proceed with B"*), below
 under "The ruling". The text after this paragraph is the proposal's own except for that section,
-the gate line and the `## Index row` section.
-
-**Gate: NONE.** The decision this was gated on is made (option B, calef, 2026-09-24). What is
-left is the edit to `ci.yml` and `verify.yml` and the measurement that says whether it worked.
+its gate line (dropped once BUILT), `## What was built`,
+`## Follow-on` and the `## Index row` section.
 
 ## What is being decided
 
@@ -32,6 +30,33 @@ queue measurement over that week's `ci.yml` and `verify.yml` jobs, by label. If 
 remain still wait a median over ten minutes in busy hours, the next lever is option D (the x86_64
 guest legs out of `build + test`); if the x86_64 jobs have started waiting like arm64 did, the
 premise that x86_64 supply is looser was a single afternoon and this is revisited.
+
+## What was built
+
+- **`ci.yml`**: every job but `test` (`build + test (host + QEMU)`) and `cpu-matrix` runs on
+  `ubuntu-24.04`, the `draft gate` included, so a run's first job no longer waits in the arm64
+  queue. The header's weak-ordering paragraph is rewritten with the evidence below: the host tests
+  race no threads, so the claim holds only for the SMP guest legs, which are the two jobs kept.
+- **`verify.yml`**: `gate`, `scope`, both `prove` shards and the `verify (Kani proofs)` aggregate
+  run on `ubuntu-24.04`; `falsify` stays on arm64. **`prove-kernel-x86_64` became
+  `prove-kernel-aarch64`** rather than gaining a sibling: with the shards on x86_64 their own
+  `kernel` row proves `arch/x86_64/`, so the old job would repeat it and `arch/aarch64/` would be
+  proved nowhere. The aggregate judges the new job with the same vocabulary, so it is inside the
+  required check exactly as the shards are. The runner count per run is unchanged; the arm64 share
+  of it went from 18 jobs to 4.
+- **Caches cannot cross hosts**, and nothing was needed to make that so: `Swatinem/rust-cache`
+  keys on the host (the measurement's cache keys read `Linux-x64` and `Linux-arm64`) and the QEMU
+  cache key already carries `runner.arch`. The one shared key is the vendored tarball cache, which
+  holds `.crate` files that are the same bytes on either host.
+- **Collision**: rebased over #1220 (A′, a push to `main` cites the merge group that tested it),
+  which edits the same two `gate` jobs. Its `permissions:` blocks and push branch are kept whole;
+  only the `runs-on:` line beside them changed.
+
+**The implementation's own run**, dispatched on the branch before merge: `ci.yml` 36060856009 and
+`verify.yml` 36060858268, both `success`. Every moved job green on `ubuntu-24.04`; `prove the kernel
+on aarch64` green on `ubuntu-24.04-arm` in 0.8 minutes, proving `arch::aarch64::iommu::proofs`
+alongside the syscall harnesses; the aggregate printed "the kernel proved on aarch64 too". Both
+shards proved on x86_64 in 15.6 and 16.3 minutes of wall time.
 
 ## The evidence that arm64 supply, not our quota, is the constraint
 
@@ -231,6 +256,21 @@ rather than bought) already names "merge throughput" as one of the three things 
 - **The x86_64 guest under multi-threaded TCG on an x86_64 host was not confirmed.** It passed at
   `-smp 2`; whether QEMU chose parallel cores or round-robin there was not checked.
 
+## Follow-on
+
+- **Proposed.** The one-week re-measure of queue waits by runner label, and option D as the next
+  lever if arm64 still waits: `design/roadmap/proposals/ci-queue-remeasure.md`, dated so its age
+  shows in `script/roadmap --proposed` rather than living only in this block's trigger paragraph.
+- **Recorded.** That multi-threaded TCG shows an aarch64 or riscv64 guest the host's reorderings is
+  recalled from QEMU's documentation, not measured; the header of `.github/workflows/ci.yml` says
+  so where it keeps `test` and `cpu-matrix` on arm64 for that reason.
+- **Decision.** The coverage job now runs the host suite on x86_64 on every pull request, which is
+  part of what `design/decisions/184-an-x86-64-host-in-the-host-pass.md` asks about (and milestone
+  403 (an x86_64 host in the host pass) builds). It is coverage's pass, not `script/test`'s, so the
+  section's question stays open; the maintainer should tell whoever holds it.
+
 ## Index row
+
+**Built:** 2026-09-24
 
 On 2026-09-24 arm64 hosted runners were the bottleneck, not the 60-job cap: ~20 jobs ran while 150+ waited. One measured x86_64 run of every job matched arm64's results, so 15 of 18 jobs move to `ubuntu-24.04`, the two SMP QEMU jobs and the arch falsification replay stay on arm64, and a one-minute aarch64 kernel proof keeps `arch/aarch64/` proved.
