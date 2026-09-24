@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-05
+ratified_by: calef
 ---
 
 # 73. Milestone 44's ten admin minutes, which only calef can spend

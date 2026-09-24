@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 52. A set of names is a namespace, and that is how a glob is granted

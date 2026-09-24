@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-09-02
+decided: 2026-09-02
+ratified_by: calef
 ---
 
 # 139. Who may read the cycle counter, and by what authority

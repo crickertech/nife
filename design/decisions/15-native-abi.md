@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-25
 decided: 2026-07-25
+ratified_by: calef
 ---
 
 # 15. The native ABI: formalize the convention, defer the BootInfo (milestone 19e)

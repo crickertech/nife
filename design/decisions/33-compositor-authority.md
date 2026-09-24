@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 33. The compositor's authority is memory, not messages (milestone 33, the display ladder's rung two)

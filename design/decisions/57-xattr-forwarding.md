@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 57. Extended attributes forward through the caretakers, and the server enforces direction

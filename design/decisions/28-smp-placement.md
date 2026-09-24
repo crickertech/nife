@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-07-28
 decided: 2026-07-28
+ratified_by: calef
 ---
 
 # 28. SMP placement: two random choices at spawn, message-shaped stealing, local wakes

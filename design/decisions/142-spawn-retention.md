@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-09-04
+decided: 2026-09-04
+ratified_by: calef
 ---
 
 # 142. What a spawner retains over a child after `START`

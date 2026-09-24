@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-07-22
 decided: 2026-07-22
+ratified_by: calef
 ---
 
 # 11. SMP: per-CPU run queues, message-based migration. §6, reopened.

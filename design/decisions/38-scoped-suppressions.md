@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-30
 decided: 2026-07-30
+ratified_by: calef
 ---
 
 # 38. A suppression is scoped to an item and carries a reason, or it does not ship (milestone 41)

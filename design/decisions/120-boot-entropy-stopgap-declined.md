@@ -1,5 +1,6 @@
 ---
 status: AMENDED
+raised: 2026-08-23
 decided: 2026-08-23
 ratified_by: calef
 ---

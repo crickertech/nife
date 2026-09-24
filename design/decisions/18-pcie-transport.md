@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-27
 decided: 2026-07-27
+ratified_by: calef
 ---
 
 # 18. The PCIe transport: one driver, two buses, the seam in the kernel

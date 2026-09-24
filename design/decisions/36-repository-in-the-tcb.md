@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-30
 decided: 2026-07-30
+ratified_by: calef
 ---
 
 # 36. The repository is part of the TCB (milestones 44 and 42)

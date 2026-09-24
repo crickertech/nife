@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-07-28
 decided: 2026-07-28
+ratified_by: calef
 ---
 
 # 24. Interrupting the foreground process: two-tier, shell-held, no new kernel surface

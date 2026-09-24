@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-16
+decided: 2026-08-16
+ratified_by: calef
 ---
 
 # 91. A region's endpoints are swept before its refusal, not after

@@ -73,10 +73,19 @@ nobody had written, which is §211 (what a fatal-risk verdict says, and what the
 lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
 weeks.
 
-`design/decisions/PROVENANCE-GAPS.md` lists the files that do not state a date the schema requires.
-It is a ratchet: a gap named there passes and a new one fails, so the list can only shrink. The
-dates were never written down for most of the corpus, and an invented one would be worse than a
-recorded gap.
+**Where the dates came from, and what they mean.** Most of this corpus predates the schema and
+states neither date, so milestone 582 filled them from the file's own prose where it says, and from
+git where it does not: `raised` is the file's first commit, `decided` the first commit whose text
+reads DECIDED or AMENDED, both author dates in UTC. Where the two sources disagree the earlier wins,
+because each is an upper bound and the earlier one is tighter.
+
+So **a derived date means "no later than"**. A decision is usually written up after the conversation
+that settled it, and the 77 files created by milestone 114's split commit carry 2026-08-04 unless
+their own prose says something earlier. Read a date here as the latest it can have been, not as the
+hour of the ruling. There is no per-file marker for this and there should not be one: it is true of
+every date the prose did not state, and one sentence is the right weight.
+
+`ratified_by` is `calef` throughout, on his ruling of 2026-09-24: he is the only ratifier to date.
 
 | Status | Means |
 |---|---|

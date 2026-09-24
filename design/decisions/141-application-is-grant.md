@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-09-04
+decided: 2026-09-04
+ratified_by: calef
 ---
 
 # 141. Application is grant: what a command line means in a capability system

@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-29
 decided: 2026-07-29
+ratified_by: calef
 ---
 
 # 32. A supervisor may collect a corpse without being able to build one

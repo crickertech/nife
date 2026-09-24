@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-08-23
 decided: 2026-08-23
+ratified_by: calef
 ---
 
 # 113. Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term

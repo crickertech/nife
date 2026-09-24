@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-28
 decided: 2026-07-28
+ratified_by: calef
 ---
 
 # 25. Socket identity: a socket id in phase one, minted endpoints as the tracked later step

@@ -1,6 +1,8 @@
 ---
 status: DECIDED
 raised: 2026-09-09
+decided: 2026-09-15
+ratified_by: calef
 ---
 
 # 149. May the kernel answer on an endpoint, where §121 leaves no userspace holder?

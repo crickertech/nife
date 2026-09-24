@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-07-30
 decided: 2026-07-30
+ratified_by: calef
 ---
 
 # 42. A filesystem declares what it offers and must be truthful; it is not required to be capable

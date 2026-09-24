@@ -1,5 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-08-05
+decided: 2026-08-05
+ratified_by: calef
 ---
 
 # 79. Holding password-equivalent material, and what a session key release means

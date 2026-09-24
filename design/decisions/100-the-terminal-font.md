@@ -1,6 +1,8 @@
 ---
 status: AMENDED
-decided: 2026-08-20
+raised: 2026-08-19
+decided: 2026-08-19
+ratified_by: calef
 ---
 
 # 100. The terminal font

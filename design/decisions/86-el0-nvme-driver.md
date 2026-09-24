@@ -1,6 +1,8 @@
 ---
 status: DECIDED
 raised: 2026-08-15
+decided: 2026-09-04
+ratified_by: calef
 ---
 
 # 86. Whether an NVMe driver can leave the kernel, and what capability would let it

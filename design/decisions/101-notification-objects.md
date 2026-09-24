@@ -1,6 +1,8 @@
 ---
 status: DECIDED
 raised: 2026-08-20
+decided: 2026-08-20
+ratified_by: calef
 ---
 
 # 101. Notification objects: async multiplexing without wait-any

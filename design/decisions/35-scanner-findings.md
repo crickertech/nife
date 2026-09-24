@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-07-30
 decided: 2026-07-30
+ratified_by: calef
 ---
 
 # 35. What a scanner is for here, and how its findings get dispositioned

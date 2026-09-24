@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 41. The endpoint is the broker, and a device is revoked by taking it back (milestone 23)

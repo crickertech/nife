@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 20. IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b)

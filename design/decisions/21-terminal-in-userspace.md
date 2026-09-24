@@ -1,5 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 21. The terminal is a userspace component, and the kernel is out of the shell business (milestone 28)

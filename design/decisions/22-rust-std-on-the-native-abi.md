@@ -1,5 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 22. Rust `std` on the native ABI, the Hermit way (milestone 27)

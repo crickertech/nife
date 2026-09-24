@@ -1,5 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-04
+ratified_by: calef
 ---
 
 # 31. The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36)

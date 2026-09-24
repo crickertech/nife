@@ -1,6 +1,8 @@
 ---
 status: DECIDED
+raised: 2026-08-17
 decided: 2026-08-17
+ratified_by: calef
 ---
 
 # 94. What may live in a userspace library, and what must be per-binary

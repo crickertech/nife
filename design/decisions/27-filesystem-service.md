@@ -1,6 +1,8 @@
 ---
 status: AMENDED
+raised: 2026-07-29
 decided: 2026-07-29
+ratified_by: calef
 ---
 
 # 27. The filesystem service: a capability-shaped contract over a component we did not write (milestone 32 phase 2)
