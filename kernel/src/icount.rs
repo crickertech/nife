@@ -9,8 +9,10 @@
 //! Milestone 78 exists because assertions were failing on pull requests that changed no executable
 //! code. Two of its claims survived every re-aiming the other rounds did, and they survived for the
 //! same reason: **from inside the guest, a slow handler and a descheduled emulator are the same
-//! observation.** `notes/load-sensitive-assertions.md` says so twice, once per ISA, and its BUGS
-//! section records the residual window that the miss taxonomy narrowed rather than closed.
+//! observation.** `notes/load-sensitive-assertions.md` says so, and
+//! `notes/load-sensitive-assertions/known-residuals.md` records the residual window that the miss
+//! taxonomy narrowed rather than closed. The taxonomy itself was deleted on 2026-08-18, on both ISAs,
+//! so that window no longer exists anywhere; this boot's instruction-denominated claim replaced it.
 //!
 //! Under `-icount shift=0,sleep=off` that confound does not exist. QEMU's virtual clock advances by
 //! exactly **one nanosecond per guest instruction retired** and by nothing else, so the host
