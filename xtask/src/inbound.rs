@@ -234,7 +234,7 @@ fn probe_inbound(
                     break;
                 }
                 Ok(n) => got.extend_from_slice(&buf[..n]),
-                Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
+                Err(e) if read_error_is_not_yet(e.kind()) => {
                     // Still waiting on a guest that has not polled yet. Hold the connection: see
                     // this function's note on why dropping it would feed the guest a round we
                     // cannot collect. The run ending is the only thing that ends this wait.
@@ -308,6 +308,24 @@ fn probe_inbound(
             trace.summary(),
         ))
     }
+}
+
+/// **Whether a read error means "not yet" rather than "this connection is over".**
+///
+/// `WouldBlock` and `TimedOut` are the 250 ms read timeout expiring. `Interrupted` is a signal
+/// landing on the blocked `recv` (`EINTR`), which says nothing about the connection at all, and
+/// treating it as fatal was the inbound check's lost round. On CI, every `read-failed` in two weeks
+/// of traces landed on the five-second grid `HostLoad` samples on, and the first trace that kept its
+/// errno said `Interrupted, os error 4`. Dropping the connection there does not take back the
+/// payload already written: slirp still delivers it when the guest next polls, the guest serves a
+/// round into a socket nobody holds, and two of those in one boot is "2 of 4" and a red leg. See
+/// notes/net.md.
+fn read_error_is_not_yet(kind: std::io::ErrorKind) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        kind,
+        ErrorKind::WouldBlock | ErrorKind::TimedOut | ErrorKind::Interrupted
+    )
 }
 
 /// **What every prober connection did, kept so a failure can name a mechanism instead of a count.**
@@ -389,5 +407,29 @@ impl InboundTrace {
             }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::ErrorKind;
+
+    /// A signal on a blocked read is a reason to read again, never a verdict on the connection.
+    /// Before this, `Interrupted` fell to the catch-all arm, the connection was dropped as
+    /// `read-failed`, and the round its payload bought was served to nobody.
+    #[test]
+    fn an_interrupted_read_keeps_the_connection() {
+        assert!(super::read_error_is_not_yet(ErrorKind::Interrupted));
+        assert!(super::read_error_is_not_yet(ErrorKind::WouldBlock));
+        assert!(super::read_error_is_not_yet(ErrorKind::TimedOut));
+    }
+
+    /// And a connection the peer really ended is still over, so the fix cannot turn a reset into
+    /// an endless wait.
+    #[test]
+    fn a_reset_still_ends_it() {
+        assert!(!super::read_error_is_not_yet(ErrorKind::ConnectionReset));
+        assert!(!super::read_error_is_not_yet(ErrorKind::ConnectionAborted));
+        assert!(!super::read_error_is_not_yet(ErrorKind::BrokenPipe));
     }
 }
