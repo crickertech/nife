@@ -105,8 +105,16 @@ directories an `s` apart is a little awkward, but each follows its own conventio
 runner where cargo already expects it (`.cargo/config.toml` points at `scripts/qemu-runner-aarch64.sh`)
 was cheaper than moving it.
 
-**One thing in `scripts/` is not internal plumbing, and it is worth naming so the rule above is not
-misread.** `scripts/qemu-uefi-x86_64.sh` (milestone 87) boots the x86_64 kernel under OVMF, the real
+**The drawer was called `scripts/` until 2026-09-23**, and the rename is the reason this paragraph
+reads the way it does. The split was always sound; the two names were not. `script/` and `scripts/`
+differ by one character, they sorted next to each other, and nothing in either name said which one a
+person types. calef ratified `helpers/` after opening the tree and losing his place in it: *"I'm
+totally disoriented in the script directory. Also, why do we have script and scripts?"* Captured
+transcripts and dated accounts keep `scripts/` where they describe the past, the same way this tree
+keeps `cricker-os`.
+
+**One thing in `helpers/` is not internal plumbing, and it is worth naming so the rule above is not
+misread.** `helpers/qemu-uefi-x86_64.sh` (milestone 87) boots the x86_64 kernel under OVMF, the real
 UEFI firmware, from a staged EFI system partition. It is run by hand as well as by
 `cargo xtask uefi-boot`, and it lives beside the runners rather than in `script/` because it is a
 QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
