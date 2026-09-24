@@ -481,9 +481,27 @@ def _blocks(tree):
     return out
 
 
+def _roadmap_index(tree):
+    """The hand-kept roadmap index, or None when this tree reads milestones from their blocks.
+
+    **A file of that name is not enough; it has to hold index rows.** Milestone 294 retired the
+    index on 2026-09-21 and the file went away, which is what the `_blocks` fallback keyed on. Pull
+    request #1247 brought `design/roadmap/README.md` back on 2026-09-24 as an eleven-line pointer to
+    `script/roadmap`, and both readers took the pointer for an index with no rows in it: the next
+    backfill counted zero milestones of every status in 2026W39 and zero built in every week of the
+    series. Asking whether any row matches is what makes the pointer, or any later prose in that
+    file, read as what it is.
+    """
+    for path in ('design/roadmap/README.md', 'design/roadmap.md'):
+        text = tree.text.get(path)
+        if text and any(_INDEX_ROW.match(line) for line in text.split('\n')):
+            return text
+    return None
+
+
 def milestones(tree):
     counts = dict.fromkeys(MILESTONE_STATUSES, 0)
-    text = tree.text.get('design/roadmap/README.md') or tree.text.get('design/roadmap.md')
+    text = _roadmap_index(tree)
     if not text:
         for _number, status, _built in _blocks(tree):
             if status in counts:
@@ -526,7 +544,7 @@ def built_by_week(tree):
     REMOVED rows keep their date and are counted here: a week in which something was built and then
     removed still had the building in it.
     """
-    text = tree.text.get('design/roadmap/README.md') or tree.text.get('design/roadmap.md')
+    text = _roadmap_index(tree)
     counts = {}
     if not text:
         for _number, status, built in _blocks(tree):
