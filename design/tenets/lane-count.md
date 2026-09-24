@@ -15,8 +15,8 @@ The old rule counted open pull requests, and was right when it was written: unde
 require-branches-up-to-date a serial drain landed **one thing at a time**, every merge staled every
 other branch, and lanes past that rate manufactured merge debt. GitHub's merge queue, which is
 milestone 119 (the merge queue is the bottleneck), enabled 2026-08-15, retired both facts. It lands
-**groups of up to five in one CI run** and rebases the group itself, so a deep queue is a batch rather than a
-backlog, and depth stopped predicting anything.
+**groups of up to five in one CI run** and rebases the group itself, so a deep queue is a batch
+rather than a backlog, and depth stopped predicting anything.
 
 **The measurement that overturned it.** In the twenty hours after the queue went live: 28 merges
 through 8 group builds, with four to five lanes running against a queue that sat six to twelve deep
@@ -67,7 +67,7 @@ appears in `git worktree list`; and prune promptly, because disk is still the on
 that destroys work rather than delaying it, and deletes keep succeeding while writes fail.
 
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
-`verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
+`verify` is still running, every time. Milestone 119 (the merge queue) measured that and is BUILT.
 
 **Prune a lane's worktree the moment its pull request merges**, and never prune one with uncommitted
 work in it. Those are the two clauses that have to be known before the cleanup starts;

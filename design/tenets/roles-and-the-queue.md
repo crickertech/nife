@@ -49,12 +49,11 @@ See `notes/what-a-session-carries.md`.
   turn early because the next item looked harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing in
   the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the author
-  GitHub shows.` Until milestone 128 (the automation gets its own identity) gives it one, every
-  artifact in this repository carries calef's name whether he wrote it or not, and a reader cannot
-  tell the architect's voice from a lane's. This is rung four and it is honest about being rung
-  four: the mechanism is 128's App, and this is what the record says in the meantime. (calef,
-  2026-08-16: *"it looks like I'm talking to myself a lot and the record would be nice to clarify
-  who is talking."*)
+  GitHub shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App exists and
+  the scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull request with
+  calef's `gh` token. This is rung four and it is honest about being rung four: the mechanism is
+  128's App, and this is what the record says in the meantime. (calef, 2026-08-16: *"it looks like
+  I'm talking to myself a lot and the record would be nice to clarify who is talking."*)
 - **A lane's first act is a draft pull request**, §90 (the claim is a draft pull request),
   2026-08-16, amended 2026-09-05. Cut the branch, **make one empty commit** (`git commit
   --allow-empty -m "claim: milestone N"`), push it, and open the pull request as a **draft**, before

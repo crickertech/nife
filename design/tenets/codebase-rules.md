@@ -20,10 +20,10 @@ These come from `design/decisions/`. They are cheap to follow and expensive to r
 3. **The syscall surface stays narrow and explicit.** It is a boundary, not a habit.
 
 5. **Architectural parity is a gate, not an aspiration**: DECISIONS §19 (architectural parity is a
-   tenet). The targets are aarch64, riscv64, and x86_64 (declared, not yet started). A kernel
-   capability ships on every supported architecture, proven by the same suite, or a scope note
-   records the gap and the plan. If a feature works on one ISA and silently not another, that is the
-   bug.
+   tenet). The targets are aarch64, riscv64, and x86_64, all three of which now boot on real
+   hardware. A kernel capability ships on every supported architecture, proven by the same suite, or
+   a scope note records the gap and the plan. If a feature works on one ISA and silently not
+   another, that is the bug.
 
 Rules 2, 3 and 7 are what keep the microkernel option open (7 because a contract you cannot test is
 a contract you cannot trust to replace a component behind). We are deliberately **not**
@@ -37,8 +37,8 @@ requirements are known.
 6. **Taking a dependency is a decision, not a convenience**: DECISIONS §46 (thin primitives or whole
    subsystems). The tree's shape is thin architectural primitives (`aarch64-cpu`, `spin`,
    `tock-registers`) or whole subsystems we would never write (`smoltcp`, vendored RedoxFS), with
-   **nothing in between**: thirty crates have no external dependencies at all. Write it if it is on
-   the verification path, because you cannot restructure someone else's crate to make a model
+   **nothing in between**: most crates here have no external dependencies at all. Write it if it is
+   on the verification path, because you cannot restructure someone else's crate to make a model
    checker tractable. Vendor it if correctness is won by *exposure* rather than by reading the spec,
    which is why §46 says write the calendar and vendor the crypto.
 
@@ -54,8 +54,9 @@ requirements are known.
    48 programs and 3 modules with nothing distinguishing them.
 
       And it makes location self-enforcing for free. Once shared definitions live in `crates/`,
-   everything in `user/src/` is a program, with **no files moved** and no convention to remember.
+   everything in `components/src/` is a program, with **no files moved** and nothing to remember.
 
-   This was already the tree's practice for seven crates (`fs_proto`, `sink_proto`, `cred_proto`,
-   `clock_proto`, `entropy_proto`, `ntp_proto`, `gfx_proto`) and the exceptions had no recorded
-   reason; `cseam.rs`'s header describes the `#[path]` mechanism without ever justifying it.
+   This was already the tree's practice for seven crates (`filesystem_protocol`,
+   `byte_sink_protocol`, `credential_protocol`, `clock_protocol`, `entropy_protocol`,
+   `network_time_protocol`, `graphics_protocol`); `cseam.rs`, now the `c_seam` crate, never
+   justified the `#[path]` mechanism.

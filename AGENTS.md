@@ -1,11 +1,11 @@
 # Working on nife
 
-<!-- prose-budget: exception. 5,916 words (wc -w, this marker included) against a 3,000-word
-     cap. Ratified by calef on 2026-09-24 (UTC) at 5,873 words, before the cuts he ruled the
-     same day brought it here. Reason: this file is nothing but rules, every reason having moved
-     to design/tenets/, and the imperatives alone do not fit the cap; rules were not cut to make
-     them fit. Marker syntax is PROVISIONAL until the
-     prose-budget gate exists. -->
+<!-- prose-budget: exception. 6,279 words (wc -w, this marker included) against a 3,000-word
+     cap. Ratified by calef on 2026-09-24 (UTC) at 5,873 words; the cuts he ruled that day, and
+     principle 2 taking #1198's text under his ruling on numbers, moved it here. Reason: this file
+     is nothing but rules, every reason having moved to design/tenets/, and the imperatives alone
+     do not fit the cap; rules were not cut to make them fit. Marker syntax is PROVISIONAL until
+     the prose-budget gate exists. -->
 
 *This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude Code
 keeps finding it, and the in-tree citations of "CLAUDE.md" resolve through that symlink. It
@@ -14,8 +14,8 @@ names a reader will meet in older records:
 [design/tenets/project-history.md](design/tenets/project-history.md). Every reason, measurement and
 anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from the rule it
 explains; a reader who only needs to act never has to open one. This file is a **ratified exception
-to the 3,000-word prose budget** (calef, 2026-09-24, UTC), because what is left after that move is
-rules, and rules were not cut to fit a cap.*
+to the 3,000-word prose budget**, at 6,279 words (calef, 2026-09-24, UTC), because what is left
+after that move is rules, and rules were not cut to fit a cap.*
 
 ## What this project is
 
@@ -41,27 +41,59 @@ Each names a mechanism that keeps it true when nobody is watching, which is the 
 principle a free software project can enforce. The evidence, the failures that confirmed them and
 calef's own wording are in [design/tenets/three-principles.md](design/tenets/three-principles.md).
 
-1. The ranking function is the shortest path to a system a customer runs. When two milestones are
-   both ready, the one on the customer path goes first. As of 2026-08-30 that path is vacant, so the
-   tie breaks toward [design/fatal-risks.md](design/fatal-risks.md), nine claims that, if false,
-   mean the project should stop. A real workload with a real user outranks everything on that list
-   the moment one exists. A first customer must be something nife can plausibly be adequate at
-   within a milestone or two. Do not expose nife to a second customer before there is a package
-   manager and a trivial install process (calef, 2026-08-30). Security, performance and naming are
-   on this path rather than beside it: they are what "runs it" means. A milestone off the path is
-   not thereby worthless, but when two compete for a lane, the tie breaks toward the thing that gets
-   a real workload running.
+### 1. The ranking function is the shortest path to a system a customer runs
 
-2. The method is a result, and it is currently undocumented. The scale and the rate are worth
-   recording, with the caveats attached: they measure size, never correctness. Take any count that
-   spans the tree from the merged tree at merge, never from a branch.
+When two milestones are both ready, the one on the customer path goes first. As of 2026-08-30 that
+path is vacant, so the tie breaks toward [design/fatal-risks.md](design/fatal-risks.md), nine claims
+that, if false, mean the project should stop. A real workload with a real user outranks everything
+on that list the moment one exists. A first customer must be something nife can plausibly be
+adequate at within a milestone or two. Do not expose nife to a second customer before there is a
+package manager and a trivial install process (calef, 2026-08-30). Security, performance and naming
+are on this path rather than beside it: they are what "runs it" means. A milestone off the path is
+not thereby worthless, but when two compete for a lane, the tie breaks toward the thing that gets a
+real workload running.
 
-3. A newcomer must be able to succeed without asking anyone. Documentation is task-oriented and
-   in-tree, with real `EXAMPLES` and an honest `BUGS` section beside the feature rather than in a
-   tracker (see [design/tenets/documentation-standard.md](design/tenets/documentation-standard.md)).
-   Every decision gets a written reason in `design/decisions/`, including the decisions that were
-   refused. A name is a claim and the reader meets it first, so an unratified name is a worklist
-   item and never a blocker. Anything that only works because someone knows it is a defect.
+### 2. The method is a result, and it has to be recorded with its caveats
+
+From a first commit on 2026-07-12, this tree passed two hundred thousand lines of Rust on three
+architectures in under three months, with a booting kernel on real RISC-V silicon, a shell, a
+filesystem, a network stack and a compositor. That order of magnitude was written 2026-09-24.
+
+**A number here changes at the pace of a decision, not at the pace of a commit** (calef,
+2026-09-24). Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot; read
+them in code lines, since this tree comments heavily. (The 2026-08-05 and 2026-08-30 figures are in
+git.)
+
+That is not a normal rate for one architect, and the reason is that the work is done by many agents
+in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
+therefore two claims, not one**: that a capability microkernel can run real workloads, and that a
+system of this size can be built this way at all. The second is at least as interesting to a
+stranger, and `notes/how-this-is-built.md` is where the tree now states it.
+
+**It has to be recorded the way everything else here is recorded, with the caveats attached**, or it
+is marketing:
+
+- The figures there are **size and rate, not quality.** A built milestone is a block marked BUILT,
+  and §76 (what catches a milestone status that is wrong in both places) records a sweep that found
+  nine misrecorded. Take the count as a scale, never as a claim about correctness.
+- **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
+  the review discipline. The same method without them produces a great deal of code that nobody can
+  trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
+  against `origin/main` and staged four other lanes' files, the blind `sed` that rewrote the row
+  recording a name's refusal, the three agents that clobbered work with `git reset --hard` in one
+  day.
+- **The bottleneck moves, and pretending otherwise wastes the method.** On 2026-08-04 the constraint
+  stopped being how fast lanes could produce and became how fast one merge queue could land, and
+  eleven lanes made that worse rather than better.
+
+### 3. A newcomer must be able to succeed without asking anyone
+
+Documentation is task-oriented and in-tree, with real `EXAMPLES` and an honest `BUGS` section beside
+the feature rather than in a tracker (see
+[design/tenets/documentation-standard.md](design/tenets/documentation-standard.md)). Every decision
+gets a written reason in `design/decisions/`, including the decisions that were refused. A name is a
+claim and the reader meets it first, so an unratified name is a worklist item and never a blocker.
+Anything that only works because someone knows it is a defect.
 
 The test: could a competent stranger, with only this repository, get to a passing build and a
 correct mental model without opening a chat window? Where the answer is no, that is a bug in the
@@ -192,9 +224,10 @@ Why each role holds the authority it holds, and the night that named them, are i
   calef's own call: a design fork, a wire format, a naming decision. Write that up as a proposal and
   stop there, rather than either inventing an answer or ending the turn early.
 - Every pull request and comment an agent writes opens by saying so. One line, first thing in the
-  body: `Lane: <branch or milestone>, written by an agent; calef's account is the author GitHub
-  shows.` Until milestone 128 (the automation gets its own identity) gives it one, every artifact in
-  this repository carries calef's name whether he wrote it or not.
+  body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the author GitHub
+  shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App exists and the
+  scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull request with calef's
+  `gh` token.
 - A lane's first act is a draft pull request, §90 (the claim is a draft pull request). Cut the
   branch, make one empty commit (`git commit --allow-empty -m "claim: milestone N"`), push it, and
   open the pull request as a draft, before any work. That is the claim, and it is why two lanes
@@ -273,9 +306,9 @@ can tell an intention from an observation in prose, and it does not touch the `B
 ### Open decisions, and work waiting on calef
 
 Open decisions live in a file, not in a conversation. A decision waiting on calef goes in
-`design/decisions/` with `Status: PROPOSED.`, one section each: what is being decided, the options,
-the recommendation with its reason, and what is blocked until it is answered. The number is the
-integrator's at merge.
+`design/decisions/` with `**Status: PROPOSED.**`, one section each: what is being decided, the
+options, the recommendation with its reason, and what is blocked until it is answered. The number is
+the integrator's at merge.
 
 And work waiting on calef carries its own label and its own ask (calef, 2026-08-04), both at the
 moment the decision to hold is made and not later:
@@ -394,10 +427,10 @@ one buys is in [design/tenets/codebase-rules.md](design/tenets/codebase-rules.md
 4. Assume weak memory ordering. We're on ARM, which is the weak one, and that's a gift: don't
    squander it.
 5. Architectural parity is a gate, not an aspiration: DECISIONS §19 (architectural parity is a
-   tenet). The targets are aarch64, riscv64, and x86_64 (declared, not yet started). A kernel
-   capability ships on every supported architecture, proven by the same suite, or a scope note
-   records the gap and the plan. If a feature works on one ISA and silently not another, that is the
-   bug.
+   tenet). The targets are aarch64, riscv64, and x86_64, all three of which now boot on real
+   hardware. A kernel capability ships on every supported architecture, proven by the same suite, or
+   a scope note records the gap and the plan. If a feature works on one ISA and silently not
+   another, that is the bug.
 6. Taking a dependency is a decision, not a convenience (DECISIONS §46). Write it if it is on the
    verification path, because you cannot restructure someone else's crate to make a model checker
    tractable. Vendor it if correctness is won by *exposure* rather than by reading the spec, which
@@ -427,9 +460,9 @@ surfaces it.
 [design/naming.md](design/naming.md) is the rule, §155 (the naming conventions move out of the
 constitution). It holds the spelling conventions per domain, the acronym test, nouns over verbs and
 the failure modes. It also holds what `script/lint` can and cannot check, how to perform a ratified
-rename, and the refusals that shaped all of it. Read it before you ratify or rename; a lane inventing a provisional name does
-not have to. Where it and this file disagree, that file is the rule for naming conventions and this
-one is the bug; this file keeps only the authority above.
+rename, and the refusals that shaped all of it. Read it before you ratify or rename; a lane
+inventing a provisional name does not have to. Where it and this file disagree, that file is the
+rule for naming conventions and this one is the bug; this file keeps only the authority above.
 
 Contributors are referred to by their GitHub username in prose, attributions, records and lane
 reports. Legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
@@ -452,9 +485,9 @@ number, is a design fork, raise it before building it.
 [notes/scripts.md](notes/scripts.md) has the `script/*` front door and what `cargo xtask` exposes
 beneath it.
 
-Tests should prove something specific that nothing else would have done for us. The four in
-`main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned (a bug
-here is a mystery crash), we're at EL1 (we are where we think we are). Don't add filler tests.
+Tests should prove something specific that nothing else would have done for us. The boot self-tests
+in `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned (a
+bug here is a mystery crash), we're at EL1 (we are where we think we are). Don't add filler tests.
 
 Pure logic (allocator algorithms, page-table math, scheduling policy, filesystem parsing) belongs in
 crates that compile for the host, so most tests run in milliseconds without an emulator.

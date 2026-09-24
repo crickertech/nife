@@ -25,9 +25,8 @@ fits:
    writes while it reads **cannot be declared without saying so**. A pull request comment had been
    written to remind the integrator of the same thing; the type made the reminder redundant.
 2. **A gate that fails loudly**, in `script/lint` or CI. Weaker, because somebody has to write it
-   and it can be wrong about the tree (§77 (the branch-prefix list now describes the tree) is a live
-   example: the branch-prefix check rejects the repository's second-commonest prefix). But it fires
-   without being remembered.
+   and it can be wrong about the tree: the check rejected the repository's second-commonest prefix
+   until §77 (the branch-prefix list now describes the tree). But it fires without being remembered.
 3. **A written record at the thing itself**, which is the shape of milestone 115 (the names that
    were ratified, and the ones that were refused): provenance beside the name, not in a registry. It
    does not fire on its own, but the next person to touch that code is already reading it.
@@ -43,8 +42,8 @@ as a design, and the next person extends it.
 
 **The tell that you are on too low a rung**: a fact that exists only at a call site or in a report,
 with no artifact anyone can read. That shape recurred three times in one day, each wearing different
-clothes: roadmap status that was wrong in both records and invisible to the gate comparing them
-(§76 (what catches a milestone status wrong in both places)), naming decisions that lived in one table
+clothes: roadmap status that was wrong in both records and invisible to the gate comparing them (§76
+(what catches a milestone status wrong in both places)), naming decisions that lived in one table
 cell nobody could find (milestone 115), and a merge-order coupling that only a lane's report
 mentioned. When you notice it, move up a rung.
 

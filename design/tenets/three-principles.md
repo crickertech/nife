@@ -75,38 +75,20 @@ what stops the roadmap drifting into a collection of interesting kernels, and th
 risk now rather than a hypothetical one, because with no customer named there is nothing but this
 principle and the fatal-risk list holding the ordering together.
 
-## 2. The method is a result, and it is currently undocumented
+## 2. The method is a result: the 2026-08-30 measurement, as a historical record
 
-Measured on **2026-08-30**, from a first commit on 2026-07-12: **49 days, 103 milestones built of
-193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099 commits**,
-on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a filesystem, a
-network stack and a compositor.
+The argument for this principle, its caveats and the tree's current order of magnitude are in
+`AGENTS.md` itself. Current counts are in
+[`notes/project-metrics.md`](../../notes/project-metrics.md), generated weekly; read those, not
+these. This section keeps one dated record, because it was the measurement the principle was first
+written against and a dated measurement stays true.
 
-**That line count includes comments**, and `kernel/src` measures 40% of them, so a size comparison
-against another project belongs in code lines. (The superseded 2026-08-05 figures are in git.)
-
-That is not a normal rate for one architect, and the reason is that the work is done by many agents
-in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
-therefore two claims, not one**: that a capability microkernel can run real workloads, and that a
-system of this size can be built this way at all. The second is at least as interesting to a
-stranger, and nothing in this tree currently states it.
-
-**It has to be recorded the way everything else here is recorded, with the caveats attached**, or it
-is marketing:
-
-- The numbers above are **size and rate, not quality.** 63 built milestones is a count of blocks
-  marked BUILT, and this tree found nine of them misrecorded in a single sweep (§76 (what catches a
-  milestone status wrong in both places)). Take the number as a scale, never as a claim about
-  correctness.
-- **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
-  the review discipline. The same method without them produces a great deal of code that nobody can
-  trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
-  against `origin/main` and staged four other lanes' files, the blind `sed` that rewrote the row
-  recording a name's refusal, the three agents that clobbered work with `git reset --hard` in one
-  day.
-- **The bottleneck moves, and pretending otherwise wastes the method.** On 2026-08-04 the constraint
-  stopped being how fast lanes could produce and became how fast one merge queue could land, and
-  eleven lanes made that worse rather than better.
+On 2026-08-30, 49 days after the first commit on 2026-07-12, the tree measured 103 milestones built
+of 193, 65 crates, 69 user programs, about 194,000 lines of Rust, 145 Kani proof harnesses and 3,099
+commits, on three architectures, with a booting kernel on real RISC-V silicon, a shell, a
+filesystem, a network stack and a compositor. That line count included comments, and `kernel/src`
+measured 40% of them on that date, so a size comparison against another project belonged in code
+lines then as it does now. The 2026-08-05 figures that it superseded are in git.
 
 ## 3. A newcomer must be able to succeed without asking anyone
 
