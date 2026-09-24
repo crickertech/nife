@@ -83,7 +83,7 @@
 #
 # `raised` is required always and `decided` is required by DECIDED, and the corpus predating the
 # schema does not record either for most of its files. Migrating the 211 files on `main` at
-# bfc91c8d2 recovered `raised` for 59 of them and `decided` for 148 of the 168 that owe one.
+# bfc91c8d2 recovered `raised` for 59 of them and `decided` for 107 of the 168 that owe one.
 #
 # **Nothing was invented to close that.** A date was taken only where a keyword in the prose
 # anchored it to a role, never from a bare date whose role was ambiguous and never from git history,
