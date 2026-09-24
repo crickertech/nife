@@ -26,15 +26,15 @@
 //! `mapped_window` (a whole `'static` slice, not a bounds-checked per-offset accessor), but the
 //! same §94 shape underneath: one invariant, copied verbatim into seven declarations.
 //!
-//! Round 7 read every remaining raw `invoke(...)` call site in `user/` (123 of them, the milestone's
-//! own largest unmigrated cluster) and found the same shape at nearly all of them: a method whose
-//! own `# Safety` obligation is [`invoke`]'s own ("the kernel validates the capability and the
-//! method before acting"), asserted by hand at every call site with nothing call-site-specific to
-//! check. Fourteen new thin wrappers below (`retype_page_frame` through `send_cap`), plus
-//! [`granted`] (the §94 shape again, five programs' identical probe) and the opt-in [`virtio`]
-//! module (device-specific, so scoped like `mapped_window` rather than added here), cover all but
-//! one of them; see that one call site's own comment (`window.rs`'s refusal probe) for why it stays
-//! raw.
+//! Round 7 read every remaining raw `invoke(...)` call site in `user/` (123 of them, the
+//! milestone's own largest unmigrated cluster) and found the same shape at nearly all of them: a
+//! method whose own `# Safety` obligation is [`invoke`]'s own ("the kernel validates the capability
+//! and the method before acting"), asserted by hand at every call site with nothing
+//! call-site-specific to check. Fourteen new thin wrappers below (`retype_page_frame` through
+//! `send_cap`), plus [`is_granted`] (the shape of §94 (what may live in a userspace library) again:
+//! five programs' identical probe) and the opt-in [`virtio`] module (device-specific, so scoped
+//! like `mapped_window` rather than added here), cover all but one of them; see that one call
+//! site's own comment (`window.rs`'s refusal probe) for why it stays raw.
 //!
 //! The `#[panic_handler]` is **still not an item here, and now the trap underneath it is**
 //! (milestone 130). A panic handler is per-final-binary: exactly one may exist in a linked program,
@@ -433,7 +433,7 @@ pub fn map_page_frame(frame_slot: u64, va: u64, writable: bool, memory_region_sl
 /// Lifted out of `date.rs`'s `clock_page` probe, which four more programs (`pgrep`, `pmap`, `ps`,
 /// `watch`) had each copied verbatim, one of them naming the duplication out loud in its own doc
 /// comment without anyone lifting it. The exact §94 shape the crate-level docs above describe.
-pub fn granted(slot: u64) -> bool {
+pub fn is_granted(slot: u64) -> bool {
     /// A method number no object type defines, so the invocation can only ever be refused.
     const NO_SUCH_METHOD: u64 = 0xffff;
     // SAFETY: a syscall that cannot succeed; the kernel validates the slot before the method.

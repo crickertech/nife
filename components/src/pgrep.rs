@@ -83,7 +83,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_mode_runtime::{exit, granted, send, survey};
+use user_mode_runtime::{exit, is_granted, send, survey};
 
 /// The output sink: where the tids go. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -105,7 +105,7 @@ static HAS_DIAG: AtomicBool = AtomicBool::new(false);
 /// nothing.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, a1: u64, _a2: u64) -> ! {
-    HAS_DIAG.store(granted(DIAG_SLOT), Ordering::Relaxed);
+    HAS_DIAG.store(is_granted(DIAG_SLOT), Ordering::Relaxed);
 
     // **Walk first, filter second, complain third, print fourth.** DECISIONS §67's reader drains
     // diagnostics to end-of-stream before it reads a byte of output, and a survey cannot know its

@@ -75,7 +75,7 @@ static GRANTED: AtomicU8 = AtomicU8::new(0);
 /// A method number no object type defines, so the invocation can only ever be refused.
 const NO_SUCH_METHOD: u64 = 0xffff;
 
-fn granted() -> bool {
+fn is_granted() -> bool {
     match GRANTED.load(Ordering::Relaxed) {
         1 => true,
         2 => false,
@@ -94,7 +94,7 @@ fn page() -> Option<ClockPage> {
     // SAFETY: the loader maps the clock page read-only at CLOCK_PAGE alongside the capability the
     // probe just found in CLOCK_SLOT, and nothing unmaps it. Without the capability we never build
     // the pointer at all, which is what keeps the unmapped case from faulting.
-    granted().then(|| unsafe { ClockPage::new(rt::CLOCK_PAGE) })
+    is_granted().then(|| unsafe { ClockPage::new(rt::CLOCK_PAGE) })
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]

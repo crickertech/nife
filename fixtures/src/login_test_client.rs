@@ -394,7 +394,7 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
                     if write_marker(dir_ep, identity) {
                         flags |= F_MARKER_WRITTEN;
                     }
-                    if absent(dir_ep, filesystem_protocol::fixture::tree::INNER) {
+                    if is_absent(dir_ep, filesystem_protocol::fixture::tree::INNER) {
                         flags |= F_NOT_SHARED_SUBTREE;
                     }
                 }
@@ -484,7 +484,7 @@ fn write_marker(dir: u64, content: &[u8]) -> bool {
 /// `true` if `OPEN`ing `name` under `dir` is refused. The expected answer for a name that lives only
 /// in the old, shared fixture subtree ([`filesystem_protocol::fixture::tree::INNER`]) when `dir` is a genuinely
 /// different, identity-scoped one.
-fn absent(dir: u64, name: &str) -> bool {
+fn is_absent(dir: u64, name: &str) -> bool {
     put_page(name.as_bytes());
     let (r0, _) = call(
         dir,

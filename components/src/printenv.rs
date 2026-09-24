@@ -143,11 +143,11 @@ fn push(buf: &mut [u8; 96], n: &mut usize, bytes: &[u8]) {
 
 /// Whether a capability is in `slot`, without touching whatever it names.
 ///
-/// [`config_page`]'s probe, `date`'s `granted()` lifted verbatim: invoke a method number no object
-/// type defines, so the call can only be refused, and read *which* refusal came back. An empty
-/// slot answers `NoSuchSlot`; a real object answers `BadMethod`, which is a refusal from something
-/// that exists.
-fn granted(slot: u64) -> bool {
+/// [`config_page`]'s probe, `date`'s `is_granted()` lifted verbatim: invoke a method number no
+/// object type defines, so the call can only be refused, and read *which* refusal came back. An
+/// empty slot answers `NoSuchSlot`; a real object answers `BadMethod`, which is a refusal from
+/// something that exists.
+fn is_granted(slot: u64) -> bool {
     /// A method number no object type defines, so the invocation can only ever be refused.
     const NO_SUCH_METHOD: u64 = 0xffff;
     // SAFETY: a syscall that cannot succeed; the kernel validates the slot before the method.
@@ -161,7 +161,7 @@ fn granted(slot: u64) -> bool {
 /// the same shape): a process granted nothing has nothing mapped at [`CONFIG_VA`], and a read
 /// there would fault instead of answering.
 fn config_page() -> Option<ConfigPage> {
-    if !granted(CONFIG_SLOT) {
+    if !is_granted(CONFIG_SLOT) {
         return None;
     }
     // SAFETY: the wiring maps the config page read-only at CONFIG_VA alongside the capability the
@@ -203,7 +203,7 @@ user_mode_runtime::panic_handler!();
 /// hazard of proving a program like this one is that a stub reads as coverage. The short version:
 /// the boundary is **hard rather than soft**, because every capability this program holds is
 /// reached through `user_mode_runtime`, whose calls are `asm!`, and Kani refuses an unsupported construct
-/// instead of proving past it. A harness that wandered into [`line`], [`granted`] or
+/// instead of proving past it. A harness that wandered into [`line`], [`is_granted`] or
 /// [`config_page`] would fail loudly rather than report a proof about a fiction. What is left is
 /// [`push`], which is the only thing here that decides anything.
 #[cfg(kani)]

@@ -111,7 +111,7 @@ mod uart {
         unsafe { &*(UART_VA as *const RegisterBlock) }
     }
 
-    pub fn rx_pending() -> bool {
+    pub fn is_rx_pending() -> bool {
         !regs().FR.is_set(FR::RXFE)
     }
     pub fn rx_get() -> u8 {
@@ -143,7 +143,7 @@ mod uart {
         unsafe { core::ptr::write_volatile((UART_VA + off) as *mut u8, v) }
     }
 
-    pub fn rx_pending() -> bool {
+    pub fn is_rx_pending() -> bool {
         rd(LSR) & LSR_DR != 0
     }
     pub fn rx_get() -> u8 {
@@ -177,7 +177,7 @@ mod uart {
     const LSR: u16 = 0x3FD; // line status register (base + 5)
     const LSR_DR: u8 = 1 << 0; // data ready
 
-    pub fn rx_pending() -> bool {
+    pub fn is_rx_pending() -> bool {
         inb(LSR) & LSR_DR != 0
     }
     pub fn rx_get() -> u8 {
@@ -244,7 +244,7 @@ fn drain() {
     loop {
         let mut word: u64 = 0;
         let mut n: u64 = 0;
-        while n < 8 && uart::rx_pending() {
+        while n < 8 && uart::is_rx_pending() {
             word |= (uart::rx_get() as u64) << (8 * n);
             n += 1;
         }

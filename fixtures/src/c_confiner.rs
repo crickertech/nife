@@ -247,7 +247,7 @@ fn verdict(attempt: u64, event: u64, pc: u64, addr: u64) -> u64 {
     // Claim 5, the honest attempt only: the C actually computed the right answer, checked against an
     // independent Rust implementation of the same definition. A restart that produced a corpse that
     // "ran" but computed nothing would otherwise pass.
-    if attempt == c_seam::ATTEMPT_HONEST && output_correct(g) {
+    if attempt == c_seam::ATTEMPT_HONEST && is_output_correct(g) {
         bits |= checks::OUTPUT_CORRECT;
     }
 
@@ -256,7 +256,7 @@ fn verdict(attempt: u64, event: u64, pc: u64, addr: u64) -> u64 {
 
 /// Is the honest attempt's output in the grant, and right? The checksum against a Rust
 /// recomputation, and the transformed string byte for byte including its terminator.
-fn output_correct(g: &mut [u8]) -> bool {
+fn is_output_correct(g: &mut [u8]) -> bool {
     let text = &c_seam::INPUT[..c_seam::INPUT.len() - 1]; // without the NUL the C stops at
     let want = c_seam::expected_checksum(text);
     let got = u32::from_le_bytes([
