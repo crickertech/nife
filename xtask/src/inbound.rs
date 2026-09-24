@@ -220,6 +220,7 @@ fn probe_inbound(
         // five exits and they mean different things: only two of them are "nothing was consumed",
         // and telling them apart is the whole diagnosis when a round goes missing.
         let mut outcome = "answered";
+        let mut error: Option<String> = None;
         while got.len() < INBOUND_OUT.len() {
             match s.read(&mut buf) {
                 Ok(0) => {
@@ -248,6 +249,10 @@ fn probe_inbound(
                 }
                 Err(e) => {
                     last = format!("reading the guest's answer failed: {e}");
+                    // Kept on the event, not only in `last`, which is printed on a red run alone.
+                    // notes/net.md: a green run's `read-failed` once threw away the one fact that
+                    // would have named it.
+                    error = Some(format!("{:?}, os error {:?}", e.kind(), e.raw_os_error()));
                     outcome = match e.kind() {
                         ErrorKind::ConnectionReset => "reset",
                         ErrorKind::ConnectionAborted => "aborted",
@@ -269,7 +274,7 @@ fn probe_inbound(
             // The loop filled its quota without matching: bytes that are not the guest's answer.
             outcome = "wrong-bytes";
         }
-        trace.note(outcome, opened, got.len());
+        trace.note_error(outcome, opened, got.len(), error);
         // Not an answer: almost always "no listener yet", which is the normal state for most of the
         // run. Keep the last one only so a genuine failure has something to say.
         if !got.is_empty() {
@@ -324,7 +329,7 @@ struct InboundTrace {
     /// `(ms since the prober started, outcome, held ms, bytes)` for connections worth a line: the
     /// ones that collected bytes, and the ones held over a second. A connection that was reset in
     /// under a millisecond with nothing on it is the boring majority and is only counted.
-    events: Vec<(u128, &'static str, u128, usize)>,
+    events: Vec<(u128, &'static str, u128, usize, Option<String>)>,
     started: Option<std::time::Instant>,
 }
 
@@ -337,17 +342,29 @@ impl InboundTrace {
     }
 
     pub(crate) fn note(&mut self, outcome: &'static str, opened: std::time::Instant, bytes: usize) {
+        self.note_error(outcome, opened, bytes, None);
+    }
+
+    /// [`note`](Self::note), with the error that ended the connection when one did. Any event that
+    /// carries an error gets a line, however briefly it was held.
+    pub(crate) fn note_error(
+        &mut self,
+        outcome: &'static str,
+        opened: std::time::Instant,
+        bytes: usize,
+        error: Option<String>,
+    ) {
         self.attempts += 1;
         *self.counts.entry(outcome).or_insert(0) += 1;
         let held = opened.elapsed().as_millis();
-        if bytes > 0 || held >= 1000 || outcome == "answered" {
+        if bytes > 0 || held >= 1000 || outcome == "answered" || error.is_some() {
             let at = self
                 .started
                 .map(|s| s.elapsed().as_millis())
                 .unwrap_or_default();
             // Bounded, so a pathological run cannot grow this without limit.
             if self.events.len() < 64 {
-                self.events.push((at, outcome, held, bytes));
+                self.events.push((at, outcome, held, bytes, error));
             }
         }
     }
@@ -363,10 +380,13 @@ impl InboundTrace {
         if out.is_empty() {
             out.push_str("no attempts");
         }
-        for (at, outcome, held, bytes) in &self.events {
+        for (at, outcome, held, bytes, error) in &self.events {
             out.push_str(&format!(
                 "\n    +{at} ms: {outcome} after {held} ms, {bytes} bytes"
             ));
+            if let Some(error) = error {
+                out.push_str(&format!(" ({error})"));
+            }
         }
         out
     }
