@@ -128,8 +128,9 @@ gloss is a string a reader or a `grep` resolves wherever the block ends up.
   must not edit to satisfy a gate.
 - **It reads `HEAD`, not the working tree**, because the line numbers in a `base..HEAD` diff are
   HEAD's and reporting them against an edited file would point at the wrong lines. So a fix has to be
-  committed before this goes quiet, which is the same habit the BUGS section below asks for on
-  `--check` (stage before you check) with `commit` in place of `add`.
+  committed before this goes quiet. Since 2026-09-24 the tool enforces that: an uncommitted edit that
+  adds or removes a citing line fails the run with "Commit first" instead of reporting on the old
+  text (see the BUGS entry below).
 
 ### What it costs, measured before it was turned on
 
@@ -595,14 +596,20 @@ SAFETY comments are milestone 112's territory and not this script's, deliberatel
 recording it here is that the citation gate is one member of a family, and whoever adds the next
 member should recognise the shape rather than rediscover it.
 
-**The ratchet reads the committed tip, not the working tree, and a clean run on dirty files means
-nothing.** `--ratchet` diffs against the branch's base and then reads each file with `git show`, so
-a gloss you have just typed and not committed is invisible to it: the check reports on the last
-commit and exits on that. Found on 2026-09-20, twice in one hour, by a maintainer who fixed three
-unglossed citations, re-ran the ratchet, and read the same three failures back. **Commit, then run
-it.** That is the same habit the staging entry above asks for one level along, and it is the same
-family as every other absent-signal defect on this page: nothing was wrong with the check, and the
-exit code was a statement about a tree the author was no longer looking at.
+**The ratchet reads the committed tip, not the working tree, and it now refuses to pretend
+otherwise.** `--ratchet` diffs against the branch's base and reads each file with `git show`, so a
+gloss you have just typed and not committed is invisible to it. Found on 2026-09-20 by a maintainer
+who fixed three unglossed citations, re-ran the ratchet, and read the same three failures back; a
+one-line "Commit first." note was added, and on 2026-09-24 it was missed beside a failure, the
+uncommitted fix was right, and CI failed on the committed line. So since 2026-09-24 **a file whose
+uncommitted edits add or remove a line citing a real `milestone N` or `§N` (or an untracked file
+containing one) fails the run**, names the file, and checks nothing else: any report would be about
+text you are no longer looking at. **Commit, then run it.** Dirty files whose edits cite nothing
+still get the one-line note and the verdict stands, which is what keeps `script/lint` usable on a
+work-in-progress tree. The scan is looser than the ratchet (it reads raw diff lines, fences and all),
+so it can ask for a commit that would not have changed the verdict; that is the cheap direction to be
+wrong in. Checking the working tree instead was refused because it would make a local pass mean
+something different from a CI pass, which only ever sees commits.
 
 **A gloss must sit on the same line as the number it explains.** The parenthetical is matched near
 its citation, so a citation at the end of a line whose gloss wraps onto the next one is read as

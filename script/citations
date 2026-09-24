@@ -570,33 +570,101 @@ if mode == "--ratchet":
 
     # Reading the committed tip instead of the working tree is correct, for the reason above the
     # diff below: line numbers from a `base..tip` diff are the tip's, and an edited file would
-    # report against the wrong lines. But "reads the tip, not the tree" was only ever documented,
-    # in this comment and in notes/citations.md, which is rung four of AGENTS.md's ladder, and a
-    # documented foot gun still has to be rediscovered by whoever steps on it. It cost the
-    # maintainer real time on 2026-09-22, more than once: add a gloss, rerun --ratchet, read the
-    # identical failure back, because the edit was sitting uncommitted and the tip had not moved.
-    # This moves the fact to rung two, where running the tool is what teaches it, instead of a
-    # note nobody was reading in the moment they needed it.
-    status = subprocess.run(
-        ["git", "-C", root, "status", "--porcelain", "--untracked-files=all", "--"] +
-        list(EXCLUDE),
-        capture_output=True, text=True,
-    ).stdout
-    dirty = []
-    for line in status.splitlines():
-        xy, path = line[:2], line[3:]
-        if "D" in xy:
-            # Deleted, staged or not: there is no content left to gloss-check, and reporting a
-            # deletion here would just be noise next to the files that actually hide a check.
-            continue
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        dirty.append(path)
-    if dirty:
-        dirty.sort()
-        print(f"citations: {len(dirty)} modified file(s) not checked; --ratchet reads the "
-              "committed tip. Commit first.")
-        print(f"citations:   {', '.join(dirty)}")
+    # report against the wrong lines. The cost is that an uncommitted edit is invisible, and a
+    # warning line was not enough to carry that. It cost the maintainer real time on 2026-09-22
+    # (add a gloss, rerun, read the identical failure back) and again on 2026-09-24, when an
+    # uncommitted fix was right, the gate kept reporting the old committed line beside a one-line
+    # "Commit first." nobody read, and CI then failed on that committed line.
+    #
+    # **So a dirty tree that would change the answer is a failure, not a note.** Two options were
+    # weighed. (b) check the working tree when it is dirty: that changes what the ratchet MEASURES,
+    # so a local run and CI (which only ever sees commits) could disagree about the same branch,
+    # and it needs a second line-number mapping for edited files. (a) exit non-zero and say
+    # "commit first": the ratchet keeps one definition, the committed tip, which is the thing CI
+    # and the merge queue judge, and a local pass means exactly what a CI pass means. (a) was
+    # chosen for that reason, not for size; it would win at equal cost.
+    #
+    # **Scoped to the edits that would change the answer**, because script/lint calls this and is
+    # routinely run with work in progress: failing on every dirty file would make every dirty lint
+    # red for a reason unrelated to citations. A dirty file only fails the run when its uncommitted
+    # edits add or remove a line carrying a `milestone N` or `§N` that resolves (for an untracked
+    # file, any such line in it). Those are the only edits that can move this check's verdict: a
+    # new citation that has not been judged, or a gloss (or the cited line itself) that the report
+    # would describe as it was. Other dirty files get the old one-line note and the check proceeds.
+    #
+    # The scan is deliberately looser than the ratchet's own: it reads raw diff lines, so a
+    # citation inside a fenced block or a stripped comment marker still counts. That errs toward
+    # "commit first" on an edit that would not have changed the verdict, which costs one commit;
+    # erring the other way is the defect this exists to close.
+    #
+    # Only when the tip being judged is this checkout's HEAD (`--ratchet`, `--ratchet <base>`, or a
+    # range ending at HEAD). A range ending at any other commit is history, and the working tree
+    # has nothing to say about it.
+    def rev(r):
+        return subprocess.run(["git", "-C", root, "rev-parse", "--verify", "-q", r + "^{commit}"],
+                              capture_output=True, text=True).stdout.strip()
+    if rev(tip) == rev("HEAD"):
+        status = subprocess.run(
+            ["git", "-C", root, "status", "--porcelain", "--untracked-files=all", "--"] +
+            list(EXCLUDE),
+            capture_output=True, text=True,
+        ).stdout
+        dirty, untracked = [], []
+        for line in status.splitlines():
+            xy, path = line[:2], line[3:]
+            if "D" in xy:
+                # Deleted, staged or not: there is no content left to gloss-check. A deleted gloss
+                # can still change a verdict, but only once committed, when the tip shows it.
+                continue
+            if " -> " in path:
+                path = path.split(" -> ", 1)[1]
+            (untracked if xy == "??" else dirty).append(path)
+
+        def cites(body):
+            for m in ANY_CITE.finditer(body):
+                table = DECISIONS if m.group(1) == "§" else MILESTONES
+                if int(m.group(2)) in table:
+                    return True
+            return False
+
+        hiding = set()
+        if dirty:
+            pending = subprocess.run(
+                ["git", "-C", root, "diff", "--unified=0", "--no-color", "HEAD", "--"] + dirty,
+                capture_output=True, text=True,
+            ).stdout
+            path = None
+            for line in pending.split("\n"):
+                if line.startswith("+++ b/"):
+                    path = line[6:]
+                elif line.startswith("--- ") or line.startswith("+++ "):
+                    continue
+                elif path and line[:1] in "+-" and line and cites(line[1:]):
+                    hiding.add(path)
+        for path in untracked:
+            try:
+                with open(os.path.join(root, path), encoding="utf-8", errors="replace") as f:
+                    body = f.read()
+            except OSError:
+                continue
+            if "\0" not in body and cites(body):
+                hiding.add(path)
+
+        if hiding:
+            print(f"citations: {len(hiding)} file(s) have uncommitted edits to lines that cite a "
+                  "milestone or decision:", file=sys.stderr)
+            for path in sorted(hiding):
+                print(f"citations:   {path}", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("--ratchet judges the committed tip, which is what CI judges, so it cannot say "
+                  "anything\ntrue about these edits: a report now would describe the old lines. "
+                  "Commit first, then\nrerun. (Nothing else was checked; see the comment above "
+                  "this message in script/citations.)", file=sys.stderr)
+            sys.exit(1)
+        quiet = sorted(set(dirty + untracked) - hiding)
+        if quiet:
+            print(f"citations: {len(quiet)} modified file(s) not checked; their uncommitted edits "
+                  "cite nothing, so the verdict below stands.")
 
     diff = subprocess.run(
         ["git", "-C", root, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--"] +
