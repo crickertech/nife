@@ -295,5 +295,6 @@ The third column lists the dated entries each holds, so a citation of "notes/ben
   The work is proposed in `design/roadmap/proposals/two-core-bench-is-a-different-instrument.md`.
 - riscv64's `rfence_self` has oscillated between 5991 and 6476 across saves, and the cause (a hart
   count or the compiler) is unsettled. It reads 5991 today.
-- `bench/fastpath-*.txt` carries no toolchain stamp, so a compiler bump can fail that gate with no
+- `bench/fastpath-*.txt` names its nightly only from its next `--save --why` (since 2026-09-24),
+  and nothing checks that stamp against the pin. Until then a compiler bump can fail that gate with no
   commit responsible. riscv64's `syscall_entry` sat at +4.7% of a 5% band on 2026-09-21.

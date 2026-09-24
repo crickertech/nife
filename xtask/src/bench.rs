@@ -705,10 +705,10 @@ fn run_bench(
             ),
         }
 
-        // `trim_start` matters: this file's own header has INDENTED comment lines, which a
-        // column-0-only check treats as data. They survive today only because they happen to split
-        // into more than three tokens and fall through the destructure below. A three-word indented
-        // comment would be silently parsed as a benchmark named after its first word.
+        // `trim_start` matters: this file's own header has INDENTED comment lines, and a
+        // column-0-only check would treat them as data. A three-word one would then be parsed as a
+        // benchmark named after its first word. Filtering after `trim_start` drops every comment
+        // line whatever its indent, so the destructure below only ever sees `name ticks iters` rows.
         for line in text.lines().filter(|l| !l.trim_start().starts_with('#')) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             let [name, base, _iters] = parts.as_slice() else {
