@@ -109,6 +109,11 @@ each say they were decided the day before the commit that wrote them into `DECIS
 time too. One goes the other way: §100 (the terminal font)'s prose
 names its amendment date, and git's earlier decided date is the original ruling.
 
+§212 (a prose budget) and §213 (writing standards) landed on `main` in the old `**Status:**` form
+while this was in review, and were converted when it rebased. Both state their dates in their own
+prose, 2026-09-23 in UTC, which is earlier than their first commits (04:43 UTC on 2026-09-24), so
+the prose wins and they are not counted in the table above.
+
 A first pass of this migration dated the pre-split files from the split commit, 2026-08-04, and
 called every git date "no later than" to cover it. That was a tracing error presented as a caveat;
 the history before the split is in the repository, and following it moved 46 raise dates and 42

@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 213. Writing standards: three countable rules, one review rule, and a ratchet
 
-**Status: DECIDED.** Ratified by calef on 2026-09-23 (UTC): a median sentence of 20 words or fewer,
+The rules calef ratified on 2026-09-23 (UTC): a median sentence of 20 words or fewer,
 no sentence over 40 words, and 4 or fewer bold spans per 1,000 words. Rule 4 stays a review question.
 The ratchet is the enforcement, and two proposed rules stay dropped. Raised by calef the same day,
 reading a maintainer session's proposal to cap document length. A maintainer session then measured
@@ -176,7 +183,8 @@ a long time. That is the price of not running a migration.
 **Ratified by calef on 2026-09-24 (UTC).** The budget counts every bolded span, including markup a
 gate reads. No exclusion was carved, and the table-cell precedent was not extended to it.
 
-The collision is real and appears in three subsystems. `design/decisions/` writes `**Status:`,
+The collision is real and appeared in three subsystems. `design/decisions/` wrote `**Status:` until
+milestone 582 (a decision's status becomes a field) moved it into frontmatter,
 `design/fatal-risks.md` writes `**The ... experiment ...:**`, and every citation in the tree writes
 `**milestone 41 (dead code)**`. Each is a field a script parses, wearing emphasis. `design/fatal-risks.md`
 measures exactly 4.0 per 1,000 words with all seventeen of its spans being machinery, so it meets
@@ -197,9 +205,9 @@ then a document whose budget is spent on markup records that in its own `BUGS` s
   bold spans per 1,000 words is better for a reader than 8. Its second half is better grounded: 816
   whole-line bolds are heading syntax written as emphasis, and that is a defect whatever the budget
   is.
-- This document's own `**Status:` line is a line-opening bold, which rule 3 deprecates. It is a
-  marked exception: the line is a field that `script/decisions` parses, not emphasis, and every
-  section in this directory carries one. Changing the format is a separate decision.
+- This document once carried a `**Status:` line, a line-opening bold that rule 3 deprecates, as a
+  marked exception because `script/decisions` parsed it. Milestone 582 (a decision's status becomes
+  a field) moved the status into frontmatter, so the exception is gone.
 - This section meets its own three numbers, which tests that they are livable in a document carrying
   numbers and citations. It does not test them on a note explaining a mechanism, and that is the
   longer half of the tree.

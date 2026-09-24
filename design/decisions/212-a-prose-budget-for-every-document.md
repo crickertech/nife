@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 212. A prose budget: 3,000 words of main body, with appendices under the same cap
 
-**Status: DECIDED.** **The cap is 3,000 words of main body**, ratified by calef on 2026-09-23
+**The cap is 3,000 words of main body**, ratified by calef on 2026-09-23
 (UTC). That answers question 1 below and nothing else. Raised by him the same day, after a
 maintainer session spent most of a context window reading one document, `design/fatal-risks.md`, at
 17,742 words.
