@@ -26,3 +26,4 @@ rows would crowd the glossary index: `script/lint` reads `notes/*.md` without re
 | [working-with-calef.md](working-with-calef.md) | the seven questions with their worked examples, and the anecdotes behind the conduct rules |
 | [codebase-rules.md](codebase-rules.md) | what each of the seven codebase rules buys, with its examples |
 | [git-in-a-worktree.md](git-in-a-worktree.md) | why commit-early and curate-later are not opposites, and the worktree hazards behind each rule |
+| [project-history.md](project-history.md) | the two renames, the symlink, and the pivot from learning project to demonstrator |

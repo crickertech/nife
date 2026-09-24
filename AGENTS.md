@@ -1,13 +1,10 @@
 # Working on nife
 
 *This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude Code
-keeps finding it (decided 2026-08-14). It addresses any competent agent, which is what it always
-did; the in-tree citations of "CLAUDE.md" keep resolving through the symlink and were deliberately
-not rewritten, per this file's own blind-sed scar. The architect is **calef** (GitHub username;
-Chris Alef): older records and commits may say Chris, and both are the same person, renamed
-2026-08-15 at his request. The OS itself was renamed the same day: nife, formerly cricker-os, by
-milestone 120 (the rename: the OS becomes `nife`), and older records, commits, and quoted
-transcripts keep the old name where they describe the past.*
+keeps finding it, and the in-tree citations of "CLAUDE.md" resolve through that symlink. It
+addresses any competent agent. The architect is calef. Two renames and one pivot sit behind the old
+names a reader will meet in older records:
+[design/tenets/project-history.md](design/tenets/project-history.md).*
 
 ## What this project is
 
@@ -20,10 +17,6 @@ line-by-line builder.
 
 That should drive your judgment calls. A complete, correct, well-documented, benchmarked milestone
 is the goal. Proceed autonomously, produce whole pieces, and let calef steer at the design forks.
-
-This began as a learning project and pivoted to a demonstrator, deliberately and on the record
-(2026-07-26). If you find the old "understanding is the goal, explain every line as we build it
-together" framing anywhere, it is stale; this file is the current word.
 
 ## How to work
 
@@ -437,10 +430,9 @@ number, is a design fork, raise it before building it.
 
 ## Testing
 
-`script/test` (a thin wrapper over `cargo xtask test`) boots the kernel under QEMU and reports
-pass/fail via semihosting. The `script/*` commands are the normalized "Scripts to Rule Them All"
-front door (`setup`, `test`, `server`, `console`, ...); they delegate to `cargo xtask`, which is
-still the engine and exposes more (`gdb`, `objdump`, `image`). See notes/scripts.md.
+`script/test` boots the kernel under QEMU and reports pass/fail via semihosting.
+[notes/scripts.md](notes/scripts.md) has the `script/*` front door and what `cargo xtask` exposes
+beneath it.
 
 Tests should prove something specific that nothing else would have done for us. The four in
 `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned (a bug
