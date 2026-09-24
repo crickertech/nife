@@ -110,7 +110,7 @@ jobs:
     name: verify scope
     runs-on: ubuntu-24.04-arm
     needs: gate
-    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     outputs:
       needed: ${{ steps.scope.outputs.needed }}
     steps:
@@ -134,12 +134,12 @@ jobs:
   prove:
     name: prove (shard ${{ matrix.shard }}/2)
     needs: [gate, scope]
-    # `always()` for the same reason `verify` below gives: without it a failed or cancelled
+    # `!cancelled()` for the same reason `verify` below gives: without it a failed or cancelled
     # dependency skips this job outright, whatever the condition says, and a skipped job still
     # posts a conclusion that satisfies a required check. The scope test is unchanged; it just has
     # to be reached to be applied.
     if: >-
-      always() &&
+      !cancelled() &&
       needs.scope.outputs.needed == 'true' &&
       needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04-arm
@@ -212,7 +212,7 @@ jobs:
     name: prove the kernel on x86_64
     needs: [gate, scope]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.scope.outputs.needed == 'true' &&
       needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04
@@ -247,7 +247,7 @@ jobs:
     name: re-falsify the harnesses this change can reach
     needs: [gate, scope]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.scope.outputs.needed == 'true' &&
       needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04-arm
@@ -272,13 +272,16 @@ jobs:
   verify:
     name: verify (Kani proofs)
     needs: [gate, scope, prove, prove-kernel-x86_64]
-    # **`always()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
+    # **`!cancelled()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
     # scope job says the proofs are not needed, and a required check that never reports blocks the
     # merge forever, which notes/repo-hardening.md names as the single most likely way to get this
     # wrong. It must always run and always report -- except on a draft, which can never reach the
-    # merge queue in the first place, so there is nothing here for `always()` to protect yet.
+    # merge queue in the first place, so there is nothing here for it to protect yet. It is
+    # `!cancelled()` rather than `always()` so a run superseded by a newer push or by
+    # `ready_for_review` stops instead of reporting a spurious failure from cancelled shards and
+    # holding the concurrency group; ci.yml's draft gate has the incident (2026-09-24, #1202).
     if: >-
-      always() &&
+      !cancelled() &&
       needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04-arm
     # Reads two strings. The proving is upstream; nothing here needs a toolchain, a checkout or a
