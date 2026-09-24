@@ -28,13 +28,13 @@
 //!   other property is copied as it was.
 
 /// The device-tree magic, big-endian at offset 0.
-const MAGIC: u32 = 0xd00d_feed;
-const HEADER_LEN: usize = 40;
-const BEGIN_NODE: u32 = 1;
-const END_NODE: u32 = 2;
-const PROP: u32 = 3;
+pub(crate) const MAGIC: u32 = 0xd00d_feed;
+pub(crate) const HEADER_LEN: usize = 40;
+pub(crate) const BEGIN_NODE: u32 = 1;
+pub(crate) const END_NODE: u32 = 2;
+pub(crate) const PROP: u32 = 3;
 const NOP: u32 = 4;
-const END: u32 = 9;
+pub(crate) const END: u32 = 9;
 
 const INITRD_START: &[u8] = b"linux,initrd-start";
 const INITRD_END: &[u8] = b"linux,initrd-end";
@@ -146,13 +146,13 @@ fn find_string(strings: &[u8], name: &[u8]) -> Option<usize> {
     None
 }
 
-struct Out<'a> {
-    buf: &'a mut [u8],
-    at: usize,
+pub(crate) struct Out<'a> {
+    pub(crate) buf: &'a mut [u8],
+    pub(crate) at: usize,
 }
 
 impl Out<'_> {
-    fn bytes(&mut self, b: &[u8]) -> Result<(), Error> {
+    pub(crate) fn bytes(&mut self, b: &[u8]) -> Result<(), Error> {
         let end = self.at + b.len();
         self.buf
             .get_mut(self.at..end)
@@ -161,10 +161,10 @@ impl Out<'_> {
         self.at = end;
         Ok(())
     }
-    fn u32(&mut self, v: u32) -> Result<(), Error> {
+    pub(crate) fn u32(&mut self, v: u32) -> Result<(), Error> {
         self.bytes(&v.to_be_bytes())
     }
-    fn pad_to(&mut self, align: usize) -> Result<(), Error> {
+    pub(crate) fn pad_to(&mut self, align: usize) -> Result<(), Error> {
         while !self.at.is_multiple_of(align) {
             self.bytes(&[0])?;
         }
