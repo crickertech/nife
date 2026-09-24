@@ -56,11 +56,11 @@ Four things came out of it that were not in the plan below.
   pipeline and `DESTROY`s it, and that is what turns a dead reader into `Gone`.
 
 **The append lane finished it 2026-08-02** (`line::Mode`, `swish`'s `open_sink`,
-`cargo xtask shell-check`). `>>` is the cheapest of the four operators and that is DECISIONS §55
+`cargo xtask swish-check`). `>>` is the cheapest of the four operators and that is DECISIONS §55 (the file behind a `>` is the shell itself)
 paying out: the shell already backs the file, so append is one bit about how it opens one, and
 `grant_plan` asserts that `date > f` and `date >> f` plan to endowments equal in every other field.
 That lane also built the gate notes/pipes.md named as the milestone's most valuable missing test:
-`script/shell-check` boots `--features shell` on both ISAs and types at the prompt, which is the
+`script/swish-check` boots `--features shell` on both ISAs and types at the prompt, which is the
 only thing in the tree that runs the real `system_initializer`.
 
 **What the following paragraph listed as open is closed; kept for the reasoning, superseded on

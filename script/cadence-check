@@ -120,7 +120,7 @@
 #
 # Name: provisional. Minted 2026-09-03. `cadence` is the word this tree already uses for the thing
 # being checked (`audit-cadence.yml`, `stranger-cadence.yml`, and milestone 232's own prose about
-# "a dead cadence"), and the `-check` suffix is established here in `shell-check`, `qemu-check`
+# "a dead cadence"), and the `-check` suffix is established here in `swish-check`, `qemu-check`
 # and `undefined-behavior-check`, which calef ratified on 2026-08-03. Refused `workflow-health`
 # (it names GitHub's noun rather than the function, and this is about whether an answer is still
 # arriving, not about whether a workflow is well) and `schedules` (a plural noun names an

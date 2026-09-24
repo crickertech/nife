@@ -5,7 +5,7 @@
 *(Number provisional until the merge queue lands it.)*
 
 It was minted with no gate and needed none. What it produces is itself a check: every boot now prints
-`capability slots: 21 of 24 at peak`, `script/shell-check` echoes the last such line on both
+`capability slots: 21 of 24 at peak`, `script/swish-check` echoes the last such line on both
 architectures, and that check fails if the kernel flagged the boot as having gone past the peak
 recorded beside the constant.
 
@@ -53,7 +53,7 @@ same shape as this file's `size_of::<Cap>() == 32` assertion, which its own comm
 not a target". A margin picked from one boot would have been the fourth deleted check; a fact that
 stopped being true is not a margin.
 
-**Whether `script/shell-check` asserts on it: yes, on two things.** That the line is printed at all,
+**Whether `script/swish-check` asserts on it: yes, on two things.** That the line is printed at all,
 because a gauge that quietly stopped printing is one nobody misses until the wall arrives again,
 which is exactly how the constant came to be raised three times reactively. And that it does not say
 `ABOVE`. It also **echoes the line on success**, so the number is in every CI log a person reads
@@ -99,7 +99,7 @@ milestone is what would replace it.
   reader who needs the owner is back to instrumenting, which is what this milestone was written
   against; closing it is a scan at print time and nothing else, and it was left out rather than
   designed away.
-- **The gauge is only read by `script/shell-check`.** `script/test` never boots the real init, so the
+- **The gauge is only read by `script/swish-check`.** `script/test` never boots the real init, so the
   suite's own peak is never checked against anything, and the recorded-measurement arm is compiled
   out of the test kernel on purpose (the guest suite runs a much larger workload through the same
   kernel, so a test going past 21 would be true and misleading). Every other boot mode prints the
@@ -124,7 +124,7 @@ milestone is what would replace it.
   cannot be keyed by a const generic, and naming the owner means walking every thread under the
   scheduler lock, which is the scan the atomic exists to avoid. Closing it is a scan at print time
   and nothing else; it was left out rather than designed away.
-- **Recorded.** `design/roadmap/231-capability-slot-high-water-mark.md`. Only `script/shell-check`
+- **Recorded.** `design/roadmap/231-capability-slot-high-water-mark.md`. Only `script/swish-check`
   reads the gauge. `script/test` never boots the real init, so the suite's own peak is checked
   against nothing, and the recorded-measurement arm is compiled out of the test kernel on purpose:
   the guest suite runs a much larger workload through the same kernel, so a test going past 21 would
@@ -147,4 +147,4 @@ milestone is what would replace it.
 
 **Built:** 2026-09-02
 
-the table counts its own peak, the boot prints `capability slots: 21 of 24 at peak`, and `script/shell-check` fails when the recorded measurement goes stale
+the table counts its own peak, the boot prints `capability slots: 21 of 24 at peak`, and `script/swish-check` fails when the recorded measurement goes stale

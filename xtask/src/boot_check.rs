@@ -17,7 +17,7 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 /// - The kernel boots at all, on all three architectures, in the configuration a person gets by
 ///   typing `cargo xtask run`. Nothing else in CI boots the default riscv64 or `x86_64` kernel; the
 ///   suite boots a `#[cfg(test)]` build that exits through semihosting before the tour, and
-///   `shell-check` boots `--features shell` on two architectures.
+///   `swish-check` boots `--features shell` on two architectures.
 /// - The machine description printed to its end (`Stage::Machine` is its *last* line).
 /// - Every one of the boot self-tests passed, by reading the verdict the kernel printed rather
 ///   than by inferring anything from an exit status the kernel never produces: a default boot
@@ -43,7 +43,7 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 /// same way) exists to remove.
 ///
 /// **No disk, still.** Nothing here types, so nothing here needs a filesystem; `<` and `>` are
-/// `cargo xtask shell-check`'s business. The archive is the one thing a prompt cannot be reached
+/// `cargo xtask swish-check`'s business. The archive is the one thing a prompt cannot be reached
 /// without: the kernel hands the machine to the progenitor, which loads the console, the line
 /// discipline, the input driver and `swish` out of it by name.
 ///
@@ -64,10 +64,10 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 /// gate's twenty seconds, for the rung that is the stated terminal state of a boot, was worth
 /// taking.
 ///
-/// **It is the PVH `-kernel` boot on `x86_64`, not the UEFI image.** `shell-check`'s `x86_64` leg
+/// **It is the PVH `-kernel` boot on `x86_64`, not the UEFI image.** `swish-check`'s `x86_64` leg
 /// boots `BOOTX64.EFI` under OVMF and pays about six minutes for it, because under firmware the
 /// console server waits for every byte to be painted on the screen. That is milestone 400 (the
-/// shell on the firmware's screen), and what its fidelity buys `shell-check` is the loader, the
+/// shell on the firmware's screen), and what its fidelity buys `swish-check` is the loader, the
 /// firmware memory map and the screen tee. It buys this gate nothing it asserts: the prompt
 /// arrives on COM1 either way, and this is a pre-push gate. So the two legs boot different images
 /// on purpose, and the slow one is the one that types.
@@ -83,7 +83,7 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 /// - **The prompt rung is the shell's banner, not the `$ `.** `boot_ladder::PROMPT`'s own `BUGS`
 ///   says why (two bytes is too weak to key on in a log that has just carried a kilobyte of hex),
 ///   and the consequence is this gate's: it proves `swish` started and printed, not that a prompt
-///   was offered or that anything could be typed at it. `cargo xtask shell-check` makes the
+///   was offered or that anything could be typed at it. `cargo xtask swish-check` makes the
 ///   stronger claim by typing, on every architecture, and this one does not duplicate it.
 /// - **One emulator was found orphaned after about fifteen `x86_64` boots** (2026-09-19),
 ///   reparented to `launchd` and still running half an hour later, holding this lane's kernel and
@@ -96,7 +96,7 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 ///   panics reports the self-test failure and not the panic. That is the right first thing to
 ///   report and the log has the rest, but a reader should know the report is the *first* failure
 ///   rather than the worst.
-/// - **Name provisional** (milestone 268). `boot-check` sits beside `shell-check` and is named the
+/// - **Name provisional** (milestone 268). `boot-check` sits beside `swish-check` and is named the
 ///   same way, which is a virtue and also inherits that name's recorded problem: `script/lint`
 ///   runs `shellcheck`, and this family of `-check` entry points is one hyphen away from several
 ///   unrelated things. calef has not ruled.
@@ -115,7 +115,7 @@ pub(crate) fn boot_check() -> bool {
     };
     let inject = std::env::args().any(|a| a == "--inject");
 
-    // TCG only, for `shell-check`'s reason: this boot never exits, so it is killed rather than
+    // TCG only, for `swish-check`'s reason: this boot never exits, so it is killed rather than
     // waited on, and there is nothing acceleration would buy a gate that spends its time waiting
     // for a line on a serial port.
     // SAFETY: xtask is single-threaded here. This runs on the main thread before any child that

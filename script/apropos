@@ -70,7 +70,7 @@
 #   cache that can be stale is worse here than a second of work.
 # - **The first stranger it was built for never ran it, and had the name in front of it three
 #   times.** Milestone 117's run 5 (2026-08-18) listed `script/`, read the guest's `apropos` builtin
-#   in `crates/swish/src/lib.rs` and read `apropos photosynthesis` in `SHELL_CHECK_SCRIPT`, and ran
+#   in `crates/swish/src/lib.rs` and read `apropos photosynthesis` in `SWISH_CHECK_SCRIPT`, and ran
 #   none of them, so it reached no `design/decisions/` file and never opened `notes/net.md`, the gap
 #   this was written to close. The reason was placement: the only page that said what this does was
 #   `notes/scripts.md`, which no stranger had opened. **Placed 2026-09-19**, in `README.md`'s

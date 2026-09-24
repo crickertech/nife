@@ -96,7 +96,7 @@ the names this run has already taken away.
 
 - **`rm` runs at the interactive prompt only for a name one directory down** (milestone 31 phase 3,
   2026-08-17). Init builds a `fs_subtree_caretaker` per grant now, so `rm rmtree/rm-solo` works and is
-  gated on both ISAs by `script/shell-check`. `rm gate.txt` typed at the top prompt is still a refusal
+  gated on both ISAs by `script/swish-check`. `rm gate.txt` typed at the top prompt is still a refusal
   with nothing spawned, and the reason is a fact about names rather than a missing feature: a
   caretaker's whole attenuation is one `OPENDIR` *into* the granted directory and the root has no name
   to descend into. `rm a/b/c.txt` is refused for the neighbouring reason, that progenitor builds one

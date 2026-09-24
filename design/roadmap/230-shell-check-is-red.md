@@ -8,6 +8,11 @@ It was minted with no gate, on the grounds that the defect was reproducible on p
 nothing this project does not have. That held: it was reproduced, root-caused, bisected to a merge,
 fixed, and `script/shell-check` is green on both architectures.
 
+**The script is `script/swish-check` since 2026-09-23**, and this block keeps the old name
+throughout, including in its title and its filename, because it is an account of what happened under
+the name it happened under. The rename's reasons are in `script/swish-check`'s own `Name:` block:
+one hyphen from `shellcheck`, and `shell` no longer naming any program here.
+
 **In brief.** With a virtio-rng attached, which both plain legs set unconditionally via `NIFE_RNG=1`,
 the interactive boot **traps in init at `user_rt::trap` with no message**. The same build with the
 device absent reaches a prompt normally. The cause is capability-slot exhaustion in
@@ -261,12 +266,13 @@ accounting move together and want a lane of their own.
   which is one address per program however many callers it has. The return address is in `x30`, `ra`
   or on the stack at the moment the kernel takes the fault and is not printed. The workaround that
   worked here is to fault on a *data* address derived from it, since `far` is printed.
-- **Recorded.** `script/shell-check`'s own BUGS says where the error moved: a boot that both stopped
+- **Recorded.** `script/swish-check`'s own BUGS (the script this block calls `shell-check`
+  throughout) says where the error moved: a boot that both stopped
   reporting and faulted passes, because `boot_claim`'s third case reads a concurrent kernel write as
   the explanation for an unreadable line and cannot tell that from init having gone silent in the
   same boot. The trade is deliberate, since a false red taxes every lane whose change had nothing to
   do with it and a false green is undone by repetition.
-- **Recorded.** `script/shell-check` also carries the residual in that third case: "was the kernel
+- **Recorded.** `script/swish-check` also carries the residual in that third case: "was the kernel
   writing during the boot" is six exact searches for short kernel strings, and a boot that destroyed
   all six would give the false red this design otherwise rules out structurally. Six independent
   chances is a better bet than one, not a proof.

@@ -44,7 +44,7 @@ default kernel **with** `-initrd` under `scripts/qemu-bounded.sh` and asks wheth
 
 **Two prior rulings pull in opposite directions on placement, which is why this is a decision:**
 
-- **`script/shell-check` and `script/boot-check` were both put in `script/ci-build`'s table**, for
+- **`script/swish-check` and `script/boot-check` were both put in `script/ci-build`'s table**, for
   the same "reuse the build" reason, and that is the tree's recent habit.
 - **§74 ruled the other way for audits**: event triggers first, a count second, the calendar only as
   a backstop, on the reason that "eventually is the wrong word" for something that matters. And
@@ -52,7 +52,7 @@ default kernel **with** `-initrd` under `scripts/qemu-bounded.sh` and asks wheth
   posture that applies here unchanged.
 
 **And `script/boot-check`'s own BUGS is the shape to copy rather than repeat.** It records that it
-does not check the prompt, that `script/shell-check` reaches one on two of three architectures, and
+does not check the prompt, that `script/swish-check` reaches one on two of three architectures, and
 that asserting it on two of three would be the defect milestone 268 existed to fix. A tour check is
 riscv64-only by construction, so it meets the same objection and has to answer it out loud.
 
@@ -83,8 +83,8 @@ recogniser is a separate, later question.
 ## The other two architectures, named so they are not discovered later
 
 aarch64's equivalent of the tour is the `initboot` path and it **is** exercised, by
-`script/shell-check`. x86_64 has neither a shell boot nor a tour step that loads userspace from an
-archive, and `shell_check()` says so in its own comment. So this is riscv64-shaped on purpose, and a
+`script/swish-check`. x86_64 has neither a shell boot nor a tour step that loads userspace from an
+archive, and `swish_check()` says so in its own comment. So this is riscv64-shaped on purpose, and a
 general "boot every architecture's default kernel and read the transcript" is a larger thing that
 should be argued for separately rather than assumed here.
 

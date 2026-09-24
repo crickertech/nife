@@ -8,7 +8,7 @@ proved by nothing a mutation can reach) recorded limitation. Built 2026-09-03 by
 
 **The decision moved to `measured_boot::verdict`**, beside `verify_in_manifest`, whose rule it
 applies. `system_initializer::measured` is now one line: an archive read and a call. Nothing about
-the boot path changed, and `script/shell-check` still proves that the boot makes the call.
+the boot path changed, and `script/swish-check` still proves that the boot makes the call.
 
 **`Lookup` did not have to move, which is the `BUGS` clause below not firing.** The signature takes
 `Option<&[u8]>` rather than a `nifefs::Fs`, so the crate gained no archive dependency and the caller
@@ -47,7 +47,7 @@ if measured_boot::verify_in_manifest(table, name, bytes).is_err() {
 ```
 
 **Change that `true` to `false` and an unvouched binary starts.** Nothing goes red. Milestone 244
-measured that and recorded it beside the code: the function is *"proved only by `script/shell-check`
+measured that and recorded it beside the code: the function is *"proved only by `script/swish-check`
 booting a system whose table happens to be right"*, which exercises the accept path and never the
 refuse path.
 
@@ -77,7 +77,7 @@ disagree, asserting `unvouched` is set and no `Elf` is returned; and the mutant 
 turning it red. State the mutant that was run and that it was caught, the way milestone 193's block
 states its falsification.
 
-Not a test that only takes the accept path, which `script/shell-check` already does better.
+Not a test that only takes the accept path, which `script/swish-check` already does better.
 
 ## Follow-on
 
@@ -102,7 +102,7 @@ Not a test that only takes the accept path, which `script/shell-check` already d
   of its 196 mutants stay unreachable by construction; milestone 244's block carries the split.
 - **A refusal proved on the host is not a refusal proved on the boot path.** The host test asserts
   the function's contract; that the boot *calls* it, on both ISAs, with the table the kernel measured,
-  stays `script/shell-check`'s claim and nothing here strengthens it.
+  stays `script/swish-check`'s claim and nothing here strengthens it.
 - **`Lookup` did not have to move as a `nifefs`-shaped thing, but a struct did become public.**
   `measured_boot::Verdict` is the old private `Lookup`, and `measured_boot` gained a dependency on
   `elf`. That is the smallest version of the cost this clause anticipated, not none of it.

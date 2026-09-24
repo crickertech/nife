@@ -21,14 +21,14 @@ order, and offers no way to place one at a slot the caller names. Three named sl
 `script/test` can spawn a program holding any of them**, because the only builder that can place at a
 named slot is `supervision_protocol::build_child`, which runs in userspace inside
 `crates/system_initializer`. So every claim about a named slot's *endowed* direction is proven only
-by `script/shell-check`, which boots the real init twice and is one gate rather than the suite.
+by `script/swish-check`, which boots the real init twice and is one gate rather than the suite.
 
 ## What it already costs, twice, in the tree as it stands
 
-- **`date`'s declared second stream** (DECISIONS §67). `xtask`'s own shell-check list says it
+- **`date`'s declared second stream** (DECISIONS §67 (a program's second stream is a declaration, not a number)). `xtask`'s own swish-check list says it
   plainly: "the guest tests wire the shell from the kernel, whose `Spawn` fills a capability table
   from zero and cannot place a capability at the slot a manifest names, so `date` there never
-  receives a second stream." Four assertions about `2>` live in shell-check for that reason alone.
+  receives a second stream." Four assertions about `2>` live in swish-check for that reason alone.
 - **Milestone 111's entropy endowment.** The refusal direction is a guest test on all three
   architectures (`kernel::user::uuid_tests`), because an *empty* slot needs no placement. The
   endowed direction has no guest test at all, on any ISA, and the milestone's own `BUGS` records it.
@@ -41,10 +41,10 @@ named slot inherits the gap for free.
 **It is a parity claim that no ISA runs.** DECISIONS §19 says a kernel capability ships on every
 supported architecture proven by the same suite, or a scope note records the gap. Here the gap is
 not per-ISA, it is total: the suite proves the refusal everywhere and the grant nowhere, and the one
-thing that does prove the grant runs on two architectures rather than three (`script/shell-check`
+thing that does prove the grant runs on two architectures rather than three (`script/swish-check`
 has no x86_64 leg).
 
-**And shell-check is a boot, not a unit.** It types at a prompt and greps a transcript, so it can
+**And swish-check is a boot, not a unit.** It types at a prompt and greps a transcript, so it can
 say "the row printed" and cannot say "the capability carried exactly `WRITE` and not `READ`". A
 guest test holds the `Cap` it granted and can assert the rights on it, which is the half that
 actually distinguishes an over-grant from a correct one. Milestone 126 found a real `READ`-instead-
@@ -69,7 +69,7 @@ field and update 91 sites once. The first is better and is why this is a lane ra
   architectures, with the rights on the capability asserted rather than inferred from a transcript.
 - The same for `ps`/`pgrep`/`watch`'s domain slot, which today is proven by
   `kernel::user::survey_tests` building its own domain rather than by a spawn that mirrors init's.
-- `date`'s second stream under `script/test`, retiring four shell-check lines that exist only
+- `date`'s second stream under `script/test`, retiring four swish-check lines that exist only
   because nothing else can run them.
 - Every future named slot, which currently starts life untestable.
 
@@ -86,9 +86,9 @@ and offers no way to place one at a slot the caller names, so no test under `scr
 program holding any of the three named slots (`grant_plan::DOMAIN_SLOT` at 7, `DIAGNOSTICS_SLOT` at
 8, `ENTROPY_SLOT` at 9). The only builder that can place at a named slot runs in userspace inside
 `crates/system_initializer`, which means every claim about a named slot's *endowed* direction is
-proven by `script/shell-check` alone: one gate rather than the suite, on two architectures rather
+proven by `script/swish-check` alone: one gate rather than the suite, on two architectures rather
 than three. That makes it a total parity gap rather than a per-ISA one, which is the case DECISIONS
-§19 is about, and shell-check is a boot rather than a unit, so it can say the row printed and cannot
+§19 (architectural parity is a tenet) is about, and swish-check is a boot rather than a unit, so it can say the row printed and cannot
 say the capability carried exactly `WRITE` and not `READ`. Milestone 126 found a real
 `READ`-instead-of-`ENUMERATE` over-grant on a named slot by reading code, and nothing in the suite
 would have caught it. It already costs the tree twice, in `date`'s declared second stream and in

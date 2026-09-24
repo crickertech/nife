@@ -25,7 +25,7 @@ image root.
 
 Milestone 31's whole claim is that typing a name is the grant. At the top prompt that claim is
 false, for a reason a user cannot see and cannot work around: the same command on the same file
-succeeds or is refused depending on how deep the file sits. `script/shell-check` gates the working
+succeeds or is refused depending on how deep the file sits. `script/swish-check` gates the working
 case on both ISAs, so the gap is not a regression risk; it is a permanent hole in the headline
 demonstration, and it is the first thing a newcomer typing at the prompt will hit, because the top
 of a namespace is where anyone starts.

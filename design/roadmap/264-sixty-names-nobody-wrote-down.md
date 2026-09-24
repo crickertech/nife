@@ -203,13 +203,18 @@ needs a file of its own; what is listed here is where to read it and what happen
   deleted, so the script, the subcommand and the feature are all gone and this bullet is closed by
   subtraction rather than by spelling. The header that carried this argument went with the script;
   it is in git and quoted in 296's block.
-- **Recorded.** **`script/shell-check` wants a name that is not one hyphen from `shellcheck`**, in
-  that script's header. `shellcheck` is the shell linter `script/lint` itself runs, so two names
+- **Recorded.** **`shell-check` wanted a name that is not one hyphen from `shellcheck`**, and got
+  one; the argument is in `script/swish-check`'s header. `shellcheck` is the shell linter `script/lint` itself runs, so two names
   differ by punctuation while naming unrelated things. Compounding it, design/naming.md's BUGS already
   records that `shell` no longer names any program here, because the shell is `swish`. The case is
   for `swish-check`, naming the program actually driven, with `prompt-check` the alternative if he
   would rather name the surface. Two loose ends the rename carries without closing: the cargo feature
   is spelled `shell`, and `cargo xtask shell-check` is the same string one level along.
+  **Ratified 2026-09-23**: calef ruled `swish-check`, and the script, the subcommand and the xtask
+  module were renamed the same day. `prompt-check` was refused for naming a surface rather than the
+  binary. The cargo feature is still spelled `shell` and was deliberately left, since it is not the
+  name that misleads a reader at the command line. This bullet keeps the old name because it is the
+  record of why the name lost.
 - **Milestone 388.** The 2026-09-05 acronym test reaches at least seven of the sixty and this
   milestone deliberately settled none of them, because design/naming.md already says the sweep is
   its own milestone and one lane spelling one acronym out would leave a program disagreeing with a

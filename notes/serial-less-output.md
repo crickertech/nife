@@ -2,7 +2,7 @@
 
 Milestone 243 (a machine with no serial port). Every word nife had ever said, it said down a UART: the boot tour on all three
 architectures, the console server and the shell, the kernel's fault reports, and **every automated
-gate that reads any of them** (`script/board-console`, the soak's heartbeat, `script/shell-check`,
+gate that reads any of them** (`script/board-console`, the soak's heartbeat, `script/swish-check`,
 `crates/board_console`'s stage judging).
 
 A commodity machine does not have one. xenon does, and that was chosen rather than lucky: milestone
@@ -401,7 +401,7 @@ is U-Boot, and that is milestone 157's `simple-framebuffer` handoff. The board w
   last line reads as two blanks and a number on the screen. The serial console shows it correctly and
   the two transcripts therefore differ by exactly the non-ASCII characters in them.
 - **`board_console::screen` duplicates a decoder `xtask` already has.** Milestone 177's graphical
-  `shell-check` leg carries `parse_ppm`, `decode_cell` and `scanout_rows` in `xtask/src/scanout.rs`,
+  `swish-check` leg carries `parse_ppm`, `decode_cell` and `scanout_rows` in `xtask/src/scanout.rs`,
   hardcoded to the compositor's geometry and the terminal's default colours. The two should be one
   crate; unifying them touches another milestone's gate and is a proposal rather than a drive-by.
 - **The other two architectures have a screen under the emulator and none on silicon.** The

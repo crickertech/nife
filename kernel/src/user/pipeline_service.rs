@@ -367,7 +367,7 @@ pub fn counts(said: &[u8]) -> (u64, u64, u64) {
 /// need a capability this stub has nothing behind (a file service to attenuate, a fault target to
 /// install), so neither bit is drained off the wire here, and a line that set one would desync the
 /// two sides' shared count of delegated capabilities. No guest test routes either shape through
-/// this path today; both are exercised only against the real progenitor, by `script/shell-check`.
+/// this path today; both are exercised only against the real progenitor, by `script/swish-check`.
 fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
     loop {
         let m = crate::sched::ipc_recv(spawn_ep);
@@ -393,7 +393,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
         // fills from zero and has no way to name slot eight), so `date` here finds an empty
         // diagnostic slot and says what it has to say in-band, exactly as it did before the second
         // stream existed. **So this is the fallback path under test**, and the real one is
-        // `script/shell-check`, which runs `user/src/system_initializer.rs`.
+        // `script/swish-check`, which runs `user/src/system_initializer.rs`.
         //
         // Receiving the capability is what keeps the two sides in lockstep, and closing the stream
         // is what stops the shell waiting for an end-of-stream from a program that was never handed

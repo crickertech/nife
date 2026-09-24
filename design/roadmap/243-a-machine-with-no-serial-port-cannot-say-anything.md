@@ -147,7 +147,7 @@ replacing it is harder than it looks.
   of this block that QEMU answered and silicon did not.
   `design/roadmap/369-a-gate-that-can-read-a-machine-with-no-serial-port.md`.
 - **Milestone 377.** One screendump decoder rather than two: milestone 177's graphical
-  `shell-check` leg carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this
+  `swish-check` leg carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this
   milestone wrote a second, more general one in `board_console::screen`.
   `design/roadmap/377-one-screendump-decoder-not-two.md`.
 - **Done.** Problem 3, early boot, closed 2026-09-19. The premise was checked and half of it is true:

@@ -33,7 +33,7 @@
 # machine to the progenitor, which loads the console, the line discipline, the input driver and
 # `swish` out of it by name. Nothing here types, so nothing here needs a filesystem.
 #
-# **It boots the PVH `-kernel` image on x86_64, not the UEFI one.** `script/shell-check`'s x86_64
+# **It boots the PVH `-kernel` image on x86_64, not the UEFI one.** `script/swish-check`'s x86_64
 # leg boots `BOOTX64.EFI` under OVMF and pays about six minutes for it, because under firmware the
 # console server waits for every byte to be painted on the screen. That is milestone 400 (the shell
 # on the firmware's screen), and its fidelity buys the typing gate the loader, the firmware memory
@@ -45,7 +45,7 @@
 # **The prompt rung is the shell's banner, not the `$ `.** Two bytes is too weak to key on in a log
 # that has just carried a kilobyte of hex (`crates/boot_ladder`'s own BUGS). So this proves `swish`
 # started and printed, not that a prompt was offered or that anything could be typed at it;
-# `script/shell-check` makes the stronger claim by typing, and this does not duplicate it.
+# `script/swish-check` makes the stronger claim by typing, and this does not duplicate it.
 #
 # **A riscv64 boot that wedges between its tour and its prompt takes the full 180-second cap to
 # report**, rather than the 30-second quiet window, because that window is suppressed from the
@@ -65,7 +65,7 @@
 # exits). Run it when you touch the boot path, the machine description, the self-tests, or what the
 # hand-over grants userspace.
 #
-# Name: provisional (milestone 268). It sits beside `script/shell-check` and is named the same way,
+# Name: provisional (milestone 268 (every architecture boots the same way)). It sits beside `script/swish-check` and is named the same way,
 # which is deliberate and also inherits that name's recorded problem: `script/lint` runs
 # `shellcheck`, and this family of `-check` entry points is one hyphen from several unrelated
 # things. calef has not ruled.

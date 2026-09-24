@@ -6,7 +6,7 @@ own interactive-boot entry point first") needs a from-scratch ELF-loading boot p
 substantially larger, separate undertaking than pieces 1-2's device attachment and program swap.
 Built in part on 2026-09-14, inside [milestone 268](268-the-boot-ladder.md)'s lane, because 268's
 top rung on x86_64 is not reachable any other way; the prompt came with
-[milestone 299](299-x86-port-capability.md) on 2026-09-15; the third `script/shell-check` leg,
+milestone 299 (the x86 port-range capability) on 2026-09-15; the third `script/swish-check` leg,
 the last outstanding item, on 2026-09-19 (below, "The third leg").
 
 DECISIONS §149 was resolved 2026-09-15 by reversing DECISIONS §121 (`AMENDED`):
@@ -55,7 +55,7 @@ the 2026-09-09 amendment above; kept as the record of what was believed.)*
    2026-09-14.**
 2. **The x86_64-specific capability grants** the other two boots each hand-assemble for their own
    architecture. **Built for everything but the console**, which is the §149 question.
-3. **A third `script/shell-check` `--arch` leg.** **Built 2026-09-19**; see "The third leg".
+3. **A third `script/swish-check` `--arch` leg.** **Built 2026-09-19**; see "The third leg".
 
 ## What was built (2026-09-14)
 
@@ -165,8 +165,8 @@ Priced against the tree as it stands, so the ruling can be made without reading 
 
 ## The third leg (2026-09-19)
 
-`script/shell-check --arch x86_64` boots x86_64 to its prompt and types the same
-`SHELL_CHECK_SCRIPT` the other two legs type, over COM1, and checks every answer. `script/shell-check`
+`script/swish-check --arch x86_64` boots x86_64 to its prompt and types the same
+`SWISH_CHECK_SCRIPT` the other two legs type, over COM1, and checks every answer. `script/swish-check`
 with no arguments now runs all three.
 
 ### Which boot it drives, and what that costs
@@ -199,7 +199,7 @@ overhead: they are what milestone 400's "the serial console now waits for the sc
 measured at the prompt instead of described. Would UEFI still win if both cost the same? Yes; this
 was not decided on effort, and the cost it does carry is stated so it can be weighed.
 
-**What it costs CI, and the per-line bound it needed.** `script/ci-build`'s `shell-check` row runs
+**What it costs CI, and the per-line bound it needed.** `script/ci-build`'s `swish-check` row runs
 every leg, so CI's `build + test` job gains this one with no workflow change. The first CI run
 (35463884897) went red on it: `caps ps`, 16.7 s on patagonia, did not finish inside the 30 s
 per-line bound the other legs use. Nothing was wrong but speed, so the leg's bound was measured
@@ -212,7 +212,7 @@ rather than raised by feel (every leg now prints its line count, total and three
 | x86_64 (OVMF) | 60 | 321.1 s | 24.7 s (`xargs caps rm globmany/m-*.txt`), 16.7 s (`caps ps`) |
 
 That CI runner was 1.5x to 1.8x slower than patagonia on this leg, so the x86_64 bound is **90 s**
-(`SHELL_CHECK_X86_LINE_SECS`): 3.6x the slowest local line, 2x that line at CI's worst ratio. The
+(`SWISH_CHECK_X86_LINE_SECS`): 3.6x the slowest local line, 2x that line at CI's worst ratio. The
 cost is the screen path, milestone 400's console waiting for each write to be painted and copied
 into an uncacheable aperture, as debug builds under TCG; the other two legs run the same shell
 over TCG in under a second a line. A real PC pays that copy in native stores (milliseconds per
@@ -247,7 +247,7 @@ says so where the step is), or the flush cost comes down in milestone 400's code
 ### The script lines, and the four it omits
 
 **60 of 64 lines run.** The omitted four are `uuid > id.txt`, `wc < id.txt`, `uuid 2> ent.txt` and
-`wc < ent.txt`, each carrying its reason in `shell_check_x86_omits` (`xtask/src/main.rs`), under the
+`wc < ent.txt`, each carrying its reason in `swish_check_x86_omits` (`xtask/src/main.rs`), under the
 rule milestone 150 added. The reason: `uuid` draws from the entropy service, which the progenitor
 builds only from a virtio-rng the kernel found, and the kernel finds one only on a virtio-mmio slot
 (`kernel::user::boot_virtio_rng_device`); `q35` has no mmio bus. `caps uuid` still runs, because it
@@ -265,7 +265,7 @@ than the number. See BUGS.
 
 ### Verified
 
-`script/shell-check --arch x86_64` green on seven runs on 2026-09-19: four at one core (the default),
+`script/swish-check --arch x86_64` green on seven runs on 2026-09-19: four at one core (the default),
 two at `NIFE_SMP=2`, one with the final code. Typing before the prompt was also probed directly, at
 two cores: a line written to COM1 the moment the serial log showed `handing the system`,
 `every program measured` and `nife capability shell` was answered every time, within a second. So a
@@ -325,7 +325,7 @@ this milestone does not build.
 - **Recorded.** The stale gauge and the 100% core, in BUGS above and in `components/src/input.rs`.
 - **Recorded.** `uefi-test` red with the RedoxFS disk attached, in BUGS above and at
   `scripts/qemu-uefi-x86_64.sh`'s `NIFE_UEFI_REDOXFS`.
-- **Recorded.** The leg's CI cost, in `script/shell-check`'s header and `.github/workflows/ci.yml`;
+- **Recorded.** The leg's CI cost, in `script/swish-check`'s header and `.github/workflows/ci.yml`;
   measured in CI by this pull request's first green run.
 - **Milestone 268.** Its x86_64 top rung is reachable and gated by this leg; 268's own
   `boot-check`-asserts-the-prompt item is 268's.
@@ -338,5 +338,5 @@ this milestone does not build.
 
 x86_64's interactive boot: the kernel hands over to the progenitor through the shared
 `boot_progenitor`, the console is a userspace driver on a port-range capability (milestone 299), and
-`script/shell-check`'s third leg boots the customer's UEFI image under OVMF and types the shared
+`script/swish-check`'s third leg boots the customer's UEFI image under OVMF and types the shared
 script at the prompt, 60 of 64 lines, the four `uuid` lines omitted for want of an entropy device.

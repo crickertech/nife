@@ -270,7 +270,7 @@ Two facts apply to all of them and are measured, so they are stated once here ra
 **Retention costs a capability-table slot per retained child, and the budget is nearly spent.**
 `CAPABILITY_TABLE_SLOTS` is 24. `CAPABILITY_TABLE_PEAK_MEASURED` is **21**, in init, during
 `build_child` for `credentialer`, instrumented over four boots by milestone 230 and kept honest by
-`report_peak` and `script/shell-check` since milestone 231 (nothing counts how many capability slots
+`report_peak` and `script/swish-check` since milestone 231 (nothing counts how many capability slots
 a boot actually uses). **Three slots of headroom.** `crates/system_initializer`'s `boot` starts
 **twelve** children, all long-lived. Any answer that gives the spawner one more permanently held
 capability per child asks init for twelve slots against three, so it is not an increment; it forces a

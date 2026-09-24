@@ -274,7 +274,7 @@
 //! absent, unparseable and unvouched-for all become `care_elf = None` and a `DENIED` per login,
 //! which is the posture `crates/system_initializer` already had toward this exact component. And
 //! `init: login ready` is now `progenitor: login credentials provisioned`, which is what the first
-//! process actually measured; the survival claim moved to `script/shell-check`, which fails if the kernel reported
+//! process actually measured; the survival claim moved to `script/swish-check`, which fails if the kernel reported
 //! killing any user thread during the run.
 //!
 //! **What this cost in the currency that was scarce: nothing.** Milestone 231's gauge says the
@@ -434,10 +434,10 @@
 //! (riscv64) now discover a real virtio-rng device (MMIO only; the PCIe transport
 //! `kernel::user::entropy_service::start` also offers is real follow-on, not built here) and grant
 //! it to the progenitor as three capabilities (`BootEndowment::virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`),
-//! and the interactive boot's own QEMU invocation now attaches one (`xtask`'s `shell_check_leg` and
+//! and the interactive boot's own QEMU invocation now attaches one (`xtask`'s `swish_check_leg` and
 //! `"shell"` command both set `NIFE_RNG`, where before it was a test-leg-only flag). `crates/
 //! system_initializer::boot` builds a real entropy service from that grant, at the very top of the
-//! function, and proves it drew real device bytes before building anything else (`script/shell-check`
+//! function, and proves it drew real device bytes before building anything else (`script/swish-check`
 //! now reads `"progenitor: entropy service up; drew real bytes from a virtio-rng device"` on both
 //! ISAs; it said `init:` until milestone 266 renamed the program).
 //! **This is the harder half of the original blocker, and it required no help from this program**:
@@ -989,7 +989,7 @@ fn serve_login(
             // could never have delegated `READ` here at all. Asking for it was over-specifying a
             // right this protocol never needed, harmless under the kernel test harness (which
             // mints capabilities directly, unconstrained by what a real boot could pass on) and
-            // silently unbuildable under a real one; found by `script/shell-check` refusing this
+            // silently unbuildable under a real one; found by `script/swish-check` refusing this
             // exact `SEND_CAP` from a WRITE-only source.
             delegate(channel.result, FS_PAGE_FRAME, abi::rights::WRITE);
             delegate(

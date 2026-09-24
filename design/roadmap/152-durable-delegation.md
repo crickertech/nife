@@ -218,7 +218,7 @@ re-deriver's own `FS_EP` (it holds one unnarrowed capability for its whole pass,
 own BUGS). No liveness watchdog for a re-deriver that hangs before its deletion pass runs (§123's
 hardening addendum names this gap and explicitly declines to design it; this lane does not either).
 Wiring `session_reviver` into a real boot (`crates/system_initializer::boot` or an interactive
-`cargo xtask shell-check`) rather than the kernel test harness that spawns it here remains open, the
+`cargo xtask swish-check`) rather than the kernel test harness that spawns it here remains open, the
 same "not wired into the interactive boot" bound several of this milestone's own dependencies already
 carry.
 

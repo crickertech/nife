@@ -225,7 +225,7 @@
 # **A stranger that backgrounds its work and ends its turn to wait ends the run.** `claude -p`
 # finishes at the first turn that ends, and the CLI now gives a stranger tools to run things in
 # the background and to schedule a wake-up. Run 6's stranger started an x86_64 re-test and a
-# `script/shell-check` in the background, wrote "Waiting for both background runs to complete",
+# `script/swish-check` in the background, wrote "Waiting for both background runs to complete",
 # and the session ended: **no write-up was produced**, and both runs were killed at teardown. The
 # debriefs recovered most of what the write-up would have said, because they resume the session.
 # This is the failure AGENTS.md records for lanes ("ending a turn to wait for the notification"),

@@ -2935,7 +2935,7 @@ mod printenv_tests;
 /// prints no identifier at all, says why, and ends normally. That is the direction the milestone
 /// rests on, because randomness is the one authority whose use leaves no trace in what a program
 /// does; only removing the capability distinguishes a program that drew bytes from one that
-/// invented them. The endowed direction is proven at the real prompt by `script/shell-check`,
+/// invented them. The endowed direction is proven at the real prompt by `script/swish-check`,
 /// through the real `crates/system_initializer`, for the reason this module's own
 /// `spawn_uuid_holding_no_entropy` records: `Spawn::grants` fills a capability table from zero and
 /// cannot place one at the slot a manifest names.

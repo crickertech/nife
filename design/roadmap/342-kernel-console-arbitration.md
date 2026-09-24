@@ -4,7 +4,7 @@
 from milestone 230's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** Nothing in `design/decisions/` answers it: §149 (may the kernel answer on an endpoint)
 decided how a program *reaches* a console server and was itself dissolved by §121's reopening, which
-is a different question. `script/shell-check`'s own `BUGS` still describes the interleaving as a live
+is a different question. `script/swish-check`'s own `BUGS` still describes the interleaving as a live
 defect in the system rather than in the script, and milestone 243's `BUGS` still records that it "has
 its own home", which is this block.
 

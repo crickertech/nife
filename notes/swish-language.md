@@ -2,7 +2,7 @@
 
 *Milestone 67. `crates/grant_plan/src/word.rs`, `crates/grant_plan/src/line.rs`,
 `crates/swish/src/sequence.rs`, `crates/swish/src/lib.rs`, `components/src/swish.rs`,
-`kernel/src/user/language_tests.rs`, `xtask`'s `SHELL_CHECK_SCRIPT`. Read notes/pipes.md first if
+`kernel/src/user/language_tests.rs`, `xtask`'s `SWISH_CHECK_SCRIPT`. Read notes/pipes.md first if
 you have not: this is the layer above its operators, and it reuses their vocabulary.*
 
 `swish` had composition, grants, navigation and globbing, and no scripting language at all. This
@@ -239,7 +239,7 @@ which kind. `xargs` now reads it the same way `&&` does.
 ## EXAMPLES
 
 At a real prompt on the RedoxFS fixture. The transcript below is `NIFE_SHOW_TRANSCRIPT=1
-script/shell-check --arch aarch64`, which boots `--features shell` and types at the prompt through
+script/swish-check --arch aarch64`, which boots `--features shell` and types at the prompt through
 the real `components/src/progenitor.rs`.
 
 ```text

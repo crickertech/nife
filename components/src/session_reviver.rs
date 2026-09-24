@@ -61,7 +61,7 @@
 //! `identity_provisioner.rs`'s own recorded bound for the identical gap; the liveness watchdog
 //! DECISIONS §123's hardening addendum names and explicitly declines to design (refinement 4); and
 //! wiring this process into a real boot (`crates/system_initializer::boot` or an interactive
-//! `cargo xtask shell-check`) rather than the kernel test harness that spawns it here
+//! `cargo xtask swish-check`) rather than the kernel test harness that spawns it here
 //! (`kernel/src/user/session_reviver_service.rs`), the same "not wired into the interactive boot"
 //! bound `login.rs`'s own BUGS names for itself.
 //!

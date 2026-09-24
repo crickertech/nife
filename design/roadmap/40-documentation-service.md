@@ -22,7 +22,7 @@ alternative and which the crate's header records.
 **Phase 2 landed 2026-08-16.** The store is built on the host from the `DOC_BUNDLES` table
 (`cargo xtask manual`), installed into the filesystem image as `doc/<bundle>/` with `doc/bundles`
 naming what is there, and searched from the prompt by **`apropos <word>`**, a shell builtin. The
-whole of it is gated by `script/shell-check` on both architectures: `apropos capability` names the
+whole of it is gated by `script/swish-check` on both architectures: `apropos capability` names the
 pages, and the line after it grants `wc` exactly one of them. Search produces **names, never
 capabilities**, which is why it may be a builtin: a searching *program* would have to be handed the
 whole store to read every shard in it, which is more authority than the answer needs. See
@@ -43,7 +43,7 @@ That refusal is the mechanism working, and it is worth reading before the next o
 names the fix), `doc <page> | wc` was said to render an empty stream (the head stage's input comes
 off the plan now), and `MAX_TEXT_CHUNKS = 32` was said to truncate a page to 512 bytes (it is
 `MAX_OUTPUT_CHUNKS = 4096`). Two of the three were closed by other lanes and nobody came back. The
-correction is three lines in `script/shell-check` rather than three paragraphs, because this is the
+correction is three lines in `script/swish-check` rather than three paragraphs, because this is the
 milestone least allowed to describe a system that is not there.
 
 *In the index.* `normalize` folds a query by dropping every non-alphanumeric byte, so a reader who
@@ -105,7 +105,7 @@ knowing which"), so no program's manifest changes, only shell-and-init default-r
 the redirected one (`doc <page> > out.txt`, still DECISIONS §55's shell); and the shell's completion
 signal for a narrowed child is DECISIONS §26's kernel exit-delivery, on a fresh endpoint it mints and
 delegates, exactly the reuse notes/tail-output-narrowing.md found. Verified at the real prompt, both
-architectures (`script/shell-check`, `NIFE_SHOW_TRANSCRIPT=1`):
+architectures (`script/swish-check`, `NIFE_SHOW_TRANSCRIPT=1`):
 
 ```text
 $ doc gate.txt | wc
@@ -249,7 +249,7 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
   but the caretaker's own trailing `CALL` to `line_editor` is a second, independent call with no
   ordering primitive against the shell's next prompt. A display glitch, not a confinement or
   correctness failure (no capability changes hands, no byte reaches the wrong reader). Not observed
-  in either `script/shell-check` leg's transcript (`doc gate.txt`'s render is one short message, so
+  in either `script/swish-check` leg's transcript (`doc gate.txt`'s render is one short message, so
   the window is narrow), but the argument for it is structural rather than about this one case; see
   notes/tail-output-narrowing.md's own BUGS, which is honest that the race is named and not measured.
   Tracked at milestone 151 (notification objects), DECISIONS §101's kernel build, which lets the

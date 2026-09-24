@@ -43,6 +43,10 @@ Nineteen modules plus `main.rs`, which keeps the dispatcher and nothing else. Th
 | `measure.rs` | 141 | the measured-boot digest handed to the kernel build |
 | `host.rs` | 130 | running host commands, and where the build put things |
 
+The table is the split as measured on 2026-09-19 and keeps the names of that day. `shell_check.rs`
+is `swish_check.rs` since 2026-09-23, with the command it serves; the line count is unchanged by the
+rename.
+
 ### The boundary, and what lost
 
 The commands are the seam, and taking them literally gets most of the file placed. The decisions

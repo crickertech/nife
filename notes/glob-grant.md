@@ -375,10 +375,10 @@ order rather than the first the directory yielded; the watermark is exclusive; `
 batch follows; **a sweep of a directory that shrinks under it takes every name exactly once**, which
 is the case a cursor would get wrong; an empty batch ends a sweep but an empty *first* batch is still
 `NoMatch`; the unnameable-match refusal survives batching; the sweep's account and its three wordings;
-and the `globmany` fixture is over the bound and splits exactly where the shell-check gate's two
+and the `globmany` fixture is over the bound and splits exactly where the swish-check gate's two
 literal strings say it does.
 
-**At a real prompt, both ISAs** (`script/shell-check`): unbatched, the pattern is refused; batched,
+**At a real prompt, both ISAs** (`script/swish-check`): unbatched, the pattern is refused; batched,
 its second batch is `m-08.txt m-09.txt m-10.txt`, which pins the resume rule from one line (an
 off-by-one, a batch that restarted, and a batch that took the first eight the directory yielded all
 print something else); and `xargs caps rm` shows the second batch's grant naming those three names
@@ -516,7 +516,7 @@ Run it:
 
 ```sh
 script/test                  # both ISAs, plus the post-run host check on the image
-script/shell-check           # both ISAs: the sweep, at a real prompt, through the real init
+script/swish-check           # both ISAs: the sweep, at a real prompt, through the real init
 cargo test -p grant_plan          # the expander, the bound, the empty match, and the batches
 cargo test -p swish          # the sweep's account and its wording
 cargo test -p fs_proto       # the set encoding, and both fixtures pinned against the matcher

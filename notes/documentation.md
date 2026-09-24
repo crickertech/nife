@@ -366,7 +366,7 @@ grants exactly the one page a person named out of what the first said. `apropos`
 `caps` preview to print, because there is nothing to preview.
 
 Render a page at the prompt, with no pipe or redirection needed to make it run
-(DECISIONS §106, 2026-08-22). `gate.txt` is `script/shell-check`'s own fixture, two lines of
+(DECISIONS §106 (take the `terminal_sink_caretaker` narrowing), 2026-08-22). `gate.txt` is `script/swish-check`'s own fixture, two lines of
 `hello world` written earlier in that script; the renderer re-flows them to one paragraph:
 
 ```text

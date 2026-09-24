@@ -4543,7 +4543,7 @@ mod tests {
     /// **The batching fixture is over the bound, and the two batches printed in the gate are the
     /// ones the rule produces** (milestone 109).
     ///
-    /// `script/shell-check` asserts two literal strings at a real prompt, and a literal is only
+    /// `script/swish-check` asserts two literal strings at a real prompt, and a literal is only
     /// worth asserting if it is the answer rather than a second opinion about it. So this pins all
     /// three claims: the pattern matches every name and not the control, there are more names than
     /// one grant can carry, and the batch boundary falls where [`fixture::tree::MANY_FIRST_BATCH`]

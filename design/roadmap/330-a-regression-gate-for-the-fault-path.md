@@ -3,10 +3,10 @@
 **Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 235's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds, with one correction to where the sibling assertion lives.** No program in
-`components/src/` or `fixtures/src/` faults on purpose, and `script/shell-check` spawns none. The
-no-thread-killed assertion milestone 235 named is real but is **not** in `script/shell-check`: it is
+`components/src/` or `fixtures/src/` faults on purpose, and `script/swish-check` spawns none. The
+no-thread-killed assertion milestone 235 (a command that faults hangs the prompt) named is real but is **not** in `script/swish-check`: it is
 in `xtask/src/main.rs`, reading the kernel's fault-report text out of the transcript through the same
-`KERNEL_FAULT_TOKENS` milestone 230 introduced (this block read `KERNEL_WRITER_ANCHORS` until 2026-09-19; no such name exists anywhere in the tree, and the constant's own doc comment is the sharpest statement of the property this milestone protects: the fault report is "the only thing it writes after the userspace console has started"). `script/shell-check`'s own `BUGS` still says "a
+`KERNEL_FAULT_TOKENS` milestone 230 (`script/shell-check` is red on `main`, on both architectures) introduced (this block read `KERNEL_WRITER_ANCHORS` until 2026-09-19; no such name exists anywhere in the tree, and the constant's own doc comment is the sharpest statement of the property this milestone protects: the fault report is "the only thing it writes after the userspace console has started"). `script/swish-check`'s own `BUGS` still says "a
 killed user thread is not itself a failure here" and calls that assertion "the obvious next
 ratchet", which stopped being true when milestone 233 landed it; that stale sentence is one of the
 class milestone 333 collects.
@@ -32,7 +32,7 @@ opposite of what that rule was written to do. Nothing else in this block waits o
 **In brief.** Milestone 235 fixed a shell that hangs forever when a spawned command traps. The
 evidence it was fixed was a **scaffold**: milestone 233's lane patched `components/src/least_authority_demo.rs` to trap,
 watched the prompt hang, and the patch was removed afterwards. So the defect is fixed and the proof
-is gone. The work is a program whose job is to fault, wired into `script/shell-check` so a hung
+is gone. The work is a program whose job is to fault, wired into `script/swish-check` so a hung
 prompt fails a gate, plus teaching milestone 233's no-thread-killed assertion to except that one
 program.
 
@@ -51,7 +51,7 @@ them.
 
 A small program that traps deliberately (a name calef gives), an entry in the shell test that spawns
 it and asserts the prompt comes back with a fault reported, and an exception in
-`script/shell-check`'s no-thread-killed assertion, which milestone 233 added and which this program
+`script/swish-check`'s no-thread-killed assertion, which milestone 233 (`login` dies on every boot) added and which this program
 exists to violate on purpose. The exception has to be narrow: excepting the assertion generally
 would retire the check that found this defect in the first place.
 
@@ -59,7 +59,7 @@ would retire the check that found this defect in the first place.
 
 Milestone 235's `## Follow-on`: *"A regression gate for the fault path. It needs a program that
 faults on purpose, which is a new name and therefore calef's, and milestone 233's no-thread-killed
-assertion in `script/shell-check` has to learn to except it. The scaffold that proved this milestone
+assertion in `script/swish-check` has to learn to except it. The scaffold that proved this milestone
 was a patch to `components/src/least_authority_demo.rs` and was removed afterwards, so nothing stops the lost prompt
 returning."*
 

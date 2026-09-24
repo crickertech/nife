@@ -4,7 +4,7 @@
 proposal `an-x86-64-input-driver-that-never-lets-the-core-idle`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
 proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
-not the moment to improve it. Found by milestone 182 (x86_64's own interactive-boot entry point)'s lane while building `script/shell-check`'s
+not the moment to improve it. Found by milestone 182 (x86_64's own interactive-boot entry point)'s lane while building `script/swish-check`'s
 x86_64 leg. Milestone 299 recorded x86_64's polling input driver as a latency and CPU limitation;
 this is the measurement that says it is more than that.
 
@@ -24,7 +24,7 @@ stop:
   rule exists because a halted kernel spinning cost 99.7% of a core; this is the same cost at the
   prompt, and on a PC it is a fan and a battery.
 - **The capability-slot gauge** (`kernel::cap::report_peak`, milestone 231). It prints the mark at
-  the hand-over, 5 of 24, and never updates; the peak during `shell-check`'s script is 17, read by a
+  the hand-over, 5 of 24, and never updates; the peak during `swish-check`'s script is 17, read by a
   temporary instrument. The gauge's `ABOVE` check therefore cannot fire on x86_64.
 
 ## What to build
@@ -36,10 +36,10 @@ other two run: drain, arm, then `irq_wait`/drain/`irq_ack`. Then delete the x86 
 
 ## How to know it worked
 
-- `script/shell-check --arch x86_64` prints a slot gauge equal to the peak (17 of 24 today, or
+- `script/swish-check --arch x86_64` prints a slot gauge equal to the peak (17 of 24 today, or
   whatever it measures), and the leg's "that gauge is stale" caveat in `xtask/src/main.rs` is deleted.
 - QEMU's host CPU at an idle x86_64 prompt drops to near zero, measured the way the number above was.
-- `script/shell-check`'s BUGS entry and milestone 182's two BUGS entries on this are closed.
+- `script/swish-check`'s BUGS entry and milestone 182's two BUGS entries on this are closed.
 
 ## Index row
 

@@ -64,7 +64,7 @@
 //! `grant_plan::spawnproto::JOB_FAULTED` existed the wait had nothing to wake it. `job_undertaker`
 //! now sends that word after collecting the corpse, this shell prints
 //! [`swish::FAULTED_SENTENCE`] and `$?` reads 1. Measured rather than reasoned about, both before
-//! and after: `components/src/least_authority_demo.rs` was patched to trap on one argument and `script/shell-check` run
+//! and after: `components/src/least_authority_demo.rs` was patched to trap on one argument and `script/swish-check` run
 //! against it, which failed with "the prompt never came back to take `least_authority_demo 7`" and then passed
 //! through the same line.
 //!

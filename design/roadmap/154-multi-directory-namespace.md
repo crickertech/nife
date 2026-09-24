@@ -143,7 +143,7 @@ disjoint, individually-labeled trees with one position at a time.
   **Both real entry points pass `None`.** What the second subtree should *be* remains calef's
   boot-time policy call (DECISIONS §126), unanswered by this increment on purpose. **Two further
   gaps, recorded rather than hidden.** First, this exact path is unverified against a real boot:
-  `script/shell-check` is the only thing that runs a real init, nothing types a second grant
+  `script/swish-check` is the only thing that runs a real init, nothing types a second grant
   through it, and the capability-table headroom at the point this builds a caretaker is the same
   spot a past bug already found tight (`boot`'s own `# BUGS` note says so; watch for "reaches
   userspace and prints nothing" first). Second, and this is the sharper gap: **nothing tells the
@@ -175,7 +175,7 @@ disjoint, individually-labeled trees with one position at a time.
 - **Decision.** What the second subtree should actually be is calef's boot-time policy call,
   recorded in `design/decisions/126-two-directory-cwd.md` and deliberately unanswered by the boot
   increment.
-- **Outstanding.** The boot path is unverified against a real boot: `script/shell-check` is the only
+- **Outstanding.** The boot path is unverified against a real boot: `script/swish-check` is the only
   thing that runs a real init and nothing types a second grant through it, which
   `crates/system_initializer` records in the code as well. Checked 2026-09-03.
 - **Outstanding.** Nothing tells the shell it holds a second grant. The three start words are

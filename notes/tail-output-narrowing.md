@@ -81,7 +81,7 @@ conflate two kinds of thing on one channel again.
 The precedent buys three things for free if extended to the primary slot:
 
 - **The mechanism already exists and is proven.** `terminal_sink_caretaker` is built, gated
-  (`script/shell-check` runs a `2>` case on both ISAs), and its header already states the general
+  (`script/swish-check` runs a `2>` case on both ISAs), and its header already states the general
   shape: "a program whose output slot holds an endpoint to this process is writing to the screen
   and cannot tell." Nothing about that sentence is specific to diagnostics.
 - **Zero incremental authority for a program that already declares.** `date` already gets this

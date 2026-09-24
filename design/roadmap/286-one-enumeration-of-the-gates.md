@@ -23,7 +23,7 @@ been correct when it was written:
 | where | said | true since |
 |---|---|---|
 | `.github/workflows/ci.yml` | `script/icount` "is not in script/test and it is not in script/gates" | it had been in `script/gates` since milestone 62 |
-| `notes/scripts.md`, the `gates` row | "`script/fmt --check`, `script/lint`, `script/test`, then `script/test --hvf`" | `image-permissions`, `icount` and `shell-check` had joined |
+| `notes/scripts.md`, the `gates` row | "`script/fmt --check`, `script/lint`, `script/test`, then `script/test --hvf`" | `image-permissions`, `icount` and `swish-check` had joined |
 | `notes/scripts.md`, the `icount` row | "Not in `test` or `gates`" | same |
 | `notes/instruction-clock.md` | "it does not run under `script/test` or `script/gates`" | same |
 | `CONTRIBUTING.md` | "the five checks a PR must pass" | there were six |
@@ -52,7 +52,7 @@ script/ci-build --list          the table: name, tier, command
 ```
 
 **Every job in `ci.yml` now names a check out of that table** (`script/ci-build fmt`,
-`script/ci-build lint`, `script/ci-build test shell-check`, and so on down the file). No job name
+`script/ci-build lint`, `script/ci-build test swish-check`, and so on down the file). No job name
 changed, which matters because branch protection matches on the display name and renaming one is a
 merge-queue change rather than a wording one.
 

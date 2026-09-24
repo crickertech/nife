@@ -81,7 +81,7 @@ check that passes while what it names is dead.
    script could reintroduce a writable-executable segment, turn that job red, and still merge.
 
 **Then a third question, which is the one with teeth: what does a green result actually assert?**
-`shell-check` was green while `login` was dead. That is not a check that failed to run or failed to
+`swish-check` was green while `login` was dead. That is not a check that failed to run or failed to
 block; it is a check whose passing meant less than its name.
 
 ## What it must not become

@@ -9,7 +9,7 @@ and device attachment. **The prompt reached the screen on 2026-09-19** (`milesto
 once the hang that had stopped it for three weeks was root-caused: not the GPU driver's interrupt
 handling, as recorded at the time, but the boot never receiving two drivers' one-time status
 reports, so each sat in a blocking `SEND` (see "The second flush, root-caused" below).
-`script/shell-check --graphical` and `--graphical-serial` are green on aarch64 and riscv64 and run
+`script/swish-check --graphical` and `--graphical-serial` are green on aarch64 and riscv64 and run
 in CI. **Piece 5 (x86_64's entry point) split off as its own milestone**,
 [182](182-x86-64-interactive-boot.md), once the lane found it needs a from-scratch ELF-loading boot
 path, not wiring.
@@ -34,7 +34,7 @@ found and named for the RNG case on milestone 49's boot-wiring fork: a deliberat
 minimal-device-surface choice for the interactive/demo boot, not an oversight.
 
 **x86_64 has neither of the two entry functions named above, at all** (found 2026-08-27, tracing
-`printenv`'s own "both boards" verification against `script/shell-check`, which names only aarch64
+`printenv`'s own "both boards" verification against `script/swish-check`, which names only aarch64
 and riscv64: *"x86_64 has no shell leg."* That comment's own justification, "there is no userspace
 on that target at all yet," is stale, since x86_64 has had real userspace running for most of this
 session; the fact itself is not stale, for a narrower and still-current reason). Nothing boots
@@ -163,7 +163,7 @@ grant (`MODE_DIRECT`, option A, decided), `line_editor`'s `MODE_DISPLAY` output 
 reproducible capability-table-exhaustion bug was found and fixed along the way (the new grants
 inflated `boot()`'s resting baseline enough to push the *entropy* build past the sixteen-slot wall;
 fixed by freeing `uart_dev`/`uart_irq` at the top of `boot()` on a graphical boot, since they are
-dead weight there). `script/shell-check --graphical` (a new leg, verifying via decoded screendump
+dead weight there). `script/swish-check --graphical` (a new leg, verifying via decoded screendump
 since there is no UART to pipe a transcript from) does not yet reach a working prompt: a second
 `FLUSH` through the real boot's own driver instance hangs, diagnosed as likely a pre-existing
 characteristic of `components/src/gpu_driver.rs`'s completion-IRQ handling rather than something this
@@ -224,19 +224,19 @@ on purpose and marked as a foot gun at `display_service::start_terminal`, at `FL
 definition and at the driver's `send`: the three test spawners read the digest `FLUSHED` carries, so
 the wiring function cannot swallow it for them. No wire change, no new barrier, no driver change.
 
-**What the leg proves, and its cost.** `script/ci-build`'s `shell-check-graphical` row runs
+**What the leg proves, and its cost.** `script/ci-build`'s `swish-check-graphical` row runs
 `--graphical` (a virtio keyboard, `sendkey`) and `--graphical-serial` (no keyboard, the byte typed
 down the UART) on both architectures: a `$ ` prompt decoded off a `screendump`, then `$ a` after one
 key. 47 seconds for all four boots against a warm target directory on the dev Mac, appended to CI's
-`build + test` job beside `shell-check`, whose `--features shell` kernels it reuses. It proves one
-key, not `SHELL_CHECK_SCRIPT`; that limit is recorded in the leg's own doc.
+`build + test` job beside `swish-check`, whose `--features shell` kernels it reuses. It proves one
+key, not `SWISH_CHECK_SCRIPT`; that limit is recorded in the leg's own doc.
 
 ## Follow-on
 
 - **Done.** (2026-09-19) The second flush through `components/src/gpu_driver.rs`'s real boot path
   returns; root-caused and fixed above.
-- **Done.** (2026-09-19) `script/shell-check --graphical` reaches and types at a working prompt on
-  aarch64 and riscv64, and runs in `script/ci-build` and CI as `shell-check-graphical`.
+- **Done.** (2026-09-19) `script/swish-check --graphical` reaches and types at a working prompt on
+  aarch64 and riscv64, and runs in `script/ci-build` and CI as `swish-check-graphical`.
 - **Done.** Whether the swap is unconditional or a runtime choice is settled by what was built:
   `crates/system_initializer` branches on whether the display-terminal endpoint was granted, and
   the kernel's graphical boot returns nothing when the bus has no GPU, so both paths coexist and
@@ -259,6 +259,6 @@ The real interactive boot brings up the graphical terminal stack whenever a GPU 
 `gpu_driver`, `display_terminal`, and a keystroke source (a virtio keyboard in `MODE_DIRECT`, or the
 board's UART) wired kernel-side straight to `line_editor`, with no compositor in the path. A prompt
 reaches the screen and a typed key echoes on aarch64 and riscv64, proven in CI by
-`script/shell-check --graphical` and `--graphical-serial`. The three-week hang that blocked it was the
+`script/swish-check --graphical` and `--graphical-serial`. The three-week hang that blocked it was the
 boot never receiving two drivers' one-time status reports, not the GPU's interrupt handling. x86_64's
 own entry point split off as milestone 182.

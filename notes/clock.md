@@ -178,7 +178,7 @@ Three things about that shape are deliberate:
 - **`READ` all the way down.** Nothing between the kernel and a spawned child ever holds the writable
   mapping, which is why "there is no `date -s`" is a fact about the wiring rather than a missing flag.
 
-`script/shell-check` types `date` at the real prompt on both ISAs and requires `UTC` in the answer,
+`script/swish-check` types `date` at the real prompt on both ISAs and requires `UTC` in the answer,
 which is the one word neither unknown-clock sentence contains.
 
 ## What a std program sees

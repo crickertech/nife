@@ -143,10 +143,10 @@ Three edits, and after the first the machine names each of the others.
    `PROG_COUNT` are all generated from the row.
 2. **Its `manifest()` arm**, which the compiler asks for (`E0004` in `grant_plan`). This carries all
    of the actual meaning: see "What you declare" below.
-3. **A line in `SHELL_CHECK_SCRIPT`** in `xtask/src/shell_check.rs`, and the array length the compiler then
+3. **A line in `SWISH_CHECK_SCRIPT`** in `xtask/src/swish_check.rs`, and the array length the compiler then
    asks for. The element is a `(&str, &[&str])` pair, one line typed and the substrings its answer
    must contain: `("triple 21", &["21*3 = 63"]),`. The host test
-   `every_spawnable_program_has_a_shell_check_line` fails until the line exists, and names the one
+   `every_spawnable_program_has_a_swish_check_line` fails until the line exists, and names the one
    exception it allows (a program a transcript cannot drive, listed with the reason).
 
 **And a fourth only if your manifest says `output: OutputSpec::Words`**, meaning the answer is a
@@ -177,8 +177,8 @@ Delete its source file and its `[[bin]]` block. It leaves all three archives at 
 
 If the shell could spawn it, also delete its `programs!` row. The compiler then points at its
 `manifest()` arm and any `write_outcome` arm that named it; delete those, and its
-`SHELL_CHECK_SCRIPT` lines, which nothing on the host flags (see `BUGS`) and which
-`script/shell-check` answers with `no such program`. **Leave its id unused.** The table's holes are expected: `PROG_COUNT` is
+`SWISH_CHECK_SCRIPT` lines, which nothing on the host flags (see `BUGS`) and which
+`script/swish-check` answers with `no such program`. **Leave its id unused.** The table's holes are expected: `PROG_COUNT` is
 one past the highest id, not the number of programs.
 
 **What catches a removal you did not mean to make**: `xtask`'s host test
@@ -191,22 +191,22 @@ nobody would hear about it.
 
 ```sh
 script/lint          # the name block, the conventions, and every host test named above
-script/shell-check   # if the shell spawns it: both ISAs, and much faster than the suite
+script/swish-check   # if the shell spawns it: both ISAs, and much faster than the suite
 script/test          # all three architectures
 ```
 
 `cargo xtask build` packs the aarch64 archive only, whatever the name suggests; `initrd_riscv()` and
-`initrd_x86()` are called by `test` and `shell-check`. That no longer hides a packing mistake,
+`initrd_x86()` are called by `test` and `swish-check`. That no longer hides a packing mistake,
 because all three archives pack one list, but it is still not a check of the other two builds.
 
-**Run shell-check once with a deliberately wrong expectation.** A green harness only proves the
+**Run swish-check once with a deliberately wrong expectation.** A green harness only proves the
 harness did not complain; a red one proves your program was really loaded from the archive,
 measured, granted its endpoint and run at EL0. Verbatim from a run of this page on 2026-08-18:
 
 ```
 $ triple 21
   a process at EL0 computed 21*3 = 63
---- shell-check (aarch64) FAILED ---
+--- swish-check (aarch64) FAILED ---
   `triple 21` answered "a process at EL0 computed 21*3 = 63", wanted "21*3 = 64"
 ```
 
@@ -258,7 +258,7 @@ that fails on every legitimate addition, which is the shape this milestone remov
 for is covered by construction (the archives and `PROG_COUNT` are derived, so neither can be short
 of the declaration) and by three host tests on the relationships that can still go wrong: a
 spawnable program with no binary, a program the tree loads by name with no binary, and a spawnable
-program no shell-check line runs.
+program no swish-check line runs.
 
 **`swish`'s exhaustive `write_outcome` match became a wildcard.** Eleven of its thirteen arms were
 `=> {}`, so the compile error it raised for every new program asked a byte-stream author for a
@@ -278,8 +278,8 @@ rung one, deliberately, and it is the one place this milestone went down the lad
   spelling, is invisible to it, and a kernel test that `skip!()`s on a missing program still skips
   quietly for such a name. It counts what it matched and fails below fifty, so it cannot go blind
   without saying so.
-- **Nothing on the host checks `SHELL_CHECK_SCRIPT` in the other direction.** A line typing a
-  program that no longer exists is found by `script/shell-check`, at the cost of a boot. And the
+- **Nothing on the host checks `SWISH_CHECK_SCRIPT` in the other direction.** A line typing a
+  program that no longer exists is found by `script/swish-check`, at the cost of a boot. And the
   forward check is a whole-word match on the program's name, which proves a line mentions it, not
   that the line ran it.
 - **The wire-id pin covers the thirteen ids shipped before 2026-09-19.** A program added after that
@@ -308,10 +308,10 @@ rung one, deliberately, and it is the one place this milestone went down the lad
   |---|---|---|
   | 2026-08-16 (run 2) | `doubler` | the aarch64 tier, the riscv `--bin` list, two of the six `grant_plan` edits, the `provisional` spelling the gate rejects |
   | 2026-08-18 (run 3) | `triangle` | the aarch64 tier again (milestone 130 had deleted both shapes it described), and `manifest()` missing from the `grant_plan` list |
-  | 2026-08-18 (a lane) | a scratch binary, added and removed | `cargo xtask build` claimed to pack both archives and packs one, the `SHELL_CHECK_SCRIPT` example did not compile, and nothing said which of the seven `grant_plan` edits the machine catches |
+  | 2026-08-18 (a lane) | a scratch binary, added and removed | `cargo xtask build` claimed to pack both archives and packs one, the `SWISH_CHECK_SCRIPT` example did not compile, and nothing said which of the seven `grant_plan` edits the machine catches |
   | 2026-08-18 (run 4) | `tally`, added and removed | **nothing.** The first walk of four to find no defect |
   | 2026-08-18 (run 5) | `nth`, kept | an **eighth** edit site: a manifest that requires an argument *and* an input failed a `crates/swish` sweep the walker had no reason to open |
-  | 2026-09-19 (milestone 150) | `triple`, added and removed | **the count, measured on the new tree.** A plain program was three hand edits and is one. A spawnable program that answers in a register was twelve edits across five files, two of them silent, and is six across four (the `[[bin]]` block, the `programs!` row, then the `manifest()` arm, the `write_outcome` arm, the `SHELL_CHECK_SCRIPT` line and its array length, each demanded by the compiler or a host test). It packed into all three archives with no further edit and answered at both prompts. Removal left a byte-identical tree; the stale `SHELL_CHECK_SCRIPT` line was the one edit nothing on the host named |
+  | 2026-09-19 (milestone 150 (adding a program should not need eight hand-maintained lists)) | `triple`, added and removed | **the count, measured on the new tree.** A plain program was three hand edits and is one. A spawnable program that answers in a register was twelve edits across five files, two of them silent, and is six across four (the `[[bin]]` block, the `programs!` row, then the `manifest()` arm, the `write_outcome` arm, the `SWISH_CHECK_SCRIPT` line and its array length, each demanded by the compiler or a host test). It packed into all three archives with no further edit and answered at both prompts. Removal left a byte-identical tree; the stale `SWISH_CHECK_SCRIPT` line was the one edit nothing on the host named |
 
   **One walk-through is not a guarantee**, and the next person to add a program should treat a
   surprise here as this page's bug rather than their own.

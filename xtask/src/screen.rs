@@ -61,7 +61,7 @@ pub(crate) fn screen_boot(arch: &str) -> bool {
     // [`cargo`] exports `NIFE_INITRD` pointing at the *aarch64* archive, because that is what the
     // aarch64 runner wants and it is the aarch64 path's helper. Every other riscv64 caller in this
     // crate overrides it for exactly this reason (`suite`'s riscv leg says so in its own comment,
-    // and `shell_check` and the interactive boot both pick per architecture). This one did not, and
+    // and `swish_check` and the interactive boot both pick per architecture). This one did not, and
     // the failure had two faces: locally the aarch64 archive existed, so the riscv kernel loaded it
     // and printed `MEASURED BOOT REFUSED` and carried on; in a CI job that never built one, QEMU
     // refused to start at all with `could not load ramdisk`.

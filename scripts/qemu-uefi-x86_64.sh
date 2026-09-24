@@ -166,7 +166,7 @@ TIMEOUT="${NIFE_UEFI_TIMEOUT:-90}"
 #   - `intel-iommu`, so the confinement test has a unit to fault on, and so the two boots differ in
 #     the firmware rather than in the machine.
 #   - the NVMe controller, for the same reason it is on the PVH runner (decisions §86).
-#   - the RedoxFS disk (a second virtio-blk-pci function), for `script/shell-check`'s x86_64 leg,
+#   - the RedoxFS disk (a second virtio-blk-pci function), for `script/swish-check`'s x86_64 leg,
 #     only when NIFE_UEFI_REDOXFS is set (see below).
 #
 # Each is attached only when its variable names an image, exactly as on the PVH runner, so a plain
@@ -180,7 +180,8 @@ if [ -n "$NIFE_DISK" ]; then
     fi
     DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
     # The RedoxFS fixture as the SECOND function, when a caller asks with NIFE_UEFI_REDOXFS=1
-    # (name provisional). Added by milestone 182, whose `shell-check` leg boots this runner and
+    # (name provisional). Added by milestone 182 (x86_64's own interactive-boot entry point), whose
+    # `swish-check` leg boots this runner and
     # types `>`, `<` and `rm` at the prompt, all of which need a filesystem the progenitor mounts.
     #
     # **Opt-in rather than the PVH runner's attach-when-present, and that is a recorded defect, not

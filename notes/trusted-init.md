@@ -336,7 +336,7 @@ the program ids `spawnproto` already sends in word 0.
   the real `job_undertaker` binary running, and asserts after each one that the pool came all the way
   back and at the end that it carves again in one piece. The assertion is which budget the pages are
   in, never how long anything took.
-- `script/shell-check`, which is the only thing that boots the real interactive progenitor. It reads a
+- `script/swish-check`, which is the only thing that boots the real interactive progenitor. It reads a
   sentence the progenitor prints **from inside itself**, after deleting the root untyped and before starting the
   shell: the progenitor retypes a page and retypes a kernel object on that slot and prints "construction budget
   dropped; retype answers NoSuchSlot" only when both answered `NoSuchSlot` (-1) rather than
@@ -395,7 +395,7 @@ The smaller one was **the loader**. `crates/supervision_protocol`'s child builde
 the two inits' `build_child`, so the logic existed three times, and this increment added the fault
 slot to all three rather than unifying them, because unifying loaders and migrating the boot path in
 one pass would have made a boot failure ambiguous. Milestone 96 did both, in that order, with
-`script/shell-check` between them. `supervision_protocol`'s is the tree's only loader now; what it grew
+`script/swish-check` between them. `supervision_protocol`'s is the tree's only loader now; what it grew
 is what the inits needed, a capability placed at a **named** slot (§67's diagnostic stream) and a
 stack size the caller states. The stack is a field rather than a constant because the two callers
 honestly differ: four pages is enough for the supervision tree, and a child at the prompt gets twelve
@@ -484,7 +484,7 @@ nife capability shell. naming a resource in a command IS granting it.
 $
 ```
 
-`script/shell-check` reads that sentence, so a boot that stopped measuring fails the gate.
+`script/swish-check` reads that sentence, so a boot that stopped measuring fails the gate.
 
 **Flip one bit of a spawnable program.** The prompt still comes up; the program does not run:
 

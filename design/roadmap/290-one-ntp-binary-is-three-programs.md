@@ -195,7 +195,7 @@ skipped for want of a virtio-rng device, which is the documented state of that b
 claim is asserted on all three architectures.
 
 `script/lint`, `script/fmt --check`, `script/names --check`, `script/citations`,
-`script/roadmap --check`, `script/decisions --check`, `script/shell-check` and
+`script/roadmap --check`, `script/decisions --check`, `script/swish-check` and
 `script/falsifications` all exit 0. `script/names` counts 75 programs where it counted 73, with the
 three new names ratified and carrying eight refusals between them.
 

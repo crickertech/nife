@@ -49,7 +49,7 @@ total was refused because it would be a hand-maintained number failing on every 
 addition. Instead: packing refuses a `programs!` row with no `[[bin]]`; a host test refuses a
 program the kernel or the progenitor still loads by string literal after its block is deleted (the
 removal that used to become a test that `skip!()`s forever); and a host test requires every
-spawnable program to have a `SHELL_CHECK_SCRIPT` line or a stated reason. That last one found
+spawnable program to have a `SWISH_CHECK_SCRIPT` line or a stated reason. That last one found
 `memory_grant_depleter` had none, and it gained one. Site 7 is now enforced rather than remembered.
 
 **The eighth edit site is closed**: `the_arg_line_follows_the_manifest_for_every_program` types
@@ -68,8 +68,8 @@ way", for the integrator to mint a `design/decisions/` section from.
 - **The removal gate is textual**: it reads `program("...")` and `.read("...")` literals in
   `kernel/src` and `crates/system_initializer/src`. A name built at runtime is invisible to it. It
   counts what it matched and fails below fifty, so it cannot pass on nothing.
-- **A stale `SHELL_CHECK_SCRIPT` line is not caught on the host.** Removing a spawnable program
-  leaves its transcript line, which `script/shell-check` then fails at the cost of a boot. The walk
+- **A stale `SWISH_CHECK_SCRIPT` line is not caught on the host.** Removing a spawnable program
+  leaves its transcript line, which `script/swish-check` then fails at the cost of a boot. The walk
   measured this: it was the one edit nothing named. Recorded in notes/adding-a-program.md's `BUGS`.
 - **The wire-id pin covers ids shipped before 2026-09-19.** Reuse of a later program's id after that
   program is removed is not gated; the written id makes a renumbering visible in review only.
@@ -104,7 +104,7 @@ The eight, as `notes/adding-a-program.md` currently enumerates them:
 5. the `Prog` variant in `crates/grant_plan/src/lib.rs`, itself seven edits per program
    (`PROG_COUNT`, `from_id()`, `from_name()`, `name()`, `id()`, `manifest()`, and the variant);
 6. the exhaustive `match` arm in `crates/swish/src/lib.rs` that renders the shell's answer;
-7. `SHELL_CHECK_SCRIPT` in `xtask/src/main.rs`, if the shell spawns the program;
+7. `SWISH_CHECK_SCRIPT` in `xtask/src/main.rs`, if the shell spawns the program;
 8. `notes/adding-a-program.md` itself, which describes the other seven and has gone stale twice in
    the four days between runs 2 and 3 alone.
 
@@ -132,14 +132,14 @@ other files it does not control.
 | the `swish` render arm | compile error, `E0004`, in a crate the author did not otherwise touch |
 | `from_id()` or `from_name()` | a host test fails, **but only if `PROG_COUNT` was also widened** |
 | `PROG_COUNT` | **nothing.** The tree compiles, every host test passes, and the program cannot be spawned from the prompt until somebody notices by hand |
-| the riscv `--bin` list (site 3) without the riscv `entries` table (site 4), or vice versa | either a build failure naming a missing ELF, or a program present in `mkinitrd()` and silently absent from the riscv archive, uncaught by `cargo xtask build` or `script/lint`, first caught (if at all) by `script/shell-check` or `script/test`, both of which cost an emulated boot |
+| the riscv `--bin` list (site 3) without the riscv `entries` table (site 4), or vice versa | either a build failure naming a missing ELF, or a program present in `mkinitrd()` and silently absent from the riscv archive, uncaught by `cargo xtask build` or `script/lint`, first caught (if at all) by `script/swish-check` or `script/test`, both of which cost an emulated boot |
 
 `PROG_COUNT` is the keystone and forgetting it hides the other two: the sweep in
 `prog_id_round_trips` only walks up to that constant, so a variant added past it is invisible to the
 one test that would have caught the missing `from_id`/`from_name` arms. **And nothing counts
 programs at all**: the kernel test suite reports the identical total, 1312, both before and after a
 program is added or removed. A program's presence in this tree is proven only by a transcript line
-somebody remembered to type into `SHELL_CHECK_SCRIPT`.
+somebody remembered to type into `SWISH_CHECK_SCRIPT`.
 
 ## What this milestone would decide
 
@@ -214,13 +214,13 @@ milestone 117's handoff."
   `design/decisions/` section at merge. No section exists yet; this lane does not mint one.
   **Minted by the maintainer on 2026-09-19 as
   [DECISIONS §158](../decisions/158-a-program-is-declared-once.md).**
-- **Recorded.** The stale `SHELL_CHECK_SCRIPT` line a removal leaves, the textual removal gate, the
+- **Recorded.** The stale `SWISH_CHECK_SCRIPT` line a removal leaves, the textual removal gate, the
   wire-id pin's cut-off date, and the four-key `[[bin]]` reader, in `notes/adding-a-program.md`'s
   `BUGS`.
 - **Recorded.** `PROG_COUNT` keeps its name with a changed meaning (one past the highest wire id,
   not a count of programs), stated in its doc comment in `crates/grant_plan/src/lib.rs`. A rename is
   a naming decision and is calef's.
-- **Done.** `memory_grant_depleter` had no `SHELL_CHECK_SCRIPT` line; the new coverage test found
+- **Done.** `memory_grant_depleter` had no `SWISH_CHECK_SCRIPT` line; the new coverage test found
   it and it has one.
 
 ## Index row

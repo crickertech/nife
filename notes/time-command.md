@@ -159,7 +159,7 @@ spaces may agree on an address; one may not.
 - with **no capability**: "this shell holds no clock capability", answered without touching the
   address a clock would have been at.
 
-**At a real prompt** (`script/shell-check`, both ISAs), because only that gate runs the real inits:
+**At a real prompt** (`script/swish-check`, both ISAs), because only that gate runs the real inits:
 `time wc gate.txt` answers the same three numbers `wc gate.txt` answered, `time date` prints a
 `time: real` line, and `caps` shows the clock row with its rights. A boot where the progenitor never handed the
 shell a clock passes every guest test and fails here.

@@ -41,7 +41,7 @@ measured it, and the answer is in `xtask/src/main.rs`:
 > -- `KERNEL_FAULT_TOKENS`'s doc comment
 
 Six tokens (`user thread `, ` killed: `, `the kernel is fine`, `stval 0x`, `esr 0x`, ` sp 0x`), and
-the neighbouring `SHELL_CHECK_MARKER_SLACK` prices the intrusion in the same file: *"one kernel
+the neighbouring `SWISH_CHECK_MARKER_SLACK` prices the intrusion in the same file: *"one kernel
 fault report, three lines and about 150 characters"*, with 400 bytes of slack allowed *"with room to
 spare"*.
 
@@ -57,7 +57,7 @@ Options that would be absurd for a chatty writer are reasonable for this one.
 | **A** | **A second port.** The kernel keeps a UART of its own; the server owns the other. | Zero coupling, nothing to arbitrate, and a panic path that cannot be starved. It is a hardware fact per board whether a second usable port exists, and this tree has not established it: `notes/uart.md` records two UARTs on the Pi and nothing equivalent for argon, radon or xenon. A bench session answers it; nothing here does. |
 | **B** | **A buffer the server drains.** The kernel appends; the server interleaves at line granularity. | Serves the ordinary fault report well and serves the case that matters worst. A panic is exactly when the draining server may be the thing that died, so a buffered panic is a panic nobody reads. Any B has to carry a direct-write escape, at which point it is C with extra machinery. |
 | **C** | **A claim the server takes, which the kernel respects except in a panic.** | One flag and one exception, and it matches what the tree already measured: the kernel writes nothing until a fault, so "respect the claim" costs nothing in the common case. The exception is where every argument will be, since a fault report is not a panic and the two want different answers. |
-| **D** | **Leave it, and record the limitation where the reader meets it.** | Free today and it is what the tree does. The cost is already being paid by every bench log and by `script/shell-check`'s own `BUGS`, which describes the interleaving as a live defect in the system rather than in the script. |
+| **D** | **Leave it, and record the limitation where the reader meets it.** | Free today and it is what the tree does. The cost is already being paid by every bench log and by `script/swish-check`'s own `BUGS`, which describes the interleaving as a live defect in the system rather than in the script. |
 
 **No recommendation, deliberately.** The choice *"binds every architecture and every future console
 consumer"*, which is the irreversible column, and the one measurement that would decide between A

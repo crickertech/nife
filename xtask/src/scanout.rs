@@ -166,7 +166,8 @@ fn scanout_matches(ppm: &[u8], want_pixel: impl Fn(u32, u32) -> u32) -> Result<(
 }
 
 /// Parse a `screendump` P6 PPM into `(width, height, rgb bytes)`. [`scanout_matches`]'s own header
-/// walk, lifted out for milestone 177's graphical shell-check leg, which reads a screendump's text
+/// walk, lifted out for milestone 177 (wire the graphical terminal stack into the real interactive
+/// boot) and its graphical swish-check leg, which reads a screendump's text
 /// back out instead of comparing it against a picture computed in advance (there is no such picture
 /// for a live, typed shell session; see [`decode_cell`]).
 fn parse_ppm(ppm: &[u8]) -> Result<(u32, u32, &[u8]), String> {
@@ -212,7 +213,7 @@ fn parse_ppm(ppm: &[u8]) -> Result<(u32, u32, &[u8]), String> {
 /// **Read one glyph cell back out of a screendump**, the reverse of the direction every other
 /// scanout check in this file runs: those compare against a picture predicted in advance, and there
 /// is no way to predict a live, typed shell session's screen in advance (milestone 177's graphical
-/// shell-check leg: the boot banner's exact wrapped, scrolled position in an 18x8 grid depends on
+/// swish-check leg: the boot banner's exact wrapped, scrolled position in an 18x8 grid depends on
 /// wording nobody wants two copies of, so this reads the picture instead of guessing it).
 ///
 /// Tries every byte in `alphabet` against [`bitmap_font::cell_pixel`]'s own definition, at the
@@ -589,7 +590,7 @@ impl ScanoutReferee {
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the threads xtask ever starts (the transcript reader in
-        // shell_check_leg, and this referee's driver in hvf_kernel_leg) copy pipe bytes and poll a
+        // swish_check_leg, and this referee's driver in hvf_kernel_leg) copy pipe bytes and poll a
         // socket, and neither touches the environment.
         unsafe { std::env::set_var("NIFE_GPU_MON", &sock) };
 

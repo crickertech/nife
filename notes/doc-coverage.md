@@ -50,7 +50,7 @@ recorded limitation rather than a pass:
 2. **`no_run`, with the reason stated in the prose** (`user_mode_runtime`, `virtio`, `system_initializer`).
    These have nothing to assert: every entry point is a syscall from EL0 or returns `!`. `svc` on a
    machine with no nife kernel under it is a fault, not a syscall. The examples are type-checked
-   against the real signatures and executed by the QEMU boot and `script/shell-check`.
+   against the real signatures and executed by the QEMU boot and `script/swish-check`.
 
 3. **An executing doctest that the gate does not run** (`swap_protocol`, `supervision_protocol`, and the
    two above that are not `no_run`). See BUGS below; this is the one honest gap.

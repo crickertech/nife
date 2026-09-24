@@ -50,7 +50,7 @@ scripted shell, which is a memory finding the note keeps: the first version's ex
 
 The assertions are **pairs**, so a shell that ignored quoting entirely fails both halves of each:
 `echo "*.txt"` against `echo *.txt`, `wc "my notes.txt"` against `wc < "my notes.txt"`, and
-`worker 3 && echo yes` against `worker && echo yes`. Parity is met by `script/shell-check` running
+`worker 3 && echo yes` against `worker && echo yes`. Parity is met by `script/swish-check` running
 the same script on aarch64 and riscv64 rather than by a second implementation.
 
 ## BUGS

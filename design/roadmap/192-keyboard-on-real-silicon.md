@@ -106,7 +106,7 @@ reaches the line discipline through a capability naming one endpoint.
 
 ## What is proven, and where
 
-**In QEMU, on both architectures** (`script/shell-check --graphical-serial`, and directly): a boot
+**In QEMU, on both architectures** (`script/swish-check --graphical-serial`, and directly): a boot
 with a virtio-gpu and **no** keyboard brings up the GPU driver and the display terminal (both
 asserted before anything else happens), chooses the UART, spawns `input` against `line_editor`'s
 endpoint, and prints `keystrokes: Serial (graphical boot)`. aarch64 and riscv64 both reach that
@@ -127,7 +127,7 @@ something option A introduced. `--graphical-serial` therefore cannot pass today,
 `--graphical` cannot; it is written now so that whoever fixes the display driver gets both answers
 in one run.
 
-**And the lane found `script/shell-check` red on `main` for an unrelated reason.** With a virtio-rng
+**And the lane found `script/swish-check` red on `main` for an unrelated reason.** With a virtio-rng
 attached (`NIFE_RNG=1`, which both plain legs set unconditionally) the interactive boot **traps in
 init** on aarch64 and riscv64 alike, before the console prints anything; with the device absent the
 same build reaches a prompt normally. Reproduced at `8167d806` on nightly-2026-09-01 as well as
@@ -260,13 +260,14 @@ fatal-risk list that months of driver work is a reasonable thing to spend.
   board's UART, and nobody can until milestone 157 lands.
 - **Neither graphical leg can pass today.** `--graphical` and `--graphical-serial` both stop at
   milestone 177's open display-driver bug. The gates are written and red, which is the honest
-  state; do not read a green `script/shell-check` (which runs neither) as covering this.
+  state; do not read a green `script/swish-check` (which runs neither) as covering this.
 ## Follow-on
 
 - **Milestone 242.** Option B, the xHCI driver, USB core and HID keyboard, plus the scoping pass
   this block asks for, is `design/roadmap/242-usb-host-and-a-keyboard-that-is-not-a-uart.md`,
   minted 2026-09-03 by calef precisely so option B stops being priced as a line item here.
-- **Milestone 230.** `script/shell-check` red on `main` with a virtio-rng attached was not unowned:
+- **Milestone 230.** That is milestone 230 (`script/shell-check` is red on `main`), which keeps the
+  name the script had then. `script/swish-check` red on `main` with a virtio-rng attached was not unowned:
   `design/roadmap/230-shell-check-is-red.md` is BUILT 2026-09-02, root-caused to slot exhaustion
   four blocks later than this block guessed, and both plain legs are green.
 - **Outstanding.** Option A has still never been run on a board and cannot be until milestone 157

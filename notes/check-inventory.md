@@ -36,7 +36,7 @@ history and in nothing that lives in this tree.
 2. **Does it block?** CI runs nineteen checks on a pull request and the `main` ruleset requires
    eleven. The other eight are worth deciding rather than inheriting.
 3. **What does a green result actually assert?** This is the one an inventory cannot answer by
-   listing. `script/shell-check` was green while `login` was dead on every boot; that check ran and
+   listing. `script/swish-check` was green while `login` was dead on every boot; that check ran and
    would have blocked, and its passing simply meant less than its name.
 
 ## A. The workflow jobs
@@ -101,7 +101,7 @@ into `script/ci-build`'s table; the measurements are still 2026-09-03's, taken u
 | `fmt --check` | `ci-build` (`local`), ci `rustfmt`, the `pre-push` hook | yes | green |
 | `lint` | `ci-build` (`local`), ci `clippy` | yes | green |
 | `test` | `ci-build` (`local`), ci `build + test`, `toolchain-drift` | yes | green |
-| `shell-check` | `ci-build` (`local`), ci `build + test` (same job) | yes, inside `build + test` | green |
+| `swish-check` | `ci-build` (`local`), ci `build + test` (same job) | yes, inside `build + test` | green |
 | `icount` | `ci-build` (`local`), ci `bench` | yes | green |
 | `image-permissions` | `ci-build` (`local`), ci `image permissions` | **no** | green |
 | `bench --check` | ci `bench` | yes | green |
@@ -156,7 +156,7 @@ An inventory that stopped at `script/` and `.github/` would miss the two mechani
   no skip reason. That is milestone 214's rung-two answer, it runs inside every `script/test` boot,
   and it blocks. Its own limits are recorded in that milestone's block: it reads a substring rather
   than a structure, and a reason split across two `write_str` fragments is missed.
-- **The killed-thread assertion in `script/shell-check`** fails the run if the kernel reported
+- **The killed-thread assertion in `script/swish-check`** fails the run if the kernel reported
   killing any user thread, on both architectures. That is milestone 233's answer to a check that
   passed while `login` was dead, and it was proven able to fail before being believed.
 
@@ -175,7 +175,7 @@ somewhere in the tree; collecting them is the point.
   aggregator treats `skipped` as passing on purpose. The proofs' coverage therefore depends on
   `script/verify --affected-since` being right about what a change reaches, and that predicate is
   the whole gate.
-- **`script/shell-check` can pass a boot it should have failed**, and says so in its own `BUGS`: the
+- **`script/swish-check` can pass a boot it should have failed**, and says so in its own `BUGS`: the
   kernel's fault printer and the userspace console server drive the same UART with nothing
   arbitrating, so the boot-line checks put their teeth on the sentence the progenitor prints when the answer
   is no, and a line destroyed by interleaving is reported rather than failed when the kernel

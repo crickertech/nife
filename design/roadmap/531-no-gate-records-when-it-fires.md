@@ -267,7 +267,7 @@ calls the same defect as the `tee` fail-open and which went unnoticed for months
 argument error, which is a fixture that must produce a shard and did not. `script/citations`' input
 and reading patterns disagreeing about lettered citations, which is precisely a "must fail" fixture
 nobody wrote: three files in the tree are unreachable to that gate today and it was found by
-accident. `script/shell-check` red on `main` on both architectures with nothing saying so. And
+accident. `script/swish-check` red on `main` on both architectures with nothing saying so. And
 prospectively, the class `notes/check-inventory.md` closes on: *"Milestone 233's `login` was found by
 somebody asking what a passing check proved, and that remains the only known way to find the next
 one."* A selftest is that question, asked once, in a form that keeps being asked.

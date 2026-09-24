@@ -79,7 +79,7 @@
 //!
 //! `gate.txt` is two lines, four words, twenty-four bytes; what comes back is one line, four words,
 //! twenty-six, because two source lines are one paragraph re-flowed and the two bytes are the body
-//! indent. Those three lines are `script/shell-check`'s, on both architectures.
+//! indent. Those three lines are `script/swish-check`'s, on both architectures.
 //!
 //! # BUGS
 //!
@@ -96,7 +96,7 @@
 //!   accepts.
 //! - **`mdr <page> | wc` and `mdr <page> > out.txt` do deliver the named file.** They answered
 //!   `0 0 0` when this program shipped, because a pipeline's head was wired off the `Line`, which
-//!   carries no `<`; the planner's input operand is what the shell reads now. `script/shell-check`
+//!   carries no `<`; the planner's input operand is what the shell reads now. `script/swish-check`
 //!   types `mdr gate.txt | wc` on both architectures and asserts `1 4 26` against `gate.txt`'s
 //!   `2 4 24`: two source lines re-flowed into one, plus two bytes of body indent, which is what
 //!   separates a rendered page from silence.

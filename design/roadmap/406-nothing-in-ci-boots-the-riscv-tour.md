@@ -5,7 +5,7 @@ thing a reader needs. Filed 2026-09-14 as an unnumbered proposal by milestone 28
 2026-09-19 by milestone 433's drain of the proposal pile, with the premise re-read the same day.
 **What closed, and it closed within hours of this being written**: `script/boot-check` was added by
 milestone 268 on **2026-09-14**, sits in `script/ci-build`'s `local` tier (line 114) and runs on
-every pull request in the same job as `test` and `shell-check`, and
+every pull request in the same job as `test` and `swish-check`, and
 `.github/workflows/ci.yml` names the gap in its own words, that boot-check *"is the only thing on a
 pull request that boots the DEFAULT riscv64 or `x86_64` kernel at all"*. So the default riscv64
 kernel **is** booted on a pull request, by the recogniser this block said to reuse, and the sentence
@@ -42,7 +42,7 @@ nothing that runs on a pull request.
 |---|---|---|
 | `script/test` (riscv64 leg) | `#[cfg(test)]` | No. `main.rs`'s test arm runs `test_main()` and exits via semihosting **before** the tour block. |
 | `script/cpu-matrix` | the same test build, five CPU models (`rv64 sifive-u54 rva22s64 rva23s64 thead-c906`) | No, same arm. |
-| `script/shell-check` (riscv64 leg) | `--features shell` | No. `riscv_shell_boot` runs and `arch::halt()`s before the tour. |
+| `script/swish-check` (riscv64 leg) | `--features shell` | No. `riscv_shell_boot` runs and `arch::halt()`s before the tour. |
 | `script/bench --riscv --check` | `--features bench` | No. `bench::run()` parks before the tour. |
 | `script/icount` | `--features icount` | No, same shape. |
 | `script/soak-test --arch riscv64` | `--features soak_test` | **Yes**, whole tour, then the workload. Not in CI. |
@@ -86,7 +86,7 @@ minutes, because the tour halts on its own; the cost is the riscv64 kernel build
 The open questions are calef's and are the reason this is not just done:
 
 - **Where it runs.** A CI job of its own, an arm of `script/ci-build` (which is where
-  `script/shell-check` and `script/boot-check` were both put, for the same "reuse the build"
+  `script/swish-check` and `script/boot-check` were both put, for the same "reuse the build"
   reason), or a cadence.
 - **What it asserts.** Reaching `Stage::Tour` with `userspace_ran()` is the floor. The device-IRQ and
   preemption lines are the other two claims a reader would expect a tour check to make, and asserting
@@ -96,8 +96,8 @@ The open questions are calef's and are the reason this is not just done:
 ## The aarch64 and x86_64 halves, named so they are not discovered later
 
 aarch64's equivalent of the tour is the `initboot` path and it *is* exercised, by
-`script/shell-check`. x86_64 has neither a shell boot nor a tour step that loads userspace from an
-archive, and `shell_check()` says so in its own comment. So this proposal is riscv64-shaped on
+`script/swish-check`. x86_64 has neither a shell boot nor a tour step that loads userspace from an
+archive, and `swish_check()` says so in its own comment. So this proposal is riscv64-shaped on
 purpose, and a general "boot every architecture's default kernel and read the transcript" is a larger
 thing that should be argued for separately rather than assumed here.
 
@@ -118,5 +118,5 @@ sets `userspace_ran` from the `init/build` line, and `script/soak-test` already 
 with it, so the missing piece is an initrd and two assertions rather than an instrument. What is
 calef's is where it runs, what it asserts beyond the floor, and its name. The aarch64 and x86_64
 halves are named rather than left to be discovered: aarch64's equivalent is exercised by
-`script/shell-check`, and x86_64 has neither a shell boot nor a tour step that loads userspace from
+`script/swish-check`, and x86_64 has neither a shell boot nor a tour step that loads userspace from
 an archive.

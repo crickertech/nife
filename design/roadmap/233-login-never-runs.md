@@ -5,7 +5,7 @@
 it the moment that check could see straight. *(Number provisional until the merge queue lands it.)*
 
 It was minted with no gate, on the grounds that the cause was measured and the fix understood, and
-that held. What it leaves behind is a check: `script/shell-check` now fails if the kernel reported
+that held. What it leaves behind is a check: `script/swish-check` now fails if the kernel reported
 killing any user thread during the run, on both architectures. Proven able to fail rather than
 assumed, `components/src/least_authority_demo.rs` was temporarily patched to trap on one argument and the gate went red
 naming the thread.
@@ -83,7 +83,7 @@ the table.
 ## What the trap experiment found, which was not the thing being tested
 
 Proving the new assertion could fail meant making something trap on purpose. `worker` was patched to
-fault on one argument and `script/shell-check` run against it. The assertion fired, and so did
+fault on one argument and `script/swish-check` run against it. The assertion fired, and so did
 something else: **the prompt never came back.** `swish` waits on a job's result endpoint, and a
 thread the kernel killed never sends, so a spawned command that faults hangs the shell rather than
 returning a status. Recorded in `components/src/swish.rs`'s `BUGS`; an ordinary non-zero exit is fine and

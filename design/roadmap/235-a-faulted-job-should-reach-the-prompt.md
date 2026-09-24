@@ -45,11 +45,11 @@ second message behind its answer, and every job would leave init's supervision d
 userspace constant, one capability in an endowment, and four call sites.
 
 **Proven the way the defect was found, on both architectures.** `components/src/least_authority_demo.rs` was patched to
-trap on argument 6 and `script/shell-check` run against it. Before: `worker 6` killed the thread and
+trap on argument 6 and `script/swish-check` run against it. Before: `worker 6` killed the thread and
 "the prompt never came back to take `worker 7`". After, on aarch64 and riscv64 alike, the transcript
 reads the kernel's own report of the killed thread, then `that command faulted and was killed before
 it answered`, then `echo $?` answering `1`, then `worker 7` answering `7*7 = 49` and the rest of the
-script running to its end. The scaffold was then removed and `script/shell-check` is green on both
+script running to its end. The scaffold was then removed and `script/swish-check` is green on both
 legs.
 
 ## BUGS
@@ -72,7 +72,7 @@ legs.
   process built)) and therefore calef's.
 - **There is no regression gate, and that is a real gap.** Proving this needs a command that faults
   on purpose, which is a new program and therefore a name calef decides, and milestone 233's
-  no-thread-killed assertion in `script/shell-check` would have to learn to except it. Proposed as
+  no-thread-killed assertion in `script/swish-check` would have to learn to except it. Proposed as
   its own milestone rather than smuggled in here.
 
 ## Follow-on
@@ -92,7 +92,8 @@ legs.
   supervision domain, which is what `ps` and `pgrep` read.
 - **Milestone 330.** A regression gate
   for the fault path. It needs a program that faults on purpose, which is a new name and therefore
-  calef's, and milestone 233's no-thread-killed assertion in `script/shell-check` has to learn to
+  calef's, and milestone 233 (`login` dies on every boot, and the boot says it is
+  ready) and its no-thread-killed assertion in `script/swish-check` has to learn to
   except it. The scaffold that proved this milestone was a patch to `components/src/least_authority_demo.rs` and was
   removed afterwards, so nothing stops the lost prompt returning.
 - **Milestone 339.** Count which of the tree's

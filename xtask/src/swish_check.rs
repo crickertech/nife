@@ -1,4 +1,4 @@
-//! The `cargo xtask shell-check` command: boot the shell, type at it, and check what it
+//! The `cargo xtask swish-check` command: boot the shell, type at it, and check what it
 //! answered.
 //!
 //! The script is a table of (command, expected substrings), so adding a line to the check is
@@ -51,28 +51,28 @@ use crate::{RISCV_TARGET, RUNNER, TARGET, X86_TARGET, profile_dir, user};
 /// One line would meet the BUGS entry that asked for this. Five is still seconds, and it walks the
 /// whole endowment: a spawn through the real progenitor, the FS service the real progenitor narrowed into the
 /// shell, and both redirection operators.
-pub(crate) fn shell_check() -> bool {
+pub(crate) fn swish_check() -> bool {
     let legs = match flag_value("--arch").as_deref() {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
         // The third leg (milestone 182), since milestone 299 gave x86_64 a userspace console to
-        // reach a prompt through. It boots under OVMF rather than PVH; see `shell_check_leg`.
+        // reach a prompt through. It boots under OVMF rather than PVH; see `swish_check_leg`.
         Some("x86_64") => ArchLegs::X86_64,
         Some(other) => {
             eprintln!(
-                "shell-check: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)"
+                "swish-check: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)"
             );
             return false;
         }
     };
     // `--graphical` (milestone 177, option A): the same two legs, with the GPU and the keyboard
     // attached instead of the plain UART pair, verified by screendump rather than by transcript.
-    // See [`shell_check_leg_graphical`]'s own doc for why this needs a whole different verification
-    // shape rather than two env vars added to [`shell_check_leg`].
+    // See [`swish_check_leg_graphical`]'s own doc for why this needs a whole different verification
+    // shape rather than two env vars added to [`swish_check_leg`].
     let graphical = std::env::args().any(|a| a == "--graphical");
     // **Milestone 192's option A**: the same graphical boot with the *keyboard* left off, so the
-    // keystroke source is the board's own UART. See [`shell_check_leg_graphical`]'s own doc.
+    // keystroke source is the board's own UART. See [`swish_check_leg_graphical`]'s own doc.
     let graphical_serial = std::env::args().any(|a| a == "--graphical-serial");
 
     // TCG only. This boot never exits (the shell loops on its prompt), so it is killed rather than
@@ -80,7 +80,7 @@ pub(crate) fn shell_check() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg, or the graphical leg's own polling loop) copies pipe bytes or polls a
+    // in swish_check_leg, or the graphical leg's own polling loop) copies pipe bytes or polls a
     // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if graphical || graphical_serial {
@@ -88,7 +88,7 @@ pub(crate) fn shell_check() -> bool {
         // does have (the firmware's, milestone 400) is read by `cargo xtask uefi-boot` instead.
         if legs == ArchLegs::X86_64 {
             eprintln!(
-                "shell-check: there is no graphical leg on x86_64; `cargo xtask uefi-boot` reads \
+                "swish-check: there is no graphical leg on x86_64; `cargo xtask uefi-boot` reads \
                  the shell off the firmware's screen"
             );
             return false;
@@ -98,21 +98,21 @@ pub(crate) fn shell_check() -> bool {
         } else {
             Keystrokes::Device
         };
-        if legs.aarch64() && !shell_check_leg_graphical(false, keystrokes) {
+        if legs.aarch64() && !swish_check_leg_graphical(false, keystrokes) {
             return false;
         }
-        if legs.riscv64() && !shell_check_leg_graphical(true, keystrokes) {
+        if legs.riscv64() && !swish_check_leg_graphical(true, keystrokes) {
             return false;
         }
         return true;
     }
-    if legs.aarch64() && !shell_check_leg("aarch64") {
+    if legs.aarch64() && !swish_check_leg("aarch64") {
         return false;
     }
-    if legs.riscv64() && !shell_check_leg("riscv64") {
+    if legs.riscv64() && !swish_check_leg("riscv64") {
         return false;
     }
-    if legs.x86_64() && !shell_check_leg("x86_64") {
+    if legs.x86_64() && !swish_check_leg("x86_64") {
         return false;
     }
     true
@@ -124,7 +124,7 @@ pub(crate) fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -243,7 +243,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
     // granted the progenitor no config page, if the progenitor did not endow `printenv`, or if the page's validated
     // domains rejected the boot's own defaults, none of which a host test can see, because
     // `crates/system_initializer`'s spawn wiring is provable only against a real progenitor
-    // (this file's module doc names `script/shell-check` as exactly that gate).
+    // (this file's module doc names `script/swish-check` as exactly that gate).
     ("printenv", &["TZ=UTC", "LANG=C", "TERM=dumb"]),
     // And the visibility surface agrees with the wiring, `date`'s own check repeated for `config`:
     // `caps` claims to print a process's whole authority, so a config page endowed and not printed
@@ -520,7 +520,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
     ("least_authority_demo 7", &["7*7 = 49"]),
     ("least_authority_demo 8", &["8*8 = 64"]),
     // **The one spawnable program that answers in a register and had no line** until milestone
-    // 150's coverage test (`every_spawnable_program_has_a_shell_check_line`) asked. After the six
+    // 150's coverage test (`every_spawnable_program_has_a_swish_check_line`) asked. After the six
     // above, so their count is unchanged; the page count it reports depends on page-table overhead,
     // so the assertion is the sentence that says the grant was spent rather than the number.
     (
@@ -533,10 +533,10 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
 /// **The lines the `x86_64` leg does not type, each with the reason** (milestone 182, under the rule
 /// milestone 150 added: an omitted line carries a stated reason, or it is a gap nobody can see).
 ///
-/// A function over the line rather than a second table, so a line added to [`SHELL_CHECK_SCRIPT`]
+/// A function over the line rather than a second table, so a line added to [`SWISH_CHECK_SCRIPT`]
 /// is typed on `x86_64` by default and an omission is the thing that has to be argued for. `None`
 /// means the line runs.
-fn shell_check_x86_omits(line: &str) -> Option<&'static str> {
+fn swish_check_x86_omits(line: &str) -> Option<&'static str> {
     // `uuid` draws from the entropy service, and the progenitor builds that service only from a
     // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
     // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
@@ -554,13 +554,13 @@ fn shell_check_x86_omits(line: &str) -> Option<&'static str> {
 }
 
 /// The first thing `x86_hand_over` prints (`kernel/src/main.rs`), where the `x86_64` leg starts
-/// reading for faults; see `after_hand_over` in [`shell_check_leg`]. The same sentence
+/// reading for faults; see `after_hand_over` in [`swish_check_leg`]. The same sentence
 /// `uefi_boot` requires.
 const X86_HAND_OVER_START: &str = "nife: handing the system to the userspace progenitor.";
 
 /// The last thing `x86_hand_over` prints (`kernel/src/main.rs`) once the progenitor has outlived
 /// its ten-second watch, which is the ordinary interactive outcome. The `x86_64` leg waits for it
-/// before typing; see [`shell_check_leg`]'s doc.
+/// before typing; see [`swish_check_leg`]'s doc.
 const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
 
 /// How long to wait for the banner, for one line's echo, and for the whole transcript. Generous:
@@ -577,8 +577,8 @@ const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
 /// Raising the number is not obviously the fix: a real hang would then take proportionally longer
 /// to report, and the honest measurement (how long an echo actually takes under load, versus the
 /// budget) has not been made.
-const SHELL_CHECK_BOOT_SECS: u64 = 120;
-const SHELL_CHECK_LINE_SECS: u64 = 30;
+const SWISH_CHECK_BOOT_SECS: u64 = 120;
+const SWISH_CHECK_LINE_SECS: u64 = 30;
 
 /// **The `x86_64` leg's per-line bound, three times the others', and measured rather than chosen**
 /// (milestone 182, 2026-09-19).
@@ -607,14 +607,14 @@ const SHELL_CHECK_LINE_SECS: u64 = 30;
 /// milliseconds per scroll rather than seconds and is not measured on silicon
 /// (`framebuffer_driver`'s BUGS). Milestone 400's BUGS records the design half: the console
 /// blocks on the screen.
-const SHELL_CHECK_X86_LINE_SECS: u64 = 90;
+const SWISH_CHECK_X86_LINE_SECS: u64 = 90;
 
 /// How many foreign characters [`find_marker`] will step over inside one marker before it gives up.
 ///
 /// The intruder is one kernel fault report, three lines and about 150 characters. 400 is that with
 /// room to spare. It is a ceiling and not the thing doing the work: what makes this safe is the
 /// **order** the checks run in ([`boot_claim`]), not how generous this number is.
-const SHELL_CHECK_MARKER_SLACK: usize = 400;
+const SWISH_CHECK_MARKER_SLACK: usize = 400;
 
 /// Text the **kernel** prints only in a user-fault report, which is the only thing it writes after
 /// the userspace console has started.
@@ -640,7 +640,7 @@ const KERNEL_FAULT_TOKENS: [&str; 6] = [
 ];
 
 /// What `kernel::cap::report_peak` prints, verbatim (milestone 231). The line carries the boot's
-/// capability-slot high-water mark against the table's capacity, and `shell-check` both echoes the
+/// capability-slot high-water mark against the table's capacity, and `swish-check` both echoes the
 /// last one it sees and fails if the kernel flagged it as past the recorded peak.
 const SLOT_GAUGE: &str = "capability slots:";
 
@@ -682,7 +682,7 @@ fn find_marker<'a>(haystack: &str, needle: &'a str) -> Marker<'a> {
         let mut skipped = String::new();
         while i < want.len()
             && j < text.len()
-            && skipped.chars().count() <= SHELL_CHECK_MARKER_SLACK
+            && skipped.chars().count() <= SWISH_CHECK_MARKER_SLACK
         {
             if text[j] == want[i] {
                 i += 1;
@@ -780,7 +780,7 @@ enum BootClaim {
 /// dropping its budget prints the negative sentence on *every* boot, on both legs, on every push, so
 /// hiding it requires the shuffle to land on that sentence every time.
 ///
-/// The residual hole is case 4's converse and is named in `script/shell-check`'s own BUGS: if the progenitor's
+/// The residual hole is case 4's converse and is named in `script/swish-check`'s own BUGS: if the progenitor's
 /// report were deleted **and** a thread faulted in the same boot, this passes. Both halves have to
 /// happen together, and the second is itself a defect the transcript shows.
 fn boot_claim(transcript: &str, positive: &str, negative: &str) -> BootClaim {
@@ -832,7 +832,7 @@ fn boot_claim_complaint(
         BootClaim::Affirmed(None) => None,
         BootClaim::Affirmed(Some(skipped)) => {
             eprintln!(
-                "shell-check: read {positive:?} only after stepping over {} characters another \
+                "swish-check: read {positive:?} only after stepping over {} characters another \
                  writer had spliced through it. Every byte is present and in order, so this is the \
                  kernel's fault printer and the userspace console sharing the UART, not a lost \
                  read. The intruding text was {skipped:?}",
@@ -842,7 +842,7 @@ fn boot_claim_complaint(
         }
         BootClaim::Unreadable { longest_run } => {
             eprintln!(
-                "shell-check: could not read the progenitor's report on {subject}. Neither sentence survives \
+                "swish-check: could not read the progenitor's report on {subject}. Neither sentence survives \
                  in the transcript (the longest run of the affirmative one that does is \
                  {longest_run:?}), AND the kernel printed a fault report during the boot, so two \
                  processes were writing the UART at once and the line cannot be recovered. NOT \
@@ -867,7 +867,7 @@ fn boot_claim_complaint(
     }
 }
 
-/// One architecture's leg of [`shell_check`]: `aarch64`, `riscv64` or `x86_64`.
+/// One architecture's leg of [`swish_check`]: `aarch64`, `riscv64` or `x86_64`.
 ///
 /// # The `x86_64` leg boots under firmware (milestone 182)
 ///
@@ -887,9 +887,9 @@ fn boot_claim_complaint(
 ///   until something is typed. The leg waits for that report and then presses Enter once, so the
 ///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
 /// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
-///   mmio bus, so the progenitor builds no entropy service. [`shell_check_x86_omits`] names the
+///   mmio bus, so the progenitor builds no entropy service. [`swish_check_x86_omits`] names the
 ///   lines that need one.
-fn shell_check_leg(arch: &str) -> bool {
+fn swish_check_leg(arch: &str) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
@@ -898,7 +898,7 @@ fn shell_check_leg(arch: &str) -> bool {
     let x86 = arch == "x86_64";
     eprintln!();
     eprintln!(
-        "--- shell-check ({arch}): boot {} and type at the prompt ---",
+        "--- swish-check ({arch}): boot {} and type at the prompt ---",
         if x86 {
             "the UEFI image under OVMF"
         } else {
@@ -947,8 +947,8 @@ fn shell_check_leg(arch: &str) -> bool {
         c.arg(esp_dir());
         c.env(
             "NIFE_UEFI_TIMEOUT",
-            (SHELL_CHECK_BOOT_SECS * 2
-                + SHELL_CHECK_X86_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
+            (SWISH_CHECK_BOOT_SECS * 2
+                + SWISH_CHECK_X86_LINE_SECS * (SWISH_CHECK_SCRIPT.len() as u64 + 2))
                 .to_string(),
         );
         c.env_remove("NIFE_NVME");
@@ -988,7 +988,7 @@ fn shell_check_leg(arch: &str) -> bool {
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("shell-check: failed to start the runner: {e}");
+            eprintln!("swish-check: failed to start the runner: {e}");
             return false;
         }
     };
@@ -1073,9 +1073,9 @@ fn shell_check_leg(arch: &str) -> bool {
     // The banner is the first claim: the progenitor built the console, the line editor, the input driver and
     // the shell, and gave the shell every capability it needs to say hello. A boot that dies in any
     // of that prints nothing, which is the symptom all three of this milestone's bugs shared.
-    if !wait_after(0, "nife capability shell", SHELL_CHECK_BOOT_SECS) {
+    if !wait_after(0, "nife capability shell", SWISH_CHECK_BOOT_SECS) {
         failed.push(format!(
-            "no prompt banner within {SHELL_CHECK_BOOT_SECS}s: the `--features shell` boot never \
+            "no prompt banner within {SWISH_CHECK_BOOT_SECS}s: the `--features shell` boot never \
              reached a shell"
         ));
     } else {
@@ -1124,7 +1124,7 @@ fn shell_check_leg(arch: &str) -> bool {
         let mut ready = true;
         if x86 {
             ready = false;
-            if !wait_after(0, X86_HAND_OVER_REPORT, SHELL_CHECK_BOOT_SECS) {
+            if !wait_after(0, X86_HAND_OVER_REPORT, SWISH_CHECK_BOOT_SECS) {
                 failed.push(format!(
                     "the kernel never printed its hand-over report ({X86_HAND_OVER_REPORT:?}), so \
                      the progenitor did not outlive `x86_hand_over`'s watch"
@@ -1138,17 +1138,17 @@ fn shell_check_leg(arch: &str) -> bool {
         // **How long each line took**, typed to prompt-back, so every run reports its own margin
         // against the per-line bound rather than leaving it to be guessed after a red one.
         let line_secs = if x86 {
-            SHELL_CHECK_X86_LINE_SECS
+            SWISH_CHECK_X86_LINE_SECS
         } else {
-            SHELL_CHECK_LINE_SECS
+            SWISH_CHECK_LINE_SECS
         };
         let mut took: Vec<(&str, Duration)> = Vec::new();
         let mut previous: Option<(&str, Instant)> = None;
-        for (line, _) in SHELL_CHECK_SCRIPT {
+        for (line, _) in SWISH_CHECK_SCRIPT {
             if !ready {
                 break;
             }
-            if x86 && shell_check_x86_omits(line).is_some() {
+            if x86 && swish_check_x86_omits(line).is_some() {
                 continue;
             }
             if !wait_for_prompt(line_secs) {
@@ -1183,13 +1183,13 @@ fn shell_check_leg(arch: &str) -> bool {
         // Every line's time, in script order, beside the transcript when that was asked for.
         if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
             for (l, d) in &took {
-                eprintln!("shell-check ({arch}): {:6.2}s  {l}", d.as_secs_f64());
+                eprintln!("swish-check ({arch}): {:6.2}s  {l}", d.as_secs_f64());
             }
         }
         took.sort_by_key(|t| std::cmp::Reverse(t.1));
         let total: Duration = took.iter().map(|(_, d)| *d).sum();
         eprintln!(
-            "shell-check ({arch}): {} lines in {:.1}s; slowest, against a {line_secs}s \
+            "swish-check ({arch}): {} lines in {:.1}s; slowest, against a {line_secs}s \
              bound per line: {}",
             took.len(),
             total.as_secs_f64(),
@@ -1205,11 +1205,11 @@ fn shell_check_leg(arch: &str) -> bool {
     let transcript = after_hand_over(&whole);
     // The transcript is printed on failure below, because that is when somebody needs it. This
     // prints it on success too, and it exists because the notes in this tree quote real prompt
-    // sessions: `NIFE_SHOW_TRANSCRIPT=1 script/shell-check --arch aarch64` is where the EXAMPLES
+    // sessions: `NIFE_SHOW_TRANSCRIPT=1 script/swish-check --arch aarch64` is where the EXAMPLES
     // in notes/swish-language.md and notes/pipes.md come from, rather than from somebody retyping
     // what they remember the shell saying.
     if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
-        eprintln!("--- shell-check ({arch}) transcript ---");
+        eprintln!("--- swish-check ({arch}) transcript ---");
         eprintln!("{whole}");
     }
     if failed.is_empty() {
@@ -1218,11 +1218,11 @@ fn shell_check_leg(arch: &str) -> bool {
         // that found either one would read the same answer for both lines and pass a `>>` that had
         // truncated.
         let mut cursor = 0usize;
-        for (line, want) in SHELL_CHECK_SCRIPT {
-            if x86 && shell_check_x86_omits(line).is_some() {
+        for (line, want) in SWISH_CHECK_SCRIPT {
+            if x86 && swish_check_x86_omits(line).is_some() {
                 continue;
             }
-            match shell_check_answer(&transcript, cursor, line) {
+            match swish_check_answer(&transcript, cursor, line) {
                 Some((answer, next)) => {
                     cursor = next;
                     // **Every wanted phrase, not the first**, because one answer can carry several
@@ -1251,7 +1251,7 @@ fn shell_check_leg(arch: &str) -> bool {
     // a line about a login service.
     //
     // **The whole transcript, not the boot**, because the typed script is where a death would be
-    // most surprising. Nothing in `SHELL_CHECK_SCRIPT` traps on purpose: the three lines that fail
+    // most surprising. Nothing in `SWISH_CHECK_SCRIPT` traps on purpose: the three lines that fail
     // (`wc` and `doc` with nothing named, `least_authority_demo` with no argument) are all refusals, two at the
     // prompt before anything is spawned and one an ordinary non-zero exit, and `rm gate.txt`'s
     // refusal is an answer rather than a fault. `echo $?` reading `2` right after `least_authority_demo` is this
@@ -1301,7 +1301,7 @@ fn shell_check_leg(arch: &str) -> bool {
     // update the constant, and re-read the headroom arithmetic beside `CAPABILITY_TABLE_SLOTS`.
     match transcript.lines().rfind(|l| l.contains(SLOT_GAUGE)) {
         Some(line) => {
-            eprintln!("shell-check ({arch}):{}", line.trim_end());
+            eprintln!("swish-check ({arch}):{}", line.trim_end());
             // **On x86_64 this line is stale, and says so** (milestone 182). The gauge is printed
             // from the scheduler's idle loop, and x86_64's input driver polls COM1 and yields
             // rather than blocking (milestone 299), so once it starts the run queue is never empty
@@ -1312,7 +1312,7 @@ fn shell_check_leg(arch: &str) -> bool {
             // hidden.
             if x86 {
                 eprintln!(
-                    "shell-check (x86_64): that gauge is the mark at the hand-over, not the peak: \
+                    "swish-check (x86_64): that gauge is the mark at the hand-over, not the peak: \
                      the idle loop that prints it never runs again while the input driver polls"
                 );
             }
@@ -1349,25 +1349,25 @@ fn shell_check_leg(arch: &str) -> bool {
 
     if failed.is_empty() {
         // The four lines x86_64 omits are four jobs (two `uuid`s and the two `wc`s reading
-        // what they wrote); see [`shell_check_x86_omits`].
+        // what they wrote); see [`swish_check_x86_omits`].
         let jobs = if x86 { "seventeen" } else { "twenty-one" };
         if x86 {
-            let omitted: Vec<&str> = SHELL_CHECK_SCRIPT
+            let omitted: Vec<&str> = SWISH_CHECK_SCRIPT
                 .iter()
                 .map(|(line, _)| *line)
-                .filter(|line| shell_check_x86_omits(line).is_some())
+                .filter(|line| swish_check_x86_omits(line).is_some())
                 .collect();
             eprintln!(
-                "shell-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
+                "swish-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
                  of {} lines, omitting {}: {:?}",
-                SHELL_CHECK_SCRIPT.len() - omitted.len(),
-                SHELL_CHECK_SCRIPT.len(),
+                SWISH_CHECK_SCRIPT.len() - omitted.len(),
+                SWISH_CHECK_SCRIPT.len(),
                 omitted.len(),
                 omitted,
             );
         }
         eprintln!(
-            "shell-check ({arch}): the prompt booted, piped, redirected, appended, named a \
+            "swish-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
              a declared second stream off the redirection, previewed a directory grant and \
              then removed exactly the name it designated through a caretaker the progenitor built for \
@@ -1383,9 +1383,9 @@ fn shell_check_leg(arch: &str) -> bool {
         return true;
     }
     eprintln!();
-    eprintln!("--- shell-check ({arch}) transcript ---");
+    eprintln!("--- swish-check ({arch}) transcript ---");
     eprintln!("{whole}");
-    eprintln!("--- shell-check ({arch}) FAILED ---");
+    eprintln!("--- swish-check ({arch}) FAILED ---");
     for f in &failed {
         eprintln!("  {f}");
     }
@@ -1410,9 +1410,9 @@ fn shell_check_leg(arch: &str) -> bool {
 /// made the graphical stack depend on the keystroke's source, exactly one of these two runs would
 /// go red.
 ///
-/// # Why this cannot be [`shell_check_leg`] with two env vars added
+/// # Why this cannot be [`swish_check_leg`] with two env vars added
 ///
-/// [`shell_check_leg`]'s whole verification is a transcript piped over the UART: `console`/`input`
+/// [`swish_check_leg`]'s whole verification is a transcript piped over the UART: `console`/`input`
 /// are exactly the two programs the graphical boot does not spawn (design/roadmap/
 /// 177-graphical-interactive-boot.md's own finding), so there is no serial channel left to pipe.
 /// The only observable surface is what a person looking at the screen would see, which on this
@@ -1420,9 +1420,9 @@ fn shell_check_leg(arch: &str) -> bool {
 /// (`sendkey`) for the same reason `kernel/src/user/display_tests.rs`'s own keyboard test needs the
 /// host to press one: nothing in the guest can.
 ///
-/// # Why this proves less than [`shell_check_leg`], and on purpose
+/// # Why this proves less than [`swish_check_leg`], and on purpose
 ///
-/// [`SHELL_CHECK_SCRIPT`] is many lines because it is the whole redirection/pipeline/glob/manual
+/// [`SWISH_CHECK_SCRIPT`] is many lines because it is the whole redirection/pipeline/glob/manual
 /// story, and every one of those checks a known **string**. There is no equivalent "the known
 /// picture" to check against here: the boot banner's exact wrapped, scrolled position in an 18x8
 /// grid is a function of wording nobody wants two copies of (one in `crates/system_initializer`,
@@ -1431,7 +1431,7 @@ fn shell_check_leg(arch: &str) -> bool {
 /// up with no capability-slot collision (a collision fails the boot in total silence, so *any*
 /// prompt reaching the screen disproves one) and a real keystroke, through `keyboard_driver`'s new direct
 /// `CALL` to `line_editor` and back out through `display_terminal`, reaches the screen. Proving the
-/// rest of [`SHELL_CHECK_SCRIPT`] against a graphical prompt is real, scoped-out follow-on work,
+/// rest of [`SWISH_CHECK_SCRIPT`] against a graphical prompt is real, scoped-out follow-on work,
 /// not a gap this leg pretends is closed.
 ///
 /// It looks for `$ ` (the exact two bytes `swish` prints for every prompt, `proto`-unrelated to
@@ -1442,7 +1442,7 @@ fn shell_check_leg(arch: &str) -> bool {
 /// them to each other with no wrong slot, and that `swish` is alive and printing through them.
 /// Finding `$ a` after `sendkey "a"` is the proof that a keystroke makes the same round trip back:
 /// `keyboard_driver` (`MODE_DIRECT`) into `line_editor`, echoed out through `display_terminal`.
-/// Which keystroke source [`shell_check_leg_graphical`] wires up. See its doc; the fork is
+/// Which keystroke source [`swish_check_leg_graphical`] wires up. See its doc; the fork is
 /// design/roadmap/192-keyboard-on-real-silicon.md's, and the kernel's own copy of it is
 /// `kernel::user::KeystrokeSource`.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1454,7 +1454,7 @@ enum Keystrokes {
     Serial,
 }
 
-fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
+fn swish_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     use std::io::Write;
     use std::time::{Duration, Instant};
 
@@ -1465,7 +1465,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     };
     eprintln!();
     eprintln!(
-        "--- shell-check ({arch}, graphical): boot `--features shell` with a GPU and {source} ---"
+        "--- swish-check ({arch}, graphical): boot `--features shell` with a GPU and {source} ---"
     );
 
     let target = if riscv { RISCV_TARGET } else { TARGET };
@@ -1489,7 +1489,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
         return false;
     }
 
-    let sock = gpu_mon_socket(&format!("{arch}-shell-check"));
+    let sock = gpu_mon_socket(&format!("{arch}-swish-check"));
     let _ = std::fs::remove_file(&sock);
 
     let mut cmd = Command::new(if riscv {
@@ -1516,7 +1516,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     if keystrokes == Keystrokes::Device {
         cmd.env("NIFE_RNG", "1");
     }
-    // The flags [`shell_check_leg`] never sets: a virtio-gpu and (in the device arm) a
+    // The flags [`swish_check_leg`] never sets: a virtio-gpu and (in the device arm) a
     // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
     // `scripts/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
     // *the progenitor* does with them existing, not how they get attached).
@@ -1542,7 +1542,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("shell-check (graphical): failed to start the runner: {e}");
+            eprintln!("swish-check (graphical): failed to start the runner: {e}");
             return false;
         }
     };
@@ -1555,8 +1555,8 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     alphabet.push(b' ');
     alphabet.push(b'$');
 
-    let shot = workspace_root().join(format!("target/gpu-shell-check-{arch}.ppm"));
-    let deadline = Instant::now() + Duration::from_secs(SHELL_CHECK_BOOT_SECS);
+    let shot = workspace_root().join(format!("target/gpu-swish-check-{arch}.ppm"));
+    let deadline = Instant::now() + Duration::from_secs(SWISH_CHECK_BOOT_SECS);
     let mut prompt_row: Option<String> = None;
     while Instant::now() < deadline && prompt_row.is_none() {
         if screendump(&sock, &shot)
@@ -1571,13 +1571,13 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
         let _ = child.kill();
         let _ = child.wait();
         eprintln!(
-            "shell-check ({arch}, graphical): no `$ ` prompt appeared on the scanout within \
-             {SHELL_CHECK_BOOT_SECS}s (see {})",
+            "swish-check ({arch}, graphical): no `$ ` prompt appeared on the scanout within \
+             {SWISH_CHECK_BOOT_SECS}s (see {})",
             shot.display(),
         );
         return false;
     };
-    eprintln!("shell-check ({arch}, graphical): prompt found: {before:?}");
+    eprintln!("swish-check ({arch}, graphical): prompt found: {before:?}");
 
     // The one keystroke this leg types, the same key (and the same reason) the kernel test's own
     // keyboard test uses: `video_terminal::script::HOST_KEY` is the one definition of which key,
@@ -1591,7 +1591,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
             let Some(stdin) = child.stdin.as_mut() else {
                 let _ = child.kill();
                 let _ = child.wait();
-                eprintln!("shell-check ({arch}, graphical): the runner has no stdin to type into");
+                eprintln!("swish-check ({arch}, graphical): the runner has no stdin to type into");
                 return false;
             };
             if let Err(e) = stdin
@@ -1600,14 +1600,14 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
             {
                 let _ = child.kill();
                 let _ = child.wait();
-                eprintln!("shell-check ({arch}, graphical): could not type into the UART: {e}");
+                eprintln!("swish-check ({arch}, graphical): could not type into the UART: {e}");
                 return false;
             }
         }
     }
 
     let want = format!("$ {}", video_terminal::script::HOST_KEY);
-    let deadline = Instant::now() + Duration::from_secs(SHELL_CHECK_LINE_SECS);
+    let deadline = Instant::now() + Duration::from_secs(SWISH_CHECK_LINE_SECS);
     let mut typed_row: Option<String> = None;
     while Instant::now() < deadline && typed_row.is_none() {
         if screendump(&sock, &shot)
@@ -1630,7 +1630,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
                 Keystrokes::Serial => "`input`'s CALL to `line_editor`, over the UART",
             };
             eprintln!(
-                "shell-check ({arch}, graphical): the prompt reached the screen through \
+                "swish-check ({arch}, graphical): the prompt reached the screen through \
                  `display_terminal`, and a key press reached it back through {by}: {after:?}"
             );
             true
@@ -1647,8 +1647,8 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
                 }
             };
             eprintln!(
-                "shell-check ({arch}, graphical): the prompt appeared ({before:?}) but the key \
-                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): {blame}",
+                "swish-check ({arch}, graphical): the prompt appeared ({before:?}) but the key \
+                 press ({:?}) never echoed back within {SWISH_CHECK_LINE_SECS}s (see {}): {blame}",
                 video_terminal::script::HOST_KEY,
                 shot.display(),
             );
@@ -1663,7 +1663,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
 /// `kernel::user::pipeline_service::answer` does this inside the guest and this does it on the
 /// host, for the same reason: an assertion should be able to name the command it is about instead
 /// of counting lines.
-fn shell_check_answer<'a>(
+fn swish_check_answer<'a>(
     transcript: &'a str,
     from: usize,
     line: &str,
@@ -1856,19 +1856,19 @@ $ outlaw
         ));
     }
 
-    /// **Every program the shell can spawn is spawned by `script/shell-check`, or says why not**
+    /// **Every program the shell can spawn is spawned by `script/swish-check`, or says why not**
     /// (milestone 150). Before this, a program's presence in the booted system was proven only by a
     /// transcript line somebody remembered to type, and three of thirteen had none. The check is a
     /// token match (the program's name as a whole word anywhere in a line), which is weaker than
     /// "the line ran it" and is enough to make forgetting loud.
     #[test]
-    fn every_spawnable_program_has_a_shell_check_line() {
+    fn every_spawnable_program_has_a_swish_check_line() {
         // Programs a transcript cannot drive, each with the reason. Both run until interrupted,
         // and this gate types lines; it has no way to send `^C`.
         const UNSCRIPTED: [&str; 2] = ["interrupt_heeder", "interrupt_ignorer"];
         for p in grant_plan::Prog::ALL {
             let name = p.name();
-            let scripted = SHELL_CHECK_SCRIPT
+            let scripted = SWISH_CHECK_SCRIPT
                 .iter()
                 .any(|(line, _)| line.split_whitespace().any(|w| w == name));
             assert!(
@@ -1877,7 +1877,7 @@ $ outlaw
                 if scripted {
                     "scripted now, so take it off UNSCRIPTED"
                 } else {
-                    "the shell can spawn it and SHELL_CHECK_SCRIPT never does; add a line (see \
+                    "the shell can spawn it and SWISH_CHECK_SCRIPT never does; add a line (see \
                      notes/adding-a-program.md), or add it to UNSCRIPTED with the reason"
                 }
             );

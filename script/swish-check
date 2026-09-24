@@ -1,16 +1,16 @@
 #!/bin/sh
-# script/shell-check: boot the interactive system (`--features shell`) and type at the prompt.
+# script/swish-check: boot the interactive system (`--features shell`) and type at the prompt.
 #
-#   script/shell-check                     all three architectures
-#   script/shell-check --arch aarch64      one leg (aarch64, riscv64 or x86_64)
-#   script/shell-check --graphical         aarch64 and riscv64, GPU and keyboard attached
-#   script/shell-check --graphical-serial  aarch64 and riscv64, GPU only, typing over the UART
+#   script/swish-check                     all three architectures
+#   script/swish-check --arch aarch64      one leg (aarch64, riscv64 or x86_64)
+#   script/swish-check --graphical         aarch64 and riscv64, GPU and keyboard attached
+#   script/swish-check --graphical-serial  aarch64 and riscv64, GPU only, typing over the UART
 #
 # **The x86_64 leg (milestone 182) boots the UEFI image under OVMF**, the `BOOTX64.EFI` a customer
 # copies to a USB stick, rather than a `--features shell` kernel under QEMU's PVH loader. x86_64 has
 # no early hand-over, so the kernel it boots is the default one, tour first. It types the same
 # script over COM1 minus the four `uuid` lines (q35 has no entropy device the progenitor can use;
-# `shell_check_x86_omits` in `xtask/src/shell_check.rs` carries the reason). It is the slow leg: about six
+# `swish_check_x86_omits` in `xtask/src/swish_check.rs` carries the reason). It is the slow leg: about six
 # minutes on patagonia against about ninety seconds for the same script over PVH, because under
 # firmware the console server tees every byte onto the screen and waits for it to be drawn
 # (milestone 400). Milestone 182's block has the measurement and why the slower boot was chosen.
@@ -21,7 +21,7 @@
 # serial transcript: there is no UART client on that path to pipe. It proves a working, typeable
 # prompt reached the screen and a real keystroke round-tripped through `keyboard_driver`'s direct `CALL` to
 # `line_editor`; it does not run the full console leg's script (echo, redirects, `wc <`, ...), which
-# is real, scoped-out follow-on work. See `shell_check_leg_graphical`'s own doc in `xtask/src/shell_check.rs`.
+# is real, scoped-out follow-on work. See `swish_check_leg_graphical`'s own doc in `xtask/src/swish_check.rs`.
 #
 # `--graphical-serial` (milestone 192, option A) is the same boot with the keyboard left off, so the
 # keystroke source is the guest's own UART. That is the configuration all three target boards have:
@@ -46,7 +46,7 @@
 # One row, two callers, which is what the `local` tier means. A person gets it from
 # `script/ci-build` with no arguments and pays 30 seconds for the aarch64 and riscv64 legs against an
 # already-warm target directory, plus about six minutes for x86_64's (above);
-# CI gets it from `script/ci-build test shell-check`, appended to the `build + test` job rather than
+# CI gets it from `script/ci-build test swish-check`, appended to the `build + test` job rather than
 # given a job of its own, so it reuses that job's build instead of paying ten minutes for thirty
 # seconds of checking. The x86_64 leg changes that arithmetic: it adds roughly six minutes (more
 # on a slower runner) to a job that took about 13 against its 30-minute timeout. Run it directly when you touch the progenitor, the shell, or what the boot
@@ -67,7 +67,7 @@
 # prints when the answer is NO, searched exactly, because interleaving can destroy a string and
 # cannot create one. A line that cannot be read at all is reported rather than failed, but only when
 # the kernel demonstrably wrote during the boot; with one writer there is nothing to shuffle, so a
-# missing line is a real one and still fails. See `boot_claim` in `xtask/src/shell_check.rs`.
+# missing line is a real one and still fails. See `boot_claim` in `xtask/src/swish_check.rs`.
 #
 # **The cost of that choice, stated plainly: it can pass a boot it should have failed.** If the
 # progenitor's
@@ -88,20 +88,25 @@
 # **The two graphical legs prove one key, not the script.** They are green since milestone 177 found
 # the hang that kept them red (the boot never received two drivers' one-time reports, so both
 # drivers sat in a blocking SEND; notes/framebuffer-contract.md has the evidence), and they are the
-# `shell-check-graphical` row of `script/ci-build`. What they check is a prompt on the screen and one
+# `swish-check-graphical` row of `script/ci-build`. What they check is a prompt on the screen and one
 # typed key echoed beside it; nothing past that is asserted on the graphical path.
 #
-# Name: provisional, and this lane proposes a rename. Introduced 2026-08-02. It boots the kernel's
-# `--features shell` configuration and types at the prompt. Two problems, and the first is the one
-# that bites. **It is one hyphen from `shellcheck`**, the shell linter `script/lint` itself runs,
-# so the two names differ by punctuation while naming unrelated things, and a reader who has met
-# the linter meets this and is wrong. Second, the word it is built from is stale:
-# design/naming.md's BUGS records that `shell` no longer names any program in this tree, because
-# the shell is `swish`. The case is therefore for `swish-check`, which fixes both at once by
-# naming the program actually driven, with `prompt-check` the alternative if calef would rather
-# name the surface than the binary. Two loose ends the rename has to carry: the cargo feature is
-# spelled `shell` and would still read as the old vocabulary, and `cargo xtask shell-check` is the
-# same string one level along. Proposed, not performed.
+# Name: ratified 2026-09-23 (calef, replacing `shell-check`, which was provisional and introduced
+# 2026-08-02). It boots the kernel's `--features shell` configuration and types at the prompt, so it
+# is named for the program actually driven, the way `coremark` and `compositor` are. The old name had
+# two problems and the first is the one that bit. **It was one hyphen from `shellcheck`**, the shell
+# linter `script/lint` itself runs, so two names differed by punctuation while naming unrelated
+# things, and a reader who had met the linter met this and was wrong about it. That cost a real
+# boot: on 2026-09-23 a lane briefed explicitly not to start QEMU ran `script/shell-check` believing
+# it was a shell-script linter and booted a 109-minute bounded emulator. Second, the word it was
+# built from is stale: design/naming.md's BUGS records that `shell` no longer names any program in
+# this tree, because the shell is `swish`. Refused `prompt-check` (it names a surface rather than the
+# binary, and this family is named for what it drives).
+#
+# **The cargo feature is still spelled `shell`, deliberately.** That is a different name in a
+# different namespace, it is not the one that misleads a reader at the command line, and renaming it
+# touches every `--features` invocation in the tree. It keeps the stale vocabulary until somebody
+# prices that sweep on its own.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -109,4 +114,4 @@ cd "$(dirname "$0")/.."
 # This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
 # PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
 . scripts/qemu-path.sh
-exec cargo xtask shell-check "$@"
+exec cargo xtask swish-check "$@"
