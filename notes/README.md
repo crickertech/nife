@@ -65,6 +65,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   happened to notice, and the steward that was supposed to cover them reported without acting. Why
   the drain is deliberately serial (`cpu matrix` is load-sensitive, so parallel updates manufacture
   their own failures), and why the prevention half is a GitHub rule rather than either script.
+- [The automation's own identity](automation-identity.md): the toolchain-bump workflow has to open a
+  pull request that gets CI, and GitHub's anti-recursion rule means the workflow's own token cannot.
+  Today that is a personal access token on calef's account, with an expiry nobody in the repository
+  can read; an organization-owned GitHub App mints a token per run instead and names the role rather
+  than the person. The click path and the commands to create it, what it does not fix (commit
+  authorship stays with whoever holds the git identity), and why the PAT is retired only after a run
+  has been observed taking the App path.
 - [Counted claims](counted-claims.md): a number in the prose is a claim, and unlike a name it is one
   a machine can check. The `<!--count:NAME-->` marker, the registry of derivations in `script/lint`,
   and why it is a ratchet rather than a sweep. Three claimed counts were tested against the tree and

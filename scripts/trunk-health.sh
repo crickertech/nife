@@ -33,26 +33,25 @@
 # **Recovery is reported too, deliberately.** A watcher that only speaks on failure trains its reader
 # to treat silence as health, and silence is also what a dead watcher produces.
 #
-# # A second watch folded in here (2026-09-23): uncommitted work sitting in a lane worktree
+# # Where this runs, and the watch that was folded in here and then unfolded (2026-09-24)
 #
-# AGENTS.md gives the steward a duty this file's own header already names above and never built:
-# "a lane worktree with modifications and no commit in half an hour is uncommitted work one prune
-# away from gone, which is the only failure in this system that destroys rather than delays." It had
-# no mechanism, on any of the two existing watchers, for the same reason nothing else in this file's
-# history has a mechanism until something is lost: `launchctl list` showed `com.nife.merge-drain` and
-# `com.nife.trunk-health` and nothing else.
+# **The trunk half runs in GitHub Actions as `nife-smelter[bot]`**, on a five-minute schedule:
+# `.github/workflows/trunk-health.yml`, which carries the reasoning, the tested premise, and the
+# cadence BUGS. It used to run under `launchd` on patagonia as calef's own token.
 #
-# `scripts/at-risk-check.sh` does the reading; this file decides when to speak. Folded in here rather
-# than as a third `launchd` job, on the reasoning `scripts/merge-drain.sh` already uses for
-# `scripts/lane-claim-check.sh`: a third watcher is a third thing to start, a third thing that can die
-# silently (this file's own BUGS section, and `scripts/merge-drain.sh`'s, both say neither reports its
-# own death), and a third entry in every "confirm the watchers are alive" step in AGENTS.md and
-# notes/merge-queue.md. Reusing a loop that already runs on this cadence costs one function call.
+# **`scripts/at-risk-check.sh` did not come along, and could not have.** It was folded into this
+# script's loop on 2026-09-23 on the reasoning that a third watcher is a third thing to start and a
+# third thing that can die silently, and that `com.nife.trunk-health` was already firing on the
+# right interval. That reasoning was correct for as long as both halves ran on the same machine.
+# They no longer do: everything else here reads GitHub, while the at-risk check reads **this
+# machine's** worktrees and their `git status`. A runner has no lane worktrees, so carrying the fold
+# into Actions would have produced a check that reports nothing forever while the hazard it exists
+# for sat on somebody's laptop unwatched, which is worse than not having it.
 #
-# Unlike RED/GREEN, this reports every pass rather than only the transition: see
-# `scripts/at-risk-check.sh`'s own BUGS section for why (a worktree still at risk on the next poll is
-# still exactly as at risk, and there is no cheap way to distinguish "still true" from "newly true"
-# without a second piece of state this script does not otherwise keep).
+# So the at-risk watch is per developer, one per machine, under its own `launchd` job, and it needs
+# no GitHub credential at all. notes/merge-queue.md has the plist and the retirement commands for
+# the two jobs this replaces. `--once` here still reports it, because a person running this by hand
+# on their own machine is exactly the case where both halves are true at once.
 #
 # # The thing that would prevent this rather than detect it
 #
@@ -129,8 +128,9 @@ cadence() {
 	script/cadence-check --quiet 2>/dev/null || true
 }
 
-# See this file's own header ("A second watch folded in here") for why this lives here rather than
-# as a third `launchd` job. `scripts/at-risk-check.sh` reports and never acts; this only relays it.
+# Relayed by `--once` only; the watching form no longer calls it. See the header section above for
+# why the fold was undone. `scripts/at-risk-check.sh` reports and never acts; this only relays it,
+# and on a machine with no lane worktrees it prints nothing rather than being wrong.
 at_risk() {
 	scripts/at-risk-check.sh 2>/dev/null || true
 }
@@ -177,10 +177,6 @@ while true; do
 		fi
 		prev_cadence="$c"
 	fi
-
-	# Every pass, not only on change: see the header note on why this one does not dedupe.
-	a=$(at_risk)
-	[ -n "$a" ] && printf '%s\n' "$a"
 
 	sleep 90
 done

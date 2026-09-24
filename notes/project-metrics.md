@@ -353,6 +353,68 @@ not enter this chart, which is the reason it counts dated rows instead of differ
 `PARTIAL` block that turns `BUILT` was already counted as a milestone, and a block that turns
 `SUPERSEDED` leaves the `BUILT` column without anything having been unbuilt.
 
+### 2026-09-23: this chart does not reconcile with the `Built` stock, and that is the design
+
+calef read the effort chart above and asked which milestones 2026W35's denominator of **8** covered.
+Diffing the `Built` total between that week's row and the previous one gives **6**, and so does
+diffing `**Status:**` across every roadmap block between those two rows' own commits. Three numbers,
+two answers, and the larger one is the one that flatters the project: 8 in the denominator prices
+2026W35 at about 1,021 million tokens per milestone, 6 prices it at about 1,362.
+
+**All three are right, and the column is the one to trust.** The two sixes are the same
+measurement wearing different clothes. Both ask what the roadmap *said* at two moments a week apart;
+the column asks what was *built*, from the dates the roadmap carries today. Those differ by
+whatever lag sat between a milestone being finished and its row being flipped, and that lag is not
+small here:
+
+| week | built that week | `Built` stock | stock change | counted here, recorded later |
+| --- | --- | --- | --- | --- |
+| 2026W29 | 10 | 0 | | 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 |
+| 2026W30 | 8 | 0 | 0 | 12, 13, 14, 15, 18, 19, 21, 26 |
+| 2026W31 | 21 | 26 | +26 | 50, 69, 70 |
+| 2026W32 | 31 | 63 | +37 | 58, 65, 67, 104, 107, 112, 115 |
+| 2026W33 | 9 | 73 | +10 | 80, 93, 125 |
+| 2026W34 | 18 | 97 | +24 | 344 |
+| 2026W35 | 8 | 103 | +6 | 191, 193 |
+| 2026W36 | 49 | 150 | +47 | 375, 380 |
+| 2026W37 | 13 | 160 | +10 | 281, 285, 286, 287 |
+| 2026W38 | 64 | 228 | +68 | 434, 447, 518 |
+| 2026W39 | 16 | 246 | +18 | 512 |
+
+**Eleven weeks, eleven disagreements, and not one of them is a milestone this chart invented.**
+Every number in the last column turns up in a later week's stock change, which is the whole of the
+gap. 2026W35's two are the shape in miniature. Milestone 193 (put `kernel/src` within reach of the
+prover) was flipped on 2026-08-30 and the week's index regeneration had already happened, so the
+stock records it in 2026W36. Milestone 191 (did the proofs catch the bugs? a retrospective of
+every real defect) was flipped on 2026-09-11 under a commit that says so in its subject, *"has
+been BUILT since 2026-08-30 and nothing noticed"*, so the stock records it in 2026W37, twelve days
+after the work. 2026W29's ten are the extreme case: milestones 1 to 11 were backfilled as blocks
+weeks after the kernel they describe booted, so a stock difference puts the project's entire first
+fortnight in 2026W31 and 2026W32.
+
+**The totals do agree, which is the check that matters.** The tree holds 247 `BUILT` plus 3
+`REMOVED` blocks, and one of the three carries no `**Built:**` date because it was removed before
+it was built: milestone 55 (Time Machine: SMB3 with Apple's extensions, and mDNS). That is 249
+dated blocks, and bucketing them by week accounts for all 249: the 247 in the table, plus the one
+that falls before the series starts, plus one dated into 2026W39 after that row was last written,
+since the current week is still open and is rewritten on every run. The weekly buckets differ from
+the stock; the population does not.
+
+**One milestone falls off the left edge, and `script/metrics` now says so.** Milestone 1 (boot to
+Rust on QEMU `virt`, and print to the PL011 UART) is dated 2026-07-12, a Sunday, which is 2026W28,
+and the series starts at 2026W29 because that is where the first commit is. It is dropped rather
+than absorbed into the neighbouring week, for the same reason the $200 of subscription in the same
+week is: a week gets a row only if a commit fell in it, and inventing one would leave every other
+column in it empty or wrong. That drop was silent until 2026-09-23; the cash column had carried a
+stderr warning for its identical case since it was written, and this one now does too.
+
+**Nothing published changes.** The column was checked against the blocks and reproduces exactly, the
+stock column reproduces exactly at all eleven of its own commits, and every other column was checked
+for the gap that left `unsafe_trust_*` blank for ten weeks (a `--update` where a `--backfill` was
+needed). Only the cost columns and coverage are blank anywhere, and those are blank on purpose,
+which is the section below. `milestones_built_this_week` cannot take that damage: it is written for
+every week in the file on both `--update` and `--backfill`, never only for the week being added.
+
 ## Pull requests merged each week
 
 ![Pull requests merged each week](project-metrics/pull-requests.svg)
@@ -861,6 +923,16 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   `unsafe_trust_*` from 2026-09-21 to 2026-09-23 (see "That backfill was lost for two days" above)
   and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on `weekly.csv`
   after any commit that merges two metrics branches is worth a look before trusting the row count.
+- **`milestones_built_this_week` will not equal the week-on-week change in the `Built` stock, in
+  any week.** It is deliberate and it is the section above, but it reads as an error to anyone who
+  differences two rows and expects the flow to fall out, which is what happened on 2026-09-23.
+  Nothing gates the two against each other and nothing can: the gap is the lag between finishing a
+  milestone and flipping its row, which is a real property of the record rather than a defect in
+  either column.
+- **A milestone dated in a week the series has no row for is dropped**, which is milestone 1 (boot
+  to Rust on QEMU `virt`, and print to the PL011 UART) and 2026W28. `script/metrics` prints a stderr
+  line naming it since 2026-09-23; before that it was silent. A reader summing the chart gets 248
+  where the tree holds 249 dated blocks.
 - **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
   2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
   is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so
