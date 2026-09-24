@@ -293,7 +293,8 @@ place rather than an assertion that they are.
   not a stranded receiver, and never happened. Found still repeating it here 2026-09-23.)
 - **Only one architecture's `arch/` is compiled per run, and riscv64's is compiled by nothing.**
   Narrowed by milestone 304 rather than closed: the `kernel` row is now proved on an x86_64 runner
-  as well as the aarch64 ones, so two of the three subtrees are reachable on some machine. The third
+  as well as an aarch64 one (since milestone 587 (most CI jobs do not need an arm64 host) the `prove` shards are the x86_64 half and
+  `prove the kernel on aarch64` is the other), so two of the three subtrees are reachable on some machine. The third
   is not, and the section above says why nobody here can change that. **`x86_64/machine.rs` is the
   work this unblocked and did not do**: 836 lines of ACPI parsing over lengths, checksums and counts
   that firmware supplied, now reachable for the first time and still carrying no harness. Its
