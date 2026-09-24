@@ -21,18 +21,18 @@
 
 .section ".text", "ax"
 .balign 4                       # stvec direct mode needs the vector 4-byte aligned
-# CFI: see notes/cfi-unwind.md, "trap entries" (written for aarch64's vectors.s; the same
-# reasoning applies here). `.cfi_signal_frame` marks this as an interrupt/exception frame, not an
-# ordinary call. The GP-register offsets below are correct, plain arithmetic on this function's own
-# stores and let a debugger recover x1..x31 from any PC in this function. **ra (x1) is left
-# `.cfi_undefined`**, even though its real value is saved a few lines down at `1*8(sp)`: RISC-V's
-# default return-address column is ra, and describing it there would tell an unwinder "the
-# interrupted code's caller is at this ra value", which is false -- the true resume point is
-# `sepc`, a data value the hardware does not restore into any register on its own. Unlike
-# AArch64 (ELR_mode, DWARF register 33; see vectors.s), the RISC-V DWARF register mapping has no
-# dedicated pseudo-register for sepc, so there is no spec-correct alternative column to offer
-# either; this is a real gap in the mapping, not only a GDB limitation. See the BUGS section in
-# the note.
+# CFI: see notes/cfi-unwind.md, "The hard case: a trap is not a call" (written for aarch64's
+# vectors.s; the same reasoning applies here). `.cfi_signal_frame` marks this as an
+# interrupt/exception frame, not an ordinary call. The GP-register offsets below are correct, plain
+# arithmetic on this function's own stores and let a debugger recover x1..x31 from any PC in this
+# function. **ra (x1) is left `.cfi_undefined`**, even though its real value is saved a few lines
+# down at `1*8(sp)`: RISC-V's default return-address column is ra, and describing it there would
+# tell an unwinder "the interrupted code's caller is at this ra value", which is false -- the true
+# resume point is `sepc`, a data value the hardware does not restore into any register on its own.
+# Unlike AArch64 (ELR_mode, DWARF register 33; see vectors.s), the RISC-V DWARF register mapping has
+# no dedicated pseudo-register for sepc, so there is no spec-correct alternative column to offer
+# either; this is a real gap in the mapping, not only a GDB limitation. See the BUGS section in the
+# note.
 .global trap_entry
 .type trap_entry, @function
 trap_entry:

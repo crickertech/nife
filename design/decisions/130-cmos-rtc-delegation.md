@@ -13,16 +13,17 @@ than a shape to build, correctly declining to invent an answer.
 
 ## What §121 leaves open, and does not reopen here
 
-[DECISIONS §121](121-port-io-capability.md) is **PROPOSED, not decided**, with a recommendation its
-own text calls "deliberately weak": x86 legacy port I/O (the CMOS clock among them) stays
-kernel-resident **by default**, not permanently, because nothing in ring 3 needs it yet and the one
-mechanism with real per-port granularity (a port-range capability enforced by the TSS I/O permission
-bitmap, §121's own "option 1") now has a measured cost: `notes/benchmarks.md`'s 2026-08-24 entry
-found it adds **~1.5-2.7 us to every context switch on the machine** (release build, +423% over a
-bare switch), for a device class where a raw `in`/`out` costs single digit cycles. §121 says outright
-that this is revisited "the moment a userspace console on x86 becomes a thing calef wants
-demonstrated." This entry takes §121's current recommendation as given and does not re-argue it; if
-§121 moves, this entry's options change with it.
+[DECISIONS §121 (x86 port I/O)](121-port-io-capability.md) is **PROPOSED, not decided**, with a
+recommendation its own text calls "deliberately weak": x86 legacy port I/O (the CMOS clock among
+them) stays kernel-resident **by default**, not permanently, because nothing in ring 3 needs it yet
+and the one mechanism with real per-port granularity (a port-range capability enforced by the TSS
+I/O permission bitmap, §121's own "option 1") now has a measured cost:
+`notes/benchmarks/x86-tss-iomap.md`'s 2026-08-24 entry found it adds **~1.5-2.7 us to every context
+switch on the machine** (release build, +423% over a bare switch), for a device class where a raw
+`in`/`out` costs single digit cycles. §121 says outright that this is revisited "the moment a
+userspace console on x86 becomes a thing calef wants demonstrated." This entry takes §121's current
+recommendation as given and does not re-argue it; if §121 moves, this entry's options change with
+it.
 
 ## What actually blocks this today
 

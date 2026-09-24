@@ -55,7 +55,8 @@
 # (7028)`, which measures movement away from whatever the binary happened to be last month and means
 # something different after every compiler change. Drift is still what FAILS, because a 5% jump
 # inside one pull request is a mistake somebody just made; the budget is reported and not gated,
-# for the reason set out at `L1I` below. See `notes/benchmarks.md`, "The target".
+# for the reason set out at `L1I` below. See `notes/benchmarks/kernel-footprint-and-caches.md`, "The
+# target".
 #
 # **What it is not.** It is not a cache measurement. No cache is modelled by icount and the HVF host
 # has an L1i several times larger than the boards, so nothing in this tree can yet observe the
@@ -485,7 +486,8 @@ total = closure_total + entry_total
 #           constraint: the smallest L1i among the machines this tree actually runs on, and it sits
 #           at the bottom of the frontier range anyway, so it tracks the board list rather than a
 #           number somebody liked).
-#   TARGET  4 KiB, about an eighth of that L1i. notes/benchmarks.md's "The target" derives the
+#   TARGET  4 KiB, about an eighth of that L1i. notes/benchmarks/kernel-footprint-and-caches.md's
+#   "The target" derives the
 #           fraction from Liedtke's argument rather than from roundness: the constraint is not that
 #           the kernel fits, it is that the kernel leaves most of L1 intact for the application,
 #           because cache pollution is what Mach actually charged its users.

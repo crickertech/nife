@@ -171,11 +171,11 @@ change that the footprint gate failed on, which is the argument for having both.
 ## Follow-on
 
 - **Recorded.** `map_el0` has the same short-window shape and this mechanism cannot reach it,
-  because the kernel does not own a window that runs in EL0. The limitation is beside the feature
-  in this block's `BUGS` and in `notes/benchmarks.md`'s 2026-09-21 entry, which is where a reader
-  meets the row. It is not promoted to a milestone because the instrument is undecided and the
-  choice is a design fork (a syscall that brackets the window, or reporting the marginal cost),
-  not work a lane can pick up.
+  because the kernel does not own a window that runs in EL0. The limitation is beside the feature in
+  this block's `BUGS` and in `notes/benchmarks/preemption-in-the-window.md`'s 2026-09-21 entries,
+  which is where a reader meets the row. It is not promoted to a milestone because the instrument is
+  undecided and the choice is a design fork (a syscall that brackets the window, or reporting the
+  marginal cost), not work a lane can pick up.
 - **Recorded.** The one relaxed increment this adds to every preemption on every core is
   unmeasured in isolation in *time*; the `BUGS` entry beside it says so and bounds it by the
   tripwire. Its code size is measured and is zero.

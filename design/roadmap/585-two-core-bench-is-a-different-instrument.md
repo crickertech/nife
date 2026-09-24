@@ -1,12 +1,13 @@
 # 585. Two cores is not a different number for the x86_64 bench, it is a different instrument
 
 **Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
-`two-core-bench-is-a-different-instrument`, filed 2026-09-23, on calef's instruction of 2026-09-24 to promote the proposals.
-The text below is the proposal's own, unedited except for this paragraph and the
-`## Index row` section: the argument is its author's and promotion is not the moment to
-improve it. As filed: raised by the lane that explained CI's `bench (icount regression
-tripwire)` failure on milestone 315 (a port revoke that reaches every core). The evidence is in
-notes/benchmarks.md, the 2026-09-23 section; this block is the work that evidence leaves behind.
+`two-core-bench-is-a-different-instrument`, filed 2026-09-23, on calef's instruction of 2026-09-24
+to promote the proposals. The text below is the proposal's own, unedited except for this paragraph
+and the `## Index row` section: the argument is its author's and promotion is not the moment to
+improve it. As filed: raised by the lane that explained CI's `bench (icount regression tripwire)`
+failure on milestone 315 (a port revoke that reaches every core). The evidence is in
+`notes/benchmarks/x86-instruments.md`, the 2026-09-23 section; this block is the work that evidence
+leaves behind.
 
 **Gate: NONE.** No syscall surface, no dependency, no hardware.
 

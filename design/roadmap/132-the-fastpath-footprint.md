@@ -58,9 +58,10 @@ silent by construction.
 
 ## Where we stand against the target, and what closing it would be
 
-The target in notes/benchmarks.md is **under 4 KiB for the fastpath**, an eighth of the smallest L1i
-among machines this project actually runs on (32 KB, the SiFive U74), expressed as a fraction so it
-tracks the board list rather than a number somebody liked. `ipc_fastpath` alone is 5.6 KiB.
+The target in `notes/benchmarks/kernel-footprint-and-caches.md` is **under 4 KiB for the fastpath**,
+an eighth of the smallest L1i among machines this project actually runs on (32 KB, the SiFive U74),
+expressed as a fraction so it tracks the board list rather than a number somebody liked.
+`ipc_fastpath` alone is 5.6 KiB.
 
 **The largest single item is `syscall::dispatch` at 2,024 bytes**, and it is precisely what seL4's
 hand-written fastpath exists to skip: a decode-and-dispatch table on a path that already knows which

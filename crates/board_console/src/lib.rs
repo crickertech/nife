@@ -228,7 +228,8 @@ pub mod watch;
 /// with it: `soak:` to `soak-test:`, `soak-census:` to `soak-test-census:`. Two files in
 /// `tests/fixtures/captured/` are QEMU runs taken before that, and **they are left exactly as the
 /// machine printed them**, because a capture is a record and this tree has already carried one
-/// rewritten transcript for twelve days (`design/naming.md`, "a quotation never moves").
+/// rewritten transcript for twelve days (`design/naming/rename-what-moves.md`, "a quotation never
+/// moves").
 ///
 /// So the transposition happens here, at test time, on a copy, and it is deliberately the narrowest
 /// edit that makes the file parse: the marker prefix and nothing else. Every number, every field

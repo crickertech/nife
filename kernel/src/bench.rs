@@ -498,7 +498,8 @@ fn map_new() {
     let mut space = crate::user::AddressSpace::new(MAP_ITERS + 8).expect("bench: no address space");
     let base = 0x40_0000u64;
 
-    // The shootdown probe (notes/benchmarks.md, the 2026-08-15 reading). Counted across exactly the
+    // The shootdown probe (notes/benchmarks/riscv-map-new-and-the-rfence-probe.md, the 2026-08-15
+    // reading). Counted across exactly the
     // timed window, because the claim under test is about what `map_new` itself issues.
     #[cfg(target_arch = "riscv64")]
     let fences_before = crate::arch::remote_fence_count();

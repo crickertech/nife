@@ -33,13 +33,14 @@ milestone 132 (the fast path's footprint) owns.
 | riscv64 | 5,106 | 1,870 | 6,976 (6.81 KiB) |
 | x86_64 | 6,639 | 1,637 | 8,276 (8.08 KiB) |
 
-The target is in notes/benchmarks.md's own words, and it is not restated here because that section
-states it better than a paraphrase would: **under 4 KiB of fastpath instructions and under 1 KiB of
-data touched per IPC**, expressed as a fraction of the smallest L1i among the machines this project
-runs on so that it tracks the board list rather than a number somebody liked. Every architecture is
-over it on `ipc_fastpath` alone, before entry is counted. Read that section and the Liedtke argument
-above it before touching any of this; both `script/fastpath-footprint`'s header and milestone 132's
-block carry the same argument in shorter form.
+The target is in `notes/benchmarks/kernel-footprint-and-caches.md`'s own words ("The target"), and
+it is not restated here because that section states it better than a paraphrase would: **under 4 KiB
+of fastpath instructions and under 1 KiB of data touched per IPC**, expressed as a fraction of the
+smallest L1i among the machines this project runs on so that it tracks the board list rather than a
+number somebody liked. Every architecture is over it on `ipc_fastpath` alone, before entry is
+counted. Read that section and the Liedtke argument above it before touching any of this; both
+`script/fastpath-footprint`'s header and milestone 132's block carry the same argument in shorter
+form.
 
 **Two of the figures this milestone was briefed with are stale, and the corrections matter.**
 `riscv64`'s `syscall_entry` is 1,870 and not 1,866. And milestone 132's "the largest single item is

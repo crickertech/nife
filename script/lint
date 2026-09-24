@@ -3180,7 +3180,7 @@ PY
 # whether a "half" far from its subject has two siblings, because that needs a reader, and a gate
 # that guesses at prose is how script/lint lost three checks. The word this tree uses for one branch
 # of a multi-way split is "arm" (components/src/console.rs: "its x86 arm"), and
-# design/naming.md says so under "A half implies two".
+# design/naming/vocabulary-rulings.md says so under "A half implies two".
 #
 # `git grep` does not understand `\b` and silently matches nothing (design/naming.md records the
 # same trap costing two renames a count), so the boundaries here are POSIX classes.

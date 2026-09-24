@@ -1215,9 +1215,10 @@ impl BlockCache {
 /// close the residual steps 1, 3 and 4 all left standing: `Transaction::read_tree_and_addr`'s
 /// four-level tree walk plus the target node, five single-block reads issued fresh on every
 /// `Server::read`/`write`/`fstat`/... call even when the last call resolved the very same node
-/// (notes/fs-server.md, "the same five blocks every time"). Nothing below [`CachedDisk`] changed to
-/// make this true; it was always true of `Transaction::read_tree`, and steps 1, 3 and 4 all left it
-/// alone because none of them touch how a node is found, only what is done once it is.
+/// (notes/benchmarks/read-path-block-contract-and-metadata-cache.md, "the same five blocks every
+/// time"). Nothing below [`CachedDisk`] changed to make this true; it was always true of
+/// `Transaction::read_tree`, and steps 1, 3 and 4 all left it alone because none of them touch how
+/// a node is found, only what is done once it is.
 ///
 /// # Why single blocks only, and why write-through rather than read-through-and-forget
 ///

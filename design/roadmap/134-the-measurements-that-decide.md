@@ -189,11 +189,11 @@ difference. It could easily refute the premise of the fastpath as currently sket
 
 ### M10. Application working-set displacement per IPC
 
-E4 measures this as lost throughput, which is the honest indirect form. This is the direct one: **how
-many lines of the application's working set does one IPC evict.** It is Liedtke's actual claim,
-stated as a number, and it is the figure that speaks to the thesis rather than to a subsystem.
-notes/benchmarks.md already sets a target of under 1 KiB of data touched per IPC, roughly 16 lines,
-and **nothing measures it**; this is what would.
+E4 measures this as lost throughput, which is the honest indirect form. This is the direct one:
+**how many lines of the application's working set does one IPC evict.** It is Liedtke's actual
+claim, stated as a number, and it is the figure that speaks to the thesis rather than to a
+subsystem. `notes/benchmarks/kernel-footprint-and-caches.md` already sets a target of under 1 KiB of
+data touched per IPC, roughly 16 lines, and **nothing measures it**; this is what would.
 
 ### M11. Interrupt latency, worst observed and worst bounded
 

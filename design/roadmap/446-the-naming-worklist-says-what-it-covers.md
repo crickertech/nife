@@ -63,13 +63,13 @@ from `script/`'s entry points. It was priced rather than assumed, and refused. T
   `qemu-bounded-selftest.sh`, `memory-bounded-runner.sh`, `build-ripgrep.sh` and `rust_source.py`.
   A gate demanding blocks would mostly manufacture rulings on names nobody types.
 
-**The deciding argument is the worklist's own ordering.** `--unratified` prints its rule at the
-top: a program is typed at the prompt, a crate is what a newcomer greps, a `script/` entry point is
-typed by whoever works on the tree. `design/naming.md`'s **Scripts** section defines `scripts/` as
-the drawer that is called by other scripts and by `xtask`, **not by people**. Enumerating it would
-add a tier below the bottom tier of a list whose entire ordering is exposure, which is not a
-coverage improvement but a dilution of the ranking. If it is ever built, it sorts last, after
-`script/`, for the same reason.
+**The deciding argument is the worklist's own ordering.** `--unratified` prints its rule at the top:
+a program is typed at the prompt, a crate is what a newcomer greps, a `script/` entry point is typed
+by whoever works on the tree. `design/naming/programs-scripts-and-directories.md`'s **Scripts**
+section defines `scripts/` as the drawer that is called by other scripts and by `xtask`, **not by
+people**. Enumerating it would add a tier below the bottom tier of a list whose entire ordering is
+exposure, which is not a coverage improvement but a dilution of the ranking. If it is ever built, it
+sorts last, after `script/`, for the same reason.
 
 The refusal is recorded in `design/naming.md`'s `BUGS` section, where the scope claim lives, rather
 than in this block, so that the next reader meets it at the rule rather than in a milestone they

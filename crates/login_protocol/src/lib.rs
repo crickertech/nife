@@ -146,7 +146,7 @@
 //! then, because calef had parked the whole `login` family on 2026-09-14, and 265 accepted that it
 //! might cost this crate a second rename. **It will not: calef ruled on 2026-09-15 that the stem stays
 //! for the whole family**, so this name is final on both halves. The argument is in
-//! `design/naming.md`, "The `login` stem stays".
+//! `design/naming/vocabulary-rulings.md`, "The `login` stem stays".
 
 pub use credential_protocol::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 

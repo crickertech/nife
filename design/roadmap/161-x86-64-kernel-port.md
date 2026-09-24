@@ -704,10 +704,10 @@ One thing that is not a step, and is now resolved rather than owed:
   q35's swizzle would pass every gate here and might still fail on xenon.
   This refusal is milestone 459 (design/roadmap/459-legacy-intx-interrupt-routing.md), which carries
   it with the condition that would change it.
-- **Recorded.** Measured 2026-09-19; both bits stay off: the pinned QEMU flushes its whole TLB
-  on every `CR3` write, so neither this tree's icount instrument nor plain TCG can see what PGE
-  saves. `kernel/src/arch/x86_64/mmu.rs`'s `BUGS` and notes/benchmarks.md's 2026-09-19 section
-  hold the numbers and the trigger (KVM on cordoba, or xenon).
+- **Recorded.** Measured 2026-09-19; both bits stay off: the pinned QEMU flushes its whole TLB on
+  every `CR3` write, so neither this tree's icount instrument nor plain TCG can see what PGE saves.
+  `kernel/src/arch/x86_64/mmu.rs`'s `BUGS` and `notes/benchmarks/x86-instruments.md`'s 2026-09-19
+  section hold the numbers and the trigger (KVM on cordoba, or xenon).
 - **Milestone 186.** The bench tooling item 3 built has no caller: the x86 baseline and its check
   flag exist and CI's bench job runs two legs of three, which 186 tracks as one of its eleven gaps.
 - **Milestone 164.** `fs_server` builds for `x86_64-unknown-none`. One build flag turned exit 101

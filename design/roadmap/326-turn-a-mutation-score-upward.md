@@ -15,9 +15,11 @@ rule a survivor is triaged under. No decision is owed and no hardware is involve
 
 **169 survivors triaged, and none of the eight crates carries an untriaged one.** Measured per crate
 with `script/mutation -p <crate>` on the lane's own worktree, before and after. Every kill was
-verified by re-running the sweep and watching the mutant die; every equivalence claim is a mutant the
-second run still reports. The reasons are in `notes/mutation-testing.md`'s `## 2026-09-19` section,
-crate by crate, which is where a reader should go to disagree with one.
+verified by re-running the sweep and watching the mutant die; every equivalence claim is a mutant
+the second run still reports. The reasons are in the `## 2026-09-19` sections of
+`notes/mutation-testing/regressions-capability-to-dtb.md` and
+`notes/mutation-testing/regressions-clock-protocol-swish-filesystem-protocol.md`, crate by crate,
+which is where a reader should go to disagree with one.
 
 | crate | before | after | killed by a test | equivalent | excluded | recorded gap |
 |---|---|---|---|---|---|---|
@@ -229,8 +231,8 @@ that column. What is refused is an exclusion whose reason is that the test would
 Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on this branch.
 
 - **Done.** *2026-09-20: part 3's seven named crates, 56 survivors to 16,* on
-  `milestone/326-new-crate-backlog`. The per-crate table and the argument are in
-  `## Part 3's head` above and in `notes/mutation-testing.md`'s `## 2026-09-20` section. The
+  `milestone/326-new-crate-backlog`. The per-crate table and the argument are in `## Part 3's head`
+  above and in `notes/mutation-testing/new-crate-backlog.md`'s `## 2026-09-20` section. The
   suspicion recorded here on 2026-09-19 was half right: `work_steal_slot`'s 54.2% **was** its loom
   model and the crate now has no survivors at all, while `memory_corruption_canary_gate` was
   genuinely worse than its flagged rate once the loom mutants left. The `mdns_proto` row closed by
@@ -254,7 +256,8 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
 
   `board_console`'s three gaps all need a real tty or a pseudo-terminal pair, which is a dependency
   question above a triage lane's authority. `video_terminal` needed no gap and no exclusion, and the
-  crate-by-crate accounts are in `notes/mutation-testing.md`'s two dated sections.
+  crate-by-crate accounts are in `notes/mutation-testing/video-terminal.md` and
+  `notes/mutation-testing/board-console.md`.
 - **Recorded.** `notes/mutation-testing.md`'s `## Scope and honest caveats` section: **a mutant that
   hangs is not a mutant that survived, and this instrument cannot say so.** Nine survivors across
   the two 326 lanes were non-terminating rather than wrong, and cargo-mutants 27.1.0's complete set of
@@ -278,9 +281,10 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   `Admission::Unbacked` can never carry `File` or `Directory`. Two mutants survived on it, and
   whether `admit` should stop pre-consuming the scheduler's `dir` holding is a behaviour change
   rather than a test.
-- **Recorded.** `notes/mutation-testing.md`'s `## 2026-09-19` section: `verb`'s compile-time table
-  walk in `crates/filesystem_protocol/src/lib.rs` has two mutants no `cargo test` can kill, because
-  its checker is `rustc`. The same object as the Kani harnesses, without a module path to exclude by.
+- **Recorded.** `notes/mutation-testing/regressions-clock-protocol-swish-filesystem-protocol.md`'s
+  `## 2026-09-19` section: `verb`'s compile-time table walk in
+  `crates/filesystem_protocol/src/lib.rs` has two mutants no `cargo test` can kill, because its
+  checker is `rustc`. The same object as the Kani harnesses, without a module path to exclude by.
 
 - **Done.** *`machine_discovery`, 2026-09-19: 77 survivors to 19, 86.2% to 95.5% of viable,* on
   `milestone/326-machine-discovery-truncation`. It was part 1's category rather than part 3's: a
