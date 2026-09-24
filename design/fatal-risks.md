@@ -123,14 +123,15 @@ review discipline. If the suite would not notice the code being wrong, that sent
 **The experiment:** milestone 85 (mutation testing over the host crates), read as a census and
 re-read against the baseline.
 
-**Experiment status: RUN, 2026-09-19.** MEASURED rather than merely observed, and AMBER. calef ruled
-amber on the 2026-09-14 numbers, and the ground shifted under it on 2026-09-20: the verdict stands
-and the reason it was given does not. The fall this entry was built on did not happen. Read
-consistently, like-for-like is 94.7% against the baseline's 92.4%, and survivors fell 771 to 563
-([`notes/mutation-testing.md`](../notes/mutation-testing.md)).
+**Experiment status: RUN, 2026-09-19, re-read 2026-09-24.** MEASURED
+rather than merely observed, and AMBER. calef ruled amber on the 2026-09-14 numbers; the fall behind
+it did not happen. On 2026-09-21 the 38 baseline crates read 96.1% against
+92.4% in August. The corpus reads 92.4%, or 93.6% without 132 mutants no host build
+compiles ([`notes/mutation-testing.md`](../notes/mutation-testing.md)).
 
 It stays amber on the standard this entry holds: milestone 85's rule that every survivor becomes a
-test, an exclusion carrying its reason, or a recorded gap. 563 are untriaged, and 
+test, an exclusion carrying its reason, or a recorded gap. 771 missed survivors stand on 2026-09-21,
+185 in four newly measured crates, and
 milestone 326 (nobody has been assigned to turn a mutation score upward) owns the repair. Green is a ruled
 condition rather than a number (calef, 2026-09-20): inflow, meaning the survivors a merged pull
 request adds on its own lines are triaged.
@@ -138,7 +139,7 @@ request adds on its own lines are triaged.
 Two caveats. This verdict speaks for the host-testable corpus and not for the kernel, where a census
 is roughly 500 runner-hours against 52 minutes today. And one convention is load-bearing and
 unchecked: whether a timeout counts as a kill moves this entry two points. That rule rests on a
-hand-check of 96 timeouts six weeks ago, and there are 205 today.
+hand-check of 96 timeouts in August; 206 stood on 2026-09-21.
 [Appendix](fatal-risks/the-mutation-verdict.md).
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
@@ -333,7 +334,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's ve
 | ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN, 2026-09-17: GREEN**, five of five on xenon, everything it needed inside `arch/x86_64/` | milestone 87 (the x86_64 bare-metal machine) | done |
 | 4 | 9, the HAL, at the implementation grain, widened 2026-09-23 | a second machine of an architecture nife already boots | milestone 225 (run the soak on radon, argon and xenon) | unpriced; a lane is costing rented metal for this and risk 4 |
 | ~~4~~ | 1, the ecosystem | **RUN, 2026-08-31: GREEN on all three since 2026-09-16.** The blocker is a missing argv, not threads | milestone 121 | done |
-| ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 94.7% like-for-like against 92.4%, and 563 untriaged survivors hold the amber | milestone 326 | done; the triage remains |
+| ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 96.1% like-for-like against 92.4% on 2026-09-21, and 771 missed survivors hold the amber | milestone 326 | done; the triage remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result, and three seed points need re-deriving first | milestone 201 (is multicore reliability converging) | weeks, hardware |
