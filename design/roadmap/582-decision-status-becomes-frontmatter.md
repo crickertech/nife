@@ -88,7 +88,7 @@ reads DECIDED or AMENDED, in either spelling, since history holds both. Author d
 
 Where both sources speak, the earlier wins. Each is an upper bound on when the thing happened, so
 the earlier is the tighter bound, and the difference is not small: git dates the 77 files created by
-milestone 114's split commit to 2026-08-04, while §10 (process model: capability-based, microkernel)
+milestone 114 (split `DECISIONS.md`, and give a decision a status)'s split commit to 2026-08-04, while §10 (process model: capability-based, microkernel)
 says in its own words that it was decided 2026-07-14. Twenty-nine files then claimed a decision date
 before their raise date, which is what an upper bound taken from a later commit looks like beside a
 stated fact, so `raised` is clamped to `decided` in those.

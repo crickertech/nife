@@ -15,7 +15,7 @@ One decision, one file, named `NN-slug.md`. The number is the identity: `§14` i
 kernel, the crates, the notes and the roadmap all resolve here. GitHub renders this README as the
 directory index, so browsing to `design/decisions/` shows the table below.
 
-This was one 5,320-line file until milestone 114. Splitting it does the same three things the
+This was one 5,320-line file until milestone 114 (split `DECISIONS.md`, and give a decision a status). Splitting it does the same three things the
 roadmap split (milestone 76) did one directory over:
 
 - **A number cannot be claimed twice by accident.** Two lanes both wrote `## 30.` into the single
