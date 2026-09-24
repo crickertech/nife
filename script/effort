@@ -72,6 +72,37 @@
 # two list at different rates. A single blended rate applied to a single token total would be a
 # number with no derivation behind it.
 #
+# ## `peak_context_tokens`, and the mean that is not a column
+#
+# **A turn costs roughly the size of its context, not the size of its thought.** Measured here on
+# 2026-09-24: cache reads are 98% of every token this project has spent, and output is a tenth of
+# one per cent. Model choice prices the output. So the quantity worth watching is how much context a
+# turn carried, and two readings of it are wanted: the typical one and the worst one.
+#
+# **The typical one is not a column, because it is already derivable.** A request's context is its
+# whole prompt, however it was billed, and the three input classes partition that prompt: input,
+# cache write, cache read. Their sum over a week divided by `requests` is the mean context per turn,
+# out of columns this file already carries. A column that restates arithmetic over its neighbours is
+# a second place for the same fact to be wrong.
+#
+# **The worst one cannot be derived and is therefore a column.** `peak_context_tokens` is the
+# largest single request in the (week, model) row. It is a MAXIMUM over requests where every other
+# counted column is a sum, which matters in exactly one place: `by_week` adds the models in a week
+# together, and adding two peaks would invent a request nobody made. `MAXED` names it there. The
+# merge already takes a field-wise maximum, so nothing else changes.
+#
+# **The median was refused, and the reason is this file's merge rather than taste.** Every column
+# here survives a pruned transcript by being merged as a maximum against an older snapshot, which
+# works because a sum and a peak both only go up as more of a week is seen. A median does not: two
+# honest partial views of a week have medians that cannot be combined into the week's median without
+# the underlying requests, and those are the thing that gets discarded. Storing one would mean
+# storing a distribution, which is a per-request history this file deliberately does not keep.
+#
+# **Read the mean as a bill, not as waste.** Carrying context is what makes a long session coherent,
+# and the finding is that it dominates the cost, not that it is useless. The question it opens, which
+# is whether sessions should have a length limit and at what threshold, is not answered here;
+# design/roadmap/proposals/ carries it.
+#
 # ## `machine_hours`, and what it conflates
 #
 # Sum, over every record stream, of the gap between consecutive assistant responses, **dropping any
@@ -104,15 +135,16 @@
 #
 #     IDLE_GAP_S=600 script/effort   # the same weeks with a ten-minute idle cut, to see the spread
 #
-# A worked run, 2026-09-21, on patagonia:
+# A worked run, 2026-09-24, on patagonia (the two rightmost columns arrived that day;
+# `ctx/turn` is computed for the table and is not in the file, for the reason above):
 #
-#     week       requests        input     cache wr       cache rd       output   hours
-#     2026W34       19841        39650     73812900     5445834041     11905105   110.2
-#     2026W35       22740        45524    104605730     8054561428     12932594   130.7
-#     2026W36       13903        27792     86611062     3506945841      3150318   132.8
-#     2026W37        1164         2354     13912125      316572496       626146    12.2
-#     2026W38       13248        40724     97316727     4100011735      9202108   125.8
-#     2026W39        1618         3236      6966597      494708850      1158725    11.9
+#     week       requests        input     cache wr       cache rd       output   hours  ctx/turn  peak ctx
+#     2026W34       19841        39650     73812900     5445834041     11905105   110.2    278195    933378
+#     2026W35       22740        45524    104605730     8054561428     12932594   130.7    358804    934006
+#     2026W36       13903        27792     86611062     3506945841      3150318   132.9    258475    999863
+#     2026W37        1164         2354     13912125      316572496       626146    12.3    283923    998963
+#     2026W38       13248        40724     97316727     4100011735      9202108   125.9    316830    966390
+#     2026W39       14270       475373     58002413     3223514444      8482315    99.6    229992    966060
 #
 #     read 477 stream(s) in 2 project directories: .../-Users-calef-projects-nife,
 #     .../-Users-calef-projects-cricker-os
@@ -134,6 +166,12 @@
 #   was quiet, or records for it were rotated away before the first capture on 2026-09-21. Nothing
 #   here can tell those apart after the fact, which is itself the argument for the snapshot. Treat
 #   that cell as suspect rather than as a dip.
+# - **`peak_context_tokens` pins to the model's context window, so it measures whether a session
+#   reached the wall rather than how far the spread goes.** Every captured week peaks between 933k
+#   and 1.0M against a 1M window, which says sessions do run to the ceiling and says little else. It
+#   is kept because "did anything hit the limit this week" is exactly the question a session-length
+#   threshold would be set against, and because a week whose peak fell well short would be news.
+#   The mean per turn is the column to read for the trend.
 # - **The current week is always partial.** It is captured up to the moment of the run, so its row
 #   rises all week and any ratio built on it is understated until the week closes. Nothing marks it,
 #   because the row's week being the current one is the mark.
@@ -177,11 +215,18 @@ from datetime import datetime, timezone
 CSV_PATH = pathlib.Path('notes/project-metrics/effort.csv')
 
 FIELDS = ['week', 'model', 'requests', 'input_tokens', 'cache_write_5m_tokens',
-          'cache_write_1h_tokens', 'cache_read_tokens', 'output_tokens', 'machine_hours']
+          'cache_write_1h_tokens', 'cache_read_tokens', 'output_tokens', 'machine_hours',
+          'peak_context_tokens']
 
 # The columns a merge compares, which is every measured one. `machine_hours` is a float and the rest
 # are counts; both are monotone for the same reason, so both are guarded the same way.
 COUNTED = FIELDS[2:]
+
+# The columns that are a maximum over requests rather than a sum over them. Everything else here is
+# a flow and adds; a peak does not, and adding two peaks would invent a request that never happened.
+# The merge already takes a field-wise maximum, which is what a peak wants anyway, so this set exists
+# for `by_week`, where summing across a week's models would be the mistake.
+MAXED = ('peak_context_tokens',)
 
 # A gap longer than this is somebody's laptop, not a slow response. See the header: this is a
 # judgement, not a measurement, and it is overridable so the sensitivity can be seen.
@@ -282,6 +327,14 @@ def read_records():
                 row['cache_write_1h_tokens'] += long_ttl
                 row['cache_write_5m_tokens'] += max(0, short_ttl)
 
+                # The context this request carried: the whole prompt, however it was billed. The
+                # three input classes partition it, so their sum is the size of what the model was
+                # asked to read. Output is what it wrote and is not context.
+                context = ((usage.get('input_tokens', 0) or 0)
+                           + (usage.get('cache_read_input_tokens', 0) or 0)
+                           + total_write)
+                row['peak_context_tokens'] = max(row['peak_context_tokens'], context)
+
                 when = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
                 if previous is not None:
                     gap = (when - previous).total_seconds()
@@ -358,7 +411,10 @@ def by_week(rows):
     for (week, _model), row in rows.items():
         held = out.setdefault(week, _blank(week, '*'))
         for field in COUNTED:
-            held[field] += row[field]
+            if field in MAXED:
+                held[field] = max(held[field], row[field])
+            else:
+                held[field] += row[field]
     return out
 
 
@@ -370,14 +426,19 @@ def current_week():
 
 def print_table(rows, streams, dirs):
     weeks = by_week(rows)
-    print('%-9s %9s %12s %12s %14s %12s %7s'
-          % ('week', 'requests', 'input', 'cache wr', 'cache rd', 'output', 'hours'))
+    print('%-9s %9s %12s %12s %14s %12s %7s %9s %9s'
+          % ('week', 'requests', 'input', 'cache wr', 'cache rd', 'output', 'hours',
+             'ctx/turn', 'peak ctx'))
     for week in sorted(weeks):
         row = weeks[week]
-        print('%-9s %9d %12d %12d %14d %12d %7.1f'
+        context = (row['input_tokens'] + row['cache_write_5m_tokens']
+                   + row['cache_write_1h_tokens'] + row['cache_read_tokens'])
+        per_turn = context / row['requests'] if row['requests'] else 0.0
+        print('%-9s %9d %12d %12d %14d %12d %7.1f %9d %9d'
               % (week, row['requests'], row['input_tokens'],
                  row['cache_write_5m_tokens'] + row['cache_write_1h_tokens'],
-                 row['cache_read_tokens'], row['output_tokens'], row['machine_hours']))
+                 row['cache_read_tokens'], row['output_tokens'], row['machine_hours'],
+                 per_turn, row['peak_context_tokens']))
     print()
     print('read %d stream(s) in %d project director%s: %s'
           % (streams, len(dirs), 'y' if len(dirs) == 1 else 'ies', ', '.join(dirs) or 'none'))
