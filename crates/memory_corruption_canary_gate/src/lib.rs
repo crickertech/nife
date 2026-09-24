@@ -296,7 +296,8 @@ mod tests {
     /// `arm` spins on a core that cannot be preempted by the owner.
     ///
     /// A panic inside the body drops the sender, so the two failures are told apart rather than
-    /// both reading as a hang. See notes/mutation-testing.md's `## 2026-09-20` section.
+    /// both reading as a hang. See the `## 2026-09-20` section of
+    /// notes/mutation-testing/new-crate-backlog.md.
     fn bounded(what: &str, body: impl FnOnce() + Send + 'static) {
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
