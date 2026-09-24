@@ -53,7 +53,8 @@ usage: script/claim <branch-name> [--worktree <dir>] [--title <text>] [--no-clai
                      shape rule script/lint's check 4 enforces, before anything is created.
   --worktree <dir>  where to put the worktree. Default: ~/projects/nife-worktrees/<slug>, where
                      <slug> is the branch's last /-separated segment (the canonical location per
-                     notes on this project's worktree convention).
+                     notes on this project's worktree convention). $NIFE_WORKTREES replaces
+                     the ~/projects/nife-worktrees root, e.g. beside a cloud session's clone.
   --title <text>    the draft pull request's title, and the text after "claim: " in the empty
                      commit. Default: the branch name itself; `gh pr edit` renames the pull
                      request later if a better title turns up mid-work.
@@ -103,7 +104,7 @@ nife_check_branch_name_shape "$branch" claim || exit 1
 
 if [ -z "$worktree" ]; then
     slug="${branch##*/}"
-    worktree="$HOME/projects/nife-worktrees/$slug"
+    worktree="${NIFE_WORKTREES:-$HOME/projects/nife-worktrees}/$slug"
 fi
 
 if [ -e "$worktree" ]; then

@@ -257,11 +257,20 @@ pub(crate) fn std_src() -> bool {
         return false;
     }
     let cp = |args: &[&str]| run("cp", args);
-    if !cp(&["-al", &s(real.join("bin")), &s(farm.join("bin"))])
-        || !cp(&["-al", &s(real.join("lib")), &s(farm.join("lib"))])
-    {
-        eprintln!("std-src: hardlink-clone of the toolchain failed");
-        return false;
+    let hardlinked = cp(&["-al", &s(real.join("bin")), &s(farm.join("bin"))])
+        && cp(&["-al", &s(real.join("lib")), &s(farm.join("lib"))]);
+    // Hard links cannot cross filesystems, and a container can mount the checkout on a different
+    // one from `~/.rustup`. A real copy costs a few hundred megabytes and works everywhere.
+    if !hardlinked {
+        eprintln!("std-src: hardlink-clone failed (different filesystems?); copying instead");
+        let _ = std::fs::remove_dir_all(farm.join("bin"));
+        let _ = std::fs::remove_dir_all(farm.join("lib"));
+        if !cp(&["-R", &s(real.join("bin")), &s(farm.join("bin"))])
+            || !cp(&["-R", &s(real.join("lib")), &s(farm.join("lib"))])
+        {
+            eprintln!("std-src: copying the toolchain failed");
+            return false;
+        }
     }
     let src = farm.join("lib/rustlib/src");
     let _ = std::fs::remove_dir_all(&src);

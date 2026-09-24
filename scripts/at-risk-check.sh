@@ -136,7 +136,9 @@ while IFS="$(printf '\t')" read -r path branch; do
 		esac
 		full="$path/$entry"
 		[ -e "$full" ] || continue
-		mtime=$(stat -f %m "$full" 2>/dev/null || stat -c %Y "$full" 2>/dev/null || echo 0)
+		# GNU first: GNU `stat -f` means filesystem status and prints to stdout before failing, which
+		# would leave several lines in $mtime. BSD `stat -c` fails without printing.
+		mtime=$(stat -c %Y "$full" 2>/dev/null || stat -f %m "$full" 2>/dev/null || echo 0)
 		[ "$mtime" -gt "$newest" ] && newest=$mtime
 	done <<EOF
 $status

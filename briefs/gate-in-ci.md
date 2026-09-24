@@ -16,6 +16,10 @@ These take seconds, need no emulator, and catch most of what fails:
     script/fmt
     script/citations --ratchet
 
+On a fresh clone, including a cloud session, run `script/bootstrap` first. Without it `script/lint`
+exits 1 at `cargo-machete not found`. Read each gate's own exit status, never one piped through
+`tail`: a cloud lane reported a failed lint as green that way on 2026-09-18.
+
 `script/citations --ratchet` reads the **committed** state, so commit before running it. Fix what
 they report and commit again. Do not push until all four are clean.
 

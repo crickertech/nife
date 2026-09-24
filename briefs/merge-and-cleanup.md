@@ -76,8 +76,11 @@ whichever worktree ran `xtask std-src` last. Every lane that gates takes it, una
 `script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. That is
 expected and is not a lane misbehaving. The integrator's duty is to put it back:
 
-    cd /Users/calef/projects/nife
+    cd "$(git rev-parse --path-format=absolute --git-common-dir)/.."
     rustup toolchain link nife-dev "$(pwd)/target/nife-farm"
+
+The `cd` lands in the main checkout from any worktree on any host. In a cloud session where nothing
+gated locally, `rustup toolchain list | grep nife-dev` prints nothing, and there is nothing to relink.
 
 Run it **from the main checkout**, never from a lane worktree, and run it after pruning rather than
 before, since pruning a worktree the link points into leaves it dangling.
