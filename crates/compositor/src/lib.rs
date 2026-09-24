@@ -761,6 +761,16 @@ mod tests {
     use std::vec;
     use std::vec::Vec;
 
+    /// `area` on a rectangle that is neither square nor 2 by 2. Every fixture here was square, and
+    /// `w + h` equals `w * h` at 2 by 2, so `* -> +` survived from the 2026-08-03 run to the
+    /// 2026-09-19 census. See notes/mutation-testing.md.
+    #[test]
+    fn area_multiplies_width_by_height() {
+        assert_eq!(Rect::new(0, 0, 3, 5).area(), 15);
+        assert_eq!(Rect::new(-4, 7, 1, 9).area(), 9);
+        assert_eq!(EMPTY.area(), 0);
+    }
+
     /// **Half-open intervals, or every clip is off by one.** Two rectangles sharing an edge do not
     /// overlap; a rectangle one pixel further in does. This is the bug this whole crate exists to
     /// keep out of the compositor, so it is the first test.
