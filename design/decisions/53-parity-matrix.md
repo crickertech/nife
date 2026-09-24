@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 53. Parity is a matrix, not a pair

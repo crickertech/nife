@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 13. Capability revocation and untyped reclamation (frames)

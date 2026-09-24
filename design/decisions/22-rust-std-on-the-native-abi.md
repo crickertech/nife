@@ -1,6 +1,5 @@
 ---
 status: AMENDED
-ratified_by: calef
 ---
 
 # 22. Rust `std` on the native ABI, the Hermit way (milestone 27)

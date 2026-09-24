@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 208. Installing a package is granting it, and the activation set is versioned

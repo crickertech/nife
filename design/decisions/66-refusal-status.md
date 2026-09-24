@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-08-03
-ratified_by: calef
 ---
 
 # 66. A refusal is a non-zero status, and not the same one an error gets

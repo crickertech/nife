@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 54. Recovering a backup includes its metadata, and formatting a disk needs entropy

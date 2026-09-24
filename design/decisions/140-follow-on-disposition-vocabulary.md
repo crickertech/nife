@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 140. The words a finished milestone may use to say what happened to the work it named

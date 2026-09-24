@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 51. The sink protocol: a writer must not be able to tell what it is writing to

@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 209. State handoff is an opaque blob over a granted frame, and it is optional

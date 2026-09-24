@@ -1,6 +1,5 @@
 ---
 status: AMENDED
-ratified_by: calef
 ---
 
 # 5. Execution model: preemptive threads with real stacks

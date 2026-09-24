@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 47. A directory capability carries six rights, and a child can never exceed its parent

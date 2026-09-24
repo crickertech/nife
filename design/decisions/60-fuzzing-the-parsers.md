@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 60. Fuzzing complements the proofs, and the parsers are exactly where it wins

@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 49. Removal is a directory operation, and `-r` widens the grant rather than setting a flag

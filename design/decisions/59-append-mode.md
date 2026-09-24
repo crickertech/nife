@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 59. Append is an open mode, so `>>` costs a character and a flag

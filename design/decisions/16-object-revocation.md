@@ -1,6 +1,5 @@
 ---
 status: AMENDED
-ratified_by: calef
 ---
 
 # 16. Object revocation: reclaim the objects a process built (extends §13)

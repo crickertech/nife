@@ -1,9 +1,11 @@
-# 581. A decision's status becomes a field, and the index becomes generated
+# 582. A decision's status becomes a field, and the index becomes generated
 
 **Status: BUILT.** Raised by calef on 2026-09-23: *"I wonder if the key values should be front
 matter instead."* He ratified the schema the same day. *(Number provisional until the merge queue
-lands it. The brief said 580, and 580 was taken: `design/roadmap/579-constitution-carry-vs-brief.md`
-and `580-nobody-reads-branches.md` were both on `main` at this lane's base commit `bfc91c8d2`.)*
+lands it. The brief said 580, which was taken on `main` at this lane's base commit `bfc91c8d2` by
+`580-nobody-reads-branches.md`. This lane then took 581 and collided with another lane that could
+not see it, which is the collision `AGENTS.md` gives the integrator to resolve at merge; pull
+request #1193 keeps 581 and this block moved to 582.)*
 
 ## Why a prose field was the defect
 
@@ -74,23 +76,29 @@ it. The historical corpus records the rest far more thinly:
 | key | filled from the file's own prose | of |
 |---|---|---|
 | `status` | 211 | 211 |
+| `ratified_by` | 79 | 168 |
 | `decided` | 107 | 168 |
-| `ratified_by` | 168 | 168 |
 | `raised` | 59 | 211 |
 
-`ratified_by` is `calef` on every `DECIDED` and `AMENDED` file. That is not a guess filling a blank:
-this tree has exactly one architect, every decision is his by the constitution, and no other name
-appears as a ratifier anywhere in the directory. `decided` and `raised` were filled only where a
-keyword in the prose anchored the date to a role. Nothing was inferred from a bare date whose role
-was ambiguous, and nothing was taken from git history, because the date a decision was committed is
-not the date it was raised.
+Every value was taken from the prose or left out. A date was filled only where a keyword anchored it
+to a role, never from a bare date whose role was ambiguous and never from git history, because the
+date a decision was committed is not the date it was raised.
 
-So 152 files record no raise date and 61 record no decision date. Inventing one would put a false
-fact in the field whose job is not lying, and `script/names` already treats a missing ratification
-date as a defect rather than a blank to fill. The gaps are written to `design/decisions/PROVENANCE-GAPS.md`, which
+`ratified_by` is the key where that rule was hardest to keep, so it is worth stating why it was kept.
+The first version of this migration wrote `ratified_by: calef` on all 168, reasoning that this tree
+has one architect, that every decision is his by the constitution, and that no other name appears as
+a ratifier anywhere in the directory. All three are true. The key is still absent on the 89 files
+whose prose does not name him, because a machine-readable field holding a rule rather than a record
+is one a later reader cannot tell from evidence, and because a lane that refuses to infer 213 dates
+and then infers 89 ratifiers has a preference rather than a standard. Nobody should fill them in from
+that inference, which is why the gap list says so where a reader meets it.
+
+So 152 files record no raise date, 61 record no decision date, and 89 name no ratifier. Inventing any
+of them would put a false fact in the field whose job is not lying, and `script/names` already treats
+a missing ratification date as a defect rather than a blank to fill. The 302 gaps are written to `design/decisions/PROVENANCE-GAPS.md`, which
 `script/decisions --check` enforces as a ratchet: a gap already on the list is a worklist item, a
-gap that is not is a failure. Every new decision file therefore carries the full schema, and the
-backlog can only shrink. It is the shape of `script/names --unratified`, a worklist rather than a
+gap that is not is a failure. 302 entries. Every new decision file therefore carries the full
+schema, and the backlog can only shrink. It is the shape of `script/names --unratified`, a worklist rather than a
 wall.
 
 ## Index row

@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 64. A per-file coverage number counts where tests are written, not what they reach

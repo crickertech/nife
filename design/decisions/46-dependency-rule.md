@@ -1,7 +1,6 @@
 ---
 status: AMENDED
 decided: 2026-07-30
-ratified_by: calef
 ---
 
 # 46. Thin primitives or whole subsystems; we write everything in between

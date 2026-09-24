@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 17. The second architecture: RISC-V, and the page-table format trait

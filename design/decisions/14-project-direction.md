@@ -1,6 +1,5 @@
 ---
 status: AMENDED
-ratified_by: calef
 ---
 
 # 14. The project's direction: a verified-Rust capability microkernel that runs real workloads

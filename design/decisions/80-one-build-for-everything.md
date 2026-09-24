@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 raised: 2026-08-05
-ratified_by: calef
 ---
 
 # 80. One build for the kernel and everything that runs on it

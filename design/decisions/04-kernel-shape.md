@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 4. Kernel shape: monolithic, deferred, with two cheap rules

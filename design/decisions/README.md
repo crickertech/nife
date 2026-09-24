@@ -28,7 +28,7 @@ roadmap split (milestone 76) did one directory over:
 - **A status flip stops being a conflict.** Marking one decision superseded used to edit the file
   every other lane was also editing.
 
-Milestone 581 finished that argument one step further. The index table was still hand-maintained, so
+Milestone 582 finished that argument one step further. The index table was still hand-maintained, so
 every lane minting a section edited one sorted file and collided with every other lane in flight,
 always, there. `briefs/rebase-onto-main.md` names it as case 4's worked example. Generating the
 table from the files removed the last additive-index conflict in this tree, the same move
@@ -66,7 +66,7 @@ ratified_by: calef
 The schema is calef's, ratified 2026-09-23, and a lane does not extend it. Keys are snake_case,
 values uppercase, dates UTC like every other date in this tree.
 
-This was `**Status: DECIDED.**` in prose until milestone 581 (a decision's status becomes a field,
+This was `**Status: DECIDED.**` in prose until milestone 582 (a decision's status becomes a field,
 and the index becomes generated). Two failures came from reading a field out of a sentence. A file
 said `**Status: NOT YET`, the regex captured `NOT`, dropped `YET`, and the report printed a word
 nobody had written, which is §211 (what a fatal-risk verdict says, and what the chart can plot as a result)'s finding. `design/fatal-risks.md`'s risk 7 carried two status

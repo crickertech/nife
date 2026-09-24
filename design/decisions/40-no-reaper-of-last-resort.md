@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-30
-ratified_by: calef
 ---
 
 # 40. A supervisor's death is its subtree's death; there is no reaper of last resort

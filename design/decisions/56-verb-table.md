@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 56. The filesystem contract describes its own verbs, so a caretaker is written once

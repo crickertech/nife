@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 30. The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35)

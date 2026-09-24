@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-08-03
-ratified_by: calef
 ---
 
 # 67. A program's second stream is a declaration, not a number

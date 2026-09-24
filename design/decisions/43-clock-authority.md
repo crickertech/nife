@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 43. Reading the clock is a page, setting it is a page you may write, proposing is an endpoint

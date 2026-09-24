@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 48. Navigation is the shell rebinding what it holds, and every shell has its own root

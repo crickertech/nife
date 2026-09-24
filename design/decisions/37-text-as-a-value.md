@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 37. Text is a value three witnesses compute, not a screenshot (milestone 29's remaining increment)

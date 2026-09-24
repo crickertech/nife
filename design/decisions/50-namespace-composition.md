@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-31
-ratified_by: calef
 ---
 
 # 50. Namespace composition (`bind`), not stored paths

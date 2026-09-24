@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-08-17
-ratified_by: calef
 ---
 
 # 93. The filesystem wire protocol is ours, and 9P is an adapter at the edge

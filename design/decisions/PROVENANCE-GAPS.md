@@ -1,18 +1,23 @@
 # Provenance the record never carried
 
 **Generated. Run `script/decisions --write-index` after closing one.** Every line here is
-a decision file that does not state a date the schema requires, and `script/decisions
+a decision file that does not state something the schema requires, and `script/decisions
 --check` treats the list as a ratchet: a gap named here passes, and a gap that is not
 named here fails. So every decision filed from now on carries the whole schema, and this
 file can only get shorter.
 
-Milestone 581 (a decision's status becomes a field, and the index becomes generated) made
-the list when it moved the status into frontmatter. It recovered a date only where a
-keyword in the prose anchored it to a role, never from a bare date whose role was
-ambiguous and never from git history, because the date a decision was committed is not the
-date it was raised. `script/names` refuses a ratification that carries no date rather than
-filling one in, and this is the same posture one directory over: an invented date is worse
-than a recorded gap, because the field whose whole job is not lying would be lying.
+Milestone 582 (a decision's status becomes a field, and the index becomes generated) made
+the list when it moved the status into frontmatter. It took a value only where the prose
+states it: a date only where a keyword anchored it to a role, never from a bare date whose
+role was ambiguous and never from git history, because the date a decision was committed
+is not the date it was raised.
+
+**A missing `ratified_by` is on this list although the answer is not in doubt.** calef is
+the architect, every decision is his, and no other name appears as a ratifier anywhere in
+this directory. The key is absent rather than assumed because a field that holds a rule
+instead of a record is one a later reader cannot tell from evidence, and because the same
+standard has to cover every key: a lane that refuses to infer 213 dates and then infers 89
+ratifiers has no standard, it has a preference. Do not fill these in from that inference.
 
 **Closing one is archaeology, and it is real work.** The answer is usually in the commit
 that introduced the decision, in the pull request that carried it, or in a note that cites
@@ -20,22 +25,33 @@ it. It is not in the file, or the line below would not be here.
 
 - `01-target-architecture.md`: no `decided`
 - `01-target-architecture.md`: no `raised`
+- `01-target-architecture.md`: no `ratified_by`
 - `02-qemu-virt-primary.md`: no `decided`
 - `02-qemu-virt-primary.md`: no `raised`
+- `02-qemu-virt-primary.md`: no `ratified_by`
 - `03-crate-ecosystem.md`: no `decided`
 - `03-crate-ecosystem.md`: no `raised`
+- `03-crate-ecosystem.md`: no `ratified_by`
 - `04-kernel-shape.md`: no `decided`
 - `04-kernel-shape.md`: no `raised`
+- `04-kernel-shape.md`: no `ratified_by`
 - `05-preemptive-threads.md`: no `decided`
 - `05-preemptive-threads.md`: no `raised`
+- `05-preemptive-threads.md`: no `ratified_by`
 - `06-single-core-first.md`: no `raised`
 - `07-testing-harness.md`: no `decided`
 - `07-testing-harness.md`: no `raised`
+- `07-testing-harness.md`: no `ratified_by`
 - `08-process-model-deferred.md`: no `raised`
 - `09-irq-safe-locking.md`: no `raised`
+- `09-irq-safe-locking.md`: no `ratified_by`
 - `10-capability-microkernel.md`: no `raised`
+- `10-capability-microkernel.md`: no `ratified_by`
 - `100-the-terminal-font.md`: no `raised`
+- `100-the-terminal-font.md`: no `ratified_by`
 - `101-notification-objects.md`: no `decided`
+- `101-notification-objects.md`: no `ratified_by`
+- `102-frame-names-a-run.md`: no `ratified_by`
 - `103-what-a-frame-names.md`: no `raised`
 - `104-the-font-and-the-palette.md`: no `raised`
 - `105-thread-spawn-decline-for-now.md`: no `raised`
@@ -44,10 +60,12 @@ it. It is not in the file, or the line below would not be here.
 - `108-credential-revocation-kills-durable-session.md`: no `raised`
 - `109-attribution-is-a-channel-property.md`: no `raised`
 - `11-per-cpu-run-queues.md`: no `raised`
+- `11-per-cpu-run-queues.md`: no `ratified_by`
 - `110-hard-links-declined.md`: no `raised`
 - `111-inert-config-is-a-validated-page.md`: no `raised`
 - `112-touch-mtime-authority.md`: no `raised`
 - `113-kernel-object-plain-names.md`: no `raised`
+- `113-kernel-object-plain-names.md`: no `ratified_by`
 - `114-aspace-enumerate.md`: no `raised`
 - `115-no-sysctl.md`: no `raised`
 - `116-state-handoff-declined.md`: no `raised`
@@ -56,16 +74,19 @@ it. It is not in the file, or the line below would not be here.
 - `119-oom-causes-declined.md`: no `raised`
 - `12-call-reply-ipc.md`: no `decided`
 - `12-call-reply-ipc.md`: no `raised`
+- `12-call-reply-ipc.md`: no `ratified_by`
 - `120-boot-entropy-stopgap-declined.md`: no `raised`
 - `123-boot-time-rederivation-privilege.md`: no `raised`
 - `124-x86-64-syscall-abi.md`: no `raised`
 - `126-two-directory-cwd.md`: no `raised`
 - `127-x86-64-timer-rdtsc.md`: no `decided`
 - `127-x86-64-timer-rdtsc.md`: no `raised`
+- `127-x86-64-timer-rdtsc.md`: no `ratified_by`
 - `128-git-clobber-enforcement.md`: no `raised`
 - `129-rename-noreplace-flag.md`: no `raised`
 - `13-frame-revocation.md`: no `decided`
 - `13-frame-revocation.md`: no `raised`
+- `13-frame-revocation.md`: no `ratified_by`
 - `130-cmos-rtc-delegation.md`: no `raised`
 - `131-hold-at-rung-two.md`: no `raised`
 - `132-overlapping-page-frame-runs.md`: no `raised`
@@ -75,22 +96,30 @@ it. It is not in the file, or the line below would not be here.
 - `136-foreign-implementation-as-oracle.md`: no `raised`
 - `138-cross-core-handoff-under-load.md`: no `decided`
 - `138-cross-core-handoff-under-load.md`: no `raised`
+- `138-cross-core-handoff-under-load.md`: no `ratified_by`
 - `139-cycle-counter-authority.md`: no `decided`
 - `139-cycle-counter-authority.md`: no `raised`
+- `139-cycle-counter-authority.md`: no `ratified_by`
 - `14-project-direction.md`: no `decided`
 - `14-project-direction.md`: no `raised`
+- `14-project-direction.md`: no `ratified_by`
 - `140-follow-on-disposition-vocabulary.md`: no `decided`
 - `140-follow-on-disposition-vocabulary.md`: no `raised`
+- `140-follow-on-disposition-vocabulary.md`: no `ratified_by`
 - `141-application-is-grant.md`: no `decided`
 - `141-application-is-grant.md`: no `raised`
+- `141-application-is-grant.md`: no `ratified_by`
 - `142-spawn-retention.md`: no `decided`
 - `142-spawn-retention.md`: no `raised`
+- `142-spawn-retention.md`: no `ratified_by`
 - `143-machine-names-in-source.md`: no `raised`
 - `144-fastpath-footprint-ceiling.md`: no `raised`
 - `147-a-timer-a-userspace-service-cannot-hold.md`: no `raised`
 - `148-reap-and-thread-identity.md`: no `raised`
 - `149-kernel-served-console-endpoint.md`: no `decided`
+- `149-kernel-served-console-endpoint.md`: no `ratified_by`
 - `15-native-abi.md`: no `raised`
+- `15-native-abi.md`: no `ratified_by`
 - `151-repository-goal-is-independent-release.md`: no `raised`
 - `152-port-range-capability.md`: no `raised`
 - `154-the-acronym-test-is-whether-the-phrase-is-spoken.md`: no `raised`
@@ -99,13 +128,18 @@ it. It is not in the file, or the line below would not be here.
 - `157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md`: no `raised`
 - `158-a-program-is-declared-once.md`: no `decided`
 - `158-a-program-is-declared-once.md`: no `raised`
+- `158-a-program-is-declared-once.md`: no `ratified_by`
 - `159-upgrades-without-a-reimage.md`: no `raised`
 - `16-object-revocation.md`: no `decided`
 - `16-object-revocation.md`: no `raised`
+- `16-object-revocation.md`: no `ratified_by`
 - `17-riscv-second-architecture.md`: no `decided`
 - `17-riscv-second-architecture.md`: no `raised`
+- `17-riscv-second-architecture.md`: no `ratified_by`
 - `18-pcie-transport.md`: no `raised`
+- `18-pcie-transport.md`: no `ratified_by`
 - `19-architectural-parity.md`: no `raised`
+- `19-architectural-parity.md`: no `ratified_by`
 - `194-sessions-interleave-rather-than-serialize.md`: no `raised`
 - `195-a-recipe-vouches-and-the-owner-may-overrule.md`: no `raised`
 - `196-nife-carries-tls-and-builds-the-provider.md`: no `raised`
@@ -114,8 +148,10 @@ it. It is not in the file, or the line below would not be here.
 - `199-the-screen-check-asks-instead-of-sampling.md`: no `raised`
 - `20-iommu-dma-isolation.md`: no `decided`
 - `20-iommu-dma-isolation.md`: no `raised`
+- `20-iommu-dma-isolation.md`: no `ratified_by`
 - `200-two-crates-the-documentation-system-refused.md`: no `decided`
 - `200-two-crates-the-documentation-system-refused.md`: no `raised`
+- `200-two-crates-the-documentation-system-refused.md`: no `ratified_by`
 - `201-one-roadmap-until-a-citation-has-to-cross.md`: no `raised`
 - `202-mechanical-work-goes-to-a-cheaper-model.md`: no `raised`
 - `203-capacity-is-rented-not-bought.md`: no `raised`
@@ -123,111 +159,169 @@ it. It is not in the file, or the line below would not be here.
 - `205-the-subscription-stays-and-renting-fills-the-tail.md`: no `raised`
 - `208-installing-is-granting.md`: no `decided`
 - `208-installing-is-granting.md`: no `raised`
+- `208-installing-is-granting.md`: no `ratified_by`
 - `209-state-handoff-is-an-opaque-blob-and-it-is-optional.md`: no `decided`
 - `209-state-handoff-is-an-opaque-blob-and-it-is-optional.md`: no `raised`
+- `209-state-handoff-is-an-opaque-blob-and-it-is-optional.md`: no `ratified_by`
 - `21-terminal-in-userspace.md`: no `decided`
 - `21-terminal-in-userspace.md`: no `raised`
+- `21-terminal-in-userspace.md`: no `ratified_by`
 - `210-a-correction-names-its-action.md`: no `raised`
 - `22-rust-std-on-the-native-abi.md`: no `decided`
 - `22-rust-std-on-the-native-abi.md`: no `raised`
+- `22-rust-std-on-the-native-abi.md`: no `ratified_by`
 - `23-multi-queue-dma-confinement.md`: no `decided`
 - `23-multi-queue-dma-confinement.md`: no `raised`
+- `23-multi-queue-dma-confinement.md`: no `ratified_by`
 - `24-interrupting-the-foreground.md`: no `raised`
+- `24-interrupting-the-foreground.md`: no `ratified_by`
 - `25-socket-identity.md`: no `raised`
+- `25-socket-identity.md`: no `ratified_by`
 - `26-fault-endpoint.md`: no `raised`
+- `26-fault-endpoint.md`: no `ratified_by`
 - `27-filesystem-service.md`: no `raised`
+- `27-filesystem-service.md`: no `ratified_by`
 - `28-smp-placement.md`: no `raised`
+- `28-smp-placement.md`: no `ratified_by`
 - `29-framebuffer-grant.md`: no `decided`
 - `29-framebuffer-grant.md`: no `raised`
+- `29-framebuffer-grant.md`: no `ratified_by`
 - `30-dma-boundary-proof.md`: no `decided`
 - `30-dma-boundary-proof.md`: no `raised`
+- `30-dma-boundary-proof.md`: no `ratified_by`
 - `31-foreign-language-seam.md`: no `decided`
 - `31-foreign-language-seam.md`: no `raised`
+- `31-foreign-language-seam.md`: no `ratified_by`
 - `32-reap-without-build.md`: no `raised`
+- `32-reap-without-build.md`: no `ratified_by`
 - `33-compositor-authority.md`: no `decided`
 - `33-compositor-authority.md`: no `raised`
+- `33-compositor-authority.md`: no `ratified_by`
 - `34-redoxfs-primary.md`: no `raised`
+- `34-redoxfs-primary.md`: no `ratified_by`
 - `35-scanner-findings.md`: no `raised`
+- `35-scanner-findings.md`: no `ratified_by`
 - `36-repository-in-the-tcb.md`: no `raised`
+- `36-repository-in-the-tcb.md`: no `ratified_by`
 - `37-text-as-a-value.md`: no `decided`
 - `37-text-as-a-value.md`: no `raised`
+- `37-text-as-a-value.md`: no `ratified_by`
 - `38-scoped-suppressions.md`: no `raised`
+- `38-scoped-suppressions.md`: no `ratified_by`
 - `39-component-names.md`: no `raised`
+- `39-component-names.md`: no `ratified_by`
 - `40-no-reaper-of-last-resort.md`: no `raised`
+- `40-no-reaper-of-last-resort.md`: no `ratified_by`
 - `41-endpoint-as-broker.md`: no `decided`
 - `41-endpoint-as-broker.md`: no `raised`
+- `41-endpoint-as-broker.md`: no `ratified_by`
 - `42-truthful-filesystem.md`: no `raised`
+- `42-truthful-filesystem.md`: no `ratified_by`
 - `43-clock-authority.md`: no `decided`
 - `43-clock-authority.md`: no `raised`
+- `43-clock-authority.md`: no `ratified_by`
 - `44-entropy-capability.md`: no `decided`
 - `44-entropy-capability.md`: no `raised`
+- `44-entropy-capability.md`: no `ratified_by`
 - `45-partition-guid.md`: no `decided`
 - `45-partition-guid.md`: no `raised`
+- `45-partition-guid.md`: no `ratified_by`
 - `46-dependency-rule.md`: no `raised`
+- `46-dependency-rule.md`: no `ratified_by`
 - `47-directory-rights.md`: no `decided`
 - `47-directory-rights.md`: no `raised`
+- `47-directory-rights.md`: no `ratified_by`
 - `48-shell-navigation.md`: no `decided`
 - `48-shell-navigation.md`: no `raised`
+- `48-shell-navigation.md`: no `ratified_by`
 - `49-removal-and-recursion.md`: no `decided`
 - `49-removal-and-recursion.md`: no `raised`
+- `49-removal-and-recursion.md`: no `ratified_by`
 - `50-namespace-composition.md`: no `raised`
+- `50-namespace-composition.md`: no `ratified_by`
 - `51-sink-protocol.md`: no `decided`
 - `51-sink-protocol.md`: no `raised`
+- `51-sink-protocol.md`: no `ratified_by`
 - `52-nameset-glob-grant.md`: no `decided`
 - `52-nameset-glob-grant.md`: no `raised`
+- `52-nameset-glob-grant.md`: no `ratified_by`
 - `53-parity-matrix.md`: no `decided`
 - `53-parity-matrix.md`: no `raised`
+- `53-parity-matrix.md`: no `ratified_by`
 - `54-host-recovery.md`: no `decided`
 - `54-host-recovery.md`: no `raised`
+- `54-host-recovery.md`: no `ratified_by`
 - `55-shell-holds-the-redirect.md`: no `decided`
 - `55-shell-holds-the-redirect.md`: no `raised`
+- `55-shell-holds-the-redirect.md`: no `ratified_by`
 - `56-verb-table.md`: no `decided`
 - `56-verb-table.md`: no `raised`
+- `56-verb-table.md`: no `ratified_by`
 - `57-xattr-forwarding.md`: no `decided`
 - `57-xattr-forwarding.md`: no `raised`
+- `57-xattr-forwarding.md`: no `ratified_by`
 - `58-wider-archive-name.md`: no `decided`
 - `58-wider-archive-name.md`: no `raised`
+- `58-wider-archive-name.md`: no `ratified_by`
 - `59-append-mode.md`: no `decided`
 - `59-append-mode.md`: no `raised`
+- `59-append-mode.md`: no `ratified_by`
 - `60-fuzzing-the-parsers.md`: no `decided`
 - `60-fuzzing-the-parsers.md`: no `raised`
+- `60-fuzzing-the-parsers.md`: no `ratified_by`
 - `61-lints-on-evidence.md`: no `decided`
 - `61-lints-on-evidence.md`: no `raised`
+- `61-lints-on-evidence.md`: no `ratified_by`
 - `62-below-the-stack-pointer.md`: no `decided`
 - `62-below-the-stack-pointer.md`: no `raised`
+- `62-below-the-stack-pointer.md`: no `ratified_by`
 - `63-program-versus-crate.md`: no `decided`
 - `63-program-versus-crate.md`: no `raised`
+- `63-program-versus-crate.md`: no `ratified_by`
 - `64-per-file-coverage.md`: no `decided`
 - `64-per-file-coverage.md`: no `raised`
+- `64-per-file-coverage.md`: no `ratified_by`
 - `65-active-refusal.md`: no `decided`
 - `65-active-refusal.md`: no `raised`
+- `65-active-refusal.md`: no `ratified_by`
 - `66-refusal-status.md`: no `raised`
+- `66-refusal-status.md`: no `ratified_by`
 - `67-second-stream.md`: no `raised`
+- `67-second-stream.md`: no `ratified_by`
 - `68-boot-endowment-name.md`: no `raised`
 - `69-endow-versus-endowment.md`: no `raised`
 - `70-built-when-nothing-to-fix.md`: no `raised`
 - `72-time-command-clock.md`: no `raised`
 - `73-repository-admin-steps.md`: no `decided`
 - `73-repository-admin-steps.md`: no `raised`
+- `73-repository-admin-steps.md`: no `ratified_by`
 - `74-audit-cadence.md`: no `raised`
 - `75-naming-covers-directories.md`: no `raised`
 - `77-branch-prefixes.md`: no `raised`
 - `79-password-equivalent-material.md`: no `decided`
 - `79-password-equivalent-material.md`: no `raised`
+- `79-password-equivalent-material.md`: no `ratified_by`
 - `80-one-build-for-everything.md`: no `decided`
+- `80-one-build-for-everything.md`: no `ratified_by`
 - `81-dependency-upgrades.md`: no `decided`
 - `81-dependency-upgrades.md`: no `raised`
+- `81-dependency-upgrades.md`: no `ratified_by`
 - `82-ambient-authority-and-the-rewrite.md`: no `raised`
 - `83-rust-over-c-implementations.md`: no `raised`
 - `84-how-we-port.md`: no `raised`
 - `85-evidence-and-product.md`: no `raised`
 - `86-el0-nvme-driver.md`: no `decided`
+- `86-el0-nvme-driver.md`: no `ratified_by`
 - `87-permissive-license.md`: no `raised`
 - `89-provisional-versus-unrecorded.md`: no `raised`
 - `90-claiming-and-closing.md`: no `raised`
 - `91-endpoints-before-the-refusal.md`: no `decided`
 - `91-endpoints-before-the-refusal.md`: no `raised`
+- `91-endpoints-before-the-refusal.md`: no `ratified_by`
 - `92-caretaker-lifetime.md`: no `raised`
 - `93-filesystem-wire-protocol.md`: no `raised`
+- `93-filesystem-wire-protocol.md`: no `ratified_by`
 - `94-what-may-live-in-a-library.md`: no `raised`
+- `94-what-may-live-in-a-library.md`: no `ratified_by`
 - `99-apple-metadata-at-rest.md`: no `decided`
+- `99-apple-metadata-at-rest.md`: no `ratified_by`

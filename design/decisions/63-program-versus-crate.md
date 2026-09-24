@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 63. The line between a program and its crate is "does this need a capability"

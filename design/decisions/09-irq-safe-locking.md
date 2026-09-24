@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-13
-ratified_by: calef
 ---
 
 # 9. Locking: IrqSafeMutex, plus a discipline

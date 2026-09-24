@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 200. Two crates the documentation system refused, and why each loses on its own terms

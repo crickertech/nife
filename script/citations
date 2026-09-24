@@ -124,8 +124,8 @@ def load(subdir, pattern):
             continue
         text = open(os.path.join(d, fname), errors="replace").read()
         # The H1 is the first line, unless frontmatter precedes it. A decision carries frontmatter
-        # since the decisions-frontmatter change (a decision's status becomes a field, and the
-        # index becomes generated); a roadmap block does not yet.
+        # since milestone 582 (a decision's status becomes a field, and the index becomes
+        # generated); a roadmap block does not yet.
         lines = text.split("\n")
         if lines[:1] == ["---"] and "---" in lines[1:]:
             lines = lines[lines.index("---", 1) + 1:]

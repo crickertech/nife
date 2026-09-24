@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 12. Call/Reply IPC: a one-shot reply capability

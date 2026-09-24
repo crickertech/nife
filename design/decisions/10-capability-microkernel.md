@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-14
-ratified_by: calef
 ---
 
 # 10. Process model: capability-based, microkernel. Untyped memory deferred.

@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-27
-ratified_by: calef
 ---
 
 # 19. Architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64

@@ -1,7 +1,6 @@
 ---
 status: AMENDED
 decided: 2026-07-29
-ratified_by: calef
 ---
 
 # 34. RedoxFS is the primary filesystem, on three conditions

@@ -309,9 +309,10 @@ def parse_decisions(rev):
             if not m:
                 continue
             body = show(rev, f"design/decisions/{name}") or ""
-            # Two eras. Since milestone 581 (a decision's status becomes a field, and the index becomes generated) a decision's status is a frontmatter key; before it,
-            # the status was `**Status: DECIDED.**` in the prose under the title. Both are read,
-            # because this script walks history and history contains both.
+            # Two eras. Since milestone 582 (a decision's status becomes a field, and the index
+            # becomes generated) a decision's status is a frontmatter key; before it, the status was
+            # `**Status: DECIDED.**` in the prose under the title. Both are read, because this
+            # script walks history and history contains both.
             lines = body.split("\n")
             fm = {}
             if lines[:1] == ["---"] and "---" in lines[1:]:

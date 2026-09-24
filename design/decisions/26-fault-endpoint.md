@@ -1,7 +1,6 @@
 ---
 status: AMENDED
 decided: 2026-07-28
-ratified_by: calef
 ---
 
 # 26. The fault endpoint: thread death becomes a message a supervisor holds

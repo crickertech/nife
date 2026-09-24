@@ -2,7 +2,6 @@
 status: DECIDED
 raised: 2026-08-19
 decided: 2026-08-20
-ratified_by: calef
 ---
 
 # 102. A Frame names a run of pages

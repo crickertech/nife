@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 2. Primary target: QEMU `virt`, Raspberry Pi as a later port

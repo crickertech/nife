@@ -24,7 +24,7 @@
 # checkable, and it is checked below. Recorded rather than deleted, because the reasoning is the
 # record.
 #
-# ---- why the status is a field and the index is generated (milestone 581) -----------------------
+# ---- why the status is a field and the index is generated (milestone 582) -----------------------
 #
 # Until 2026-09-23 a decision's status was `**Status: DECIDED.**`, a data field written as a
 # sentence, and this script read it with `re.match(r"\*\*Status: (.+?)\.\*\*", first)`. Two failures
@@ -81,15 +81,22 @@
 #
 # ---- PROVENANCE GAPS ----------------------------------------------------------------------------
 #
-# `raised` is required always and `decided` is required by DECIDED, and the corpus predating the
-# schema does not record either for most of its files. Migrating the 211 files on `main` at
-# bfc91c8d2 recovered `raised` for 59 of them and `decided` for 107 of the 168 that owe one.
+# `raised` is required always, and `decided` and `ratified_by` are required by DECIDED, and the
+# corpus predating the schema does not record them for most of its files. Migrating the 211 files on
+# `main` at bfc91c8d2 recovered `raised` for 59 of them, `decided` for 107 of the 168 that owe one,
+# and `ratified_by` for 79 of the same 168.
 #
-# **Nothing was invented to close that.** A date was taken only where a keyword in the prose
-# anchored it to a role, never from a bare date whose role was ambiguous and never from git history,
-# because the date a decision was committed is not the date it was raised. `script/names` already
-# treats a missing ratification date as a defect rather than as a blank to fill, and this is the
-# same posture one directory over.
+# **Nothing was invented to close that, and `ratified_by` is where the rule was hardest to keep.**
+# A value was taken only where the prose names it: a date only where a keyword anchored it to a
+# role, never from a bare date whose role was ambiguous and never from git history, because the date
+# a decision was committed is not the date it was raised. `ratified_by` is `calef` on the 79 files
+# that say so and **absent on the other 89 although he is certainly the ratifier**, because this
+# tree has one architect and every decision is his. That inference is almost certainly true and it
+# is still not what the file says, and a machine-readable field that holds a rule rather than a
+# record is the thing a later reader cannot tell from evidence. Do not fill them in from the same
+# inference. `script/names` already treats a missing ratification date as a defect rather than as a
+# blank to fill, and this is the same posture one directory over, applied to both keys rather than
+# to the convenient one.
 #
 # So the gaps are written down, in `design/decisions/PROVENANCE-GAPS.md`, and this script enforces
 # them as a **ratchet**: a gap on that list is a worklist item and passes, a gap that is not on it
@@ -159,7 +166,7 @@ def parse_frontmatter(fname, lines):
     """({key: value}, index of the first line after the closing fence), or (None, 0)."""
     if not lines or lines[0] != "---":
         problems.append(f"{fname}: no frontmatter. A decision opens with '---', the schema's keys "
-                        f"one per line, and '---' (milestone 581; the schema is in this script's "
+                        f"one per line, and '---' (milestone 582; the schema is in this script's "
                         f"header and in design/decisions/README.md)")
         return None, 0
     try:
@@ -405,18 +412,23 @@ def render_gaps():
         "# Provenance the record never carried",
         "",
         "**Generated. Run `script/decisions --write-index` after closing one.** Every line here is",
-        "a decision file that does not state a date the schema requires, and `script/decisions",
+        "a decision file that does not state something the schema requires, and `script/decisions",
         "--check` treats the list as a ratchet: a gap named here passes, and a gap that is not",
         "named here fails. So every decision filed from now on carries the whole schema, and this",
         "file can only get shorter.",
         "",
-        "Milestone 581 (a decision's status becomes a field, and the index becomes generated) made",
-        "the list when it moved the status into frontmatter. It recovered a date only where a",
-        "keyword in the prose anchored it to a role, never from a bare date whose role was",
-        "ambiguous and never from git history, because the date a decision was committed is not the",
-        "date it was raised. `script/names` refuses a ratification that carries no date rather than",
-        "filling one in, and this is the same posture one directory over: an invented date is worse",
-        "than a recorded gap, because the field whose whole job is not lying would be lying.",
+        "Milestone 582 (a decision's status becomes a field, and the index becomes generated) made",
+        "the list when it moved the status into frontmatter. It took a value only where the prose",
+        "states it: a date only where a keyword anchored it to a role, never from a bare date whose",
+        "role was ambiguous and never from git history, because the date a decision was committed",
+        "is not the date it was raised.",
+        "",
+        "**A missing `ratified_by` is on this list although the answer is not in doubt.** calef is",
+        "the architect, every decision is his, and no other name appears as a ratifier anywhere in",
+        "this directory. The key is absent rather than assumed because a field that holds a rule",
+        "instead of a record is one a later reader cannot tell from evidence, and because the same",
+        "standard has to cover every key: a lane that refuses to infer 213 dates and then infers 89",
+        "ratifiers has no standard, it has a preference. Do not fill these in from that inference.",
         "",
         "**Closing one is archaeology, and it is real work.** The answer is usually in the commit",
         "that introduced the decision, in the pull request that carried it, or in a note that cites",

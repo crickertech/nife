@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 45. A nife partition is `EC5CC08B-D749-4434-AC38-A274C50385BA`, and that never changes

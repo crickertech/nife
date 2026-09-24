@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 61. A lint is adopted on evidence from this tree, not on its description

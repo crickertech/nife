@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 81. A dependency stays upgradable; we suppress churn, never the upgrade

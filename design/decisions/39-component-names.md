@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 decided: 2026-07-30
-ratified_by: calef
 ---
 
 # 39. A component is named for what it is, and nothing is named for a daemon

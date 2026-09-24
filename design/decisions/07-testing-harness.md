@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 7. Testing: QEMU harness + host-testable crates, from commit one

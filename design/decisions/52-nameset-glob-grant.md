@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 52. A set of names is a namespace, and that is how a glob is granted

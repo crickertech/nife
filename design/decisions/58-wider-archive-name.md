@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 58. A wider archive name, and the one format change that had to bump the magic

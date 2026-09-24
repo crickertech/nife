@@ -1,6 +1,5 @@
 ---
 status: DECIDED
-ratified_by: calef
 ---
 
 # 158. A program is declared once: the archives read `Cargo.toml`, and the shell's table is one macro

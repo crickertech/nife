@@ -1,7 +1,6 @@
 ---
 status: DECIDED
 raised: 2026-08-18
-ratified_by: calef
 ---
 
 # 99. Where Apple's metadata lands: stream or sidecar
