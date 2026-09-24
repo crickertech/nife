@@ -74,7 +74,7 @@ it. The historical corpus records the rest far more thinly:
 | key | filled from the file's own prose | of |
 |---|---|---|
 | `status` | 211 | 211 |
-| `decided` | 148 | 168 |
+| `decided` | 107 | 168 |
 | `ratified_by` | 168 | 168 |
 | `raised` | 59 | 211 |
 
@@ -85,9 +85,9 @@ keyword in the prose anchored the date to a role. Nothing was inferred from a ba
 was ambiguous, and nothing was taken from git history, because the date a decision was committed is
 not the date it was raised.
 
-So 152 files record no raise date at all. Inventing one would put a false fact in the field whose
-job is not lying, and `script/names` already treats a missing ratification date as a defect rather
-than a blank to fill. The gaps are written to `design/decisions/PROVENANCE-GAPS.md`, which
+So 152 files record no raise date and 61 record no decision date. Inventing one would put a false
+fact in the field whose job is not lying, and `script/names` already treats a missing ratification
+date as a defect rather than a blank to fill. The gaps are written to `design/decisions/PROVENANCE-GAPS.md`, which
 `script/decisions --check` enforces as a ratchet: a gap already on the list is a worklist item, a
 gap that is not is a failure. Every new decision file therefore carries the full schema, and the
 backlog can only shrink. It is the shape of `script/names --unratified`, a worklist rather than a
