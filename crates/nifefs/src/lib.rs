@@ -746,6 +746,19 @@ mod verification {
     /// span, parse refuses before touching a byte past the length check (which is what keeps the
     /// entry reads, up to offset [`HEADER_LEN`] + [`MAX_FILES`] * [`ENTRY_LEN`] inside
     /// [`DIR_BLOCKS`], in bounds).
+    ///
+    /// **BUGS: a guard weakened enough to admit this length gets no verdict, not a red one.**
+    /// Measured 2026-09-24. Once the one concrete length passes the guard, symbolic execution
+    /// enters the entry loop, whose bound is a `count` read from symbolic bytes, and with no unwind
+    /// bound CBMC unrolls it without end: `< BLOCK` ran into CI's 45-minute timeout on #1156, and
+    /// the off-by-one `< DIR_BLOCKS * BLOCK - 1` was killed at 420 s. So the recorded falsification
+    /// is a reordering (magic before length), which this harness refutes in under a second, and the
+    /// weakened-guard class is caught only in the sense that a replay never finishes. The fix that
+    /// was measured and not taken is `#[kani::unwind(3)]`: the correct tree never reaches a loop
+    /// here, so the proof would be unchanged, and the `< BLOCK` defect then fails in 2.6 s. It was
+    /// left out because a change to a proof's bounds is a change to what it proves and deserves its
+    /// own review, even where the measured answer is that it would not be; it is the next step if
+    /// the weakened guard should become a replayable record of its own.
     /// Falsification: replayable `crates/nifefs/falsifications/verification.a_short_image_is_refused_not_indexed.patch`
     #[kani::proof]
     fn a_short_image_is_refused_not_indexed() {
