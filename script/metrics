@@ -1780,7 +1780,7 @@ CHARTS = [
     # honest rather than new: a per-file minimum needs an lcov for that week, and only the
     # aggregate was ever kept, so the series starts where the recording starts.
     ('coverage-floor.svg', 'Lowest-covered single file, per cent',
-     'the number script/coverage gates on; empty before 2026W39, when nothing recorded it',
+     'the number script/coverage gates on; 2026W31-W38 backfilled 2026-09-24, W30 predates the floor',
      [('minimum per-file coverage', 'coverage_min_file_pct')], 1.0, (80, 'floor'),
      'coverage_min_file_pct'),
     # Two panels for one measure, the coverage pair's reason: these series stack with nothing, and
