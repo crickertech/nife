@@ -82,6 +82,16 @@ crates run under QEMU, out of reach of host instrumentation, which is the same r
 leaning on `bootstrap`, so the CI test job (which runs `bootstrap`) never compiles a coverage tool
 it does not use.
 
+**What the `script/lint` and `script/mutation` rows cite**, spelled out here rather than inside them
+because those two cells are the longest lines in this repository and `documentation::render`'s
+`LINE_MAX` is sized against them. The non-clippy checks `lint` carries arrived with
+milestone 68 (code-quality gates: one lint policy, and the lints that lost), milestone 94 (the untracked-work
+sweep, and the convention that ends the category) and milestone 113 (the proofs' own unsafe code is
+ungated), and they enforce DECISIONS §38 (a suppression is scoped to an item and carries a reason),
+§46 (thin primitives or whole subsystems) and §61 (a lint is adopted on evidence from this tree, not
+on its description). `mutation`'s memory ceiling is milestone 277 (bound what one mutant may
+allocate, so a runaway kills the mutant and not the machine).
+
 ## They are thin wrappers, on purpose
 
 The scripts do almost nothing themselves. `script/test` is `cargo xtask test`; `script/server`
@@ -113,13 +123,13 @@ transcripts and captured logs keep `scripts/` where they describe the past, the 
 keeps `cricker-os`.
 
 **One thing in `helpers/` is not internal plumbing, and it is worth naming so the rule above is not
-misread.** `helpers/qemu-uefi-x86_64.sh` (milestone 87) boots the x86_64 kernel under OVMF, the real
+misread.** `helpers/qemu-uefi-x86_64.sh` (milestone 87 (the x86_64 bare-metal machine)) boots the x86_64 kernel under OVMF, the real
 UEFI firmware, from a staged EFI system partition. It is run by hand as well as by
 `cargo xtask uefi-boot`, and it lives beside the runners rather than in `script/` because it is a
 QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
 `-kernel` argument for cargo to pass it. See notes/x86-uefi-boot.md.
 
-**And one thing in `helpers/` is sourced rather than run.** `helpers/qemu-path.sh` (milestone 287,
+**And one thing in `helpers/` is sourced rather than run.** `helpers/qemu-path.sh` (milestone 287 (`script/bootstrap` installs a working QEMU on Linux),
 **name provisional**) puts this project's own QEMU on PATH when `script/ci-qemu` has built one. It
 has no shebang on purpose: it exists to edit the caller's PATH, which an executed script cannot do,
 so every `script/` entry point that can reach an emulator reads it with `. helpers/qemu-path.sh`

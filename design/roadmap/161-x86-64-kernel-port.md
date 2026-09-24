@@ -717,8 +717,8 @@ One thing that is not a step, and is now resolved rather than owed:
   a `virtio-blk-pci` line with `iommu_platform=on` plus an `nvme` line, so the 15 skips that wanted
   an enumerated bus with something on it no longer have that cause.
 - **Done.** Item 6's "no PCI device is confined through it yet" is closed by that same disk: it
-  goes through `-device intel-iommu` with `iommu_platform=on`, and milestone 215 records the IOMMU
-  escape test running on x86_64 for the first time and passing.
+  goes through `-device intel-iommu` with `iommu_platform=on`, and milestone 215 (a PCI function's interrupt
+  reaches nothing on x86_64) records the IOMMU escape test running on x86_64 for the first time and passing.
 - **Milestone 364.** The fixtures still missing from that runner (RedoxFS, GPT and blank disks,
   NIC, GPU, keyboard, RNG, and a transport-blind FS-server disk lookup) are
   `design/roadmap/364-x86-64-test-fixtures.md`, which milestone 303 and a newer block have since
