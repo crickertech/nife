@@ -10,3 +10,4 @@ name in this tree.*
 | appendix | what it explains |
 |---|---|
 | [three-principles.md](three-principles.md) | the customer ranking function, the method as a result, and the stranger test |
+| [mechanisms-not-memory.md](mechanisms-not-memory.md) | the ladder's rungs, the evening that produced it, and what rung zero cost |
