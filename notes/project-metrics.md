@@ -250,7 +250,7 @@ rest: the snapshot's `launchd` shape, why the file is idempotent, and which comm
   fewer than the tree's dated blocks.
 - **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
   2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
-  is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so
+  is built on live in `helpers/rust_source.py`, which `script/lint` and this script both import, so
   there is one definition and nothing left to drift. The harness count could not be collapsed the
   same way: `script/lint` and `script/falsifications` attribute each harness to a workspace package
   out of `cargo metadata`, and this script reads blobs at revisions nobody has checked out and
@@ -276,7 +276,7 @@ rest: the snapshot's `launchd` shape, why the file is idempotent, and which comm
 - **Four kinds of named thing, and the tree names more than four kinds.** Crates, programs,
   `script/` entry points and Cargo packages carry provenance blocks, so those are what this counts.
   Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
-  types, `scripts/` helpers and directory names are outside `script/names`' surfaces too, and
+  types, `helpers/` helpers and directory names are outside `script/names`' surfaces too, and
   design/naming.md's `BUGS` carries what that leaves uncovered.
 - **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
