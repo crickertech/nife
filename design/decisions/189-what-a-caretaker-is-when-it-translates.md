@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 189. Which of two definitions `caretaker` carries, and what the translating shape is called
 
-Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 413's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 413 (what a `caretaker` is, when the thing it holds is not the thing it hands out)'s
 `DECISION` gate naming no section. Filed 2026-09-14 by the milestone 292 lane while naming the
 program that puts a file behind a byte sink, which had been `ROLE_FILE` inside a three-role binary
 and so had never needed a name of its own. *(Section number provisional until the merge queue lands

@@ -5,7 +5,7 @@ ratified_by: calef
 
 # 79. Holding password-equivalent material, and what a session key release means
 
-calef approved both halves on 2026-08-04, on milestone 65's pull request; both
+calef approved both halves on 2026-08-04, on milestone 65 (hold the key, expose the operation, never the key)'s pull request; both
 were removed from the tree on 2026-08-30 and the amendment at the bottom says why the section is kept
 rather than retired. This
 section exists because the reasoning is the part worth keeping: the decision itself is one word, and

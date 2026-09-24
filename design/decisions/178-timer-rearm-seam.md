@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 178. Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have
 
-Raised 2026-09-19 by milestone 435's slice B, which read milestone 360's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 360 (`crates/timetable`'s proved `next_after` is not what the timer calls)'s
 `DECISION` gate and found it naming no section. Milestone 197 named the fork and declined to take
 it; the 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge
 queue lands it.)*

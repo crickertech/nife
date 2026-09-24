@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 190. Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?
 
-Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 415's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 415 (sub-tripwire drift accumulates across baseline saves)'s
 `DECISION` gate naming no section and its gate prose gone stale. The audit behind it is the
 baseline-audit lane's, 2026-09-15, which calef asked for after PR #886 found a regression that had
 hidden under the 10% threshold. *(Section number provisional until the merge queue lands it.)*

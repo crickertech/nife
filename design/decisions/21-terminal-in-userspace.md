@@ -5,7 +5,7 @@ ratified_by: calef
 
 # 21. The terminal is a userspace component, and the kernel is out of the shell business (milestone 28)
 
-(one sentence superseded by milestone 41's deletion, recorded in place.)
+(one sentence superseded by milestone 41 (triage the suppressions, and un-blindfold the gate)'s deletion, recorded in place.)
 
 **Decided and built 2026-07-28.** Milestone 28 put the tty line discipline in userspace as a
 swappable component (`line_editor`), sitting on plain endpoints between the input/console drivers and

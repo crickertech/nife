@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 172. Whether a `credential_protocol` verify endpoint names the identity it asks about
 
-Raised 2026-09-19 by milestone 435's slice B, which read milestone 327's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 327 (a credential endpoint that is the credential for one resource)'s
 `DECISION` gate and found it naming no section. The question itself is older: milestone 54's block
 posed it, `notes/smb.md` recorded it as a next step rather than as an accepted limitation, and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue

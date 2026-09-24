@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 66. A refusal is a non-zero status, and not the same one an error gets
 
-Settled for milestone 67's `&&` and `$?`. `swish` refuses constantly and by design, so
+Settled for milestone 67 (`swish` the language: quoting, sequencing, and exit status)'s `&&` and `$?`. `swish` refuses constantly and by design, so
 "what status does a refusal produce" is a claim about the capability model rather than a detail of the
 shell.
 

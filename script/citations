@@ -114,7 +114,14 @@ def load(subdir, pattern):
         if not m:
             continue
         text = open(os.path.join(d, fname), errors="replace").read()
-        h = re.match(r"# (\d+)[a-z]?\. (.+)$", text.split("\n", 1)[0])
+        # The H1 is the first line, unless frontmatter precedes it. A decision carries frontmatter
+        # since milestone 581 (a decision's status becomes a field, and the index becomes
+        # generated); a roadmap block does not yet.
+        lines = text.split("\n")
+        if lines[:1] == ["---"] and "---" in lines[1:]:
+            lines = lines[lines.index("---", 1) + 1:]
+        first = next((line for line in lines if line.strip()), "")
+        h = re.match(r"# (\d+)[a-z]?\. (.+)$", first)
         if h:
             out.setdefault(int(h.group(1)), (h.group(2).strip(), text, fname))
     return out

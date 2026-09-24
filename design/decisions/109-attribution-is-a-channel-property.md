@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 109. Attribution is a property of a channel, not of a capability
 
-calef, 2026-08-22, on milestone 49's own named fork (worked out in
+calef, 2026-08-22, on milestone 49 (what identity is for once it stops being authority)'s own named fork (worked out in
 conversation, not yet built): channel.
 
 ## The question

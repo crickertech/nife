@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 184. Does the host test pass run on a second architecture, and at what cadence?
 
-Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 403's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 403 (an x86_64 host in the host pass)'s
 `DECISION` gate naming no section. Milestone 288 fixed four instances of "a test that states a fact
 about the author's laptop" in `crates/elf` and could not stop a fifth. *(Section number provisional
 until the merge queue lands it.)*

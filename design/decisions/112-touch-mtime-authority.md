@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 112. `touch`'s two behaviors need two rights: write covers "now", a separate right covers "arbitrary"
 
-calef, 2026-08-23, agreeing with the recommendation on milestone 47's own named
+calef, 2026-08-23, agreeing with the recommendation on milestone 47 (`cd`, `pwd`, `ls`, `mkdir`, `rm`, paths, and environment)'s own named
 fork: *"I agree with your recommendation."*
 
 ## The question

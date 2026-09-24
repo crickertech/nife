@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 170. How a foreign program is told what to do
 
-Raised 2026-09-19 by milestone 435's lane, which found milestone 205 gated on
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s lane, which found milestone 205 (how a foreign program is told what to do) gated on
 `DECISION` with no decision anywhere a reader can open. The block was minted 2026-08-31 out of
 milestone 121's lane and states the fork already; this is it in the place AGENTS.md says an open
 decision lives. *(Section number provisional until the merge queue lands it.)*

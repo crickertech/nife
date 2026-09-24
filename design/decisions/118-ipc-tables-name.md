@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 118. `Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`
 
-calef, 2026-08-23, on milestone 98's naming fork: *"Agreed, go with
+calef, 2026-08-23, on milestone 98 (name what `SCHED` actually guards)'s naming fork: *"Agreed, go with
 IpcTables."*
 
 ## The question

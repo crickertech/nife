@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 119. Splitting `OutOfMemory`'s three causes is declined for want of a customer
 
-calef, 2026-08-23, on milestone 153's fork: *"Let's defer until we have a
+calef, 2026-08-23, on milestone 153 (`OutOfMemory` collapses three distinct causes into one error code)'s fork: *"Let's defer until we have a
 customer."*
 
 ## The question

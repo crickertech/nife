@@ -32,7 +32,7 @@ Milestone 581 finished that argument one step further. The index table was still
 every lane minting a section edited one sorted file and collided with every other lane in flight,
 always, there. `briefs/rebase-onto-main.md` names it as case 4's worked example. Generating the
 table from the files removed the last additive-index conflict in this tree, the same move
-milestone 294 made for `design/roadmap/README.md`.
+milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) made for `design/roadmap/README.md`.
 
 Do not renumber. A number that moves breaks citations that no gate can see are wrong, because a
 well-formed citation to the wrong section still resolves. Milestone 97 is where that check gets
@@ -69,7 +69,7 @@ values uppercase, dates UTC like every other date in this tree.
 This was `**Status: DECIDED.**` in prose until milestone 581 (a decision's status becomes a field,
 and the index becomes generated). Two failures came from reading a field out of a sentence. A file
 said `**Status: NOT YET`, the regex captured `NOT`, dropped `YET`, and the report printed a word
-nobody had written, which is §211's finding. `design/fatal-risks.md`'s risk 7 carried two status
+nobody had written, which is §211 (what a fatal-risk verdict says, and what the chart can plot as a result)'s finding. `design/fatal-risks.md`'s risk 7 carried two status
 lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
 weeks.
 
@@ -83,7 +83,7 @@ recorded gap.
 | `PROPOSED` | Raised, not yet decided. Options and a recommendation are in the file; nothing is built on it, and nothing should cite it as settled. Waiting on calef. |
 | `DECIDED` | It holds as written. |
 | `AMENDED` | It holds, but part of it was revised or overtaken by later work. The file names what changed, and the amendment is in the file or in the decision it names. |
-| `SUPERSEDED` | A later decision replaces it, and `superseded_by` names which. Kept, never deleted, because the reasoning is the record: §8's deferral was correct and §10 is what it deferred to. The table below shows it as `SUPERSEDED BY N`, which is the two keys read together. |
+| `SUPERSEDED` | A later decision replaces it, and `superseded_by` names which. Kept, never deleted, because the reasoning is the record: §8 (DEFERRED to a hard decision point)'s deferral was correct and §10 (process model: capability-based, microkernel) is what it deferred to. The table below shows it as `SUPERSEDED BY N`, which is the two keys read together. |
 
 `AMENDED` is the token that pays for the vocabulary. Eleven decisions carry a revision that a reader
 of the opening paragraph would otherwise miss, and §26 is the sharpest: its first line still says
