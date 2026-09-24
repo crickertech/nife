@@ -1,7 +1,10 @@
 # 212. A prose budget: 3,000 words of main body, with appendices under the same cap
 
-**Status: PROPOSED.** Raised by calef on 2026-09-23 (UTC), after a maintainer session spent most
-of a context window reading one document, `design/fatal-risks.md`, at 17,742 words. *(The section
+**Status: PARTLY DECIDED.** **The cap is ratified: 3,000 words of main body, by calef on
+2026-09-23 (UTC)**, which answers question 1 below. Questions 2, 3 and 4 stay open and he is taking
+them one at a time, so nothing here about appendix siting, enforcement or migration is settled yet.
+Raised by calef the same day, after a maintainer session spent most of a context window reading one
+document, `design/fatal-risks.md`, at 17,742 words. *(The section
 number **212** is provisional; the integrator mints it at merge, like anything else global to the
 tree.)*
 
