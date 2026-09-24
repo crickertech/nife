@@ -205,7 +205,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 144 | DECIDED | [The fastpath footprint gate gets a delta and a ceiling, and the ceiling is 16 KiB](144-fastpath-footprint-ceiling.md) |
 | 145 | PROPOSED | [Compartmentalization at process cost: is Qubes' mission the reason the world needs this OS?](145-compartmentalization-at-process-cost.md) |
 | 146 | PROPOSED | [Archive and compression: which pieces we write, which we take, and which we refuse](146-archive-and-compression-write-or-take.md) |
-| 147 | DECIDED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
+| 147 | DECIDED | [A timer a userspace service cannot hold](147-a-timer-a-userspace-service-cannot-hold.md) |
 | 148 | DECIDED | [Milestone 105's two forks: a supervisor restarts by asking, and resolves by asking the kernel](148-reap-and-thread-identity.md) |
 | 149 | DECIDED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
 | 150 | DECIDED | [How does a thread's CPU time reach userspace?](150-per-thread-cpu-accounting.md) |
@@ -254,18 +254,18 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 193 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](193-nvme-in-the-block-roster.md) |
 | 194 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](194-sessions-interleave-rather-than-serialize.md) |
 | 195 | DECIDED | [A reviewed recipe vouches for a package, and the machine's owner may overrule it](195-a-recipe-vouches-and-the-owner-may-overrule.md) |
-| 196 | DECIDED | [nife carries TLS: rustls for the protocol, and a crypto provider we make work](196-nife-carries-tls-and-builds-the-provider.md) |
+| 196 | DECIDED | [nife carries TLS: `rustls` for the protocol, and a crypto provider we make work](196-nife-carries-tls-and-builds-the-provider.md) |
 | 197 | DECIDED | [A package is one archive file, named and vouched for by its recipe](197-a-package-is-one-archive-file.md) |
 | 198 | DECIDED | [The glue is ours, the primitives are not](198-the-glue-is-ours-the-primitives-are-not.md) |
 | 199 | DECIDED | [The screen check asks instead of sampling](199-the-screen-check-asks-instead-of-sampling.md) |
-| 200 | DECIDED | [Two crates the documentation system refused](200-two-crates-the-documentation-system-refused.md) |
-| 201 | DECIDED | [One roadmap until a citation has to cross](201-one-roadmap-until-a-citation-has-to-cross.md) |
-| 202 | DECIDED | [Mechanical work goes to a cheaper model](202-mechanical-work-goes-to-a-cheaper-model.md) |
-| 203 | DECIDED | [Capacity is rented rather than bought](203-capacity-is-rented-not-bought.md) |
+| 200 | DECIDED | [Two crates the documentation system refused, and why each loses on its own terms](200-two-crates-the-documentation-system-refused.md) |
+| 201 | DECIDED | [One roadmap until a citation has to cross, and the blocked side declares the dependency](201-one-roadmap-until-a-citation-has-to-cross.md) |
+| 202 | DECIDED | [Mechanical work goes to a cheaper model, and the gates are why that is safe](202-mechanical-work-goes-to-a-cheaper-model.md) |
+| 203 | DECIDED | [Capacity is rented rather than bought, and what each of the three benches is still for](203-capacity-is-rented-not-bought.md) |
 | 204 | DECIDED | [How userspace asks where a thread runs](204-how-userspace-asks-where-a-thread-runs.md) |
 | 205 | DECIDED | [The subscription stays, and rented models fill the mechanical tail](205-the-subscription-stays-and-renting-fills-the-tail.md) |
 | 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
-| 207 | DECIDED | [The roadmap is a graph, and the block says so](207-the-roadmap-is-a-graph-and-says-so.md) |
+| 207 | DECIDED | [The roadmap is a graph, and the block says so in fields a script can walk](207-the-roadmap-is-a-graph-and-says-so.md) |
 | 208 | DECIDED | [Installing a package is granting it, and the activation set is versioned](208-installing-is-granting.md) |
 | 209 | DECIDED | [State handoff is an opaque blob over a granted frame, and it is optional](209-state-handoff-is-an-opaque-blob-and-it-is-optional.md) |
 | 210 | DECIDED | [A correction of error, and its action items are decisions, proposals or milestones](210-a-correction-names-its-action.md) |
