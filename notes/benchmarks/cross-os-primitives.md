@@ -4,67 +4,64 @@
 
 ## Compute vs. OS primitives: two benchmarks that measure different things (milestone 19e)
 
-The microbenchmarks above are the *right* kind for a microkernel: IPC, context switch, the paths a
-microkernel lives on. But "run a real workload" (19e) wanted a whole compute program, and thinking
-through how to compare it across OSs turned up a distinction worth pinning down, because it decides
-what any cross-OS comparison can and cannot show.
+The kernel-side microbenchmarks in [notes/benchmarks.md](../benchmarks.md) are the right kind for a
+microkernel: IPC, context switch, the paths a microkernel lives on. But "run a real workload" (19e)
+wanted a whole compute program. Working out how to compare it across OSs turned up a distinction
+that decides what any cross-OS comparison can show.
 
-**Compute is OS-independent.** A tight compute loop, once it is running in userspace, does not touch
-the OS: the CPU executes the same instructions no matter who scheduled it. So a compute benchmark
-(CoreMark, Dhrystone) run on nife, macOS, and Linux on the same core comes out *nearly
-identical*, and the small gaps are compiler codegen or allocator noise, not OS quality. That is a
-real result ("we add no hidden compute overhead") but a null one by design. It cannot show OS
-strengths or liabilities, because the OS is not in the loop.
+### Compute is OS-independent
 
-**OS primitives are where an OS shows itself.** Syscall entry, context switch, IPC round-trip, page
-map, page fault, thread spawn: these *are* the OS, and they are what distinguish Linux from macOS
-from us. But the same source cannot measure them across three OSs, because "the same syscall" does
-not exist on all three: you invoke each OS's own primitive (`getpid` on Linux, a Mach/BSD call on
-macOS, our `svc` null-invoke). So the OS-revealing benchmark is a **matched harness per OS** (one
-metric definition, three native implementations), which is exactly what lmbench is and how the
-L4/seL4 papers compare to Linux. Our own microbenchmarks above are the nife side of it.
+A tight compute loop running in userspace does not touch the OS: the CPU executes the same
+instructions whoever scheduled it. So a compute benchmark (CoreMark, Dhrystone) on nife, macOS and
+Linux on the same core comes out nearly identical. The small gaps are compiler codegen or allocator
+noise, not OS quality. That is a real result ("we add no hidden compute overhead") but a null one by
+design, because the OS is not in the loop.
+
+### OS primitives are where an OS shows itself
+
+Syscall entry, context switch, IPC round trip, page map, page fault, thread spawn: these are the OS,
+and they distinguish Linux from macOS from us. The same source cannot measure them across three OSs,
+because "the same syscall" does not exist on all three. You invoke each OS's own primitive: `getpid`
+on Linux, a Mach/BSD call on macOS, our `svc` null-invoke. So the OS-revealing benchmark is a
+matched harness per OS: one metric definition, three native implementations. That is what lmbench
+is, and how the L4/seL4 papers compare to Linux. Our microbenchmarks are the nife side of it.
 
 ### The CoreMark workload (`crates/coremark`, `fixtures/src/coremark.rs`)
 
-19e's real workload is CoreMark, the three work items of a CoreMark iteration (a linked-list sort, a
-small-matrix multiply, a state machine over a byte buffer), each folded into a CRC so the compiler
+19e's real workload is CoreMark: the three work items of a CoreMark iteration (a linked-list sort, a
+small-matrix multiply, a state machine over a byte buffer). Each folds into a CRC, so the compiler
 cannot delete the work and a run self-validates. It runs as a spawned EL0 program against the native
-ABI: the progenitor builds the `"coremark"` binary, grants it one endpoint, and it computes and SENDs the run's
-CRC home. `coremark::PINNED_CRC_64` (`0x7954` for 64 iterations) is asserted by both the host crate
-test and the kernel test, so the same computation gives the same answer on the host and on the
-kernel's target, which is the property a cross-OS comparison rests on.
+ABI. The progenitor builds the `"coremark"` binary and grants it one endpoint; it computes and SENDs
+the run's CRC home. `coremark::PINNED_CRC_64` (`0x7954` for 64 iterations) is asserted by both the
+host crate test and the kernel test. So the same computation gives the same answer on the host and
+on the kernel's target, the property a cross-OS comparison rests on.
 
-It is a **Rust reimplementation, not EEMBC-certified CoreMark**: a certified score needs the
-unmodified reference C. The Rust choice buys the thing that matters for *our* comparison, that the
-identical source compiles for nife, macOS, and Linux, so the compute run is one program on
-three OSs. This binary reports correctness, not yet a score; timing a run needs a userspace clock
-(enabling the EL0 virtual-counter read, as Linux does for its vDSO), which lands with the cross-OS
-suite rather than here.
+It is a Rust reimplementation, not EEMBC-certified CoreMark: a certified score needs the unmodified
+reference C. The Rust choice buys what matters for our comparison: the identical source compiles for
+nife, macOS and Linux, so the compute run is one program on three OSs. This binary reports
+correctness, not yet a score. Timing a run needs a userspace clock (the EL0 virtual-counter read, as
+Linux does for its vDSO), which lands with the cross-OS suite.
 
 ### The measurement plane: kernel-side (gating) vs EL0 (cross-OS)
 
-A subtlety that decides comparability, found while starting the primitive suite. The microbenchmarks
-at the top of this note run in **kernel context**: the bench threads are kernel threads calling
-`sched::yield_now` and `sched::ipc_send/recv` directly, so they measure the kernel-internal path
-length of each operation. That is exactly right for their job (regression gating: a code-path change
-moves the count next to its commit). But it is **not** what lmbench measures. lmbench runs a
-*userspace* program making real syscalls, so its numbers include the EL0→EL1 trap and return that a
-kernel-side benchmark skips entirely.
+The kernel-side microbenchmarks run in kernel context. The bench threads are kernel threads calling
+`sched::yield_now` and `sched::ipc_send/recv` directly, so they measure each operation's
+kernel-internal path length. That is right for regression gating: a code-path change moves the count
+next to its commit. It is not what lmbench measures. lmbench runs a userspace program making real
+syscalls, so its numbers include the EL0→EL1 trap and return that a kernel-side benchmark skips.
 
-So the cross-OS primitive numbers have to be measured **from EL0**, a userspace program that self-
-times a loop of real `svc` syscalls, to be comparable to lmbench. That is why milestone 19e opened
-EL0 access to the virtual counter (`CNTKCTL_EL1.EL0VCTEN`; `user_mode_runtime::now`/`cntfrq`; notes/abi.md):
-userspace self-timing is the prerequisite for a fair comparison. The CoreMark workload is the first
-program to use it, self-timing its run and reporting `[crc, ticks, freq]`; the EL0 primitive
-benchmarks (null syscall, context switch, IPC round-trip, page map, all measured the lmbench way)
-build on the same `user_mode_runtime::now`. The existing kernel-side suite stays, for gating; the EL0 suite is additive, for
-cross-OS honesty. The two will differ by roughly the trap cost, and that difference is itself a
-number worth having.
+So the cross-OS primitive numbers are measured from EL0, by a userspace program that self-times a
+loop of real `svc` syscalls. That is why milestone 19e (run a real workload) opened EL0 access to the virtual counter
+(`CNTKCTL_EL1.EL0VCTEN`; `user_mode_runtime::now`/`cntfrq`; [notes/abi.md](../abi.md)). CoreMark is
+the first program to use it, reporting `[crc, ticks, freq]`. The EL0 primitive benchmarks (null
+syscall, context switch, IPC round trip, page map, all measured the lmbench way) build on the same
+`user_mode_runtime::now`. The kernel-side suite stays, for gating; the EL0 suite is additive, for
+cross-OS honesty. The two differ by roughly the trap cost, itself a number worth having.
 
 ### The first EL0 numbers (nife, M-series host, HVF, debug build)
 
-The `os_primitives_benchmarker` program (`fixtures/src/os_primitives_benchmarker.rs`), spawned by the bench boot, self-times each primitive
-from EL0 and reports it as a normal bench line. So far:
+The `os_primitives_benchmarker` program (`fixtures/src/os_primitives_benchmarker.rs`), spawned by
+the bench boot, self-times each primitive from EL0 and reports it as a normal bench line:
 
 | primitive | HVF ns/iter | what one iteration is |
 |---|---|---|
@@ -73,76 +70,78 @@ from EL0 and reports it as a normal bench line. So far:
 | `ipc_rtt_el0` | ~2272 | a `SEND` to a server process and a `RECV` of its reply: two rendezvous, four `svc`s |
 | `map_el0` | ~909 | `invoke(aspace, MAP_INTO, va, frame, RO)`: trap + cap resolve + walk + PTE + record |
 
-Two sanity checks pass. A context switch is ~16x a null syscall (two traps, the scheduler, two
-register save/restores, and a TTBR0/ASID change, versus one bare trap). And the round trip lines up
-against its parts: ~two context switches (2 × 692) plus four traps (4 × 42) plus dispatch ≈ 2272.
+Two sanity checks pass. A context switch is ~16x a null syscall: two traps, the scheduler, two
+register save/restores and a TTBR0/ASID change, against one bare trap. And the round trip matches its
+parts: two context switches (2 × 692) plus four traps (4 × 42) plus dispatch ≈ 2272.
 
-The EL0 round trip also has a kernel-side twin, the milestone-21 `ipc_rtt` (~951 ns in this same
-2026-07-25 debug run; the ~705 ns from 2026-07-23 is a different debug binary, see the calibration
-section), which measures the same rendezvous *without* the EL0↔EL1 crossings. The ~1.3 µs gap between
-them is exactly the trap cost of the four `svc`s a real round trip pays, which is the reason the EL0
-numbers, not the kernel-side ones, are what compare to lmbench. **All debug builds, and every figure
-in this subsection is one**; the cross-OS comparison and the L4 calibration both want release builds
-on all sides, and quoting a debug figure into either is the mistake the calibration section above
-records. These line up against lmbench's `lat_syscall` / `lat_ctx` / `lat_pipe` and `sel4bench`.
+The EL0 round trip has a kernel-side twin, the milestone-21 `ipc_rtt`: ~951 ns in this same
+2026-07-25 debug run. (The ~705 ns from 2026-07-23 is a different debug binary; see
+[the calibration appendix](calibration-against-sel4.md).) It measures the same rendezvous without the
+EL0↔EL1 crossings. The ~1.3 µs gap is the trap cost of the four `svc`s a real round trip pays, which
+is why the EL0 numbers are what compare to lmbench. Every figure in this subsection is a debug build.
+The cross-OS comparison and the L4 calibration both want release builds on all sides. These line up
+against lmbench's `lat_syscall` / `lat_ctx` / `lat_pipe` and `sel4bench`.
 
-**Map (lmbench's `lat_mmap`) behaves differently from the other three, and it is the primitive where
-the honest answer is a tie, not a win.** It taught three things.
+### Map: the primitive where the answer is a tie
 
-First, it *consumes resources per call*: every `MAP_INTO` writes a page-table entry and a revocation
-record, paid from the target space's untyped region, so unlike a null syscall or a yield it cannot loop
-forever. The loop is bounded (500 maps, one L3 table's worth); the kernel-side twin `map_new` maps 64.
-And there is no unmap in the surface yet, so each VA is used once.
+Map (lmbench's `lat_mmap`) behaves differently from the other three. It taught three things.
 
-Second, the debug and release numbers diverged by ~10x, far more than any other primitive, and that
-divergence is the whole lesson. `map_el0` **aliases one existing frame** at every VA, so it does no
-page allocation and no zeroing: it is trap + capability resolve + walk + PTE write + a `record_mapping`
-append. That append scans the head log page for a free slot, an ~85-entry linear walk on average, and
-in a debug build that unoptimized scan *dominated* the number (~909 ns). Release compiles the scan down
-to almost nothing, and the true cost of the mapping mechanism shows through: **~91 ns**. The kernel-side
-`map_new`, by contrast, is ~524 ns in release and barely moved from debug, because its cost is the 4 KiB
-**page zeroing** a fresh frame needs (`retype_page` hands back a zeroed page), which is memory-bandwidth
-bound and the optimizer cannot speed it up.
+First, it consumes resources per call. Every `MAP_INTO` writes a page-table entry and a revocation
+record, paid from the target space's untyped region, so unlike a null syscall it cannot loop
+forever. The loop is bounded at 500 maps, one L3 table's worth; the kernel-side twin `map_new` maps
+64. There is no unmap in the surface yet, so each VA is used once.
 
-That average walk length is a constant in `kernel/src/revoke.rs`, `LOG_ENTRIES`, and it was ~128 when
-the ~909 ns above was measured: a log page held 255 records until §132 gave each one a third word
-naming the capability it was made under, which took the page to 170. **So `LOG_ENTRIES` is a benchmark
-input, and the icount tripwire is the thing that noticed.** §132's branch came in at `map_el0` -16.9%
-aarch64 and -16.4% riscv64 against a baseline nothing else on the branch explained, and the
-attribution is a one-number experiment rather than an argument: setting `LOG_ENTRIES` to 170 on `main`
-and changing nothing else reproduces it to within 0.7%. The unoptimized suite is measuring the search
-for a free slot roughly as much as it is measuring the mapping, which is exactly what makes the debug
-and release numbers diverge by 10x, and it means a future change to that constant moves two benches on
-two ISAs. Whoever makes it should expect to re-record them.
+Second, the debug and release numbers diverged by ~10x, far more than any other primitive.
+`map_el0` aliases one existing frame at every VA, so it does no page allocation and no zeroing. It is
+trap + capability resolve + walk + PTE write + a `record_mapping` append. That append scans the head
+log page for a free slot, an ~85-entry linear walk on average. In a debug build that unoptimized scan
+dominated the number (~909 ns). Release compiles the scan to almost nothing, and the mapping
+mechanism shows through: ~91 ns. The kernel-side `map_new` is ~524 ns in release and barely moved
+from debug. Its cost is zeroing the 4 KiB a fresh frame needs (`retype_page` hands back a zeroed
+page), which is memory-bandwidth bound.
 
-Third, and this is why map is a tie: **`map_el0` and the host `lat_mmap` do not measure the same thing.**
-The host number is a first-touch page fault, which allocates and zeroes a fresh page; `map_el0` aliases
-a frame and skips both. So `map_el0` ~91 ns is the *pure mapping mechanism*, and it is genuinely lean,
-but it is not comparable to Linux's ~534 ns, most of which is the page zeroing our aliasing avoids. The
-apples-to-apples comparison is our `map_new` (fresh page, allocate + zero + map), ~524 ns, plus one trap
-(~28 ns) for the EL0 crossing the host's fault includes: ~552 ns, against Linux ~534 ns and macOS ~556
-ns. That is a **three-way tie**, and it makes sense: page provisioning is dominated by zeroing 4 KiB,
-which is the same silicon and the same bandwidth for all three. nife's lean mechanism is real (the
-91 ns), but on the operation an application actually pays for, getting a usable page, it does not and
-cannot win, because the win would have to come from zeroing memory faster than the other two, and nobody
-can. A fair EL0 map that *does* provision a fresh page waits on retype-from-untyped reaching userspace
-(a later milestone); until then the kernel-side `map_new` is the honest stand-in for the comparison.
+That walk length is a constant in `kernel/src/revoke.rs`, `LOG_ENTRIES`. It was ~128 when the
+~909 ns was measured. A log page held 255 records until §132 (what `PageFrame::REVOKE` owes an
+overlapping run) gave each one a third word naming the capability it was made under. That took the
+page to 170. So `LOG_ENTRIES` is a benchmark input, and
+the icount tripwire noticed. §132's branch came in at `map_el0` -16.9% aarch64 and -16.4% riscv64,
+unexplained by anything else on the branch. Setting `LOG_ENTRIES` to 170 on `main` and changing
+nothing else reproduces it within 0.7%. A future change to that constant moves two benches on two
+ISAs; whoever makes it should expect to re-record them.
 
-### The first cross-OS numbers (nife vs Linux vs macOS)
+Third, `map_el0` and the host `lat_mmap` do not measure the same thing. The host number is a
+first-touch page fault, which allocates and zeroes a fresh page; `map_el0` skips both. So `map_el0`'s
+~91 ns is the pure mapping mechanism, genuinely lean, and not comparable to Linux's ~534 ns, most of
+which is zeroing. The like-for-like comparison is our `map_new` (allocate + zero + map), ~524 ns,
+plus one trap (~28 ns) for the EL0 crossing the host's fault includes. That gives ~552 ns, against
+Linux ~534 ns and macOS ~556 ns: a three-way tie. Page provisioning is dominated by zeroing 4 KiB,
+the same silicon and bandwidth for all three. Nobody can win it without zeroing memory faster. A fair
+EL0 map that provisions a fresh page waits on retype-from-untyped reaching userspace (a later
+milestone). Until then the kernel-side `map_new` is the stand-in.
 
-`bench/host/` holds the host side of each metric: `null_syscall.rs` (a raw `getpid` through the
-syscall gate, not libc's cached `getpid` which never traps), `ipc_rtt.rs` (a pipe round trip between
-two forked processes, lmbench's `lat_pipe`), `ctx_switch.rs` (the derived context switch),
-`mmap.rs` (first-touch fault-in, lmbench's `lat_mmap`), and `spawn.rs` (fork+exit, lmbench's
-`lat_proc`). Two ways to run them: natively on macOS
-(`rustc -O ... && ./bin`), and on **Linux at the same tier** as nife, `bench/host/run_linux.sh`
-cross-compiles a static musl binary (`linux_all.rs`, the five metrics combined), packs it as `/init`
-in a one-file initramfs, and boots it under QEMU-HVF, the exact machine nife boots on. So Linux
-and nife sit on the **same M-series core at the same virtualization tier**; native macOS is the
-bare-metal ceiling.
+*Later reading, 2026-07-29: `map_new` measured ~470 ns in
+[the per-core refresh](per-core-and-multi-hart.md), within run-to-run noise of 524 and still
+zeroing-bound. The tie stands.*
 
-Run nife optimized (`cargo xtask bench --release`, which builds an opt-level-3 kernel and
-userspace and implies `--real`), and compare on the same core:
+### The first cross-OS numbers (nife vs Linux vs macOS, 2026-07-25; spawn row 2026-07-26)
+
+`bench/host/` holds the host side of each metric:
+
+- `null_syscall.rs`: a raw `getpid` through the syscall gate, not libc's cached `getpid`, which
+  never traps.
+- `ipc_rtt.rs`: a pipe round trip between two forked processes, lmbench's `lat_pipe`.
+- `ctx_switch.rs`: the derived context switch.
+- `mmap.rs`: first-touch fault-in, lmbench's `lat_mmap`.
+- `spawn.rs`: fork+exit, lmbench's `lat_proc`.
+
+They run two ways. Natively on macOS (`rustc -O ... && ./bin`). And on Linux at the same tier as
+nife: `bench/host/run_linux.sh` cross-compiles a static musl binary (`linux_all.rs`, the five metrics
+combined), packs it as `/init` in a one-file initramfs, and boots it under QEMU-HVF, the machine nife
+boots on. So Linux and nife sit on the same M-series core at the same virtualization tier; native
+macOS is the bare-metal ceiling.
+
+Run nife optimized with `cargo xtask bench --release`, which builds an opt-level-3 kernel and
+userspace and implies `--real`:
 
 | metric | nife **release** (HVF) | Linux (static musl, HVF) | macOS/XNU (native) |
 |---|---|---|---|
@@ -153,57 +152,71 @@ userspace and implies `--real`), and compare on the same core:
 | map mechanism only (aliased, no zeroing) | ~91 ns (`map_el0`) | n/a (fault always zeroes) | n/a |
 | spawn (build + run + reap + reclaim) | **~7.7 µs** (`spawn_el0`) | ~19.7 µs (fork+exit) | ~291 µs (fork+exit) |
 
-**nife wins four and ties one, and saying which is which is the point.** Same M-series core, same
-HVF tier as Linux, both optimized. It is **~5x faster than Linux at the null syscall** (27 vs 139) and
-**~5x faster at the IPC round trip** (337 vs 1723), it beats native macOS at both, and it builds a
-process faster than either (spawn, below). These are seL4-class microkernel numbers, an IPC round trip
-in the low hundreds of nanoseconds, next to the reference OS on the same silicon. **"seL4-class" is a
-claim about magnitude and nothing more**; what it is worth measured against seL4's own published
-cycles, and the four ways that comparison is not apples-to-apples, is the calibration section above.
-Quoting this sentence without that one is how the last overstatement happened. **Map is a deliberate
-non-win**: provisioning
-a page is dominated by zeroing 4 KiB, which is bandwidth-bound and identical across the three, so all
-land near ~550 ns. The lean mapping *mechanism* (91 ns, measured by aliasing to strip the zeroing) is
-real and worth recording, but it is not a page an application can use, so it does not go in the win
-column. The map row above compares like with like (`map_new` provisions a fresh page, as the host fault
-does); the ~91 ns sits below it as the mechanism floor, not as a headline.
+The dates in the heading were recovered from `git log` on 2026-09-24 (commits `a1dc71020` and
+`dce3df459`); the table itself carried none, which
+[notes/register-of-measures.md](../register-of-measures.md) flagged.
 
-**Spawn is a real win, and an honest caveat.** (The ~7.7 µs below is a 2026-09-21 reading; the
-current-CPU page has since made the path 6.3% longer, implying ~8.2 µs and ~2.4x. See the dated
-entry at the end of this file, which has the measurement and says which number is implied rather
-than measured.) `spawn_el0` builds a whole child from EL0 (`SPLIT` a
-region, retype an address space and a TCB, map code and a stack, configure, start), runs it to exit,
-reaps it, and `DESTROY`s its region, all in a self-timed loop that only repeats because object
-revocation reclaims each child (notes/object-revocation.md). At ~7.7 µs it beats Linux `fork`+`exit`
-(~19.7 µs) by ~2.6x and macOS by ~38x, on the same core, and it does so while paying **more** boundary
-crossings than Unix: ~10 `svc`s per spawn against `fork`+`wait`'s two. That the heavier-trapping side
-still wins is the honest part of the result. The caveat is the operations differ: `fork` **duplicates**
-the parent (its address space copy-on-write, its descriptor table, its signal state), where nife
-**builds a fresh minimal process from nothing**. A capability-microkernel process is a lighter object
-than a Unix one, so the gap is mostly that structural difference, not a faster version of the same work.
-We use `fork`+`exit`, not `fork`+`exec`, precisely to keep the Unix side as light as it gets (no binary
-loaded); it still carries the weight of duplication that nife's from-scratch build does not. The
-number stands, with its meaning stated: building a process is cheap when a process is a small thing.
+nife wins four and ties one. Same M-series core, same HVF tier as Linux, both optimized. It is ~5x
+faster than Linux at the null syscall (27 vs 139) and ~5x at the IPC round trip (337 vs 1723). It
+beats native macOS at both, and it builds a process faster than either. An IPC round trip in the low
+hundreds of nanoseconds, next to the reference OS on the same silicon, is seL4-class. **"seL4-class"
+is a claim about magnitude and nothing more.** Its worth against seL4's published cycles, and the
+ways that comparison is not apples-to-apples, are in
+[the calibration appendix](calibration-against-sel4.md); quoting one without the other is how the
+last overstatement happened.
 
-The **context switch** is the softest of the three and its number the least load-bearing. No OS lets
-you time a bare switch, so it is *derived*: on the host, `bench/host/ctx_switch.rs` measures a
-two-process pipe round trip (two switches plus two pipe passes) and subtracts a self-pipe pass (a
-`write`+`read` with no switch), leaving one switch = `round_trip/2 - self_pipe`. nife's
+Map is a deliberate non-win, for the zeroing reason above: all three land near ~550 ns. The ~91 ns
+mechanism is real, but it is not a page an application can use, so it stays out of the win column.
+The map row compares like with like; the ~91 ns sits below it as the mechanism floor.
+
+### Spawn: a real win, with a caveat
+
+`spawn_el0` builds a whole child from EL0: `SPLIT` a region, retype an address space and a TCB, map
+code and a stack, configure, start. It runs the child to exit, reaps it, and `DESTROY`s its region,
+in a self-timed loop that only repeats because object revocation reclaims each child
+([notes/object-revocation.md](../object-revocation.md)). At ~7.7 µs it beat Linux `fork`+`exit`
+(~19.7 µs) by ~2.6x and macOS by ~38x, on the same core. It did so while paying more boundary
+crossings than Unix: ~10 `svc`s per spawn against `fork`+`wait`'s two.
+
+The operations differ. `fork` duplicates the parent: its address space copy-on-write, its descriptor
+table, its signal state. nife builds a fresh minimal process from nothing. A capability-microkernel
+process is a lighter object than a Unix one, so the gap is mostly that structural difference, not a
+faster version of the same work. We use `fork`+`exit`, not `fork`+`exec`, to keep the Unix side as
+light as it gets (no binary loaded). It still carries duplication that nife's build does not. The
+number stands with its meaning: building a process is cheap when a process is a small thing.
+
+*Correction, 2026-09-24, from the split.* An earlier edit (2026-09-21) called the ~7.7 µs "a
+2026-09-21 reading" and derived ~8.2 µs and ~2.4x from it after the current-CPU page made the path
+6.3% longer ([the spawn appendix](spawn-el0.md)). Both parts are wrong. The ~7.7 µs dates from
+2026-07-26. [The 2026-07-29 refresh](per-core-and-multi-hart.md) measured the settled per-core median
+at ~4.4 µs and called 7.7 a single sample on a busier machine. So the ~8.2 µs was computed from a
+superseded figure. The latest measured HVF value is ~4.4 µs (2026-07-29). The icount path has moved
+since (-41% on 2026-08-27, +6.3% on 2026-09-21), and no HVF reading has been taken after it.
+
+### The context switch, the softest of the three
+
+No OS lets you time a bare switch, so it is derived. On the host, `bench/host/ctx_switch.rs`
+measures a two-process pipe round trip (two switches plus two pipe passes). It subtracts a self-pipe
+pass, a `write`+`read` with no switch. One switch is then `round_trip/2 - self_pipe`. nife's
 `ctx_switch` bench is a yield round trip (two switches plus two `SYS_YIELD`s); subtracting the trap
-(`~2 x null_syscall`) leaves ~28 ns per switch. The subtraction is approximate and the *mechanisms
-differ* (our lightweight yield versus a pipe pass), so read the ~15x gap to Linux as directional, not
-exact. It points the same way the other two do, and that consistency, three metrics, three methods,
-all favoring the minimal kernel, is the real signal.
+(`~2 x null_syscall`) leaves ~28 ns per switch. The subtraction is approximate and the mechanisms
+differ (our lightweight yield against a pipe pass). So read the ~15x gap to Linux as directional,
+not exact. It points the same way as the other two: three metrics, three methods, all favouring the
+minimal kernel.
 
-The story the debug build told first was the *opposite* at IPC, and the gap between them is the whole
-lesson. Debug nife: null syscall ~42 ns, ctx switch ~692 ns, IPC ~2272 ns. So `-O0` was a ~1.5x
-tax on the bare syscall (which still won) but a **~6.7x tax on IPC** (which lost to Linux at 1723 ns
-until this). The heavier a path, the more the optimizer matters, and the IPC path, two context
-switches plus four traps plus the rendezvous, is heavy. The null-syscall win survived the debug
-handicap; the IPC win was hidden by it. Measuring both builds is why we can say which.
+### Debug told the opposite story at IPC
 
-Honest caveats remain. A semantic one for IPC: our endpoint is a synchronous three-word rendezvous, a
-Unix pipe is a buffered byte stream through a kernel buffer, so this is our native IPC against Unix's
-*standard* IPC (`lat_pipe`), not XNU's fastest (a Mach port would likely beat the pipe). And the host
-context switch still wants lmbench's ring method to isolate cleanly. `sel4bench` (the one peer that
-would tell us how close to the state of the art these numbers are) is the remaining comparison.
+Debug nife: null syscall ~42 ns, ctx switch ~692 ns, IPC ~2272 ns. So `-O0` was a ~1.5x tax on the
+bare syscall, which still won, but a ~6.7x tax on IPC, which lost to Linux at 1723 ns. The heavier a
+path, the more the optimizer matters. The IPC path, two context switches plus four traps plus the
+rendezvous, is heavy. The null-syscall win survived the debug handicap; the IPC win was hidden by it.
+Measuring both builds is why we can say which.
+
+### Caveats that remain
+
+Our endpoint is a synchronous three-word rendezvous; a Unix pipe is a buffered byte stream through
+a kernel buffer. So this is our native IPC against Unix's standard IPC (`lat_pipe`), not XNU's
+fastest; a Mach port would likely beat the pipe. *(Later, 2026-07-29: the mailbox widened to five
+words, milestone 22 (trusted init) §26 (the fault endpoint); see [the per-core refresh](per-core-and-multi-hart.md).)* The host context
+switch still wants lmbench's ring method to isolate cleanly. `sel4bench`, the one peer that would
+say how close to the state of the art these numbers are, is the remaining comparison.

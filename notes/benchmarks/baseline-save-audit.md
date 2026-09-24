@@ -4,35 +4,34 @@
 
 ## 2026-09-15: every baseline save since the first, audited for what accumulated under the tripwire
 
-The tripwire compares against the **last saved floor**, so N successive sub-threshold steps
-accumulate without it ever firing: ten 9% steps are a 136% regression that never trips. Whether that
-had actually happened was never checked. This section is the check, and it is arithmetic over
-`git log` rather than a measurement: the three baseline files are text under version control, so
-every number any save ever committed is recoverable without booting anything. **No QEMU was run for
-this section.**
+The tripwire compares against the last saved floor, so successive sub-threshold steps accumulate
+without it ever firing: ten 9% steps are a 136% regression that never trips. Whether that had
+happened was never checked. This is the check. It is arithmetic over `git log`, not a measurement:
+the three baseline files are text under version control, so every number any save committed is
+recoverable without booting anything. No QEMU was run for it.
 
 ### Method, and the two things that would make the numbers lie
 
 Every commit touching `bench/baseline-<arch>.txt` is walked oldest-first, and each row is compared
-against the same row in the previous save. Two corrections, both of which would otherwise manufacture
-findings:
+against the same row in the previous save. Two corrections, each of which would otherwise
+manufacture findings:
 
-- **Per-iteration, not per-total.** A save that changes a benchmark's iteration count changes its
-  tick total without changing its cost. Every step below is `ticks / iters` against `ticks / iters`,
-  so an iteration-count change reads as zero.
-- **`git log --follow` crosses the rename into the wrong file.** `bench/baseline-x86_64.txt` was
-  added whole on 2026-08-25, and `--follow` walks back from it into `baseline-riscv64.txt`'s history,
-  because the two were similar enough at the rename boundary. Taken literally that yields eight
-  x86_64 "steps" of around +9800%, which are riscv64's numbers being compared against x86_64's. The
-  x86_64 table below therefore starts at its real birth, `d31aa77c`, verified with
-  `git log --diff-filter=A`.
+- Per-iteration, not per-total. A save that changes a benchmark's iteration count changes its tick
+  total without changing its cost. Every step below is `ticks / iters` against `ticks / iters`, so
+  an iteration-count change reads as zero.
+- `git log --follow` crosses the rename into the wrong file. `bench/baseline-x86_64.txt` was added
+  whole on 2026-08-25, and `--follow` walks back from it into `baseline-riscv64.txt`'s history,
+  because the two were similar at the rename boundary. Taken literally that yields eight x86_64
+  "steps" of around +9800%, which are riscv64's numbers compared against x86_64's. The x86_64 table
+  therefore starts at its real birth, `d31aa77c`, verified with `git log --diff-filter=A`.
 
-One more honest boundary. The aarch64 file's first seven saves are the harness being built: the
-benchmark set changes under it, and `60e75545` (2026-07-28) pinned the bench to one hart after
-finding the `-smp 4` counter was fiction, which re-meanings every earlier number. A cumulative
-figure measured from 2026-07-23 would be measuring the instrument's construction. So the cumulative
-table below anchors aarch64 at **`74431429` (2026-07-30)**, the first save after both the one-hart
-fix and the QEMU pin, and anchors the other two at their birth.
+One more boundary. The aarch64 file's first seven saves are the harness being built: the benchmark
+set changes under it. `60e75545` (2026-07-28) pinned the bench to one hart after finding the
+`-smp 4` counter was fiction, which changes the meaning of every earlier number (see
+[the icount-drift appendix](icount-drift-and-provenance.md)). A cumulative figure from 2026-07-23
+would measure the instrument's construction. So the cumulative table anchors aarch64 at `74431429`
+(2026-07-30), the first save after both the one-hart fix and the QEMU pin. The other two are anchored
+at their birth.
 
 ### Every save, per architecture
 
@@ -95,13 +94,13 @@ the header and `206b1342` renamed the file to carry its ISA.
 | 1 | 2026-08-25 | `d31aa77c` | (birth, 9 rows) | - | - | - |
 | 2 | 2026-09-15 | `44890a8a` | 8 (+2 new) | yield_switch +9.94% | coremark -0.00% | no |
 
-**Two saves, ever.** The window between them is **1,526 commits**, and nothing fired in it, for a
-reason given below.
+Two saves, ever, and the window between them is 1,526 commits. Nothing fired in it, for the reason
+given under the x86_64 save below.
 
-### The cumulative drift, which is the number nobody had looked at
+### The cumulative drift
 
-From the anchor save to `main` today. `steps` counts the saves that moved the row after the anchor;
-`sub-10 up` counts how many of those were upward steps that the tripwire would have passed.
+From the anchor save to `main` on 2026-09-15. `steps` counts the saves that moved the row after the
+anchor; `sub-10 up` counts how many of those were upward steps the tripwire would have passed.
 
 | arch | bench | anchor | today | **cumulative** | steps | sub-10 up | largest single step |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -142,15 +141,14 @@ From the anchor save to `main` today. `steps` counts the saves that moved the ro
 | x86_64 | coremark | 1196341.49 | 1196337.48 | -0.00% | 1 | 0 | +0.00% |
 | x86_64 | map_new | 2780.64 | 2780.64 | +0.00% | 0 | 0 | +0.00% |
 
-**The structural claim is confirmed, with numbers.** riscv64 `ctx_switch` has accumulated
-**+10.78%**, past the threshold the gate enforces, and **no single save ever moved it more than
-+6.14%**. aarch64 `yield_switch` sits at +9.16% across five steps whose largest was +6.49%. The gate
-has never once fired on any of them, and could not have: it compares against the floor that the
-previous save wrote.
+The structural claim is confirmed. riscv64 `ctx_switch` has accumulated +10.78%, past the threshold
+the gate enforces, and no single save ever moved it more than +6.14%. aarch64 `yield_switch` sits at
++9.16% across five steps whose largest was +6.49%. The gate never fired on any of them, and could
+not have: it compares against the floor the previous save wrote.
 
-`coremark` is the control that makes the rest readable. Pure compute, no switches, and it is flat to
-four decimal places across every save on all three architectures. Whatever moved the other rows was
-the kernel's switch and IPC paths, not measurement noise.
+`coremark` is the control. Pure compute, no switches, and flat to four decimal places across every
+save on all three architectures. Whatever moved the other rows was the kernel's switch and IPC paths,
+not measurement noise.
 
 ### The six flagged steps, classified
 
@@ -167,8 +165,8 @@ one-directional staircase.
 | `d5c4da34` 2026-08-16 | `null_syscall` -11.7% / +10.1% | **deliberate re-record**, over the tripwire in both directions, its own commit |
 
 Four of the six are honest: the cost was real, the commit named it, and the number moved for a stated
-reason. **The two from 2026-09-15 are not**, and they are the same regression on different
-architectures.
+reason. The two from 2026-09-15 are not, and they are the same regression on different
+architectures. Milestone 300's classification is in [the drift-decomposition appendix](drift-decomposition.md).
 
 ### The x86_64 save is the failure this audit was looking for
 
@@ -176,36 +174,46 @@ architectures.
 nightly-2026-09-15 drift the other two carry (ipc_rtt, relay_rtt, spawn_reap move ~5-8% though the
 port grant never touches them; coremark, pure compute, is flat)."*
 
-Milestone 300 then **measured** the toolchain term across exactly those two endpoint nightlies and
-found it to be **~0**, byte-identical instruction counts on the same code. So the attribution in
-that commit is false, and the cost it blessed into the x86_64 floor was something else. PR #886
-identifies it: the const-`false` cycle-counter element still threaded through the shared
-context-switch tuple, which the optimizer folds in release but not in the debug build this gate
-measures, and which was never `target_arch`-gated. #886 recovers ~5.9% on x86_64 by removing it.
+Milestone 300 then measured the toolchain term across exactly those two endpoint nightlies and found
+it to be ~0: byte-identical instruction counts on the same code. So the attribution in that commit is
+false, and the cost it blessed into the x86_64 floor was something else. PR #886 identifies it: the
+const-`false` cycle-counter element still threaded through the shared context-switch tuple. The
+optimizer folds it in release but not in the debug build this gate measures, and it was never
+`target_arch`-gated. #886 recovers ~5.9% on x86_64 by removing it.
 
-So the x86_64 committed floor today contains a **removable regression, blessed on a stated cause
-that measures zero**, and `bench --x86 --check` passed throughout because 5.9% is under 10%. That is
-the whole failure mode in one commit: the tripwire cannot see it, and the record beside the number
-says something that is not true.
+So on 2026-09-15 the x86_64 committed floor contained a removable regression, blessed on a stated
+cause that measures zero. `bench --x86 --check` passed throughout because 5.9% is under 10%. The
+tripwire could not see it, and the record beside the number said something untrue.
 
-**And nothing would have caught it, because x86_64 has no gate.** `script/ci-build`'s bench entry is
-`script/bench --check && script/bench --riscv --check`. The third leg exists, is committed, and is
-never pulled; `ci.yml` carries the `BUGS` note saying exactly that. This is why x86_64's only
-inter-save window is 1,526 commits long while aarch64's median is a few dozen: on the two gated
-architectures a gross regression forces a save, and on the third nothing ever forces one.
+At the time of the audit nothing would have caught it, because x86_64 had no gate.
+`script/ci-build`'s bench entry was `script/bench --check && script/bench --riscv --check`. The
+third leg existed, was committed, and was never pulled, and `ci.yml` carried a `BUGS` note saying so.
+That is why x86_64's only inter-save window is 1,526 commits long while aarch64's median is a few
+dozen: on the gated architectures a gross regression forces a save, and on the third nothing did.
+
+*(Correction, 2026-09-24: `ba99c835` (2026-09-15, "ci: gate the x86_64 icount baseline, which
+nothing ever ran") added `script/bench --x86 --check` to that entry the same day, so the x86_64 leg
+has been gated since. It caught its first failure on the next push; see
+[the preemption appendix](preemption-in-the-window.md). The removable regression itself was
+recovered by #886, merged 2026-09-16.)*
 
 ### What this does not say
 
-- **It is not a claim that 6 to 10% of real cost was smuggled in.** Most of the aarch64 and riscv64
-  accumulation is disclosed in the commit that caused it, and a good deal of it is whole-crate
-  codegen churn that this instrument cannot separate from real cost, which the 2026-07-28 correction
-  section above already establishes and which is why the gate is 10% rather than 2%.
-- **It does not re-baseline anything**, and it should not. Recovering the two flagged steps was
-  PR #886's job, which merged 2026-09-16 and did exactly that, recovering ~33 ticks/switch on
-  aarch64, ~5.5 on riscv64 and ~5.9% on x86_64; deciding the mechanism is calef's.
-- **Two rows moved a long way down**, `spawn_el0` -32.7% on both ISAs, which is `b918337b`'s
-  occupancy bound and a genuine win. Cumulative drift is not a one-directional story, and a mechanism
-  that assumed it was would be wrong about these.
+- It is not a claim that 6 to 10% of real cost was smuggled in. Most of the aarch64 and riscv64
+  accumulation is disclosed in the commit that caused it. A good deal of it is whole-crate codegen
+  churn that this instrument cannot separate from real cost; [the icount-drift
+  appendix](icount-drift-and-provenance.md) establishes that, and it is why the gate is 10% rather
+  than 2%.
+- It does not re-baseline anything. Recovering the two flagged steps was PR #886's job, which merged
+  2026-09-16 and recovered ~33 ticks/switch on aarch64, ~5.5 on riscv64 and ~5.9% on x86_64.
+  Deciding the mechanism is calef's.
+- Two rows moved a long way down: `spawn_el0` -32.7% on both ISAs, which is `b918337b`'s occupancy
+  bound and a genuine win (see [the `spawn_el0` appendix](spawn-el0.md)). Cumulative drift is not a
+  one-directional story, and a mechanism that assumed it was would be wrong about these.
 
 The mechanism this argues for is written up separately, since it is calef's call:
 `design/roadmap/415-sub-tripwire-drift-accumulates-across-baseline-saves.md`.
+
+*(Since then, 2026-09-24: part of that mechanism has landed. Milestone 302 (a baseline records what
+it was saved against) merged on 2026-09-23 in #1126, and `script/bench --save` now requires `--why`,
+which writes a `# why:` line into the baseline above the numbers.)*
