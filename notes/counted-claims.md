@@ -264,6 +264,12 @@ instead, which is where the budget question was raised and is exactly the kind o
 floor's BUGS entry already names ("a reader who wants the number has to go to" the other file). The
 gate still runs against the real file; only the claim about it moved.
 
+**And since 2026-09-24 that ceiling is a ratchet, the one ceiling that fails in both directions.**
+Splitting `AGENTS.md` (#1189) took it from 935 lines to 584, and an ordinary ceiling is silent below
+itself, so the old number would have stopped nothing. A name in `script/lint`'s `RATCHET_CEILINGS`
+also fails when the tree falls below the claim, and the only fix is to lower the claim. It stays in
+the marker rather than a separate baseline file, because the marker already is the baseline.
+
 **Deliberately not built: an auto-fix.** A `--fix` that rewrote marked numbers was considered and
 refused. This gate's failure message offers two responses, and they are not equally likely to be
 right: *fix the number*, or *fix the derivation if the tree is right and the gate is asking the
