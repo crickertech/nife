@@ -511,8 +511,8 @@ if mode == "--check":
           f"from the files, every tree-wide citation resolves")
     if gaps:
         print(f"decisions: {len(set(gaps))} provenance gap(s) recorded in PROVENANCE-GAPS.md. "
-              f"Reported, not a failure: the list is a ratchet, and a date nobody wrote is not a "
-              f"date to invent")
+              f"Reported, not a failure: the list is a ratchet, and a fact nobody wrote down is "
+              f"not a fact to infer")
     if gap_numbers:
         print(f"decisions: {len(gap_numbers)} unused number"
               f"{'s' if len(gap_numbers) != 1 else ''} "
