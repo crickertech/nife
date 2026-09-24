@@ -110,14 +110,12 @@ is saturated, so all three red at once is a load gauge, not three regressions.
   "1 in 45" for the double free was a sighting, and the bug was a deterministic ownership defect.
   A neighbouring emulator predicted reds better than the load average did.
 - `script/icount` boots under `-icount shift=0,sleep=off`, where virtual time advances only when the
-  guest retires instructions. It asserts the timer claims in instructions: arrival, whole-handler
-  cost, zero missed ticks, and the re-arm grid law. The fourth claim was added after an injection
-  showed the first three were blind to the drift bug. It is `-smp 1`, so it cannot host a cross-core
-  claim. [notes/instruction-clock.md](instruction-clock.md) is its note, and
-  [the icount claims](load-sensitive-assertions/the-icount-claims.md) is how it was built.
-- The load recipe, for a quick reproduction on an eight-core machine: start one spinner per core,
-  then run `script/cpu-matrix`. It takes the load average to about 22. Do not run it while other
-  lanes are gating on the same machine; it fails their runs with the family under study.
+  guest retires instructions. It asserts arrival, whole-handler cost, zero missed ticks and the
+  re-arm grid law, all in instructions. It is `-smp 1`, so it cannot host a cross-core claim. See
+  [notes/instruction-clock.md](instruction-clock.md) and
+  [the icount claims](load-sensitive-assertions/the-icount-claims.md).
+- The load recipe: one spinner per core, then `script/cpu-matrix`, which puts an eight-core machine
+  at a load average of about 22. Never run it while other lanes are gating here.
 
 ## The register
 
@@ -158,8 +156,8 @@ load of 90 ([the confirmation run](load-sensitive-assertions/confirmation-run.md
 
 ### Where to look for the next one
 
-Milestone 78's scope note counted 39 kernel sites of the family's shape. They were never audited as
-a set. The rounds found theirs by reading, and four greps cover everything they found:
+Milestone 78's scope note counted 39 kernel sites of this shape, never audited as a set. Four greps
+cover everything the rounds found by reading:
 
 1. a global count taken as a baseline: `thread_count()`, `free_page_frames()`, `memory::stats()`;
 2. a loop with no clock in it;
