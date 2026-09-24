@@ -1,0 +1,88 @@
+name: trunk health
+
+# **The trunk watcher, moved off a laptop** (the `who-took-the-step` proposal, approved by calef
+# 2026-09-23). Same move and same reasons as `merge-drain.yml`, which carries the tested premise and
+# the cadence BUGS entry; only what is specific to this watcher is written here.
+#
+# **This is the half of `scripts/trunk-health.sh` that could move.** That script had a second watch
+# folded into it on 2026-09-23, `scripts/at-risk-check.sh`, which reads this machine's own worktrees
+# and their `git status`. A runner has no lane worktrees, so running it here would report nothing
+# forever while the real hazard sat on somebody's laptop unwatched. The fold was undone rather than
+# carried along: the at-risk watch stays per-developer under its own `launchd` job, and
+# notes/merge-queue.md has the plist and the retirement commands.
+#
+# **Why this job fails when the trunk is red, rather than only printing.** On a laptop the script
+# spoke on the transition to red and stayed quiet after, because a trunk broken for an hour is one
+# fact and not twenty-four; the reader was a person watching a log. Here the reader is the Actions
+# run list, and a printed line in a green run is a line nobody sees. Exiting non-zero turns a red
+# trunk into a red workflow, which GitHub notifies on and which shows in the tab next to every other
+# red thing. The script itself is unchanged and still exits 0: `--once` is a check anybody may run,
+# and a check that exits 1 at people is a gate rather than a report.
+#
+# BUGS
+#
+#   - **Re-announced every five minutes, not only on the transition.** The dedupe the loop form did
+#     needed state between polls, and a scheduled run has none. A trunk red for an hour is twelve
+#     failed runs here. That is the honest cost of moving; the alternative was carrying a state file
+#     in an artifact, which is more machinery than the fact is worth.
+#   - **`schedule:` is a floor.** See `merge-drain.yml`'s BUGS: delayed under load, dropped at peak,
+#     five minutes at best, and a gap in the run list never means "green".
+#   - **A dead cadence only warns.** See the step's own comment: it is a standing condition rather
+#     than a transient one, and failing on it every five minutes would drown the red-trunk signal
+#     this job exists to carry.
+#   - **PENDING reads as healthy.** A tip whose checks are still running exits 0 here, because the
+#     alternative is a red workflow every time anything merges. So this watcher is late by however
+#     long CI takes, which it always was.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: trunk-health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trunk:
+    name: is main red
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: token
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+
+      # One ref is enough: this watcher reads `main`'s tip through `git ls-remote` and reads the
+      # runs through `gh`. Nothing here walks another branch, which is what makes it cheaper than
+      # the drain's checkout.
+      - uses: actions/checkout@v7
+
+      - name: one pass
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          out=$(scripts/trunk-health.sh --once)
+          printf '%s\n' "$out"
+          case "$out" in
+          *"main is RED"*)
+            echo "::error::main is red and nobody is assigned to it"
+            exit 1
+            ;;
+          esac
+          # A dead cadence is the other thing this script reports, and it is a WARNING here rather
+          # than a failure. A red trunk is transient and somebody fixes it within the hour; a dead
+          # cadence is a standing condition, and on the day this was written two of them already
+          # were. Failing on it would turn one open problem into 288 red runs a day, which is an
+          # alarm that trains its reader to ignore the workflow, including on the days it is right
+          # about the trunk. The annotation still shows on the run and in the Actions tab.
+          case "$out" in
+          *DEAD*|*"produced no result"*)
+            echo "::warning::a scheduled workflow has stopped producing results (script/cadence-check)"
+            ;;
+          esac

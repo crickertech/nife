@@ -45,6 +45,17 @@
 #     2026-08-16), and a pull request whose checks fail is ejected rather than fixed. Both need a
 #     person, so both are reported and neither is retried.
 #
+# # Where this runs (2026-09-24)
+#
+# **In GitHub Actions, as `nife-smelter[bot]`**, on a five-minute schedule:
+# `.github/workflows/merge-drain.yml`, which carries the reasoning, the tested premise, and the
+# cadence BUGS. It used to run under `launchd` on patagonia as calef's own token, which conflated
+# three actors under one name and made this singleton a singleton only because one laptop was awake.
+# `scripts/lane-claim-check.sh` moved with it, because this script's `pass()` calls it; it needed no
+# workflow of its own. notes/merge-queue.md has the retirement commands for the `launchd` jobs.
+#
+# The watching form still works from any checkout and is still the way to drive the queue by hand.
+#
 # A proposal to move the first duty onto a required check, which would make this script smaller
 # still, is in design/decisions/ (`needs-architect` as a check rather than as a script's restraint).
 #
@@ -59,6 +70,21 @@ cd "$(dirname "$0")/.."
 
 REPO="crickertech/nife"
 HELD_LABEL="needs-architect"
+
+# **Which drain spoke.** "smelter did it" stops being an answer the moment the automation runs in
+# more than one place, and as of 2026-09-24 it does: this script runs as a scheduled workflow
+# (`.github/workflows/merge-drain.yml`) and still runs by hand from a checkout. A GitHub App
+# installation token carries the App and not the caller, so GitHub itself cannot tell a reader which
+# instance acted; the tag has to live in the content. That is rung three of AGENTS.md's ladder and
+# there is nowhere higher to reach here.
+#
+# The workflow sets `actions:<run id>`, which is a run somebody can open. A laptop tags itself with
+# its hostname. `$ME` prefixes every line this script prints and every comment it posts.
+#
+# The `notify()` MARKERS are deliberately not tagged: they are the dedupe key, and a key that
+# changed with the instance would let two drains each post the same stall once.
+INSTANCE="${MERGE_DRAIN_INSTANCE:-$(hostname -s 2>/dev/null || echo unknown)}"
+ME="merge-drain[$INSTANCE]"
 once=""
 [ "$1" = "--once" ] && once=1
 
@@ -123,7 +149,7 @@ dequeue_held() {
 			# Only speak when something actually moved. A held pull request that was never queued is
 			# the common case and saying so every five minutes is how a watcher gets muted.
 			if [ "$after" -gt "$before" ]; then
-				echo "merge-drain: dequeued #$num ($HELD_LABEL arrived after it was enqueued): $title"
+				echo "$ME: dequeued #$num ($HELD_LABEL arrived after it was enqueued): $title"
 			fi
 		done
 }
@@ -197,12 +223,12 @@ stuck_checks() {
 	num="$1"
 	head="$2"
 	gh run list --repo "$REPO" --branch "$head" --json status,conclusion,createdAt --limit 5 2>/dev/null |
-		jq -r --argjson mins "$STUCK_CHECK_MINUTES" --arg n "$num" '
+		jq -r --argjson mins "$STUCK_CHECK_MINUTES" --arg n "$num" --arg me "$ME" '
 			(now - ($mins * 60)) as $cut
 			| .[]
 			| select(.status == "queued")
 			| select((.createdAt | fromdateiso8601) < $cut)
-			| "merge-drain: STALLED. #\($n) has a workflow run stuck queued for over " +
+			| "\($me): STALLED. #\($n) has a workflow run stuck queued for over " +
 			  "\($mins) minutes with no job ever starting (GitHub infra, not this pull " +
 			  "request). Push an empty commit to retrigger, or check the Actions tab."
 		' 2>/dev/null || true
@@ -237,13 +263,13 @@ STALE_DRAFT_MINUTES=${STALE_DRAFT_MINUTES:-75}
 
 stale_drafts() {
 	gh pr list --repo "$REPO" --state open --json number,isDraft,title,commits 2>/dev/null |
-		jq -r --argjson mins "$STALE_DRAFT_MINUTES" '
+		jq -r --argjson mins "$STALE_DRAFT_MINUTES" --arg me "$ME" '
 			(now - ($mins * 60)) as $cut
 			| .[]
 			| select(.isDraft == true)
 			| select((.commits | length) > 0)
 			| select((.commits[-1].committedDate | fromdateiso8601) < $cut)
-			| [.number, ("merge-drain: STALE DRAFT. #\(.number) has not committed in over " +
+			| [.number, ("\($me): STALE DRAFT. #\(.number) has not committed in over " +
 			  "\($mins) minutes (\(.title[0:60])). If its lane is finished: gh pr ready \(.number)")]
 			| @tsv
 		' 2>/dev/null |
@@ -306,7 +332,7 @@ pass() {
 	q=$(queue)
 	n=$(printf '%s' "$q" | jq -r 'length' 2>/dev/null || echo 0)
 	if [ "$n" = "0" ] || [ -z "$n" ]; then
-		echo "merge-drain: queue empty; nothing open that does not need calef"
+		echo "$ME: queue empty; nothing open that does not need calef"
 		return 1
 	fi
 
@@ -326,14 +352,14 @@ pass() {
 			case "$bstate" in
 			MERGED) ;;  # released, and nobody had to do anything
 			CLOSED)
-				msg="merge-drain: STALLED. #$num is blocked by #$blocker, which was CLOSED without merging ($title)"
+				msg="$ME: STALLED. #$num is blocked by #$blocker, which was CLOSED without merging ($title)"
 				echo "$msg"
 				notify "$num" "merge-drain:blocker-closed" "$msg"
 				stalled=$((stalled + 1))
 				continue
 				;;
 			*)
-				echo "merge-drain: holding #$num until #$blocker merges ($title)"
+				echo "$ME: holding #$num until #$blocker merges ($title)"
 				continue
 				;;
 			esac
@@ -343,7 +369,7 @@ pass() {
 		# neither will another pass. Say which pull request it is and move on to the rest, because
 		# one conflict must not stop the others being armed.
 		if [ "$state" = "DIRTY" ]; then
-			msg="merge-drain: STALLED. #$num has conflicts a person must resolve ($title)"
+			msg="$ME: STALLED. #$num has conflicts a person must resolve ($title)"
 			echo "$msg"
 			notify "$num" "merge-drain:conflict" "$msg"
 			stalled=$((stalled + 1))
@@ -356,7 +382,7 @@ pass() {
 		failed=$(gh pr view "$num" --repo "$REPO" --json statusCheckRollup \
 			-q '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null)
 		if [ -n "$failed" ]; then
-			msg="merge-drain: STALLED. #$num is failing $failed ($title)"
+			msg="$ME: STALLED. #$num is failing $failed ($title)"
 			echo "$msg"
 			notify "$num" "merge-drain:check-failure" "$msg"
 			stalled=$((stalled + 1))
@@ -386,7 +412,7 @@ pass() {
 		# to /dev/null and `|| true` swallowed the exit code. A count of ATTEMPTS was being
 		# printed as a count of RESULTS.
 		if ! gh pr merge "$num" --repo "$REPO" --auto --merge >/dev/null 2>&1; then
-			msg="merge-drain: STALLED. #$num would not enqueue ($title)"
+			msg="$ME: STALLED. #$num would not enqueue ($title)"
 			echo "$msg"
 			notify "$num" "merge-drain:would-not-enqueue" "$msg"
 			stalled=$((stalled + 1))
@@ -416,14 +442,14 @@ pass() {
 			-q '.autoMergeRequest != null' 2>/dev/null)" = "true" ]; then
 			armed=$((armed + 1))
 		else
-			msg="merge-drain: STALLED. #$num took the call but is neither queued nor armed"
+			msg="$ME: STALLED. #$num took the call but is neither queued nor armed"
 			echo "$msg"
 			notify "$num" "merge-drain:not-armed" "$msg"
 			stalled=$((stalled + 1))
 		fi
 	done
 
-	echo "merge-drain: $armed armed, $stalled stalled, of $n unheld"
+	echo "$ME: $armed armed, $stalled stalled, of $n unheld"
 	stale_drafts
 
 	# Nothing left to do on a pass where everything open is stalled: the remaining work needs a

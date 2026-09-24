@@ -148,36 +148,146 @@ The rule those four shapes were groping toward: **order the two operations by wh
 queue, not by what they cost themselves.** A merge queue is that rule implemented by the platform,
 which is why the script no longer needs to hold it.
 
-## How they run, and the gap that is accepted rather than closed
+## How they run: in Actions, as `nife-smelter[bot]` (2026-09-24)
 
 Moved here from `AGENTS.md` by `design/decisions/` §155's principle, which the naming pass
 established: the constitution keeps the duty, this document keeps the mechanism. What `AGENTS.md`
-still says is that a session confirms both watchers are alive and acts on what they found.
+still says is that a session confirms the watchers are alive and acts on what they found.
 
-**Both run unattended on patagonia via `launchd`** (`com.nife.merge-drain` and
-`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
-five minutes rather than as a session-owned foreground loop. That replaced an instruction in
-`AGENTS.md` on the same day it failed for the reason it always fails: a maintainer session read the
-words, agreed with them, and did not act on them, which is prose behaving like rung four of the
-ladder regardless of which file it lives in. `launchd` is rung one for the part of the gap a session
-can close, because starting these is no longer a session's job.
+**Two scheduled workflows, owned by the organization rather than by a laptop**, every five minutes:
 
-**The gap that remains is the one calef accepted rather than solved.** Patagonia asleep or shut down
-means neither watcher runs and nobody is watching during that window. A cron on cordoba, the
-always-on box, was raised as the alternative that would close it, and declined in favour of the
-simpler thing on the machine already in use. The cost is named rather than hidden.
+| Workflow | Runs | Identity |
+| --- | --- | --- |
+| `.github/workflows/merge-drain.yml` | `scripts/merge-drain.sh --once`, which calls `scripts/lane-claim-check.sh` inside its own pass | `nife-smelter[bot]` |
+| `.github/workflows/trunk-health.yml` | `scripts/trunk-health.sh --once`, and **fails the run** when `main` is red or a cadence is dead | `nife-smelter[bot]` |
+| `launchd`, per developer | `scripts/at-risk-check.sh`, which reads that machine's own worktrees | nobody: it needs no credential |
 
-Anywhere that is not patagonia (a lane's own worktree, CI, another machine) they still run in the
-foreground: `scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`.
+Each workflow mints a one-hour installation token with `actions/create-github-app-token` from the
+organization secrets `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`. **No key is at rest on anybody's
+machine**, which is the property that made this the recommendation over putting the App's private
+key on patagonia: the credential-at-rest question does not arise for anything that runs here.
+
+**What this bought, in the order the proposal argued it.** Everything these do is attributed to
+`nife-smelter[bot]` rather than to `calef`, so what is still attributed to calef is genuinely calef,
+which is the negative half a local log can never give. The singleton is a singleton by construction
+(`concurrency:`), rather than because one laptop happened to be awake. The run list is a log every
+contributor can read, with timestamps and exit codes, where `~/Library/Logs/nife/` on one Mac was
+readable by one person. And a stopped watcher shows as a disabled workflow in the Actions tab
+instead of living in one session's transcript, which is how the drain's unloading on 2026-09-23 was
+knowable to exactly one reader.
+
+### The premise this rested on, tested before anything was written
+
+`cli/cli#7213` reports `gh pr merge --auto` failing under a GitHub App installation token where a
+personal token succeeds. **The merge drain's entire job is arming pull requests**, so if that were
+true here, every option that authenticates the drain as `smelter` loses and the fork collapses back
+to a machine account or the status quo.
+
+Measured 2026-09-24 in a throwaway workflow, under a token minted from the `nife-smelter` App,
+against a throwaway pull request that was closed and deleted the same minute:
+
+```console
+$ gh pr merge 1176 --repo crickertech/nife --auto --merge
+! The merge strategy for main is set by the merge queue      # exit 0, armed
+$ gh api graphql -f query='mutation{enablePullRequestAutoMerge(input:{pullRequestId:"...",mergeMethod:MERGE}){clientMutationId}}'
+{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}
+$ gh api graphql -f query='mutation{enqueuePullRequest(input:{pullRequestId:"..."}){clientMutationId}}'
+gh: Pull request 14 of 14 required status checks have not succeeded: 2 expected.
+```
+
+The issue does not reproduce on this repository with this App. The third line is the interesting
+one and is why it was run: a permission denial and an eligibility refusal read differently, and
+`enqueuePullRequest` and `dequeuePullRequest` both reached GitHub's business logic, which is the
+answer "permitted" in the only form the API gives. `gh pr list --json` read, and `gh pr comment`
+posted, rendering as `nife-smelter[bot]`.
+
+### What a person must run on patagonia to retire the old jobs
+
+**This is not optional and it is not automatic.** Until it is done there are two drains, one in
+Actions and one on a laptop, both arming the same pull requests. Nothing in this repository can do
+it: `launchd` jobs live in `~/Library/LaunchAgents/` on one machine.
+
+```console
+$ launchctl unload -w ~/Library/LaunchAgents/com.nife.merge-drain.plist
+$ launchctl unload -w ~/Library/LaunchAgents/com.nife.trunk-health.plist
+$ rm ~/Library/LaunchAgents/com.nife.merge-drain.plist ~/Library/LaunchAgents/com.nife.trunk-health.plist
+$ launchctl list | grep nife          # expect nothing yet
+```
+
+Then install the one watch that stays per developer, because retiring `com.nife.trunk-health`
+retires the at-risk check with it (it was folded into that script's loop) and that is the watch
+AGENTS.md calls the more valuable of the two. Write `~/Library/LaunchAgents/com.nife.at-risk.plist`,
+substituting the path to your own main checkout:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nife.at-risk</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/calef/projects/nife/scripts/at-risk-check.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/calef/projects/nife</string>
+  <key>StartInterval</key><integer>300</integer>
+  <key>StandardOutPath</key><string>/Users/calef/Library/Logs/nife/at-risk.log</string>
+  <key>StandardErrorPath</key><string>/Users/calef/Library/Logs/nife/at-risk.log</string>
+</dict>
+</plist>
+```
+
+```console
+$ launchctl load -w ~/Library/LaunchAgents/com.nife.at-risk.plist
+$ launchctl list | grep nife
+-	0	com.nife.at-risk
+```
+
+**`launchd` is the loop here**, which is why `scripts/at-risk-check.sh` did not grow one: it does a
+pass and exits, `StartInterval` runs it every five minutes, and a script with no loop cannot be
+killed mid-loop by a prune of the checkout it was launched from (the failure that killed both
+watchers on 2026-08-18).
+
+### What is lost, and it is smaller than the proposal priced it
+
+**Cadence.** GitHub's shortest `schedule` interval is five minutes, and scheduled runs are delayed
+under load and dropped at peak, which is a documented behaviour rather than a caveat. The proposal
+priced this against the script's own 150-second loop and that comparison was wrong: the `launchd`
+jobs already fired `--once` every five minutes, so the real loss is only the delay and the drops,
+not two and a half minutes. calef accepted it on 2026-09-23.
+
+**Transition reporting.** `trunk-health.sh`'s loop said "red" once and "recovered" once because it
+remembered the previous poll. A scheduled run remembers nothing, so a trunk red for an hour is
+twelve failed runs. The workflow's own BUGS section says so; carrying state in an artifact was more
+machinery than the fact is worth.
+
+**The gap that was accepted and is now closed.** Patagonia asleep meant nobody was watching. That
+was named rather than hidden, and a cron on cordoba was declined in 2026-08-26 in favour of the
+simpler thing on the machine already in use. Actions closes it for the two that moved and leaves it
+exactly where it was for the at-risk check, which is correct: a laptop that is asleep has no lane
+worktree being edited on it.
+
+**A restraint that was reweighed rather than ignored.** calef declined an unattended scheduled agent
+on 2026-08-26, preferring that this shut down when the session driving it does. His 2026-09-23
+approval supersedes that for these two, and the distinction he drew in September holds here as well:
+what runs on a timer is a shell script reading GitHub and arming what is eligible, with no judgment
+in it. **A queue reports, it does not resolve** is still the boundary. Neither workflow resolves a
+conflict, retries a failed check, or marks anybody's draft ready.
 
 **Why `notify()` speaks once per stall.** `merge-drain.sh` posts a PR comment on a conflict, a check
 failure or a stuck check, and then goes quiet. That is deliberate, so a stalled pull request does not
 re-announce itself every five minutes. The consequence a maintainer has to hold is the other half of
 it: **nothing re-announces the stall to a session that opens later**, so reading the queue is a
-standing duty rather than something the watcher does for you. `gh pr list --search
-"commenter:app/github-actions merge-drain"` is not precise enough to script; read
+standing duty rather than something the watcher does for you. Read
 `gh pr list --json number,mergeStateStatus,statusCheckRollup` for `DIRTY`/`CONFLICTING` or a
-`FAILURE` conclusion instead.
+`FAILURE` conclusion.
+
+**Which drain spoke.** Every line the drain prints, and every comment it posts, is prefixed
+`merge-drain[<instance>]`: `actions:<run id>` from the workflow, the hostname from a laptop. An
+installation token carries the App and not the caller, so GitHub cannot tell a reader which instance
+acted once the automation runs in more than one place. The `notify()` dedupe markers are
+deliberately untagged, so two instances cannot each post the same stall once.
 
 **Two fields that lie to a session watching one pull request**, both met on 2026-09-19 watching
 #965. `autoMergeRequest` goes **null the moment GitHub enqueues** the pull request, so "auto-merge
@@ -187,26 +297,6 @@ is off" reads exactly like "dropped from the queue" when it means the opposite. 
 itself instead: `gh api graphql` for
 `pullRequest(number: N) { mergeQueueEntry { state position } }`, where no entry while open means
 out of the queue, and treat only `FAILURE` and `TIMED_OUT` as failures.
-
-**Deliberately not automated further.** calef declined an unattended scheduled agent on 2026-08-26:
-he would rather this shut down when the session driving it does than run standing on a timer with
-nobody watching. Resolving a conflict or a check failure needs the reading and judgment a person
-brings, which is this queue's own boundary: **a queue reports, it does not resolve.**
-
-**That restraint was weighed again on 2026-09-23, for `scripts/at-risk-check.sh` below, and did not
-apply.** Three things separate it from the agent calef declined:
-
-- **It is not an agent.** The declined thing had judgment: it would have read a stall and decided
-  something about it. This is a shell script reading `git status` and comparing a timestamp, the same
-  category as `scripts/lane-claim-check.sh`, which was built and accepted five days after this
-  decision without anyone re-raising it.
-- **It never acts**, the same boundary this section already draws for the two scripts above it. It
-  does not commit, stash, or delete; see `scripts/at-risk-check.sh`'s own header for why `git stash`
-  specifically is refused rather than merely unused.
-- **It runs where the two watchers already run**, on the interval `com.nife.trunk-health` already
-  fires at. Nothing new is scheduled: it was folded into `scripts/trunk-health.sh`'s existing loop
-  rather than given a third `launchd` job, precisely so this restraint would not have to be reweighed
-  for a third thing running unattended. See that script's own header for the reasoning.
 
 ## `scripts/trunk-health.sh`
 
@@ -227,7 +317,7 @@ watcher produces.
 The phrase "nobody is assigned to this" is not filler. A red trunk with an owner is a task; a red
 trunk without one is the failure being surfaced.
 
-## `scripts/at-risk-check.sh`, folded into the loop above (2026-09-23)
+## `scripts/at-risk-check.sh`, the one watch that stays on your own machine
 
 AGENTS.md gives the steward a second watch, named beside the idle-lane one and called the more
 valuable of the two: "a lane worktree with modifications and no commit in half an hour is
@@ -265,13 +355,15 @@ of exactly the kind this script exists to warn about rather than to commit. AGEN
 "`git stash` is unsafe in these worktrees, for the same reason one level over," is the same finding
 from the other side.
 
-**Folded into `scripts/trunk-health.sh`'s own loop rather than given a third `launchd` job.** Two
-reasons, both named in that script's own header: a third watcher is a third thing to start and a
-third thing that can die silently, since neither existing script's BUGS section claims to report its
-own death; and folding it in means `com.nife.trunk-health`, already firing `--once` every five
-minutes on patagonia, picks up the new check with no new plist and no new schedule to keep alive.
-`scripts/at-risk-check.sh` is still a standalone, testable script; `trunk-health.sh` only calls it
-and relays what it prints.
+**Folded into `scripts/trunk-health.sh`'s loop on 2026-09-23, unfolded on 2026-09-24, and the
+reasoning is worth keeping because it was right both times.** The fold was to avoid a third watcher
+that could die silently, reusing a job already firing on the right interval. That holds only while
+both halves run on the same machine. When the trunk half moved to Actions they stopped doing so:
+everything else in `trunk-health.sh` reads GitHub, and this reads **this machine's** worktrees, so
+carrying the fold into a runner would have produced a check reporting nothing forever while the
+hazard sat on a laptop unwatched. It now has the third `launchd` job the fold avoided, with the
+cost that decision was avoiding accepted explicitly: nothing reports its death either. The plist and
+the commands are in "What a person must run on patagonia" above.
 
 Unlike RED/GREEN and unlike the cadence check beside it, this does **not** dedupe by transition. A
 worktree still at risk on the next poll is still exactly as at risk, distinguishing "still true" from

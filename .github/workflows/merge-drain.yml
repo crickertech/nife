@@ -1,0 +1,85 @@
+name: merge drain
+
+# **The merge drain, moved off a laptop** (`design/decisions/` on `who-took-the-step`, approved by
+# calef 2026-09-23). It used to run under `launchd` on patagonia as calef's own token, which made
+# three different actors wear one name and made a singleton singleton only because one laptop
+# happened to be awake. Here it is `nife-smelter[bot]`, one workflow, one schedule, owned by the
+# organization, with a run list every contributor can read.
+#
+# **The premise was tested before any of this was written**, because the whole plan rested on it.
+# `cli/cli#7213` reports `gh pr merge --auto` failing under a GitHub App installation token where a
+# personal token succeeds. Measured on 2026-09-24 against a throwaway pull request, under a token
+# minted here from the `nife-smelter` App: `gh pr merge N --auto --merge` exited 0 and armed;
+# `enablePullRequestAutoMerge` through `gh api graphql` returned data; `enqueuePullRequest` and
+# `dequeuePullRequest` both reached GitHub's business logic and were refused on eligibility rather
+# than on permission; `gh pr list --json` and `gh pr comment` both worked, the comment rendering as
+# `nife-smelter[bot]`. The issue does not reproduce on this repository with this App.
+#
+# **This runs `--once`, not the watching form.** The loop is `schedule:` now. That is not a change
+# in kind: the `launchd` jobs this replaces already fired `--once` every five minutes rather than
+# running the script's own 150-second loop, so the cadence moves from five minutes to five minutes
+# plus whatever GitHub's scheduler adds. See BUGS.
+#
+# BUGS
+#
+#   - **`schedule:` is a floor, not a promise.** GitHub's shortest interval is five minutes, and
+#     scheduled runs are delayed under load and dropped entirely during peaks. A reader must not
+#     take the run list as a heartbeat: a gap means "no run", never "nothing to do", and the drain
+#     has no way to tell the difference either. calef accepted this cost on 2026-09-23 when he
+#     approved the move; what is bought for it is that nothing depends on one laptop being awake.
+#   - **Nothing reports this workflow's own death.** Same gap the `launchd` jobs had, one level
+#     along: a disabled workflow shows in the Actions tab, but only to somebody who looks. It is
+#     better than an unloaded `launchd` job, whose stopped state lived in one transcript, and it is
+#     not a mechanism.
+#   - **A scheduled workflow only runs from the default branch.** Nothing in this file takes effect
+#     until it is on `main`, so a change to the drain cannot be tested by pushing it to a branch.
+#     `workflow_dispatch` on `main` is the way to exercise it, and `scripts/merge-drain.sh --once`
+#     from any checkout is still the way to try a change before merging it.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+# One drain, and the platform holds it rather than a person remembering. `cancel-in-progress: false`
+# because a pass that is part way through arming pull requests should finish; a queued duplicate is
+# the thing to drop, and GitHub drops it.
+concurrency:
+  group: merge-drain
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drain:
+    name: drain the merge queue
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: token
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+
+      # **All branches, no blobs.** `scripts/lane-claim-check.sh` runs inside the drain's pass and
+      # reads `origin/<branch>` refs directly (`git merge-base --is-ancestor`, `git rev-list
+      # --count`, `git diff --shortstat`), so a single-ref checkout makes it silently report
+      # nothing. `fetch-depth: 0` gets every branch; `filter: blob:none` keeps a 549 MB history from
+      # being cloned in full 288 times a day, and the partial clone fetches the few blobs
+      # `git diff --shortstat` actually touches on demand.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: one pass
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          # Which drain spoke. "smelter did it" stops being an answer the moment the automation runs
+          # in more than one place, and an installation token carries the App rather than the
+          # caller, so the instance has to travel in the content. A laptop run tags itself with its
+          # hostname; this tags itself with the run that can be opened and read.
+          MERGE_DRAIN_INSTANCE: actions:${{ github.run_id }}
+        run: scripts/merge-drain.sh --once
