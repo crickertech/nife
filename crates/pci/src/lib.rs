@@ -206,8 +206,8 @@ pub const VIRTIO_TYPE_INPUT: u32 = 18;
 /// `secondary == subordinate`; one firmware never configured at all reads back zeros, which
 /// [`walk`] treats as "nothing behind it" rather than as a second route to bus 0.
 ///
-/// **Provisional names** (milestone 320), all of them: this type, [`bridge_buses`], [`Function`],
-/// [`walk`], [`BUS_NUMBERS`] and [`HEADER_TYPE_BRIDGE`]. calef names public items.
+/// Name: provisional (milestone 320), every name listed here: this type, [`bridge_buses`],
+/// [`Function`], [`walk`], [`BUS_NUMBERS`] and [`HEADER_TYPE_BRIDGE`]. calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BridgeBuses {
     pub primary: u8,
@@ -229,7 +229,7 @@ pub fn bridge_buses(bdf: Bdf, read32: &mut dyn FnMut(Bdf, u64) -> u32) -> Bridge
 /// **One function the walk met**, with everything a census needs to print and everything the
 /// walk itself needs to decide where to go next.
 ///
-/// **Provisional name** (milestone 320): calef names public items.
+/// Name: provisional (milestone 320): calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Function {
     pub bdf: Bdf,
@@ -591,7 +591,7 @@ pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
 /// interrupt translation service.
 /// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
 ///
-/// **Provisional name** (milestone 215), with [`MsixCap`] and [`msix_cap`]: calef names public items.
+/// Name: provisional (milestone 215), with [`MsixCap`] and [`msix_cap`]: calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MsiTarget {
     /// The address the device writes to. 64-bit, written to the entry's low two dwords.

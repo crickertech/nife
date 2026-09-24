@@ -653,7 +653,7 @@ pub fn uptime_ms() -> u64 {
 /// the host. The tests that hold a tick across a mask wait for this bit instead. See
 /// notes/load-sensitive-assertions.md.
 ///
-/// **Provisional name** (a lane's, 2026-09-24).
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn tick_pending() -> bool {
     CNTV_CTL_EL0.is_set(CNTV_CTL_EL0::ISTATUS)
@@ -1084,12 +1084,16 @@ mod tests {
     /// How long a wait on the timer being raised may take, in tick periods: one second, against a
     /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
     /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     const RAISE_BOUND_PERIODS: u32 = 100;
 
     /// Spin until `cond`, bounded by [`RAISE_BOUND_PERIODS`] of the free-running counter, checking
     /// continuously rather than once a period. For waits made **with interrupts masked**, where
     /// nothing can change `cond` except the hardware and a period's granularity would only add
     /// latency.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     fn within_raise_bound(mut cond: impl FnMut() -> bool) -> bool {
         let bound = u64::from(RAISE_BOUND_PERIODS) * crate::arch::timer::interval();
         let start = crate::arch::timer::now();

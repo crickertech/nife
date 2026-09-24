@@ -2690,7 +2690,7 @@ pub struct GraphicalTerminal {
 /// endpoint, which is DECISIONS §21's line-discipline contract and is what both existing sources
 /// already speak, byte for byte.
 ///
-/// Name: **provisional** (milestone 192's lane).
+/// Name: provisional (milestone 192's lane).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum KeystrokeSource {
     /// A virtio-input device, driven by `components/src/keyboard_driver.rs` in `MODE_DIRECT`. What

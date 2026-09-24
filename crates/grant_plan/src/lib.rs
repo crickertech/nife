@@ -305,7 +305,7 @@ programs! {
         /// resolves against the directory it holds, and what arrives at the program is bytes. A viewer
         /// that opened the page it renders would be a viewer that could open any page.
         ///
-        /// **Provisional name.**
+        /// Name: provisional.
         Mdr { id: 7, name: "mdr" },
         /// **List the processes in the supervision domain it was spawned into** (milestone 126,
         /// `components/src/ps.rs`, notes/process-view.md).
@@ -389,7 +389,7 @@ programs! {
         /// states distinguishable from a page nobody has assembled at all, which reads as
         /// "no configuration was granted").
         ///
-        /// **Provisional name**, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
+        /// Name: provisional, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
         /// arguments): a term of art already right, per this tree's own naming convention for
         /// standard terms.
         Printenv { id: 11, name: "printenv" },
@@ -418,7 +418,7 @@ programs! {
         /// `uuid > id.txt` **empty** and say why on the terminal, because a file containing a
         /// predictable identifier is worse than a file containing nothing.
         ///
-        /// **Provisional name.** RFC 9562's own term for the object, and
+        /// Name: provisional. RFC 9562's own term for the object, and
         /// `crates/globally_unique_identifier_partition_table` calls the same sixteen bytes a `Guid`
         /// because that is what GPT's spec calls them.
         Uuid { id: 12, name: "uuid" },
@@ -441,7 +441,7 @@ programs! {
         /// bare is not a `top`. Every row is printed, ranked. Same boundary limitation
         /// [`Prog::Pgrep`] records for its missing pattern.
         ///
-        /// **Provisional name.**
+        /// Name: provisional.
         Top { id: 13, name: "top" },
     }
 }

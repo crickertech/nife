@@ -62,7 +62,7 @@
 //!   different ones, so a sample can come from the cross-core wake path or the same-core one. Both
 //!   ends are spawned on the caller's core, and the report's spread says whether it mattered.
 //!
-//! Name: **provisional** (milestone 134's lane, 2026-09-19): module, feature and the `ipc-stack-depth:`
+//! Name: provisional (milestone 134's lane, 2026-09-19): module, feature and the `ipc-stack-depth:`
 //! line prefix alike. Names are calef's.
 
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};

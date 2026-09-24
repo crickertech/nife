@@ -2543,7 +2543,7 @@ pub mod fixture {
     /// creation and a file the image already carried would have been laid out by the host tool
     /// rather than by the server under test.
     ///
-    /// **Provisional name** (2026-08-18, milestone 38): calef names files a reader meets, and this
+    /// Name: provisional (2026-08-18, milestone 38): calef names files a reader meets, and this
     /// one is met by anyone who lists the bench image after a run.
     pub const THROUGHPUT_NAME: &str = "throughput";
 
@@ -2688,7 +2688,7 @@ pub mod fixture {
     /// A grant naming a directory that is not there is an ordinary thing to type, so the honest
     /// answer has to be a message rather than a corpse.
     ///
-    /// **Provisional name** (2026-08-17, milestone 31 phase 3): it names the one step that can fail
+    /// Name: provisional (2026-08-17, milestone 31 phase 3): it names the one step that can fail
     /// before a caretaker serves anything, which is the single `OPENDIR` its whole attenuation lives
     /// in.
     pub const DESCENT_REFUSED: u64 = 0xF5_0DEAD5;

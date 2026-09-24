@@ -72,8 +72,8 @@
 //! assert!(table.claim_for_destroy(r).is_none(), "the name stopped resolving at the first claim");
 //! ```
 //!
-//! Name: `RegionTable`, `DestroyClaim`, `insert_root`, `claim_for_destroy` and `return_to_parent`
-//! are **provisional**, minted 2026-08-18 by milestone 135's lane and not yet put to calef. Nouns
+//! Name: provisional, for `RegionTable`, `DestroyClaim`, `insert_root`, `claim_for_destroy` and
+//! `return_to_parent`, minted 2026-08-18 by milestone 135's lane and not yet put to calef. Nouns
 //! per the naming tenet; `RegionTable` inherits its shape from the crate's own name, ratified
 //! 2026-08-23 as `memory_regions` (renamed from the unratified `regions`).
 

@@ -459,7 +459,7 @@ pub const ISA_IRQ_COUNT: usize = 16;
 /// redirection entry 0 for "the timer" would arm a line nothing drives, and would see no
 /// interrupts and no error.
 ///
-/// **Provisional name** (milestone 161), along with the two fields and [`isa_irq_table`].
+/// Name: provisional (milestone 161), along with the two fields and [`isa_irq_table`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsaIrqRouting {
     /// The global system interrupt this IRQ arrives on.

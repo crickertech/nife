@@ -46,6 +46,8 @@ fn three_tick_periods() -> u64 {
 /// **A leak trap, not a timing claim.** Nothing the kernel does is inside this bound: the deadline
 /// has passed and the rest is the emulator getting round to it. A timer that is genuinely broken
 /// never raises at all, and this is what turns that into a failure that says so rather than a hang.
+///
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
 const RAISE_BOUND_PERIODS: u64 = 100;
 
 /// With interrupts **already masked**, spin until this core's tick is architecturally pending, or
@@ -53,6 +55,8 @@ const RAISE_BOUND_PERIODS: u64 = 100;
 ///
 /// This is the difference between "a tick was held" and "enough wall clock passed that a tick
 /// should have been held". Only the first is the property these tests are about.
+///
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
 fn until_the_tick_is_raised() -> bool {
     let bound = RAISE_BOUND_PERIODS * crate::arch::timer::frequency() / crate::arch::timer::TICK_HZ;
     let start = crate::arch::timer::now();

@@ -1060,7 +1060,7 @@ pub fn translate(va: u64) -> Option<(u64, Flags)> {
 /// and its callers are handlers that may not block. Same name, same meaning, one signature on both
 /// architectures: `stack::print_text_words` is written once and calls this.
 ///
-/// **Provisional name** (2026-08-17): calef has not ruled on it.
+/// Name: provisional (2026-08-17): calef has not ruled on it.
 pub fn is_mapped(va: u64) -> bool {
     translate(va).is_some()
 }

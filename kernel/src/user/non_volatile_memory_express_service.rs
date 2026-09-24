@@ -72,7 +72,7 @@
 //! driver this replaced (notes/non-volatile-memory-express.md's `BUGS`), and it is what makes any throughput number
 //! measured against this server a lower bound rather than the device's.
 //!
-//! Name: follows the program (milestone 261; renamed 2026-09-18 under DECISIONS §154). This
+//! Name: recorded (crates/non_volatile_memory_express; milestone 261; DECISIONS §154). This
 //! module is a `<program>_service` like `entropy_service`, `clock_service` and `virtio_service`,
 //! so its name is the program's plus the suffix and carries no decision of its own. It was
 //! `nvme_service` while the program was `nvme_server`; the ruling and the refusals live once,

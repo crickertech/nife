@@ -457,8 +457,8 @@ pub fn ticks_on(hart: usize) -> u64 {
 /// host has raised anything proves nothing about unmasking, so these tests now wait for this bit
 /// rather than for the clock. See notes/load-sensitive-assertions.md.
 ///
-/// **Provisional name** (a lane's, 2026-09-24): the three architectures' copies are named alike on
-/// purpose, and the name is calef's to ratify.
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+/// The three architectures' copies are named alike on purpose.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn tick_pending() -> bool {
     let sip: u64;
@@ -1000,12 +1000,16 @@ mod tests {
     /// How long a wait on the timer being raised may take, in tick periods: one second, against a
     /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
     /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     const RAISE_BOUND_PERIODS: u32 = 100;
 
     /// Spin until `cond`, bounded by [`RAISE_BOUND_PERIODS`] of the free-running counter, checking
     /// continuously rather than once a period. For waits made **with interrupts masked**, where
     /// nothing can change `cond` except the hardware and a period's granularity would only add
     /// latency.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     fn within_raise_bound(mut cond: impl FnMut() -> bool) -> bool {
         let bound = u64::from(RAISE_BOUND_PERIODS) * crate::arch::timer::interval();
         let start = crate::arch::timer::now();
