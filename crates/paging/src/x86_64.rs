@@ -250,10 +250,11 @@ const VTD_PERMITTED_BITS: u64 = 0x000f_ffff_ffff_f003;
 impl PageFormat for Vtd {
     const LEVELS: usize = 4;
 
-    /// Not a real VT-d concept (IOVAs are not split into a low and a high half the way CPU
-    /// virtual addresses are); kept at the same value `Ia32e` uses so [`in_half`](PageFormat::in_half)
-    /// admits exactly the addresses this driver ever asks it about, every physical address the
-    /// frame allocator hands out on a machine with less than 128 TiB of RAM.
+    /// Not a real VT-d concept (IOVAs are not split into a low and a high half the way CPU virtual
+    /// addresses are); kept at the same value `Ia32e` uses so
+    /// [`is_in_half`](PageFormat::is_in_half) admits exactly the addresses this driver ever asks it
+    /// about, every physical address the frame allocator hands out on a machine with less than 128
+    /// TiB of RAM.
     const SPLIT_SHIFT: u32 = 47;
 
     fn is_present(entry: u64) -> bool {
@@ -562,7 +563,7 @@ mod verification {
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
-        assert!(!(Ia32e::in_half(Half::Low, va) && Ia32e::in_half(Half::High, va)));
+        assert!(!(Ia32e::is_in_half(Half::Low, va) && Ia32e::is_in_half(Half::High, va)));
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, never the high one.
@@ -575,7 +576,7 @@ mod verification {
             va & 0xfff == 0 && va >> 47 == 0
         );
         if crate::is_user_page_va::<Ia32e>(va) {
-            assert!(Ia32e::in_half(Half::Low, va) && !Ia32e::in_half(Half::High, va));
+            assert!(Ia32e::is_in_half(Half::Low, va) && !Ia32e::is_in_half(Half::High, va));
         }
     }
 

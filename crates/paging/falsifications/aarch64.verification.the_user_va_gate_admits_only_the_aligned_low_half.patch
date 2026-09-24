@@ -10,7 +10,7 @@ was never meant to see one.
 
 Expected to fail: `assert_eq!(is_user_page_va::<Aarch64>(va), va & 0xfff == 0 && va
 >> 48 == 0)`, on any low-half address that is not page-aligned. The second
-assertion in the harness, `assert!(in_half(Half::Low, va) && !in_half(Half::High,
+assertion in the harness, `assert!(is_in_half(Half::Low, va) && !is_in_half(Half::High,
 va))`, still holds under this defect, because the half test is exactly what was
 kept.
 
@@ -28,8 +28,8 @@ index 98df8b66..05384661 100644
  ///
  /// Generic over the format so the split lands at the right bit for the running architecture.
  pub fn is_user_page_va<F: PageFormat>(va: u64) -> bool {
--    F::in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
-+    F::in_half(Half::Low, va)
+-    F::is_in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
++    F::is_in_half(Half::Low, va)
  }
  
  /// **The seam between the shared walk and a hardware page-table format.**

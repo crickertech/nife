@@ -44,7 +44,9 @@
 //! QEMU's `virt` board (which names neither) never produces one and this driver is never reached
 //! there.
 
-use jh7110_clock_and_reset::{CLOCK_ENABLE, Domain, MAX_RECORDED_CLOCKS, Report, Step, deasserted};
+use jh7110_clock_and_reset::{
+    CLOCK_ENABLE, Domain, MAX_RECORDED_CLOCKS, Report, Step, is_deasserted,
+};
 
 /// How many times [`bring_up`] reads the status word before giving up on a deassert.
 ///
@@ -125,7 +127,7 @@ pub unsafe fn bring_up(base: usize, domain: &Domain, plan: &[Step]) -> Report {
                     // SAFETY: as above; a read of the status word inside the domain.
                     seen = unsafe { core::ptr::read_volatile(status) };
                     polls += 1;
-                    if deasserted(seen, bit.mask) || polls >= POLL_LIMIT {
+                    if is_deasserted(seen, bit.mask) || polls >= POLL_LIMIT {
                         break;
                     }
                 }
@@ -133,7 +135,7 @@ pub unsafe fn bring_up(base: usize, domain: &Domain, plan: &[Step]) -> Report {
                 report.reset_assert_after = unsafe { core::ptr::read_volatile(assert) };
                 report.reset_assert_before = before;
                 report.reset_status_after = seen;
-                report.released = deasserted(seen, bit.mask);
+                report.released = is_deasserted(seen, bit.mask);
                 report.polls = polls;
                 report.had_reset = true;
             }

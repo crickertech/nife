@@ -129,7 +129,7 @@ pub fn print_summary() {
         cpu.mmu.name(),
         cpu.asid_bits,
     );
-    if cpu.heterogeneous() {
+    if cpu.is_heterogeneous() {
         // The union minus the intersection: what some harts have and others do not. This is the
         // only line that would tell you the machine is not uniform, and on a JH7110 it is the
         // difference between "no FPU" and "no FPU on one core".
@@ -147,7 +147,7 @@ pub fn print_summary() {
     println!();
 
     print!("  firmware    : ");
-    if !cpu.sbi.answered() {
+    if !cpu.sbi.has_answered() {
         println!("SBI base extension did not answer, so nothing here is verified");
         return;
     }
@@ -171,7 +171,7 @@ pub fn print_summary() {
 ///
 /// Everything here goes through the SBI **base** extension, which is itself the thing that might be
 /// absent: SBI v0.1 predates it. That case is not an error, it is an unanswered question, and
-/// `Sbi::answered` is how the rest of the kernel tells the two apart.
+/// `Sbi::has_answered` is how the rest of the kernel tells the two apart.
 fn probe_sbi() -> Sbi {
     const GET_SPEC_VERSION: usize = 0;
     const GET_IMPL_ID: usize = 1;
@@ -194,8 +194,8 @@ fn probe_sbi() -> Sbi {
     Sbi {
         // The minor number is the low **24** bits and the major is the seven above it, which is not
         // the split anyone guesses. The first draft here read 16 and 16, so QEMU's `0x0300_0000`
-        // (SBI 3.0) decoded as 0.0, `Sbi::answered` said no, and the boot line reported firmware
-        // that had answered perfectly well as silent. Found by printing the raw word.
+        // (SBI 3.0) decoded as 0.0, `Sbi::has_answered` said no, and the boot line reported
+        // firmware that had answered perfectly well as silent. Found by printing the raw word.
         spec_major: ((version >> 24) & 0x7f) as u8,
         spec_minor: (version & 0x00ff_ffff) as u32,
         impl_id: sbi_call(EID_BASE, GET_IMPL_ID, 0) as u32,
@@ -343,7 +343,7 @@ mod tests {
         let sbi = get().sbi;
 
         assert!(
-            sbi.answered(),
+            sbi.has_answered(),
             "OpenSBI has had the base extension since 2020"
         );
         assert!(sbi.spec_major >= 1, "and speaks at least SBI 1.0");

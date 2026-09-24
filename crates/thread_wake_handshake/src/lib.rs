@@ -94,7 +94,7 @@
 //!
 //! // Some core pops it and switches in; the recv tail's tripwire holds.
 //! hs.switch_in();
-//! assert!(hs.delivered());
+//! assert!(hs.is_delivered());
 //! ```
 //!
 //! # BUGS
@@ -324,7 +324,7 @@ impl<W> Handshake<W> {
     /// Whether a resume has something to return: the recv tail's tripwire (`debug_assert!` in the
     /// kernel), and the model's central assertion.
     #[must_use]
-    pub fn delivered(&self) -> bool {
+    pub fn is_delivered(&self) -> bool {
         self.ipc_served || self.ipc_aborted
     }
 
@@ -349,7 +349,7 @@ impl<W> Handshake<W> {
         // The undelivered-wake gate (boot 8): a wake that delivered nothing has not dequeued the
         // thread from its endpoint and has nothing for its parked IPC to return. Refuse it and
         // leave the thread parked; the real counterparty completes the rendezvous later.
-        if self.wait_on.is_some() && !self.delivered() {
+        if self.wait_on.is_some() && !self.is_delivered() {
             return WakeVerdict::Refused;
         }
 
@@ -490,7 +490,7 @@ mod tests {
         hs.abort();
         assert_eq!(hs.finish_switch(), SwitchOutVerdict::Cleared);
         assert_eq!(hs.try_wake(), WakeVerdict::Queue);
-        assert!(hs.delivered());
+        assert!(hs.is_delivered());
         assert!(hs.take_aborted());
         assert!(!hs.take_aborted(), "the abort flag survived being taken");
     }
@@ -738,7 +738,7 @@ mod interleavings {
     fn resume(m: &Machine) {
         {
             let mut core = m.sched.lock().unwrap();
-            assert!(core.hs.delivered(), "resumed with nothing delivered");
+            assert!(core.hs.is_delivered(), "resumed with nothing delivered");
             assert!(
                 !core.hs.on_cpu,
                 "switching into a thread that is still on a cpu"

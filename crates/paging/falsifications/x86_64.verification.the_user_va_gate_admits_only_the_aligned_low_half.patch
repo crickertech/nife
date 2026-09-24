@@ -9,7 +9,7 @@ deciding nothing.
 
 Expected to fail: `assert_eq!(is_user_page_va::<Ia32e>(va), va & 0xfff == 0 && va
 >> 47 == 0)`, on any aligned address in either half, and
-`assert!(Ia32e::in_half(Half::Low, va) && !Ia32e::in_half(Half::High, va))` on any
+`assert!(Ia32e::is_in_half(Half::Low, va) && !Ia32e::is_in_half(Half::High, va))` on any
 aligned high-half address.
 
 **The gate is shared and the proof is not.** `is_user_page_va` is one generic
@@ -25,8 +25,8 @@ index 98df8b66..d8fab919 100644
  ///
  /// Generic over the format so the split lands at the right bit for the running architecture.
  pub fn is_user_page_va<F: PageFormat>(va: u64) -> bool {
--    F::in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
-+    F::in_half(Half::High, va) && va.is_multiple_of(PAGE_SIZE)
+-    F::is_in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
++    F::is_in_half(Half::High, va) && va.is_multiple_of(PAGE_SIZE)
  }
  
  /// **The seam between the shared walk and a hardware page-table format.**

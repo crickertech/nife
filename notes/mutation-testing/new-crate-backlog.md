@@ -121,11 +121,11 @@ never returns.
 The two real misses were both the re-arm transition. Nothing in the suite armed an already armed
 gate. Every other path reaches `arm` from `DISARMED`. That is the one state where an `arm` that
 returns its guard *without* winning the compare-exchange is invisible: the gate is not `ARMED`
-either way, so `armed_hint` and `try_check` answer the same. From `ARMED` the same mistake leaves
-the old plan readable, and admits a check pass while the plan is being rewritten. That is the torn
-plan the module documentation is about, and the bug this crate exists to fix. Closed by
-`rearming_an_armed_gate_takes_it_out_of_armed`. It kills `&&`-to-`||` outright and takes
-`seen == ARMED` under `!=` into the deadline.
+either way, so `armed_hint` (now `is_armed_hint`) and `try_check` answer the same. From `ARMED` the
+same mistake leaves the old plan readable, and admits a check pass while the plan is being
+rewritten. That is the torn plan the module documentation is about, and the bug this crate exists to
+fix. Closed by `rearming_an_armed_gate_takes_it_out_of_armed`. It kills `&&`-to-`||` outright and
+takes `seen == ARMED` under `!=` into the deadline.
 
 The two equivalents are `pause`, and they are two functions rather than one.
 

@@ -37,7 +37,7 @@ fn the_disabled_s7_does_not_narrow_the_machine() {
         "the U74s' FPU survives: the S7's rv64imac did not narrow the intersection"
     );
     assert!(
-        !cpu.heterogeneous(),
+        !cpu.is_heterogeneous(),
         "the four harts the kernel can run on are identical; heterogeneity was the S7's"
     );
     assert_eq!(
@@ -79,7 +79,7 @@ fn the_cpu_list_knows_the_s7_is_unusable() {
     let startable: Vec<u64> = list
         .cpus()
         .iter()
-        .filter(|c| c.startable())
+        .filter(|c| c.is_startable())
         .map(|c| c.hwid)
         .collect();
     assert_eq!(

@@ -78,8 +78,8 @@ Every URL and fetch date is in `crates/jh7110_clock_and_reset/src/lib.rs`'s head
   out of reset. Linux's `jh71x0_reset_update` computes `done = mask` for a deassert (the JH7110
   passes `asserted = NULL`) and polls until `(value & mask) == done`. Getting this backwards
   produces a driver that waits forever on a device that came up correctly, which is why
-  `jh7110_clock_and_reset::deasserted` exists as one function with one test rather than as an expression at two
-  call sites.
+  `jh7110_clock_and_reset::is_deasserted` exists as one function with one test rather than as an
+  expression at two call sites.
 
 ## Where it lives, and who may drive it
 

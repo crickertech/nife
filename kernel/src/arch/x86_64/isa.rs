@@ -213,9 +213,10 @@ pub fn get() -> Isa {
 
 /// **Draw eight bytes with `RDSEED`, retrying a transient "no data this cycle" result.**
 ///
-/// `None` if [`get`]`().rdseed()` is false (never execute the instruction without checking first: on
-/// a part that lacks it, `RDSEED` is `#UD`, and this kernel has no exception recovery path for a
-/// probe that was told the answer already) or if the source stayed dry across every attempt.
+/// `None` if [`get`]`().has_rdseed()` is false (never execute the instruction without checking
+/// first: on a part that lacks it, `RDSEED` is `#UD`, and this kernel has no exception recovery
+/// path for a probe that was told the answer already) or if the source stayed dry across every
+/// attempt.
 ///
 /// The retry count and the `pause` between attempts are Intel's own guidance for `RDSEED`
 /// specifically (DRNG Software Implementation Guide rev. 2.2, §5.3.1.2): an "asynchronous
@@ -225,14 +226,14 @@ pub fn get() -> Isa {
 /// which this kernel-side copy exists only because ring 3 does not exist yet
 /// (milestone 161 (the `x86_64` kernel port)).
 pub fn draw_rdseed() -> Option<u64> {
-    if !get().rdseed() {
+    if !get().has_rdseed() {
         return None;
     }
     const RETRIES: u32 = 100;
     for _ in 0..RETRIES {
         let v: u64;
         let ok: u8;
-        // SAFETY: `rdseed` is unprivileged at any ring and touches no memory; `get().rdseed()`
+        // SAFETY: `rdseed` is unprivileged at any ring and touches no memory; `get().has_rdseed()`
         // above confirmed CPUID leaf 7 EBX bit 18, so the instruction is not `#UD` here.
         unsafe {
             core::arch::asm!(
@@ -382,7 +383,7 @@ mod tests {
     /// `None` from a part that has `RDSEED`, or as a `#UD` on one that does not.
     #[test_case]
     fn the_rdseed_bit_agrees_with_rdseed() {
-        if get().rdseed() {
+        if get().has_rdseed() {
             assert!(
                 draw_rdseed().is_some(),
                 "a part reporting RDSEED gave no seed in 100 tries"

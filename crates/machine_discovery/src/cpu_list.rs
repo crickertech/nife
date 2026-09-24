@@ -27,8 +27,8 @@
 //!   a machine. It cannot see *which* part it missed.
 //! - **`status`, `enable-method` and `supervisor` are recorded, not obeyed.** This module reports
 //!   what the tree said; *acting* on it is the caller's call, because the caller is the one that
-//!   knows what it can speak and where it runs. [`Cpu::startable`] is that caller's decision as a
-//!   predicate, kept here (one copy, host-testable against the board fixtures) and applied by
+//!   knows what it can speak and where it runs. [`Cpu::is_startable`] is that caller's decision as
+//!   a predicate, kept here (one copy, host-testable against the board fixtures) and applied by
 //!   `smp::read_cpu_list`, which is still the only place it has any effect.
 //! - **The `/cpus` node is found by name, not by binding.** There is no `compatible` on it to match;
 //!   the device tree specification names the node itself. Same simplification
@@ -121,7 +121,7 @@ impl Cpu {
     /// only mechanism), so demanding the property would refuse every RISC-V machine including the
     /// ones this kernel already runs on. `supervisor` is required because `status` can lie where a
     /// hart's own `riscv,isa` does not (bench, 2026-08-14; notes/visionfive2.md, the second stop).
-    pub fn startable(&self) -> bool {
+    pub fn is_startable(&self) -> bool {
         self.usable
             && self.supervisor
             && matches!(

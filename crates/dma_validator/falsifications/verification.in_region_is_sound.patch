@@ -1,6 +1,6 @@
 Falsifies `dma_validator::in_region_is_sound`.
 
-The defect: `in_region` checks the buffer's start against the region and stops
+The defect: `is_in_region` checks the buffer's start against the region and stops
 there, dropping `end <= limit`. This is the whole confinement reduced to a
 half-check, and it is the plausible half to lose: a driver's buffers all begin
 inside its own region, so every honest workload still works, every hand-written
@@ -21,7 +21,7 @@ index 9a6d0500..01b883c1 100644
 +++ b/crates/dma_validator/src/lib.rs
 @@ -106,7 +106,7 @@ pub const F_INDIRECT: u16 = 4;
  /// changes nothing the kernel actually sees. See the `in_region_is_sound` proof.
- pub fn in_region(base: u64, size: u64, addr: u64, len: u64) -> bool {
+ pub fn is_in_region(base: u64, size: u64, addr: u64, len: u64) -> bool {
      match (addr.checked_add(len), base.checked_add(size)) {
 -        (Some(end), Some(limit)) => addr >= base && end <= limit,
 +        (Some(_end), Some(_limit)) => addr >= base,

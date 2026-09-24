@@ -44,7 +44,7 @@ fn the_okay_s7_still_does_not_narrow_the_machine() {
         "the U74s' FPU survives: the S7's rv64imacu did not narrow the intersection"
     );
     assert!(
-        !cpu.heterogeneous(),
+        !cpu.is_heterogeneous(),
         "the four harts the kernel can run on are identical; heterogeneity was the S7's"
     );
     assert_eq!(cpu.mmu, MmuType::Sv39);
@@ -71,13 +71,13 @@ fn the_okay_s7_is_still_not_startable() {
         "rv64imacu spells user mode and omits supervisor: the node's one truthful property"
     );
     assert!(
-        !s7.startable(),
+        !s7.is_startable(),
         "the bring-up predicate must refuse hart 0, or OpenSBI dies on it again"
     );
     for (i, cpu) in list.cpus().iter().enumerate().skip(1) {
         assert_eq!(cpu.hwid, i as u64);
         assert!(
-            cpu.startable(),
+            cpu.is_startable(),
             "hart {i} is a U74 (rv64imafdcbsux spells its s) the kernel may start"
         );
     }
@@ -87,7 +87,7 @@ fn the_okay_s7_is_still_not_startable() {
     let startable: Vec<u64> = list
         .cpus()
         .iter()
-        .filter(|c| c.startable())
+        .filter(|c| c.is_startable())
         .map(|c| c.hwid)
         .collect();
     assert_eq!(

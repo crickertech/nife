@@ -293,7 +293,7 @@ fn a_fill_gathers_across_round_trips() {
 /// the ISA rather than assumed it, and recorded the refusal under "Follow-on" in
 /// `design/roadmap/162-cpu-instruction-entropy.md`.
 ///
-/// **`x86_64`'s `is_instruction_backend_available` arm now checks `arch::isa::get().rdseed()`**
+/// **`x86_64`'s `is_instruction_backend_available` arm now checks `arch::isa::get().has_rdseed()`**
 /// (ring 3 landed, milestone 161 (the `x86_64` kernel port) item 3), so this test's logic is
 /// complete on that architecture too. It does not yet run there in this suite: this whole module is
 /// `#[cfg(all(test, initrd))]`, and `kernel/build.rs::declare_initrd_cfg` has no `x86_64` arm until

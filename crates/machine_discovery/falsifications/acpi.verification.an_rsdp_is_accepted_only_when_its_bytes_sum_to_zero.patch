@@ -12,7 +12,7 @@ one: every hand-written test in the file that corrupts a byte and expects
 `BadChecksum` is a revision-2 RSDP, so the only test that would fail is one nobody
 wrote.
 
-Expected to fail: `assert!(checksum_ok(&bytes[..RSDP_V1_LEN]))`.
+Expected to fail: `assert!(is_checksum_ok(&bytes[..RSDP_V1_LEN]))`.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
 --- a/crates/machine_discovery/src/acpi.rs
@@ -21,7 +21,7 @@ diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src
      if &bytes[0..8] != RSDP_SIGNATURE {
          return Err(AcpiError::BadSignature);
      }
--    if !checksum_ok(&bytes[..RSDP_V1_LEN]) {
+-    if !is_checksum_ok(&bytes[..RSDP_V1_LEN]) {
 -        return Err(AcpiError::BadChecksum);
 -    }
      let revision = bytes[15];

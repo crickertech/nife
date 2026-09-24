@@ -7,7 +7,7 @@ what you write to test a set of flags and the second is what this line means. `t
 true for every address ever passed to it. The high half swallows the whole address space, and
 with it every check that says "refuse this, it is a kernel address".
 
-Expected to fail: `assert!(!(Ia32e::in_half(Half::Low, va) && Ia32e::in_half(Half::High, va)))`,
+Expected to fail: `assert!(!(Ia32e::is_in_half(Half::Low, va) && Ia32e::is_in_half(Half::High, va)))`,
 for any low-half address at all, `va == 0` included. That it fails so widely is the point: this
 defect makes the high-half test say nothing, and only a proof that quantifies over both tests at
 once notices, since each one alone still answers questions.

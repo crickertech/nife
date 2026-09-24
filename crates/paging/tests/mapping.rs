@@ -204,10 +204,10 @@ fn the_top_16_bits_are_not_translated_they_choose_the_TABLE() {
     // Which means the kernel does not live in the high half because high addresses index
     // somewhere else. It lives there because TTBR1 IS A DIFFERENT SET OF TABLES, and the
     // hardware picks between TTBR0 and TTBR1 using exactly those untranslated top bits.
-    assert!(Fmt::in_half(Half::High, high));
-    assert!(Fmt::in_half(Half::Low, low));
-    assert!(!Fmt::in_half(Half::Low, high));
-    assert!(!Fmt::in_half(Half::High, low));
+    assert!(Fmt::is_in_half(Half::High, high));
+    assert!(Fmt::is_in_half(Half::Low, low));
+    assert!(!Fmt::is_in_half(Half::Low, high));
+    assert!(!Fmt::is_in_half(Half::High, low));
 }
 
 #[test]
@@ -237,8 +237,8 @@ fn non_canonical_addresses_belong_to_neither_half() {
     // Top bits neither all-zero nor all-one. There is no memory there and there never can
     // be: the hardware faults before it consults any table.
     let junk = 0x0001_0000_0000_0000u64;
-    assert!(!Fmt::in_half(Half::Low, junk));
-    assert!(!Fmt::in_half(Half::High, junk));
+    assert!(!Fmt::is_in_half(Half::Low, junk));
+    assert!(!Fmt::is_in_half(Half::High, junk));
 }
 
 #[test]

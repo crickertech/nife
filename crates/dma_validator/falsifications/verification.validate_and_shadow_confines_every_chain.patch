@@ -11,7 +11,7 @@ descriptors on a failing chain, which is exactly the reasoning this defect abuse
 
 Expected to fail: the write closure's two invariants, `assert!(
 !landed.is_indirect(), "an indirect descriptor reached the shadow the device
-reads")` and `assert!(in_region(self.base, self.size, landed.addr,
+reads")` and `assert!(is_in_region(self.base, self.size, landed.addr,
 landed.buf_len()), "a descriptor that escapes the DMA region reached the shadow
 the device reads")`. The harness's own body has no assertion; the whole property
 is checked as each descriptor lands, so those two carry it. Confirmed: Kani

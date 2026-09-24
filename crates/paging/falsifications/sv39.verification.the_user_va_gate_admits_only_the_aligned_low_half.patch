@@ -10,7 +10,7 @@ about.
 
 Expected to fail: `assert_eq!(is_user_page_va::<Sv39>(va), va & 0xfff == 0 && va >>
 38 == 0)`, on any aligned non-canonical address. The second assertion,
-`assert!(Sv39::in_half(Half::Low, va) && !Sv39::in_half(Half::High, va))`, fails
+`assert!(Sv39::is_in_half(Half::Low, va) && !Sv39::is_in_half(Half::High, va))`, fails
 with it for the same address, and that is worth having: it is the one that says
 "in the user half" out loud rather than by arithmetic.
 
@@ -27,8 +27,8 @@ index 98df8b66..d02fdd32 100644
  ///
  /// Generic over the format so the split lands at the right bit for the running architecture.
  pub fn is_user_page_va<F: PageFormat>(va: u64) -> bool {
--    F::in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
-+    !F::in_half(Half::High, va) && va.is_multiple_of(PAGE_SIZE)
+-    F::is_in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
++    !F::is_in_half(Half::High, va) && va.is_multiple_of(PAGE_SIZE)
  }
  
  /// **The seam between the shared walk and a hardware page-table format.**

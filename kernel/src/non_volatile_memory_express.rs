@@ -281,7 +281,7 @@ impl NonVolatileMemoryExpress {
             // SAFETY: head < ENTRIES and ENTRIES 16-byte entries fit one frame; reads of our own
             // DMA region are always safe, whatever the device is writing there.
             let c = Completion::from_dwords(unsafe { core::ptr::read_volatile(cqe) });
-            if self.admin_cq.owned(&c) {
+            if self.admin_cq.is_owned(&c) {
                 done = Some(c);
                 break;
             }

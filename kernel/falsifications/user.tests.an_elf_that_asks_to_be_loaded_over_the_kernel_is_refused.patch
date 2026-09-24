@@ -31,7 +31,7 @@ index 903a72a4..de4c383c 100644
      pub fn map(&mut self, va: u64, pa: u64, flags: Flags) -> Result<(), MapError> {
          // The hardware selects the table set from the top bits before it touches an index, so
          // mapping a high address into the low tables would build a mapping the CPU never consults.
--        if !F::in_half(self.half, va) {
+-        if !F::is_in_half(self.half, va) {
 -            return Err(MapError::WrongHalf);
 -        }
 -

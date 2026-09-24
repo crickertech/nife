@@ -469,31 +469,34 @@ pub const SCREEN_HOLD: &str = "screen-hold";
 /// say) does not read as this one. Absence is the answer for an empty line, which is what every
 /// boot that is not a screen gate hands over.
 #[must_use]
-pub fn screen_hold(cmdline: &str) -> bool {
+pub fn has_screen_hold(cmdline: &str) -> bool {
     cmdline.split_ascii_whitespace().any(|w| w == SCREEN_HOLD)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Framebuffer, PixelOrder, screen_hold};
+    use super::{Framebuffer, PixelOrder, has_screen_hold};
 
     /// The token has to survive sitting *beside* the framebuffer description, because that is the
     /// only command line it is ever written on: the loader emits both or neither.
     #[test]
     fn the_hold_token_is_found_beside_a_framebuffer_and_nowhere_else() {
         let line = "screen=0x80000000,800,600,3200,bgrx screen-hold";
-        assert!(screen_hold(line), "the token is on this line");
+        assert!(has_screen_hold(line), "the token is on this line");
         assert!(
             Framebuffer::parse(line).is_some(),
             "and the framebuffer beside it still parses"
         );
-        assert!(!screen_hold(""), "an empty command line asks for nothing");
         assert!(
-            !screen_hold("screen=0x80000000,800,600,3200,bgrx"),
+            !has_screen_hold(""),
+            "an empty command line asks for nothing"
+        );
+        assert!(
+            !has_screen_hold("screen=0x80000000,800,600,3200,bgrx"),
             "a framebuffer alone asks for nothing"
         );
         assert!(
-            !screen_hold("screen-holder"),
+            !has_screen_hold("screen-holder"),
             "a longer word that merely starts this way is not this word"
         );
     }
