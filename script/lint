@@ -1845,6 +1845,26 @@ REGISTRY = {
 # moved twice in three weeks rather than 38 times in two.
 MARKER = re.compile(r'<!--count(-at-least|-at-most)?:([a-z0-9-]+)-->')
 
+# **A ratchet ceiling (2026-09-24): a ceiling that must also follow the tree DOWN.** An ordinary
+# ceiling is silent when the tree falls below it, which is right for a quantity with headroom and
+# wrong for one whose ceiling is meant to sit at the tree's exact value. `agents-md-lines` is the
+# case. Its ceiling was 935 when #1189 split AGENTS.md into imperatives plus `design/tenets/`
+# appendices and took the file to 584 lines, and from then on the gate would have let the file
+# regrow by 351 lines without a word: a fixed ceiling far above the file stops nothing. So a name in
+# this set fails in BOTH directions. Above the ceiling is the old failure (take the addition out, or
+# raise the ceiling with the reason beside it). Below it is new, and its only fix is to lower the
+# number, so every shrink is banked and the ceiling can only move down without a written raise.
+#
+# The shape is `unsafe-thread-safety-claims`' (a ceiling written at the tree's exact value) with the
+# slack direction closed, and the baseline stays where every counted claim's does: in the marker,
+# here in design/roadmap/118-constitution-budget.md. Not a separate baseline file, because the
+# marker already is one, and two places holding one number is the drift this convention exists to
+# end. BUGS: a raise is still an ordinary edit to that marker. Nothing here compares the number
+# against origin/main, because every raise on record (925 to 929, and before) was a considered act
+# with its reason written beside it, and a gate that forbade them would be deleted the first time
+# one was right. The raise shows in the diff; the reader of that diff is the check.
+RATCHET_CEILINGS = {'agents-md-lines'}
+
 # Prose explaining this convention has to be able to spell it, which is the same exemption the
 # "daemon" check below carries for the documents that argue about the word. A marker inside a
 # backtick span is being QUOTED, not asserted, so blank the spans before looking. Blanked rather
@@ -1974,6 +1994,11 @@ for line in grep.stdout.splitlines():
                            f'being true, so this means the count went UP by {actual - claimed} '
                            f'past the headroom. Take the addition back out, or raise the ceiling '
                            f'in this commit and say beside it why the addition was worth it')
+            elif claimed > actual and name in RATCHET_CEILINGS:
+                bad.append(f'{path}:{lineno}: claims at most {claimed}, the tree has {actual} '
+                           f'({name}: {REGISTRY[name][0]}). This ceiling is a ratchet (see '
+                           f'RATCHET_CEILINGS in script/lint): the count went DOWN, so bank it by '
+                           f'lowering the ceiling to {actual} in this commit')
         elif claimed != actual:
             bad.append(f'{path}:{lineno}: says {claimed}, the tree says {actual} '
                        f'({name}: {REGISTRY[name][0]})')
