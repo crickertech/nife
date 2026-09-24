@@ -323,6 +323,16 @@ MEASURES = [
     # headline number, so this file does not compute one.
     ('cost', ['human_person_weeks', 'lane_tokens', 'lane_wall_clock_hours',
               'price_per_mtok_at_date', 'cash_spend']),
+    # What a turn costs, from the same committed `effort.csv` as `cost` above (file name
+    # `context-per-turn.csv`, provisional, 2026-09-24, after the chart it feeds). These answer a
+    # different question from `lane_tokens`: not how much was spent, but what the unit of spending
+    # is. A turn is billed for the context it carried, and these say how large that was. Flows and
+    # a peak, never a stock: `lane_turns` and the share are per-week events, and
+    # `lane_context_per_turn_peak` is the largest single request in the week. The stock-versus-flow
+    # line is the one this file already draws for `built_by_week`, and it is drawn again here
+    # because this data is exactly the shape that invites the mistake.
+    ('context-per-turn', ['lane_turns', 'lane_cache_read_share_pct',
+                          'lane_context_per_turn_mean', 'lane_context_per_turn_peak']),
 ]
 
 # The flat row every metric function and `--table` still speaks in, derived from the split rather
@@ -823,7 +833,7 @@ def cash_by_week(through):
 
 
 def effort_by_week():
-    """{ISO week: (tokens, hours, blended usd per million tokens or '')} from `effort.csv`.
+    """{ISO week: dict of the cost and context figures} from `effort.csv`.
 
     `tokens` is every token class added together, which is the physical quantity and is the only
     thing on this page a reader can compare against another project's. The price is kept separate
@@ -834,6 +844,14 @@ def effort_by_week():
     priced over the part it can. A rate derived from three quarters of a week's tokens is not that
     week's rate, and a number that looks like a measurement is the one thing this page cannot
     afford to be casual with.
+
+    **The context figures ride along because they come out of the same rows**, and they answer the
+    other half of the cost question. `turns` is the request count. `read_share` is the cache-read
+    share of every token spent, which is the number that reframes the question: it is near 98% and
+    that is not waste, it is what carrying a long session's context costs. `context_mean` is the
+    whole prompt (input plus cache write plus cache read) over the turns that carried it, and
+    `context_peak` is the largest single request, which is a MAXIMUM over models rather than a sum
+    for the reason `script/effort`'s `MAXED` gives: adding two peaks invents a request nobody made.
     """
     if not EFFORT_PATH.exists():
         return {}
@@ -846,7 +864,8 @@ def effort_by_week():
             continue
         row = dict(zip(header, line.split(',')))
         week = row['week']
-        held = weeks.setdefault(week, {'tokens': 0, 'hours': 0.0, 'usd': 0.0, 'priced': True})
+        held = weeks.setdefault(week, {'tokens': 0, 'hours': 0.0, 'usd': 0.0, 'priced': True,
+                                       'turns': 0, 'context': 0, 'read': 0, 'peak': 0})
         counts = {
             'input': int(row.get('input_tokens') or 0),
             'cache_write_5m': int(row.get('cache_write_5m_tokens') or 0),
@@ -857,6 +876,11 @@ def effort_by_week():
         total = sum(counts.values())
         held['tokens'] += total
         held['hours'] += float(row.get('machine_hours') or 0.0)
+        held['turns'] += int(row.get('requests') or 0)
+        held['read'] += counts['cache_read']
+        # The prompt, however it was billed. Output is what the model wrote and is not context.
+        held['context'] += total - counts['output']
+        held['peak'] = max(held['peak'], int(row.get('peak_context_tokens') or 0))
         rate = rates.get(row['model'])
         if rate is None:
             # A model with no rate and no tokens is the harness's `<synthetic>` label, which nobody
@@ -872,7 +896,17 @@ def effort_by_week():
         blended = ''
         if held['priced'] and held['tokens']:
             blended = '%.3f' % (held['usd'] * 1_000_000.0 / held['tokens'])
-        out[week] = (held['tokens'], held['hours'], blended)
+        out[week] = {
+            'tokens': held['tokens'],
+            'hours': held['hours'],
+            'blended': blended,
+            'turns': held['turns'],
+            # Per cent to one place, not a fraction, because that is how the page quotes it and a
+            # column a reader has to multiply by a hundred is a column they will misread once.
+            'read_share': (100.0 * held['read'] / held['tokens']) if held['tokens'] else None,
+            'context_mean': (held['context'] / held['turns']) if held['turns'] else None,
+            'peak': held['peak'] or None,
+        }
     return out
 
 
@@ -1731,6 +1765,11 @@ CHARTS = [
      'a ratio, not a total: down means the method got cheaper. Weeks with no surviving records are '
      'marked, not zeroed',
      [('million tokens per milestone', 'tokens_per_milestone')], 1.0, None, 'lane_tokens'),
+    ('context-per-turn.svg', 'What a turn carried, in thousands of tokens of context',
+     'mean prompt per request, from the same records as the row above; the bill tracks this, not '
+     'the length of the answer. Weeks with no surviving records are marked, not zeroed',
+     [('thousand tokens of context per turn', 'lane_context_per_turn_mean')], 1000.0, None,
+     'lane_context_per_turn_mean'),
     ('coverage.svg', 'Host-crate line coverage, per cent',
      'each week by its own script/coverage; 2026W29 predates the script',
      [('line coverage', 'coverage_lines_pct')], 1.0, (80, 'floor'), 'coverage_lines_pct'),
@@ -1786,10 +1825,20 @@ def fill_derived(rows, rev):
         row['milestones_built_this_week'] = built.get(week, 0)
         row['merged_pull_requests'] = merged.get(week, 0)
         row.update(models.get(week, {}))
-        tokens, hours, blended = effort.get(week, (None, None, ''))
+        held = effort.get(week) or {}
+        tokens, hours = held.get('tokens'), held.get('hours')
         row['lane_tokens'] = '' if tokens is None else tokens
         row['lane_wall_clock_hours'] = '' if hours is None else '%.1f' % hours
-        row['price_per_mtok_at_date'] = blended
+        row['price_per_mtok_at_date'] = held.get('blended', '')
+        # Absent is absent here too, and for the same reason one line up: the first five weeks of
+        # this project have no session records left anywhere, and a zero in a context column would
+        # be read as a week of cheap turns rather than as a week nobody can see.
+        row['lane_turns'] = held.get('turns') or ''
+        share = held.get('read_share')
+        row['lane_cache_read_share_pct'] = '' if share is None else '%.1f' % share
+        mean = held.get('context_mean')
+        row['lane_context_per_turn_mean'] = '' if mean is None else '%d' % mean
+        row['lane_context_per_turn_peak'] = held.get('peak') or ''
         # Cash is the one cost column a missing week CAN be zero in, and the difference is that the
         # evidence exists. The ledger is complete by construction: it records every payment, so a
         # week with no row in it is a week nothing was paid, not a week nobody looked.

@@ -969,6 +969,83 @@ and the column is carried through every rewrite so that a hand-edited week survi
 backfill. It is accurate to the bucket the comparisons need (seL4 at about eleven person-years plus
 nine more for the proof; Atmosphere at 1.5 person-years on verification) and no better.
 
+### What a turn costs
+
+**A turn costs roughly the size of its context, not the size of its thought.** Measured on
+2026-09-24 across every session record this machine holds: **cache reads are about 98% of all tokens
+spent**, cache creation about 1%, uncached input effectively 0%, and **output about 0.1%**. The mean
+prompt per request runs between 230,000 and 359,000 tokens across the captured weeks, and the
+largest single request in every one of them sits between 933,000 and 1,000,000 against a 1M window.
+
+**That is not a claim that 98% is waste, and reading it that way would be wrong.** Carrying context
+is what makes a long session coherent: it is why a lane can be told a hazard once, why a maintainer
+can resolve a conflict without re-reading the tree, and why the method in `AGENTS.md` principle 2
+works at all. The finding is about **where the bill goes**, not about whether the spending buys
+anything. What it does say is that the lever everyone reaches for first is the wrong one: choosing a
+cheaper model prices the output, and output is a tenth of one per cent of the tokens.
+
+**The columns are flows and a peak, never a stock.** `lane_turns`, `lane_cache_read_share_pct` and
+`lane_context_per_turn_mean` are per-week events over that week's requests;
+`lane_context_per_turn_peak` is the largest single request in the week and is a maximum rather than a
+sum, so adding two of them would invent a request nobody made. This page has already paid for
+confusing the two, one series up: *"this chart does not reconcile with the `Built` stock, and that is
+the design"* above is the same distinction, found the hard way on 2026-09-23 by diffing a snapshot
+between two rows and getting a different answer from the flow. The rule is not re-argued here; it is
+cited.
+
+### Why the mean is charted, and what happened to the median and the peak
+
+**Peak is measured and not drawn, because it saturates.** Every captured week peaks within 7% of the
+model's 1M context window. That answers "did a session run to the wall this week" (yes, every week),
+which is worth knowing and is worth exactly one bit; a chart of it would be a flat line read as a
+trend. It stays in `notes/project-metrics/context-per-turn.csv` and in `effort.csv`, where a week that fell
+well short would be visible as news.
+
+**Median was refused, and the reason is the instrument rather than taste.** `script/effort` survives
+a pruned transcript by merging every column as a maximum against an older machine-local snapshot,
+which works because a sum and a peak both only go up as more of a week is seen. A median does not
+combine that way: two honest partial views of a week cannot produce the week's median without the
+per-request numbers underneath, and those are precisely what gets discarded. Storing one would mean
+keeping a per-request history, which is a much larger promise than this measurement has earned.
+
+**So the mean is the series.** It is arithmetic over columns the file already carries (input plus
+cache write plus cache read, over `requests`), which is why it is derived at write time rather than
+stored twice.
+
+### This panel is the checkpoint, and that is the design rather than a side effect
+
+calef asked on 2026-09-24: *"How do we set a checkpoint to re-evaluate that will not be forgotten?"*
+The question was about a decision being deliberately deferred, which is **whether to impose a session
+length limit on the agent harness, and at what threshold**. No threshold has been set, and
+`AGENTS.md`'s *measure first, then decide* is the reason: a threshold chosen before the data exists
+is no better than one chosen under attachment, and one measurement is not a distribution.
+
+A checkpoint that lives in a calendar reminder or a conversation is in exactly the medium this
+project keeps abolishing. **This panel is the mechanism instead: nobody has to remember to look,
+because the number arrives in front of whoever reads this page.** Each week it either moves or it
+does not, and a reader who has never heard of the deferred decision still sees the quantity it
+depends on.
+
+The decision itself has a home with a trigger, in `design/roadmap/proposals/`, and the trigger is
+stated as *enough weeks to show a distribution, judged by reading these bars* rather than as a week
+count, because a count is the same threshold-chosen-in-ignorance the tenet refuses.
+
+### This instrument has the same deadline as the rest of the cost section
+
+Stated here rather than only in the proposal, because a reader meets the number here.
+
+- **These records are not in git.** They live under `~/.claude/projects/` on one laptop and nothing
+  promises to keep them. `script/effort`'s header records **2026W29 through 2026W33 as
+  unrecoverable**, which is the first five weeks of this project already gone, and a per-turn context
+  history has exactly the same deadline.
+- **It cannot backfill.** Every other column on this page is computed from a git revision. These
+  four cannot be, so a week nobody captured is a week nobody will ever capture.
+- **It measures one machine.** With a second contributor, or work done anywhere but patagonia, this
+  is a sample of one workstation presented as a project figure. It is honest today because there is
+  one machine; it stops being honest silently.
+- **`--snapshot` is what makes forgetting survivable** and it is rung two of `AGENTS.md`'s ladder,
+  not rung four. The plist is in "How it stays current" below.
+
 ### Architecture decisions by status
 
 From `design/decisions/README.md`. The grey band in the first three weeks is the honest bucket: a
