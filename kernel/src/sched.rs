@@ -1939,8 +1939,10 @@ fn install_cycle_counter_grant(granted: bool) {
     crate::arch::timer::set_cycle_counter_grant(granted);
 }
 
-/// Install the incoming thread's x86 port grant into the core about to run it, immediately after its
-/// address-space root and cycle-counter grant. The lazy write lives in `arch::segments`.
+/// Install the incoming thread's x86 port grant into the core about to run it, at the last point
+/// `IPC_TABLES` is held; milestone 315 (a port revoke that reaches every core) moved it there and
+/// the call site says why. The lazy write
+/// lives in `arch::segments`.
 ///
 /// **`x86_64` only, and both the read (in `schedule`) and this install are `#[cfg]`-gated at the
 /// switch site**, not carried through the shared switch tuple. An earlier version threaded the value
@@ -1986,13 +1988,6 @@ pub fn schedule() {
     // correct: when someone eventually switches back to us, `switch_to` returns here, and this
     // frame (with the right `was_enabled` in it) is still sitting where we left it.
     let was_enabled = crate::arch::interrupts::disable();
-
-    // The incoming thread's x86 port grant, carried out of the decision block below without widening
-    // the switch tuple (milestone 299). Declared here, written inside the block under the lock, read
-    // at the install site after the lock drops; `None` unless the block decides to switch. `x86_64`
-    // only, so the other two architectures' `schedule()` gains nothing at all. See `install_port_grant`.
-    #[cfg(target_arch = "x86_64")]
-    let mut next_port_grant: Option<(u16, u16)> = None;
 
     // The incoming thread's cycle-counter grant, carried out of the decision block the same way and
     // for the same reason (milestone 300, the fix milestone 299 gave the port grant just above).
@@ -2199,14 +2194,33 @@ pub fn schedule() {
         };
         #[cfg(target_arch = "x86_64")]
         // SAFETY: as the arm above, plus the port grant, which is a plain field read.
-        let (next_ctx, next_fp): (*mut Context, *const crate::arch::fp::FpState) = unsafe {
+        let (next_ctx, next_fp, next_port_grant): (
+            *mut Context,
+            *const crate::arch::fp::FpState,
+            Option<(u16, u16)>,
+        ) = unsafe {
             let next_ptr = sched.threads.pointer(next).unwrap();
-            next_port_grant = (*next_ptr).port_range_grant;
             (
                 (*next_ptr).context,
                 crate::thread::fp_state_of(next_ptr).cast_const(),
+                (*next_ptr).port_range_grant,
             )
         };
+
+        // **The incoming thread's authority to reach x86 I/O ports from ring 3, installed here and
+        // not after the lock drops** (milestone 315; it was beside the address-space install until
+        // then). The TSS I/O-bitmap grant is the one per-core fact a *revocation* has to be able to
+        // take back from a core it is not running on, and `delete_port_range_caps_impl` does that by
+        // NMI while holding this lock. Reading the grant under the lock and installing it outside
+        // left two windows that broadcast could not close: a core could install a grant the sweep had
+        // already cleared, and the NMI could land in the middle of the install. Both shut if every
+        // writer of a bitmap holds `IPC_TABLES`, which costs, on a machine where nothing holds a
+        // port, one compare inside the critical section instead of one outside it.
+        //
+        // Nothing can execute a ring-3 `in`/`out` between here and the switch: this core is in the
+        // kernel with interrupts masked the whole way.
+        #[cfg(target_arch = "x86_64")]
+        install_port_grant(next_port_grant);
 
         Some((prev_slot, next_ctx, next_root, prev_fp, next_fp))
     };
@@ -2239,12 +2253,6 @@ pub fn schedule() {
         // below. See `arch::timer::set_cycle_counter_grant` and `install_cycle_counter_grant`.
         #[cfg(any(test, feature = "cycle_counter_grant"))]
         install_cycle_counter_grant(next_cycle_counter);
-
-        // And the incoming thread's authority to reach x86 I/O ports from ring 3, the same shape of
-        // per-core, one-register fact: the TSS I/O-bitmap grant the lazy write installs only when it
-        // crosses a holder. `#[cfg]`-gated, not folded: it exists on no other architecture's switch.
-        #[cfg(target_arch = "x86_64")]
-        install_port_grant(next_port_grant);
 
         // And the register file the two threads are about to share a core over (milestone 447).
         // This is beside `switch_to` rather than inside it because the two save different
@@ -3418,25 +3426,35 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) 
                 t.port_range_grant = None;
             }
         }
+        // Reach the TSS of **every** core that might already hold the revoked bitmap, before
+        // releasing the lock (milestone 315). Clearing the cached grant above is not enough on a
+        // multi-core machine: a holder running on another core keeps that core's bitmap until its
+        // next context switch, so its `in`/`out` kept succeeding for up to a tick after this
+        // returned. Milestone 313's audit accepted that window on the reasoning that it could not
+        // reopen; at two cores it was red in 7 of 12 runs of the test written to see it.
+        //
+        // **Inside the lock, and that is the whole of why the broadcast is safe.** The far end
+        // writes a core's TSS from an NMI handler, which lands at an arbitrary instruction
+        // boundary; holding `IPC_TABLES` across the send is what guarantees no other core is
+        // inside `install_port_grant` at that instant, and equally that none can read a grant this
+        // sweep has already cleared and install it behind the broadcast's back. `schedule`'s
+        // install was moved under the lock in the same change, and `segments::set_port_range_grant_on`
+        // states the resulting rule at the writer.
+        //
+        // The NMI is forced rather than chosen: it is the only message an x86 core takes while it
+        // spins for this very lock with interrupts masked (notes/x86-tlb-shootdown.md). A no-op on
+        // every architecture with no TSS.
+        #[cfg(target_arch = "x86_64")]
+        crate::arch::segments::revoke_port_grant_everywhere(base, count);
     }
-    // Reach the TSS of the core that might already hold the revoked bitmap. This resets **the
-    // revoker's core only**. That was the whole machine when it was written ("`smp::bring_up_secondaries`
-    // refuses on `x86_64`", which stopped being true when `smp::seat_cpus_from_acpi` landed: the x86
-    // tour boots two cores under OVMF, notes/x86-uefi-boot.md). On a multi-core x86 a holder that is
-    // *running on another core* keeps its installed bitmap until that core's next context switch,
-    // so its `in`/`out` succeed for up to one tick after this returns. The cached grant is already
-    // cleared above, so the window closes at the switch and cannot reopen. The IPI shootdown that
-    // would close it at once (the shape of the TLB shootdown, notes/x86-tlb-shootdown.md) is not built; milestone
-    // 313's audit records the window and proposes it. A no-op on every architecture with no TSS.
-    #[cfg(target_arch = "x86_64")]
-    crate::arch::segments::revoke_installed_port_grant(base, count);
 }
 
 /// Remove a capability from the **current thread's** table. Used to consume a one-shot Reply
 /// capability the instant it is invoked (§12), which is what makes a second reply impossible.
 ///
 /// **On `x86_64`, deleting the `PortRange` capability behind the thread's cached port grant also
-/// drops the grant** (milestone 313's audit, 2026-09-17). A port range is enforced by
+/// drops the grant** (the audit in milestone 313 (the security audit that was due since August),
+/// 2026-09-17). A port range is enforced by
 /// `Thread::port_range_grant` and the TSS bitmap the context switch installs from it, not by the
 /// capability table, so until this was added a thread that `SYS_CAP_DELETE`d its own port capability
 /// kept `in`/`out` access to those ports for the rest of its life: the table said the authority was
@@ -3481,12 +3499,15 @@ pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
         if dropped_port_grant.is_some() {
             t.port_range_grant = None;
         }
-    }
-    // Outside the lock, as `delete_port_range_caps_impl` does: the caller is the thread whose grant
-    // is installed in this core's TSS, so the core-local reset is the whole of the revocation here.
-    #[cfg(target_arch = "x86_64")]
-    if let Some((base, count)) = dropped_port_grant {
-        crate::arch::segments::revoke_installed_port_grant(base, count);
+        // Under the lock, with `delete_port_range_caps_impl`'s broadcast and for its reason
+        // (milestone 315): every writer of a TSS port bitmap holds `IPC_TABLES`, so a revocation
+        // NMI cannot land inside one. No broadcast is owed here. The caller is the thread whose
+        // grant is installed, a core's bitmap only ever permits a range for the thread currently
+        // running on it, and that thread is running here, so this core is the only core to tell.
+        #[cfg(target_arch = "x86_64")]
+        if let Some((base, count)) = dropped_port_grant {
+            crate::arch::segments::revoke_installed_port_grant(base, count);
+        }
     }
     Ok(())
 }

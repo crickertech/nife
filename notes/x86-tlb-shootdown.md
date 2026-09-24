@@ -141,15 +141,42 @@ shootdown:
 and passes with it. The suite then reaches `test result: ok. 177 passed` at `NIFE_SMP=2`, and 20
 further runs produced no paint fault at all.
 
-**It is verified rather than gated, and the difference is honest.** `scripts/qemu-runner-x86_64.sh`
-still defaults `NIFE_SMP` to 1, because other failures on this port are open and either can fail a
-two-core run. The boot-core-identity bug that made `smp::tests::every_secondary_runs_scheduled_work`
-fail about half the time at two was fixed by milestone 316, and the AP-bring-up flake (`ap_boot`'s
-`BUGS` #1, a started core counted as absent) by milestone 161 on 2026-09-19; what remains is, not
-an SMP bug at all, the one-tick port-revocation window that makes `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
-intermittently red at two cores (milestone 313's audited window, milestone 315's target). All are
-recorded in `arch::x86_64::ap_boot`'s `BUGS`. So CI does not exercise this code, and will not until
-the default can move.
+**It is gated as of 2026-09-23, and it took three more fixes to get there.**
+`scripts/qemu-runner-x86_64.sh` defaulted `NIFE_SMP` to 1 for a year of this port's life because
+other failures could fail a two-core run, and they were closed one at a time: the boot-core-identity
+bug that made `smp::tests::every_secondary_runs_scheduled_work` fail about half the time at two
+(milestone 316 (which core booted)), the AP-bring-up flake that counted a started core as absent (`ap_boot`'s `BUGS` #1,
+milestone 161 (the x86_64 kernel port), 2026-09-19), and last the one-tick port-revocation window
+that made
+`user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` red in 7 of 12 two-core runs
+(milestone 315 (a port revoke that reaches every core), below). All are recorded in `arch::x86_64::ap_boot`'s `BUGS`. The default is now 2,
+so every `script/test --arch x86_64` exercises this code.
+
+## A second rider: taking a port grant off another core
+
+Milestone 315, 2026-09-23. `PortRange::REVOKE` deleted the capability and cleared the cached grant
+under `sched::IPC_TABLES`, then reset the TSS I/O permission bitmap **on the revoker's core only**,
+which was the whole machine when it was written and stopped being so when `smp::seat_cpus_from_acpi`
+landed. A holder running on the other core kept that core's bitmap until its next context switch, so
+its `in`/`out` went on succeeding against a capability that no longer existed.
+
+It rides this protocol, with `SHOOTDOWN_KIND` saying which of the two steps the round is for and
+`SHOOTDOWN_VA` carrying a packed `(base, count)` instead of an address. Reusing it rather than
+writing a second one is the point: the acknowledgement mask, the single-round lock and the NMI
+delivery are the parts that are hard, and there is no second copy of them to keep in step. And the
+NMI is forced here for the same reason as for a page: the target core is routinely spinning for
+`IPC_TABLES` with interrupts masked, because the revoker is holding it.
+
+**The lock is what makes the far end safe**, and it is worth stating as a rule because the handler
+writes a TSS from an arbitrary instruction boundary: a core's port bitmap is written only by a
+thread holding `IPC_TABLES`, or by an NMI such a thread sent. Milestone 315 moved `schedule`'s
+`install_port_grant` inside the locked region to make that true; before it, a core could read a
+grant the revoke sweep had already cleared and install it behind the broadcast's back, and the NMI
+could land in the middle of an install.
+
+The evidence was a snapshot of `INSTALLED_PORT_GRANT` taken at the revoke and printed by the test:
+on both captured failures it read "revoker on cpu 0, cpu 1 holds a grant", and every passing run
+either had no grant installed anywhere or had the holder switch away in time.
 
 ## BUGS
 

@@ -16,8 +16,9 @@
 //!
 //! **Three failures were found bringing this up, and all three are now root-caused and fixed.**
 //! They are kept here because this is where each was found and where a reader meets the symptom.
-//! `scripts/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1, and the one thing now holding it
-//! there is not a bring-up bug at all (see the end of #3).
+//! `scripts/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to **2** since 2026-09-23; the last thing
+//! holding it at 1 was not a bring-up bug at all (see the end of #3). Three or more cores is still
+//! opt-in and unmeasured on silicon.
 //!
 //! **1. A secondary was reported "did not start" when it had started. FIXED 2026-09-19 (milestone
 //! 161).** The symptom as first recorded: at `-smp 3` and above, one secondary per boot typically
@@ -106,21 +107,23 @@
 //! RISC-V's `BOOT_HARTID` already had and this port was missing. Both symptoms went with it, and
 //! the suite reaches `test result: ok. 245 passed` at two cores.
 //!
-//! **`NIFE_SMP` still defaults to 1**, and milestones 316 and 161 changed *which* open thing holds
-//! it there: #1 and #3 are both closed. The two-core suite is not yet clean for a reason that is not
-//! an SMP bring-up bug at all: `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes
-//! red intermittently at two cores, because `sched::delete_port_range_caps_impl` resets the TSS I/O
-//! bitmap on **the revoker's core only**, so a holder running on the other core keeps the ports for
-//! up to one tick. That window is milestone 313's audit's, recorded and accepted at that function,
-//! and milestone 315 is the lane that closes it. It is a real confinement defect the second core
-//! makes visible rather than a flake, which is worth more than a green run: the suite already
-//! contains the two-core observer milestone 315 was going to have to write.
+//! **`NIFE_SMP` defaults to 2 since 2026-09-23**, by milestone 315 (a port revoke that reaches
+//! every core), and #1, #2 and #3 are all closed.
+//! The last thing holding the default at 1 was not an SMP bring-up bug at all:
+//! `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` went red intermittently at
+//! two cores, because `sched::delete_port_range_caps_impl` reset the TSS I/O bitmap on **the
+//! revoker's core only**, so a holder running on the other core kept the ports until its next
+//! context switch. That window was found by the audit in milestone 313 (the security audit that
+//! was due since August), recorded and accepted at that function,
+//! and it was a real confinement defect the second core made visible rather than a flake: 7 of 12
+//! full two-core runs and 5 of 30 filtered ones, every failure the same assertion.
+//! `segments::revoke_port_grant_everywhere` closes it by broadcasting the reset over #2's NMI.
 //!
-//! #2's fix is verified rather than gated: `user::tests::an_asid_flush_reaches_the_other_cores`,
-//! the portable test milestone 58 wrote for exactly this property, **fails on this port without
-//! the shootdown and passes with it**. It cannot be a CI gate until the default moves, and the
-//! default cannot move until the revocation window is answered (DECISIONS §153: close milestone
-//! 315, then default to 2).
+//! #2's fix is therefore **gated** now rather than only verified:
+//! `user::tests::an_asid_flush_reaches_the_other_cores`, the portable test milestone 58 (RISC-V TLB
+//! shootdown) wrote for
+//! exactly this property, fails on this port without the shootdown and passes with it, and with two
+//! cores the default it runs on every `script/test --arch x86_64`.
 //!
 //! #1 was this port's own bug and not TCG's, so milestone 87's hardware is no longer needed to
 //! settle it; xenon (`bench/xenon-2026-09-17/first-light-095500.log`, four processors) has still
