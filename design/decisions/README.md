@@ -130,28 +130,28 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 17 | DECIDED | [The second architecture: RISC-V, and the page-table format trait](17-riscv-second-architecture.md) |
 | 18 | DECIDED | [The PCIe transport: one driver, two buses, the seam in the kernel](18-pcie-transport.md) |
 | 19 | DECIDED | [Architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64](19-architectural-parity.md) |
-| 20 | DECIDED | [IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b)](20-iommu-dma-isolation.md) |
+| 20 | DECIDED | [IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b (real hardware and IOMMU-backed driver isolation))](20-iommu-dma-isolation.md) |
 | 21 | AMENDED | [The terminal is a userspace component, and the kernel is out of the shell business (milestone 28)](21-terminal-in-userspace.md) |
 | 22 | AMENDED | [Rust `std` on the native ABI, the Hermit way (milestone 27)](22-rust-std-on-the-native-abi.md) |
-| 23 | DECIDED | [Multi-queue DMA confinement: the validator's second direction (milestone 30)](23-multi-queue-dma-confinement.md) |
+| 23 | DECIDED | [Multi-queue DMA confinement: the validator's second direction (milestone 30 (the network stack as a confined component))](23-multi-queue-dma-confinement.md) |
 | 24 | AMENDED | [Interrupting the foreground process: two-tier, shell-held, no new kernel surface](24-interrupting-the-foreground.md) |
 | 25 | DECIDED | [Socket identity: a socket id in phase one, minted endpoints as the tracked later step](25-socket-identity.md) |
 | 26 | AMENDED | [The fault endpoint: thread death becomes a message a supervisor holds](26-fault-endpoint.md) |
 | 27 | AMENDED | [The filesystem service: a capability-shaped contract over a component we did not write (milestone 32 phase 2)](27-filesystem-service.md) |
 | 28 | AMENDED | [SMP placement: two random choices at spawn, message-shaped stealing, local wakes](28-smp-placement.md) |
-| 29 | DECIDED | [The framebuffer is a bigger grant, not an exemption (milestone 29, the display ladder's rung one)](29-framebuffer-grant.md) |
-| 30 | DECIDED | [The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35)](30-dma-boundary-proof.md) |
-| 31 | DECIDED | [The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36)](31-foreign-language-seam.md) |
+| 29 | DECIDED | [The framebuffer is a bigger grant, not an exemption (milestone 29 (a display terminal), the display ladder's rung one)](29-framebuffer-grant.md) |
+| 30 | DECIDED | [The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35 (prove the DMA-confinement boundary))](30-dma-boundary-proof.md) |
+| 31 | DECIDED | [The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36 (a foreign-language component, seam first))](31-foreign-language-seam.md) |
 | 32 | DECIDED | [A supervisor may collect a corpse without being able to build one](32-reap-without-build.md) |
-| 33 | DECIDED | [The compositor's authority is memory, not messages (milestone 33, the display ladder's rung two)](33-compositor-authority.md) |
+| 33 | DECIDED | [The compositor's authority is memory, not messages (milestone 33 (a compositor), the display ladder's rung two)](33-compositor-authority.md) |
 | 34 | AMENDED | [RedoxFS is the primary filesystem, on three conditions](34-redoxfs-primary.md) |
 | 35 | DECIDED | [What a scanner is for here, and how its findings get dispositioned](35-scanner-findings.md) |
 | 36 | DECIDED | [The repository is part of the TCB (milestones 44 and 42)](36-repository-in-the-tcb.md) |
-| 37 | DECIDED | [Text is a value three witnesses compute, not a screenshot (milestone 29's remaining increment)](37-text-as-a-value.md) |
-| 38 | DECIDED | [A suppression is scoped to an item and carries a reason, or it does not ship (milestone 41)](38-scoped-suppressions.md) |
+| 37 | DECIDED | [Text is a value three witnesses compute, not a screenshot (the remaining increment of milestone 29 (a display terminal))](37-text-as-a-value.md) |
+| 38 | DECIDED | [A suppression is scoped to an item and carries a reason, or it does not ship (milestone 41 (dead code: triage the suppressions))](38-scoped-suppressions.md) |
 | 39 | DECIDED | [A component is named for what it is, and nothing is named for a daemon](39-component-names.md) |
 | 40 | DECIDED | [A supervisor's death is its subtree's death; there is no reaper of last resort](40-no-reaper-of-last-resort.md) |
-| 41 | DECIDED | [The endpoint is the broker, and a device is revoked by taking it back (milestone 23)](41-endpoint-as-broker.md) |
+| 41 | DECIDED | [The endpoint is the broker, and a device is revoked by taking it back (milestone 23 (a capability-routed component OS with live replacement))](41-endpoint-as-broker.md) |
 | 42 | AMENDED | [A filesystem declares what it offers and must be truthful; it is not required to be capable](42-truthful-filesystem.md) |
 | 43 | DECIDED | [Reading the clock is a page, setting it is a page you may write, proposing is an endpoint](43-clock-authority.md) |
 | 44 | DECIDED | [Entropy is a capability, `std::random` improves transparently, and the refusal is loud](44-entropy-capability.md) |

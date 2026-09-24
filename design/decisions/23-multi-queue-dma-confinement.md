@@ -5,7 +5,7 @@ decided: 2026-07-28
 ratified_by: calef
 ---
 
-# 23. Multi-queue DMA confinement: the validator's second direction (milestone 30)
+# 23. Multi-queue DMA confinement: the validator's second direction (milestone 30 (the network stack as a confined component))
 
 **Decided and built 2026-07-28.** A virtio-net device needs two virtqueues (receive on queue 0,
 transmit on queue 1), and receive is the direction where the *device writes into* the driver's

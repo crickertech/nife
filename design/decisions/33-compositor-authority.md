@@ -5,7 +5,7 @@ decided: 2026-07-30
 ratified_by: calef
 ---
 
-# 33. The compositor's authority is memory, not messages (milestone 33, the display ladder's rung two)
+# 33. The compositor's authority is memory, not messages (milestone 33 (a compositor), the display ladder's rung two)
 
 **Built 2026-07-29**, both ISAs, in QEMU. One screen multiplexed among mutually distrusting clients,
 each holding a capability to its own surface: software composition honouring a damage rectangle, input

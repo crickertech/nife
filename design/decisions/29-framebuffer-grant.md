@@ -5,7 +5,7 @@ decided: 2026-07-30
 ratified_by: calef
 ---
 
-# 29. The framebuffer is a bigger grant, not an exemption (milestone 29, the display ladder's rung one)
+# 29. The framebuffer is a bigger grant, not an exemption (milestone 29 (a display terminal), the display ladder's rung one)
 
 **Built 2026-07-29**, both ISAs, in QEMU. The demonstrator's first pixels: a userspace virtio-gpu
 driver that puts a known image in a scanout framebuffer, confined exactly like the disk and net
