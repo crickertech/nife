@@ -279,7 +279,8 @@ reader would be gating something a bench run does not measure.
    read as a good one. `cargo xtask board-console --until machine|selftest|prompt`. Eight new host
    tests.
 6. **CI fails on a red verdict**: `script/boot-check`, a `local` row in `script/ci-build`'s table
-   (milestone 286's one enumeration), named by CI's test job beside `test` and `swish-check`.
+   (milestone 286 (one enumeration of the checks that gate a pull request)), named by CI's test job
+   beside `test` and `swish-check`.
 
 ### `crates/boot_ladder`, which was not in the plan
 

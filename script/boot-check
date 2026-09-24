@@ -65,7 +65,7 @@
 # exits). Run it when you touch the boot path, the machine description, the self-tests, or what the
 # hand-over grants userspace.
 #
-# Name: provisional (milestone 268). It sits beside `script/swish-check` and is named the same way,
+# Name: provisional (milestone 268 (every architecture boots the same way)). It sits beside `script/swish-check` and is named the same way,
 # which is deliberate and also inherits that name's recorded problem: `script/lint` runs
 # `shellcheck`, and this family of `-check` entry points is one hyphen from several unrelated
 # things. calef has not ruled.

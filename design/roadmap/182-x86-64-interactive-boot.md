@@ -6,7 +6,7 @@ own interactive-boot entry point first") needs a from-scratch ELF-loading boot p
 substantially larger, separate undertaking than pieces 1-2's device attachment and program swap.
 Built in part on 2026-09-14, inside [milestone 268](268-the-boot-ladder.md)'s lane, because 268's
 top rung on x86_64 is not reachable any other way; the prompt came with
-[milestone 299](299-x86-port-capability.md) on 2026-09-15; the third `script/swish-check` leg,
+milestone 299 (the x86 port-range capability) on 2026-09-15; the third `script/swish-check` leg,
 the last outstanding item, on 2026-09-19 (below, "The third leg").
 
 DECISIONS §149 was resolved 2026-09-15 by reversing DECISIONS §121 (`AMENDED`):

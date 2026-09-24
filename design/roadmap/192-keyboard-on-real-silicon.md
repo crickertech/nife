@@ -266,7 +266,8 @@ fatal-risk list that months of driver work is a reasonable thing to spend.
 - **Milestone 242.** Option B, the xHCI driver, USB core and HID keyboard, plus the scoping pass
   this block asks for, is `design/roadmap/242-usb-host-and-a-keyboard-that-is-not-a-uart.md`,
   minted 2026-09-03 by calef precisely so option B stops being priced as a line item here.
-- **Milestone 230.** `script/swish-check` red on `main` with a virtio-rng attached was not unowned:
+- **Milestone 230.** That is milestone 230 (`script/shell-check` is red on `main`), which keeps the
+  name the script had then. `script/swish-check` red on `main` with a virtio-rng attached was not unowned:
   `design/roadmap/230-shell-check-is-red.md` is BUILT 2026-09-02, root-caused to slot exhaustion
   four blocks later than this block guessed, and both plain legs are green.
 - **Outstanding.** Option A has still never been run on a board and cannot be until milestone 157

@@ -41,7 +41,8 @@ table. Merging them makes the stronger of those two the only one.
 
 ## The hazard
 
-It touches milestone 177's graphical `swish-check` leg, which is a real gate on a real path, and the
+It touches milestone 177 (wire the graphical terminal stack into the real interactive boot) and its
+graphical `swish-check` leg, which is a real gate on a real path, and the
 colours differ between the two callers. A lane doing this should make the swish-check leg pass
 before and after with no change to its assertions, and should keep the two colour schemes as data
 rather than unifying them: the terminal's default colours are `video_terminal`'s to choose and the

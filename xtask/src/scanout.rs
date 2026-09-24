@@ -166,7 +166,8 @@ fn scanout_matches(ppm: &[u8], want_pixel: impl Fn(u32, u32) -> u32) -> Result<(
 }
 
 /// Parse a `screendump` P6 PPM into `(width, height, rgb bytes)`. [`scanout_matches`]'s own header
-/// walk, lifted out for milestone 177's graphical swish-check leg, which reads a screendump's text
+/// walk, lifted out for milestone 177 (wire the graphical terminal stack into the real interactive
+/// boot) and its graphical swish-check leg, which reads a screendump's text
 /// back out instead of comparing it against a picture computed in advance (there is no such picture
 /// for a live, typed shell session; see [`decode_cell`]).
 fn parse_ppm(ppm: &[u8]) -> Result<(u32, u32, &[u8]), String> {

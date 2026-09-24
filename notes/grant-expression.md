@@ -460,7 +460,8 @@ The assessment above listed four, in different subsystems, and three of them wer
    because `date` probes the slot before touching the address.
 
 The old paragraph also said all of it "would ship unexercised, because nothing in the test suite
-boots the interactive shell". That stopped being true when milestone 50 wrote `script/swish-check`,
+boots the interactive shell". That stopped being true when milestone 50 (pipes and redirection: one sink protocol) wrote
+`script/swish-check`,
 which is the gate this landed against.
 
 ### What a delegable clock would still need

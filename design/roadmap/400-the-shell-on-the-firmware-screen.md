@@ -197,7 +197,8 @@ scroll is a full-surface copy through an uncacheable mapping (BUGS).
   refuses x86 for a reason milestone 299 made stale), and this path takes the firmware screen as
   well. Harmless (the virtio terminal idles) and reachable only by attaching a GPU to the UEFI runner
   by hand; it belongs to 192's x86 half.
-- **Milestone 182.** `script/swish-check` still has no x86_64 leg, and its `--arch` refusal says x86
+- **Milestone 182.** That is milestone 182 (x86_64's own interactive-boot entry point).
+  `script/swish-check` still has no x86_64 leg, and its `--arch` refusal says x86
   has no prompt, which milestone 299 made untrue. That is milestone 182's third leg, already
   tracked there.
 - **Milestone 377.** Two screendump decoders. It was the existing proposal

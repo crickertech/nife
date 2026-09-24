@@ -92,7 +92,8 @@ legs.
   supervision domain, which is what `ps` and `pgrep` read.
 - **Milestone 330.** A regression gate
   for the fault path. It needs a program that faults on purpose, which is a new name and therefore
-  calef's, and milestone 233's no-thread-killed assertion in `script/swish-check` has to learn to
+  calef's, and milestone 233 (`login` dies on every boot, and the boot says it is
+  ready) and its no-thread-killed assertion in `script/swish-check` has to learn to
   except it. The scaffold that proved this milestone was a patch to `components/src/least_authority_demo.rs` and was
   removed afterwards, so nothing stops the lost prompt returning.
 - **Milestone 339.** Count which of the tree's

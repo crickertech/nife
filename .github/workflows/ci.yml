@@ -289,7 +289,8 @@ jobs:
       # the channel it was supposed to appear on. Three debug kernels against this job's warm target
       # directory is about a minute.
       #
-      # `swish-check-graphical` rides here too (milestone 177), on the same argument: it boots the
+      # `swish-check-graphical` rides here too (milestone 177 (wire the graphical terminal stack into the real
+      # interactive boot)), on the same argument: it boots the
       # same `--features shell` kernels `swish-check` just built, with a virtio-gpu attached, and
       # reads the prompt and one typed key back off the screen, four boots in all (a keyboard and
       # the UART as the keystroke source, on both architectures). Measured on 2026-09-19 against a

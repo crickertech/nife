@@ -25,7 +25,7 @@ by `script/swish-check`, which boots the real init twice and is one gate rather 
 
 ## What it already costs, twice, in the tree as it stands
 
-- **`date`'s declared second stream** (DECISIONS §67). `xtask`'s own swish-check list says it
+- **`date`'s declared second stream** (DECISIONS §67 (a program's second stream is a declaration, not a number)). `xtask`'s own swish-check list says it
   plainly: "the guest tests wire the shell from the kernel, whose `Spawn` fills a capability table
   from zero and cannot place a capability at the slot a manifest names, so `date` there never
   receives a second stream." Four assertions about `2>` live in swish-check for that reason alone.
@@ -88,7 +88,7 @@ program holding any of the three named slots (`grant_plan::DOMAIN_SLOT` at 7, `D
 `crates/system_initializer`, which means every claim about a named slot's *endowed* direction is
 proven by `script/swish-check` alone: one gate rather than the suite, on two architectures rather
 than three. That makes it a total parity gap rather than a per-ISA one, which is the case DECISIONS
-§19 is about, and swish-check is a boot rather than a unit, so it can say the row printed and cannot
+§19 (architectural parity is a tenet) is about, and swish-check is a boot rather than a unit, so it can say the row printed and cannot
 say the capability carried exactly `WRITE` and not `READ`. Milestone 126 found a real
 `READ`-instead-of-`ENUMERATE` over-grant on a named slot by reading code, and nothing in the suite
 would have caught it. It already costs the tree twice, in `date`'s declared second stream and in

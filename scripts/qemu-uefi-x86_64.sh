@@ -180,7 +180,8 @@ if [ -n "$NIFE_DISK" ]; then
     fi
     DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
     # The RedoxFS fixture as the SECOND function, when a caller asks with NIFE_UEFI_REDOXFS=1
-    # (name provisional). Added by milestone 182, whose `swish-check` leg boots this runner and
+    # (name provisional). Added by milestone 182 (x86_64's own interactive-boot entry point), whose
+    # `swish-check` leg boots this runner and
     # types `>`, `<` and `rm` at the prompt, all of which need a filesystem the progenitor mounts.
     #
     # **Opt-in rather than the PVH runner's attach-when-present, and that is a recorded defect, not
