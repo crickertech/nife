@@ -177,6 +177,12 @@ is the debt, the words that would have to move into appendices for the tree to m
 the second is how many documents that work sits in. **A ratchet is invisible without a graph**,
 which is why there are two.
 
+**The weeks before the cap was ratified are derived, not recorded**: each is counted from that week's
+own tree by `script/metrics --backfill`, applying today's cap and today's document scope to a tree
+that had no such rule. The scope is `_prose_documents()` in the script, and it will change when
+milestone 586 (a prose ratchet in lint) shares one definition with `script/lint`; the whole series is
+restated from history when it does.
+
 ## How it stays current
 
 `script/metrics --update` recomputes the current week's row and redraws the charts, and
