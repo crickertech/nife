@@ -71,10 +71,13 @@ use crate::{println, sched};
 
 /// Bytes between the arming frame's `sp` and the top of the painted region. It has to cover the
 /// frames that run below [`arm`] while it paints (a debug build makes `write_volatile` and even
-/// `wrapping_add` real calls) and the scan's frame afterwards. Every reported depth is at least
-/// `floor`, which is this margin plus everything above it, so a sample equal to its floor means the
-/// operation never went below the margin and the number is the instrument's rather than the kernel's;
-/// [`report`] refuses those.
+/// `wrapping_add` real calls) and the scan's frame afterwards. `floor` is this margin plus
+/// everything above it, and a sample **at or above** its floor (a reading of `floor` or less) means
+/// the operation never went below the margin and the number is the instrument's rather than the
+/// kernel's; [`report`] refuses those. A reading can be *less* than `floor`: `KernelStack::new`
+/// paints the whole stack in a test build and [`arm`] never repaints `[ceiling, sp)`, so the words
+/// just above the ceiling keep the creation paint until something writes them (see
+/// [`kernel_thread_shapes`] for what that did to the calibration).
 ///
 /// **Two values, because the first attempt used one and it was wrong in the release build.**
 /// milestone 84's boot-stack paint uses 512, and at 512 every release-build series on aarch64 read
@@ -82,8 +85,8 @@ use crate::{println, sched};
 /// there. In release the paint loop is inlined into `arm` and has no callees, so a small margin
 /// is enough; in debug it keeps a real call chain, and 256 was tried there and measured too small.
 /// Neither number is trusted on its own say-so: [`kernel_thread_shapes`] measures a null operation
-/// first (`null` in the report) and that line is the instrument's own reach, whose median must sit
-/// at its floor.
+/// first (`null` in the report) and that line is the instrument's own reach, whose median must not
+/// sit below its floor.
 #[cfg(debug_assertions)]
 const MARGIN: u64 = 512;
 #[cfg(not(debug_assertions))]
@@ -327,7 +330,24 @@ pub fn kernel_thread_shapes() -> usize {
     }
     null.sort_unstable();
     let (null_median, null_max) = (u64::from(null[SAMPLES / 2]), u64::from(null[SAMPLES - 1]));
-    let null_clean = null_median == null_floor;
+    //
+    // **Clean means "no deeper than the floor", not "exactly the floor"** (2026-09-24). The check
+    // said `==` until the HVF leg, which runs this suite on the physical core, failed it on every
+    // run from the day it merged: median 856 against a floor of 976, 120 bytes *shallower*. That is
+    // the instrument's true reach. Its own callees stop 392 bytes into the 512-byte margin, so the
+    // words between them and the ceiling are never written and keep the paint `KernelStack::new`
+    // laid down, which `arm` never repaints because it paints only below the ceiling. Under TCG
+    // the same thread read exactly its floor, and not because the instrument reaches it: measured
+    // over three TCG runs, the first 29 to 76 samples read the true reach (920 against 1040 on that
+    // build) and every sample after one moment read the floor, because one interrupt trap frame
+    // pushed while `sp` sat below the ceiling writes the ceiling word, and nothing ever paints it
+    // again. Whether that moment comes before sample 128 (median at floor) or after (median below
+    // it) is timing, so `==` was a timing assertion that TCG's slowness happened to pass and the
+    // physical core, finishing all 256 samples in microseconds, did not. What the check exists to
+    // catch is the margin being too small, which reads *deeper* than the floor, and `<=` still
+    // catches exactly that on every accelerator. Nothing TCG could fail on for that reason passes
+    // now. See notes/stack-high-water.md.
+    let null_clean = null_median <= null_floor;
     println!(
         "ipc-stack-depth: kernel null (the instrument alone) floor {null_floor} median \
          {null_median} max {null_max} margin {MARGIN} {}",

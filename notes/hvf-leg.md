@@ -253,11 +253,34 @@ silence for a clean bill.
 
 ## BUGS
 
-- **The leg does not run at all on QEMU 11.1.1**, for the GIC reason at the top of this page, and
-  everything measured below was measured on 11.0.2. Until a GICv3 driver exists there is **no
-  accelerated coverage on this machine**: every gate a contributor can run is TCG. `script/ci-build`
-  says so out loud rather than passing quietly, which is milestone 222's whole content, but a loud
-  skip is a record of a gap and not a substitute for one.
+- **Most of the measurements below were taken on QEMU 11.0.2 and a GICv2**, before milestone 227
+  (a GICv3 driver) put the leg back on a machine QEMU 11.1.1 will start. When the probe cannot start
+  that machine, `script/ci-build` skips the leg out loud, which is milestone 222 (a leg that fails
+  instead of skipping), and a loud skip is a record of a gap and not a substitute for one.
+- **The leg was red on `main` from 2026-09-19 to 2026-09-24 and nobody saw it**, because nothing
+  runs it but a person. Milestone 134 (the register of measures) merged a per-IPC stack depth
+  calibration, `null_median == null_floor`, that failed on every HVF run: both runs at its merge
+  failed there, while on the commit before it one run was green and the other failed only on the
+  known inbound flake. A local queue preflight found it five days later. The check was a timing
+  assertion, and `kernel/src/ipc_stack_depth.rs` has the measurement. It is the same shape as the
+  five yield-count assertions below, found from the same direction, and the only mechanism that
+  would have caught it sooner is running this leg.
+- **With the calibration fixed, two older failures are what stand between this leg and green**,
+  measured on 2026-09-24 over six runs on a host that other lanes held at a 1-minute load of 14 to
+  25 on 8 cores: two runs green (355 passed, 3 skipped, every host check), three hung at
+  `a_std_program_serves_a_granted_listening_port`, and one passed the whole suite and then failed
+  the scanout referee on the display-terminal and display-pattern checks (the referee sampled too
+  late; the guest's own tests passed). The listener hang had **one prober shape in all four runs
+  that showed it**: two rounds answered around +19 s, then a connection opened within a millisecond
+  of the second answer that waited 90 s and was never accepted, while the std program aborted
+  (`BRK`) on its bounded `accept`. That is the shape the hypothesis at the top of this page
+  predicts, a connection handed to the hand-written listener's socket after its last round, now seen
+  four times rather than inferred. It is not fixed here: the prober holds connections on purpose
+  (`xtask/src/inbound.rs`), and changing that is the work notes/net.md says to read first.
+- **One failure ends the suite, on both legs.** The custom test framework does not unwind, so a
+  panicking test is the end of the run under TCG too; what differs here is only the exit. The scanout
+  and inbound checks still report afterwards and can fail because the guest never reached their
+  tests, so the leg now says to fix the first failure before reading them.
 - **A failing run leaves an exception storm behind it.** The kernel has no way to know its
   semihosting exit will not be answered, so any failure under HVF ends in an unbounded panic loop
   on four cores. The host stops reading and kills the child, so the cost is bounded in practice,
@@ -265,7 +288,10 @@ silence for a clean bill.
   anyone driving the runner **by hand** under HVF (rather than through `xtask`) will get a QEMU
   that never stops. Use `scripts/qemu-bounded.sh` for that. A guest-side fix (recognising the
   semihosting trap in the Unknown-reason handler and parking in `wfi` instead of panicking) is not
-  built here; it would touch the exception path for a test-only benefit.
+  built here; it would touch the exception path for a test-only benefit, and on its own it would
+  make the leg *worse*: `hvf_kernel_leg` stops reading after 200 more lines, and a guest that went
+  quiet would leave it blocked on the transcript until the outer bound killed it. The two halves
+  would have to land together, the host stopping on a marker the parked guest prints.
 - **The leg is not a CI gate and cannot be one.** Nothing enforces that it ran. `script/ci-build`'s
   no-argument path is the enforcement, and running that is a convention.
 - **One machine, one model, no variation.** `-cpu host` is mandatory under HVF, so this leg says

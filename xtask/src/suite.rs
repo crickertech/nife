@@ -760,6 +760,18 @@ fn hvf_kernel_leg() -> bool {
         }
     }
 
+    // A panic ends the suite on either leg (no unwinding in the custom test framework), so the
+    // scanout and inbound checks below then report on a guest that may never have reached the tests
+    // they referee. On 2026-09-24 one calibration failure printed four more FAILED lines that were
+    // all consequences of it, and they read as four more findings. Say which failure is first.
+    if verdict == Some(false) {
+        eprintln!(
+            "test --hvf: the suite stopped at the failure above; a scanout or inbound failure \
+             reported below may only mean the guest never reached that test, so fix the first \
+             failure before reading them"
+        );
+    }
+
     // Stop and collect the referee BEFORE killing QEMU: its last look at the scanout has to happen
     // while there is still a device to look at.
     running.store(false, Ordering::Relaxed);
