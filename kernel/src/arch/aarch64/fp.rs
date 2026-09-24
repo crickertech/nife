@@ -23,11 +23,17 @@
 //!   rest of its life**, even if it never touches FP again. Clearing it would mean knowing the
 //!   registers are dead, which nothing here can know. RISC-V's `FS` could do better and this
 //!   implementation does not exploit that either; see [`crate::fp`] for why the policy is uniform.
-//! - **SVE and SME are not saved, and are not disabled either.** `CPACR_EL1.ZEN` and
-//!   `CPACR_EL1.SMEN` are left at their reset values, which on every machine this kernel has run on
-//!   means trapped. A part that reset them open would let a thread keep vector state this file does
-//!   not move. Nothing in this tree emits SVE, and the check belongs with `arch::isa`'s feature
-//!   reading rather than here; it is recorded rather than built.
+//! - **SVE and SME are not saved, and [`init`] now closes them rather than trusting reset**
+//!   (2026-09-24 security audit). `CPACR_EL1.ZEN` and `CPACR_EL1.SMEN` were left at their reset
+//!   values, which on every machine this kernel has run on (QEMU's `cortex-a72`, HVF's Apple core,
+//!   argon's A78AE) means trapped, and none of those parts has SVE at all. The architecture says the
+//!   reset value is UNKNOWN, so a part that reset them open would let a thread keep `Z`/`P`/`ZA`
+//!   state that [`crate::fp::hand_over`] neither saves nor scrubs. `init` writes both fields to
+//!   trap alongside `FPEN`; on a part without SVE the bits are RES0 and the write is a no-op. A
+//!   thread that then executes an SVE instruction takes the same trap FP does, and `crate::fp`
+//!   treats it as a fault, because nothing here can save what it would enable. Nothing in this tree
+//!   emits SVE. No test can see this on the emulator's default CPU; it is a one-instruction closure
+//!   of a window the emulator cannot open.
 
 use core::arch::asm;
 
@@ -108,6 +114,11 @@ impl Default for FpState {
 /// and EL1".
 const FPEN: u64 = 0b11 << 20;
 
+/// `CPACR_EL1.ZEN` (bits 17:16) and `CPACR_EL1.SMEN` (bits 25:24): the SVE and SME enables, which
+/// [`init`] closes with `FPEN` because this module saves neither. RES0 on a part without the
+/// extension, so clearing them is a no-op there.
+const ZEN_AND_SMEN: u64 = (0b11 << 16) | (0b11 << 24);
+
 /// **Put this core into the state the rest of this module assumes**: FP and SIMD trapped, for EL1
 /// as well as EL0.
 ///
@@ -124,7 +135,18 @@ const FPEN: u64 = 0b11 << 20;
 /// the exact failure this milestone exists to prevent, on hardware, silently, with the emulator
 /// green.
 pub fn init() {
-    disable();
+    // SAFETY: as `enable`; writes one control register on this core.
+    unsafe {
+        asm!(
+            "mrs {t}, cpacr_el1",
+            "bic {t}, {t}, {mask}",
+            "msr cpacr_el1, {t}",
+            "isb",
+            t = out(reg) _,
+            mask = in(reg) FPEN | ZEN_AND_SMEN,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
 }
 
 /// Let the current core execute FP and SIMD instructions.
