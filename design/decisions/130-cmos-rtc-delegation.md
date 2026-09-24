@@ -103,4 +103,4 @@ a naming or wire-format call reserved above. Milestone 176's piece 2 is now unbl
 
 ## What was blocked until this was answered
 
-All of milestone 176's piece 2. Piece 1 (COM1's IRQ) is complete and independent of this.
+All of milestone 176 (the x86_64 discovery seam's wide half: COM1's IRQ and a CMOS RTC)'s piece 2. Piece 1 (COM1's IRQ) is complete and independent of this.
