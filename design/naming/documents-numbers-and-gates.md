@@ -115,7 +115,7 @@ describes the convention when it was written, and the prefix is unbounded by des
 
 This is a convention and not a gate, since 2026-08-18. It was an enforced allowlist, and calef asked
 what the taxonomy was for. The answer, checked rather than argued: nothing consumes it except the
-check itself. A grep across `script/`, `scripts/`, `.github/workflows/` and `xtask/` for any other
+check itself. A grep across `script/`, `helpers/`, `.github/workflows/` and `xtask/` for any other
 reader of a branch prefix returns only false positives. Only `milestone/N-` is read by anything, and
 `script/lint`'s milestone-branch-touches-its-block check is what reads it.
 
@@ -163,7 +163,7 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
 
    *Corrected 2026-09-24: no longer. Since the allowlist was retired (see Branches), check 4 only
    refuses a near-miss of a milestone claim, such as `milestone-126-pgrep`, which would skip check
-   4b in silence. The shape rule lives in `scripts/branch-name-check.sh` (2026-09-22), shared with
+   4b in silence. The shape rule lives in `helpers/branch-name-check.sh` (2026-09-22), shared with
    `script/claim`.*
 5. No `#[path]` module is shared by two or more binaries (CLAUDE.md rule 7). This is the newest and
    the one with teeth: it counts consumers per include target and fires at two. A module with a
@@ -186,7 +186,7 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
    queue gets worked.
 
    *Corrected 2026-09-24: four states, not three. §89 (`provisional` becomes the fourth provenance
-   state) added `provisional` on 2026-08-16, and `scripts/name_provenance.py`'s `STATUSES` lists
+   state) added `provisional` on 2026-08-16, and `helpers/name_provenance.py`'s `STATUSES` lists
    `ratified`, `recorded`, `provisional`, `unrecorded`.*
 
    And exactly one such block per file, in the spelling the parse reads (milestone 283 (one

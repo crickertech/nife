@@ -92,7 +92,7 @@ The table as it stood before the main page shortened its reasons on 2026-09-24:
 | Domain | Form | Because |
 |---|---|---|
 | Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
+| `script/` and `helpers/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
 | Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
 | Repo-root markdown | `SCREAMING_SNAKE_CASE` | GitHub behaviour, not style. It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
 | A directory holding a Rust package | named exactly as the package, so `snake_case` | the directory and the package are one thing with one name |

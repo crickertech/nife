@@ -2,7 +2,7 @@
 
 *An appendix to [`design/naming.md`](../naming.md), which is the rule. This file holds the argument
 that a name is a claim, the component and program conventions, shell builtins, `script/` against
-`scripts/`, and directories. It exists to verify or challenge the main page, and a reader who only
+`helpers/`, and directories. It exists to verify or challenge the main page, and a reader who only
 needs to name, ratify or rename something should not have to open it. The directory `design/naming/`
 and this file's stem are provisional names, minted 2026-09-24 by the lane that split the file;
 naming is calef's.*
@@ -154,8 +154,21 @@ Two directories, on purpose, and the split is by audience.
   set (`setup`, `test`, `server`, `console`, ...) keeps its standard names even where a different
   word would be more descriptive. The entire value is that the command is the same in every repo
   that follows the pattern.
-- `scripts/` is the helper drawer: `.sh` extension, called by other scripts and by `xtask`, not by
+- `helpers/` is the helper drawer: `.sh` extension, called by other scripts and by `xtask`, not by
   people (`qemu-bounded.sh`, `qemu-runner-aarch64.sh`, `qemu-runner-riscv64.sh`).
+
+  **It was `scripts/` until 2026-09-23**, when calef ratified `helpers` after opening the tree and
+  failing to tell the two directories apart. His reason, verbatim: *"I'm totally disoriented in the
+  script directory. Also, why do we have script and scripts?"* The split above was never the
+  problem. The names were: one character of difference carried the whole distinction between what a
+  person types and what `xtask` calls, `script` and `scripts` sorted next to each other in every
+  listing, and neither word said which was which. `helpers` says what the drawer is for, and it says
+  it in a word nobody confuses with `script`. Captured transcripts and dated accounts keep
+  `scripts/` where they describe the past.
+
+  **Ratified by calef on 2026-09-23 (UTC), replacing `scripts`.** The drawer is outside
+  `script/names`' scope, for the reason [provenance-limits.md](provenance-limits.md) prices, so this
+  paragraph is where its provenance lives and it is the record a later reader should find first.
 
 Every `script/` entry needs a row in [scripts.md](../../notes/scripts.md). `script/lint` fails
 without one, and fails in the other direction too if `README.md` names a script that does not exist.

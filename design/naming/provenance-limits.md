@@ -2,7 +2,7 @@
 
 *An appendix to [`design/naming.md`](../naming.md), which is the rule. This file holds the known
 limits of `Name:` blocks and `script/names`, including the kinds of name the worklist does not
-cover and why `scripts/` helpers are left out. It exists to verify or challenge the main page. A
+cover and why `helpers/` helpers are left out. It exists to verify or challenge the main page. A
 reader who only needs to name, ratify or rename something should not have to open it. The directory
 `design/naming/` and this file's stem are provisional names, minted 2026-09-24 by the lane that
 split the file; naming is calef's.*
@@ -35,12 +35,12 @@ split the file; naming is calef's.*
 ### The tree has more kinds of name than the table covers
 
 This entry is the one place that says which. Everything else that states the worklist's scope
-(`script/names`' own comment, `scripts/name_provenance.py`, `scripts/roadmap_proposals.py`) cites
+(`script/names`' own comment, `helpers/name_provenance.py`, `helpers/roadmap_proposals.py`) cites
 this entry rather than restating it, on purpose. The last two copies of this claim went stale for a
 month after the coverage grew, and nothing compared them against the tool.
 
 Crates, programs, `script/` entry points and Cargo packages carry blocks. Directories, types and
-`scripts/` helpers do not, and at least one ratified name had no home as a result:
+`helpers/` helpers do not, and at least one ratified name had no home as a result:
 `design/audit-reports/` (calef, 2026-08-04). There `audit-trail` was refused because
 `design/decisions/35-scanner-findings.md` already uses that phrase for a chronological record of
 dismissals and it is also what an operating system means by it (`auditd`). Bare `audits` was
@@ -69,7 +69,7 @@ into a schema that does not fit it.
 - `script/metrics` still counts the original four kinds only, so the dashboard's provenance series
   does not see the kinds above. Its enumeration reads `git ls-tree` at past revisions, and teaching
   it the item parse is its own piece of work.
-- `scripts/` is uncovered on purpose, priced and refused on 2026-09-20 by milestone 446 (the naming
+- `helpers/` is uncovered on purpose, priced and refused on 2026-09-20 by milestone 446 (the naming
   worklist says what it covers, and stops saying what it used to). Its own entry is below, because
   it is a decision rather than a gap.
 
@@ -80,9 +80,9 @@ surface, so it is in the worklist with the word "provisional" quoted in its bloc
 mid-task, and no record anywhere says a decision was owed. That is the exact failure this milestone
 exists to prevent, still happening one directory over.
 
-### `scripts/` helpers are deliberately outside the worklist, and the numbers are why
+### `helpers/` helpers are deliberately outside the worklist, and the numbers are why
 
-There were 17 files in `scripts/`, of which 9 already carried a `Name:` paragraph that nobody asked
+There were 17 files in `scripts/` (the drawer's name until 2026-09-23), of which 9 already carried a `Name:` paragraph that nobody asked
 them for, written by the lane that added the file. So the question is not whether a helper may argue
 its own name. It may, and more than half did. The question is whether the worklist should enumerate
 them. Enumerating cost about 15 rows on a worklist 76 deep that day: a fifth again of the only queue
@@ -92,7 +92,7 @@ in this tree whose sole consumer is calef's attention. Three things decided it a
    prompt, a crate is what a newcomer greps, a `script/` entry point is typed by whoever works on
    the tree. The Scripts section of
    [programs-scripts-and-directories.md](programs-scripts-and-directories.md#scripts) defines
-   `scripts/` as the drawer that is *not* typed by people. Enumerating it would add a tier below
+   `helpers/` as the drawer that is *not* typed by people. Enumerating it would add a tier below
    the bottom tier of a list whose whole ordering is exposure.
 2. Nothing is being lost. Not one of those 9 paragraphs records a refusal, so milestone 115's "the
    refusals are the valuable half" claim gives up nothing by leaving them out. That is the number

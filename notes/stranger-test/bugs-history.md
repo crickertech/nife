@@ -158,7 +158,7 @@ go red before 2026-09-21. [Run 6](run-6.md) happened on 2026-09-19 because a mai
 lane.
 
 Had it gone red, the red is an Actions-tab entry. `script/cadence-check` is the watcher that reads
-those for `scripts/trunk-health.sh`, and it calls a workflow DEAD only after fifteen days without a
+those for `helpers/trunk-health.sh`, and it calls a workflow DEAD only after fifteen days without a
 *success*. So "a run is due" and "the job is broken" arrive as one state, a fortnight late. The
 audit cadence, whose red means the same thing, had been red five Mondays running on 2026-09-19 with
 nobody acting.
