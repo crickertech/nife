@@ -181,6 +181,11 @@ pub(crate) fn is_reachable() -> bool {
 ///
 /// The clean fix is the contract's, not this function's: a tag or an offset in the reply word so
 /// the two error spaces stop overlapping. See the BUGS section of notes/std.md.
+///
+/// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+/// (design/naming/boolean-predicates-worklist.md). It does not yet follow the Rust predicate rule
+/// calef ratified 2026-09-24; recommended `is_missing_capability`, because `is_no_capability` does
+/// not parse.
 fn no_capability(r0: u64) -> bool {
     matches!(r0 as i64, -3)
 }
