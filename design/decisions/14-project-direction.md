@@ -5,7 +5,7 @@ ratified_by: calef
 
 # 14. The project's direction: a verified-Rust capability microkernel that runs real workloads
 
-(§82 moves the end state from confining the existing ecosystem to replacing
+(§82 (ambient authority is the problem; replacing the ecosystem, not confining it) moves the end state from confining the existing ecosystem to replacing
 it; the technical shape recorded here is unchanged. See the amendment at the end.)
 
 Committed 2026-07-23. This is the North Star, recorded because everything downstream (which

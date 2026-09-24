@@ -5,7 +5,7 @@ raised: 2026-09-01
 
 # 137. A hardware TRNG with no published health-test claim
 
-Raised 2026-09-01 by the maintainer, from milestone 159's (a real hardware
+Raised 2026-09-01 by the maintainer, from milestone 159 (a real hardware entropy source: the JH7110's TRNG)'s (a real hardware
 entropy source: the JH7110's TRNG) lane, which found the question and correctly declined to answer
 it: a developer does not write a decision.
 

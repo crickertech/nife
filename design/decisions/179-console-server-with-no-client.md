@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 179. Whether the tour boot keeps starting a console server that has no client
 
-Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 394's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 394 (the boot-time console server comes up with no client and nothing notices)'s
 `DECISION` gate naming no section. The ask lived only inside that block, and one rung further out:
 `kernel/src/user/console_service.rs`'s `#[expect(dead_code)]` reason names *milestone 267's block*,
 which forwards to 394, which addresses a paragraph to one person. *(Section number provisional until

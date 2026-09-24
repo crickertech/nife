@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 183. What `script/ci-build` with no arguments means, and what the two tiers are called
 
-Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 440's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 440 (what `script/ci-build` with no arguments should mean)'s
 `DECISION` gate naming no section. The mechanism is built and shipped under the recommendation
 below; only the spelling and the default are open. *(Section number provisional until the merge
 queue lands it.)*

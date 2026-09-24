@@ -7,7 +7,7 @@ ratified_by: calef
 
 # 102. A Frame names a run of pages
 
-Raised 2026-08-19 by milestone 29's lane, which found that the terminal font
+Raised 2026-08-19 by milestone 29 (framebuffer, virtio-gpu, and a foreign component)'s lane, which found that the terminal font
 (§100's gohufont-14) cannot ship without a bigger scanout, and a bigger scanout is 469 capabilities
 in a sixteen-slot cspace. Decided 2026-08-20 by calef: option 1, a `Frame` names a run.
 

@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 175. Where the kernel's own output goes once userspace owns the console
 
-Raised 2026-09-19 by milestone 435's slice B, which read milestone 342's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 342 (the kernel and the `console` server drive one UART from two address spaces)'s
 `DECISION` gate and found it naming no section. Milestone 230 named the fork while fixing something
 else, and the 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the
 merge queue lands it.)*

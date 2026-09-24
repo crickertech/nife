@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 173. Narrowing the root of the shell's namespace: a verb on the wire, or a shallower root
 
-Raised 2026-09-19 by milestone 435's slice B, which read milestone 328's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 328's
 `DECISION` gate and found it naming no section. The fork is milestone 31's, stated in that block
 under *"The two shapes a grant cannot take"* and carried forward by the 2026-09-03 proposal sweep.
 *(Section number provisional until the merge queue lands it.)*

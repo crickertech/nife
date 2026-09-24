@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 163. Where a confined device's IOMMU fault is delivered
 
-Raised 2026-09-19 by milestone 435's lane, which found milestone 102 gated on
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s lane, which found milestone 102 (what a confined device's fault reaches) gated on
 `DECISION` with no decision anywhere a reader can open. The block has stated the fork since it was
 raised on 2026-08-04, and three separate documents defer to a fault-handling milestone that did not
 exist when they were written. *(Section number provisional until the merge queue lands it.)*

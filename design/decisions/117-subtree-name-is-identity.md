@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 117. A principal's subtree is named by its identity string, created at provisioning time
 
-calef, 2026-08-23, on milestone 49's subtree-scoping fork: *"Agree, go with
+calef, 2026-08-23, on milestone 49 (what identity is for once it stops being authority)'s subtree-scoping fork: *"Agree, go with
 provision-time creation."*
 
 ## The question

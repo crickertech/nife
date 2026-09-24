@@ -5,7 +5,7 @@ ratified_by: calef
 
 # 158. A program is declared once: the archives read `Cargo.toml`, and the shell's table is one macro
 
-By milestone 150's lane on 2026-09-19, as a reversible implementation choice
+By milestone 150 (adding a program should not need eight hand-maintained lists)'s lane on 2026-09-19, as a reversible implementation choice
 inside its own milestone (AGENTS.md: a reversible decision is made by whoever is holding the
 problem), and recorded here by the maintainer at merge. Two things it touches are calef's and are
 **not** decided here; they are listed under "Not decided" below. *(Section number provisional until

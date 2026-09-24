@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 114. `pmap` gets its listing: `ENUMERATE` extends to the address-space object
 
-calef, 2026-08-23, approving milestone 126's `pmap` fork on the recommendation
+calef, 2026-08-23, approving milestone 126 (who else is running, and who is allowed to ask)'s `pmap` fork on the recommendation
 below: *"Yes, pmap first."*
 
 ## The question

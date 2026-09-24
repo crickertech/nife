@@ -5,7 +5,7 @@ raised: 2026-09-19
 
 # 176. Offering the two RedoxFS patches upstream, and under whose name
 
-Raised 2026-09-19 by milestone 435's slice B, which read milestone 347's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 347 (offer the two RedoxFS patches upstream)'s
 `DECISION` gate and found it naming no section. Milestone 32's block named the work and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue
 lands it.)*

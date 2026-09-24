@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 15. The native ABI: formalize the convention, defer the BootInfo (milestone 19e)
 
-Settled at milestone 19e, recorded as "Decision 2" in design/init-and-granular-spawn.md, against a
+Settled at milestone 19 (run a real workload)e, recorded as "Decision 2" in design/init-and-granular-spawn.md, against a
 system that could finally run and deliver distinct programs (19f). The full contract is written up in
 notes/abi.md; this records the decision and why.
 

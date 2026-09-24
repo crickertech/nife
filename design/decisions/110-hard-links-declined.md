@@ -6,7 +6,7 @@ ratified_by: calef
 
 # 110. Hard links are declined, for want of a customer
 
-calef, 2026-08-23, on milestone 47's own named fork: *"The backup server is not
+calef, 2026-08-23, on milestone 47 (`cd`, `pwd`, `ls`, `mkdir`, `rm`, paths, and environment)'s own named fork: *"The backup server is not
 a top priority. It is just one goal. There is no customer for hard links so let's defer."*
 
 ## The question
