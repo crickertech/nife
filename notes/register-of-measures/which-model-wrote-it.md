@@ -66,9 +66,22 @@ silent merge the table exists to prevent.
 
 A trailer value the table has never seen is counted in `other_models` and printed by name on every
 run. It is not dropped, and it does not quietly become an existing model. `script/metrics`' own
-`MODEL_TRAILERS` records all seven spellings this repository has ever carried. They were checked
-against all 5,487 commits on 2026-09-24. `Claude Code` is among them: it signs a single commit and
-is the tool rather than a model. It is in the table as a decision, so it does not warn forever.
+`MODEL_TRAILERS` records every spelling this repository has carried. Seven were checked against
+all 5,487 commits on 2026-09-24. `Claude Code` is among them: it signs a single commit and is the
+tool rather than a model. It is in the table as a decision, so it does not warn forever.
+
+The eighth, `Claude Opus 5.5`, arrived the same day, when the tree switched models. Until it had a
+row it went into `other_models` and was named on stderr, which is the rule above working: nothing
+was lost, and the week's sum still balanced. It is a version, not a context window, so it has its
+own column, `opus_5_5`, rather than joining `opus_5`.
+
+### Eight hues, more than eight bands
+
+The chart palette has eight fixed slots, and a ninth series folds into another rather than
+inventing a colour. Opus 5.5 made the commits chart nine. It took Opus 4.8's slot, so no other band
+changed colour, and Opus 4.8 now draws inside **other models** together with `fable_5_1` and
+`other_models`. Both charts fold the same set, so one hue names one model on either. The CSV keeps
+every column apart; the fold is drawing only, and the arithmetic is checked against the file.
 
 A commit carrying two trailers is counted once, under the first, and named on stderr. Counting it
 twice would break the sum check. Splitting it in half would put a fraction in a column of counts.
