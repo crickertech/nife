@@ -4,7 +4,8 @@
 unowned. Fixing `fixtures/src/login_test_client.rs`'s `destroy_with_retry` (a fixed 64-attempt loop
 that was giving up before the tick it was waiting for arrived, at roughly 2x host oversubscription)
 turned up four siblings, over the same refusal, none of them fixed there because doing so was not
-that lane's brief. See notes/load-sensitive-assertions.md, "The disposition, 2026-08-28".
+that lane's brief. See notes/load-sensitive-assertions/caretaker-teardown-wait.md, "The disposition,
+2026-08-28".
 
 **Gate: NONE.** The shape is already built once, in the same lane's fix to `login_test_client.rs`:
 wait on the property (the region actually coming down) with a clock-bounded watchdog rather than a
@@ -21,12 +22,12 @@ about 130 microseconds when this core has other work and parks until the next ti
 not, and which kind a given call gets is a scheduling outcome the host decides, not something the
 loop controls.
 
-The measurement that settles it is in `notes/load-sensitive-assertions.md`, "The measurement, and
-the number that settles it": across four logouts in one run, the **failing** wait was the
-**shortest** one in the table (64 attempts, 8.26 ms, gave up), while a **passing** wait in the same
-run took 39.3 ms over only 2 attempts. Attempts and elapsed time are not the same axis, and a loop
-bounded on the wrong one fails exactly when the host is busiest, which is the condition this
-project's own CI and merge-queue runners sit in whenever more than one lane gates at once.
+The measurement that settles it is in `notes/load-sensitive-assertions/caretaker-teardown-wait.md`,
+"The measurement, and the number that settles it": across four logouts in one run, the **failing**
+wait was the **shortest** one in the table (64 attempts, 8.26 ms, gave up), while a **passing** wait
+in the same run took 39.3 ms over only 2 attempts. Attempts and elapsed time are not the same axis,
+and a loop bounded on the wrong one fails exactly when the host is busiest, which is the condition
+this project's own CI and merge-queue runners sit in whenever more than one lane gates at once.
 
 ## The five sites, verified against `main` on 2026-08-27
 
