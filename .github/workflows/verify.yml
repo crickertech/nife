@@ -245,7 +245,11 @@ jobs:
   # every other record in `crates/` finishes in seconds. Both crates' BUGS sections carry the
   # measurement. Raising the timeout is not the fix and was deliberately not taken here: a per-pull
   # request gate that can spend an hour is a gate that gets disabled, and the real question is
-  # whether those two proofs can be made cheap. That is its own piece of work.
+  # whether those two proofs can be made cheap. **They were, 2026-09-24**: both harnesses now carry
+  # `#[kani::unwind(9)]`, measured to change nothing on the correct tree, and their records go red in
+  # seconds (#1239, #1243). And `script/falsifications` now gives each record 15 minutes and reports
+  # one that runs out as `no verdict` (#1242), so the next such record costs a quarter of this job
+  # rather than all of it.
   #
   # **Not a required check**, deliberately: the ruleset requires `verify (Kani proofs)` and nothing
   # else from this workflow, and this must be able to fail loudly without being one more name in a
