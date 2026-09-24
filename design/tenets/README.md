@@ -10,7 +10,9 @@ footnote, so it belongs in `design/` beside the option space and the decisions. 
 (a note records what exists and what building it taught us; a tenet is an argument for how to work,
 which is what `design/` holds), and refused the reason first offered for `design/`, that thirteen
 rows would crowd the glossary index: `script/lint` reads `notes/*.md` without recursing, so a
-`notes/tenets/` subdirectory would have cost that index nothing and the argument was never real.*
+`notes/tenets/` subdirectory would have cost that index nothing and the argument was never real.
+`project-history.md` arrived after that ruling and was named on its own: Name: ratified 2026-09-24
+(calef, approving #1189).*
 
 | appendix | what it explains |
 |---|---|

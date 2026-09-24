@@ -5,8 +5,9 @@ symlink to it. This file carries the three pieces of history a reader needs exac
 they open a record that uses a name or a framing the project has left behind. Moved here 2026-09-24
 (UTC) on calef's ruling, unchanged in substance.*
 
-*Name: provisional (2026-09-24, UTC). The directory is ratified; this fourteenth file arrived after
-that ruling, so its name is a lane's proposal and calef ratifies it like any other.*
+*Name: ratified 2026-09-24 (calef, approving #1189). The directory was ratified first; this
+fourteenth file arrived after that ruling, shipped with a provisional name, and was ratified on its
+own the same day.*
 
 ## The architect was Chris and is calef
 
