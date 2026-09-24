@@ -494,6 +494,39 @@ then a five-second aggregate job that sat ten minutes for a runner after the las
 four minutes past the deadline. CI had finished green at 17:45:20. At 60 minutes the timeout measured
 runner supply rather than the change, so it evicted a green pull request and made it queue again.
 
+## `script/preflight-queue`: the group build, run here first
+
+**The queue's prevention has a price, and a red member is where it is paid.** A group of up to five
+is built as one, and a member that is red on top of the entries ahead of it fails the whole group,
+which is then rebuilt without it. Every other member's build is thrown away. Per-pull-request CI
+cannot see this case at all, because the failing input is the stack, not the branch: on 2026-09-24 a
+lane replayed the queue by hand (23 entries, about 40 minutes) and found three pull requests, #1194,
+#1222 and #1182, green alone and red on top of what was ahead of them. Each would have cost a group
+roughly an hour of runner time per member.
+
+`script/preflight-queue` makes that replay a command. It walks the queue in order, then the pull
+requests armed but not yet queued, merges each onto the green ones ahead in a scratch worktree, and
+runs the cheap end of `script/ci-build` plus one aarch64 suite for anything that touches code. Its
+header has the ladder, what it skips and why, and its `BUGS`.
+
+**When to run it:**
+
+- **Before enqueueing a batch.** When a session is about to arm several pull requests at once, and
+  especially when two of them touch the test-wiring hotspot, run it with the batch armed but before
+  the queue has formed groups. A dry run costs this machine minutes per code entry and seconds per
+  documentation entry.
+- **When a group has just failed and the queue is deep.** The failure evicted one member; the rest
+  are rebuilt, and a second red member behind it costs another group. A dry run says whether there is
+  one.
+- **Not beside a `script/verify` or a mutation sweep**, which is AGENTS.md's memory ceiling; the
+  script already skips its own falsification rung when a solver is running, but its aarch64 suite
+  still competes for cores.
+
+It defaults to `--dry-run`. `--act` comments on each red entry, with the failing command, an excerpt
+and the stack it was tested on, and dequeues it (or disables auto-merge if it was not yet queued).
+If `main` itself is red at the baseline, it acts on nothing and exits 3, because every entry would
+inherit that failure.
+
 ## What the queue bought, measured
 
 Taken 2026-08-16, and it is milestone 119's (the merge queue is the bottleneck) own definition of
