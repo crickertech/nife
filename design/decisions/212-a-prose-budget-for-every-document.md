@@ -23,10 +23,31 @@ choice: `script/lint`'s notes-index check is `glob.glob('notes/*.md')` and **doe
 appendices under `notes/<stem>/` never needed index rows. `design/tenets/` still earns its exception,
 on the ground that a tenet is cited on its own, not on the index ground.
 
-**What this section does not yet decide**, because calef is taking these one at a time and a reader
-would otherwise take them as settled: how the cap is enforced against the 174 documents already over
-it (question 4), and whether the cap applies to every document or to a class of them (question 2,
-where the recommendation below argues for every document). Each answer amends this section. *(The section
+**Enforcement is ratified, by calef on 2026-09-23 (UTC), answering question 4: the ratchet, plus a
+graph in the metrics deck.**
+
+The ratchet is what the recommendation below describes. A document already over the cap may not
+grow. A document under it may not cross. A new document, or one rewritten wholesale, meets the cap
+outright. An exception is marked in the document itself and carries its reason, which is the rung the
+ladder permits when the higher one costs more than the failure does. No migration sweep: the 174
+documents over the cap are worked worst-first by words times readers, and the ones nobody reads are
+left alone or archived.
+
+**The graph is the half that is not a gate, and it is there because a ratchet is invisible.** A gate
+fires on the change in front of it and says nothing about the trend, so the debt can sit flat for
+months and nobody notices either the stall or the progress. `notes/project-metrics.md` is where this
+tree already plots what it wants to stay honest about, so the prose budget is plotted beside the
+unsafe count and the harness count rather than tracked in a file somebody has to remember to open.
+
+**The series to plot, recommended and not yet ratified**: the **excess above the cap** in words,
+which is the debt itself, and the **count of documents over the cap**. The first says whether the
+tree is paying the debt down, the second says whether the ratchet is holding. Both were measured at
+569,775 words and 174 documents on 2026-09-23.
+
+**What this section does not yet decide**: whether the cap applies to every document or to a class of
+them (question 2, where the recommendation below argues for every document, and where the two marked
+exceptions to date, `AGENTS.md` at 5,873 words of imperatives and `design/fatal-risks.md` at 4,176,
+are the evidence either way). *(The section
 number **212** is provisional; the integrator mints it at merge, like anything else global to the
 tree.)*
 
