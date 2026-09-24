@@ -1521,7 +1521,7 @@ import sys
 # `dont_write_bytecode` because the import would otherwise leave a `helpers/__pycache__/`
 # behind on every run, which is an untracked directory a gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, 'scripts')
+sys.path.insert(0, 'helpers')
 import rust_source                                                          # noqa: E402
 
 # --- the registry -------------------------------------------------------------------------------
@@ -1614,7 +1614,7 @@ def _sh_scripts():
     "`#!/bin/sh` scripts", so the gate counts files that start with `#!/bin/sh`.
     """
     files = [p for p in pathlib.Path('script').iterdir() if p.is_file()]
-    files += [p for p in pathlib.Path('scripts').glob('*.sh') if p.is_file()]
+    files += [p for p in pathlib.Path('helpers').glob('*.sh') if p.is_file()]
     return sum(1 for p in files
                if p.read_text(errors='replace').split('\n', 1)[0].strip() == '#!/bin/sh')
 

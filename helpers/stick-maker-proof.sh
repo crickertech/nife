@@ -1,8 +1,8 @@
 #!/bin/sh
-# scripts/stick-maker-proof.sh: prove stick_maker end to end on macOS, on file-backed disks only.
+# helpers/stick-maker-proof.sh: prove stick_maker end to end on macOS, on file-backed disks only.
 #
 #   cargo xtask stick                  # first: the payloads and the program
-#   scripts/stick-maker-proof.sh       # then this
+#   helpers/stick-maker-proof.sh       # then this
 #
 # Name: provisional. Minted 2026-09-19 by milestone/the-program-that-makes-the-stick.
 #
@@ -13,7 +13,7 @@
 #   2. The COPY path. A second file is formatted FAT32 first (the state most sticks are sold in);
 #      stick_maker finds it and copies without erasing, and a file already on it survives.
 #   3. Each written image is then booted under all three UEFI firmwares as a USB stick
-#      (scripts/qemu-stick.sh), and each has to reach the progenitor.
+#      (helpers/qemu-stick.sh), and each has to reach the progenitor.
 #
 # **It never touches a real disk.** Every disk it names is one hdiutil just attached from a file in a
 # fresh temporary directory, and before anything is written the script checks that diskutil calls it
@@ -82,7 +82,7 @@ detach "$dev"
 for image in blank fat; do
     for arch in x86_64 aarch64 riscv64; do
         log="$WORK/$image-$arch.log"
-        NIFE_STICK_TIMEOUT="${NIFE_STICK_TIMEOUT:-120}" scripts/qemu-stick.sh "$arch" "$WORK/$image.img" < /dev/null > "$log" 2>&1 || true
+        NIFE_STICK_TIMEOUT="${NIFE_STICK_TIMEOUT:-120}" helpers/qemu-stick.sh "$arch" "$WORK/$image.img" < /dev/null > "$log" 2>&1 || true
         if grep -q "nife: handing the system to the userspace progenitor." "$log" \
             && grep -q "nife self-test: 5 of 5 passed" "$log" \
             && ! grep -q "\[PANIC\]" "$log"; then

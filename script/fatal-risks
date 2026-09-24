@@ -252,7 +252,7 @@ RATIFIED = ("RUN", "NOT-RUN", "CANNOT-RUN")
 # rows. Only the leading word is judged: risk 7's row goes on to say `AUDITED 2026-09-17` in the
 # same cell, and that is prose about how well the experiment was done rather than a second status.
 ROW_VERDICT = re.compile(r"^\*\*([A-Z][A-Z-]*)\b")
-PATHISH = re.compile(r"`((?:design|notes|script|scripts|crates|kernel|user|xtask)/[A-Za-z0-9_./-]+"
+PATHISH = re.compile(r"`((?:design|notes|script|helpers|crates|kernel|user|xtask)/[A-Za-z0-9_./-]+"
                      r"\.(?:md|rs|sh|toml|yml))`")
 PROPOSAL = re.compile(r"`(design/roadmap/proposals/[A-Za-z0-9_./-]+\.md)`")
 

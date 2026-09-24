@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run one mechanical lane against a rented open-weight model instead of Claude.
 #
-#     scripts/open-lane.sh <worktree> <brief-file> [max-rounds]
+#     helpers/open-lane.sh <worktree> <brief-file> [max-rounds]
 #
 # **Why this exists.** DECISIONS 202 routes mechanical work to a cheaper model and DECISIONS 203
 # rules that capacity is rented rather than bought. Neither was built: on 2026-09-21 about 6% of
@@ -38,10 +38,10 @@
 # directly against Claude, not through this gateway against an open-weight model**, because this lane
 # had no OpenRouter credentials; whether `--effort` does anything at all once LiteLLM's
 # `drop_params: true` has a chance to strip it for a model that does not know the parameter is
-# unmeasured. Override per run (`OPEN_LANE_EFFORT=max scripts/open-lane.sh ...`) for a lane worth
+# unmeasured. Override per run (`OPEN_LANE_EFFORT=max helpers/open-lane.sh ...`) for a lane worth
 # spending more on, and re-measure against the real backend before trusting this default there.
 #
-# The gateway has no password of its own (see `scripts/open-lane-gateway.sh`), but Claude Code under
+# The gateway has no password of its own (see `helpers/open-lane-gateway.sh`), but Claude Code under
 # `--bare` still insists on *some* credential, so this sends a placeholder. It is not a secret and
 # the gateway ignores it.
 #

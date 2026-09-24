@@ -151,7 +151,7 @@ root, mode = sys.argv[1], sys.argv[2]
 # import would otherwise leave a `helpers/__pycache__/` behind on every run, which is an untracked
 # directory a gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(root, "scripts"))
+sys.path.insert(0, os.path.join(root, "helpers"))
 import name_provenance                                                      # noqa: E402
 
 # The three surfaces that are a directory listing, each with the file that holds its header. The
@@ -644,9 +644,9 @@ if mode and not mode.startswith("-"):
         # `package` kind was added to fix one level along: a registry with a hole answering
         # confidently about the names it happens to cover. Naming the scope costs six lines and
         # sends the reader to the file instead of to nothing.
-        helper = next((os.path.join("scripts", mode + ext)
+        helper = next((os.path.join("helpers", mode + ext)
                        for ext in (".sh", ".py")
-                       if os.path.exists(os.path.join(root, "scripts", mode + ext))), None)
+                       if os.path.exists(os.path.join(root, "helpers", mode + ext))), None)
         if helper:
             print(f"names: {mode!r} is a helper under helpers/, which the naming worklist leaves out "
                   f"on purpose (design/naming.md's BUGS section says why).")

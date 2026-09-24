@@ -2,7 +2,7 @@
 # Run the whole trial matrix for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not):
 # every model against every bundle, both postures, N times.
 #
-#     REVIEW_BASE_URL=... scripts/review-matrix.sh <bundle-dir> <out-dir> [replicates]
+#     REVIEW_BASE_URL=... helpers/review-matrix.sh <bundle-dir> <out-dir> [replicates]
 #
 # **Provisional name.** Replicates exist because a single call is not a measurement: a pilot run at
 # a lower token cap got a substantive review out of the same model and bundle that later answered

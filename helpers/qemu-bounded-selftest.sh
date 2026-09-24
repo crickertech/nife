@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# Prove that `scripts/qemu-bounded.sh` still does the four things it exists to do.
+# Prove that `helpers/qemu-bounded.sh` still does the four things it exists to do.
 #
-#     scripts/qemu-bounded-selftest.sh                 test the sibling script
-#     scripts/qemu-bounded-selftest.sh path/to/other   test a specific copy (e.g. an old one)
+#     helpers/qemu-bounded-selftest.sh                 test the sibling script
+#     helpers/qemu-bounded-selftest.sh path/to/other   test a specific copy (e.g. an old one)
 #
 # **The name is provisional** (milestone 226's lane; naming is calef's call).
 #

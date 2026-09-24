@@ -2,20 +2,20 @@
 #
 # Name: ratified 2026-08-30 (calef, in session, on milestone 87's lane report). Hyphens because
 # shell commands are hyphenated everywhere, per AGENTS.md's per-domain naming table, and the ISA
-# suffix matches its sibling scripts/qemu-runner-x86_64.sh. NOTE: script/names scans script/ and
-# not scripts/, so nothing reads this block today; it is written where a reader meets the thing.
+# suffix matches its sibling helpers/qemu-runner-x86_64.sh. NOTE: script/names scans script/ and
+# not helpers/, so nothing reads this block today; it is written where a reader meets the thing.
 #
 # Boot the x86_64 kernel under REAL FIRMWARE (milestone 87): OVMF, the open-source UEFI
 # implementation that ships with QEMU, loading `uefi_loader` from a FAT filesystem exactly the way
 # the Dell OptiPlex 7050's firmware loads it from a USB stick.
 #
-# WHY THIS IS NOT scripts/qemu-runner-x86_64.sh WITH A FLAG. That runner is a cargo `runner`: cargo
+# WHY THIS IS NOT helpers/qemu-runner-x86_64.sh WITH A FLAG. That runner is a cargo `runner`: cargo
 # appends a kernel ELF and QEMU's PVH loader reads it with `-kernel`. This path has no `-kernel` at
 # all. The firmware finds `\EFI\BOOT\BOOTX64.EFI` on a disk, starts it, and the loader places the
 # kernel itself. Nothing is shared but the machine model, and merging them would mean a runner that
 # ignores the one argument cargo exists to pass it.
 #
-#   scripts/qemu-uefi-x86_64.sh <esp-directory> [extra qemu args...]
+#   helpers/qemu-uefi-x86_64.sh <esp-directory> [extra qemu args...]
 #
 # `cargo xtask uefi-image` populates the directory; see notes/x86-uefi-boot.md for the whole picture
 # and for the bench procedure on the real machine.
@@ -118,7 +118,7 @@ if [ ! -f "$VARS" ]; then
 fi
 
 # `q35`, `-cpu max` and `isa-debug-exit` are deliberately the same as
-# scripts/qemu-runner-x86_64.sh's, so a difference between the two boots is the FIRMWARE and not the
+# helpers/qemu-runner-x86_64.sh's, so a difference between the two boots is the FIRMWARE and not the
 # machine. One core by default for the same reason the PVH runner takes it (two x86_64 AP-bring-up
 # defects are open; see arch::x86_64::ap_boot's BUGS), NOT because UEFI has anything to do with it:
 # milestone 195 brought two cores up under OVMF, and `cargo xtask uefi-test` runs at NIFE_SMP=2.
@@ -171,7 +171,7 @@ TIMEOUT="${NIFE_UEFI_TIMEOUT:-90}"
 #     only when NIFE_UEFI_REDOXFS is set (see below).
 #
 # Each is attached only when its variable names an image, exactly as on the PVH runner, so a plain
-# `scripts/qemu-uefi-x86_64.sh target/esp` is still the bare tour machine.
+# `helpers/qemu-uefi-x86_64.sh target/esp` is still the bare tour machine.
 DISK=""
 if [ -n "$NIFE_DISK" ]; then
     PCI_DISK="${NIFE_DISK%.img}-pci.img"
@@ -223,7 +223,7 @@ if [ -n "$NIFE_NVME" ]; then
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
 fi
 
-exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
+exec helpers/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     -machine q35 \
     -cpu "$CPU" \
     -smp "$SMP" \

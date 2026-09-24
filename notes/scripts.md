@@ -138,7 +138,7 @@ is the front door, and this is not a door.
 The premise that had kept the derivations copied turned out to be false, and it is worth writing
 down because the same shape will come up again: an inline `python3` heredoc looks like a place
 nothing can be imported into, but every one of these scripts `cd`s to the repository root before it
-runs python, so `sys.path.insert(0, 'scripts')` is all it takes. The alternative on the table was a
+runs python, so `sys.path.insert(0, 'helpers')` is all it takes. The alternative on the table was a
 host crate, which would have made three `script/` commands depend on a `cargo build`.
 
 **`bootstrap` installs system packages, and on Linux it also builds one.** Running

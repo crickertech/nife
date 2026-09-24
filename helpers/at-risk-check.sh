@@ -4,7 +4,7 @@
 # in this system that destroys rather than delays, because a prune of that worktree is a prune of
 # whatever it was holding.
 #
-#     scripts/at-risk-check.sh          # one pass, then exit
+#     helpers/at-risk-check.sh          # one pass, then exit
 #
 # PROVISIONAL NAME. Minted 2026-09-23; not put to calef. See `Name:` below.
 #
@@ -22,7 +22,7 @@
 # AGENTS.md's own ladder (a sentence, relying on someone remembering it) for the specific case the
 # sentence says is worst to leave there.
 #
-# Measured cost, all in one session on 2026-09-23: a fix to `scripts/open-lane.sh` found only while
+# Measured cost, all in one session on 2026-09-23: a fix to `helpers/open-lane.sh` found only while
 # pruning merged worktrees, a fix to `kernel/src/user/live_swap_tests.rs` that survived two prunes
 # uncommitted and had to be recovered twice, and 62 lines of a decisions amendment sitting unsaved
 # on a branch for hours after the conversation moved on. The maintainer pruned worktrees twice that
@@ -47,13 +47,13 @@
 # untracked), not the branch's last commit date. A worktree can carry a commit from hours ago and
 # still be safe, mid-edit, seconds old; the fact that matters is how long the CURRENT uncommitted
 # state has sat without being turned into a commit. `AT_RISK_MINUTES` (default 30, AGENTS.md's own
-# "half an hour") is overridable the way `GRACE_MINUTES` already is in `scripts/lane-claim-check.sh`.
+# "half an hour") is overridable the way `GRACE_MINUTES` already is in `helpers/lane-claim-check.sh`.
 #
 # # Name: unrecorded.
 #
 # Provisional, minted by this lane. "at-risk" is AGENTS.md's own phrase for exactly this ("work at
-# risk"); "-check" matches `scripts/lane-claim-check.sh`, `script/qemu-check` and
-# `script/stack-frame-check`. It lives in `scripts/` rather than `script/` for the same reason
+# risk"); "-check" matches `helpers/lane-claim-check.sh`, `script/qemu-check` and
+# `script/stack-frame-check`. It lives in `helpers/` rather than `script/` for the same reason
 # `merge-drain.sh` gives for itself: a maintainer's tool, not a front door a contributor types, so it
 # carries no `notes/scripts.md` entry (`script/lint`'s "script docs" check only walks `script/`).
 #
@@ -64,14 +64,14 @@
 #     committing), so this can flag live work. It is not wrong to flag it: the risk (one prune away
 #     from gone) is real in both cases, and the fix is the same (commit, or push what exists as a
 #     patch). A reader still has to tell "safe, still typing" from "abandoned" the same way
-#     `scripts/lane-claim-check.sh` leaves "safe to delete" versus "somebody has to look" to a
+#     `helpers/lane-claim-check.sh` leaves "safe to delete" versus "somebody has to look" to a
 #     person.
 #   - **It does not dedupe across passes.** Every call reports every worktree still over the
 #     threshold, so a worktree that stays at risk for two hours is reported on every pass that reads
 #     it, unlike `merge-drain.sh`'s `notify()` or `trunk-health.sh`'s own transition-only reporting.
 #     That was a deliberate choice over adding a second piece of state to track "already said": a
 #     worktree at risk stays exactly as at risk on the next pass, and repetition costs nothing more
-#     than log lines, which is the same trade `scripts/lane-claim-check.sh` already makes for the
+#     than log lines, which is the same trade `helpers/lane-claim-check.sh` already makes for the
 #     identical reason.
 #   - **A worktree whose directory was removed without `git worktree remove` reports `prunable` and
 #     is skipped rather than flagged.** There is nothing left in it to lose, so this is correct, not
@@ -155,6 +155,6 @@ done <<EOF
 $worktrees
 EOF
 
-# Always exits 0: this is a report, not a gate, the same posture `scripts/lane-claim-check.sh`
+# Always exits 0: this is a report, not a gate, the same posture `helpers/lane-claim-check.sh`
 # takes ("Not a gate" in that file's own header) for the same reason.
 exit 0

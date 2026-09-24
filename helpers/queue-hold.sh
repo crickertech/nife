@@ -2,16 +2,16 @@
 #
 # Hold the merge queue while `main` is red, and give it back afterwards.
 #
-#     scripts/queue-hold.sh hold 1168        # hold everything except #1168, which is the fix
-#     scripts/queue-hold.sh hold 1168 -n     # say what that would do, change nothing
-#     scripts/queue-hold.sh status           # what is held right now
-#     scripts/queue-hold.sh release          # re-arm auto-merge on everything held
+#     helpers/queue-hold.sh hold 1168        # hold everything except #1168, which is the fix
+#     helpers/queue-hold.sh hold 1168 -n     # say what that would do, change nothing
+#     helpers/queue-hold.sh status           # what is held right now
+#     helpers/queue-hold.sh release          # re-arm auto-merge on everything held
 #
 # PROVISIONAL NAME. Minted 2026-09-23 by this lane; not put to calef. See the `Name:` block below.
 #
 # # Why this exists
 #
-# `scripts/trunk-health.sh` says `main` is red. `scripts/merge-drain.sh` lands what does not need
+# `helpers/trunk-health.sh` says `main` is red. `helpers/merge-drain.sh` lands what does not need
 # calef. Nothing implemented the response in between, and calef named the gap on 2026-09-23: *"Is
 # there a missing mechanism for fixing when main goes red? It seems like the fix is enqueuing the one
 # fix and holding everything else until that lands, then re-enabling everything else."*
@@ -38,7 +38,7 @@
 # that. It cannot be done: GitHub clears `autoMergeRequest` the moment a pull request enters the
 # queue (notes/merge-queue.md records that trap under #965), so "armed and queued" and "never armed"
 # read identically. Release therefore re-arms every held pull request, which is the same admission
-# policy `scripts/merge-drain.sh` applies every five minutes anyway: not a draft, into `main`, not
+# policy `helpers/merge-drain.sh` applies every five minutes anyway: not a draft, into `main`, not
 # `needs-architect`. Anything the drain would have armed on its next pass is armed; nothing else is.
 # That is why `needs-architect` pull requests are skipped by `hold` as well as by `release`: holding
 # one would be a no-op that release could only undo by arming something the drain never would.
@@ -65,17 +65,17 @@
 #     way, re-enqueue it; nothing is lost but a CI round trip.
 #   - **`release` re-arms rather than restores.** See above: the pre-hold state is not recoverable
 #     from the API, so a pull request that was deliberately left unarmed before the hold comes back
-#     armed. In practice `scripts/merge-drain.sh` would have armed it on its next pass regardless, so
+#     armed. In practice `helpers/merge-drain.sh` would have armed it on its next pass regardless, so
 #     the window in which this differs is five minutes wide.
 #   - **It does not check whether `main` is actually red.** Deliberate: the judgement is the brief's,
 #     the exempt pull request is an argument, and a script that second-guessed either would be
-#     resolving. `status` prints `scripts/trunk-health.sh --once` beside the held set so a reader
+#     resolving. `status` prints `helpers/trunk-health.sh --once` beside the held set so a reader
 #     sees both facts together, and that is as far as it goes.
 #   - **Nothing expires a hold.** A session that dies mid-hold leaves labelled pull requests that
 #     nothing will release; the recovery list is in briefs/main-is-red.md, and it is one `release`.
-#     An unreleased hold is visible (the label, and `scripts/merge-drain.sh` reporting fewer unheld
+#     An unreleased hold is visible (the label, and `helpers/merge-drain.sh` reporting fewer unheld
 #     pull requests than there are open ones) but nothing announces it.
-#   - **A hold only holds because `scripts/merge-drain.sh` agrees to honour the label.** That is a
+#   - **A hold only holds because `helpers/merge-drain.sh` agrees to honour the label.** That is a
 #     coupling between two scripts and nothing enforces it: the drain runs unattended under `launchd`
 #     every 300 seconds, and until 2026-09-23 it re-enqueued everything held here, three times in one
 #     evening, invisibly (a dequeue leaves no trace of why an entry returned). Its admission policy
@@ -89,15 +89,15 @@
 #     `hold` can under-report; give it a few seconds, and trust the labels on the pull requests
 #     themselves over this listing when the two disagree.
 #   - **`status` always reports the real repository's trunk**, even under `QUEUE_HOLD_REPO`:
-#     `scripts/trunk-health.sh` takes no such override. That is harmless (a rehearsal repository has
+#     `helpers/trunk-health.sh` takes no such override. That is harmless (a rehearsal repository has
 #     no trunk anybody cares about) and confusing enough to be worth saying once.
 #   - **It holds what is open when it runs.** A pull request opened or marked ready *during* the hold
-#     is not labelled, and `scripts/merge-drain.sh` will arm it into a red trunk. Re-running `hold`
+#     is not labelled, and `helpers/merge-drain.sh` will arm it into a red trunk. Re-running `hold`
 #     is idempotent and sweeps the new arrivals; nothing does that automatically.
 #
 # Name: unrecorded. Provisional, minted 2026-09-23 by this lane. `queue-hold` for what it does to the
 # queue rather than for the mechanism, the family `merge-drain.sh` named itself into. It lives in
-# `scripts/` rather than `script/` for the reason `merge-drain.sh` gives for itself: a maintainer's
+# `helpers/` rather than `script/` for the reason `merge-drain.sh` gives for itself: a maintainer's
 # tool, not a front door a contributor types, so it carries no notes/scripts.md row (`script/lint`'s
 # script-docs check only walks `script/`). The label `held-for-red-trunk` is provisional too, and
 # says `trunk` rather than `main` for `trunk-health.sh`'s reason: the branch could be renamed and the
@@ -108,7 +108,7 @@ cd "$(dirname "$0")/.."
 
 # Overridable for one reason, and it is the reason a drill exists: the mutating path cannot be
 # rehearsed against this repository without touching real pull requests and real group builds.
-# `QUEUE_HOLD_REPO=<scratch repo> scripts/queue-hold.sh hold 1` runs the whole thing end to end
+# `QUEUE_HOLD_REPO=<scratch repo> helpers/queue-hold.sh hold 1` runs the whole thing end to end
 # somewhere nothing is lost. Not a knob for ordinary use; see notes/main-is-red.md for the rehearsal.
 REPO="${QUEUE_HOLD_REPO:-crickertech/nife}"
 HELD_LABEL="held-for-red-trunk"
@@ -119,7 +119,7 @@ LABEL_COLOR="b60205"
 # every `--add-label` after it failed too and the hold recorded nothing while reporting success.
 # That is why `ensure_label` below aborts rather than continuing: without the label there is no
 # record, and a hold with no record is the chat message this script exists to replace.
-LABEL_DESC="Held while \`main\` is red; do not enqueue. scripts/queue-hold.sh release clears it."
+LABEL_DESC="Held while \`main\` is red; do not enqueue. helpers/queue-hold.sh release clears it."
 
 usage() {
 	echo "usage: $(basename "$0") hold <fix-pr-number> [-n|--dry-run]" >&2
@@ -292,7 +292,7 @@ release)
 	say "release pass done; anything still labelled needs a person: gh pr list --label $HELD_LABEL"
 	;;
 status)
-	scripts/trunk-health.sh --once || true
+	helpers/trunk-health.sh --once || true
 	list=$(held)
 	if [ -z "$list" ]; then
 		say "nothing is held"

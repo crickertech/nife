@@ -2,8 +2,8 @@
 #
 # Say when `main` is red, and say when it recovers.
 #
-#     scripts/trunk-health.sh             # watch until stopped
-#     scripts/trunk-health.sh --once      # print the current state and exit
+#     helpers/trunk-health.sh             # watch until stopped
+#     helpers/trunk-health.sh --once      # print the current state and exit
 #
 # PROVISIONAL NAME. Minted 2026-08-04; not put to calef. See the `Name:` block below.
 #
@@ -51,7 +51,7 @@
 # `.github/workflows/trunk-health.yml`, which carries the reasoning, the tested premise, and the
 # cadence BUGS. It used to run under `launchd` on patagonia as calef's own token.
 #
-# **`scripts/at-risk-check.sh` did not come along, and could not have.** It was folded into this
+# **`helpers/at-risk-check.sh` did not come along, and could not have.** It was folded into this
 # script's loop on 2026-09-23 on the reasoning that a third watcher is a third thing to start and a
 # third thing that can die silently, and that `com.nife.trunk-health` was already firing on the
 # right interval. That reasoning was correct for as long as both halves ran on the same machine.
@@ -89,10 +89,10 @@
 #     which is a different and much chattier API. Until then, a docs-only merge is a moment to
 #     distrust this watcher rather than to be reassured by it.
 #   - **It reports and never resolves**, deliberately, which was the whole gap calef named on
-#     2026-09-23. The response now exists as `scripts/queue-hold.sh` and briefs/main-is-red.md, and
+#     2026-09-23. The response now exists as `helpers/queue-hold.sh` and briefs/main-is-red.md, and
 #     a person still has to run it: this script does not, because holding the queue needs the
 #     judgement notes/merge-queue.md argues a watcher must not exercise.
-#   - **It does not report its own death.** Shared with `scripts/merge-drain.sh`, accepted rather
+#   - **It does not report its own death.** Shared with `helpers/merge-drain.sh`, accepted rather
 #     than solved; notes/merge-queue.md has the reasoning and the `launchd` plists.
 #
 # Name: unrecorded. Provisional, minted 2026-08-04 and not yet put to calef. `trunk` rather than
@@ -124,7 +124,7 @@ if [ -z "$once" ] && [ "$(git rev-parse --git-dir 2>/dev/null)" != ".git" ]; the
 	echo "$(basename "$0"): refusing to watch from a lane worktree." >&2
 	echo "  A watcher outlives the lane that started it, and pruning that lane's worktree kills" >&2
 	echo "  it silently, because /bin/sh reads a script lazily. Run it from the main checkout:" >&2
-	echo "    cd <main checkout> && scripts/$(basename "$0") &" >&2
+	echo "    cd <main checkout> && helpers/$(basename "$0") &" >&2
 	echo "  ('--once' is fine from anywhere; only the watching form is refused.)" >&2
 	exit 2
 fi
@@ -175,10 +175,10 @@ cadence() {
 }
 
 # Relayed by `--once` only; the watching form no longer calls it. See the header section above for
-# why the fold was undone. `scripts/at-risk-check.sh` reports and never acts; this only relays it,
+# why the fold was undone. `helpers/at-risk-check.sh` reports and never acts; this only relays it,
 # and on a machine with no lane worktrees it prints nothing rather than being wrong.
 at_risk() {
-	scripts/at-risk-check.sh 2>/dev/null || true
+	helpers/at-risk-check.sh 2>/dev/null || true
 }
 
 if [ -n "$once" ]; then

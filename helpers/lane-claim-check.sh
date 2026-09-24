@@ -3,7 +3,7 @@
 # Report pushed branches that have no pull request claiming them, and pushed
 # branches whose pull request closed without a resolution anyone acted on.
 #
-#     scripts/lane-claim-check.sh          # one pass, then exit
+#     helpers/lane-claim-check.sh          # one pass, then exit
 #
 # PROVISIONAL NAME. Minted 2026-08-31 by milestone 204's lane; not put to calef. See `Name:` below.
 #
@@ -71,7 +71,7 @@
 #
 # Name: unrecorded. Provisional. `lane` and `claim` are both AGENTS.md's own words for these things
 # (`§90`: "the draft is the claim"), and `-check` matches `script/qemu-check` and
-# `script/stack-frame-check`. It lives in `scripts/` rather than `script/` for `merge-drain.sh`'s
+# `script/stack-frame-check`. It lives in `helpers/` rather than `script/` for `merge-drain.sh`'s
 # reason: it is a maintainer's tool, not a front door a contributor types.
 #
 # # BUGS

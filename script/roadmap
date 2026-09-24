@@ -152,7 +152,7 @@ d = os.path.join(root, "design", "roadmap")
 # otherwise leave a `helpers/__pycache__/` behind on every run, which is an untracked directory a
 # gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(root, "scripts"))
+sys.path.insert(0, os.path.join(root, "helpers"))
 import roadmap_proposals                                                    # noqa: E402
 
 PROPOSED_DIR = "proposals"

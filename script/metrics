@@ -163,7 +163,7 @@ from datetime import date, datetime, timedelta, timezone
 # `dont_write_bytecode` because the import would otherwise leave a `helpers/__pycache__/`
 # behind on every run, which is an untracked directory a gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, 'scripts')
+sys.path.insert(0, 'helpers')
 import name_provenance                                                      # noqa: E402
 import roadmap_proposals                                                    # noqa: E402
 import rust_source                                                          # noqa: E402
