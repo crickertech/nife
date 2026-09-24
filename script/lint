@@ -1053,7 +1053,9 @@ PYEOF
 # The library half beside it, which is the half the design deliberately lifted out to BE
 # host-testable, was at 91% the whole time.
 #
-# One target matches today. The gate is worth its twenty lines anyway, because it fires on the
+# One target matches today, and it is five files, not one: 2026-09-24 found `main.rs`'s own modules
+# (`src/arch/`, `src/chooser.rs`) scored MISSED because the gate checked only the root. The gate is
+# worth its lines anyway, because it fires on the
 # second one without anybody having read this paragraph, which is the difference between rung two
 # and rung four. Coverage is not checked here: `script/coverage` reports on files the build
 # produced, so a target it never built contributes no lines to drag the floor down.
@@ -1069,19 +1071,68 @@ root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                       capture_output=True, text=True, check=True).stdout.strip()
 mutants = open(".cargo/mutants.toml").read()
 
+import os, re
+
+# A target is not one file. `mod arch;` in `main.rs` puts `src/arch/mod.rs` and everything IT
+# declares into the same unbuilt target, and cargo-mutants scores each of those files as MISSED
+# exactly as it does the root. Checking only `src_path` let `uefi_loader/src/arch/` and
+# `src/chooser.rs` through: 132 of the crate's 182 missed at the 2026-09-21 census. So walk the
+# module tree from each root, the way rustc resolves a non-inline `mod name;`.
+MOD = re.compile(r'(?:#\[path\s*=\s*"([^"]+)"\]\s*)?(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;')
+
+def module_tree(src):
+    seen, todo = set(), [src]
+    while todo:
+        f = todo.pop()
+        if f in seen or not os.path.isfile(f):
+            continue
+        seen.add(f)
+        text = re.sub(r"//[^\n]*", "", open(f).read())
+        here = os.path.dirname(f)
+        owns_dir = os.path.basename(f) in ("main.rs", "lib.rs", "mod.rs")
+        base = here if owns_dir else f[:-len(".rs")]
+        for explicit, name in MOD.findall(text):
+            if explicit:
+                todo.append(os.path.normpath(os.path.join(here, explicit)))
+            else:
+                todo += [os.path.join(base, name + ".rs"), os.path.join(base, name, "mod.rs")]
+    return seen
+
+def glob_re(g):
+    out, i = "", 0
+    while i < len(g):
+        if g.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif g[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        else:
+            out, i = out + re.escape(g[i]), i + 1
+    return re.compile(out + "$")
+
+block = re.search(r"exclude_globs\s*=\s*\[(.*?)\n\]", mutants, re.S).group(1)
+excluded = [glob_re(g) for g in re.findall(r'^\s*"([^"]+)"', block, re.M)]
+
+def rel(path):
+    return path[len(root) + 1:] if path.startswith(root + "/") else path
+
 missing = []
 gated = []
 for pkg in meta["packages"]:
+    built = set()
+    for target in pkg["targets"]:
+        if not target.get("required-features"):
+            built |= module_tree(target["src_path"])
     for target in pkg["targets"]:
         if not target.get("required-features"):
             continue
-        rel = target["src_path"]
-        if rel.startswith(root + "/"):
-            rel = rel[len(root) + 1:]
-        gated.append(rel)
-        if f'"{rel}"' not in mutants:
-            missing.append((pkg["name"], target["name"], rel,
-                            target["required-features"]))
+        # A file the host DOES build through another target (a module the library also declares)
+        # is reachable by tests, so it stays mutated.
+        for f in sorted(module_tree(target["src_path"]) - built):
+            r = rel(f)
+            gated.append(r)
+            if not any(g.match(r) for g in excluded):
+                missing.append((pkg["name"], target["name"], r,
+                                target["required-features"]))
 
 if missing:
     sys.stderr.write("lint: targets the host build never selects, but cargo-mutants still scores:\n")
@@ -1093,14 +1144,15 @@ test can reach a line of them. cargo-mutants does not read the build graph: it e
 anyway, nothing rebuilds, the tests pass, and every mutant is recorded MISSED in "0s build + 0s
 test". That is not a finding about the tests, it is arithmetic, and it lands in a published report.
 
-Add the source path to `exclude_globs` in `.cargo/mutants.toml`, with the reason and with what DOES
+Add the source path, or a glob over its module directory, to `exclude_globs` in `.cargo/mutants.toml`,
+with the reason and with what DOES
 prove the file (for `uefi_loader/src/main.rs` that is `cargo xtask uefi-boot` under OVMF). If the
 target has logic worth mutating, the better fix is the one `uefi_loader` already made: lift the pure
 half into a library the host compiles, and leave only the firmware calls behind the feature.
 """)
     sys.exit(1)
 
-print(f"mutation: {len(gated)} feature-gated target(s), every one excluded")
+print(f"mutation: {len(gated)} file(s) only feature-gated targets compile, every one excluded")
 MUTEOF
 
 # The same failure a THIRD time, and this one hides inside a package rather than beside it.

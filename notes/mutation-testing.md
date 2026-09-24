@@ -99,19 +99,22 @@ measured for the first time and one grew eightfold:
 
 | crate | viable | killed | missed | since 2026-09-19 |
 |---|---|---|---|---|
-| `uefi_loader` | 356 | 48.9% | 182 | 34 viable at 100% |
+| `uefi_loader` | 356 | 48.9% | 182 | 34 viable at 100%; 132 missed were unbuilt files |
 | `stick_maker` | 288 | 64.9% | 101 | new |
 | `portable_executable` | 277 | 72.6% | 76 | new |
 | `firmware_configuration` | 32 | 84.4% | 5 | new |
 | `sealed_pair` | 63 | 95.2% | 3 | new |
 
-So the worklist is short and named: those three largest, then `paging` at 89.5% with 57 missed.
+So the worklist is short and named: `stick_maker` and `portable_executable`, then `paging` at 89.5%
+with 57 missed, then `uefi_loader`'s 50 real survivors (below).
 
-Read `uefi_loader`'s row with care. `.cargo/mutants.toml` excludes `uefi_loader/src/main.rs`, the
-binary no host build compiles. The binary's own modules, `src/arch/` and `src/chooser.rs`, are
-separate files the exclusion does not reach: 327 of the crate's mutants on 2026-09-24's
-`script/mutation --list`. Part of the drop may be the [2026-09-04 trap](mutation-testing/uefi-loader.md)
-again. That is a hypothesis; no run has confirmed it.
+Read `uefi_loader`'s row with care: most of its drop was the
+[2026-09-04 trap](mutation-testing/uefi-loader.md) again, confirmed on 2026-09-24. The exclusion
+covered `uefi_loader/src/main.rs` but not the modules it declares, `src/arch/` and `src/chooser.rs`,
+which no host build compiles either. The census artifacts put 132 of the crate's 182 missed in
+`src/arch/`. Without them the crate reads 77.7% (174 of 224 viable), with 50 real survivors in
+`device_tree_patch.rs`, `handoff.rs` and `image.rs`, and the corpus reads 93.6%. Both files are now
+excluded, and `script/lint` walks a gated target's whole module tree, so the next one fails the gate.
 
 ## How it got here
 
