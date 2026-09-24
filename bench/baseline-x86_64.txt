@@ -1,6 +1,7 @@
-# toolchain: nightly-2026-09-23
+# toolchain: nightly-2026-09-24
 # qemu: 11.1.1
-# why: unrecorded, predates milestone 302 (a baseline records what it was saved against); the only account of why these numbers moved is git log.
+# date: 2026-09-24
+# why: nightly-2026-09-24: against the old nightly on the same tree (b5a83740d) no x86_64 row moved; this save absorbs +0.4% to +2.3% drift already on main since the last save (spawn_reap +2.3%, tss_iomap_lazy_nop +1.2%, tss_iomap_lazy_switch +1.1%), which the compiler did not cause
 # bench/baseline-x86_64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -9,14 +10,14 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 19188747 2000
-tss_iomap_switch 23937905 2000
-tss_iomap_lazy_switch 23586100 2000
-tss_iomap_lazy_nop 19609872 2000
-ipc_rtt 17202389 1000
-relay_rtt 34330887 1000
-call_reply 17733698 1000
-broker_rtt 35429246 1000
-spawn_reap 2846009 64
+yield_switch 19324961 2000
+tss_iomap_switch 24086239 2000
+tss_iomap_lazy_switch 23834118 2000
+tss_iomap_lazy_nop 19838232 2000
+ipc_rtt 17274152 1000
+relay_rtt 34467502 1000
+call_reply 17804623 1000
+broker_rtt 35565716 1000
+spawn_reap 2911921 64
 map_new 176491 64
-coremark 306216611 256
+coremark 306220961 256
