@@ -54,6 +54,8 @@
 #
 #   script/decisions           print the index, grouped by status
 #   script/decisions --check   validate; non-zero on a problem (wired into script/lint)
+#   script/decisions --index   print README.md with the table regenerated from the files
+#   script/decisions --write-index   write that back
 #
 # Name: recorded (DECISIONS §134, which writes the `script/` family's split down). Introduced
 # 2026-07-30 with the decision index. §134 states the rule nobody had recorded until then: what
@@ -173,6 +175,8 @@ for fname in sorted(os.listdir(d)):
         titles[h.group(2).strip()] = int(h.group(1))
 
 ids = {}
+file_status = {}
+file_title = {}
 for fname in sorted(os.listdir(d)):
     if fname == "README.md":
         continue
@@ -215,8 +219,15 @@ for fname in sorted(os.listdir(d)):
             problems.append(f"{fname}:{n}: §{h.group(1)}'s heading ({h.group(2)[:40]!r}) inside "
                             f"§{num}'s file: one file is one decision")
 
+    h1 = re.match(rf"# {num}\. (.+)$", lines[0] if lines else "")
+    if h1:
+        file_title[num] = h1.group(1).strip()
+    first = next((line for line in lines[1:] if line.strip()), "")
+    fsm = re.match(r"\*\*Status: (.+?)\.\*\*", first)
+    if fsm and parse_status(fsm.group(1)) == fsm.group(1):
+        file_status[num] = fsm.group(1)
+
     if num in rows:
-        first = next((line for line in lines[1:] if line.strip()), "")
         sm = re.match(r"\*\*Status: (.+?)\.\*\*", first)
         if not sm:
             problems.append(f"{fname}: the first line after the title must be "
@@ -226,6 +237,46 @@ for fname in sorted(os.listdir(d)):
         elif sm.group(1) != rows[num][0]:
             problems.append(f"§{num}: file says {sm.group(1)}, index says {rows[num][0]} "
                             f"(a decision whose status is contradicted by its own index row)")
+
+# ---- the index, rendered from the files --------------------------------------
+# **The table under `## The decisions` is generated**, and this is what generates it. It was
+# hand-maintained until milestone 581, which made it the worst additive-index conflict left in the
+# tree for the same reason `design/roadmap/README.md`'s table was before milestone 294 retired it:
+# every lane minting a section had to add a row to one sorted file, so every lane in flight
+# collided with every other one, always, in that one place. `briefs/rebase-onto-main.md` names it
+# as case 4's worked example.
+#
+# **The prose around the table is not generated and must not be**, which is why this replaces a
+# region rather than writing the whole file. The preamble argues; only the rows are data.
+#
+# The region is anchored on the `## The decisions` heading and ends at the first blank line after
+# the rows, rather than on HTML comment markers. A marker is a second thing to keep correct, and
+# the heading is already load-bearing: a reader navigates by it and GitHub renders it.
+TABLE_HEADING = "## The decisions"
+
+
+def render_index(text):
+    """Return `text` with the decisions table replaced by one generated from the files."""
+    lines = text.split("\n")
+    try:
+        start = lines.index(TABLE_HEADING)
+    except ValueError:
+        return None
+    n = start + 1
+    while n < len(lines) and not lines[n].startswith("| "):
+        n += 1
+    end = n
+    while end < len(lines) and lines[end].startswith("|"):
+        end += 1
+    body = ["| # | Status | Decision |", "|---|---|---|"]
+    for num in sorted(ids):
+        status = file_status.get(num, "")
+        if status == "SUPERSEDED BY" or not status:
+            continue
+        title = file_title.get(num, "").replace("|", "\\|")
+        body.append(f"| {num} | {status} | [{title}]({ids[num]}) |")
+    return "\n".join(lines[:n] + body + lines[end:])
+
 
 # ---- citations, tree-wide ----------------------------------------------------
 # **`git grep` output is not only matches.** For a binary file it prints the SENTENCE
@@ -261,6 +312,26 @@ for n in sorted(cited - set(rows)):
     problems.append(f"§{n} is cited in the tree but no decision has that number")
 
 # ---- report ------------------------------------------------------------------
+generated_index = render_index(index)
+if generated_index is None:
+    problems.append(f"the index has no '{TABLE_HEADING}' heading, so the table cannot be generated")
+
+if mode == "--index":
+    if generated_index is None:
+        sys.exit(1)
+    print(generated_index, end="")
+    sys.exit(0)
+
+if mode == "--write-index":
+    if generated_index is None:
+        sys.exit(1)
+    open(index_path, "w").write(generated_index)
+    sys.exit(0)
+
+if generated_index is not None and generated_index != index:
+    problems.append("the index table does not match the files it is generated from; run "
+                    "`script/decisions --write-index`")
+
 if mode == "--check":
     for p in sorted(set(problems)):
         print(f"decisions: {p}", file=sys.stderr)
