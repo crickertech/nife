@@ -164,6 +164,27 @@ nothing but a core's worth of memory. Until one of the two scripts changes (the 
 TERM and HUP and forwarding them to QEMU would be the smaller fix), **after bounding an x86_64
 run, `pgrep -l qemu-system-x86` and walk the parent chain**, and treat a PPID of 1 as yours.
 
+### 4. Killing a harness does not kill its children
+
+Moved here from `AGENTS.md` on 2026-09-23 (UTC), where it was the anecdote attached to the rule that
+a session checks for leaked emulators afterwards. The rule stayed there; this is the evidence.
+
+**Checking `pgrep` is not sufficient after you kill a harness, and on 2026-08-02 it took four
+attempts to notice.** Killing a loop script does not kill its descendants: `pkill -f hunt-...` left
+`cargo xtask test` running, which kept starting fresh QEMUs. So every check honestly reported "no
+qemu" and the next command found one holding `target/nifefs.img`, which then failed unrelated test
+runs with `Failed to get "write" lock` and looked like a bug in the code under test.
+
+**And the check runs in both directions** (2026-08-15): before killing a "leaked" QEMU, walk
+`ps -o pid,ppid` UP from it too. A QEMU whose parent chain ends in a live harness is somebody's gate
+in flight, not a leak; the maintainer killed a lane's mid-suite emulator this way and the lane's run
+failed for a reason no one could see from inside it.
+
+Two habits fix it. **Ask who holds the file, not whether a process matches a name**:
+`lsof target/nifefs.img` names the holder even when your pattern does not. And **kill the tree at its
+root**: walk `ps -o pid,ppid,command` up to the harness and kill that, or the loop simply starts
+another child.
+
 **A kernel does not exit.** That is the root of it: `cargo test` terminates because the test
 build asks the host to exit via [semihosting](semihosting.md), but a normal boot halts
 forever, by design, exactly like real hardware. So every interactive run must be bounded, and
