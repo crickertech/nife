@@ -1,6 +1,16 @@
-# A merge needs a review no fork can supply
+# 588. A merge needs a review no fork can supply
 
-**Status: PROPOSED 2026-09-24.** Raised by the 2026-09-24 security audit
+**Status: PARTIAL.** *(Number minted at promotion.)* Promoted from the proposal
+`a-merge-needs-a-review-no-fork-can-supply`, filed 2026-09-24, after calef ruled on it the same
+day: **options 2 and 3 adopted, option 1 not taken and still open.** Option 2 is set live (workflow
+approval is required for all external contributors). Option 3's tree side is pull request #1215:
+the three jobs that mint the App token (`merge-drain.yml`, `trunk-health.yml`, `toolchain-bump.yml`)
+name the `automation` environment (name provisional), whose deployment branches are `main` only.
+**Option 3 is not protective yet**: the secrets are still organisation-level, which every job can
+read whatever its environment, so it becomes real only when calef stores them on the environment
+and deletes the org copies (see `## Follow-on`). The text below is the proposal's own, unedited
+except for this paragraph, the gate's first sentence, and the `## Follow-on` and `## Index row`
+sections; the ruling paragraph under the gate was added to the proposal before promotion. As filed: Raised by the 2026-09-24 security audit
 (`design/audit-reports/2026-09-24-new-trust-boundaries.md`, finding 1), which found that
 `scripts/merge-drain.sh` armed auto-merge on every open, non-draft pull request against `main`
 from any author, that the ruleset on `main` requires zero approving reviews, and that a merge-group
@@ -8,7 +18,8 @@ build runs a pull request's own workflow edits with this repository's secrets. T
 path in the script (`scripts/queue-eligible.jq` refuses a head in another repository); this is the
 rung above it.
 
-**Gate: DECISION.** Every option below is a repository or organisation setting, which is a fact
+**Gate: DECISION.** Option 1 is still calef's to rule, and the secret move is an organisation
+setting only he can make. As filed: every option below is a repository or organisation setting, which is a fact
 that leaves the tree: no lane can change it, and every lane works under it from the moment it
 changes. It is calef's.
 
@@ -68,3 +79,24 @@ comment should say in its body that it is the admission predicate speaking and n
 
 Nothing in the tree. The script-level fix holds today; this decides whether it is the only thing
 holding.
+
+## Follow-on
+
+- **Outstanding.** calef stores `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY` as environment
+  secrets on `automation`, then deletes the organisation-level copies. Until then option 3 is inert:
+  an org secret reaches every job regardless of environment. After it, a dispatch of each of the
+  three workflows confirms the jobs still mint the token. Checked 2026-09-24: the environment's
+  secrets endpoint (`gh api repos/crickertech/nife/environments/automation/secrets`) lists none.
+- **Outstanding.** Option 1, a required approving review the App would give. Not ruled; its cost is
+  as written under Options. Checked 2026-09-24: the `main` ruleset's `pull_request` rule still
+  reads `required_approving_review_count: 0`.
+- **Done.** Option 2, a repository setting made 2026-09-24; the fork approval endpoint reads
+  `approval_policy: all_external_contributors`.
+- **Done.** Option 3's tree side, pull request #1215, merged 2026-09-24. Dispatch runs from `main`
+  after the merge: merge-drain 36052027971 and trunk-health 36052031966 succeeded; toolchain-bump
+  36052036224 failed on a quoting bug unrelated to the environment (fixed in #1237) and succeeded
+  on re-run 36059259805.
+
+## Index row
+
+A merge-group build runs a pull request's own workflow edits with this repository's secrets, and the `main` ruleset requires no review. calef adopted two of three fixes on 2026-09-24: workflow approval for every outside contributor, and the App's secrets behind a `main`-only environment. The secrets have not yet moved out of the organisation, and a required review stays unruled.
