@@ -1,6 +1,6 @@
 # Milestone 138 (close the read gap), steps 1 and 3
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 8 KiB record and the 64 KiB file request, measured before and after, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 8 KiB record and the 64 KiB file request, measured before and after, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef), who refused `milestone-138-steps-1-and-3` for this file; [the naming record](README.md) says why.*
 
 ## Step 1 taken: the record is 8 KiB, and 72% of a read is now the part it does not touch (milestone 138, 2026-08-18)
 
@@ -66,7 +66,7 @@ After it the fixed term is 72% and the record 28%. Step 1 did not shrink the res
 the residual the whole problem.
 
 That residual is already counted. Of the read's 206 us, about 195 us is five single-block reads of
-the same five blocks on every request, which is step 2's target (see [the fixed term](the-fixed-term.md)
+the same five blocks on every request, which is step 2's target (see [the fixed term](five-blocks-per-request.md)
 and `design/roadmap/138-file-io-throughput.md`). The remaining ~13 us is the file-IPC round trip and
 the server's own work. Nothing in milestone 138's four steps removes it, and it puts a fully cached
 4 KiB read at about 300 MiB/s.
@@ -93,7 +93,7 @@ step 1 measured, that can be restated against real numbers:
   Nothing on milestone 138's list addresses that except step 3.
 
 *(Step 3 later re-priced step 2 again, downward on bulk reads; see below. Step 2's measured result is
-in [steps 4 and 2](milestone-138-steps-4-and-2.md).)*
+in [steps 4 and 2](read-path-block-contract-and-metadata-cache.md).)*
 
 ### BUGS
 

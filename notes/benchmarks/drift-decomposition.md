@@ -1,6 +1,6 @@
 # The +6.5% drift, decomposed (milestone 300 (decompose the icount baseline drift))
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2x2x2 grid that attributed the 2026-09-15 drift to one un-gated switch-tuple residual, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2x2x2 grid that attributed the 2026-09-15 drift to one un-gated switch-tuple residual, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## 2026-09-15: the baselines drifted +6.5%, and it was one feature's un-gated switch-tuple residual, not the toolchain (milestone 300)
 

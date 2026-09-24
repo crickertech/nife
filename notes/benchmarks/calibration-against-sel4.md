@@ -1,6 +1,6 @@
 # Calibration against L4 and seL4
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds what the IPC numbers mean next to seL4's published cycles, and why sel4bench cannot run on this host, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds what the IPC numbers mean next to seL4's published cycles, and why sel4bench cannot run on this host, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## The first real numbers, for the record (2026-07-23, M-series host, HVF, debug build)
 

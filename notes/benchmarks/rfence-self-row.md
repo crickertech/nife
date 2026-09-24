@@ -1,6 +1,6 @@
 # The `rfence_self` baseline row
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2026-09-21 and 2026-09-23 readings of one oscillating riscv64 row, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2026-09-21 and 2026-09-23 readings of one oscillating riscv64 row, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 The current value, checked 2026-09-24: `bench/baseline-riscv64.txt` reads `rfence_self 5991 512`
 under `# toolchain: nightly-2026-09-23`, re-recorded by `a66e8c5f9` (2026-09-23). Which cause moved

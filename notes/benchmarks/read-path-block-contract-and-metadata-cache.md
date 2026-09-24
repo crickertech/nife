@@ -1,10 +1,10 @@
 # Milestone 138 (close the read gap), steps 4 and 2, and the comparisons not yet run
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 16-block blk contract, the metadata cache, and the two controlled comparisons, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 16-block blk contract, the metadata cache, and the two controlled comparisons, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef), who refused `milestone-138-steps-4-and-2` for this file; [the naming record](README.md) says why.*
 
 ## Step 4 taken: the blk contract carries 16 blocks, and the win is smaller than the block count predicts (milestone 138, 2026-08-19)
 
-Step 3's own residual pointed here ([steps 1 and 3](milestone-138-steps-1-and-3.md)). After it,
+Step 3's own residual pointed here ([steps 1 and 3](read-path-record-and-request-size.md)). After it,
 `fs_seq_read` was 74% single-block trips through `filesystem_protocol::blk`, one per filesystem
 block, against a ~100 MiB/s ceiling notes/fs-server.md's `BUGS` section had already named.
 
@@ -97,7 +97,7 @@ coverage of the real device is unchanged by this step, not merely re-run.
 Step 4 said where the residual now lives. Of every 6 to 7 blk calls per record, 5 are
 `Transaction::read_tree_and_addr`'s tree walk. It is issued fresh on every
 `Server::read`/`write`/... call, even when the call just before resolved the identical node. That
-was first identified on 2026-08-18 ([the fixed term](the-fixed-term.md), and notes/fs-server.md's
+was first identified on 2026-08-18 ([the fixed term](five-blocks-per-request.md), and notes/fs-server.md's
 "the same five blocks every time") and not addressed until now.
 
 `redoxfs_server::CachedDisk` (`redoxfs_server/src/lib.rs`) wraps `IpcDisk` in a small direct-mapped,
@@ -134,7 +134,7 @@ isolates the cache's marginal contribution on top of everything already shipped.
 there was no cache. `motd` is 69 bytes and lives inline in its node, so reading it needs no record
 read: the tree walk is the whole request. With the cache warm, every read after the first answers
 from memory. `fs_read` collapses toward the bare IPC and server floor, estimated at ~13 us in
-[steps 1 and 3](milestone-138-steps-1-and-3.md). 9,474 ns beats that estimate, plausibly because the
+[steps 1 and 3](read-path-record-and-request-size.md). 9,474 ns beats that estimate, plausibly because the
 cache lookup is cheaper than a `CALL`, plus whatever margin the estimate carried.
 
 This retires the "no cache anywhere" claim that milestone 38 (filesystem throughput) demonstrated and that
@@ -183,7 +183,7 @@ two points here are the shipped value and an approximate floor.
   moves it proportionally more than a millisecond-scale phase. The headline 22.2x is a median of 8
   rounds for that reason.
 - The cache is sized against this milestone's test fixtures, not a real deployment's node count.
-  [The fixed term](the-fixed-term.md) puts a 65,536-node filesystem's full spine at 259 blocks. 64
+  [The fixed term](five-blocks-per-request.md) puts a 65,536-node filesystem's full spine at 259 blocks. 64
   slots keeps one open file's working set hot. It thrashes if enough distinct files are open at once
   to collide across the tree's shared upper levels, and nobody has measured that case.
 - A collision evicts silently. Two block numbers that hash to the same slot (`block % 64`) take turns

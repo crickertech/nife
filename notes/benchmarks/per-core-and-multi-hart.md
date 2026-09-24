@@ -1,6 +1,6 @@
 # Per-core magnitudes and the multi-hart bench
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds why `--real` is single-hart, the 2026-07-29 refresh, and the `smp_*` placement numbers, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds why `--real` is single-hart, the 2026-07-29 refresh, and the `smp_*` placement numbers, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## The one bench that is legitimately multi-hart: §28 (SMP placement)
 

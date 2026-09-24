@@ -2,7 +2,7 @@
 
 *(Milestone 21 (performance measurement). `script/bench`, `kernel/src/bench.rs`, `bench/baseline-<arch>.txt`. This page carries
 the current numbers, how to take them, and what they do not mean. The dated history is in the
-[appendices](#appendices), whose names are provisional.)*
+[appendices](#appendices), whose names calef ratified on 2026-09-24 ([the naming record](benchmarks/README.md)).)*
 
 ## Why two instruments
 
@@ -268,9 +268,9 @@ The third column lists the dated entries each holds, so a citation of "notes/ben
 | [fastpath-footprint-gate](benchmarks/fastpath-footprint-gate.md) | the footprint numbers | 2026-08-18; 2026-08-27; 2026-09-04; 2026-09-21 |
 | [filesystem-throughput](benchmarks/filesystem-throughput.md) | ext4 and APFS | milestone 38 (2026-08-18) |
 | [record-level-sweep](benchmarks/record-level-sweep.md) | the 39.0 us block | 2026-08-18 sweep |
-| [the-fixed-term](benchmarks/the-fixed-term.md) | the five repeated reads | the 208 us; option 2; the workload |
-| [milestone-138-steps-1-and-3](benchmarks/milestone-138-steps-1-and-3.md) | 8 KiB record, 64 KiB request | 2026-08-18; 2026-08-19 |
-| [milestone-138-steps-4-and-2](benchmarks/milestone-138-steps-4-and-2.md) | 189.9 MiB/s, the cache | 2026-08-19; controlled comparisons |
+| [five-blocks-per-request](benchmarks/five-blocks-per-request.md) | the five repeated reads | the 208 us; option 2; the workload |
+| [read-path-record-and-request-size](benchmarks/read-path-record-and-request-size.md) | 8 KiB record, 64 KiB request | 2026-08-18; 2026-08-19 |
+| [read-path-block-contract-and-metadata-cache](benchmarks/read-path-block-contract-and-metadata-cache.md) | 189.9 MiB/s, the cache | 2026-08-19; controlled comparisons |
 | [x86-tss-iomap](benchmarks/x86-tss-iomap.md) | +216 and +2,373 ticks | 2026-08-24; 2026-09-15 |
 | [x86-instruments](benchmarks/x86-instruments.md) | what x86_64 can measure | 2026-08-25; 2026-09-19; 2026-09-23 |
 | [spawn-el0](benchmarks/spawn-el0.md) | spawn since the HVF reading | 2026-08-27; 2026-09-21 |

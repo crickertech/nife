@@ -1,6 +1,6 @@
 # RISC-V `map_new` and the RFENCE probe
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2026-08-15 `map_new` +15.6% and the 2026-08-17 probe that refuted its first reading, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 2026-08-15 `map_new` +15.6% and the 2026-08-17 probe that refuted its first reading, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## 2026-08-15: `map_new` moved 15.6% on RISC-V, and the movement was a bug rather than a cost
 

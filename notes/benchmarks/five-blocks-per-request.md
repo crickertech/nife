@@ -1,6 +1,6 @@
 # The fixed term: five blocks per request
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 208 us identified, what option 2 costs, and why 4 KiB was the only transfer size the system had, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the 208 us identified, what option 2 costs, and why 4 KiB was the only transfer size the system had, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef), who refused `the-fixed-term` for this file; [the naming record](README.md) says why.*
 
 These sections continue [the record-level sweep](record-level-sweep.md) of milestone 138 (close the read gap), all dated
 2026-08-18 unless marked.
@@ -78,7 +78,7 @@ fifth block is the node, one per open handle, which a server holding handles cou
 cache at all.
 
 *Correction, 2026-08-19: milestone 138 step 2 built that cache, a 64-slot `CachedDisk`, and
-`fs_read` fell from ~210 us to ~9.5 us. See [steps 4 and 2](milestone-138-steps-4-and-2.md).*
+`fs_read` fell from ~210 us to ~9.5 us. See [steps 4 and 2](read-path-block-contract-and-metadata-cache.md).*
 
 So option 3 gets nothing here either, now for a measured reason. The walk is structural in one narrow
 sense: the format fixes the depth at four levels plus the node, and a store with a shallower
@@ -172,7 +172,7 @@ the block priced.
 reasoning makes the change legible.* `smb_server`'s two `min`s now read `fs::TRANSFER_MAX` rather than
 `filesystem_protocol::PAGE`, so a Mac writing a megabyte arrives as 16 requests rather than 256.
 Measured through a real SMB client: write 4.8x, read 2.4x, against the 8.02x and 5.67x step 3
-measured on the contract itself ([steps 1 and 3](milestone-138-steps-1-and-3.md)). The residual is
+measured on the contract itself ([steps 1 and 3](read-path-record-and-request-size.md)). The residual is
 now owned by the socket contract's own 4080-byte chunking. The table and reasoning are in
 [notes/smb.md](../smb.md)'s throughput section. What follows is the finding as it stood, which is
 what made that milestone exist.

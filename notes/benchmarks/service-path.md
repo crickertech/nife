@@ -1,6 +1,6 @@
 # The service path: what a userspace server costs
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds `relay_rtt`, `broker_rtt`, `fs_read`, and two small re-saves from July and August, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds `relay_rtt`, `broker_rtt`, `fs_read`, and two small re-saves from July and August, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## The service-path benchmarks: what a userspace-server architecture costs (2026-07-29)
 
@@ -88,7 +88,7 @@ engine's dispatch), which `relay_rtt` puts at a few hundred *nanoseconds*.
 
 *Correction, 2026-09-24: "not served warm from a cache" was true of the build measured here. Milestone
 138's step 2 (2026-08-19) added a 64-block metadata cache, and `fs_read` then measured 9,474 ns warm,
-22.2x faster. See [milestone 138 (close the read gap), steps 4 and 2](milestone-138-steps-4-and-2.md). The ~204 us stays
+22.2x faster. See [milestone 138 (close the read gap), steps 4 and 2](read-path-block-contract-and-metadata-cache.md). The ~204 us stays
 the cold, uncached figure and the quiet-machine control the filesystem appendices use.*
 
 So `fs_read` is the whole-path cost of a userspace file read, not an isolated server tax. Milestone

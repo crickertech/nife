@@ -1,6 +1,6 @@
 # The kernel footprint and the cache question
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds image size, the hot path by symbol, the L1i figures, and the 4 KiB target, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds image size, the hot path by symbol, the L1i figures, and the 4 KiB target, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## The kernel's memory footprint, and the cache question Mach got wrong (2026-08-17)
 

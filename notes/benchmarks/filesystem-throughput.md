@@ -1,6 +1,6 @@
 # Filesystem throughput against ext4 and APFS
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds milestone 38's measurement, the three systems, and what is not apples to apples, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds milestone 38's measurement, the three systems, and what is not apples to apples, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## Filesystem throughput, and what is honestly comparable (milestone 38 (filesystem throughput), 2026-08-18)
 
@@ -33,7 +33,7 @@ easier question. The ext4 table below prices that, the way bench/host/pipe_throu
 `pipe_16` against `pipe_64k`.
 
 *Correction, 2026-08-19: milestone 138 (close the read gap) step 3 raised the request to 64 KiB
-(`fs::TRANSFER_PAGES` = 16). See [steps 1 and 3](milestone-138-steps-1-and-3.md). The one-page
+(`fs::TRANSFER_PAGES` = 16). See [steps 1 and 3](read-path-record-and-request-size.md). The one-page
 ceiling describes the build measured here.*
 
 The workload is 256 transfers of 4 KiB, so 1 MiB per phase, over one file, in four phases:
@@ -97,7 +97,7 @@ else falls out of it and nothing was fitted:
 - A read is 32 blocks, flat. Sequential, random and record-aligned reads agree to within 3%. That is
   also the proof that this path has no cache and no readahead: `IpcDisk` is a bare `Disk` with no
   `DiskCache` around it. *(True of the 2026-08-18 build. Milestone 138 step 2, on 2026-08-19, added a
-  64-slot metadata cache, `CachedDisk`; see [steps 4 and 2](milestone-138-steps-4-and-2.md).)*
+  64-slot metadata cache, `CachedDisk`; see [steps 4 and 2](read-path-block-contract-and-metadata-cache.md).)*
 - `fs_record_read` was added to show the opposite, and refuted itself. The prediction was that a read
   at the start of a record fetches one block where a read at the end fetches 32, since
   `read_node_inner` asks for `BlockLevel::for_bytes(offset_in_record + len)`. It measures the same as
@@ -187,12 +187,12 @@ figure quoted without its caveats is worth less than no figure.
 
 1. The 4 KiB unit is ours by constraint and theirs by choice. A `filesystem_protocol` request
    cannot carry more than a page. The 64 KiB row prices that, at about sixteen times. *(Superseded
-   2026-08-19 by step 3's 64 KiB request; see [steps 1 and 3](milestone-138-steps-1-and-3.md).)*
+   2026-08-19 by step 3's 64 KiB request; see [steps 1 and 3](read-path-record-and-request-size.md).)*
 2. We have no cache and they have several. No `DiskCache`, no readahead, no metadata cache; the
    identical cost of our sequential, random and record-aligned reads is the proof. `O_DIRECT` and
    `F_NOCACHE` remove the page cache on the other side, but not the in-kernel metadata caching that
    lets ext4 map a block without reading one. *(The metadata-cache half is superseded 2026-08-19 by
-   step 2's `CachedDisk`; see [steps 4 and 2](milestone-138-steps-4-and-2.md).)*
+   step 2's `CachedDisk`; see [steps 4 and 2](read-path-block-contract-and-metadata-cache.md).)*
 3. Our write is between Linux's two. Every `filesystem_protocol` write goes through a RedoxFS
    transaction that commits to the header ring before the reply. So the filesystem's own state is
    durable per request, the way `O_DSYNC` makes ext4's. But no `VIRTIO_BLK_T_FLUSH` is issued unless

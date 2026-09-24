@@ -1,6 +1,6 @@
 # The record-level sweep
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds milestone 138's sweep of the RedoxFS record size and the two-term model it found, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds milestone 138's sweep of the RedoxFS record size and the two-term model it found, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## The record level, swept: what a 128 KiB record actually costs (milestone 138 (close the read gap), 2026-08-18)
 
@@ -27,7 +27,7 @@ file is already dirty, so it cannot restore over an edit it did not make. `cargo
 --release --real --smp` regenerates the RedoxFS image on every run, so each point is a whole
 filesystem built at that level. The tree's committed value is unchanged at 5; this sweep measures and
 does not decide. *(Superseded 2026-08-18 by milestone 138 step 1, which set `RECORD_LEVEL` to 1; see
-[steps 1 and 3](milestone-138-steps-1-and-3.md).)*
+[steps 1 and 3](read-path-record-and-request-size.md).)*
 
 The machine was loaded, so the control does more here than select rounds. Twenty passes ran over the
 six levels, interleaved (one pass sweeps 0 through 5, then the next). The host sat at load averages of
@@ -130,7 +130,7 @@ what the store fetches. Moving 64 KiB rather than 4 KiB into the client's pages 
 
 - Option 2, a record level matched to the transfer unit: 5.6x on reads and 3.0x on writes, measured.
   It is the only one of the three that needs no agreement between two programs. Its costs are in
-  [the fixed-term appendix](the-fixed-term.md), and the largest of them is not on milestone 138's
+  [the five-blocks-per-request appendix](five-blocks-per-request.md), and the largest of them is not on milestone 138's
   list.
 - Option 1, a multi-page transfer on the file contract: 16x on its own, more than option 2 buys. It
   amortises both terms of the model over sixteen times the payload, not only the record term. It is a
@@ -175,7 +175,7 @@ lives there, one layer below the one milestone 138 is about.
 - Option 1 is priced by derivation, not measurement, because no request in this system could carry
   more than a page. The assumption it rests on is named where the price is, and milestone 38 measured
   it.
-- The space figures in [the fixed-term appendix](the-fixed-term.md) count non-zero blocks in a fresh
+- The space figures in [the five-blocks-per-request appendix](five-blocks-per-request.md) count non-zero blocks in a fresh
   image, which is not the allocator's own answer. A block a record has vacated keeps its old bytes, so
   the count would drift upward on a rewritten image. These images were made, imported into once and
   never written again, the case where count and allocation agree. RedoxFS's own free-block count

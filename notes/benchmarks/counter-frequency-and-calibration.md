@@ -1,6 +1,6 @@
 # Counter frequency and x86 calibration
 
-*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the riscv64 hardcoded counter rate and the x86 TSC calibration that was wrong by up to 12x, with the dates, tables and corrections behind them. Name provisional (`notes/benchmarks/` and this stem), minted 2026-09-24 by the lane that split the note; naming is calef's.*
+*An appendix to [`notes/benchmarks.md`](../benchmarks.md), which carries the current numbers and is written so a reader can act without opening this file. This one holds the riscv64 hardcoded counter rate and the x86 TSC calibration that was wrong by up to 12x, with the dates, tables and corrections behind them. Name: ratified 2026-09-24 (calef); [the naming record](README.md) holds it.*
 
 ## 2026-09-21: the userspace counter frequency was a constant on riscv64, and what it did not reach
 
