@@ -103,6 +103,14 @@ Millions of lane tokens per milestone built. **2026W29 through 2026W33 are absen
 records were never in git and were already gone when the capture started, and the current week is
 always understated because its tokens accumulate all week.
 
+## What a turn costs
+
+![What a turn carried, in thousands of tokens of context](project-metrics/context-per-turn.svg)
+
+Mean prompt per request, from session records that are not in git. **A turn costs the size
+of its context, not the size of its thought**: cache reads are about 98% of every token
+spent and output about 0.1%. **2026W29 through 2026W33 are absent, not zero.**
+
 ## Architecture decisions by status
 
 ![Architecture decisions by status](project-metrics/decisions.svg)
@@ -269,5 +277,13 @@ snapshot's `launchd` shape, why the file is idempotent, and which commit represe
   mislabelled; a reader comparing two screenshots taken a week apart will still see a colour move.
   It is pre-existing behaviour of every chart here and it is recorded because the by-model panel is
   the first one certain to hit it.
+- **`lane_context_per_turn_peak` is pinned to the model's context window and therefore says less
+  than it looks like it says.** Every captured week is within 7% of 1M. It answers whether a session
+  reached the wall, not how wide the spread is, and the mean beside it is the column with a trend in
+  it. The distribution between the two is not recorded anywhere and cannot be recovered once the
+  transcripts are gone.
+- **The four `lane_*` context columns see one machine, the same one the cost columns see.** They are
+  a fair figure for this project today because there is one workstation. Nothing detects the day that
+  stops being true; it would show up as a drop that reads like an improvement.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
