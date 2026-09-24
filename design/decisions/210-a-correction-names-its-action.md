@@ -32,6 +32,16 @@ the most instructive part. What it has no place for is a **timeline**, a **root 
 record of what was changed so it would not happen again, and nothing in the page's shape asks for
 one.
 
+**Everything that defines what a COE is belongs here, not in a COE.** calef, 2026-09-23, on the
+first one written: *"Lets instead set a standard and this is the standard. The definition of the
+standard is not part of this event."* A record that opens by explaining the form, the path, the
+blameless rule, or its own place in a sequence is spending the reader's first screen on this section
+rather than on what happened. So: **a COE states its event and nothing else.** It does not say it is
+blameless (every one is, and the rule is two sections down), does not say it is the first or the
+fourth, does not note that its times are UTC, and does not caption a table the reader can see. The
+one form-level citation it carries is the gloss the citations ratchet requires on this section's
+number.
+
 **"Write it down" is not an action item.** It is what produced the problem. Every case in the next
 section but one was written down, correctly, in the right file, by someone who understood it, and
 each recurred anyway.
@@ -41,7 +51,9 @@ each recurred anyway.
 Amazon's COE is a short document written after a failure, with a fixed shape: **what happened**, a
 **timeline** with times attached, the **impact** in the terms the affected party would use, a **root
 cause** reached by asking **5 Whys** rather than stopping at the first plausible answer, and **action
-items with owners and dates**. It is **blameless**, which is not a courtesy: the rule exists because
+items with owners and dates**. It is **blameless**, and this tree requires it rather than
+recommending it: no COE names a person or a lane as a cause, and no COE says that it is blameless,
+because a property every record has is not news in any of them. The rule exists because
 a document that can end in "someone was careless" will end there, and that ending has no mechanism in
 it. Aiming at mechanisms rather than people is what makes the fifth Why reach something anyone can
 build.
@@ -209,9 +221,15 @@ what it indexes. Its three existing entries keep pointing at `notes/boot-protoco
 COE records go in a directory, one file each, for the reasons `design/decisions/` was split into
 files by milestone 114 (split `DECISIONS.md`, and give a decision a status): a number cannot be
 claimed twice by accident, text cannot land under the
-wrong heading, and a status flip stops being a conflict. **`notes/corrections/<date>-<slug>.md` is
-this lane's provisional suggestion** and names in this tree are calef's. It sits awkwardly beside the
-file of the same stem, and the tidier end state is the index moving to
+wrong heading, and a status flip stops being a conflict.
+
+**The path is `notes/corrections/<date>-<slug>.md`, and that is the standard rather than a
+suggestion** (calef, 2026-09-23, reviewing the first COE written against this section). The date is
+UTC, as every date in this tree is. A record does not argue for its own location, say that its
+location is provisional, or explain the naming authority: it sits at the path and describes its
+event. The first draft of this paragraph offered the path as a lane's suggestion and the first COE
+duly spent a paragraph on it, which is the shape this correction closes. It sits awkwardly beside
+the file of the same stem, and the tidier end state is the index moving to
 `notes/corrections/README.md`, which is a later lane's work and not this one's.
 
 **This lane does not restructure that page.** It is the record of a ruling, not the execution of it.
