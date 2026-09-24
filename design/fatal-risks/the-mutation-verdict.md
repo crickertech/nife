@@ -38,10 +38,11 @@ shards, all green.
 ### Two joins, each worth about a point
 
 The published rows disagree about what a timeout is: the baseline and the 2026-09-14 figures follow
-`notes/mutation-testing.md`'s rule that a timeout is a kill, while the 2026-09-19 figures scored
-that run's 205 timeouts as survivors. And `cred` was renamed to `credentialer`, so the join dropped
-it: 103 viable mutants at 100%. Reproducing the published 37 crates and 6,472 viable requires
-resolving two crates by hand and missing that one.
+`notes/mutation-testing.md`'s rule that a timeout is a kill, while the 2026-09-19 figures (now in
+`notes/mutation-testing/regressions-capability-to-dtb.md`) scored that run's 205 timeouts as
+survivors. And `cred` was renamed to `credentialer`, so the join dropped it: 103 viable mutants at
+100%. Reproducing the published 37 crates and 6,472 viable requires resolving two crates by hand and
+missing that one.
 
 The direction reverses under either definition read consistently, timeouts-as-survivors giving 89.5%
 then 91.4%, and survivors across the corpus fell 771 to 563.

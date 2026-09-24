@@ -75,14 +75,14 @@ this crate in a published report can find what it is made of. **That is the half
 that milestone 244's block is the template for**: an accepted score with a written reason beats a
 chased one.
 
-**Half of this was already answered, and the promotion did not notice.** `uefi_loader` was
-diagnosed on **2026-09-04**, the day after this proposal was written, and the record is
-`notes/mutation-testing.md`'s dated section plus the exclusion and its derived gate in
+**Half of this was already answered, and the promotion did not notice.** `uefi_loader` was diagnosed
+on **2026-09-04**, the day after this proposal was written, and the record is
+`notes/mutation-testing/uefi-loader.md`'s dated section plus the exclusion and its derived gate in
 `.cargo/mutants.toml`. The 15% was arithmetic rather than a finding: `src/main.rs` carries
-`required-features = ["uefi"]`, so `cargo test` never puts it in the build graph, and all 154 of
-its mutants came back MISSED in *"0s build + 0s test"* because nothing rebuilt. The pure half the
-design had lifted out to be host-testable was at **94.1%** the whole time. Milestone 244's result
-one level down, at a target rather than a crate.
+`required-features = ["uefi"]`, so `cargo test` never puts it in the build graph, and all 154 of its
+mutants came back MISSED in *"0s build + 0s test"* because nothing rebuilt. The pure half the design
+had lifted out to be host-testable was at **94.1%** the whole time. The result of milestone 244 (the
+largest crate in the tree is proved by nothing) one level down, at a target rather than a crate.
 
 **So what is left of this milestone is `documentation` at 52%**, and one residue that is already
 tracked elsewhere: excluding `src/main.rs` made the number honest, not the file proved, and whether

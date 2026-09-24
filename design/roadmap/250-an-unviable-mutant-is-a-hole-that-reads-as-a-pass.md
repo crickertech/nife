@@ -94,7 +94,7 @@ mutant it never built anything for. `script/lint` now derives that exclusion fro
 Worth knowing when this milestone sweeps, because the "0s build + 0s test" string in cargo-mutants'
 output is the tell for both, and neither leaves a mark in the rate.
 
-See notes/mutation-testing.md's 2026-09-04 section for the numbers.
+See notes/mutation-testing/uefi-loader.md's 2026-09-04 section for the numbers.
 
 ## Index row
 
