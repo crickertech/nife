@@ -1,0 +1,545 @@
+#!/bin/sh
+#
+# script/preflight-queue: replay the merge queue on this machine, in order, before a group build does.
+#
+#     script/preflight-queue              # --dry-run: test every entry, report, change nothing
+#     script/preflight-queue --act        # the same walk, then comment on and dequeue what is red
+#     script/preflight-queue --no-hvf     # skip the HVF leg on main's tip (it runs first by default)
+#
+# # Why this exists
+#
+# Per-pull-request CI tests a branch against the `main` it was cut from, or at best against the
+# `main` of its last push. The merge queue tests it against `main` plus every entry ahead of it, in
+# groups of up to five, and a group with one red member fails as a whole and is rebuilt without it.
+# So a pull request can be green on its own page and still red in the queue, and nothing before the
+# group build can see that, because nothing before it builds the stack.
+#
+# **The evidence, from 2026-09-24.** A lane replayed the queue by hand: 23 entries in about 40
+# minutes, each merged onto the green ones ahead of it. It found three pull requests (#1194, #1222,
+# #1182) that pass CI alone and fail on top of the entries ahead of them. Each of those would have
+# failed a merge group of five, and a failed group costs roughly an hour of starved runner time per
+# member, since every member's build is thrown away and redone. Forty minutes of one laptop against
+# up to fifteen runner-hours is the trade this script makes repeatable, rather than something one
+# lane happened to do once.
+#
+# # What it does
+#
+# 1. **The HVF leg on `main`'s tip, first and separately** (`script/ci-build hvf`). Reported and never
+#    blocking: it is the one check GitHub's runners cannot run (notes/hvf-leg.md), so this is a
+#    convenient place for it, but a red there is about `main`, not about any queue entry.
+# 2. **A baseline on `main`'s tip**, the same ladder as below with the aarch64 suite forced on. If
+#    `main` is red, every entry would inherit its failure and none could be blamed for its own, so
+#    the script **acts on nothing and exits 3**.
+# 3. **The walk.** `repository.mergeQueue(branch: "main")` in queue order, then open pull requests
+#    with auto-merge armed that are not yet queued. In one reusable detached scratch worktree
+#    (`~/projects/nife-worktrees/preflight`, or `$PREFLIGHT_WORKTREE`), each entry is merged onto
+#    the green entries ahead of it. A conflict is a finding. Otherwise the ladder runs, cheapest
+#    first, and stops at the first red:
+#
+#        script/ci-build fmt
+#        script/ci-build lint
+#        cargo test -p documentation
+#        cargo test -p <each host crate the entry touches>
+#        script/test --arch aarch64                          only if the entry touches code
+#        VERIFY_JOBS=2 script/falsifications --affected-since <stack>   only if no cbmc is running
+#                                                    and `script/verify --affected-since` says the
+#                                                    proofs are in scope, which is CI's own condition
+#
+#    "Touches code" is CI's own documentation-only predicate, read out of `.github/workflows/ci.yml`
+#    at run time rather than copied, and the script refuses to run if the copies there disagree.
+#    A red entry is dropped from the stack, so the entries behind it are tested the way the queue
+#    will test them once it has been removed.
+# 4. **With `--act`**, each red entry gets a comment (the failing command, an excerpt, and the stack
+#    it was tested on) and is dequeued, or has auto-merge disabled if it was armed but not queued.
+#    Without `--act` nothing on GitHub changes.
+# 5. **A table at the end**, one row per entry. Exit 0 all green, 1 at least one finding, 2 a
+#    refusal (usage, a held disk image, disagreeing predicates), 3 `main` is red.
+#
+# Logs go under `$TMPDIR/preflight-queue/<run>/`, never into a checkout: a transcript written into
+# the tree it is testing is how the weekly falsification sweep swept nothing for three weeks
+# (notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md, once that record lands).
+#
+# # What it skips, and why
+#
+# - **`script/verify`.** About 47 minutes of Kani and 3.5 GB per solver; AGENTS.md allows one at a
+#   time on this machine. The affected-since falsification rung is the part of the proof machinery
+#   that costs seconds, and it is skipped too when `pgrep -f cbmc` finds a solver already running.
+# - **The riscv64 and x86_64 legs.** One architecture is enough to catch a stack that does not build
+#   or boot, and the other two roughly triple the walk. The queue's group build still runs them.
+# - **`cpu-matrix`, `bench`, `fuzz`, `coverage`.** `ci`-tier rows in `script/ci-build`'s table, each
+#   priced there as too slow for a person to wait for; this walk is that person, once per entry.
+#
+# # BUGS
+#
+# - **It approximates the cumulative merge; it does not reproduce it.** GitHub builds a merge group
+#   from its own merge of each entry onto the one ahead, and this builds `git merge --no-ff` of each
+#   head onto a local stack. The two agree on content whenever neither conflicts, which is the case
+#   that matters, but a group's commit is not this script's commit, and a red that depends on the
+#   exact merge base could differ.
+# - **It cannot see reorders after it runs.** The queue changes while this walks it (an entry lands,
+#   one is dequeued, a new one is armed), and a result is only true of the order it was taken in.
+#   The table prints that order, so a reader can tell whether it is still the queue.
+# - **A dry run keeps its reds in the queue but not in its own stack.** Entries behind a red one are
+#   tested as though it had been removed, which is what `--act` does and what a failed group does.
+#   Until someone acts, the real queue will build them with it.
+# - **It takes the `nife-dev` toolchain link**, because `script/test` relinks it to whichever worktree
+#   ran `xtask std-src` last (notes/std.md). On exit it puts the link back where it found it, but only
+#   if the link still points into the scratch worktree: a lane that took it in the meantime keeps it.
+#   A lane gating at the same moment can still be crossed, which is the ambient hazard AGENTS.md
+#   names, not a new one.
+# - **A red is attributed to the entry, not to the pair.** "Fails on top of the entries ahead" can
+#   mean the entry is broken alone or that it conflicts semantically with one ahead of it; this does
+#   not re-test it alone on `main` to say which. Its own pull request's CI already answers that.
+# - **The falsification rung is not a required check in CI** (verify.yml's `falsify` job says so),
+#   so a red there would not fail a merge group. It is on the ladder because a survivor is a real
+#   defect in the proofs, and `--act` treats it like any other red; a reader who disagrees should
+#   know that is the one rung stricter than the queue.
+# - **One falsification can take half an hour.** `nifefs::a_short_image_is_refused_not_indexed` and
+#   `package_archive::a_short_file_is_refused` run 20 to 31 minutes each at over 3 GB (verify.yml
+#   records it), so an entry that reaches either crate makes this walk that much longer.
+# - **Host tests are per touched crate, not per dependent.** A change to a crate's API that breaks a
+#   dependent is caught by the aarch64 suite rung (whose host pass is the whole workspace) or by
+#   lint's clippy pass, not by this rung.
+#
+# # Refusals
+#
+# It refuses if another run of it holds the scratch worktree, or if any process has its working
+# directory inside it (a person running a gate there by hand; its first run met exactly that). And
+# it refuses if any process holds the scratch worktree's `target/nifefs.img` (`lsof`), because a
+# QEMU holding it fails the next suite with a lock error that looks like a bug in the entry under
+# test (AGENTS.md, "Never leave QEMU running"). Every rung runs in its own process group with a time
+# bound, and on exit every QEMU whose command line names the scratch worktree is killed at the root.
+#
+# Name: provisional, minted 2026-09-24 for this lane. `preflight` is the aviation word for the
+# checks run before a thing leaves the ground, and a merge group leaving is the moment it guards;
+# `queue` says which thing. Hyphenated, as shell entry points here are (script/ci-build's block).
+# calef has not ruled on it.
+
+set -e
+cd "$(dirname "$0")/.."
+. scripts/qemu-path.sh
+
+exec python3 - "$@" <<'PY'
+import atexit
+import fcntl
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+ROOT = os.getcwd()
+ACT = False
+HVF = True
+for a in sys.argv[1:]:
+    if a == "--act":
+        ACT = True
+    elif a == "--dry-run":
+        ACT = False
+    elif a == "--no-hvf":
+        HVF = False
+    elif a in ("-h", "--help"):
+        print("usage: script/preflight-queue [--dry-run | --act] [--no-hvf]")
+        sys.exit(0)
+    else:
+        print("script/preflight-queue: unknown option %r" % a, file=sys.stderr)
+        sys.exit(2)
+
+WT = os.path.expanduser(os.environ.get("PREFLIGHT_WORKTREE", "~/projects/nife-worktrees/preflight"))
+RUN = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+LOGS = os.path.join(os.environ.get("TMPDIR", "/tmp"), "preflight-queue", RUN)
+os.makedirs(LOGS, exist_ok=True)
+LANE = "**Lane:** script/preflight-queue; calef's account is the author GitHub shows."
+
+# Bounds, in seconds, per rung. Generous against the measured costs so that only a hang trips them.
+BOUND = {"fmt": 300, "lint": 1800, "documentation": 900, "host": 1800,
+         "aarch64": 2400, "falsifications": 3600, "hvf": 2400}
+
+
+def say(msg):
+    print("preflight-queue: " + msg, flush=True)
+
+
+def sh(args, cwd=ROOT, check=True):
+    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    if check and r.returncode != 0:
+        say("command failed: %s\n%s" % (" ".join(args), r.stderr.strip()))
+        sys.exit(2)
+    return r
+
+
+def git(*args, check=True):
+    return sh(["git", "-C", WT] + list(args), check=check)
+
+
+# --- leaving the machine as it was found --------------------------------------------------------
+
+def nife_dev_link():
+    r = sh(["rustup", "toolchain", "list", "-v"], check=False)
+    for line in r.stdout.splitlines():
+        if line.startswith("nife-dev"):
+            return line.split(None, 1)[1].strip() if len(line.split(None, 1)) > 1 else None
+    return None
+
+
+LINK_BEFORE = nife_dev_link()
+
+
+def kill_our_qemus():
+    """Kill every QEMU whose command line names the scratch worktree. Returns the survivors."""
+    r = sh(["pgrep", "-f", "qemu-system.*" + re.escape(WT)], check=False)
+    pids = [int(p) for p in r.stdout.split()]
+    for p in pids:
+        try:
+            os.kill(p, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if pids:
+        time.sleep(2)
+    return sh(["pgrep", "-f", "qemu-system.*" + re.escape(WT)], check=False).stdout.split()
+
+
+def cleanup():
+    left = kill_our_qemus()
+    if left:
+        say("WARNING: QEMU still running after SIGTERM: %s" % " ".join(left))
+    now = nife_dev_link()
+    if LINK_BEFORE and now and now != LINK_BEFORE and now.startswith(WT):
+        subprocess.run(["rustup", "toolchain", "link", "nife-dev", LINK_BEFORE],
+                       capture_output=True, stdin=subprocess.DEVNULL)
+        say("nife-dev relinked to %s (it was taken by the scratch worktree)" % LINK_BEFORE)
+    elif now and now != LINK_BEFORE:
+        say("nife-dev now points at %s, not taken by this run; left alone" % now)
+
+
+atexit.register(cleanup)
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(130))
+signal.signal(signal.SIGHUP, lambda *_: sys.exit(130))
+
+# --- CI's documentation-only predicate, read rather than copied ---------------------------------
+
+ci = open(os.path.join(ROOT, ".github/workflows/ci.yml")).read()
+preds = set(re.findall(r"grep -vE '([^']+)'", ci))
+if len(preds) != 1:
+    say("refusing: .github/workflows/ci.yml carries %d distinct documentation-only predicates "
+        "(%s); expected exactly one, shared by every job" % (len(preds), ", ".join(sorted(preds)) or "none"))
+    sys.exit(2)
+DOC = re.compile(preds.pop())
+
+
+def docs_only(files):
+    return all(DOC.match(f) for f in files)
+
+
+# --- the scratch worktree --------------------------------------------------------------------------
+
+common = os.path.realpath(sh(["git", "rev-parse", "--git-common-dir"]).stdout.strip())
+sh(["git", "fetch", "-q", "origin", "main"])
+MAIN = sh(["git", "rev-parse", "origin/main"]).stdout.strip()
+
+# **One run per scratch worktree, and nobody else inside it.** Found by this script's own first run
+# (2026-09-24): a person was running `script/test --hvf` by hand in the same scratch worktree, and this
+# script's `reset --hard` and the two runs' rebuilds of one `nife-dev` farm crossed, failing an HVF
+# leg with missing std sources that looked like a red `main`. So two checks, both before any reset:
+# an exclusive lock that a second run of this script cannot take, and a refusal if any process at all
+# has its working directory inside the scratch tree, which is what catches a person who is not this
+# script. The second is the one that would have caught the first collision.
+LOCK = open(os.path.join(common, "preflight-queue-%s.lock" % os.path.basename(WT)), "w")
+try:
+    fcntl.flock(LOCK, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except OSError:
+    say("refusing: another script/preflight-queue run holds %s" % WT)
+    sys.exit(2)
+cwds = sh(["lsof", "-d", "cwd", "-Fpn"], check=False).stdout.splitlines()
+inside, pid = [], None
+for line in cwds:
+    if line.startswith("p"):
+        pid = line[1:]
+    elif line.startswith("n") and pid != str(os.getpid()) and \
+            (line[1:] == WT or line[1:].startswith(WT.rstrip("/") + "/")):
+        inside.append(pid)
+if inside:
+    say("refusing: process(es) %s have their working directory inside %s, so somebody is using it. "
+        "Set PREFLIGHT_WORKTREE to run elsewhere, or wait" % (" ".join(sorted(set(inside))), WT))
+    sys.exit(2)
+
+if os.path.isdir(WT):
+    theirs = os.path.realpath(os.path.join(WT, sh(["git", "-C", WT, "rev-parse", "--git-common-dir"]).stdout.strip()))
+    if theirs != common:
+        say("refusing: %s is not a worktree of this repository" % WT)
+        sys.exit(2)
+    if git("symbolic-ref", "-q", "HEAD", check=False).returncode == 0:
+        # A branch checked out here means a person is using it; the scratch tree is always detached.
+        say("refusing: %s has a branch checked out, so it is somebody's, not this script's" % WT)
+        sys.exit(2)
+else:
+    sh(["git", "worktree", "add", "-q", "--detach", WT, MAIN])
+
+
+def reset_to(sha):
+    # `reset --hard` is safe here and nowhere else: this worktree is detached, owned by this script,
+    # and holds nothing but merges it made itself. `clean -fd` without `-x` keeps target/ warm.
+    git("merge", "--abort", check=False)
+    git("reset", "-q", "--hard", sha)
+    git("clean", "-q", "-fd")
+
+
+reset_to(MAIN)
+
+
+def image_holders():
+    img = os.path.join(WT, "target", "nifefs.img")
+    if not os.path.exists(img):
+        return []
+    return sh(["lsof", "-t", img], check=False).stdout.split()
+
+
+held = image_holders()
+if held:
+    say("refusing: %s/target/nifefs.img is held by pid %s (lsof). A QEMU holding it fails the next "
+        "suite with a lock error; find its parent with `ps -o pid,ppid,command` and kill the tree at "
+        "its root" % (WT, " ".join(held)))
+    sys.exit(2)
+
+# --- host crates, derived the way script/lint's host-pass gate derives them ----------------------
+
+meta = json.loads(sh(["cargo", "metadata", "--format-version", "1"], cwd=WT).stdout)
+ws_root = meta["workspace_root"]
+ws_ids = set(meta["workspace_members"])
+by_id = {p["id"]: p for p in meta["packages"]}
+deps = {n["id"]: {d["pkg"] for d in n.get("deps", [])} for n in meta["resolve"]["nodes"]}
+# `user_mode_runtime` and everything that reaches it cannot compile for the host (EL0 syscall `asm!`),
+# plus the three packages that are not host code at all. The same set `xtask test` excludes.
+bare = {pid for pid in ws_ids if by_id[pid]["name"] == "user_mode_runtime"}
+grew = True
+while grew:
+    grew = False
+    for pid in ws_ids - bare:
+        if deps.get(pid, set()) & bare:
+            bare.add(pid)
+            grew = True
+bare |= {pid for pid in ws_ids if by_id[pid]["name"] in ("kernel", "components", "fixtures")}
+HOST = {}
+for pid in ws_ids - bare:
+    rel = os.path.relpath(os.path.dirname(by_id[pid]["manifest_path"]), ws_root)
+    if rel != ".":
+        HOST[rel + "/"] = by_id[pid]["name"]
+
+
+def touched_host_crates(files):
+    out = set()
+    for f in files:
+        best = max((p for p in HOST if f.startswith(p)), key=len, default=None)
+        if best:
+            out.add(HOST[best])
+    return sorted(out)
+
+
+# --- running a rung --------------------------------------------------------------------------------
+
+def run(label, tag, cmd, bound, env=None):
+    """Run one rung in its own process group, bounded. Returns (ok, seconds, log path)."""
+    log = os.path.join(LOGS, "%s-%s.log" % (label, tag))
+    t = time.time()
+    with open(log, "w") as fh:
+        fh.write("$ %s\n" % cmd)
+        fh.flush()
+        p = subprocess.Popen(["sh", "-c", cmd], cwd=WT, stdout=fh, stderr=subprocess.STDOUT,
+                             stdin=subprocess.DEVNULL, start_new_session=True,
+                             env=dict(os.environ, **(env or {})))
+        try:
+            rc = p.wait(timeout=bound)
+        except subprocess.TimeoutExpired:
+            # Kill the tree at its root: the process group reaches cargo, xtask and the QEMU under
+            # them, where signalling `sh` alone would orphan them (AGENTS.md, 2026-08-02).
+            os.killpg(p.pid, signal.SIGTERM)
+            try:
+                p.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                os.killpg(p.pid, signal.SIGKILL)
+                p.wait()
+            fh.write("\npreflight-queue: BOUND of %ds exceeded; process group killed\n" % bound)
+            rc = 124
+    kill_our_qemus()
+    return rc == 0, round(time.time() - t), log
+
+
+def excerpt(log, n=30):
+    lines = open(log, errors="replace").read().splitlines()
+    hits = [l for l in lines if re.search(r"error|FAIL|panicked|failed|Diff in|BOUND", l)]
+    pick = (hits[-n:] if hits else lines[-n:])
+    return "\n".join(pick)[-5000:]
+
+
+def ladder(label, files, base, force_code=False):
+    """The rungs, cheapest first; stop at the first red. Returns (result, rung, cmd, log, seconds)."""
+    code = force_code or not docs_only(files)
+    rungs = [("fmt", "script/ci-build fmt", BOUND["fmt"], None),
+             ("lint", "script/ci-build lint", BOUND["lint"], None),
+             ("documentation", "cargo test -p documentation", BOUND["documentation"], None)]
+    crates = touched_host_crates(files) if not force_code else []
+    if crates:
+        rungs.append(("host", "cargo test " + " ".join("-p " + c for c in crates), BOUND["host"], None))
+    if code:
+        rungs.append(("aarch64", "script/test --arch aarch64", BOUND["aarch64"], None))
+    if code and not force_code:
+        rungs.append(("falsifications", "script/falsifications --affected-since " + base,
+                      BOUND["falsifications"], {"VERIFY_JOBS": "2"}))
+    total = 0
+    notes = []
+    for tag, cmd, bound, env in rungs:
+        if tag == "aarch64" and image_holders():
+            return ("refused", tag, cmd, None, total, "target/nifefs.img is held (lsof)")
+        if tag == "falsifications":
+            if sh(["pgrep", "-f", "cbmc"], check=False).stdout.strip():
+                notes.append("falsifications skipped: cbmc running")
+                continue
+            # CI runs this rung only when `script/verify --affected-since` says the proofs are in
+            # scope (verify.yml's `scope` job), and so does this. Without it, a change to a path no
+            # package owns (`briefs/`, say) reaches every harness package, and the first dry run
+            # spent over twenty minutes re-falsifying all 74 records for a documentation edit.
+            scope = sh(["script/verify", "--affected-since", base], cwd=WT, check=False).stdout.strip()
+            if not scope.endswith("verify-scope: needed"):
+                notes.append("falsifications out of verify's scope")
+                continue
+        say("  %s: %s" % (label, cmd))
+        ok, secs, log = run(label, tag, cmd, bound, env)
+        total += secs
+        if not ok:
+            return ("red", tag, cmd, log, total, "; ".join(notes))
+    return ("green", "all" if code else "docs", "", None, total, "; ".join(notes))
+
+
+# --- the queue ---------------------------------------------------------------------------------------
+
+repo = sh(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).stdout.strip()
+owner, name = repo.split("/")
+Q = """query($o:String!,$n:String!){repository(owner:$o,name:$n){
+  mergeQueue(branch:"main"){entries(first:100){nodes{position pullRequest{id number title headRefName headRefOid}}}}
+  pullRequests(states:OPEN,first:100){nodes{id number title isDraft headRefName headRefOid
+    autoMergeRequest{enabledAt} mergeQueueEntry{position}}}}}"""
+data = json.loads(sh(["gh", "api", "graphql", "-f", "query=" + Q, "-f", "o=" + owner, "-f", "n=" + name]).stdout)
+r = data["data"]["repository"]
+entries = []
+for e in sorted(r["mergeQueue"]["entries"]["nodes"], key=lambda e: e["position"]):
+    entries.append(dict(e["pullRequest"], kind="queued #%d" % e["position"]))
+armed = [p for p in r["pullRequests"]["nodes"]
+         if p["autoMergeRequest"] and not p["mergeQueueEntry"] and not p["isDraft"]]
+for p in sorted(armed, key=lambda p: p["autoMergeRequest"]["enabledAt"]):
+    entries.append(dict(p, kind="armed"))
+say("%d queued, %d armed-but-unqueued; main is %s; logs in %s" %
+    (len(r["mergeQueue"]["entries"]["nodes"]), len(armed), MAIN[:9], LOGS))
+
+rows = []
+PRINTED = []
+
+
+def print_table():
+    """The table, printed once: at the end, or on the way out of an interrupted walk, so a run
+    killed after an hour still says what it found."""
+    if PRINTED:
+        return
+    PRINTED.append(True)
+    print()
+    print("| entry | where | head | scope | result | stopped at | seconds |")
+    print("|---|---|---|---|---|---|---|")
+    for row in rows:
+        print("| %s | %s | `%s` | %s | %s | %s | %s |" % row)
+    print(flush=True)
+
+
+atexit.register(print_table)
+
+# --- 1. the HVF leg on main's tip, reported and never blocking ------------------------------------
+
+if HVF:
+    say("HVF leg on main's tip (%s), reported only" % MAIN[:9])
+    ok, secs, log = run("main", "hvf", "script/ci-build hvf", BOUND["hvf"])
+    text = open(log, errors="replace").read()
+    hvf = "skipped" if "SKIPPED the HVF leg" in text else ("green" if ok else "red")
+    rows.append(("main", "HVF leg", MAIN[:9], "code", hvf, "hvf", secs))
+    if hvf == "red":
+        say("HVF leg is red on main; not blocking. Excerpt:\n" + excerpt(log, 15))
+    reset_to(MAIN)
+
+# --- 2. the baseline: is main itself green? -------------------------------------------------------
+
+say("baseline on main's tip")
+res, rung, cmd, log, secs, note = ladder("main", [], MAIN, force_code=True)
+rows.append(("main", "baseline", MAIN[:9], "code", res, rung, secs))
+if res != "green":
+    say("main is %s at %s (`%s`); acting on nothing.\n%s" % (res, rung, cmd, excerpt(log) if log else note))
+    sys.exit(3)
+
+# --- 3. the walk -----------------------------------------------------------------------------------
+
+stack = MAIN
+ahead = []
+findings = []
+ident = ["-c", "user.name=preflight-queue", "-c", "user.email=preflight-queue@localhost"]
+for e in entries:
+    n = e["number"]
+    label = "pr%d" % n
+    fetched = git("fetch", "-q", "origin", e["headRefOid"], check=False)
+    if fetched.returncode != 0:
+        rows.append(("#%d" % n, e["kind"], e["headRefOid"][:9], "?", "error", "fetch", 0))
+        continue
+    m = sh(["git", "-C", WT] + ident + ["merge", "-q", "--no-ff", "--no-edit", "-m",
+            "preflight: #%d %s" % (n, e["headRefName"]), e["headRefOid"]], check=False)
+    if m.returncode != 0:
+        conflicted = git("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+        reset_to(stack)
+        findings.append(dict(e, rung="merge", cmd="git merge %s onto the stack" % e["headRefOid"][:9],
+                             text="conflicts in: " + (", ".join(conflicted) or m.stdout.strip()[-500:]),
+                             stack=list(ahead)))
+        rows.append(("#%d" % n, e["kind"], e["headRefOid"][:9], "?", "CONFLICT", "merge", 0))
+        continue
+    files = git("diff", "--name-only", stack, "HEAD").stdout.split()
+    scope = "docs" if docs_only(files) else "code"
+    res, rung, cmd, log, secs, note = ladder(label, files, stack)
+    rows.append(("#%d" % n, e["kind"], e["headRefOid"][:9], scope, res.upper() if res != "green" else res,
+                 rung + (" (%s)" % note if note else ""), secs))
+    if res == "green":
+        stack = git("rev-parse", "HEAD").stdout.strip()
+        ahead.append((n, e["headRefOid"]))
+    else:
+        if res == "red":
+            findings.append(dict(e, rung=rung, cmd=cmd, text=excerpt(log), stack=list(ahead)))
+        reset_to(stack)
+
+# --- 4. acting on what is red for its own reason --------------------------------------------------
+
+for f in findings:
+    stack_text = "`main` at `%s`" % MAIN[:9] + "".join(", then #%d (`%s`)" % (n, s[:9]) for n, s in f["stack"])
+    body = "\n".join([
+        LANE, "",
+        "**`script/preflight-queue` found this red on top of the entries ahead of it**, which per-PR CI "
+        "cannot see and a merge group of five would have found expensively.", "",
+        "- **Failing command:** `%s`" % f["cmd"],
+        "- **Stack tested:** %s, then this pull request at `%s`." % (stack_text, f["headRefOid"][:9]),
+        "", "```", f["text"], "```", "",
+        ("It has been %s. Re-arm it once it is green on top of the current queue."
+         % ("dequeued" if f["kind"] != "armed" else "disarmed (auto-merge disabled)")),
+    ])
+    if not ACT:
+        continue
+    subprocess.run(["gh", "pr", "comment", str(f["number"]), "--repo", repo, "--body", body],
+                   capture_output=True, stdin=subprocess.DEVNULL)
+    if f["kind"] == "armed":
+        subprocess.run(["gh", "pr", "merge", str(f["number"]), "--repo", repo, "--disable-auto"],
+                       capture_output=True, stdin=subprocess.DEVNULL)
+    else:
+        subprocess.run(["gh", "api", "graphql", "-f",
+                        "query=mutation($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}",
+                        "-f", "id=" + f["id"]], capture_output=True, stdin=subprocess.DEVNULL)
+
+# --- 5. the table ------------------------------------------------------------------------------------
+
+print_table()
+for f in findings:
+    print("#%d red at %s: %s" % (f["number"], f["rung"], f["cmd"]))
+say("%d finding(s); %s; logs in %s" % (len(findings), "acted on" if ACT else "dry run, nothing changed on GitHub", LOGS))
+sys.exit(1 if findings else 0)
+PY
