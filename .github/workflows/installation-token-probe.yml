@@ -1,0 +1,97 @@
+name: installation token probe
+
+# TEMPORARY. Deleted with its branch. Tests cli/cli#7213 under the smelter App.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+
+      - name: who am I
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          echo "=== TEST 0: identity ==="
+          gh api /installation/repositories --jq '.repositories[].full_name' || echo "FAILED"
+
+      - name: TEST 3 - a read the drain does
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          echo "=== TEST 3: gh pr list --json ==="
+          if gh pr list --repo ${{ github.repository }} --state open --json number,isDraft,title --limit 5; then
+            echo "READ: OK"
+          else
+            echo "READ: FAILED"
+          fi
+
+      - name: TEST 1 - gh pr merge --auto
+        id: t1
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          NUM: ${{ github.event.pull_request.number }}
+        run: |
+          echo "=== TEST 1: gh pr merge $NUM --auto --merge ==="
+          set +e
+          out=$(gh pr merge "$NUM" --repo ${{ github.repository }} --auto --merge 2>&1)
+          rc=$?
+          echo "exit=$rc"
+          echo "--- output ---"
+          echo "$out"
+          echo "--------------"
+          if [ $rc -eq 0 ]; then echo "AUTOMERGE_CLI: OK"; else echo "AUTOMERGE_CLI: FAILED"; fi
+
+      - name: TEST 2 - enablePullRequestAutoMerge via GraphQL
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PRID: ${{ github.event.pull_request.node_id }}
+          NUM: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$NUM" --repo ${{ github.repository }} --disable-auto 2>&1 || true
+          echo "=== TEST 2a: enablePullRequestAutoMerge($PRID) ==="
+          set +e
+          out=$(gh api graphql -f query="mutation{enablePullRequestAutoMerge(input:{pullRequestId:\"$PRID\",mergeMethod:MERGE}){clientMutationId}}" 2>&1)
+          rc=$?
+          echo "exit=$rc"; echo "$out"
+          if [ $rc -eq 0 ]; then echo "AUTOMERGE_GQL: OK"; else echo "AUTOMERGE_GQL: FAILED"; fi
+          echo "=== TEST 2b: enqueuePullRequest permission probe (PR is not queue-eligible; a permission denial and an ineligibility read differently) ==="
+          set +e
+          out=$(gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"$PRID\"}){clientMutationId}}" 2>&1)
+          echo "exit=$?"; echo "$out"
+          echo "=== TEST 2c: dequeuePullRequest, the drain's other write ==="
+          out=$(gh api graphql -f query="mutation{dequeuePullRequest(input:{id:\"$PRID\"}){clientMutationId}}" 2>&1)
+          echo "exit=$?"; echo "$out"
+
+      - name: TEST 4 - gh pr comment, the drain's notify path
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          NUM: ${{ github.event.pull_request.number }}
+        run: |
+          echo "=== TEST 4: gh pr comment ==="
+          set +e
+          out=$(gh pr comment "$NUM" --repo ${{ github.repository }} --body "probe: a comment written by an installation token. Throwaway." 2>&1)
+          echo "exit=$?"; echo "$out"
+
+      - name: clean up - disarm and close
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          NUM: ${{ github.event.pull_request.number }}
+        run: |
+          echo "=== CLEANUP ==="
+          gh pr merge "$NUM" --repo ${{ github.repository }} --disable-auto 2>&1 || echo "disable-auto failed (may not have been armed)"
+          gh pr view "$NUM" --repo ${{ github.repository }} --json autoMergeRequest,state 2>&1 || true
