@@ -947,3 +947,29 @@ fn an_inherited_property_comes_from_the_named_node_not_the_first_one() {
         "no node is named `absent`, so nothing inherits anything"
     );
 }
+
+/// `from_ptr` has to believe the header's `totalsize` before it can check anything, and until the
+/// 2026-09-24 security audit it believed any value: a firmware blob claiming 4 GiB became a 4 GiB
+/// slice and a data abort in `memory::init`. The blob here sits inside a buffer large enough that
+/// the slice `from_ptr` would build is real memory, so the test is sound whichever way it goes,
+/// and the cap is what decides it.
+#[test]
+fn a_totalsize_past_the_ceiling_is_refused_before_a_slice_is_built() {
+    use device_tree_blob::MAX_TOTALSIZE;
+    let claimed = MAX_TOTALSIZE + 1;
+    let mut buffer = minimal_tree();
+    buffer[4..8].copy_from_slice(&(claimed as u32).to_be_bytes());
+    buffer.resize(claimed + 64, 0);
+
+    // SAFETY: `buffer` is longer than `claimed`, so every byte a slice of that length could
+    // cover is owned, initialised memory that outlives the call.
+    let refused = unsafe { DeviceTreeBlob::from_ptr(buffer.as_ptr()) };
+    assert_eq!(refused.err(), Some(Error::TooLarge(claimed)));
+
+    // Exactly the ceiling is still believed: the header lies about the length, so the parse fails
+    // on its offsets, but it fails as a parse and not as a refusal to look.
+    buffer[4..8].copy_from_slice(&(MAX_TOTALSIZE as u32).to_be_bytes());
+    // SAFETY: as above; `buffer` is longer than `MAX_TOTALSIZE`.
+    let looked = unsafe { DeviceTreeBlob::from_ptr(buffer.as_ptr()) };
+    assert_ne!(looked.err(), Some(Error::TooLarge(MAX_TOTALSIZE)));
+}
