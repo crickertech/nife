@@ -31,8 +31,9 @@
 #      exactly as a stranger who cloned from GitHub would find it. Whether the tree tells a newcomer
 #      to read the constitution is the measurement; whether the constitution is good once read is a
 #      different question and run 2 could not ask the first one because the answer was already there.
-#   2. Withholds the answer key. `notes/stranger-test.md` and its `notes/README.md` entry are removed
-#      and the deletion is amended into the tip, so the working tree is clean and no `git status`
+#   2. Withholds the answer key. `notes/stranger-test.md`, its appendices under
+#      `notes/stranger-test/`, and its `notes/README.md` entry are removed and the deletion is
+#      amended into the tip, so the working tree is clean and no `git status`
 #      line advertises it. Nothing else is touched: the in-tree mentions of previous runs stay,
 #      because a tree with those cut is not the tree under test.
 #   3. Puts every artifact this harness writes OUTSIDE the stranger's working directory, in
@@ -107,7 +108,7 @@
 #
 # Score a finished run against the rubric, which is a person's job and not this script's:
 #
-#     $ $EDITOR notes/stranger-test.md            # the rubric and every previous run
+#     $ $EDITOR notes/stranger-test.md            # the rubric, the latest result, a link per run
 #     $ cat /tmp/stranger.*/logs/summary.md       # what to paste, and the paths to quote from
 #
 # BUGS
@@ -332,6 +333,7 @@ done
 # The cadence below reads the same file for the same reason, one level out: the interval and the
 # date of the last run are sentences a person reads, not numbers kept somewhere for a script.
 KEY="notes/stranger-test.md"
+KEY_DIR="notes/stranger-test"
 [ -f "$REPO/$KEY" ] || {
     echo "stranger-test: $REPO/$KEY is missing, so there is no rubric to ask and no answer key to" >&2
     echo "               withhold. Run this from a full checkout." >&2
@@ -424,9 +426,9 @@ print(f"stranger-test: DUE. Run {number} was {days} days ago and the cadence is 
 print()
 print("  script/stranger-test --commit origin/main")
 print()
-print("Then score it against the rubric in the same file and add a '### Run <n>, <date>:' section")
-print("under '## Runs' with what it found. That heading is what this check reads, so a run that is")
-print("not written up leaves this red.")
+print("Then score it against the rubric in the same file, write the run up as an appendix under")
+print("notes/stranger-test/, and add a '### Run <n>, <date>:' heading under '## Runs' that links it.")
+print("That heading is what this check reads, so a run that is not written up leaves this red.")
 print()
 print("Nothing here ran the test and nothing here can: a run spawns a claude process, spends real")
 print("budget, and needs a machine with the toolchain and both QEMUs. Red means run it.")
@@ -495,7 +497,14 @@ git -C "$CLONE" config branch.main.remote origin
 git -C "$CLONE" config branch.main.merge refs/heads/main
 
 # --- withhold the answer key ------------------------------------------------------------------
+#
+# Since 2026-09-24 the note keeps each run's full record in appendices beside it, per §212 (a prose
+# budget). Those appendices carry every scored answer, so they are the answer key as much as the note
+# is.
 git -C "$CLONE" rm --quiet "$KEY"
+if [ -d "$CLONE/$KEY_DIR" ]; then
+    git -C "$CLONE" rm -r --quiet "$KEY_DIR"
+fi
 python3 - "$CLONE" "$KEY" <<'PY'
 import os
 import re
@@ -519,7 +528,9 @@ open(index, "w").write(text)
 # relative link that does not resolve, so leaving the links would hand the stranger a red gate that
 # is the harness's fault, which is a worse contamination than the edit. Bare prose mentions are left
 # alone, because those are what the tree really says and cutting them would fabricate a repository.
-link = re.compile(r"\[([^\]]*)\]\((?:[^)]*/)?" + leaf + r"\)")
+# The appendices go the same way: a link to `stranger-test/<page>.md` from anywhere else.
+stem = re.escape(os.path.splitext(os.path.basename(key))[0])
+link = re.compile(r"\[([^\]]*)\]\((?:[^)]*/)?(?:" + leaf + r"|" + stem + r"/[^)]*)\)")
 touched = []
 for root, dirs, files in os.walk(clone):
     dirs[:] = [d for d in dirs if d not in (".git", "vendor", "target")]
@@ -547,7 +558,7 @@ rm -rf "$CLONE/.git/logs"
 
 # Verified rather than asserted, because every previous run's isolation failure was a thing somebody
 # believed rather than checked.
-if [ -e "$CLONE/$KEY" ]; then
+if [ -e "$CLONE/$KEY" ] || [ -e "$CLONE/$KEY_DIR" ]; then
     echo "stranger-test: the answer key is still in the clone" >&2
     exit 1
 fi
@@ -836,7 +847,8 @@ with open(os.path.join(logs, "write-up.md"), "w") as fh:
 # so and that run's score is void.
 transcript = open(os.path.join(logs, "stream.jsonl")).read()
 key_leaf = os.path.basename(key)
-reached_key = key_leaf in transcript or key in transcript
+key_dir = os.path.splitext(key)[0] + "/"
+reached_key = key_leaf in transcript or key in transcript or key_dir in transcript
 
 record = {
     "commit": sha,
@@ -878,9 +890,9 @@ What to read, in the order it is worth reading:
 - `{root}/run/journal.md` the journal, written as it went
 - `{logs}/stream.jsonl` the whole transcript
 
-Scoring is a person's job. The rubric and every previous run are in notes/stranger-test.md, which
-this tree deliberately did not hand the stranger; add this run there, with what it cost and what it
-could not see.
+Scoring is a person's job. The rubric is in notes/stranger-test.md and every previous run is in an
+appendix under notes/stranger-test/, all of which this tree deliberately did not hand the stranger;
+add this run the same way, with what it cost and what it could not see.
 """)
 
 print(f"==> Wrote {logs}/summary.md")
