@@ -292,7 +292,7 @@ MEASURES = [
      + ['milestones_total', 'proposals_unnumbered']),
     ('velocity', ['milestones_built_this_week']),
     ('pull-requests', ['merged_pull_requests']),
-    # The model-attribution columns (file name `models.csv`, provisional, 2026-09-24). Commits
+    # The model-attribution columns (file name `models.csv`; Name: ratified 2026-09-24 (calef, in session, when asked to ratify the two metrics files the split produced; nothing refused)). Commits
     # and lines are one measure and one file rather than two, because a single pass over the same
     # git log produces both and a week that has one always has the other. The two charts it feeds
     # keep their own names, `models-commits.svg` and `models-lines.svg`, the way `cost` feeds
