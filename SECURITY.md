@@ -156,7 +156,7 @@ took, its findings by disposition, and a link to the report. `script/audits` say
 is due, from the triggers `design/decisions/74-audit-cadence.md` decided, and a weekly workflow asks
 the same question so that auditing does not depend on anyone remembering to.
 
-**Six** <!--count:security-audits--> security audits are on the record, and reading them first will
+**Seven** <!--count:security-audits--> security audits are on the record, and reading them first will
 save you time. Each took a lens the previous one did not, deliberately, because the value of an audit
 is the lens the last one lacked. (Documentation audits are in the same index and are not listed here;
 they read the tree for claims that had gone false, which is worth knowing if you find prose and code
@@ -198,6 +198,14 @@ disagreeing.)
   capability table. Also: ring 0 could execute a user page on `x86_64` until `CR4.SMEP` was set,
   and two existing port tests could not go red for the defects they exist to catch because a wrongly
   permitted `out` hung the run instead of failing it.
+- **design/audit-reports/2026-09-24-new-trust-boundaries.md**: what the tree began trusting in one
+  week, read where the change concentrated: the automation that merges, the bytes a file supplies,
+  and the state a core carries for a thread. **The finding to carry off is not in the kernel**: the
+  merge drain armed auto-merge on any green pull request from anyone, the ruleset requires no
+  review, and a merge-group build runs a pull request's workflow edits with the repository's
+  secrets. Closed in the script; the ruleset is a proposal. In the kernel, a port take-back on
+  `x86_64` reset the invoker's own bitmap (fails closed, fixed), the SVE/SME and V enables are now
+  closed beside the FP one, and a device tree's `totalsize` is bounded before it becomes a slice.
 
 The machine-checked half is `script/verify` (Kani harnesses over the capability model, IPC, the MMU
 invariants, the DMA validator). notes/verification.md states what each proof covers and, more
