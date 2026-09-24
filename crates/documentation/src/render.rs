@@ -25,7 +25,22 @@ pub const LINE_MAX: usize = 2048;
 /// unbounded recursion on adversarial input is a fault, not a slow render.
 pub const MAX_DEPTH: u8 = 3;
 
-/// Columns a table may have. Wider tables lose their right-hand columns.
+/// Columns a table may have before the fold.
+///
+/// A wider table is **not** truncated: everything past this many columns is folded into the last
+/// one, separator pipes and all, so the render gets ugly and loses nothing. That is the same
+/// failure mode [`TABLE_ROWS`] chose, for the same reason, and it was chosen here late. Until
+/// 2026-09-23 the right-hand columns were dropped in silence, and `notes/rented-metal.md` arrived
+/// with twelve of them and turned `main` red.
+///
+/// **The number is still 8, and it was raised and put back on measured evidence rather than
+/// taste.** Widening it to 16, so that table could be twelve real columns, costs 1536 bytes in
+/// [`Renderer`], which lives in `components/src/mdr.rs` as a `static mut` inside a process whose
+/// whole memory is a grant the progenitor pays for out of a bounded untyped. CI's `x86_64`
+/// `shell-check` answered at once: `mdr gate.txt` began reporting "could not spawn (the progenitor
+/// is out of memory)" while aarch64 and riscv64 stayed green. So this renderer's static size is
+/// load-bearing, the fold is what makes 8 safe, and raising the bound is a decision about `mdr`'s
+/// memory grant rather than about rendering.
 pub const TABLE_COLS: usize = 8;
 
 /// Rows a table may hold at once.
@@ -495,8 +510,24 @@ impl Renderer {
             // one (`--arch aarch64\| riscv64`), and reading it as a separator gave that table a
             // third column nobody wrote and squeezed the other two to pay for it.
             let mut j = i;
-            while j < body.end && !(self.line[j] == b'|' && (j == i || self.line[j - 1] != b'\\')) {
-                j += 1;
+            if col + 1 == TABLE_COLS {
+                // The last slot swallows the rest of the row rather than splitting it, which is
+                // what makes a too-wide table lossy in layout only. Stopping here instead would
+                // drop every remaining cell without saying so, and that is the bug this arm exists
+                // to remove. The row's own trailing pipe is not part of the text.
+                j = body.end;
+                while j > i && (self.line[j - 1] == b' ' || self.line[j - 1] == b'\t') {
+                    j -= 1;
+                }
+                if j > i && self.line[j - 1] == b'|' && (j - 1 == i || self.line[j - 2] != b'\\') {
+                    j -= 1;
+                }
+            } else {
+                while j < body.end
+                    && !(self.line[j] == b'|' && (j == i || self.line[j - 1] != b'\\'))
+                {
+                    j += 1;
+                }
             }
             let cell = trim(&self.line[i..j.min(body.end)]);
             // A trailing pipe produces one empty cell that nobody typed; drop it rather than

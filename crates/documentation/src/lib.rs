@@ -31,9 +31,10 @@
 //! somewhere to put it is a memory grant the program can otherwise do without.
 //!
 //! The cost is stated rather than hidden: a source line longer than [`LINE_MAX`] is truncated, and
-//! a table wider than [`TABLE_COLS`] loses its right-hand columns. A table *longer* than
-//! [`TABLE_ROWS`] does not lose rows; it spills into a second aligned chunk, because losing text is
-//! the one failure mode a documentation service cannot have. See `BUGS`.
+//! it is the only place this renderer still loses characters. A table *longer* than [`TABLE_ROWS`]
+//! does not lose rows; it spills into a second aligned chunk. A table *wider* than [`TABLE_COLS`]
+//! does not lose cells either; they fold into the last column. Losing text is the one failure mode
+//! a documentation service cannot have. See `BUGS`.
 //!
 //! # What it renders
 //!
@@ -113,6 +114,31 @@
 //!   its SGR handler implements only 0, 1, 7, 22, 27 and the colour ranges. On the serial console,
 //!   where the far end is the host's terminal, it shows. So emphasis is visible on one of the two
 //!   terminals this system has, and the choice was between that and spending a colour on it.
+//! - **A table wider than [`TABLE_COLS`] folds its remaining cells into the last column**, so the
+//!   layout degrades and the text does not. Until 2026-09-23 it dropped them instead, in silence,
+//!   and `notes/rented-metal.md` landed with twelve columns against a bound of 8 and turned `main`
+//!   red an hour later. That page still renders as eight columns with the last five cells of each
+//!   row inside the eighth, which is ugly and loses nothing.
+//!
+//!   **The bound stayed at 8 on measured evidence, having been raised and put back.** Sixteen
+//!   would have held that table as twelve real columns and costs 1536 bytes in [`Renderer`], which
+//!   `components/src/mdr.rs` holds as a `static mut` in a process whose whole memory is a grant the
+//!   progenitor pays for out of a bounded untyped. CI's `x86_64` `shell-check` answered at once:
+//!   `mdr gate.txt` began reporting "could not spawn (the progenitor is out of memory)" while
+//!   aarch64 and riscv64 stayed green. Raising it is a decision about `mdr`'s grant, not about
+//!   rendering, and it wants somebody who can price the untyped.
+//!
+//!   The fold is deliberately not loud: a renderer that refused input it could not lay out
+//!   prettily would be worse than one that lays it out badly, and [`Renderer::truncated`] stays
+//!   what it says it is, a report that characters were lost.
+//!
+//!   **The entry this replaces is why the bug survived**, and it is worth saying so here rather
+//!   than in a commit message. It read "wider tables lose their right-hand columns", which is an
+//!   honest sentence describing a permanent property, so every reader who met it treated a silent
+//!   text loss as a design and nobody asked what the bound should be. A `BUGS` entry is a fact,
+//!   and the convention holds; but an entry recording that this renderer *loses characters* is a
+//!   defect report with a deadline on it, not a property, and the next one written in this crate
+//!   should be read that way.
 //! - **A table that spills past [`TABLE_ROWS`] loses its header emphasis and its column alignment
 //!   in the second chunk.** Both are read off the delimiter row, which arrived in the first chunk
 //!   and is not carried across the flush that makes room. The rows themselves are never lost, which
