@@ -55,6 +55,11 @@ documentation-only branches finish in 2 to 3 because nearly every job skips.
    builds finish in minutes on ordinary changes. GitHub's concurrency and a 16 GB hosted runner that
    forces `VERIFY_JOBS=2` bind on heavy branches rather than on a typical day.
 
+This ranking was amended on 2026-09-24 by [§214 (the Team plan buys runner
+concurrency)](214-the-team-plan-buys-runner-concurrency.md). Once lanes gated in CI, merge
+throughput bound on an ordinary day, and calef upgraded the organisation to GitHub Team for its 60
+concurrent jobs. The ruling above is unchanged; §214 has the measurements and the new order.
+
 **Milestone 488 (a self-hosted CI runner) is refused twice and its security half is answered rather
 than ignored**: a runner restricted to this repository's own branches, with pull requests from
 outside staying on hosted runners. That is the shape that clears the objection, and it is a condition
