@@ -83,8 +83,9 @@
 #   tested as though it had been removed, which is what `--act` does and what a failed group does.
 #   Until someone acts, the real queue will build them with it.
 # - **It takes the `nife-dev` toolchain link**, because `script/test` relinks it to whichever worktree
-#   ran `xtask std-src` last (notes/std.md). On exit it puts the link back where it found it, but only
-#   if the link still points into the scratch worktree: a lane that took it in the meantime keeps it.
+#   ran `xtask std-src` last (notes/std.md). On exit it puts the link back where it found it, or on
+#   the main checkout's farm if that lane's worktree was pruned during the walk, and only if the link
+#   still points into the scratch worktree: a lane that took it in the meantime keeps it.
 #   A lane gating at the same moment can still be crossed, which is the ambient hazard AGENTS.md
 #   names, not a new one.
 # - **A red is attributed to the entry, not to the pair.** "Fails on top of the entries ahead" can
@@ -185,6 +186,9 @@ def nife_dev_link():
 
 
 LINK_BEFORE = nife_dev_link()
+# The main checkout, which owns the canonical farm: the parent of the shared `.git`.
+ROOT_CHECKOUT = os.path.dirname(os.path.realpath(subprocess.run(
+    ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, cwd=ROOT).stdout.strip()))
 
 
 def kill_our_qemus():
@@ -206,13 +210,29 @@ def cleanup():
     if left:
         say("WARNING: QEMU still running after SIGTERM: %s" % " ".join(left))
     now = nife_dev_link()
-    if LINK_BEFORE and now and now != LINK_BEFORE and now.startswith(WT):
-        subprocess.run(["rustup", "toolchain", "link", "nife-dev", LINK_BEFORE],
-                       capture_output=True, stdin=subprocess.DEVNULL)
-        say("nife-dev relinked to %s (it was taken by the scratch worktree)" % LINK_BEFORE)
-    elif now and now != LINK_BEFORE:
-        say("nife-dev now points at %s, not taken by this run; left alone" % now)
-
+    if not (now and now.startswith(WT)):
+        if now != LINK_BEFORE:
+            say("nife-dev now points at %s, not taken by this run; left alone" % now)
+        return
+    # **Put it back somewhere that exists, and say so only once rustup agrees.** Its first proof
+    # run (2026-09-24) "relinked" to the farm of a lane worktree that had been pruned while the walk
+    # ran; rustup refused, the exit code was not read, and the message claimed success while the link
+    # still pointed into the scratch tree. So: the link as found if that farm still exists, else the
+    # main checkout's farm, which is where briefs/merge-and-cleanup.md relinks it anyway.
+    main_farm = os.path.join(ROOT_CHECKOUT, "target", "nife-farm")
+    target = next((t for t in (LINK_BEFORE, main_farm) if t and os.path.isdir(t)), None)
+    if target is None:
+        say("nife-dev still points into %s: neither %s nor %s exists. Relink it from the main "
+            "checkout (briefs/merge-and-cleanup.md step 4)" % (WT, LINK_BEFORE, main_farm))
+        return
+    r = subprocess.run(["rustup", "toolchain", "link", "nife-dev", target],
+                       capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    if r.returncode == 0 and nife_dev_link() == target:
+        say("nife-dev relinked to %s (the scratch worktree had taken it%s)" %
+            (target, "" if target == LINK_BEFORE else "; the farm it pointed at before is gone"))
+    else:
+        say("nife-dev relink to %s FAILED (%s); it still points at %s" %
+            (target, (r.stderr or "rustup exited %d" % r.returncode).strip(), nife_dev_link()))
 
 atexit.register(cleanup)
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(130))
