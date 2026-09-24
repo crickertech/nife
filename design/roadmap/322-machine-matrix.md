@@ -71,10 +71,10 @@ refuses to run on. Confirming it moved three things, all recorded below.
 **`virt,iommu=smmuv3` is deliberately NOT a row here, and the reason is a correction.** A draft of
 this block proposed it, on the finding that `-machine virt,help` offers an IOMMU option and the
 claim that nothing in this tree boots with one. **That claim was false and one grep would have shown
-it.** `scripts/qemu-runner-aarch64.sh` sets `iommu=smmuv3` on both the TCG and HVF paths
-unconditionally, and has since milestone 81; `scripts/qemu-runner-riscv64.sh` carries
+it.** `helpers/qemu-runner-aarch64.sh` sets `iommu=smmuv3` on both the TCG and HVF paths
+unconditionally, and has since milestone 81; `helpers/qemu-runner-riscv64.sh` carries
 `-device riscv-iommu-pci` with `iommu_platform=on` on its PCI disk, net and GPU (milestone 16b's
-twin); and `scripts/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded analysis of its
+twin); and `helpers/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded analysis of its
 `intremap` capability bits. **All three architectures already boot behind an IOMMU**, which is why
 `script/qemu-check` gates on `riscv-iommu-pci` existing in the pin at all.
 

@@ -141,7 +141,7 @@ shootdown:
 and passes with it. The suite then reaches `test result: ok. 177 passed` at `NIFE_SMP=2`, and 20
 further runs produced no paint fault at all.
 
-**It is verified rather than gated, and the difference is honest.** `scripts/qemu-runner-x86_64.sh`
+**It is verified rather than gated, and the difference is honest.** `helpers/qemu-runner-x86_64.sh`
 still defaults `NIFE_SMP` to 1, because other failures on this port are open and either can fail a
 two-core run. The boot-core-identity bug that made `smp::tests::every_secondary_runs_scheduled_work`
 fail about half the time at two was fixed by milestone 316, and the AP-bring-up flake (`ap_boot`'s

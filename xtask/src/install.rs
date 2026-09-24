@@ -245,7 +245,7 @@ pub(crate) fn boot(
     // of the second boot.
     let _ = std::fs::remove_file(vars_path());
 
-    let mut command = Command::new("scripts/qemu-uefi-x86_64.sh");
+    let mut command = Command::new("helpers/qemu-uefi-x86_64.sh");
     command
         .arg(esp)
         .current_dir(workspace_root())
@@ -265,7 +265,7 @@ pub(crate) fn boot(
     let mut child = match command.spawn() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("install-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
+            eprintln!("install-boot: failed to run helpers/qemu-uefi-x86_64.sh: {e}");
             return None;
         }
     };

@@ -46,7 +46,7 @@ check fail. Both accounts are correct and they read as contradicting each other.
 
 `script/test` already resolves the emulator it runs. Print its version beside each post-run check
 result, or once in the per-architecture banner, so a red line carries the one fact needed to
-interpret it. `script/qemu-check` knows how to read a version and `scripts/qemu-path.sh` knows which
+interpret it. `script/qemu-check` knows how to read a version and `helpers/qemu-path.sh` knows which
 binary was chosen, so nothing new has to learn how; the question is which of the two is the right
 place, and whether the banner is enough or each failing check should carry it.
 

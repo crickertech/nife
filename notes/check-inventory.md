@@ -327,7 +327,7 @@ and no working mechanism for taking one, which is a different claim from the ris
 
 - ~~**This is a snapshot with no mechanism behind it.**~~ **Half-answered by milestone 238.**
   `script/cadence-check` reports any scheduled workflow with no successful scheduled run in 15 days,
-  and `scripts/trunk-health.sh` runs it. The shape this bullet proposed, a scheduled job reading run
+  and `helpers/trunk-health.sh` runs it. The shape this bullet proposed, a scheduled job reading run
   history, was refused for the reason the bullet itself was circling: a cron that watches crons dies
   the way its subjects die. The delivery is the `launchd` watcher instead, which has no cadence to
   lapse and does not block a lane. Still a snapshot in the other direction: it answers "has this

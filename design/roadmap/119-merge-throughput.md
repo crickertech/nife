@@ -15,7 +15,7 @@ pole; measured, it is not. `CI` runs a median 10.7 minutes against `verify`'s 0.
 `--affected-since` scopes twelve of nineteen builds out of proving entirely. What remains is a
 tail of six builds where proofs ran, holding the merge a median 5.6 minutes past a green `CI`,
 and that tail is nearly all false positives from three blind spots in the scope predicate
-(`scripts/` is not `script/`, a `Cargo.lock` touch proves everything, binary files count). Fixing
+(`helpers/` is not `script/`, a `Cargo.lock` touch proves everything, binary files count). Fixing
 those beats more shards, since one crate's proofs are atomic at half the suite's time. Each is
 its own small lane.
 
@@ -142,7 +142,7 @@ shape, which is why it is named here rather than deferred.
   minutes and are half the suite's time on their own, so the floor is one harness rather than the
   runner count.
 - **Milestone 359.** `design/roadmap/359-three-blind-spots-in-the-proof-scope.md`, fix the three
-  blind spots in `script/verify --affected-since`'s scope predicate: `scripts/` is not `script/`,
+  blind spots in `script/verify --affected-since`'s scope predicate: `helpers/` is not `script/`,
   any `Cargo.lock` touch proves everything, and binary files count as unattributable. They are
   nearly all of the prover tail still on the merge queue, and this block prices fixing them above
   more shards, since one crate's proofs are atomic at half the suite's time. Each is its own small

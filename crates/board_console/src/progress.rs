@@ -1559,7 +1559,7 @@ mod tests {
 
     /// **The sweep, from a real run of `--features job_mix`** (milestone 324 part 2), fed one byte
     /// at a time. This is the test that says the markers are the text a kernel prints: the fixture
-    /// is `scripts/qemu-runner-aarch64.sh` on 2026-09-19, unedited, CRLF and all.
+    /// is `helpers/qemu-runner-aarch64.sh` on 2026-09-19, unedited, CRLF and all.
     ///
     /// **And it is the test that says the *fields* are, which it did not say before.** The capture
     /// it read until 2026-09-19 was taken from a pre-milestone-168 kernel, so it agreed with a

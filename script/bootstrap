@@ -14,8 +14,8 @@ cd "$(dirname "$0")/.."
 
 # The project's own QEMU, if a previous run built one. This has to happen BEFORE the `command -v`
 # checks below, or a second bootstrap on a Linux box re-runs the whole apt branch against a prefix
-# that already holds exactly what is wanted. See scripts/qemu-path.sh for why PATH is the mechanism.
-. scripts/qemu-path.sh
+# that already holds exactly what is wanted. See helpers/qemu-path.sh for why PATH is the mechanism.
+. helpers/qemu-path.sh
 
 os="$(uname -s)"
 
@@ -87,7 +87,7 @@ else
     esac
 fi
 
-# ShellCheck, for the 23 `#!/bin/sh` scripts in script/ and scripts/. Worth a dependency because of
+# ShellCheck, for the 23 `#!/bin/sh` scripts in script/ and helpers/. Worth a dependency because of
 # where this project runs: macOS `/bin/sh` is bash in POSIX mode and Ubuntu CI's is dash, so a
 # bashism works on a dev machine and fails on a runner. ShellCheck knows the difference and says so.
 # The scripts are the gates; a gate that fails silently is worse than no gate. See notes/scripts.md.
@@ -167,7 +167,7 @@ fi
 #   2. Even printed, it is rung four of AGENTS.md's ladder. A script that knows the next two commands
 #      and asks a human to type them is describing a mechanism instead of being one.
 #   3. **The remedy looped.** `script/ci-qemu` installs into `$HOME/.cache/nife-qemu`, and until
-#      `scripts/qemu-path.sh` nothing outside `.github/workflows/ci.yml` ever put that on PATH. So
+#      `helpers/qemu-path.sh` nothing outside `.github/workflows/ci.yml` ever put that on PATH. So
 #      following the instructions verbatim spent twelve minutes building the right QEMU and then
 #      found `/usr/bin`'s 8.2.2 again, forever.
 #
@@ -206,7 +206,7 @@ if ! script/qemu-check; then
     # ci-qemu installed into the prefix; this is what makes the build count for anything at all.
     # Without it bootstrap would re-run qemu-check against the same /usr/bin QEMU it just failed on,
     # which is precisely the loop described above.
-    . scripts/qemu-path.sh
+    . helpers/qemu-path.sh
 
     script/qemu-check
 fi

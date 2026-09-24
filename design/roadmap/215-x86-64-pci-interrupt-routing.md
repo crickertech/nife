@@ -124,7 +124,7 @@ handoff below.
 
 **The rest of the fixtures.** One `virtio-blk-pci` disk is attached. The RedoxFS image, the GPT and
 blank disks, the NIC, the GPU, the keyboard and the RNG are each a line in
-`scripts/qemu-runner-x86_64.sh` plus a wiring, and every one of them now has a working interrupt
+`helpers/qemu-runner-x86_64.sh` plus a wiring, and every one of them now has a working interrupt
 underneath it. That is a **proposed milestone** and this lane deliberately does not number it
 (numbers are the integrator's, and 216 is already the board console): its measure is the 36 tests
 taking a "no RedoxFS disk attached" arm, and its first item is making the FS server's disk lookup
@@ -186,7 +186,7 @@ arriving on a machine whose firmware turns it on.
   console UART, which is the last candidate.
 - **Milestone 364.** `design/roadmap/364-x86-64-test-fixtures.md`, attach the rest of the x86_64
   test fixtures now that a function's interrupt works: the RedoxFS image, the GPT and blank disks,
-  the NIC, the GPU, the keyboard and the RNG, each a line in `scripts/qemu-runner-x86_64.sh` plus
+  the NIC, the GPU, the keyboard and the RNG, each a line in `helpers/qemu-runner-x86_64.sh` plus
   its wiring, starting with making the FS server's disk lookup transport-blind. The measure is the
   count of tests taking a "no RedoxFS disk attached" arm, 36 when this was written and 50 on
   2026-09-19. That block is SUPERSEDED: milestone 303 built the transport-blind lookup and attached

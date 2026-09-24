@@ -373,7 +373,7 @@ pub(super) fn stick_boot() -> bool {
             eprintln!("stick-boot: {file} is not staged; run `cargo xtask stick` first");
             return false;
         }
-        let output = Command::new("scripts/qemu-stick.sh")
+        let output = Command::new("helpers/qemu-stick.sh")
             .args([arch, &stick_dir().display().to_string()])
             .current_dir(workspace_root())
             .env(
@@ -383,7 +383,7 @@ pub(super) fn stick_boot() -> bool {
             .stdin(std::process::Stdio::null())
             .output();
         let Ok(output) = output else {
-            eprintln!("stick-boot: cannot run scripts/qemu-stick.sh");
+            eprintln!("stick-boot: cannot run helpers/qemu-stick.sh");
             return false;
         };
         let transcript = String::from_utf8_lossy(&output.stdout).into_owned();

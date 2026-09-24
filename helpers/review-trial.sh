@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run one delegated-review trial: one model, one diff, one posture.
 #
-#     scripts/review-trial.sh <model> <diff-file> <posture> <out-file>
+#     helpers/review-trial.sh <model> <diff-file> <posture> <out-file>
 #
 # **Provisional name**, the harness for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not). It exists so that the prompt a reviewer saw is a
 # file anyone can read rather than a claim in a report: the whole experiment turns on the reviewer
@@ -18,7 +18,7 @@
 #   and it is one number for all models so the conditions do not differ by model. If a run still
 #   returns no text the transcript says so at the top rather than looking like an empty review.
 # - **It does not retry.** A gateway timeout is a lost trial and shows up as a missing output file;
-#   scripts/review-matrix.sh retries, and a cell that is still missing after that is reported as
+#   helpers/review-matrix.sh retries, and a cell that is still missing after that is reported as
 #   missing rather than scored as silence.
 # - **Temperature is the gateway's default**, so a rerun will not reproduce a transcript verbatim.
 #   The transcripts in notes/delegated-review/transcripts/ are the record, not a reproducible build.

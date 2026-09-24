@@ -47,7 +47,7 @@ const ENTROPY_SLOT: u64 = 6;
 /// and not the PAL's.
 ///
 /// `x86_64` takes `RDSEED` (milestone 162's instruction backend) because its runner attaches no
-/// virtio-rng at all (`scripts/qemu-runner-x86_64.sh`: "no NIC, no GPU, no RNG") and the suite's
+/// virtio-rng at all (`helpers/qemu-runner-x86_64.sh`: "no NIC, no GPU, no RNG") and the suite's
 /// `-cpu max` implements the instruction. The other two keep the virtio-mmio device their legs have
 /// always attached. Milestone 184 made this a per-architecture constant; before it, `x86_64` never
 /// reached this function because it had no std program to spawn.

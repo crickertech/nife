@@ -1,9 +1,9 @@
 # Briefs a rented model can be handed
 
 Each file here is a complete instruction for one recurring piece of **maintainer** work, written so
-`scripts/open-lane.sh` can hand it to a rented open-weight model:
+`helpers/open-lane.sh` can hand it to a rented open-weight model:
 
-    scripts/open-lane.sh <worktree> briefs/<brief>.md
+    helpers/open-lane.sh <worktree> briefs/<brief>.md
 
 **Why these exist as files rather than as something a maintainer types each time.** On 2026-09-22 a
 delegated rebase cost **$0.055**, was correct first time, needed no redo, and replaced about

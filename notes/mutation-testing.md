@@ -989,7 +989,7 @@ that, so the bound that existed could never have fired.
 cargo runs a test binary through `target.<triple>.runner` when one is set. That is the only point in
 the pipeline that sees **exactly one test binary** and neither rustc, nor cargo, nor the other `-j 2`
 job's binary, so it is the one place a genuinely per-mutant bound can live.
-`scripts/memory-bounded-runner.sh` (**name provisional**; names are calef's) sets `RLIMIT_AS` with
+`helpers/memory-bounded-runner.sh` (**name provisional**; names are calef's) sets `RLIMIT_AS` with
 `ulimit -v` and execs the binary. `script/mutation` points `CARGO_TARGET_<HOST>_RUNNER` at it for the
 length of a mutation run and nothing else in the tree does, so an ordinary `cargo test` is untouched.
 

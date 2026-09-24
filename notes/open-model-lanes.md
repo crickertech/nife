@@ -29,7 +29,7 @@ subagent's `model` field accepts only Claude aliases (`sonnet`, `opus`, `haiku`,
 `inherit`, or a full Claude id). There is no per-subagent endpoint, in frontmatter or in settings.
 
 So a session cannot send *some* of its lanes elsewhere. A mechanical lane has to be a **separate
-headless process**, which is what `scripts/open-lane.sh` runs:
+headless process**, which is what `helpers/open-lane.sh` runs:
 
 ```
 cd <worktree> && ANTHROPIC_BASE_URL=<gateway> ANTHROPIC_AUTH_TOKEN=<token> \
@@ -52,7 +52,7 @@ format and translates to an OpenAI-compatible upstream.
 Claude Code  --/v1/messages-->  LiteLLM (127.0.0.1:4000)  --/chat/completions-->  OpenRouter
 ```
 
-`config/open-lane-litellm.yaml` holds the mapping and `scripts/open-lane-gateway.sh` starts it.
+`config/open-lane-litellm.yaml` holds the mapping and `helpers/open-lane-gateway.sh` starts it.
 
 **It runs on cordoba, not on patagonia** (calef, 2026-09-22, wanting to call it from several hosts
 on his tailnet). Three reasons beyond that one. cordoba is **always on**, where a laptop is not, and
@@ -98,7 +98,7 @@ narrowed the loopback case and nothing else; it was weighed and declined.
 
 ## What makes a cheaper model safe here, and it is not the model
 
-**The gates are the oracle.** `scripts/open-lane.sh` never judges the work: it loops the model
+**The gates are the oracle.** `helpers/open-lane.sh` never judges the work: it loops the model
 against `script/lint` and `script/citations --ratchet`, feeds the failing output back as the next
 round's prompt, and hands the worktree back unmerged if it cannot reach green inside a round budget.
 That is the same argument §202 makes, mechanised: a cheaper model is safe exactly to the extent that
@@ -114,7 +114,7 @@ a capability surviving a revocation sweep, a calibration wrong by 11x, all came 
 ## Maintainer work is the best target found, and the reason is not the model
 
 **Measured 2026-09-22.** A rebase with three known conflict classes, handed to Qwen3-Coder through
-`scripts/open-lane.sh`, cost **$0.0552**, was correct first time, needed no redo, and replaced about
+`helpers/open-lane.sh`, cost **$0.0552**, was correct first time, needed no redo, and replaced about
 thirteen of the maintainer's tool calls with four. It took `main`'s baselines rather than
 hand-merging them, which is the trap that nearly shipped a wrong benchmark floor twice that evening.
 
@@ -154,13 +154,13 @@ it run the gate, did it read the exit code, and how many rounds did green take.
   not inherit the rules, so its brief must carry everything it needs, including that citations need
   glosses and that a lane never edits another milestone's block.
 - **Beta request fields can hard-fail.** Claude Code sends Anthropic-specific fields to whatever
-  `ANTHROPIC_BASE_URL` names. `scripts/open-lane.sh` sets `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`
+  `ANTHROPIC_BASE_URL` names. `helpers/open-lane.sh` sets `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`
   for that reason; a gateway that strips them itself would also do.
 - **Nobody has run this yet.** It is written from the documentation and from measured hardware, and
   it has not driven a single lane. The first run is the benchmark above, and until it happens this
   note describes an intention.
 - **`OPEN_LANE_EFFORT` exists and is unmeasured against this mechanism specifically.**
-  `scripts/open-lane.sh` now passes `claude --effort`, defaulting to `low`
+  `helpers/open-lane.sh` now passes `claude --effort`, defaulting to `low`
   ([effort-levels.md](effort-levels.md)), but that default was measured against Claude directly, not
   through this gateway against an open-weight model. Whether the flag reaches the model at all once
   `config/open-lane-litellm.yaml`'s `drop_params: true` has a chance to strip it is exactly the kind

@@ -9,7 +9,7 @@ mystery.
 
 **The leak was reproduced before it was fixed**, which is the part worth keeping. Start a bounded
 run, signal the wrapper and its detached killer the way `pkill -f` does, and the emulator is
-inherited by pid 1 and runs until somebody notices. `scripts/qemu-bounded-selftest.sh` is that
+inherited by pid 1 and runs until somebody notices. `helpers/qemu-bounded-selftest.sh` is that
 reproduction as an artifact. Run against the pre-226 script it fails three of its seven cases (both
 orphan cases and the lock diagnostic); against the current one it passes all seven.
 
@@ -47,7 +47,7 @@ itself the case the message warns about, since the other QEMU was milestone 235'
 a live harness up its parent chain. It reports rather than kills, and says to walk the parent chain up first, because a QEMU whose
 parent is a live harness is somebody's gate rather than a leak (AGENTS.md, 2026-08-15).
 
-**In brief.** `scripts/qemu-bounded.sh` exists because `timeout(1)` does not exist on macOS and
+**In brief.** `helpers/qemu-bounded.sh` exists because `timeout(1)` does not exist on macOS and
 `perl -e 'alarm N; exec @ARGV'` does not work on QEMU, which installs its own `SIGALRM` handler and
 swallows the alarm. The script uses `SIGTERM`, which QEMU honours, and detaches its killer so it
 survives a pipeline whose reader exits early.
@@ -152,7 +152,7 @@ lock`, which names a file and no process. It now also **polls its parent** once 
 a SIGKILLed wrapper and a dead session, neither of which runs a trap) and **traps TERM and HUP**,
 so the one process knowing the child's pid does not take it along. SIGINT is deliberately absent:
 a shell puts an async subshell's SIGINT to ignore before it can be trapped, so listing it would
-read as coverage and be a lie. The leak was **reproduced before and after** and `scripts/qemu-bounded-selftest.sh` is that reproduction as an artifact: three of seven cases fail
+read as coverage and be a lie. The leak was **reproduced before and after** and `helpers/qemu-bounded-selftest.sh` is that reproduction as an artifact: three of seven cases fail
 on the old script, none on the new. The early-reader property and milestone 38's fast-child
 property were both verified against a real QEMU, and `perl`'s alarm is still swallowed, so the
 premise holds. What macOS cannot prevent (SIGKILL to the killer; no PDEATHSIG) gets the other half

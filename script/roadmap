@@ -149,10 +149,10 @@ d = os.path.join(root, "design", "roadmap")
 # keep looking authoritative, and this pile's only defence against becoming a graveyard is that a
 # script can see it. The directory LISTING stays here, because this reads the working tree and that
 # reads blobs at revisions nobody has checked out. `dont_write_bytecode` because the import would
-# otherwise leave a `scripts/__pycache__/` behind on every run, which is an untracked directory a
+# otherwise leave a `helpers/__pycache__/` behind on every run, which is an untracked directory a
 # gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(root, "scripts"))
+sys.path.insert(0, os.path.join(root, "helpers"))
 import roadmap_proposals                                                    # noqa: E402
 
 PROPOSED_DIR = "proposals"
@@ -223,7 +223,7 @@ VOCAB = ["BUILT", "REMOVED", "SUPERSEDED", "PARTIAL", "IN-PROGRESS", "NOT-STARTE
 # Minted 2026-09-15 (calef), promoting `one-grant-order-for-the-progenitor` to milestone 301 and
 # disposing of it in the same act: milestone 166 split the 19d test roles out of the boot path and
 # collapsed the two BootEndowment tables into one, which is precisely what that proposal asked for.
-# A proposal cannot be retired in place, because `scripts/roadmap_proposals.py` matches PROPOSED and
+# A proposal cannot be retired in place, because `helpers/roadmap_proposals.py` matches PROPOSED and
 # nothing else, so promotion is how a proposal reaches a disposition at all.
 DATED = ("BUILT", "REMOVED")
 
@@ -433,7 +433,7 @@ for fname in sorted(os.listdir(d)):
         continue
 
     # A block that says it was promoted from a proposal owes that proposal its disposition; see
-    # `scripts/roadmap_proposals.py` for why the citation is a slug and not a path. Collected here
+    # `helpers/roadmap_proposals.py` for why the citation is a slug and not a path. Collected here
     # and checked against the pile after it is read.
     status_para = next(iter(blocks_of(lines[1:])), "")
     if status == "REFUSED":

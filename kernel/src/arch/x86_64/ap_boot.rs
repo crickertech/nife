@@ -16,7 +16,7 @@
 //!
 //! **Three failures were found bringing this up, and all three are now root-caused and fixed.**
 //! They are kept here because this is where each was found and where a reader meets the symptom.
-//! `scripts/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1, and the one thing now holding it
+//! `helpers/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1, and the one thing now holding it
 //! there is not a bring-up bug at all (see the end of #3).
 //!
 //! **1. A secondary was reported "did not start" when it had started. FIXED 2026-09-19 (milestone

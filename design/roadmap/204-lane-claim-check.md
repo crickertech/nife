@@ -33,7 +33,7 @@ git ls-remote --heads origin 'milestone/*'   # what is being worked
 gh pr list --draft --json headRefName        # what has claimed it
 ```
 
-**A report rather than a gate**, in `scripts/merge-drain.sh`'s family: nothing should fail a build
+**A report rather than a gate**, in `helpers/merge-drain.sh`'s family: nothing should fail a build
 over it, because the lane that most needs telling is one that is mid-work and about to open its pull
 request anyway. What it must do is be visible without anyone asking, which is the property the
 current arrangement lacks entirely.
@@ -50,7 +50,7 @@ current arrangement lacks entirely.
 
 ## What shipped
 
-`scripts/lane-claim-check.sh` (provisional name), called once per pass from `scripts/merge-drain.sh`
+`helpers/lane-claim-check.sh` (provisional name), called once per pass from `helpers/merge-drain.sh`
 before its own empty-queue return. That siting is the answer to the open question below, and the
 reason is that the drain is **the only unattended runner this project has**: it fires every five
 minutes under `launchd` on patagonia, and a report nothing runs is the state this milestone was
@@ -112,7 +112,7 @@ missing claim.
   lane that has not pushed at all, which is the more dangerous state, because a pushed branch is the
   only ledger another session can read.
 - **Recorded.** `AGENTS.md` carries the gap this inherits and the fact that it was accepted rather
-  than solved: the check is only as alive as `scripts/merge-drain.sh` is, and patagonia asleep means
+  than solved: the check is only as alive as `helpers/merge-drain.sh` is, and patagonia asleep means
   nobody is watching. A GitHub Actions cron would close it and was declined here.
 - **Recorded.** `notes/merge-queue.md` says which prefixes it watches, which is `milestone/*` only.
   A lane on `fix/`, `roadmap/` or `maintainer/` is invisible to it, and widening the pattern would
@@ -132,8 +132,8 @@ Minted by calef on 2026-08-31, after two lanes in one session pushed `milestone/
 never opened the draft pull request their briefs named as the first act. §90 says the draft **is**
 the claim and nothing checks it; the board was empty while two milestones were being worked. Prose
 in a brief is rung four and behaved like it, for the second time in this project's history. A
-report in `scripts/merge-drain.sh`'s family, never a gate, comparing `git ls-remote --heads origin
-'milestone/*'` against `gh pr list --draft`. Shipped as `scripts/lane-claim-check.sh`, called once
+report in `helpers/merge-drain.sh`'s family, never a gate, comparing `git ls-remote --heads origin
+'milestone/*'` against `gh pr list --draft`. Shipped as `helpers/lane-claim-check.sh`, called once
 per pass from the merge drain, which is the only unattended runner this project has. Grace period
 15 minutes, measured: the branch that built it took 3 minutes from branch creation to draft, and
 that included writing the file GitHub requires before it will accept a pull request at all. The

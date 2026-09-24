@@ -526,7 +526,7 @@ met it.
 >
 > **And the two printed commands looped.** `script/ci-qemu` installs into
 > `$HOME/.cache/nife-qemu`, and the only thing in the entire tree that ever put that prefix on PATH
-> was `.github/workflows/ci.yml`. Nothing in `script/`, nothing in `scripts/`, nothing in `xtask`. So
+> was `.github/workflows/ci.yml`. Nothing in `script/`, nothing in `helpers/`, nothing in `xtask`. So
 > a Linux developer following the instructions verbatim spent twelve minutes building the right QEMU,
 > re-ran `script/setup` as told, and `qemu-check`'s `command -v qemu-system-aarch64` found
 > `/usr/bin`'s 8.2.2 again: same failure, same message, same remedy, forever.
@@ -537,7 +537,7 @@ met it.
 > configuration, and the fix it prompted was never run against it.
 >
 > Milestone 287 is the actual fix: bootstrap runs `script/ci-qemu` instead of printing how to,
-> `scripts/qemu-path.sh` is the PATH half, and `script/lint` gates that every entry point resolves
+> `helpers/qemu-path.sh` is the PATH half, and `script/lint` gates that every entry point resolves
 > it. Reproduced and verified on a stock Ubuntu box with apt's 8.2.2 on `/usr/bin`.
 
 **The four corrections to `notes/adding-a-program.md`** are the second half, and they are the page's
@@ -799,7 +799,7 @@ letting silence imply coverage: `script/verify`, `script/bench --check`, `script
 **B2 is not measured**, as pre-registered: the pinned nightly and the pinned QEMU were both already
 installed and `script/setup` had nothing to do. **B4 has exactly one entry**, and the stranger
 scored it against itself rather than against the tree: `timeout(1)` does not exist on this macOS
-host, `AGENTS.md` says so explicitly and points at `scripts/qemu-bounded.sh`, and it hit the missing
+host, `AGENTS.md` says so explicitly and points at `helpers/qemu-bounded.sh`, and it hit the missing
 binary before it read that section. Its own verdict: *"That is my error, not the tree's, the file
 that told me is the file the README tells you to read third."*
 
@@ -1150,7 +1150,7 @@ grepped for references to it. It never ran `git show` or anything else that woul
 The protocol says no help mid-run. **Protecting the machine outranked it once**, and the record
 has to say so. About eleven minutes in, the stranger decided an x86_64 failure (below) was a QEMU
 version mismatch, ran `brew install meson`, downloaded QEMU 11.0.2 and started building it into
-`$HOME/.cache/nife-qemu`. `scripts/qemu-path.sh` puts that prefix on PATH for **every checkout on
+`$HOME/.cache/nife-qemu`. `helpers/qemu-path.sh` puts that prefix on PATH for **every checkout on
 the account** whose `.qemu-version` matches, so the two lanes gating beside it would have changed
 emulators mid-suite. The operator killed the build and left the directory read-only. The stranger
 met the permission error, called it *"cause unclear - possibly a leftover from the aborted first
@@ -1196,7 +1196,7 @@ fix, which is to its credit and did not stop it building an emulator first.
 **B4 fails, with six entries.** That a bare `cargo build --workspace` fails on the host, with an
 error that reads like a broken tree; that the test log is binary to `grep` without `-a`; that the
 pinned QEMU cannot be had on macOS by any documented route; that building it by hand needs
-`--disable-cocoa --disable-pvg`; that `scripts/qemu-path.sh` honours a hand-built prefix on macOS
+`--disable-cocoa --disable-pvg`; that `helpers/qemu-path.sh` honours a hand-built prefix on macOS
 too; and that the VT-d lines above are expected.
 
 #### The mental model, scored: seven answered, one absent
@@ -1394,7 +1394,7 @@ attempts and `$0.06` for a `--smoke` that established the refusals were the task
   workflow asks on Mondays, was green on 2026-09-14 and could not go red before 2026-09-21, and run
   6 happened on 2026-09-19 because a maintainer briefed a lane. Had it gone red, the red is an
   Actions-tab entry, and `script/cadence-check`, the watcher that reads those for
-  `scripts/trunk-health.sh`, calls a workflow DEAD only after fifteen days without a *success*, so
+  `helpers/trunk-health.sh`, calls a workflow DEAD only after fifteen days without a *success*, so
   "a run is due" and "the job is broken" arrive as one state, a fortnight late. The audit cadence,
   whose red means the same thing, had been red five Mondays running on 2026-09-19 with nobody acting.
   So the cadence did not fail by missing its date; it has never been tested, and the path from red

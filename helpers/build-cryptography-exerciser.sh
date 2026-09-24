@@ -3,7 +3,7 @@
 
 #
 # **This is an experiment's apparatus, not part of the build**, and that is the same posture
-# `scripts/build-ripgrep.sh` takes for the same reason. Nothing in `script/test` runs it and no gate
+# `helpers/build-ripgrep.sh` takes for the same reason. Nothing in `script/test` runs it and no gate
 # needs it: `xtask` packs the resulting ELF only if it is already on disk, and
 # `kernel/src/user/cryptography_tests.rs` skips when it is not.
 #
@@ -19,8 +19,8 @@
 # cfgs, and this script adds nothing to the command line beyond the target and build-std. If a
 # build fails, the configuration is in the package where a reader will find it.
 #
-# Usage: scripts/build-cryptography-exerciser.sh
-#        NIFE_CRYPTO_TRIPLES="x86_64-unknown-nife" scripts/build-cryptography-exerciser.sh
+# Usage: helpers/build-cryptography-exerciser.sh
+#        NIFE_CRYPTO_TRIPLES="x86_64-unknown-nife" helpers/build-cryptography-exerciser.sh
 #
 # See notes/cryptography-provider.md for the measurement that chose these crates and what is still open.
 set -euo pipefail

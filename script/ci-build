@@ -91,9 +91,9 @@
 set -e
 cd "$(dirname "$0")/.."
 
-# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# This project's own QEMU, if `script/ci-qemu` has built one (helpers/qemu-path.sh says why
 # PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 
 # --- the enumeration --------------------------------------------------------------------------
 #
@@ -177,8 +177,8 @@ hvf_leg() {
         # driven GICv3 too since milestone 227 and the runner asks for it under HVF, so today the probe
         # passes. It stays because the answer is QEMU's to change. Asking the runner rather than
         # testing a QEMU version keeps the machine string in one place; see the probe in
-        # scripts/qemu-runner-aarch64.sh.
-        if ! hvf_refusal="$(NIFE_PROBE=1 NIFE_ACCEL=hvf scripts/qemu-runner-aarch64.sh 2>/dev/null)"; then
+        # helpers/qemu-runner-aarch64.sh.
+        if ! hvf_refusal="$(NIFE_PROBE=1 NIFE_ACCEL=hvf helpers/qemu-runner-aarch64.sh 2>/dev/null)"; then
             hvf_missing="QEMU will not start the machine this leg needs. It said: $hvf_refusal. The kernel drives GICv2 and GICv3 and the runner asks HVF for a GICv3, so this refusal is about something else; notes/hvf-leg.md has the history"
         fi
     fi

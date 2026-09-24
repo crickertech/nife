@@ -116,7 +116,7 @@ const IN_MSG: &[u8] = socket_protocol::fixture::IN_MSG;
 const OUT_MSG: &[u8] = socket_protocol::fixture::OUT_MSG;
 
 /// The fixture the runners put in slirp's TFTP directory, and its exact contents. Both sides are
-/// fixed so the round trip is asserted byte for byte (see scripts/qemu-runner-*.sh).
+/// fixed so the round trip is asserted byte for byte (see helpers/qemu-runner-*.sh).
 const TFTP_NAME: &[u8] = b"nife";
 const TFTP_BODY: &[u8] = b"nife-tftp!";
 

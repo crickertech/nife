@@ -29,7 +29,7 @@ The headline, in one line each:
 
 ## What our QEMU invocation actually is
 
-`scripts/qemu-runner-x86_64.sh`, which is what `script/test --arch x86_64` reaches through cargo:
+`helpers/qemu-runner-x86_64.sh`, which is what `script/test --arch x86_64` reaches through cargo:
 
 ```
 qemu-system-x86_64 -machine q35 -cpu max -smp 1 -m 256M -display none -serial stdio \
@@ -254,9 +254,9 @@ proposed above is what it exists to be measured against.
 
 ```sh
 cargo build -p kernel --features tsc_probe --target x86_64-unknown-none
-./scripts/qemu-bounded.sh 55 ./scripts/qemu-runner-x86_64.sh \
+./helpers/qemu-bounded.sh 55 ./helpers/qemu-runner-x86_64.sh \
     target/x86_64-unknown-none/debug/kernel            # plain TCG, as the suite runs it
-./scripts/qemu-bounded.sh 75 ./scripts/qemu-runner-x86_64.sh \
+./helpers/qemu-bounded.sh 75 ./helpers/qemu-runner-x86_64.sh \
     target/x86_64-unknown-none/debug/kernel -icount shift=0,sleep=off   # as bench runs it
 ```
 
@@ -280,7 +280,7 @@ the host loaded.
   to the real one. Subtracting raw CMOS bytes without decoding BCD reported four-second windows as
   ten seconds, because the register steps 0x09 -> 0x10 across every decade. Both are in the commit
   message that added the instrument, and in this note's own account of the method above.
-- **`scripts/qemu-bounded.sh`'s killer did not fire for this lane**, repeatedly: a bounded run whose
+- **`helpers/qemu-bounded.sh`'s killer did not fire for this lane**, repeatedly: a bounded run whose
   output consumer exited early left `qemu-system-x86_64` orphaned to `launchd` past its bound, five
   times in one afternoon, each found by `pgrep` rather than by the wrapper. Every one was cleaned up
   by hand. This note is not where that gets fixed; see the lane's report and

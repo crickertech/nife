@@ -133,7 +133,7 @@ $ script/audits --worklist
  moved/cited  commits  last edit   document
    20/24           31  2026-08-04  notes/shared-page-audit.md
    15/16           94  2026-08-03  notes/glyphs.md
-                       xtask/src/main.rs, scripts/qemu-runner-aarch64.sh, ...
+                       xtask/src/main.rs, helpers/qemu-runner-aarch64.sh, ...
    11/12           48  2026-08-03  notes/framebuffer-contract.md
     8/8            40  2026-08-04  notes/compositor.md
 ```
@@ -144,7 +144,7 @@ $ script/audits --worklist
 ```sh
 $ git grep -n 'CRICKER_KBD\|NIFE_KBD' -- ':!*.md'
 xtask/src/main.rs:4701:    unsafe { std::env::set_var("NIFE_KBD", "1") };
-scripts/qemu-runner-aarch64.sh:250:if [ -n "$NIFE_KBD" ]; then
+helpers/qemu-runner-aarch64.sh:250:if [ -n "$NIFE_KBD" ]; then
 ```
 
 **Ask whether the class is bigger than the instance.** It was both times the first sweep asked, and

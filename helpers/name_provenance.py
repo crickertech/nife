@@ -5,7 +5,7 @@
 derives the table from it. Milestone 276 put the same four-word vocabulary on the metrics dashboard
 as a weekly series, which is a second reader of the same blocks. The derivation is shared rather
 than copied for milestone 236's reason: a gate and a dashboard that each carry their own copy of a
-definition will drift, both will look authoritative, and nothing will fire. `scripts/rust_source.py`
+definition will drift, both will look authoritative, and nothing will fire. `helpers/rust_source.py`
 is the same move for the `unsafe` census and the harness count, and its docstring is the longer
 argument.
 
@@ -22,7 +22,7 @@ are.
 closeable by a script: a reason is prose, and prose is checked by reading.
 
 Name: provisional, minted by milestone 276's lane on 2026-09-11. It is a shared python module under
-`scripts/`, which `script/names` puts out of its own scope, so it carries no `Name:` block of its
+`helpers/`, which `script/names` puts out of its own scope, so it carries no `Name:` block of its
 own and this paragraph is the record instead. `provenance` alone was considered and reads as the
 mechanism rather than the subject, which is the same objection `script/names`' own header records
 against `provenance` as a command name; `naming` names the whole topic, including the conventions in

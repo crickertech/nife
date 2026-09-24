@@ -39,7 +39,7 @@ cites.
 **The recogniser already exists and is tested**, so this is a caller rather than an instrument.
 `crates/board_console`'s `Progress` ratchets the stages, recognises failure markers, and
 `script/soak-test` already judges a QEMU run with it. The missing piece is a caller that boots the
-default kernel **with** `-initrd` under `scripts/qemu-bounded.sh` and asks whether it reached
+default kernel **with** `-initrd` under `helpers/qemu-bounded.sh` and asks whether it reached
 `Stage::Tour` with `userspace_ran`.
 
 **Two prior rulings pull in opposite directions on placement, which is why this is a decision:**
@@ -59,7 +59,7 @@ riscv64-only by construction, so it meets the same objection and has to answer i
 ## What it costs, measured
 
 The boot is one `cargo xtask` verb over machinery that is all present: `initrd_riscv()`,
-`scripts/qemu-runner-riscv64.sh`, `crates/board_console`. **A bounded tour boot is seconds, not
+`helpers/qemu-runner-riscv64.sh`, `crates/board_console`. **A bounded tour boot is seconds, not
 minutes**, because the tour halts on its own; the cost is the riscv64 kernel build, which
 `script/ci-build` already pays for other reasons.
 

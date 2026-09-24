@@ -51,7 +51,7 @@ below was taken from the merged worktree at base `f1f138a8` on 2026-08-30, with 
 | Quantity | Value | Command |
 |---|---|---|
 | Lines matching `kani::proof` anywhere | 148 | `grep -rn "kani::proof" --include="*.rs" . \| grep -v target \| wc -l` |
-| Of those, doc-comment mentions in `scripts/kani-lint-shim/` | 3 | same, filtered to that path |
+| Of those, doc-comment mentions in `helpers/kani-lint-shim/` | 3 | same, filtered to that path |
 | **Actual harnesses** | **145** | `grep -rn "^\s*#\[kani::proof\]" --include="*.rs" . \| grep -v target \| wc -l` |
 | Harnesses under `crates/` | 143 | same, scoped to `crates/` |
 | Harnesses in `vendor/redoxfs` | 2 | same, scoped to `vendor/` |
@@ -447,9 +447,9 @@ The looser pattern most readers reach for first, and why it over-counts by three
 $ grep -rn "kani::proof" --include="*.rs" . | grep -v target | wc -l
      148
 $ grep -rn "kani::proof" --include="*.rs" . | grep -v target | grep kani-lint-shim
-scripts/kani-lint-shim/kani.rs:28://! `kani::proof_for_contract`, ... are all real and
-scripts/kani-lint-shim/kani_attributes.rs:6://! next door has no choice about its name, ...
-scripts/kani-lint-shim/kani_attributes.rs:23:/// `#[kani::proof]`: keep the function, ...
+helpers/kani-lint-shim/kani.rs:28://! `kani::proof_for_contract`, ... are all real and
+helpers/kani-lint-shim/kani_attributes.rs:6://! next door has no choice about its name, ...
+helpers/kani-lint-shim/kani_attributes.rs:23:/// `#[kani::proof]`: keep the function, ...
 ```
 
 Packages carrying harnesses, and which ones the suite actually proves:

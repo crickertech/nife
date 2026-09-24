@@ -2228,7 +2228,7 @@ source	target	kind	discovery	blame_date	file_created	evidence
 322	59	context	at-creation	2026-09-18	2026-09-18	ported or decided first; `script/cpu-matrix` is the shape to copy and M-59 already argued
 322	16	context	at-creation	2026-09-18	2026-09-18	`riscv-iommu-pci`, M-16b and DECISIONS S-20), so it was drafted against an emulator this tree
 322	227	context	at-creation	2026-09-18	2026-09-18	red until M-227 lands a GICv3 driver, and **that is the point**: it turns 227 from a
-322	81	context	at-creation	2026-09-18	2026-09-18	unconditionally, and has since M-81; `scripts/qemu-runner-riscv64.sh` carries
+322	81	context	at-creation	2026-09-18	2026-09-18	unconditionally, and has since M-81; `helpers/qemu-runner-riscv64.sh` carries
 322	16	context	at-creation	2026-09-18	2026-09-18	`-device riscv-iommu-pci` with `iommu_platform=on` on its PCI disk, net and GPU (M-16b's
 322	432	context	at-creation	2026-09-19	2026-09-18	M-432 (design/roadmap/432-the-riscv-iommu-driver-has-no-proof.md), and it is a parity gap under S-19
 322	20	context	at-creation	2026-09-18	2026-09-18	which is the shape M-20's portable HAL claims to make cheap.
@@ -2514,7 +2514,7 @@ source	target	kind	discovery	blame_date	file_created	evidence
 364	303	context	at-creation	2026-09-19	2026-09-19	2026-09-16. The rest was restated by the M-303 lane the same day as the proposal
 364	433	context	at-creation	2026-09-19	2026-09-19	`the-rest-of-the-x86-64-fixture-set`, which M-433 numbers 420, with the device list
 364	247	context	at-creation	2026-09-19	2026-09-19	itemised and the structural obstacle recorded as gone. Filed here on 2026-09-03 by the M-247
-364	215	context	at-creation	2026-09-19	2026-09-19	sweep, from M-215's block. Checked on 2026-09-19: `scripts/qemu-runner-x86_64.sh` now
+364	215	context	at-creation	2026-09-19	2026-09-19	sweep, from M-215's block. Checked on 2026-09-19: `helpers/qemu-runner-x86_64.sh` now
 364	303	context	at-creation	2026-09-19	2026-09-19	lookup and the RedoxFS image) and the M-303 lane restated the remainder the same day with
 364	433	context	at-creation	2026-09-19	2026-09-19	act by M-433. The measure it proposed is worth keeping: the count of tests taking a "no
 365	247	context	at-creation	2026-09-19	2026-09-19	requests armed. Filed as a proposal on 2026-09-03 by the M-247 sweep, from M-130's
@@ -2980,7 +2980,7 @@ source	target	kind	discovery	blame_date	file_created	evidence
 436	434	context	at-creation	2026-09-19	2026-09-19	**Status: NOT-STARTED.** Minted 2026-09-19 by M-434's lane, which found the citations while
 436	433	context	at-creation	2026-09-19	2026-09-19	`design/roadmap/proposals/` was drained by M-433 and no longer exists. About **forty**
 436	276	context	at-creation	2026-09-19	2026-09-19	smaller defect of the same family: M-276's block says `script/roadmap --proposed` "already
-436	301	context	at-creation	2026-09-19	2026-09-19	computes" a number, and M-301's says `scripts/roadmap_proposals.py` "matches PROPOSED and
+436	301	context	at-creation	2026-09-19	2026-09-19	computes" a number, and M-301's says `helpers/roadmap_proposals.py` "matches PROPOSED and
 436	433	context	at-creation	2026-09-19	2026-09-19	**They are readable, which is why this is a milestone and not an emergency.** M-433 chose
 436	303	context	at-creation	2026-09-19	2026-09-19	`design/roadmap/303-x86-64-fs-disk.md` cites
 436	325	followon	at-creation	2026-09-19	2026-09-19	`## Follow-on` section already names M-325 for the same item, so the body is simply behind

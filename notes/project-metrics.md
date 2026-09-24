@@ -89,7 +89,7 @@ nine risks in `design/fatal-risks.md` now have an experiment on record. `names_t
 to 2, most of that pile promoted or resolved rather than abandoned.
 
 **`unsafe_trust_unclassified` reappeared: 0 to 16, and this is a data gap, not an instrument
-change.** `scripts/rust_source.py` was not touched in this window; its hand-maintained crate tables
+change.** `helpers/rust_source.py` was not touched in this window; its hand-maintained crate tables
 were. Four `crates/` directories landed in the last two days that none of `KERNEL_ONLY_CRATES`,
 `USERSPACE_ONLY_CRATES`, `SHARED_CRATES` or `BOOT_CHAIN_CRATES` know about yet: `boot_slot`,
 `current_cpu_protocol`, `file_allocation_table` and `top`. `current_cpu_protocol` carries the
@@ -377,7 +377,7 @@ From the provenance block in each named thing's own header, which is where miles
 were ratified, and the ones that were refused) put it: a crate's `src/lib.rs`, a program's, a `script/` entry
 point's comment, a Cargo package's manifest. `script/names` derives the same four counts by walking
 the working tree; this derives them from git history. They share the parse
-(`scripts/name_provenance.py`) and not the file walk, so the two agree by construction rather than by
+(`helpers/name_provenance.py`) and not the file walk, so the two agree by construction rather than by
 luck, and at 2026W36 they do: 204 names, 104 `ratified`, 37 `recorded`, 63 `provisional`, 0
 `unrecorded`.
 
@@ -630,7 +630,7 @@ side, because the question this split answers, kernel privilege or userspace con
 answer for code that runs on neither. Whether `unsafe_census`'s own `HOST_ONLY` should widen to match
 is calef's call, recorded rather than made here.
 
-**What each bucket is**, and the boundary decisions behind it are in `scripts/rust_source.py`'s own
+**What each bucket is**, and the boundary decisions behind it are in `helpers/rust_source.py`'s own
 comment on `trust_boundary_census`:
 
 - **kernel** (694 blocks, 48,724 code lines, density **142** per 10,000): `kernel/src/**` (arch and
@@ -685,7 +685,7 @@ restated `SUPERSEDED`/`REFUSED` into weeks already written. Of the ten weeks rec
 most of them did not always have their current spelling: `crates/ipc`, `crates/dtb`, `crates/asid`
 and around forty more were renamed to `inter_process_communication`, `device_tree_blob`,
 `address_space_identifier` and so on over the weeks this series covers, and the classification table
-in `scripts/rust_source.py` is built from today's names (the same restatement trade
+in `helpers/rust_source.py` is built from today's names (the same restatement trade
 `MILESTONE_STATUSES`/`NAME_STATUSES` already make, stated in that file's own header). **This was not
 reconstructed for the same reason a shortcut was refused rather than taken**: `git log
 --diff-filter=R --summary` finds candidate renames, but at least one pairing it offers is wrong
@@ -821,7 +821,7 @@ Two mechanisms stand behind it rather than one, because the two ways this dies a
   `ProgramArguments` of `/bin/sh -c 'cd <checkout> && script/effort --snapshot'` and a
   `StartInterval` of 21600, four times a day is ample for a weekly figure.
 - **`script/cadence-check` says when the capture has not happened.** It asks whether the committed
-  `notes/project-metrics/effort.csv` holds the current week, and `scripts/trunk-health.sh` already
+  `notes/project-metrics/effort.csv` holds the current week, and `helpers/trunk-health.sh` already
   calls it every five minutes on patagonia, which is the same machine that holds the records. It is
   the only row in that report that is not a workflow, for the reason above: there is no run history
   to interrogate, so the output is checked instead of the run.
@@ -863,7 +863,7 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   after any commit that merges two metrics branches is worth a look before trusting the row count.
 - **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
   2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
-  is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so
+  is built on live in `helpers/rust_source.py`, which `script/lint` and this script both import, so
   there is one definition and nothing left to drift. The harness count could not be collapsed the
   same way: `script/lint` and `script/falsifications` attribute each harness to a workspace package
   out of `cargo metadata`, and this script reads blobs at revisions nobody has checked out and
@@ -889,7 +889,7 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
 - **Four kinds of named thing, and the tree names more than four kinds.** Crates, programs,
   `script/` entry points and Cargo packages carry provenance blocks, so those are what this counts.
   Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
-  types, `scripts/` helpers and directory names are outside `script/names`' surfaces too, and
+  types, `helpers/` helpers and directory names are outside `script/names`' surfaces too, and
   design/naming.md's `BUGS` carries what that leaves uncovered.
 - **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
@@ -898,7 +898,7 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
 - **The cost columns can stop updating and the charts will not say so.** They will simply stop
   gaining weeks, and an absent week is drawn as absent, which is correct and is also exactly what a
   dead capture looks like. `script/cadence-check` is the thing that speaks, and it speaks on
-  patagonia through `scripts/trunk-health.sh`, which inherits that watcher's own recorded gap: a
+  patagonia through `helpers/trunk-health.sh`, which inherits that watcher's own recorded gap: a
   machine asleep is a watcher not watching.
 - **`lane_tokens` counts this project's whole session, not its lanes.** Every response in a record
   stream filed under the nife project directory is counted, including a maintainer answering a

@@ -12,7 +12,7 @@ started it.
 **In brief.** Two scheduled workflows exist to say "a person must now do something": the stranger
 cadence (`script/stranger-test --due`) and the audit cadence (`script/audits`). Both say it by going
 red in the Actions tab. **Nothing carries that red to a person.** `script/cadence-check`, which
-`scripts/trunk-health.sh` runs so that scheduled failures stop being invisible, reports a workflow
+`helpers/trunk-health.sh` runs so that scheduled failures stop being invisible, reports a workflow
 only once it has gone fifteen days without a *success*, so a job that is correctly reporting "due"
 and a job that is broken arrive as the same verdict, DEAD, a fortnight after the fact.
 

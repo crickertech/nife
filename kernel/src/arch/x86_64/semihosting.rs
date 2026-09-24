@@ -9,7 +9,7 @@
 //! quirk to route around.** Every exit status this device can produce is ODD, so exit code 0 is
 //! unreachable: "success" has to be some agreed non-zero number, and the runner is what maps it
 //! back. `0` written to the port yields host status 1; `1` yields 3. This module therefore reports
-//! **3** for success and anything else for failure, and `scripts/qemu-runner-x86_64.sh` carries the
+//! **3** for success and anything else for failure, and `helpers/qemu-runner-x86_64.sh` carries the
 //! matching translation. Getting this backwards produces a suite that passes when it fails, which
 //! is the one failure mode a test harness must not have, so both halves name the number.
 //!
@@ -33,7 +33,7 @@ pub const EXIT_SUCCESS: u32 = 3;
 #[cfg_attr(not(test), allow(dead_code))]
 pub const EXIT_FAILURE: u32 = 1;
 
-/// The `isa-debug-exit` device's I/O port, as `scripts/qemu-runner-x86_64.sh` places it
+/// The `isa-debug-exit` device's I/O port, as `helpers/qemu-runner-x86_64.sh` places it
 /// (`iobase=0xf4`). Not a fixed address in the machine: it is where we put the device, and the two
 /// files have to agree.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -47,7 +47,7 @@ const DEBUG_EXIT_PORT: u16 = 0xf4;
 /// lives here rather than at the call sites, which name only the two constants above.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn exit(code: u32) -> ! {
-    // SAFETY: a write to the port `scripts/qemu-runner-x86_64.sh` attached `isa-debug-exit` to. The
+    // SAFETY: a write to the port `helpers/qemu-runner-x86_64.sh` attached `isa-debug-exit` to. The
     // write terminates the guest, so nothing after it runs.
     unsafe { super::port::out8(DEBUG_EXIT_PORT, (code >> 1) as u8) };
 

@@ -50,8 +50,8 @@ set -eu
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 
 # This project's own QEMU, if `script/ci-qemu` has built one. Sourced by absolute path because this
-# script keeps a $ROOT rather than cd-ing; scripts/qemu-path.sh finds the pin by walking up.
-. "$ROOT/scripts/qemu-path.sh"
+# script keeps a $ROOT rather than cd-ing; helpers/qemu-path.sh finds the pin by walking up.
+. "$ROOT/helpers/qemu-path.sh"
 WORK="$ROOT/target/crate-probes"
 SHARED="$WORK/.cargo-target"
 SPEC="$ROOT/targets/aarch64-unknown-nife.json"

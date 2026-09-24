@@ -55,7 +55,7 @@ recording and one non-difference worth recording:
 
 ### 1. Does it build?
 
-**Yes, on all three ISAs, with no patch, no vendored copy and no fork.** `scripts/build-ripgrep.sh`
+**Yes, on all three ISAs, with no patch, no vendored copy and no fork.** `helpers/build-ripgrep.sh`
 downloads the published crate and builds it for every target in one pass. Everything that differs
 from a Linux build is on the command line:
 
@@ -176,7 +176,7 @@ refuses it:
 refused to load a user program: Unmappable(AlreadyMapped)
 ```
 
-`scripts/build-ripgrep.sh` works around it by relinking at `0x100_0000`, derived from `user/link.ld`
+`helpers/build-ripgrep.sh` works around it by relinking at `0x100_0000`, derived from `user/link.ld`
 by substitution so the two cannot drift. **That is a workaround and should not survive**: a stranger
 compiling a program for this platform has no way to know the ceiling exists, the failure names an
 overlap rather than a size, and 896 KiB is small for anything with a dependency tree.
@@ -197,7 +197,7 @@ learned, and the cost is still unmeasured because no search ran.
 ## How to reproduce
 
 ```
-scripts/build-ripgrep.sh      # fetches ripgrep 14.1.1 from crates.io, builds for both nife targets
+helpers/build-ripgrep.sh      # fetches ripgrep 14.1.1 from crates.io, builds for both nife targets
 script/test                   # kernel::user::ripgrep_tests now runs instead of skipping, on both legs
 ```
 
@@ -225,7 +225,7 @@ pass for everyone else.
   AGENTS.md's ladder. Gap B is the fix.
 - **One version.** `ripgrep` 14.1.1. No other version was tried, and no other program: one
   application building and running is evidence about this platform, not a survey of crates.io.
-- **x86_64's transcript needs `rg` built by hand, like the other two.** `scripts/build-ripgrep.sh`
+- **x86_64's transcript needs `rg` built by hand, like the other two.** `helpers/build-ripgrep.sh`
   fetches from crates.io and no gate runs it (DECISIONS §46), so the x86_64 row above is reproducible
   only after somebody builds the binary. What milestone 303 changed is that building it is now
   sufficient: the disk the test skipped for is attached, and the run needs nothing else.

@@ -99,7 +99,7 @@ chosen now must leave room for.
 target today as C1: the host packs ELFs into `nifefs`, writes `program_measurements`, and the kernel
 vouches for that table (`kernel/src/trust.rs`, DECISIONS §26's milestone 22 phase B record). The
 only foreign program that has ever run here, `ripgrep`, reached it the same way:
-`scripts/build-ripgrep.sh` fetches the crate, cross-builds three triples, and `xtask` packs the ELF
+`helpers/build-ripgrep.sh` fetches the crate, cross-builds three triples, and `xtask` packs the ELF
 if it is on disk. And the documentation store is a host-built directory written into the RedoxFS
 image (`cargo xtask manual`, `doc/<bundle>/`), which is C1's shape one filesystem over. **So C1 is
 not a new format, it is the absence of one, and C3 is what the measurement table becomes if it is

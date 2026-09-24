@@ -1025,7 +1025,7 @@ Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
 - **The PCI bus is enumerated, and one function is driven** (milestones 165 and 215). ACPI's MCFG
   fills `memory::pci_regions()`, and a `virtio-blk-pci` disk is attached, confined behind VT-d, and
   read and written by a driver at ring 3. What is still not attached is a NIC, a GPU, a keyboard,
-  an RNG, or a second disk: each is a line in `scripts/qemu-runner-x86_64.sh` and a wiring, not a
+  an RNG, or a second disk: each is a line in `helpers/qemu-runner-x86_64.sh` and a wiring, not a
   mechanism.
 - **The ACPI walk reads the boot map, and the boot map ends at 4 GiB.**
   `arch::x86_64::machine::BOOT_DIRECT_MAP_LIMIT` is that bound, and it said 1 GiB until 2026-09-02
@@ -1271,7 +1271,7 @@ the nifefs, RedoxFS and NVMe images before it boots.
 
 ```sh
 cargo build -p kernel --target x86_64-unknown-none
-scripts/qemu-bounded.sh 20 qemu-system-x86_64 \
+helpers/qemu-bounded.sh 20 qemu-system-x86_64 \
     -machine q35 -cpu max -smp 1 -m 256M -display none -serial stdio -no-reboot \
     -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
     -kernel target/x86_64-unknown-none/debug/kernel

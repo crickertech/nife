@@ -75,8 +75,8 @@ Shipped provisionally as **`local`** and **`ci`**. The refusals are the useful h
   **`runner` is not available**, which is worth recording because it is the obvious fix: it names
   who waits, in a noun, and it is GitHub's own word. This tree already spends it in two senses, the
   CI machine and a script that runs something, across **163 files** (`git grep -lw runner`, measured
-  2026-09-13), including four entry points named for it: `scripts/qemu-runner-aarch64.sh` and its two
-  siblings, `scripts/memory-bounded-runner.sh`, and `script/runner-container`. A third sense would
+  2026-09-13), including four entry points named for it: `helpers/qemu-runner-aarch64.sh` and its two
+  siblings, `helpers/memory-bounded-runner.sh`, and `script/runner-container`. A third sense would
   cost a reader the recognition, which is the ground `DECISIONS §31` already refused `witness` on.
 - **`before-push` / `ci-only`**. Says what a contributor does rather than where it happens, which is
   the question they are actually asking. Against it: two hyphenated compounds where a column wants a

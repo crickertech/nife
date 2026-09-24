@@ -264,7 +264,7 @@ SECTIONS
      *
      * UNLIKE aarch64, nothing strips this section back out before QEMU boots it: this port has no
      * flat-Image / objcopy step at all (PVH loads the ELF's PT_LOAD segments directly; see
-     * scripts/qemu-runner-x86_64.sh's own header comment), so the CFI rides along into guest RAM.
+     * helpers/qemu-runner-x86_64.sh's own header comment), so the CFI rides along into guest RAM.
      * That is harmless extra RAM in a VM with QEMU's usual hundreds of megabytes and is not why
      * this section moved; see notes/cfi-unwind.md's BUGS section for the honest scope of what
      * this milestone did and did not strip. */

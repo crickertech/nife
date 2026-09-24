@@ -12,7 +12,7 @@ written:
 |---|---|
 | `kernel/link.ld`, `kernel/link-riscv.ld` | `kernel/link-aarch64.ld`, `kernel/link-riscv64.ld` |
 | `bench/baseline.txt`, `bench/baseline-riscv.txt` | `bench/baseline-aarch64.txt`, `bench/baseline-riscv64.txt` |
-| `scripts/qemu-runner.sh`, `scripts/qemu-runner-riscv.sh` | `scripts/qemu-runner-aarch64.sh`, `scripts/qemu-runner-riscv64.sh` |
+| `helpers/qemu-runner.sh`, `helpers/qemu-runner-riscv.sh` | `helpers/qemu-runner-aarch64.sh`, `helpers/qemu-runner-riscv64.sh` |
 | `crates/dtb/tests/fixtures/qemu-virt.dtb`, `qemu-virt-initrd.dtb` | `qemu-aarch64-virt.dtb`, `qemu-aarch64-virt-initrd.dtb` |
 | `crates/dtb/tests/fixtures/qemu-riscv-virt.dtb`, `.dts` | `qemu-riscv64-virt.dtb`, `.dts` |
 | `crates/dtb/tests/qemu_virt.rs`, `qemu_riscv_virt.rs` | `qemu_aarch64_virt.rs`, `qemu_riscv64_virt.rs` |
@@ -46,11 +46,11 @@ and `riscv64/mmu.rs` are both named. Everywhere else, only one side is.
 |---|---|---|
 | `kernel/link-riscv.ld` | `kernel/link.ld` | 18 |
 | `bench/baseline-riscv.txt` | `bench/baseline.txt` | 13 |
-| `scripts/qemu-runner-riscv.sh` | `scripts/qemu-runner.sh` | 13 |
+| `helpers/qemu-runner-riscv.sh` | `helpers/qemu-runner.sh` | 13 |
 | `crates/dtb/tests/fixtures/qemu-riscv-virt.dtb`, `.dts` | `qemu-virt.dtb`, `.dts` | 4 |
 | `crates/dtb/tests/qemu_riscv_virt.rs` | `crates/dtb/tests/qemu_virt.rs` | 2 |
 
-The cost today is small and real: `scripts/qemu-runner.sh` reads as the runner and it is one of two, so
+The cost today is small and real: `helpers/qemu-runner.sh` reads as the runner and it is one of two, so
 a reader looking for "the RISC-V one" finds it by suffix and then has to infer that the unsuffixed
 file is the other ISA rather than something shared. **The cost after x86_64 is different in kind.** An
 unnamed file among two named siblings is ambiguous; among three it is a claim that is actively false,
@@ -102,7 +102,7 @@ column already does it:
 "riscv64" => ("link-riscv.ld", "src/arch/riscv64/boot.s"),
 ```
 
-It reads better for the linker scripts and worse for `scripts/`, where CLAUDE.md's convention is
+It reads better for the linker scripts and worse for `helpers/`, where CLAUDE.md's convention is
 hyphenated command names and `qemu-runner/aarch64.sh` stops looking like a thing you run. One rule for
 all five pairs beats two rules split by file kind, which is the same argument that killed the two-tier
 program-naming scheme: a convention with a branch is a convention someone gets wrong.
@@ -121,7 +121,7 @@ them is half of a pair, so none was touched. That is the same rule as the `user/
 below, in its other direction: suffix a file that has a named twin, not every file that mentions an
 architecture.
 
-A free win falls out: `kernel/src/user/tests.rs` globs `scripts/qemu-runner*.sh`, which matches both
+A free win falls out: `kernel/src/user/tests.rs` globs `helpers/qemu-runner*.sh`, which matches both
 files today only because one of them is unsuffixed. It becomes `qemu-runner-*.sh` and is exact.
 
 ## The fixture keeps hyphens and its test file takes underscores, and that is not a slip

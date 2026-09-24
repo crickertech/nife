@@ -1,9 +1,9 @@
 #!/bin/sh
-# scripts/qemu-stick.sh: boot a nife stick under one architecture's UEFI firmware, as a USB stick.
+# helpers/qemu-stick.sh: boot a nife stick under one architecture's UEFI firmware, as a USB stick.
 #
-#   scripts/qemu-stick.sh x86_64  target/stick          # a directory laid out like the stick
-#   scripts/qemu-stick.sh aarch64 stick.img             # or a raw disk image the program wrote
-#   scripts/qemu-stick.sh riscv64 target/stick
+#   helpers/qemu-stick.sh x86_64  target/stick          # a directory laid out like the stick
+#   helpers/qemu-stick.sh aarch64 stick.img             # or a raw disk image the program wrote
+#   helpers/qemu-stick.sh riscv64 target/stick
 #
 # Name: provisional. Minted 2026-09-19 by milestone/the-program-that-makes-the-stick, in the family of
 # `qemu-uefi-x86_64.sh` (which boots one architecture's ESP directory) and named for what it boots.
@@ -19,14 +19,14 @@
 #
 # The firmware images are the EDK2 builds Homebrew's QEMU ships in share/qemu. Each run copies the
 # variable store fresh, so one boot's NVRAM (a boot entry, a changed setting) cannot leak into the
-# next and make a result depend on history. Bounded by scripts/qemu-bounded.sh, never by `alarm`.
+# next and make a result depend on history. Bounded by helpers/qemu-bounded.sh, never by `alarm`.
 #
 # Environment: NIFE_STICK_TIMEOUT (seconds, default 90), NIFE_SMP (default 1), NIFE_MEM (default
 # 256M, 2048M on x86_64 where OVMF keeps its tables high).
 
 set -e
 cd "$(dirname "$0")/.."
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 
 ARCH="$1"
 STICK="$2"
@@ -92,5 +92,5 @@ riscv64)
 esac
 
 # Not `exec`: the trap above has to run after QEMU exits to remove the copied variable store.
-scripts/qemu-bounded.sh "$TIMEOUT" "$QEMU" -smp "$SMP" -display none -serial stdio \
+helpers/qemu-bounded.sh "$TIMEOUT" "$QEMU" -smp "$SMP" -display none -serial stdio \
     -device qemu-xhci -drive "$DRIVE" -device usb-storage,drive=stick,removable=on "$@"

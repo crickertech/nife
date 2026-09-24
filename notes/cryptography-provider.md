@@ -213,12 +213,12 @@ falls back to a weak source is worse than one that does not build.
 ```sh
 script/crypto-probes                              # the build table
 script/crypto-probes --soft                       # the same with the portable paths forced
-scripts/build-cryptography-exerciser.sh           # build the vector program for all three ISAs
+helpers/build-cryptography-exerciser.sh           # build the vector program for all three ISAs
 script/test                                       # now runs it; without the line above it skips
 ```
 
 Nothing above is a gate and `script/test` does not build the program. That is
-`scripts/build-ripgrep.sh`'s posture, taken for its reason: fetching a hundred crypto crates into
+`helpers/build-ripgrep.sh`'s posture, taken for its reason: fetching a hundred crypto crates into
 this repository's build is a dependency decision, not a lane's convenience.
 
 ## The refusal: `rustls-rustcrypto`

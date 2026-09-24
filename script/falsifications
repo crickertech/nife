@@ -189,7 +189,7 @@
 #   patch path naming the file rather than the module, and `--check` would report it as a path that
 #   does not match rather than accept it silently.
 # - **Two files carrying `#[kani::proof]` are in no workspace package and are skipped**: the
-#   `scripts/kani-lint-shim` source `script/lint` compiles by hand, and `vendor/redoxfs`, kept out of
+#   `helpers/kani-lint-shim` source `script/lint` compiles by hand, and `vendor/redoxfs`, kept out of
 #   the workspace on purpose. Neither is provable, so neither belongs in a ratio about proofs.
 #   `script/lint`'s verify-table check is what keeps that honest, by failing on any harness file
 #   belonging to no package with exactly those two argued as exemptions; this script does not keep a
@@ -383,7 +383,7 @@ def harness_files():
     """Every tracked `.rs` file carrying a `#[kani::proof]`, from `git grep` rather than a walk.
 
     Two files in this tree hold the attribute and belong to no workspace package: the
-    `scripts/kani-lint-shim` source `script/lint` compiles by hand for its harness-clippy pass, and
+    `helpers/kani-lint-shim` source `script/lint` compiles by hand for its harness-clippy pass, and
     `vendor/redoxfs`, upstream code kept out of the workspace on purpose. Neither is provable, so
     neither belongs in a ratio about proofs. They are skipped here rather than listed, because
     `script/lint` already gates that direction: its verify-table check reports any file carrying
@@ -1035,7 +1035,7 @@ def affected_packages(base, hs):
     changed_ids = set()
     unattributable = False
     for f in changed:
-        if re.match(r"^(notes/|design/|[A-Z_]+\.md$|script/|scripts/|\.github/)", f):
+        if re.match(r"^(notes/|design/|[A-Z_]+\.md$|script/|helpers/|\.github/)", f):
             continue
         pid = owner(f)
         if pid is None:

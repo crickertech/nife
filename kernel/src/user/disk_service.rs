@@ -47,7 +47,7 @@ use crate::sched::RendezvousId;
 
 /// Which mmio block device the surveyor is given. The runners attach the GPT-partitioned image as
 /// the FOURTH mmio disk, after nifefs (0), RedoxFS (1) and the crash image (2); see
-/// `scripts/qemu-runner-*.sh`, which explain why command-line order is reversed.
+/// `helpers/qemu-runner-*.sh`, which explain why command-line order is reversed.
 const GPT_DISK: usize = 3;
 
 /// Which mmio block device the **write half** is given: the FIFTH, a 64 MiB image of zeros that the

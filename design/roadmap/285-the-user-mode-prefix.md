@@ -72,7 +72,7 @@ Seven more sites hide the same way, and they are listed with the reason each is 
 looking" table: `--exclude <crate>` arguments in `script/lint`, `script/coverage` and two lists in
 `xtask`, where cargo takes an unknown name in silence; `.cargo/mutants.toml`'s exclusion glob and
 `.cargo/mutants-baseline.txt`'s crate-keyed row; a `reaches_user_rt()` identifier inside
-`script/lint`'s embedded python; `scripts/build-ripgrep.sh`, which seds the linker script into a
+`script/lint`'s embedded python; `helpers/build-ripgrep.sh`, which seds the linker script into a
 high-load variant by path; the module `xtask` generates into the patched-`std` overlay
 (`sys/alloc/nife/user_heap.rs`, declared `mod user_heap;`), which compiles only when the farm is
 rebuilt; and the `Cargo.lock` of each separate workspace.

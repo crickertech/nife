@@ -21,8 +21,8 @@ Two entries must be present, `com.nife.merge-drain` and `com.nife.trunk-health`.
 missing, start it the old way, which is still how both run on any machine that is not patagonia:
 
     cd /Users/calef/projects/nife
-    scripts/merge-drain.sh &
-    scripts/trunk-health.sh &
+    helpers/merge-drain.sh &
+    helpers/trunk-health.sh &
 
 `notes/merge-queue.md` has the `launchd` plists, the gap calef accepted rather than solved, why this
 is deliberately not automated further, and a `BUGS` section honest that neither script reports its
@@ -80,7 +80,7 @@ A session that finds one missing:
 
     $ launchctl list | grep nife
     -	0	com.nife.trunk-health
-    $ cd /Users/calef/projects/nife && scripts/merge-drain.sh &
+    $ cd /Users/calef/projects/nife && helpers/merge-drain.sh &
     [1] 48213
     $ launchctl list | grep nife
     -	0	com.nife.trunk-health

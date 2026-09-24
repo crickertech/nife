@@ -84,7 +84,7 @@ notes/scheduler.md; cross-core stress tests in `sched.rs`, `smp.rs`, and `user/t
 - **Correction to that correction: a progress-only heartbeat traded a flake for a silent hang, so the
   test harness also enforces a per-test wall-clock ceiling** (2026-07-29). The caveat recorded above,
   that the progress heartbeat cannot see a busy-spin livelock, was accepted on the argument that the
-  leaked-spinner regression test and `scripts/qemu-bounded.sh` covered it. **That reasoning was
+  leaked-spinner regression test and `helpers/qemu-bounded.sh` covered it. **That reasoning was
   incomplete, and the machine showed it:** the RedoxFS repeat-write livelock spins in an allocator
   commit *while still serving blk IPC*, so every rendezvous reset the heartbeat, and a failure that
   had been a loud 60 s watchdog trip became an infinite silent hang at about 400% CPU with no

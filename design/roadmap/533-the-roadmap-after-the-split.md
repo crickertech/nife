@@ -112,7 +112,7 @@ because the section it now names exists."*
   in a released `basalt` image cannot open a pull request against a roadmap block.
 - **Cross-repository work items.** After §151 there is no single tree that can hold "this needs a
   change in the kernel and in `basalt`". Today every work item is inside one tree by construction.
-- **Assignment and notification**, which this project substitutes for with `scripts/merge-drain.sh`
+- **Assignment and notification**, which this project substitutes for with `helpers/merge-drain.sh`
   and a steward, both of which `notes/merge-queue.md` is honest do not report their own death.
 - **A backlog with an owner.** `script/roadmap --proposed` shows **24 unnumbered proposals**, all
   dated 2026-09-19. The pile is young, so there is no ageing evidence yet, and the block for
@@ -373,7 +373,7 @@ historical revisions where no block-derived answer exists.
   `board-netboot`, `boot-check`, `catch-up`, `ci-build`, `citations`, `fastpath-footprint`,
   `fatal-risks`, `icount`, `job-mix`, `journeys`, `lint`, `metrics`, `names`, `repeat-under-load`,
   `roadmap`, `shell-check`, `vendor-verify`, `vendor-watch`, `verify`, plus `xtask/src/main.rs` and
-  two files under `scripts/`. Every one of them is a reason the record must stay readable from a
+  two files under `helpers/`. Every one of them is a reason the record must stay readable from a
   checkout with no network. 443 changes which *file* two of them read, not that they read the tree.
 - **The proposals pile has no owner.** 24 files, all dated the same day, promoted only by an
   integrator who happens to look. Milestone 247 argued a due-date gate would be routed around, and

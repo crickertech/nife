@@ -1,4 +1,4 @@
-# scripts/qemu-path.sh: put this project's own QEMU on PATH, if it has one.
+# helpers/qemu-path.sh: put this project's own QEMU on PATH, if it has one.
 #
 # There is no shebang to infer a dialect from, because this file is sourced rather than run, so
 # ShellCheck is told which one to assume. The directive takes no trailing prose (SC1125).
@@ -8,7 +8,7 @@
 # the shell that reads it, which an executed script cannot do. Every `script/` entry point that can
 # end up running an emulator reads it, one line, immediately after the `cd` to the repository root:
 #
-#     . scripts/qemu-path.sh
+#     . helpers/qemu-path.sh
 #
 # **Why it exists, and it is a loop that nobody closed** (milestone 287). On Linux, `script/ci-qemu`
 # builds the pinned QEMU into `$HOME/.cache/nife-qemu` because no Ubuntu release ships one with
@@ -20,9 +20,9 @@
 #
 # **The mechanism is inheritance, not a spawn site.** The emulator is invoked by bare name from 38
 # places across 16 files, in three languages, including `exec qemu-system-aarch64` at the bottom of
-# each `scripts/qemu-runner-*.sh`. Patching those would be 38 copies of one fact. Exporting PATH once
+# each `helpers/qemu-runner-*.sh`. Patching those would be 38 copies of one fact. Exporting PATH once
 # at the top of the process tree reaches every one of them, and reaches the ones nobody has written
-# yet. That is also why the helpers under `scripts/` do not source this: they are spawned by an entry
+# yet. That is also why the helpers under `helpers/` do not source this: they are spawned by an entry
 # point (or by `cargo xtask`, which the entry point spawned) and have already inherited it.
 #
 # **The contract on the caller is only "be somewhere inside the tree".** Every script in `script/`
@@ -34,7 +34,7 @@
 # what it cannot check.
 #
 # Name: provisional, minted by milestone 287's lane on 2026-09-13. Hyphenated because AGENTS.md's
-# naming table hyphenates everything under `scripts/`, and a noun phrase because a namespace is a
+# naming table hyphenates everything under `helpers/`, and a noun phrase because a namespace is a
 # thing rather than an action: this is QEMU's path, not an instruction to path it. calef has not
 # ruled on it.
 

@@ -57,7 +57,7 @@
 //! renaming the moment the records are kept; `login_audit_receiver` survives that day and
 //! `login_audit_recorder` is the honest successor. Refused `login_audit_sink`, which fixes whose
 //! audit it is and keeps the promise that something is audited. Refused `audit_drain`, the same
-//! defect again, and "drain" is spent in this tree on `scripts/merge-drain.sh`.
+//! defect again, and "drain" is spent in this tree on `helpers/merge-drain.sh`.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

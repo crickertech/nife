@@ -185,7 +185,7 @@ half, deliberately covers only the Kani records, because its whole argument is t
 runs one harness and a kernel boot per record would spend minutes on every pull request touching
 `kernel/`. And `--count` stays Kani-only so `script/lint`'s drift check against `script/metrics`
 keeps comparing two derivations of one fact; that check fired on the first run here, correctly, and
-`scripts/rust_source.py` was fixed rather than the check suppressed.
+`helpers/rust_source.py` was fixed rather than the check suppressed.
 
 ## BUGS
 

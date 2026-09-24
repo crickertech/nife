@@ -110,7 +110,7 @@ The tree cannot check that a finding was entered. It can check that what was ent
 Two reports, on the cadence the audit and stranger workflows already run:
 
 - **Proposals past an age with no disposition.** The data is in the file's own
-  `**Status: PROPOSED <date>**` line, which `scripts/roadmap_proposals.py` already parses.
+  `**Status: PROPOSED <date>**` line, which `helpers/roadmap_proposals.py` already parses.
 - **Refusals whose condition has come true.** Built on 2026-09-20 as `script/roadmap --revisit`, and
   honest about its reach: only 2 of 42 conditions name a milestone at all, and it prints that
   denominator on every run.

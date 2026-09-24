@@ -51,7 +51,7 @@ checked:
    (the note prices it: the `fs_proto` request word is full, so a version is a connect-time
    handshake), not a question about repositories.
 3. **A third party building a package outside this tree.** This is the one real dependency found,
-   and it is on an SDK rather than on the split. `scripts/build-ripgrep.sh` is the only
+   and it is on an SDK rather than on the split. `helpers/build-ripgrep.sh` is the only
    out-of-tree build that exists, and it needs this repository checked out: `cargo xtask std-src` to
    build and link the `nife-dev` toolchain, `targets/<triple>.json`, and a linker script derived
    from `crates/user_mode_runtime/link.ld`. A stranger writing a package today must clone the whole

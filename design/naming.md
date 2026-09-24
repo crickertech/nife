@@ -71,7 +71,7 @@ a relationship worth seeing.
 | Domain | Form | Because |
 |---|---|---|
 | Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
+| `script/` and `helpers/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
 | Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
 | Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
 | A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
@@ -422,8 +422,13 @@ Two directories, on purpose, and the split is by audience.
   person types. The canonical set (`setup`, `test`, `server`, `console`, ...) keeps its standard
   names even where a different word would be more descriptive: the entire value is that the command
   is the same in every repo that follows the pattern.
-- **`scripts/`** is the helper drawer: `.sh` extension, called by other scripts and by `xtask`, not
-  by people (`qemu-bounded.sh`, `qemu-runner-aarch64.sh`, `qemu-runner-riscv64.sh`).
+- **`helpers/`** is the helper drawer: `.sh` extension, called by other scripts and by `xtask`, not
+  by people (`qemu-bounded.sh`, `qemu-runner-aarch64.sh`, `qemu-runner-riscv64.sh`). **It was
+  `scripts/` until calef ratified `helpers/` on 2026-09-23**, and the reason is this file's own
+  subject: the two directories differed by one trailing `s`, which cannot carry the difference
+  between a command a person types and a file something else calls, so the distinction survived
+  only in the head of whoever already knew it. The split was right and is unchanged; the name was
+  the defect. See [scripts.md](../notes/scripts.md).
 
 Every `script/` entry needs a row in [scripts.md](../notes/scripts.md); `script/lint` fails without one, and
 fails in the other direction too if `README.md` names a script that does not exist.
@@ -729,10 +734,10 @@ UNRATIFIED (69 of 222), in the order worth working through
   one decision and that the decision partly ratified the status quo.
 - **The tree has more kinds of name than the table covers, and this bullet is the one place that
   says which.** Everything else that states the worklist's scope (`script/names`' own comment,
-  `scripts/name_provenance.py`, `scripts/roadmap_proposals.py`) cites this bullet rather than
+  `helpers/name_provenance.py`, `helpers/roadmap_proposals.py`) cites this bullet rather than
   restating it, on purpose: the last two copies of this claim went stale for a month after the
   coverage grew and nothing compared them against the tool. Crates, programs, `script/`
-  entry points and Cargo packages carry blocks. Directories, types and `scripts/` helpers
+  entry points and Cargo packages carry blocks. Directories, types and `helpers/` helpers
   do not, and at least one ratified name had no home as a result:
   **`design/audit-reports/`** (calef, 2026-08-04), where `audit-trail` was refused because
   `design/decisions/35-scanner-findings.md` already uses that phrase for a chronological record of
@@ -745,7 +750,7 @@ UNRATIFIED (69 of 222), in the order worth working through
   `script/names std_exerciser` answering "neither a name in the tree nor a recorded refusal" and the
   `package` kind was added: `kernel`, `xtask`, `redoxfs_server` and `tools/redoxfs_host` now carry
   blocks in their manifests, and milestone 276's weekly series shows the hole closing in 2026W34.
-  Types are still uncovered. **`scripts/` is uncovered on purpose**, priced and refused on
+  Types are still uncovered. **`helpers/` is uncovered on purpose**, priced and refused on
   2026-09-20 by milestone 446 (the naming worklist says what it covers, and stops saying what it
   used to); its own bullet is below, because it is a decision rather than a gap.
 
@@ -755,15 +760,15 @@ UNRATIFIED (69 of 222), in the order worth working through
   second is at `redoxfs_server/src/bin/mkfs.rs`, where nothing looks, so it was resolved to `mkfs` by
   whoever was mid-task and no record anywhere says a decision was owed. That is the exact failure
   this milestone exists to prevent, still happening one directory over.
-- **`scripts/` helpers are deliberately outside the worklist, and the numbers are why.** There are
-  17 files in `scripts/`, of which **9 already carry a `Name:` paragraph** that nobody asked them
+- **`helpers/` helpers are deliberately outside the worklist, and the numbers are why.** There are
+  17 files in `helpers/`, of which **9 already carry a `Name:` paragraph** that nobody asked them
   for, written by the lane that added the file. So the question is not whether a helper may argue
   its own name (it may, and more than half do) but whether the worklist should **enumerate** them,
   and enumerating costs **about 15 rows on a worklist that is 76 deep today**, a fifth again of the
   only queue in this tree whose sole consumer is calef's attention. Three things decided it against.
   **The worklist is ordered by exposure**, and its own header says so: a program is typed at the
   prompt, a crate is what a newcomer greps, a `script/` entry point is typed by whoever works on the
-  tree. The **Scripts** section above defines `scripts/` as the drawer that is *not* typed by
+  tree. The **Scripts** section above defines `helpers/` as the drawer that is *not* typed by
   people, so enumerating it would add a tier below the bottom tier of a list whose whole ordering is
   exposure. **Nothing is being lost today**: not one of those 9 paragraphs records a refusal, so
   milestone 115's "the refusals are the valuable half" claim gives up nothing by leaving them out,
@@ -921,7 +926,7 @@ Plus `main`, and the tooling's own `worktree-agent-*`, which no person types.
 
 **This is a convention and not a gate, since 2026-08-18.** It was an enforced allowlist, and calef
 asked what the taxonomy was for. The answer, checked rather than argued: **nothing consumes it except
-the check itself.** A grep across `script/`, `scripts/`, `.github/workflows/` and `xtask/` for any
+the check itself.** A grep across `script/`, `helpers/`, `.github/workflows/` and `xtask/` for any
 other reader of a branch prefix returns only false positives. Only `milestone/N-` is read by
 anything, and `script/lint`'s milestone-branch-touches-its-block check is what reads it.
 
@@ -1536,7 +1541,7 @@ before it saying a word. That is the same shape as everything below.
 | A mutation-testing exclusion glob | `.cargo/mutants.toml`'s `"crates/user_mode_runtime/**"` | a glob that matches nothing is not an error |
 | A crate-keyed row in a measurement baseline | `.cargo/mutants-baseline.txt`'s `user_mode_heap 20 3 5 7` | a plain data file, keyed by crate name, that no build reads |
 | An identifier derived from the crate name inside a gate's embedded script | `reaches_user_mode_runtime()` in `script/lint`'s python | it compiles and runs either way; only the reader is misled |
-| A shell script that derives an artifact from the crate's directory | `scripts/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
+| A shell script that derives an artifact from the crate's directory | `helpers/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
 | A generated module in the patched-`std` overlay | `sys/alloc/nife/user_mode_heap.rs`, written by `xtask` from the crate and declared `mod user_mode_heap;` in the overlay | it compiles only when the `std` farm is rebuilt, in a source tree outside every workspace |
 | `Cargo.lock` in each separate workspace | `redoxfs_server/Cargo.lock`, `tools/redoxfs_host/Cargo.lock` | regenerated on their own next build, not on the main workspace's |
 | A **glob that selects the set a gate then judges** | `script/lint` check 3 looped over `crates/*proto` and rejected any name not ending `_proto` | after milestone 265 that glob matches no directory, so the loop body never runs and the check passes by checking zero crates |

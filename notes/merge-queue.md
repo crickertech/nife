@@ -1,11 +1,11 @@
 # The merge queue, and the three things that watch it
 
 Three scripts, all maintainer tools rather than front doors. Two were born on 2026-08-04 out of the
-same evening's failures: `scripts/merge-drain.sh` lands what does not need calef, and
-`scripts/trunk-health.sh` says when `main` is red. `scripts/lane-claim-check.sh` joined them on
+same evening's failures: `helpers/merge-drain.sh` lands what does not need calef, and
+`helpers/trunk-health.sh` says when `main` is red. `helpers/lane-claim-check.sh` joined them on
 2026-08-31 and watches one step earlier, for work that has not reached the queue at all. A fourth,
-`scripts/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
-sitting in a lane worktree; it has no watcher of its own and is called from `scripts/trunk-health.sh`'s
+`helpers/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
+sitting in a lane worktree; it has no watcher of its own and is called from `helpers/trunk-health.sh`'s
 loop instead, so "three things that watch" still names the count of things that run unattended. Names
 are provisional.
 
@@ -30,14 +30,14 @@ The steward was supposed to cover that and did not, for a reason worth recording
 never acted.** "The queue is stalled" arriving in a message is only useful if someone reads the
 message and does something. These two scripts act.
 
-## `scripts/merge-drain.sh`
+## `helpers/merge-drain.sh`
 
 ```console
-$ scripts/merge-drain.sh --once
+$ helpers/merge-drain.sh --once
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
-$ scripts/merge-drain.sh            # loop until nothing is left to enqueue
+$ helpers/merge-drain.sh            # loop until nothing is left to enqueue
 merge-drain: 2 armed, 0 stalled, of 2 unheld
 merge-drain: queue empty; nothing open that does not need calef
 ```
@@ -56,10 +56,10 @@ check is reported with the pull request named, and the pass carries on arming th
 a person, and a loop that retries them just burns CI. A pass where nothing could be armed ends the
 loop, because re-printing the same stall lines every 150 seconds is not watching.
 
-## `scripts/lane-claim-check.sh`
+## `helpers/lane-claim-check.sh`
 
 ```console
-$ scripts/lane-claim-check.sh
+$ helpers/lane-claim-check.sh
 lane-claim-check: LEFTOVER. milestone/121-ripgrep's #600 is MERGED; delete the branch
 lane-claim-check: UNCLAIMED. milestone/194-falsification-roadmap-status has no pull request after 16 minutes. AGENTS.md §90: gh pr create --draft
 ```
@@ -162,13 +162,34 @@ words, agreed with them, and did not act on them, which is prose behaving like r
 ladder regardless of which file it lives in. `launchd` is rung one for the part of the gap a session
 can close, because starting these is no longer a session's job.
 
+**Both plists name the script by absolute path, and the rename of 2026-09-23 did not reach them.**
+`scripts/` became `helpers/` in this tree on that date (design/naming.md and notes/scripts.md have
+the reason), but `~/Library/LaunchAgents/com.nife.merge-drain.plist` and
+`com.nife.trunk-health.plist` live on patagonia, outside the repository, and still say
+`.../nife/scripts/merge-drain.sh` and `.../nife/scripts/trunk-health.sh` until somebody edits them
+and reloads:
+
+```console
+$ sed -i '' 's|/nife/scripts/|/nife/helpers/|' ~/Library/LaunchAgents/com.nife.merge-drain.plist \
+                                               ~/Library/LaunchAgents/com.nife.trunk-health.plist
+$ launchctl unload ~/Library/LaunchAgents/com.nife.merge-drain.plist
+$ launchctl load   ~/Library/LaunchAgents/com.nife.merge-drain.plist
+$ launchctl unload ~/Library/LaunchAgents/com.nife.trunk-health.plist
+$ launchctl load   ~/Library/LaunchAgents/com.nife.trunk-health.plist
+```
+
+Until that is done both watchers fail silently on every five-minute fire, which is exactly the
+failure the `BUGS` section below already names: **neither script reports its own death.** A
+repository rename that quietly stops a watcher is the shape this tree keeps writing corrections
+about, so it is recorded here rather than assumed to have been noticed.
+
 **The gap that remains is the one calef accepted rather than solved.** Patagonia asleep or shut down
 means neither watcher runs and nobody is watching during that window. A cron on cordoba, the
 always-on box, was raised as the alternative that would close it, and declined in favour of the
 simpler thing on the machine already in use. The cost is named rather than hidden.
 
 Anywhere that is not patagonia (a lane's own worktree, CI, another machine) they still run in the
-foreground: `scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`.
+foreground: `helpers/merge-drain.sh &`, `helpers/trunk-health.sh &`.
 
 **Why `notify()` speaks once per stall.** `merge-drain.sh` posts a PR comment on a conflict, a check
 failure or a stuck check, and then goes quiet. That is deliberate, so a stalled pull request does not
@@ -193,28 +214,28 @@ he would rather this shut down when the session driving it does than run standin
 nobody watching. Resolving a conflict or a check failure needs the reading and judgment a person
 brings, which is this queue's own boundary: **a queue reports, it does not resolve.**
 
-**That restraint was weighed again on 2026-09-23, for `scripts/at-risk-check.sh` below, and did not
+**That restraint was weighed again on 2026-09-23, for `helpers/at-risk-check.sh` below, and did not
 apply.** Three things separate it from the agent calef declined:
 
 - **It is not an agent.** The declined thing had judgment: it would have read a stall and decided
   something about it. This is a shell script reading `git status` and comparing a timestamp, the same
-  category as `scripts/lane-claim-check.sh`, which was built and accepted five days after this
+  category as `helpers/lane-claim-check.sh`, which was built and accepted five days after this
   decision without anyone re-raising it.
 - **It never acts**, the same boundary this section already draws for the two scripts above it. It
-  does not commit, stash, or delete; see `scripts/at-risk-check.sh`'s own header for why `git stash`
+  does not commit, stash, or delete; see `helpers/at-risk-check.sh`'s own header for why `git stash`
   specifically is refused rather than merely unused.
 - **It runs where the two watchers already run**, on the interval `com.nife.trunk-health` already
-  fires at. Nothing new is scheduled: it was folded into `scripts/trunk-health.sh`'s existing loop
+  fires at. Nothing new is scheduled: it was folded into `helpers/trunk-health.sh`'s existing loop
   rather than given a third `launchd` job, precisely so this restraint would not have to be reweighed
   for a third thing running unattended. See that script's own header for the reasoning.
 
-## `scripts/trunk-health.sh`
+## `helpers/trunk-health.sh`
 
 ```console
-$ scripts/trunk-health.sh --once
+$ helpers/trunk-health.sh --once
 main is green at 5a09f754
 
-$ scripts/trunk-health.sh
+$ helpers/trunk-health.sh
 MAIN IS RED at d1e6b1e9 -- failing: CI -- nobody is assigned to this
 main recovered at 38dc6473
 ```
@@ -227,7 +248,7 @@ watcher produces.
 The phrase "nobody is assigned to this" is not filler. A red trunk with an owner is a task; a red
 trunk without one is the failure being surfaced.
 
-## `scripts/at-risk-check.sh`, folded into the loop above (2026-09-23)
+## `helpers/at-risk-check.sh`, folded into the loop above (2026-09-23)
 
 AGENTS.md gives the steward a second watch, named beside the idle-lane one and called the more
 valuable of the two: "a lane worktree with modifications and no commit in half an hour is
@@ -237,7 +258,7 @@ rather than delays." Nothing built it. `launchctl list` showed `com.nife.merge-d
 mechanism behind it.
 
 The cost was measured, not hypothetical: in one session on 2026-09-23 three pieces of work were
-found only by luck rather than by anything watching. A fix to `scripts/open-lane.sh` (later #1097)
+found only by luck rather than by anything watching. A fix to `helpers/open-lane.sh` (later #1097)
 surfaced while pruning merged worktrees. A fix to `kernel/src/user/live_swap_tests.rs` (later #1101)
 survived two prunes uncommitted and had to be recovered twice. Sixty-two lines of a decisions
 amendment sat unsaved on `maintainer/202-four-tiers` for hours after the conversation had moved on.
@@ -245,7 +266,7 @@ The maintainer pruned worktrees twice that same session; any of the three could 
 outright.
 
 ```console
-$ scripts/at-risk-check.sh
+$ helpers/at-risk-check.sh
 at-risk-check: UNCOMMITTED. /Users/calef/projects/nife-worktrees/atrisk (maintainer/work-one-prune-from-gone) has 2 changed file(s), newest touched 41 minutes ago. One prune away from gone; commit and push.
 ```
 
@@ -255,9 +276,9 @@ The clock is the newest modification time among the changed files, tracked or un
 branch's last commit date**: a worktree can carry a commit from hours ago and be mid-edit again a
 moment later, and the fact that matters is how long the current uncommitted state has sat, not when
 it was last saved. `AT_RISK_MINUTES` (default 30, AGENTS.md's own "half an hour") overrides it, the
-same convention `GRACE_MINUTES` already sets in `scripts/lane-claim-check.sh`.
+same convention `GRACE_MINUTES` already sets in `helpers/lane-claim-check.sh`.
 
-**It reports and never acts**, the same boundary `scripts/lane-claim-check.sh` holds. It does not
+**It reports and never acts**, the same boundary `helpers/lane-claim-check.sh` holds. It does not
 commit on a lane's behalf, and it does not use `git stash`: the stash stack is per-`.git`, shared
 across every worktree of this repository rather than scoped to one, so one worktree's `git stash`
 can be popped by a session working in a completely different worktree, which is action at a distance
@@ -265,12 +286,12 @@ of exactly the kind this script exists to warn about rather than to commit. AGEN
 "`git stash` is unsafe in these worktrees, for the same reason one level over," is the same finding
 from the other side.
 
-**Folded into `scripts/trunk-health.sh`'s own loop rather than given a third `launchd` job.** Two
+**Folded into `helpers/trunk-health.sh`'s own loop rather than given a third `launchd` job.** Two
 reasons, both named in that script's own header: a third watcher is a third thing to start and a
 third thing that can die silently, since neither existing script's BUGS section claims to report its
 own death; and folding it in means `com.nife.trunk-health`, already firing `--once` every five
 minutes on patagonia, picks up the new check with no new plist and no new schedule to keep alive.
-`scripts/at-risk-check.sh` is still a standalone, testable script; `trunk-health.sh` only calls it
+`helpers/at-risk-check.sh` is still a standalone, testable script; `trunk-health.sh` only calls it
 and relays what it prints.
 
 Unlike RED/GREEN and unlike the cadence check beside it, this does **not** dedupe by transition. A
@@ -400,15 +421,15 @@ proved everything because of files the predicate cannot attribute to a crate, an
 |---|---|---|
 | #207 | `Cargo.lock`, `Cargo.toml` (a new workspace member) | none |
 | #208 | `art/cobble-first-draft.jpg` | none |
-| #210 | `Cargo.lock`, `Cargo.toml`, `scripts/qemu-runner-*.sh` | none |
+| #210 | `Cargo.lock`, `Cargo.toml`, `helpers/qemu-runner-*.sh` | none |
 | #218 | `Cargo.lock`, `Cargo.toml` | none |
-| #219 | `scripts/merge-drain.sh` | none |
+| #219 | `helpers/merge-drain.sh` | none |
 
 Three levers follow, ranked by what the counts say and by how much judgment each needs. Together they
 account for twelve of the seventeen:
 
-1. **`scripts/` is not `script/`, and the predicate only knows the singular.** A change to
-   `merge-drain.sh` proves twenty crates. Nothing under `scripts/` is an input to `cargo kani`: the
+1. **`helpers/` is not `script/`, and the predicate only knows the singular.** A change to
+   `merge-drain.sh` proves twenty crates. Nothing under `helpers/` is an input to `cargo kani`: the
    QEMU runners belong to `xtask test` and `kani-lint-shim/` belongs to `script/lint`'s clippy pass,
    which is the same argument the existing `script/` case already makes. **Three of seventeen**, and
    it is one branch in the `elif` that handles `script/` today.

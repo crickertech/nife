@@ -6,7 +6,7 @@ day and the two open cases are both still open: the attribution loop still ends
 `needed.append((f, "not attributable to a crate; runs by default"))` with no classification for a
 binary file, and the header still lists `Cargo.lock` among the paths it cannot attribute, with the
 comment beside `cargo metadata` explaining that registry packages have no file a diff can name. The
-third blind spot stays fixed: `script/` and `scripts/` are both recognised, commented in place.
+third blind spot stays fixed: `script/` and `helpers/` are both recognised, commented in place.
 
 **Gate: NONE.** The predicate is one Python block inside `script/verify`, it has no dependency on
 any other milestone, and a change to it is exercised by the wiring it lives in.
@@ -15,7 +15,7 @@ any other milestone, and a change to it is exercised by the wiring it lives in.
 suite by attributing every changed file to a crate and asking whether that crate is in a harness
 crate's dependency closure. Anything it cannot attribute runs the proofs, which is the correct
 default and is also where the false positives come from. Milestone 119 named three of them. One,
-`scripts/` being spelled differently from `script/`, was fixed on 2026-08-26 and the fix is
+`helpers/` being spelled differently from `script/`, was fixed on 2026-08-26 and the fix is
 commented in place. Two remain: any `Cargo.lock` touch proves everything, and a binary file falls
 through to `not attributable to a crate; runs by default`.
 
@@ -40,7 +40,7 @@ falls through only because the attribution step has nothing to say about it.
 ## Where it came from
 
 Milestone 119's block, on what remained after sharding: *"that tail is nearly all false positives
-from three blind spots in the scope predicate (`scripts/` is not `script/`, a `Cargo.lock` touch
+from three blind spots in the scope predicate (`helpers/` is not `script/`, a `Cargo.lock` touch
 proves everything, binary files count). Fixing those beats more shards ... Each is its own small
 lane."* Its Follow-on records the same thing as `**Proposed.**`, alongside a refusal of more
 shards for the reason above.

@@ -1749,7 +1749,7 @@ a number nobody can reproduce.
 
 ### One tooling bug found on the way, because it changes what a bounded run costs
 
-`scripts/qemu-bounded.sh` killed its watchdog subshell when the guest finished on its own and left
+`helpers/qemu-bounded.sh` killed its watchdog subshell when the guest finished on its own and left
 the `sleep` inside it running. An orphaned `sleep` holds the write end of the pipe it inherited, so
 **every bounded run whose output is piped blocked for the full bound** however quickly the guest
 exited: the Linux comparison boots a guest that powers itself off in about fifteen seconds and each
@@ -2762,7 +2762,7 @@ backwards.
   tracks `-icount`'s virtual clock under TCG on `q35` the way `CNTVCT_EL0` and riscv64's `rdtime` do
   on `virt`. It does.
 
-**The evidence, not the argument.** `-icount shift=0,sleep=off` added to `scripts/qemu-runner-x86_64.sh`'s
+**The evidence, not the argument.** `-icount shift=0,sleep=off` added to `helpers/qemu-runner-x86_64.sh`'s
 invocation (no runner changes needed; it already forwards extra QEMU args), booting the existing
 `--features bench` kernel: three consecutive boots produced **byte-identical** tick counts on every
 line, including the PIT-calibrated TSC frequency itself (`bench: cntfrq 999935600`, all three runs).
@@ -2781,7 +2781,7 @@ same 10%-or-64-tick tripwire every other leg uses; `--real` is the plain-TCG sta
 same rule aarch64 and riscv64 already follow).
 
 **One operational bug found and fixed along the way, worth recording because it would have leaked a
-CPU-burning QEMU on every `--x86` run rather than an idle one.** `scripts/qemu-runner-x86_64.sh` is
+CPU-burning QEMU on every `--x86` run rather than an idle one.** `helpers/qemu-runner-x86_64.sh` is
 the one runner of the three that does not `exec` into `qemu-system-x86_64` (its own header explains
 why: it has to translate `isa-debug-exit`'s always-odd exit status). So `run_bench`'s `Child` is the
 wrapper shell, not QEMU, on this leg only; killing it after `bench: done` orphaned the real

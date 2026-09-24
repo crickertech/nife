@@ -53,7 +53,7 @@ same day. This is the closing move.
 **The test is the deliverable, not the broadcast**, and the test needs two cores on x86_64. That is
 where the problem is.
 
-`scripts/qemu-runner-x86_64.sh` sets `SMP="${NIFE_SMP:-1}"` **deliberately**, and its comment gives
+`helpers/qemu-runner-x86_64.sh` sets `SMP="${NIFE_SMP:-1}"` **deliberately**, and its comment gives
 two open reasons: AP-bring-up flakiness at three or more cores, and a boot-core-identity bug that
 makes `smp::tests::every_secondary_runs_scheduled_work` fail **about half the time at two**. Both
 are recorded in `arch::x86_64::ap_boot`'s own `BUGS` (#1 and #3). Separately,

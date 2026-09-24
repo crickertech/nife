@@ -59,9 +59,9 @@ ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 # sourced by absolute path because this script keeps a $ROOT rather than cd-ing. Nothing here boots
 # an emulator today, and the line still costs nothing; `cargo xtask std-src` below is the reason it
 # could, since anything reached through xtask can.
-. "$ROOT/scripts/qemu-path.sh"
+. "$ROOT/helpers/qemu-path.sh"
 
-# **The probe crates are built OUTSIDE this repository**, which `scripts/build-ripgrep.sh` also
+# **The probe crates are built OUTSIDE this repository**, which `helpers/build-ripgrep.sh` also
 # does and for a related reason. Its reason is cargo's workspace walk; this one is the toolchain
 # override, and it cost an hour twice on 2026-09-19. A probe under `target/` is inside the repo, so
 # the repo's own `rust-toolchain.toml` (the plain pinned nightly) beats `RUSTUP_TOOLCHAIN` for the

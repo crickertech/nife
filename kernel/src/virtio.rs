@@ -149,7 +149,7 @@ pub struct BlockDevice {
 ///
 /// **`q35` has no virtio-mmio bus at all** (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0), so on `x86_64`
 /// the mmio half is empty and ordinal 0 is the first `virtio-blk-pci` function, ordinal 1 the
-/// second. `scripts/qemu-runner-x86_64.sh` attaches the nifefs image and then the RedoxFS image in
+/// second. `helpers/qemu-runner-x86_64.sh` attaches the nifefs image and then the RedoxFS image in
 /// that order for exactly that reason.
 ///
 /// **Resolving a PCI ordinal brings the function up**, which sizes and assigns its BARs and enables

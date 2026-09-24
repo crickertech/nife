@@ -686,7 +686,7 @@ if mode == "--census":
         ("design/ (other)", lambda p: p.startswith("design/")),
         ("notes/", lambda p: p.startswith("notes/")),
         ("Rust", lambda p: p.endswith(".rs")),
-        ("scripts", lambda p: p.startswith("script/") or p.startswith("scripts/")),
+        ("scripts", lambda p: p.startswith("script/") or p.startswith("helpers/")),
         ("manifests", lambda p: p.endswith(".toml")),
         ("CI workflows", lambda p: p.startswith(".github/")),
         ("everything else", lambda p: True),

@@ -9,7 +9,7 @@
 # step, because RISC-V has no equivalent of the arm64 Image header that the aarch64 path needs.
 #
 # The kernel halts with `wfi` (arch::halt), so QEMU does not exit on its own. Bound any interactive
-# run with scripts/qemu-bounded.sh, exactly as on aarch64 (see CLAUDE.md, "Never leave QEMU
+# run with helpers/qemu-bounded.sh, exactly as on aarch64 (see CLAUDE.md, "Never leave QEMU
 # running"). See notes/riscv-port.md.
 
 set -e

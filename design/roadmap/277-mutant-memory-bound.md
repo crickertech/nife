@@ -69,7 +69,7 @@ without anyone checking for a fourth, and a flag would have made all three moot,
 five minutes. Every bound the tool has is a clock, and a clock is precisely what this failure walks
 past.
 
-**Chosen: the cargo runner wrapper**, as `scripts/memory-bounded-runner.sh` (**name provisional**,
+**Chosen: the cargo runner wrapper**, as `helpers/memory-bounded-runner.sh` (**name provisional**,
 as every lane-minted name is). cargo runs each test binary through `target.<triple>.runner`, and
 that is the only point in the pipeline that sees exactly one test binary and neither rustc nor the
 other `-j 2` job's binary, which is the granularity a per-mutant bound needs by definition.
@@ -127,7 +127,7 @@ header keeps saying so.
 ## Follow-on
 
 - **Recorded.** The dev Mac is not covered by default, and the limitation is written where a reader
-  meets the feature, in the `BUGS` section of `scripts/memory-bounded-runner.sh`, with the XNU
+  meets the feature, in the `BUGS` section of `helpers/memory-bounded-runner.sh`, with the XNU
   source that shows the kernel would enforce it and the reason a number was not shipped unmeasured.
 - **Recorded.** The build is bounded by nothing; same `BUGS` section, beside it.
 - **Recorded.** That the weekly workflow has still never succeeded, in the `BUGS` header of

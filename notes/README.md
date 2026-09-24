@@ -29,7 +29,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 
 - [The `script/` entry points](scripts.md): the "Scripts to Rule Them All" front door:
   `setup`, `test`, `server`, `console`, and friends, thin wrappers over `cargo xtask` so every
-  repo has the same first command. Also: why `script/` and `scripts/` both exist.
+  repo has the same first command. Also: why `script/` and `helpers/` both exist.
 
 - [Every check in this repository](check-inventory.md): milestone 232's audit, asking of every
   check whether anything runs it, whether it blocks, and what a green result actually asserts.
@@ -57,9 +57,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   blocks state no parseable Built date), and the reconstruction that proved the 288-file migration
   lost nothing.
 
-- [The merge queue, and the three things that watch it](merge-queue.md): `scripts/merge-drain.sh`
-  lands every pull request that does not need calef; `scripts/trunk-health.sh` says when `main` goes
-  red and when it recovers; `scripts/lane-claim-check.sh` names a pushed lane branch that opened no
+- [The merge queue, and the three things that watch it](merge-queue.md): `helpers/merge-drain.sh`
+  lands every pull request that does not need calef; `helpers/trunk-health.sh` says when `main` goes
+  red and when it recovers; `helpers/lane-claim-check.sh` names a pushed lane branch that opened no
   pull request, which is the one state the other two are blind to because both start from
   `gh pr list`. Both exist because three duties on 2026-08-04 belonged to whoever
   happened to notice, and the steward that was supposed to cover them reported without acting. Why
@@ -1252,7 +1252,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   ask a gate for its exit code, delegate conflict resolution, spot-check rather than re-derive.
 - [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md):
 - [What `claude --effort` buys, measured against a real repository query](effort-levels.md):
-  `scripts/open-lane.sh` never passed `--effort`, on any lane, ever. 20 runs of a real, checkable
+  `helpers/open-lane.sh` never passed `--effort`, on any lane, ever. 20 runs of a real, checkable
   roadmap query across all five levels found correctness determined entirely by the wording of the
   prompt and not at all by the effort level: an ambiguous wording got the identical wrong answer at
   every level, a disambiguated one got the identical right answer at every level. What effort level

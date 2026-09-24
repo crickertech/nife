@@ -20,7 +20,7 @@ watcher script, even a narrow one, competes for the same attention the tree alre
 on the three it has (AGENTS.md's own "reported and never acted", the exhibit this proposal itself
 leans on). His ruling: **one script that already exists, already runs, and already has a reader,
 instead of a second competing for the same attention.** So the mechanism below landed as three
-changes to `scripts/lane-claim-check.sh` rather than as `scripts/orphan-branch-check.sh`, in the
+changes to `helpers/lane-claim-check.sh` rather than as `helpers/orphan-branch-check.sh`, in the
 same lane, the same day.
 
 That reverses one specific refusal from "What else was considered" below: extending
@@ -112,19 +112,19 @@ The fix does not trust pull request state at all: `git merge-base --is-ancestor 
 origin/main` asks whether every commit on the branch is already reachable from `main`, which is the
 question "safe to delete" actually depends on. A merged-and-untouched branch and a merged-and-then-
 extended branch give pull request state the same answer and this test different ones.
-`scripts/lane-claim-check.sh` (PR #1116) now tests the tree this way instead of trusting the merge
+`helpers/lane-claim-check.sh` (PR #1116) now tests the tree this way instead of trusting the merge
 flag.
 
 ## What else was considered
 
-**Extend `scripts/merge-drain.sh`.** Refused: its whole domain is pull requests, and these branches
+**Extend `helpers/merge-drain.sh`.** Refused: its whole domain is pull requests, and these branches
 are defined by the absence of one. Its `notify()` dedup logic posts a comment *on a pull request*;
 there is nowhere to attach that comment when there is no pull request. It also already carries three
 distinct single-purpose checks (admission, stuck workflow runs, stale drafts) for a reason: each is
 one act with its own threshold, and a fourth unrelated one blurs a script that earns its keep by
 staying narrow.
 
-**Extend `scripts/lane-claim-check.sh`** to cover every branch prefix and to escalate past its
+**Extend `helpers/lane-claim-check.sh`** to cover every branch prefix and to escalate past its
 15-minute grace window into a days-long sweep. This is the closest real contender and the one worth
 the longest refusal. Its own `BUGS` section already explains why the `milestone/*` restriction is
 deliberate: widening it "would also sweep in short-lived maintainer branches that are not claims and
@@ -143,7 +143,7 @@ checks into one file. Two separate grace windows in one script, `GRACE_MINUTES` 
 `milestone/*` and a new `GRACE_HOURS` for everything else, keep the 15-minute tuning exactly as it
 was measured while adding the wider sweep beside it.
 
-**A new `scripts/` watcher of the same shape**, run on the existing five-minute `launchd` cadence
+**A new `helpers/` watcher of the same shape**, run on the existing five-minute `launchd` cadence
 and reporting once per stall the way `merge-drain.sh`'s `notify()` already does. Refused on the
 strongest evidence available: this shape already exists for the nearest analogous case (`stale_drafts`)
 and PR #1087 shows it firing exactly on schedule and changing nothing. A fourth reporter, printing to
@@ -241,7 +241,7 @@ anything, for the reason the refused Actions-workflow option already names.
 | Closed, not merged (case 4) | Report age and pull request number, kept visually distinct from case 3 | Read the closed pull request's thread for the reason it closed. **Never recommend deletion from this line alone**; the work may exist nowhere but this branch |
 
 **Implemented, not as a new script.** calef's ruling (see "What calef decided" above) put this in
-`scripts/lane-claim-check.sh`: it already exists, already runs, and already has a reader, which beat
+`helpers/lane-claim-check.sh`: it already exists, already runs, and already has a reader, which beat
 a fourth thing competing for the same attention. The script now covers every branch except `main`
 and `gh-readonly-queue/*`, splits `MERGED` from `CLOSED` (`state` alone is a reliable GraphQL enum
 for this, no need for `mergedAt`), and classifies each unclaimed branch as empty or holding work

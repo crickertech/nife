@@ -37,8 +37,8 @@ const WATCH_SECONDS: u64 = 300;
 /// The boot is stopped as soon as the screen has answered; the kernel never exits on its own.
 pub(crate) fn screen_boot(arch: &str) -> bool {
     let (target, runner) = match arch {
-        "aarch64" => (TARGET, "scripts/qemu-runner-aarch64.sh"),
-        "riscv64" => (RISCV_TARGET, "scripts/qemu-runner-riscv64.sh"),
+        "aarch64" => (TARGET, "helpers/qemu-runner-aarch64.sh"),
+        "riscv64" => (RISCV_TARGET, "helpers/qemu-runner-riscv64.sh"),
         other => {
             eprintln!(
                 "screen-boot: no ramfb leg for {other}; x86_64's screen is `cargo xtask uefi-boot`"

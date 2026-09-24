@@ -51,7 +51,7 @@ already on AGENTS.md's record.
 
 - **Outstanding.** Two comments still lead with the machine name where §143 says the hardware goes
   first, both of the `"radon (the VisionFive 2)"` shape. Checked by grepping the source trees
-  (`kernel/`, `crates/`, `components/`, `fixtures/`, `xtask/`, `script/`, `scripts/`) for a machine
+  (`kernel/`, `crates/`, `components/`, `fixtures/`, `xtask/`, `script/`, `helpers/`) for a machine
   name immediately followed by a parenthesised gloss on 2026-09-19: two hits, at
   `kernel/src/arch/riscv64/iommu.rs:52` ("radon (the `VisionFive` 2) has no IOMMU at all", where the
   fact is about the JH7110) and `xtask/src/main.rs:2658` ("every machine but radon (the `StarFive`
