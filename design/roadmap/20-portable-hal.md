@@ -2,8 +2,9 @@
 
 **Status: BUILT** for the HAL split and RISC-V, which is this milestone's actual scope per its own
 title (**a second** architecture, singular). **The x86_64 half of the "Deliverable, in two parts"
-below was never tracked as open work and is split out to milestone 161** (2026-08-23, checked
-directly: `kernel/src/arch/` holds only `aarch64/` and `riscv64/`, no `x86_64/` exists). The
+below was never tracked as open work and is split out to milestone 161** (the x86_64 kernel port:
+bring up the HAL's third architecture). Checked directly on 2026-08-23: `kernel/src/arch/` holds
+only `aarch64/` and `riscv64/`, and no `x86_64/` exists. The
 reasoning below for why x86_64 comes after RISC-V remains accurate; the tracked work now lives at
 161.
 

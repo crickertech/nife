@@ -87,7 +87,8 @@ else's kernel:
   what the same authors built afterwards, which is a hardware-isolated Verus-verified Rust
   microkernel rather than more of RedLeaf.
 - **Fuchsia.** The closest general-purpose capability OS. Design prior art for milestone 23
-  (capability routing, component manifests) and for the "what would growing up look like"
+  (a capability-routed component OS with live replacement) and for the "what would growing up
+  look like"
   question in notes/why-not-general-purpose.md.
 
 ## Calls on the record

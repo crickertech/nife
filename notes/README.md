@@ -231,8 +231,8 @@ in the code or the conversation doesn't make sense, it belongs here.
   second, why kernel stacks want neither, and how a stale TODO nearly grew an unused method.
 - [The heap and the slab](heap.md): why the stack isn't enough (its lifetimes must nest, and a returned
   Vec's don't), why fragmentation is the permanent enemy, and why Rust's ownership system is
-  really a heap-correctness checker. **Retired from the kernel at milestone 14** (the kernel
-  cannot allocate now; design/kernel-objects-from-untyped.md is the story of how), and the
+  really a heap-correctness checker. **Retired from the kernel at milestone 14** (kernel objects
+  from untyped: remove the kernel heap), and the
   `heap`/`slab` crates were deleted outright on 2026-07-27 once nothing referenced them: the
   git history preserves the work, and a demonstrator's tree should hold what it ships. The
   note stays; building the allocator and then earning its deletion were both the point.

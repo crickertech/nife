@@ -117,8 +117,8 @@ present tense.** Four of its standing conditions have moved, and a reader who to
 above as current would be wrong about all four:
 
 - **Single core.** The threat model says "single core", and the scheduler section says the IPC
-  blocking races and the untyped-MAP TOCTOU "check out on single core". SMP landed at milestone 41
-  (DECISIONS §11, superseding §6). What was checked by reading here is now searched by loom
+  blocking races and the untyped-MAP TOCTOU "check out on single core". SMP landed with DECISIONS
+  §11 (SMP: per-CPU run queues, message-based migration). What was checked by reading here is now searched by loom
   (notes/interleaving.md) and inventoried by notes/memory-ordering.md, and neither existed when
   this was written.
 - **"delegation is not even exposed to userspace yet".** It is. `SEND_CAP` hands a capability over

@@ -133,7 +133,7 @@ reported, and that the later lander takes the next free numbers instead of displ
 ## What this does not do
 
 - It does not make two lanes safe in the same source file. That is milestone 365
-  (`xtask/src/main.rs` is 10,700 lines) and the hotspot rule in AGENTS.md.
+  (`xtask/src/main.rs` with no module structure) and the hotspot rule in AGENTS.md.
 - It does not remove the merge queue's serialisation, which is not the problem: the queue lands
   groups of five, and today's jam was conflicts and false gate failures, not throughput.
 - **It does not touch `design/decisions/README.md`**, which is hand-maintained and is the same

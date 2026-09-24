@@ -102,7 +102,8 @@ asked to run. See milestone 215, on x86_64 PCI interrupt routing, which fixed it
 
 ## What this unblocks
 
-**Milestone 87** (x86_64 on the Dell OptiPlex) is the one that matters, and this moves it by
+**Milestone 87** (the x86_64 bare-metal machine), which is the Dell OptiPlex, is the one that
+matters, and this moves it by
 removing the toolchain wall and leaving a machine wall in its place. When calef sits down at the
 null modem, the archive that boots carries a real filesystem server rather than nothing above the
 kernel; what it still cannot do is find a disk, and that is one bounded piece of interrupt routing

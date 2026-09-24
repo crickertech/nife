@@ -87,8 +87,9 @@ The gap: §14 promises "a verified core that confines unverified workloads," and
 confines init as well as anything (MMU isolation proved, W^X, capabilities unforgeable, a compromised
 init cannot break the kernel or escape). But init's **bytes** were loaded unchecked, and it is the
 program that builds every other process. Anything that could substitute bytes at
-`/chosen/linux,initrd-start` got to be init. Milestone 16b (§20, the IOMMU) had already closed the DMA
-window a device could have used to rewrite the initrd *behind* the check, which is why the check is
+`/chosen/linux,initrd-start` got to be init. Milestone 16b (IOMMU-backed driver isolation), whose
+boundary proof is §20 (IOMMU-backed DMA isolation: one seam, two arch drivers), had already closed
+the DMA window a device could have used to rewrite the initrd *behind* the check, which is why the check is
 now airtight rather than theatre; that ordering was deliberate.
 
 Five decisions, each with its alternative on the record:

@@ -76,6 +76,7 @@
 #   script/citations --check     validate; non-zero on a problem (wired into script/lint)
 #   script/citations --ratchet   the lines this branch ADDS carry a gloss (wired into script/lint)
 #   script/citations --census    count the citations that carry no gloss at all; reporting only
+#   script/citations --selftest  fixtures: prove the scanner still sees each citation shape
 #   script/citations --moved     this branch flipped a milestone's status: who cites it. Reporting
 #                                only, and it can never fail (milestone 385, when a milestone's
 #                                status flips, tell the lane which notes cite it).
@@ -106,22 +107,33 @@ root, mode, arg = sys.argv[1], sys.argv[2], sys.argv[3]
 # file per entry, which is what makes this affordable: `§43 (the clock ladder)` is checked against
 # 43-clock-authority.md's own first line, with no need to parse a 5,000-line document to find where
 # §43 begins and §44 starts.
+# A LETTERED record gets a second entry under its own label, and the reason is that the two tables
+# answer different questions. `design/roadmap/20a-name-the-seams.md` is a block of its own with an
+# H1 of its own, and a gloss of `milestone 20a` should be read against THAT title rather than
+# against milestone 20's, which is a different piece of work. The base table stays keyed by the
+# bare integer, because a file that glosses `milestone 19` has told the reader what 19 is and the
+# per-file ratchet rule is about numbers rather than sub-parts. Letters with no file of their own
+# (7a, 9a, 16a, 16b, 19a through 19f) therefore resolve against their parent block, which is where
+# those sub-parts are actually described.
 def load(subdir, pattern):
     d = os.path.join(root, "design", subdir)
-    out = {}
+    out, sub = {}, {}
     for fname in sorted(os.listdir(d)):
         m = re.fullmatch(pattern, fname)
         if not m:
             continue
         text = open(os.path.join(d, fname), errors="replace").read()
-        h = re.match(r"# (\d+)[a-z]?\. (.+)$", text.split("\n", 1)[0])
+        h = re.match(r"# (\d+)([a-z]?)\. (.+)$", text.split("\n", 1)[0])
         if h:
-            out.setdefault(int(h.group(1)), (h.group(2).strip(), text, fname))
-    return out
+            entry = (h.group(3).strip(), text, fname)
+            out.setdefault(int(h.group(1)), entry)
+            if h.group(2):
+                sub.setdefault(h.group(1) + h.group(2), entry)
+    return out, sub
 
 
-DECISIONS = load("decisions", r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
-MILESTONES = load("roadmap", r"(\d+)[a-z]?-[a-z0-9][a-z0-9-]*\.md")
+DECISIONS, DECISION_PARTS = load("decisions", r"(\d+)[a-z]?-[a-z0-9][a-z0-9-]*\.md")
+MILESTONES, MILESTONE_PARTS = load("roadmap", r"(\d+)[a-z]?-[a-z0-9][a-z0-9-]*\.md")
 
 problems = []
 if not DECISIONS or not MILESTONES:
@@ -155,6 +167,37 @@ def normalized(text):
     text = text.replace("`", "").replace("*", "").replace("“", '"').replace("”", '"')
     text = text.replace("’", "'")
     return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def path_target(gloss):
+    """The repo path this gloss cites, or None if it is prose.
+
+    `fullmatch` on the first comma-separated segment, not `search` anywhere in it. A gloss that
+    MENTIONS a path (`milestone 19 ("Decision 2" in design/init-and-granular-spawn.md)`) is prose,
+    and reading it as a path citation reports the quoted sentence as a missing file.
+
+    **The backticks come off first**, and that was a third blind spot of the same family as the two
+    milestone 583 (a citation a line break split, or a lettered milestone)
+    was raised for. This tree spells a path in backticks nearly everywhere, and `script/lint`'s own
+    backticked-path gate is the proof; a path citation written the tree's normal way was therefore
+    judged as a gloss and failed against a title it was never trying to quote. It surfaced the
+    moment the line-break fix let three of them be seen at all.
+    """
+    target = gloss.split(",")[0].strip().strip("`")
+    return target if IS_PATH.fullmatch(target) else None
+
+
+def part_record(scheme, digits, letter):
+    """The lettered record this citation names, if the tree has one, else None.
+
+    `milestone 20a` has a block of its own, so its gloss is read against that block's H1. The
+    letters with no file (7a, 9a, 16a, 16b, 19a through 19f) return None and fall back to their
+    parent, which is the file that describes them.
+    """
+    if not letter:
+        return None
+    parts = DECISION_PARTS if scheme == "decision" else MILESTONE_PARTS
+    return parts.get(digits + letter)
 
 
 def grounded(gloss, title, body):
@@ -211,14 +254,38 @@ GLOSS_ALLOW = {
 # `[^\S\n]` is "whitespace that is not a newline". Written the long way on purpose: `\s*` here ate
 # the line breaks it was meant to preserve, every reported line number drifted by the number of
 # comment lines above it, and the numbers still looked plausible enough to chase.
+#
+# **The gap between the number and its `(` may itself be the line break**, and that one word is
+# milestone 583 (a citation a line break split, or a lettered milestone).
+# The first version of this regex spelled the gap as a single literal space, so reflowing a
+# paragraph until the wrap fell between `milestone 326` and `(` did not fail the gate: it removed
+# the citation from the gate's view, silently, while the line above kept being read as prose. Three
+# lanes hit it in one week. The lane putting frontmatter on every decision block needed 106 glosses
+# across 69 files because dropping a `**Status:` prefix made each file's first prose line read as
+# added, and the design/fatal-risks.md condensation lane was bitten twice by a wrap that
+# split `milestone 326 (` and `§19 (`, working around it with a rejoin pass of its own.
+#
+# A gate that stops checking is worse than one that fails, because the tree's confidence in it does
+# not move while its coverage does. So the gap is "whitespace, at most one newline of it", written
+# as two alternatives rather than `\s+` for the reason above: the newline must be counted, not
+# swallowed, or every line number below drifts.
 COMMENT_MARKER = re.compile(r"^[^\S\n]*(///|//!|//|#!?|\*|>)[^\S\n]?", re.MULTILINE)
-CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?,? \(([^)\n]{0,160}(?:\n[^)\n]{0,160})?)\)")
+GAP = r"(?:[^\S\n]+|[^\S\n]*\n[^\S\n]*)"
+
+# **And a closing emphasis marker is part of the gap too**, which is the same defect a third time:
+# `**milestone 41** (dead code: triage the suppressions)` is how this tree bolds a citation, and the
+# `**` sat between the number and the `(` where nothing was allowed to. Thirteen sites across ten
+# files were invisible for that reason alone, and the shape was found by this milestone's own
+# roadmap block failing the ratchet it had just fixed.
+EMPHASIS = r"(?:\*\*|__|\*|_|`)?"
+CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)([a-z]?)" + EMPHASIS + r",?" + GAP +
+                  r"\(([^)\n]{0,160}(?:\n[^)\n]{0,160})?)\)")
 
 # Every citation, glossed or not, which is the population `CITE` cannot see and which nothing had
 # ever counted: 3,697 `milestone N` and 1,953 `§N` in `*.rs` alone. The ratchet below reads this one
 # and the `--check` pass above reads `CITE`, and that difference is the whole distinction between
 # "what you write is checked" and "what you add must be written".
-ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?")
+ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)([a-z]?)")
 
 # `git grep -I` skips binary files, which is the defect script/decisions records: for a binary,
 # git grep prints the SENTENCE "Binary file <path> matches" into the same stream as the matches, and
@@ -233,8 +300,114 @@ ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?")
 # because the file was not staged yet, and CI failed on it minutes later. That is this tree's
 # recurring shape, a check invisible at the moment it is needed, and one word fixes it.
 # `--untracked` still honours .gitignore, so target/ and build output stay out.
+#
+# **The pre-filter has to be looser than `CITE` is, in two ways, and both were defects.** `git grep`
+# is line-based and `CITE` is not, so a pre-filter that demands the `(` on the same line as the
+# number hides every citation the line break split: the second alternative below accepts a line that
+# ENDS in a citation, which is what a wrapped one looks like. And the letter was missing, so a line
+# reading `Milestone 16b (...)` matched nothing and its file was never opened at all.
+# design/decisions/26-fault-endpoint.md was in that hole: its gloss of milestone 16 went unchecked
+# for as long as the file existed, and no report in the tree could say so.
+#
+# This widens the file list from 649 to 853 and the scan still costs about three seconds, which is
+# the whole argument for keeping the pre-filter loose. It selects files to read; `CITE` decides.
+#
+# It is a named constant because the selftest has to be able to read it. A pre-filter that silently
+# stopped selecting a file is the exact failure this milestone is about, and a selftest that
+# re-typed the pattern would agree with itself while the gate went blind.
+PREFILTER = r"(§[0-9]+[a-z]?|[Mm]ilestone [0-9]+[a-z]?)(\*\*|__|\*|_|`)?,?([[:space:]]*\(|[[:space:]]*$)"
+
+# ---- the selftest ------------------------------------------------------------
+# `script/citations --selftest` drives the scanner over fixtures built to trip it, and it runs
+# BEFORE the candidate grep so it costs nothing: no subprocess, no tree.
+#
+# It exists because a green `--check` looks identical whether the scanner works or has quietly
+# stopped seeing a shape, and that is not hypothetical here. Two shapes went unseen for as long as
+# this script existed: a citation whose line break fell between the number and its `(`, and a
+# lettered milestone, which the pre-filter's pattern could not match at all. Neither failed
+# anything. Both just left the tree with a gate whose coverage a reader could not measure.
+#
+# **The near-misses are the more interesting half.** A scanner widened until it sees everything sees
+# things that are not there, and the three quiet fixtures pin the boundary: a blank line between the
+# number and the `(` is two paragraphs rather than one citation, a parenthesis further down the page
+# belongs to its own sentence, and `bmilestone 5` is a word this regex must keep refusing.
+SELFTEST = [
+    # (name, text, expected [(scheme, tag, gloss)], expected prefilter lines matched)
+    ("same line", "See milestone 24 (a second aarch64 board) for the port.",
+     [("milestone", "24", "a second aarch64 board")], 1),
+    ("split by a line break", "It was closed at milestone 326\n(the fatal-risks condensation).",
+     [("milestone", "326", "the fatal-risks condensation")], 1),
+    ("split, and the next line is indented", "and DECISIONS §19\n    (architectural parity is a tenet) requires all three.",
+     [("decision", "19", "architectural parity is a tenet")], 1),
+    ("lettered, same line", "Milestone 16b (IOMMU-backed driver isolation) had closed it.",
+     [("milestone", "16b", "IOMMU-backed driver isolation")], 1),
+    ("lettered decision", "§9a (a gloss) is a section.",
+     [("decision", "9a", "a gloss")], 1),
+    ("lettered AND split", "a follow-on to milestone 19d\n(a gloss) and nothing else.",
+     [("milestone", "19d", "a gloss")], 1),
+    ("a gloss that itself wraps", "milestone 24 (a second aarch64\nboard) ships.",
+     [("milestone", "24", "a second aarch64\nboard")], 1),
+    ("bolded, so the `**` is in the gap", "**milestone 41** (dead code: triage the suppressions)",
+     [("milestone", "41", "dead code: triage the suppressions")], 1),
+    ("bolded and split", "at **milestone 41**\n(dead code) it moved.",
+     [("milestone", "41", "dead code")], 1),
+    # ---- the quiet ones ------------------------------------------------------
+    ("a blank line is not a gap", "the proof is milestone 55\n\n(a new paragraph opens here).", [], 1),
+    # Zero pre-filtered lines, and that is the point: the pre-filter is loose enough to catch a
+    # wrap and still tight enough not to select every file that says a number.
+    ("a paren two lines down", "at milestone 55 and then\nsomething else (a paren).", [], 0),
+    ("a word ending in the citation", "the bmilestone 5 (a gloss) is not one.", [], 1),
+]
+
+# The pre-filter runs under `git grep -E`, which has POSIX classes Python does not. Translating the
+# one class this pattern uses is what lets the selftest read the SAME string the gate runs, rather
+# than a second copy of it that can drift.
+PREFILTER_PY = re.compile(PREFILTER.replace("[[:space:]]", r"[^\S\n]"), re.MULTILINE)
+
+PATH_FIXTURES = [
+    ("design/roadmap/15-asids.md", "design/roadmap/15-asids.md"),
+    ("`design/roadmap/409-one-machine-description-not-two.md`",
+     "design/roadmap/409-one-machine-description-not-two.md"),
+    ("`xtask/src/main.rs` is 10,700 lines", None),
+    ('"Decision 2" in design/init-and-granular-spawn.md', None),
+]
+
+
+def selftest():
+    bad = []
+    for name, text, want, want_lines in SELFTEST:
+        got = [("decision" if m.group(1) == "§" else "milestone",
+                m.group(2) + m.group(3), m.group(4)) for m in CITE.finditer(text)]
+        lines = len({text[:m.start()].count("\n") for m in PREFILTER_PY.finditer(text)})
+        ok = got == want and lines == want_lines
+        print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
+        if not ok:
+            bad.append(f"{name}: wanted {want} on {want_lines} pre-filtered line(s), "
+                       f"got {got} on {lines}")
+    for gloss, want in PATH_FIXTURES:
+        got = path_target(gloss)
+        ok = got == want
+        print(f"  {'ok  ' if ok else 'FAIL'}  path: {gloss[:48]}")
+        if not ok:
+            bad.append(f"path {gloss!r}: wanted {want!r}, got {got!r}")
+    print()
+    if bad:
+        for b in bad:
+            print(f"citations: selftest: {b}", file=sys.stderr)
+        print("\nA scanner that stops SEEING a shape fails nothing and reports nothing, which is "
+              "worse\nthan a red gate: the tree's confidence in it does not move while its "
+              "coverage does.", file=sys.stderr)
+        return 1
+    print(f"citations: {len(SELFTEST) + len(PATH_FIXTURES)} fixtures, every shape still seen and "
+          "every near-miss still quiet")
+    return 0
+
+
+if mode == "--selftest":
+    sys.exit(selftest())
+
 candidates = subprocess.run(
-    ["git", "-C", root, "grep", "-I", "--untracked", "-l", "-E", r"(§[0-9]+|[Mm]ilestone [0-9]+),? \(",
+    ["git", "-C", root, "grep", "-I", "--untracked", "-l", "-E", PREFILTER,
      "--", ":!vendor/", ":!patches/", ":!*.lock", ":!script/citations"],
     capture_output=True, text=True,
 ).stdout.split()
@@ -337,16 +510,17 @@ def file_glosses(path, text):
     for m in CITE.finditer(text):
         scheme = "decision" if m.group(1) == "§" else "milestone"
         num = int(m.group(2))
-        gloss = re.sub(r"\s+", " ", m.group(3)).strip()
+        gloss = re.sub(r"\s+", " ", m.group(4)).strip()
         table = DECISIONS if scheme == "decision" else MILESTONES
         if num not in table:
             continue
+        record = part_record(scheme, m.group(2), m.group(3)) or table[num]
         if GLOSS_ALLOW.get(f"{path}:{scheme}:{num}"):
             out.add((scheme, num))
-        elif IS_PATH.fullmatch(gloss.split(",")[0].strip()):
+        elif path_target(gloss):
             out.add((scheme, num))
         elif not IS_XREF.fullmatch(gloss) and not IS_DATE.fullmatch(gloss) \
-                and grounded(gloss, table[num][0], table[num][1]):
+                and grounded(gloss, record[0], record[1]):
             out.add((scheme, num))
     m = OWN.match(path)
     if m:
@@ -469,8 +643,10 @@ if mode == "--ratchet":
             if num not in table or (scheme, num) in glossed or (scheme, num) in seen:
                 continue
             seen.add((scheme, num))
-            label = f"§{num}" if scheme == "decision" else f"milestone {num}"
-            ungloss.append((f"{path}:{lineno}", label, table[num][0]))
+            tag = m.group(2) + m.group(3)
+            label = f"§{tag}" if scheme == "decision" else f"milestone {tag}"
+            record = part_record(scheme, m.group(2), m.group(3)) or table[num]
+            ungloss.append((f"{path}:{lineno}", label, record[0]))
 
     if ungloss:
         for where, label, title in ungloss:
@@ -792,9 +968,12 @@ for path in candidates:
         lineno = starts[m.start()] + 1
         scheme = "decision" if m.group(1) == "§" else "milestone"
         num = int(m.group(2))
-        gloss = re.sub(r"\s+", " ", m.group(3)).strip()
+        gloss = re.sub(r"\s+", " ", m.group(4)).strip()
         table = DECISIONS if scheme == "decision" else MILESTONES
-        label = f"§{num}" if scheme == "decision" else f"milestone {num}"
+        # The label carries the letter, because a report that renamed `milestone 19d` to
+        # `milestone 19` would send the reader to a different piece of work than the one at fault.
+        tag = m.group(2) + m.group(3)
+        label = f"§{tag}" if scheme == "decision" else f"milestone {tag}"
         where = f"{path}:{lineno}"
 
         # A citation to a number that does not resolve at all is script/decisions' and
@@ -813,12 +992,9 @@ for path in candidates:
         if IS_DATE.fullmatch(gloss):
             tally["date"] += 1
             continue
-        # `fullmatch` on the segment, not `search` anywhere in it. A gloss that MENTIONS a path
-        # (`milestone 19 ("Decision 2" in design/init-and-granular-spawn.md)`) is prose, and reading
-        # it as a path citation reports the quoted sentence as a missing file.
-        if IS_PATH.fullmatch(gloss.split(",")[0].strip()):
+        target = path_target(gloss)
+        if target:
             tally["path"] += 1
-            target = gloss.split(",")[0].strip()
             if not os.path.exists(os.path.join(root, target)):
                 problems.append(f"{where}: {label} points at {target!r}, which does not exist")
                 continue
@@ -835,7 +1011,7 @@ for path in candidates:
             continue
 
         # ---- the gloss -------------------------------------------------------
-        title, body, fname = table[num]
+        title, body, fname = part_record(scheme, m.group(2), m.group(3)) or table[num]
         tier = grounded(gloss, title, body)
         if tier:
             tally[tier] += 1
@@ -946,7 +1122,7 @@ if mode == "--check":
 
 if mode:
     print(f"citations: unknown argument {mode!r} "
-          "(no argument, or --check, --ratchet, --census, --moved)", file=sys.stderr)
+          "(no argument, or --check, --ratchet, --census, --moved, --selftest)", file=sys.stderr)
     sys.exit(2)
 
 print(f"{len(DECISIONS)} decisions, {len(MILESTONES)} milestones")

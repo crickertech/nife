@@ -406,6 +406,37 @@ and this page fails the build until it is brought back into agreement.
 
 ## BUGS
 
+**The scanner sees across one line break, and only one.** Until milestone 583 (`script/citations`
+could not see a citation a line break split, or a lettered milestone) the gap between a number and
+its `(` had to be a single literal space, so reflowing a paragraph until the wrap fell between
+a citation of milestone 326 (nobody has been assigned to turn a mutation score upward) and its `(` removed the citation from the gate's view without failing anything. Three
+lanes hit that in one week. **A closing emphasis marker is part of the gap too**, for the same
+reason. This tree bolds the number and leaves the gloss plain:
+
+```
+**milestone 41** (dead code: triage the suppressions)
+```
+
+so the `**` sat where nothing was allowed to be, hiding thirteen sites across ten files. A citation split across *two* line breaks is
+still invisible, because
+the one-newline cap is what stops a stray `(` on line 40 pairing with a `)` on line 900, and nothing
+in the tree wraps that way today. `script/citations --selftest` pins both the shapes that must be
+seen and the near-misses that must stay quiet, and it runs in `script/lint` ahead of `--check`: a
+green check looks identical whether the scanner works or has quietly stopped seeing a shape.
+
+**A lettered citation is glossed against its parent unless the letter has a file.** milestone 20a (name the seams)
+is read against `design/roadmap/20a-name-the-seams.md`, which is a block of its own. The letters
+with no file (7a, 9a, 16a, 16b, and milestone 19 (run a real workload)'s 19a through 19f) are
+read against their parent block, which is
+where those sub-parts are actually described. The ratchet's per-file key drops the letter either
+way, so a file that glosses milestone 19 has answered for milestone 19d as well; that matches
+the per-number rule the ratchet is built on, and it means a sub-part can ride on its parent's gloss.
+
+**The candidate pre-filter is deliberately looser than the scanner.** It accepts a line that *ends*
+in a citation, because that is what a wrapped one looks like to a line-based `git grep`, which
+widens the file list from 649 to 853 and costs about a second. Tightening it for speed is how the
+gate goes blind again, and the selftest is what would notice.
+
 **`--moved` cannot tell staleness from correctness, and it never will.** A note saying that
 milestone 30 (the network stack as a confined component) built the net stack is right forever, and
 it is listed every time 30's block is touched. The output is a prompt to look. If looking is
