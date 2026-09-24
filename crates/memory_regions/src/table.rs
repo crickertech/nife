@@ -73,9 +73,10 @@
 //! ```
 //!
 //! Name: provisional, for `RegionTable`, `DestroyClaim`, `insert_root`, `claim_for_destroy` and
-//! `return_to_parent`, minted 2026-08-18 by milestone 135's lane and not yet put to calef. Nouns
-//! per the naming tenet; `RegionTable` inherits its shape from the crate's own name, ratified
-//! 2026-08-23 as `memory_regions` (renamed from the unratified `regions`).
+//! `return_to_parent`, minted 2026-08-18 by milestone 135 (the region claim, under loom)'s lane and
+//! not yet put to calef. Nouns per the naming tenet; `RegionTable` inherits its shape from the
+//! crate's own name, ratified 2026-08-23 as `memory_regions` (renamed from the unratified
+//! `regions`).
 
 use crate::{DestroyOutcome, destroy_outcome, split_new_watermark};
 

@@ -212,9 +212,9 @@ static LOCAL_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
 
 /// Where this machine's local APIC is, physically, or `None` if ACPI has not said yet.
 ///
-/// Name: provisional (milestone 161): `mmu::LOCAL_APIC_PHYS` is the architectural *default*
-/// constant and this is what the machine actually reported, which is a distinction worth a better
-/// pair of names than these two.
+/// Name: provisional (milestone 161 (the x86_64 kernel port)): `mmu::LOCAL_APIC_PHYS` is the
+/// architectural *default* constant and this is what the machine actually reported, which is a
+/// distinction worth a better pair of names than these two.
 pub fn local_apic_phys() -> Option<u64> {
     match LOCAL_APIC_PHYS.load(Ordering::Relaxed) {
         0 => None,
@@ -419,7 +419,8 @@ pub const GSI_VECTOR_BASE: u8 = 0x30;
 /// no controller input and nothing to unmask), so an MSI intid **is** its vector, and the whole
 /// vector-to-intid inversion the trap handler used to owe for a device line never arises.
 ///
-/// Name: provisional (milestone 215): calef names public items.
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing on x86_64)): calef
+/// names public items.
 pub const MSI_VECTOR_BASE: u8 = 0xc0;
 
 /// The most redirection entries this kernel will use. Real parts have 24 (the 82093AA, QEMU's q35,

@@ -206,8 +206,9 @@ pub const VIRTIO_TYPE_INPUT: u32 = 18;
 /// `secondary == subordinate`; one firmware never configured at all reads back zeros, which
 /// [`walk`] treats as "nothing behind it" rather than as a second route to bus 0.
 ///
-/// Name: provisional (milestone 320), every name listed here: this type, [`bridge_buses`],
-/// [`Function`], [`walk`], [`BUS_NUMBERS`] and [`HEADER_TYPE_BRIDGE`]. calef names public items.
+/// Name: provisional (milestone 320 (every PCI bus the machine has)), every name listed here: this
+/// type, [`bridge_buses`], [`Function`], [`walk`], [`BUS_NUMBERS`] and [`HEADER_TYPE_BRIDGE`].
+/// calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BridgeBuses {
     pub primary: u8,
@@ -591,7 +592,8 @@ pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
 /// interrupt translation service.
 /// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
 ///
-/// Name: provisional (milestone 215), with [`MsixCap`] and [`msix_cap`]: calef names public items.
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing on x86_64)), with
+/// [`MsixCap`] and [`msix_cap`]: calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MsiTarget {
     /// The address the device writes to. 64-bit, written to the entry's low two dwords.

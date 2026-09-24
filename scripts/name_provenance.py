@@ -342,7 +342,8 @@ def classify(text):
 # **The grammar is the same `Name:` block.** What is new is only WHERE a block may sit and what it
 # is attached to, so `classify` judges every one of them unchanged. A lane minting a name writes the
 # marker; a name without one is simply not tracked. That is deliberate: thousands of `pub fn`s exist
-# with no record of why, and failing them would be the wall milestone 115 refused to build.
+# with no record of why, and failing them would be the wall milestone 115 (the names that were
+# ratified, and the ones that were refused) refused to build.
 
 # An item a doc comment can sit on, after its attributes. `const fn` is a function, so the keyword
 # list is scanned for the LAST keyword before the identifier.
@@ -365,7 +366,7 @@ AD_HOC = re.compile(r"^\*\*Provisional names?\b")
 
 
 def attached(lines, i):
-    """(what, name) for the item a doc run ending just above line `i` (0-based) documents, or None."""
+    """(what, name) for the item a doc run ending above line `i` (0-based) documents, or None."""
     depth = 0
     while i < len(lines):
         s = lines[i].strip()
@@ -425,12 +426,13 @@ def rust_items(text):
 
 # ---- documentation directories -----------------------------------------------------------------
 #
-# §75 already said a directory under `design/` or `notes/` records its name in its own README, and
-# nothing read it. A README block is a markdown PARAGRAPH (or list item) that opens `Name:`, once
-# emphasis is stripped, because that is how every existing README already wrote it (`*Name: ...*`).
-# A paragraph opening with a backticked file stem and then `Name:` is that stem's own block, and a
-# stem with none inherits the directory's: an appendix directory is minted in one piece, so one
-# block usually speaks for every file in it.
+# §75 (directories under `design/` and `notes/` carry provenance in their own README) already said
+# a directory under `design/` or `notes/` records its name in its own README, and nothing read it.
+# A README block is a markdown PARAGRAPH (or list item) that opens `Name:`, once emphasis is
+# stripped, because that is how every existing README already wrote it (`*Name: ...*`). A paragraph
+# opening with a backticked file stem and then `Name:` is that stem's own block, and a stem with
+# none inherits the directory's: an appendix directory is minted in one piece, so one block usually
+# speaks for every file in it.
 
 _MD_WRAP = re.compile(r"^(?:[-+]\s+|\d+\.\s+)?[*_]*")
 _MD_STEM = re.compile(r"^`([^`]+)`\s*[:.,]?\s*Name:\s*(.*)$", re.S)

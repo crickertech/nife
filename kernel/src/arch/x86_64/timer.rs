@@ -446,7 +446,7 @@ pub fn init_frequency(boot_info_pointer: usize) {
 /// the MADT's override names. This is the device half, and it is here because `timer.rs` is where
 /// the PIT lives.
 ///
-/// Name: provisional (milestone 161).
+/// Name: provisional (milestone 161 (the x86_64 kernel port)).
 pub fn start_pit_ticking(hz: u64) -> u64 {
     let divisor = (PIT_HZ / hz).clamp(1, u16::MAX as u64) as u16;
 

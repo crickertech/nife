@@ -30,8 +30,9 @@
 //! No DMA page, no `Virtio` transport, no budget, no report endpoint, and no capability naming
 //! any other process. It cannot print, cannot spawn, and cannot read what anyone else typed.
 //!
-//! Name: provisional (milestone 192's lane). `input_service` is `keyboard_service`'s shape
-//! applied to the program it spawns, the way `console_service` is named for `console`.
+//! Name: provisional (milestone 192 (a keyboard on real silicon)'s lane). `input_service` is
+//! `keyboard_service`'s shape applied to the program it spawns, the way `console_service` is named
+//! for `console`.
 
 use super::*;
 use crate::cap::{Rights, irq_cap_rights, rendezvous_cap};

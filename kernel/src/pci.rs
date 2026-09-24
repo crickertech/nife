@@ -83,8 +83,9 @@ pub fn ecam_buses() -> u16 {
 /// caller still clamps against the window the machine actually described: a survey cannot report a
 /// bus outside it, but `PCI_ECAM_BUSES` on a machine that describes less than one bus could.
 ///
-/// Name: provisional (milestone 320), every name listed here: this, [`ecam_buses`], [`survey`]
-/// and `NIFE_PCIE_ROOT_PORT` in `scripts/qemu-runner-x86_64.sh`. calef names public items.
+/// Name: provisional (milestone 320 (every PCI bus the machine has)), every name listed here: this,
+/// [`ecam_buses`], [`survey`] and `NIFE_PCIE_ROOT_PORT` in `scripts/qemu-runner-x86_64.sh`. calef
+/// names public items.
 pub fn ecam_bytes() -> u64 {
     u64::from(ecam_buses()) * BUS_BYTES
 }
