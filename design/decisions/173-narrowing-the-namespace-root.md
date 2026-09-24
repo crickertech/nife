@@ -75,6 +75,7 @@ is not a measurement at all; it is a judgement about what a prompt means, which 
 
 ## What is blocked until this is answered
 
-**Milestone 328** (a grant on the root of the shell's namespace), entirely. Nothing else cites it, and `script/swish-check` gates the working case
+Milestone 328 (a grant on the root of the shell's namespace), entirely. Nothing else cites
+it, and `script/swish-check` gates the working case
 on both ISAs, so there is no regression risk in leaving it: what stands is a permanent hole in the
 headline demonstration, at the one place a newcomer starts.

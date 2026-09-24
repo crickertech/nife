@@ -250,9 +250,8 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   depend on the answer and an unverified number in a table of verified ones is worse than a gap.
 - **The interleaving hazard grew and then went away again, and the underlying one did not.** The
   kernel's own UART driver and the userspace console server write the same device with nothing
-  arbitrating, which `script/swish-check`'s BUGS section documents at length and milestone 230
-  (`script/shell-check` is red on `main`, on both architectures)
-  proposes fixing. This milestone put fifteen more userspace-printed lines on the default boot; the
+  arbitrating, which `script/swish-check`'s BUGS section documents at length and
+  milestone 230 (`script/shell-check` is red on `main`, on both architectures) proposes fixing. This milestone put fifteen more userspace-printed lines on the default boot; the
   deletion took all fifteen back, along with the `timer::spin_for` window that had been keeping the
   two writers apart. **The unarbitrated device is unchanged**, because it was never the narrative's
   doing: the boot-time console server still holds the UART's registers on a tour boot, it simply has
