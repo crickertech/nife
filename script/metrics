@@ -1113,7 +1113,7 @@ def bugs(tree):
             'bugs_rust': sum(len(_RS_BUGS.findall(t)) for _p, t in tree.rust())}
 
 
-# The unsafe census (milestone 134) and the harness count, both from `helpers/rust_source.py`.
+# The unsafe census (milestone 134 (the register of measures)) and the harness count, both from `helpers/rust_source.py`.
 # The columns keep their `unsafe_` prefix here because a CSV header has no other namespace; the
 # shared function's keys are the unprefixed ones a caller in `script/lint` reads.
 

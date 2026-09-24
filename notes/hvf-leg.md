@@ -97,7 +97,7 @@ roughly a **3x** win on the leg, and more than that on the booted suite alone, s
 seconds of both numbers is cargo and image building.
 
 So the leg adds 12 to 16 seconds to the local run. Timing it before adopting it was the condition
-milestone 81 set; the `--full` flag the block named as the fallback is not needed, because native
+milestone 81 (an HVF leg: the test suite on the physical core) set; the `--full` flag the block named as the fallback is not needed, because native
 execution beat TCG by the margin the block hoped for.
 
 ## Why the local tier and not a workflow

@@ -1518,7 +1518,7 @@ fn swish_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     }
     // The flags [`swish_check_leg`] never sets: a virtio-gpu and (in the device arm) a
     // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
-    // `helpers/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
+    // `helpers/qemu-runner-*.sh` exactly the way they always have been (milestone 177 (wire the graphical terminal stack into the real interactive boot) changed what
     // *the progenitor* does with them existing, not how they get attached).
     cmd.env("NIFE_GPU", "1");
     if keystrokes == Keystrokes::Device {

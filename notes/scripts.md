@@ -83,6 +83,14 @@ crates run under QEMU, out of reach of host instrumentation, which is the same r
 leaning on `bootstrap`, so the CI test job (which runs `bootstrap`) never compiles a coverage tool
 it does not use.
 
+**What the table's numbers cite**, gathered here rather than inline because the `script/lint` row is
+one of the longest markdown lines in the repository and `documentation::render::LINE_MAX` is sized
+against the longest: DECISIONS §38 (a suppression carries a reason), §46 (thin primitives or whole
+subsystems) and §61 (a lint adopted on evidence), plus milestone 68 (code-quality gates),
+milestone 94 (the untracked-work sweep) and milestone 113 (the proofs' unsafe code is ungated). Two
+rows further down cite milestone 87 (the x86_64 bare-metal machine) and
+milestone 287 (`script/bootstrap` installs a working QEMU on Linux).
+
 ## They are thin wrappers, on purpose
 
 The scripts do almost nothing themselves. `script/test` is `cargo xtask test`; `script/server`
