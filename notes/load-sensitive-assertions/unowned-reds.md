@@ -175,6 +175,9 @@ quantity, not an object. It was reverted. The same filtered run on the clean tre
 
 ### `kernel/src/arch/aarch64/timer.rs:680`, `holding_a_lock_masks_the_timer`: "the timer is not ticking at all"
 
+*Fixed on 2026-09-24: the check now waits on the property under a one-second bound. See
+[the preemption window appendix](preemption-window-tick.md).*
+
 ```rust
 let alive_on = crate::cpu::id();
 let t0 = timer::ticks_on(alive_on);
