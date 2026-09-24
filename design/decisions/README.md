@@ -7,6 +7,9 @@ chose, what we rejected, and why. Revisit these deliberately, not accidentally.
 
 ## How this directory works
 
+**The table under `## The decisions` is generated.** Run `script/decisions --write-index` after
+adding a decision; the prose around it is written by hand and is not touched.
+
 One decision, one file, named `NN-slug.md`. The number is the identity: `§14` is
 `14-project-direction.md` and nothing else, and the 2,000-odd `§N` citations spread across the
 kernel, the crates, the notes and the roadmap all resolve here. GitHub renders this README as the
@@ -25,22 +28,62 @@ roadmap split (milestone 76) did one directory over:
 - **A status flip stops being a conflict.** Marking one decision superseded used to edit the file
   every other lane was also editing.
 
+Milestone 581 finished that argument one step further. The index table was still hand-maintained, so
+every lane minting a section edited one sorted file and collided with every other lane in flight,
+always, there. `briefs/rebase-onto-main.md` names it as case 4's worked example. Generating the
+table from the files removed the last additive-index conflict in this tree, the same move
+milestone 294 made for `design/roadmap/README.md`.
+
 Do not renumber. A number that moves breaks citations that no gate can see are wrong, because a
 well-formed citation to the wrong section still resolves. Milestone 97 is where that check gets
 built, and this directory is what makes it cheap: once a decision is a file with a title, a
 citation's parenthetical name can be compared against that title.
 
-## Status
+## Frontmatter, which is where the status lives
 
-Every decision carries a status on the line under its title, and the table below repeats it. The
-two must agree, and `script/decisions --check` fails if they do not.
+Every decision opens with frontmatter, and it is the only record of its status. The prose may not
+restate it, because two copies of one fact in one file is what the schema was ratified to remove.
+The table below is generated from these keys by `script/decisions --write-index`, so a lane minting
+a section writes one file and nothing else.
+
+```yaml
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+```
+
+| key | values | required when |
+|---|---|---|
+| `status` | `PROPOSED`, `DECIDED`, `AMENDED`, `SUPERSEDED` | always |
+| `raised` | `YYYY-MM-DD`, UTC | always |
+| `decided` | `YYYY-MM-DD`, UTC | `status` is `DECIDED` or `AMENDED` |
+| `ratified_by` | a GitHub username | `status` is `DECIDED` or `AMENDED` |
+| `superseded_by` | a section number | `status` is `SUPERSEDED` |
+
+The schema is calef's, ratified 2026-09-23, and a lane does not extend it. Keys are snake_case,
+values uppercase, dates UTC like every other date in this tree.
+
+This was `**Status: DECIDED.**` in prose until milestone 581 (a decision's status becomes a field,
+and the index becomes generated). Two failures came from reading a field out of a sentence. A file
+said `**Status: NOT YET`, the regex captured `NOT`, dropped `YET`, and the report printed a word
+nobody had written, which is §211's finding. `design/fatal-risks.md`'s risk 7 carried two status
+lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
+weeks.
+
+`design/decisions/PROVENANCE-GAPS.md` lists the files that do not state a date the schema requires.
+It is a ratchet: a gap named there passes and a new one fails, so the list can only shrink. The
+dates were never written down for most of the corpus, and an invented one would be worse than a
+recorded gap.
 
 | Status | Means |
 |---|---|
 | `PROPOSED` | Raised, not yet decided. Options and a recommendation are in the file; nothing is built on it, and nothing should cite it as settled. Waiting on calef. |
 | `DECIDED` | It holds as written. |
-| `AMENDED` | It holds, but part of it was revised or overtaken by later work. The status line names what changed, and the amendment is in the file or in the decision it names. |
-| `SUPERSEDED BY N` | A later decision replaces it. Kept, never deleted, because the reasoning is the record: §8's deferral was correct and §10 is what it deferred to. |
+| `AMENDED` | It holds, but part of it was revised or overtaken by later work. The file names what changed, and the amendment is in the file or in the decision it names. |
+| `SUPERSEDED` | A later decision replaces it, and `superseded_by` names which. Kept, never deleted, because the reasoning is the record: §8's deferral was correct and §10 is what it deferred to. The table below shows it as `SUPERSEDED BY N`, which is the two keys read together. |
 
 `AMENDED` is the token that pays for the vocabulary. Eleven decisions carry a revision that a reader
 of the opening paragraph would otherwise miss, and §26 is the sharpest: its first line still says
