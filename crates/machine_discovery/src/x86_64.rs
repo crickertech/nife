@@ -431,7 +431,7 @@ mod verification {
             assert_eq!(isa.brand, [0u8; 48]);
         }
         if w.leaf0[0] < 7 {
-            assert!(!isa.rdseed());
+            assert!(!isa.has_rdseed());
         }
 
         // `REQUIRED` and `WARNED` are folded out of `TABLE` by a `const fn` comparing discriminants,
@@ -1016,7 +1016,7 @@ impl Isa {
 
     /// Does the part implement `RDSEED`? The one row of [`TABLE`] anything outside the boot gate
     /// branches on, so it gets a name rather than making a call site spell the bit.
-    pub fn rdseed(&self) -> bool {
+    pub fn has_rdseed(&self) -> bool {
         self.features.contains(RDSEED)
     }
 

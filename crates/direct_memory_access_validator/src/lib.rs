@@ -28,7 +28,7 @@
 //! address the device will touch has to be inside it, whichever direction the bytes move:
 //!
 //! ```
-//! use direct_memory_access_validator::{Desc, check_descriptor, in_region};
+//! use direct_memory_access_validator::{Desc, check_descriptor, is_in_region};
 //!
 //! // One 64 KiB region, granted to a userspace virtio driver.
 //! let (base, size) = (0x4000_0000u64, 0x1_0000u64);
@@ -49,14 +49,14 @@
 //! // which is why there is only one.
 //! let overrun = Desc { addr: base + size - 8, word: 1500 };
 //! assert!(!check_descriptor(base, size, qsize, overrun));
-//! assert!(!in_region(base, size, base + size - 8, 1500));
+//! assert!(!is_in_region(base, size, base + size - 8, 1500));
 //! ```
 //!
 //! Two refusals are less obvious and are the ones that make the check total rather than merely
 //! correct on ordinary input:
 //!
 //! ```
-//! use direct_memory_access_validator::{Desc, F_INDIRECT, F_NEXT, check_descriptor, in_region};
+//! use direct_memory_access_validator::{Desc, F_INDIRECT, F_NEXT, check_descriptor, is_in_region};
 //!
 //! let (base, size, qsize) = (0x4000_0000u64, 0x1_0000u64, 8u16);
 //!
@@ -74,8 +74,8 @@
 //!
 //! // And arithmetic that would overflow answers "refuse" rather than panicking. A wrapping region
 //! // can only ever over-reject, which is the safe direction.
-//! assert!(!in_region(base, size, u64::MAX - 4, 1500));
-//! assert!(!in_region(u64::MAX - 4, 1500, base, 16));
+//! assert!(!is_in_region(base, size, u64::MAX - 4, 1500));
+//! assert!(!is_in_region(u64::MAX - 4, 1500, base, 16));
 //! ```
 //!
 //! Name: ratified 2026-09-24 (calef, #1229), replacing `dma_validator`. Refused `dma_validator`
@@ -116,7 +116,7 @@ pub const F_INDIRECT: u16 = 4;
 /// only ever over-reject (the run's end is a huge in-region address, above any wrapped limit), which
 /// is the safe direction; real DMA regions are bounded by RAM and never wrap, so this hardening
 /// changes nothing the kernel actually sees. See the `in_region_is_sound` proof.
-pub fn in_region(base: u64, size: u64, addr: u64, len: u64) -> bool {
+pub fn is_in_region(base: u64, size: u64, addr: u64, len: u64) -> bool {
     match (addr.checked_add(len), base.checked_add(size)) {
         (Some(end), Some(limit)) => addr >= base && end <= limit,
         _ => false,
@@ -169,7 +169,7 @@ pub fn check_descriptor(base: u64, size: u64, qsize: u16, d: Desc) -> bool {
     if d.is_indirect() {
         return false; // an indirect table is never copied, so the device would follow it unchecked
     }
-    if !in_region(base, size, d.addr, d.buf_len()) {
+    if !is_in_region(base, size, d.addr, d.buf_len()) {
         return false; // the buffer escapes the driver's region
     }
     if d.has_next() && d.next() >= qsize {
@@ -356,11 +356,11 @@ mod verification {
     const QS: u16 = 8;
     const Q: usize = 8;
 
-    /// **The confinement predicate is sound: an accepted range is genuinely inside the region.** For
-    /// every base, size, addr, and len, if [`in_region`] says yes then the addition did not overflow
-    /// and `base <= addr` and `addr + len <= base + size`. This is the arithmetic the whole boundary
-    /// rests on, quantified over all 2^256 input combinations at once, and it also proves totality
-    /// (the hardened checked adds never panic on any input).
+    /// **The confinement predicate is sound: an accepted range is genuinely inside the region.**
+    /// For every base, size, addr, and len, if [`is_in_region`] says yes then the addition did not
+    /// overflow and `base <= addr` and `addr + len <= base + size`. This is the arithmetic the
+    /// whole boundary rests on, quantified over all 2^256 input combinations at once, and it also
+    /// proves totality (the hardened checked adds never panic on any input).
     /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.in_region_is_sound.patch`
     #[kani::proof]
     fn in_region_is_sound() {
@@ -369,7 +369,7 @@ mod verification {
         let addr: u64 = kani::any();
         let len: u64 = kani::any();
 
-        if in_region(base, size, addr, len) {
+        if is_in_region(base, size, addr, len) {
             let end = addr
                 .checked_add(len)
                 .expect("acceptance implies no addr+len overflow");
@@ -412,9 +412,9 @@ mod verification {
         };
         if check_descriptor(base, size, QS, d) {
             // **The indirect bit and the containment stated over the word** (milestone 211).
-            // `check_descriptor` refuses on `d.is_indirect()` and on `!in_region(..)`, so a
+            // `check_descriptor` refuses on `d.is_indirect()` and on `!is_in_region(..)`, so a
             // harness phrased only through those two calls proves that the guard and the
-            // assertion agree. `in_region` is pinned independently by `in_region_is_sound`
+            // assertion agree. `is_in_region` is pinned independently by `in_region_is_sound`
             // just above; `is_indirect` was pinned by nothing, and an `is_indirect` stuck at
             // false would let an indirect descriptor reach the device with this harness green.
             assert_eq!(
@@ -434,7 +434,7 @@ mod verification {
                 "an accepted descriptor escapes the region"
             );
             // **The two assertions that used to sit here are gone** (milestone 307).
-            // `assert!(!d.is_indirect())` and `assert!(in_region(base, size, d.addr,
+            // `assert!(!d.is_indirect())` and `assert!(is_in_region(base, size, d.addr,
             // d.buf_len()))` were the same two calls, with the same arguments, that
             // `check_descriptor` returns false on: pure restatements of the `if` guard just
             // passed, so neither could fail under any defect in this crate. They carried the two
@@ -527,7 +527,7 @@ mod verification {
                     "an indirect descriptor reached the shadow the device reads",
                 );
                 assert!(
-                    in_region(self.base, self.size, landed.addr, landed.buf_len()),
+                    is_in_region(self.base, self.size, landed.addr, landed.buf_len()),
                     "a descriptor that escapes the DMA region reached the shadow the device reads",
                 );
             }
@@ -640,7 +640,7 @@ mod verification {
             );
             let device_sees = mem.s_desc.borrow()[slot];
             assert!(
-                in_region(mem.base, mem.size, device_sees.addr, device_sees.buf_len()),
+                is_in_region(mem.base, mem.size, device_sees.addr, device_sees.buf_len()),
                 "the device would read an out-of-region descriptor from the shadow",
             );
 
@@ -1101,9 +1101,9 @@ mod tests {
 
     #[test]
     fn in_region_rejects_overflow() {
-        assert!(!in_region(0, 0x1000, u64::MAX, 1)); // addr + len wraps
-        assert!(in_region(0x1000, 0x1000, 0x1000, 0x1000)); // exact fit
-        assert!(!in_region(0x1000, 0x1000, 0x1000, 0x1001)); // one past
+        assert!(!is_in_region(0, 0x1000, u64::MAX, 1)); // addr + len wraps
+        assert!(is_in_region(0x1000, 0x1000, 0x1000, 0x1000)); // exact fit
+        assert!(!is_in_region(0x1000, 0x1000, 0x1000, 0x1001)); // one past
     }
 
     #[test]

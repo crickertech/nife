@@ -120,7 +120,7 @@ pub fn attach_screen(at: usize) -> Option<(Framebuffer, u32, u32)> {
     // once a screen has been found, so the wait is structurally impossible on a machine that has
     // none. See `console::hold_screen_at_handover`, which says what it costs an ordinary boot
     // (nothing) and what it is for.
-    if machine_discovery::framebuffer::screen_hold(cmdline) {
+    if machine_discovery::framebuffer::has_screen_hold(cmdline) {
         crate::console::hold_screen_at_handover();
     }
 
@@ -457,7 +457,7 @@ fn table_at(at: u64) -> Option<(SdtHeader, &'static [u8])> {
     }
     // SAFETY: `reachable` checked the whole table's range, using the length the header states.
     let whole = unsafe { phys_slice(at, header.length as usize) };
-    if !acpi::checksum_ok(whole) {
+    if !acpi::is_checksum_ok(whole) {
         return None;
     }
     Some((header, &whole[acpi::SDT_HEADER_LEN..]))

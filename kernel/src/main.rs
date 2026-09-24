@@ -584,7 +584,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             Some(v) => {
                 println!("  entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew {v:#018x}");
             }
-            None if arch::isa::get().rdseed() => {
+            None if arch::isa::get().has_rdseed() => {
                 println!("  entropy     : rdseed supported but stayed dry across every retry");
             }
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
@@ -1500,7 +1500,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                         report.clock_before[1],
                                         report.clock_after[0],
                                         report.clock_after[1],
-                                        if report.clocks_running() {
+                                        if report.has_clocks_running() {
                                             "running"
                                         } else {
                                             "NOT running: the enable bit did not read back, so nothing is behind this window"

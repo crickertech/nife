@@ -13,7 +13,7 @@ What that costs is on record at the bench. The VisionFive 2's vendor firmware ma
 its M/U-only S7 monitor core `"okay"` with `mmu-type = "riscv,sv39"`, both false,
 and starting it crashed the firmware (2026-08-14, notes/visionfive2.md). The hart's
 own `riscv,isa` is the only thing that tells the truth, and `Some(false)` from this
-function is the only thing `Cpu::startable` has to refuse it with. Turn a
+function is the only thing `Cpu::is_startable` has to refuse it with. Turn a
 `Some(false)` into a `Some(true)` and this kernel starts a core with no supervisor
 mode, on the machine where that already happened once.
 

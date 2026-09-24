@@ -379,7 +379,7 @@ fn write_cpus(o: &mut Out<'_>, machine: &Machine) -> Result<(), Error> {
         o.prop_cells(b"reg", &cells64(cpu.mpidr))?;
         o.prop(b"enable-method", b"psci\0")?;
         // A disabled MADT entry is firmware saying "a socket is here and I will not start it",
-        // which is exactly what `status = "disabled"` says to `cpu_list::Cpu::startable`.
+        // which is exactly what `status = "disabled"` says to `cpu_list::Cpu::is_startable`.
         if !cpu.enabled {
             o.prop(b"status", b"disabled\0")?;
         }
@@ -590,7 +590,10 @@ mod tests {
         assert_eq!(list.described, 4);
         for (i, cpu) in list.cpus().iter().enumerate() {
             assert_eq!(cpu.hwid, i as u64);
-            assert!(cpu.startable(), "an enabled MADT entry is a startable core");
+            assert!(
+                cpu.is_startable(),
+                "an enabled MADT entry is a startable core"
+            );
             assert_eq!(cpu.enable_method, EnableMethod::Psci);
         }
 
@@ -695,7 +698,7 @@ mod tests {
 
     /// **A disabled MADT entry becomes a core the kernel will not start**, and stays in the list.
     /// Dropping it would describe a smaller machine than the one in front of us; marking it
-    /// `status = "disabled"` is what `cpu_list::Cpu::startable` already knows how to refuse.
+    /// `status = "disabled"` is what `cpu_list::Cpu::is_startable` already knows how to refuse.
     #[test]
     fn a_disabled_core_is_described_and_not_startable() {
         let mut machine = qemu_virt();
@@ -704,7 +707,7 @@ mod tests {
         let dt = DeviceTreeBlob::from_bytes(&out[..len]).expect("a well-formed device tree");
         let list = CpuList::from_device_tree(&dt).expect("/cpus parses");
         assert_eq!(list.described, 4, "all four are described");
-        let startable = list.cpus().iter().filter(|c| c.startable()).count();
+        let startable = list.cpus().iter().filter(|c| c.is_startable()).count();
         assert_eq!(startable, 3, "the disabled one is refused");
     }
 

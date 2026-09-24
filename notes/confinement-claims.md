@@ -435,10 +435,11 @@ carry an assertion that states the claim in the claim's own vocabulary and canno
   comment *"no byte the device would touch lies outside the granted region"*, directly below the two
   assertions it is the conjunction of. Removed in 307; the sentence moved onto the live pair.
 - **Row 14.** `an_accepted_descriptor_is_confined` kept `assert!(!d.is_indirect())` and
-  `assert!(in_region(base, size, d.addr, d.buf_len()))` **below** the milestone 211 assertions that
-  replaced them. Inside `if check_descriptor(..)` those are the same two calls with the same
-  arguments the guard returns false on, so neither can fail. 211 added the working phrasing and left
-  the blind one underneath holding both readable messages. Removed in 307.
+  `assert!(is_in_region(base, size, d.addr, d.buf_len()))` **below** the assertions of milestone 211
+  (a harness that states its property through the function under test) that replaced them. Inside
+  `if check_descriptor(..)` those are the same two calls with the same arguments the guard returns
+  false on, so neither can fail. 211 added the working phrasing and left the blind one underneath
+  holding both readable messages. Removed in 307.
 - **Row 18.** The inversion described in the section above.
 - **Row 4.** `a_deleted_capability_stays_deleted`'s `get`/`delete` re-use refusals sit below the
   storage check `assert!(cs.slots[slot].is_none())`, which catches the same defect one line earlier.
@@ -496,13 +497,13 @@ component never having asked. Recorded rather than fixed, because the fix is a p
 
 The predicate class that produced 305's survivor was checked on every architecture and found sound
 elsewhere. aarch64's `user_can_read` asks the silicon (`AT S1E0R`) and has no half to get wrong;
-x86_64 has no such predicate at all. The DMA attackers' descriptors reach `in_region` rather than
+x86_64 has no such predicate at all. The DMA attackers' descriptors reach `is_in_region` rather than
 being turned away by an earlier check (`check_descriptor` tries `is_indirect` first, and the direct
 attacker's descriptor is not indirect; the indirect attacker's *is*, and its own comment says so).
-The compositor test's vacuity guard, `neighbour_probe_phys(ATTACKER) == client[VICTIM] + FRAME_SIZE`,
-compares two different allocation records and is a real fact about adjacency rather than a
-restatement. `reap_tests::assert_can_only_supervise` walks every slot and checks both directions.
-All of these fire as advertised.
+The compositor test's vacuity guard, `neighbour_probe_phys(ATTACKER) == client[VICTIM] +
+FRAME_SIZE`, compares two different allocation records and is a real fact about adjacency rather
+than a restatement. `reap_tests::assert_can_only_supervise` walks every slot and checks both
+directions. All of these fire as advertised.
 
 ## What attacking them found (risk 7's adversarial pass, 2026-09-21)
 

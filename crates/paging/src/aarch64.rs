@@ -336,7 +336,7 @@ mod verification {
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
-        assert!(!(Aarch64::in_half(Half::Low, va) && Aarch64::in_half(Half::High, va)));
+        assert!(!(Aarch64::is_in_half(Half::Low, va) && Aarch64::is_in_half(Half::High, va)));
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, and never the high one.
@@ -349,7 +349,7 @@ mod verification {
             va & 0xfff == 0 && va >> 48 == 0
         );
         if crate::is_user_page_va::<Aarch64>(va) {
-            assert!(Aarch64::in_half(Half::Low, va) && !Aarch64::in_half(Half::High, va));
+            assert!(Aarch64::is_in_half(Half::Low, va) && !Aarch64::is_in_half(Half::High, va));
         }
     }
 

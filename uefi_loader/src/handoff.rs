@@ -301,7 +301,7 @@ mod tests {
     /// either way, because it is the half no build may lose.
     #[test]
     fn the_kernel_reads_back_the_command_line_this_writes() {
-        use machine_discovery::framebuffer::{Framebuffer, PixelOrder, screen_hold};
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder, has_screen_hold};
 
         let screen = Framebuffer {
             base: 0x8000_0000,
@@ -323,7 +323,7 @@ mod tests {
             "the kernel's own parser reads the screen back"
         );
         assert_eq!(
-            screen_hold(line),
+            has_screen_hold(line),
             cfg!(feature = "screen_hold"),
             "the hold token is present exactly when the feature that writes it is on"
         );

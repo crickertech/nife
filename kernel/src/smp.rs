@@ -214,13 +214,13 @@ pub fn read_cpu_list() {
     // hart 4 fell off the end, parked with nothing to report (bench, 2026-08-14). Seated by id,
     // the S7 occupies only slot 0, its own, and hart 4 sits at slot 4.
     //
-    // The startability predicate is `machine_discovery::cpu_list::Cpu::startable`, host-tested against both
-    // JH7110 fixtures (the mainline tree's `status` lie and the vendor tree's ISA-string truth);
-    // see it for why `Unstated` passes and why supervisor mode is required.
+    // The startability predicate is `machine_discovery::cpu_list::Cpu::is_startable`, host-tested
+    // against both JH7110 fixtures (the mainline tree's `status` lie and the vendor tree's
+    // ISA-string truth); see it for why `Unstated` passes and why supervisor mode is required.
     let mut startable = 0;
     let mut unseated = 0; // startable cores whose hart id names no slot
     for cpu in list.cpus().iter() {
-        let ok = cpu.startable();
+        let ok = cpu.is_startable();
         startable += usize::from(ok);
         let Some(slot) = usize::try_from(cpu.hwid).ok().filter(|&s| s < MAX_CPUS) else {
             // A core this build cannot seat: its id is past the per-CPU statics (or it is a
@@ -798,7 +798,7 @@ mod tests {
             // `supervisor` on this machine means the parser read a modern string's silence, or a
             // multi-letter extension, as a denial.
             assert!(
-                cpu.startable(),
+                cpu.is_startable(),
                 "hart {} would be excluded from bring-up on the suite's own machine",
                 cpu.hwid,
             );

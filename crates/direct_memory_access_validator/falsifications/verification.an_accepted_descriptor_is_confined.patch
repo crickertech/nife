@@ -14,7 +14,7 @@ which is the predicate `check_descriptor` guards on, so the guard and the assert
 one call and a defect in it satisfied both. Confirmed by applying this diff against the
 old phrasing and watching it stay green. The flag's position in the descriptor word is
 now written out. Its sibling assertion, the containment claim, is phrased through
-`in_region`, and that predicate is pinned independently one harness up by
+`is_in_region`, and that predicate is pinned independently one harness up by
 `in_region_is_sound`; the containment is restated over the addresses here anyway, so the
 two claims stand on the same footing.
 

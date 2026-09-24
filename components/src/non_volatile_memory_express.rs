@@ -289,7 +289,7 @@ impl Plane {
         let mut done: Option<Completion> = None;
         for _ in 0..SPIN_BOUND {
             let c = Completion::from_dwords(DATA.read::<[u32; 4]>(cqe));
-            if self.cq.owned(&c) {
+            if self.cq.is_owned(&c) {
                 done = Some(c);
                 break;
             }

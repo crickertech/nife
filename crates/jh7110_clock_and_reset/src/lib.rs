@@ -78,7 +78,7 @@
 //!   };
 //!   ```
 //!
-//!   and the update rule, which is where [`deasserted`]'s inverted sense comes from:
+//!   and the update rule, which is where [`is_deasserted`]'s inverted sense comes from:
 //!
 //!   ```c
 //!   u32 done = data->asserted ? data->asserted[offset] & mask : 0;
@@ -150,7 +150,7 @@
 //! # Examples
 //!
 //! ```
-//! use jh7110_clock_and_reset::{STG, Step, TRNG_BRING_UP, CLOCK_ENABLE, deasserted};
+//! use jh7110_clock_and_reset::{STG, Step, TRNG_BRING_UP, CLOCK_ENABLE, is_deasserted};
 //!
 //! // The TRNG's plan is two clocks then one reset, in that order, which is the order
 //! // Linux's own probe takes: a reset deassert against a gated clock can hang forever.
@@ -167,8 +167,8 @@
 //! // "out of reset", which is the opposite of what the register name suggests.
 //! let r = STG.reset_bit(3).unwrap();
 //! assert_eq!((r.assert_offset, r.status_offset, r.mask), (0x74, 0x78, 1 << 3));
-//! assert!(deasserted(0b1000, r.mask));
-//! assert!(!deasserted(0b0111, r.mask));
+//! assert!(is_deasserted(0b1000, r.mask));
+//! assert!(!is_deasserted(0b0111, r.mask));
 //! ```
 //!
 //! [mainline-dts]: https://github.com/torvalds/linux/blob/master/arch/riscv/boot/dts/starfive/jh7110.dtsi
@@ -195,7 +195,7 @@ pub enum Step {
     /// Set [`CLOCK_ENABLE`] in the domain's word for this clock index.
     EnableClock(u32),
     /// Clear this reset's bit in the domain's assert word, then wait for its status bit to read
-    /// as [`deasserted`].
+    /// as [`is_deasserted`].
     DeassertReset(u32),
 }
 
@@ -335,13 +335,13 @@ impl Domain {
 /// backwards would produce a driver that waits forever on a device that came up correctly, which
 /// is the failure this function exists to have exactly one copy of.
 #[must_use]
-pub const fn deasserted(status_word: u32, mask: u32) -> bool {
+pub const fn is_deasserted(status_word: u32, mask: u32) -> bool {
     status_word & mask != 0
 }
 
 /// **Is this clock running?** Given the clock's own word.
 #[must_use]
-pub const fn clock_enabled(clock_word: u32) -> bool {
+pub const fn is_clock_enabled(clock_word: u32) -> bool {
     clock_word & CLOCK_ENABLE != 0
 }
 
@@ -373,8 +373,9 @@ pub struct Report {
     pub reset_assert_before: u32,
     /// The same word read back after the step's bit was cleared.
     pub reset_assert_after: u32,
-    /// The status word as the poll last saw it. A set bit means out of reset; see [`deasserted`],
-    /// whose doc records why that sense is the opposite of what the name suggests.
+    /// The status word as the poll last saw it. A set bit means out of reset; see
+    /// [`is_deasserted`], whose doc records why that sense is the opposite of what the name
+    /// suggests.
     pub reset_status_after: u32,
     /// True when the plan contained a `DeassertReset` at all, so a reader can tell "no reset in
     /// this plan" from "a reset whose registers all read zero".
@@ -393,11 +394,11 @@ impl Report {
     /// **Did every clock this plan named read its enable bit back?** A clock that does not is a
     /// window with nothing behind it, or a base address that is not this controller.
     #[must_use]
-    pub fn clocks_running(&self) -> bool {
+    pub fn has_clocks_running(&self) -> bool {
         self.clocks > 0
             && self.clock_after[..self.clocks]
                 .iter()
-                .all(|&w| clock_enabled(w))
+                .all(|&w| is_clock_enabled(w))
     }
 
     /// **Was the device already up before this ran?** True when every recorded clock was enabled
@@ -408,7 +409,7 @@ impl Report {
         let clocks = self.clocks > 0
             && self.clock_before[..self.clocks]
                 .iter()
-                .all(|&w| clock_enabled(w));
+                .all(|&w| is_clock_enabled(w));
         clocks && (!self.had_reset || self.reset_assert_before & self.reset_mask() == 0)
     }
 
@@ -614,14 +615,14 @@ mod tests {
     #[test]
     fn a_report_of_zeros_is_not_a_report_of_success() {
         // This is radon's 2026-09-04 shape, one level up: a window with nothing behind it accepts
-        // every store and reads back zero, so `clocks_running` must be false on the *after*
+        // every store and reads back zero, so `has_clocks_running` must be false on the *after*
         // words rather than on the fact that the writes returned.
         let dead = Report {
             clocks: 2,
             had_reset: true,
             ..Report::default()
         };
-        assert!(!dead.clocks_running());
+        assert!(!dead.has_clocks_running());
         assert!(!dead.was_already_up());
         assert!(!dead.released);
     }
@@ -630,7 +631,7 @@ mod tests {
     fn a_report_with_no_clock_steps_claims_nothing() {
         // `clocks: 0` must not read as "all zero of my clocks are running", which is what a bare
         // `.iter().all()` would say. A plan that enabled nothing has proven nothing.
-        assert!(!Report::default().clocks_running());
+        assert!(!Report::default().has_clocks_running());
         assert!(!Report::default().was_already_up());
     }
 
@@ -650,7 +651,7 @@ mod tests {
             reset_assert_after: 0,
             ..Report::default()
         };
-        assert!(clocked_but_held.clocks_running());
+        assert!(clocked_but_held.has_clocks_running());
         assert!(
             !clocked_but_held.was_already_up(),
             "the reset bit was still asserted before this ran"
@@ -728,7 +729,7 @@ mod tests {
             polls: 1,
             ..Report::default()
         };
-        assert!(up.clocks_running());
+        assert!(up.has_clocks_running());
         assert!(up.was_already_up());
     }
 
@@ -746,7 +747,7 @@ mod tests {
             polls: 3,
             ..Report::default()
         };
-        assert!(started.clocks_running());
+        assert!(started.has_clocks_running());
         assert!(!started.was_already_up(), "this run is what turned it on");
     }
 
@@ -821,20 +822,23 @@ mod tests {
     #[test]
     fn a_set_status_bit_means_out_of_reset() {
         let mask = STG.reset_bit(STGRST_SEC_AHB).unwrap().mask;
-        assert!(deasserted(u32::MAX, mask));
-        assert!(!deasserted(0, mask));
-        assert!(!deasserted(!mask, mask), "every other bit must not count");
+        assert!(is_deasserted(u32::MAX, mask));
+        assert!(!is_deasserted(0, mask));
+        assert!(
+            !is_deasserted(!mask, mask),
+            "every other bit must not count"
+        );
     }
 
     #[test]
     fn an_enabled_clock_reads_its_top_bit_back() {
-        assert!(clock_enabled(CLOCK_ENABLE));
-        assert!(clock_enabled(CLOCK_ENABLE | 0x1234));
-        assert!(!clock_enabled(0x7fff_ffff));
+        assert!(is_clock_enabled(CLOCK_ENABLE));
+        assert!(is_clock_enabled(CLOCK_ENABLE | 0x1234));
+        assert!(!is_clock_enabled(0x7fff_ffff));
         // Zero is what radon's TRNG window read on 2026-09-04, and it is what a gated clock
         // reads: the same value a window with nothing behind it reads, which is why the tour
         // reports `from_tree` and the before/after words rather than a verdict.
-        assert!(!clock_enabled(0));
+        assert!(!is_clock_enabled(0));
     }
 
     #[test]

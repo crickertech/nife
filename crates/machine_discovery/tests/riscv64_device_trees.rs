@@ -76,7 +76,10 @@ fn qemu_virt_is_one_wide_hart() {
     assert_eq!(cpu.described, 1);
     assert_eq!(cpu.base, Base::Rv64);
     assert!(!cpu.legacy_isa_string, "QEMU emits riscv,isa-extensions");
-    assert!(!cpu.heterogeneous(), "one hart cannot differ from itself");
+    assert!(
+        !cpu.is_heterogeneous(),
+        "one hart cannot differ from itself"
+    );
 
     // Everything in the table that QEMU's default `rv64` model has: eleven of thirteen rows, out
     // of the forty-eight extensions it declares. `-cpu rv64` turns on nearly every ratified
@@ -108,7 +111,7 @@ fn heterogeneous_harts_intersect() {
 
     assert_eq!(cpu.harts, 3);
     assert_eq!(cpu.described, 3);
-    assert!(cpu.heterogeneous());
+    assert!(cpu.is_heterogeneous());
 
     assert!(cpu.common.contains(I.union(M).union(A).union(C)));
     assert!(
@@ -228,7 +231,7 @@ fn each_missing_requirement_refuses_alone() {
 fn sbi_requirements_are_separate_from_the_tree() {
     let mut cpu = parse_tree(QEMU_VIRT);
     assert!(
-        !cpu.sbi.answered(),
+        !cpu.sbi.has_answered(),
         "a record filled from the tree alone has heard nothing from firmware"
     );
 
@@ -259,7 +262,7 @@ fn firmware_that_cannot_be_asked_is_not_a_failure() {
     let mut cpu = parse_tree(QEMU_VIRT);
     cpu.sbi = Sbi::default();
 
-    assert!(!cpu.sbi.answered());
+    assert!(!cpu.sbi.has_answered());
     assert!(
         cpu.missing_requirements().sbi.is_empty(),
         "nothing to report: the question never got through"
