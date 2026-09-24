@@ -829,8 +829,18 @@ its own feature flags, so the scope moves from week to week exactly as it moved 
 | 2026W36 | `d0b254c5a5e6` | nightly-2026-09-06 | 26066 / 27604 | 94.4 |
 | 2026W37 | `5cd67cd3f193` | nightly-2026-09-13 | 26472 / 27952 | 94.7 |
 | 2026W38 | `5d9d5e4c1f6a` | nightly-2026-09-17 | 26063 / 27525 | 94.7 |
+| 2026W39 | `3dd86628a` | nightly-2026-09-23 | 32365 / 33994 | 95.2 |
 
-Three things a reader should hold against those numbers:
+Four things a reader should hold against those numbers:
+
+- **2026W39 was measured by CI, not on the dev Mac, and at a different commit from the one in its
+  row.** The dev machine was under four lanes' builds that evening, and this page's own guidance is
+  that a heavy job taken under contention is worth less than an honest gap. The lcov is the one
+  `ci.yml`'s coverage job uploaded for `3dd86628a` (run 35917383053, green), which is the same
+  instrument on the same week; the row's other columns are read from `35390e595f89`, later in that
+  week. That is the "nothing ties an lcov file to a commit" caveat above, firing on purpose rather
+  than by accident, and it is the same size of gap this page already accepts between a live cell and
+  a backfilled one.
 
 - **2026W29 is empty because no instrument existed.** `script/coverage` arrived on 2026-07-22.
   Running a later script on that tree would measure something the week never measured, which is a
@@ -852,7 +862,78 @@ is a change of scope rather than of testing: the measured set went from 15 files
 which is also the week rule 7 turned `#[path]` modules into crates.
 
 The floor `script/coverage` gates on is per file, not this aggregate; the dashed line is that floor
-drawn for scale.
+drawn for scale, and the panel below plots the number it is actually drawn against.
+
+## The lowest-covered file
+
+![Minimum per-file coverage](project-metrics/coverage-floor.svg)
+
+**The chart above is the trend; this one is the thing that can fail a build.** `script/coverage`
+gates at 80% **per file**, never on the aggregate, and the two can move in opposite directions
+without contradicting each other: the workspace can sit at 94.7% while one file slides from 85% to
+81% and the aggregate does not visibly twitch, because that file is a few hundred lines out of
+twenty-eight thousand. Reading the aggregate as "the coverage the floor is set against" is the
+natural reading and it is wrong; this panel exists so the page stops inviting it. The argument is
+`script/coverage`'s own, applied to the dashboard: a per-total number hides a hole, because a big
+well-tested crate subsidizes an untested one.
+
+**The series starts at 2026W39, and a short line here is a missing record rather than a new
+problem.** A per-file minimum needs that week's lcov, and only the aggregate was ever kept from
+each run, so there is nothing to recompute the earlier weeks from. Re-measuring them the way
+coverage itself was backfilled would not help either: the exemption list in `script/coverage` has
+changed several times (build scripts in 2026-08-30, the host half of `stick_maker` in 2026-09-19),
+so a minimum taken today over an old lcov would be a minimum over a population that week's gate did
+not have. Empty weeks are marked on the chart rather than drawn as zero, the same treatment
+`unsafe_trust_*` gets for the ten weeks before its census existed.
+
+**Where the number comes from, and why not from the lcov.** `script/coverage` writes
+`target/llvm-cov/floor.txt` beside its lcov, in the same awk pass that applies the floor, and
+`script/metrics --coverage-min-from <floor.txt>` reads it. Nothing re-parses the lcov to find a
+minimum, and that is deliberate rather than tidy: the lowest file in an unfiltered lcov is one of
+the files that cannot execute a line on the host (`virtio`, the protocol wrappers, a `build.rs`),
+so an independently derived minimum would be a number no build can ever fail on. The exemptions
+that decide the population live in `script/coverage` and nowhere else, so the minimum has to be
+taken there too.
+
+`floor.txt` carries more than the one plotted cell: which file is lowest, how many files are
+gated, and how many a floor of 85 or of 90 would newly fail. `script/coverage` prints the same
+three lines at the end of every run. That last pair is the number a proposal to raise the floor
+needs, and it is reported rather than left to be re-derived from the HTML report.
+
+**What the distribution actually says, measured 2026-09-23.** Over the 116 files the floor acts on
+at `3dd86628a`: none under 80%, **one** in 80-84.9%, **one** in 85-89.9%, 16 in 90-94.9%, 66 in
+95-99.9%, and 32 at 100%. The minimum is **84.0%**, `crates/machine_discovery/src/interrupt_id.rs`
+(21 of 25 lines), and the next one up is
+`crates/globally_unique_identifier_partition_table/src/lib.rs` at 89.7%. So **a floor of 85 newly
+fails one file, and a floor of 90 newly fails two.** Raising the floor is not a backlog here; it is
+two files. That is the number the question needs, and it is calef's to act on. `script/coverage`
+prints it on every run, so it never has to be re-derived.
+
+**The count at 90 is platform-sensitive, and the platform that gates is CI.** The same run on the
+dev Mac later that evening (cargo-llvm-cov 0.8.7, nightly-2026-09-23) agrees exactly on the minimum,
+84.0% and the same file, and on the aggregate to two decimals, 95.21 against CI's 95.2. It disagrees
+on one file: `crates/globally_unique_identifier_partition_table/src/lib.rs` is **315 of 351 lines
+(89.7%) on CI and 318 of 351 (90.6%) here**. Three lines, straddling 90, which is enough to move the
+85-89.9% band from one file to none and the answer at a floor of 90 from two files to one. So a
+floor of 90 would fail a build on CI while passing for the person asked to fix it, which is the
+worse of the two directions. This is the same class of platform gap the 2026W36 control already
+prices at 33 lines; it only becomes visible here because a single file happens to sit on the
+boundary. A floor of **85** has no such ambiguity on either platform.
+
+**A higher floor is not automatically a better one, and this panel must not be read as a target.**
+`script/coverage` says it plainly: the floor is a floor, a file at 81% is not "done", and 100% is
+not the goal because tests have to prove something. `AGENTS.md` is blunter still: do not add filler
+tests. A floor raised above what the tree has earned pushes a lane toward writing whatever reaches
+the number, and this tree has already caught three variants of a test that passes while proving
+nothing. The number to watch on this chart is the direction, and a drop is worth more attention
+than the level.
+
+**BUGS.** The series cannot be backfilled, for the reason above. Nothing ties `floor.txt` to a
+commit any more than it ties the lcov to one, so `--coverage-min-from` believes the caller about
+which week it measured. The cell is carried across a `--backfill` like the aggregate, so after a
+row is repointed at a later commit of the same week the minimum describes the earlier one until
+someone re-measures. And the minimum is one file: two files at 81% and one at 81% draw the same
+bar, which is what `floor.txt`'s band counts are for and the chart is not.
 
 ## How it stays current
 

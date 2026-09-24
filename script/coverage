@@ -87,7 +87,12 @@ echo "==> html: target/llvm-cov/html/index.html"
 # (tests must prove something; see CLAUDE.md on filler tests). The gate exists to make a
 # regression loud, so the fix is a deliberate test or a deliberate, recorded exception here.
 floor=80
-awk -F: -v floor="$floor" '
+# Where the per-file minimum is written for `script/metrics --coverage-min-from`. The aggregate a
+# reader sees on the dashboard cannot move when one file slides from 85% to 81%, so the chart used
+# to plot the comforting number while the gate read a different one. This file is what closes that.
+# Provisional name (this lane), like the metrics column it feeds.
+summary=target/llvm-cov/floor.txt
+awk -F: -v floor="$floor" -v summary="$summary" '
     /^SF:/ { file = $2 }
     /^LF:/ { found = $2 }
     /^LH:/ {
@@ -145,15 +150,54 @@ awk -F: -v floor="$floor" '
         # sense that a successful build never executes the failure paths of a build script.
         # (No apostrophes in this block: it sits inside the single-quoted awk program.)
         if (index(file, "/stick_maker/src/host/") || file ~ /\/stick_maker\/src\/main\.rs$/) { next }
-        if (found > 0 && $2 * 100 < found * floor) {
+        if (found <= 0) { next }
+        # Past every exemption, so this is exactly the population the floor acts on, and therefore
+        # exactly the population the minimum and the bands below describe. One pass on purpose: a
+        # second reader of the lcov would drift from the exemptions above, and the value of
+        # reporting a minimum is that it is the gate view rather than a near-miss of it.
+        pct = $2 * 100 / found
+        gated++
+        if (gated == 1 || pct < min) { min = pct; min_file = file }
+        if (pct < floor) {
             printf "coverage: %s: %.1f%% line coverage is under the %d%% floor\n",
-                file, $2 * 100 / found, floor
+                file, pct, floor
             failed = 1
-        }
+            band_below++
+        } else if (pct < 85) { newly_85++; newly_90++; band_80++ }
+        else if (pct < 90) { newly_90++; band_85++ }
+        else if (pct < 95) { band_90++ }
+        else if (pct < 100) { band_95++ }
+        else { band_100++ }
     }
-    END { exit failed }
+    END {
+        if (gated == 0) { print "coverage: no files in scope; is the lcov empty?"; exit 1 }
+        printf "==> minimum per-file line coverage: %.1f%% (%s)\n", min, min_file
+        printf "==> %d files gated. under %d%%: %d", gated, floor, band_below + 0
+        printf ", %d-84.9%%: %d", floor, band_80 + 0
+        printf ", 85-89.9%%: %d", band_85 + 0
+        printf ", 90-94.9%%: %d", band_90 + 0
+        printf ", 95-99.9%%: %d", band_95 + 0
+        printf ", 100%%: %d\n", band_100 + 0
+        # The question a proposal to raise the floor actually asks, answered on every run rather
+        # than by somebody re-deriving it from the HTML report. Raising the floor is the architect
+        # decision; this only prices it.
+        printf "==> a floor of 85 newly fails %d of them; a floor of 90, %d\n",
+            newly_85 + 0, newly_90 + 0
+        # Written for script/metrics, which plots the minimum beside the aggregate on the
+        # dashboard. It cannot recompute the minimum from the lcov alone: the exemptions above
+        # belong to this script and exist nowhere else, so a minimum derived without them would be
+        # some exempt file and not the number that can fail a build.
+        printf "min_file_pct %.1f\n", min > summary
+        printf "min_file %s\n", min_file > summary
+        printf "files_gated %d\n", gated > summary
+        printf "newly_fail_at_85 %d\n", newly_85 + 0 > summary
+        printf "newly_fail_at_90 %d\n", newly_90 + 0 > summary
+        exit failed
+    }
 ' target/llvm-cov/lcov.info || {
     echo "==> coverage floor FAILED (see above; floor is ${floor}% of lines per file)"
+    echo "==> floor summary: $summary"
     exit 1
 }
 echo "==> coverage floor ok: every file is at or above ${floor}% line coverage"
+echo "==> floor summary: $summary"
