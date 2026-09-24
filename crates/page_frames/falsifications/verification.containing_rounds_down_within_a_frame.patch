@@ -1,0 +1,20 @@
+Falsifies `page_frames::verification::containing_rounds_down_within_a_frame`.
+
+The defect: the round-down is written as a mask that forgets the minus one, `addr & !FRAME_SIZE`
+in place of `addr - addr % FRAME_SIZE`. The mask spelling is the one most allocators use and it
+is correct with `!(FRAME_SIZE - 1)`; dropped, it clears bit 12 alone and leaves the low twelve
+bits of the address in the frame number. It still answers at or below `addr`, so the second of
+the three assertions holds and only the alignment one catches it.
+
+Expected to fail: the harness's `assert!(f.addr().is_multiple_of(FRAME_SIZE))`, for any address
+that is not already frame-aligned, where a frame number would carry an offset into itself and
+two distinct addresses in one frame would name two different frames.
+
+diff --git a/crates/page_frames/src/lib.rs b/crates/page_frames/src/lib.rs
+--- a/crates/page_frames/src/lib.rs
++++ b/crates/page_frames/src/lib.rs
+@@ -109,3 +109,3 @@ impl PageFrame {
+     pub const fn containing(addr: u64) -> Self {
+-        PageFrame(addr - addr % FRAME_SIZE)
++        PageFrame(addr & !FRAME_SIZE)
+     }

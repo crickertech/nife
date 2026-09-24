@@ -237,7 +237,15 @@ jobs:
   # **A gate here, a report weekly, and the split is the one `script/lint`'s own comments draw.** A
   # patch that no longer applies, or a harness that survives its own falsification, is a defect in
   # the commit that caused it and not a fact about the tree that morning; the weekly sweep is the
-  # opposite, and is a report. This costs seconds because a falsification runs one harness.
+  # opposite, and is a report. This costs seconds per record because a falsification runs one
+  # harness, and **that sentence stopped being true for two of them on 2026-09-23**. The replay of
+  # #1156's 44 new records ran the full 45 minutes below and was cancelled mid-solver:
+  # `nifefs::a_short_image_is_refused_not_indexed` and
+  # `package_archive::a_short_file_is_refused` each take 20 to 31 minutes at 3.0-3.6 GB, where
+  # every other record in `crates/` finishes in seconds. Both crates' BUGS sections carry the
+  # measurement. Raising the timeout is not the fix and was deliberately not taken here: a per-pull
+  # request gate that can spend an hour is a gate that gets disabled, and the real question is
+  # whether those two proofs can be made cheap. That is its own piece of work.
   #
   # **Not a required check**, deliberately: the ruleset requires `verify (Kani proofs)` and nothing
   # else from this workflow, and this must be able to fail loudly without being one more name in a

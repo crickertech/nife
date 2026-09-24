@@ -112,6 +112,14 @@
 //!   stores members whole. The first packages are ELFs that were about to be written to a disk
 //!   anyway, and a compressor is a second hostile-input parser on the same path. It is a size cost,
 //!   measured nowhere yet.
+//! - **`a_short_file_is_refused` is expensive to replay**, and that is a property of the harness
+//!   rather than of a laptop. Its falsification took **20 to 31 minutes** at **3.0-3.6 GB** of
+//!   solver memory, where every other falsification record in `crates/` finishes in seconds;
+//!   AGENTS.md records 3.5 GB as the ceiling one harness has reached on the dev Mac. Measured on
+//!   patagonia with other lanes running, so the numbers are an order of magnitude and not a clean
+//!   benchmark. `nifefs`'s `a_short_image_is_refused_not_indexed` costs the same, and the shared
+//!   shape is the hint: both refuse a short input, so the solver case-splits a length check
+//!   against a wholly symbolic buffer. Making them cheaper is real work and nobody has done it.
 //! - **A package is bounded by `u32`.** A member longer than 4 GiB, or a file longer than 4 GiB,
 //!   cannot be represented. The largest member anyone has packed is `rg` at 10.7 MB.
 //! - **A duplicate member name is refused by the writer and first-wins in the reader**, which is
@@ -624,7 +632,7 @@ mod verification {
     /// bounds directly, so the harness's assertion is the arithmetic claim and the panic-freedom is
     /// the proof's own.
     ///
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/package_archive/falsifications/verification.a_parsed_package_reads_only_inside_itself.patch`
     // **9, and the reason is `memcmp` rather than any loop in this file.** The magic comparison is
     // eight bytes, which the model checker unwinds as a loop; at 4 it reports an unwinding
     // assertion in `<builtin-library-memcmp>` and leaves 270 of 271 checks undetermined, which
@@ -649,7 +657,7 @@ mod verification {
     /// boundary and for the same reason: the header read is the one place a short buffer would be
     /// indexed before anything had checked its length.
     ///
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/package_archive/falsifications/verification.a_short_file_is_refused.patch`
     #[kani::proof]
     fn a_short_file_is_refused() {
         let bytes: [u8; HEADER_LEN - 1] = kani::any();

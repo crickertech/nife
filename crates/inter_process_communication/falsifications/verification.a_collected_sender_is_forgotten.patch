@@ -1,0 +1,21 @@
+Falsifies `inter_process_communication::verification::a_collected_sender_is_forgotten`.
+
+The defect: the collected sender is put back on the queue it came from, so collecting it is a
+peek rather than a take. This is a design error with an argument behind it rather than a typo:
+the caller is blocked and something has to be able to find it again, and leaving it queued looks
+like the cheapest way to keep it findable. DECISIONS §12 (a one-shot reply capability) is what
+says otherwise: after the collect, the kernel-minted Reply is meant to be the only name for that
+thread anywhere.
+
+Expected to fail: the harness's `assert!(e.senders.is_empty() && e.receivers.is_empty())` after
+a `FromSender`, and the second receive would produce the same caller again, which is a second
+name for a thread that is supposed to be replied to exactly once.
+
+diff --git a/crates/inter_process_communication/src/lib.rs b/crates/inter_process_communication/src/lib.rs
+--- a/crates/inter_process_communication/src/lib.rs
++++ b/crates/inter_process_communication/src/lib.rs
+@@ -347,2 +347,4 @@ impl<T: Node> Rendezvous<T> {
+         } else if let Some(sender) = self.senders.pop_front() {
++            // SAFETY: just popped from this queue, so it is valid and on no queue.
++            unsafe { self.senders.push_back(sender) };
+             Recv::FromSender(sender)

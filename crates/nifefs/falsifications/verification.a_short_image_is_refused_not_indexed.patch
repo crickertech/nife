@@ -1,0 +1,19 @@
+Falsifies `nifefs::verification::a_short_image_is_refused_not_indexed`.
+
+The defect: the length guard covers the first block rather than the whole directory span. The
+header does live in block zero, so "the image must be at least a block" reads as the right
+check; what it misses is that the entry table runs on to the end of `DIR_BLOCKS`, and the
+comment above the line is the only thing that says so.
+
+Expected to fail: the harness's `assert_eq!(Fs::parse(&image).err(), Some(Error::Truncated))` on
+an image one byte short of the directory span. The parse continues into entry reads past the end
+of the buffer, which is a filesystem server indexing an image a client handed it.
+
+diff --git a/crates/nifefs/src/lib.rs b/crates/nifefs/src/lib.rs
+--- a/crates/nifefs/src/lib.rs
++++ b/crates/nifefs/src/lib.rs
+@@ -254,3 +254,3 @@ impl<'a> Fs<'a> {
+         // those reads sound.
+-        if image.len() < DIR_BLOCKS * BLOCK {
++        if image.len() < BLOCK {
+             return Err(Error::Truncated);

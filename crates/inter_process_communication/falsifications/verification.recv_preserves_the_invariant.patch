@@ -1,0 +1,19 @@
+Falsifies `inter_process_communication::verification::recv_preserves_the_invariant`.
+
+The defect: a receiver with nothing to collect joins the sender queue, the mirror of the slip
+`send_preserves_the_invariant.patch` injects and in the mirror function. Kept as its own record
+rather than folded into one, because each harness is evidence about its own operation and a
+shared patch would leave either one unable to say it had been falsified.
+
+Expected to fail: the harness's `assert!(e.one_queue_invariant())`, on a rendezvous already
+holding a queued receiver: both queues end up non-empty, and a later send would hand a receiver a
+receiver as its rendezvous partner.
+
+diff --git a/crates/inter_process_communication/src/lib.rs b/crates/inter_process_communication/src/lib.rs
+--- a/crates/inter_process_communication/src/lib.rs
++++ b/crates/inter_process_communication/src/lib.rs
+@@ -350,3 +350,3 @@ impl<T: Node> Rendezvous<T> {
+             // SAFETY: the caller's contract is exactly the queue's.
+-            unsafe { self.receivers.push_back(me) };
++            unsafe { self.senders.push_back(me) };
+             Recv::Blocked

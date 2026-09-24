@@ -1,0 +1,19 @@
+Falsifies `memory_regions::proofs::destroy_never_frees_a_child_to_the_allocator`.
+
+The defect: the two refusal conditions are joined with `&&` rather than `||`. Both spellings
+read as "a region that is busy refuses", and the mistake is one character in a line whose
+comment above it lists the two reasons as one sentence.
+
+Expected to fail: the harness's `assert!(outcome == DestroyOutcome::Refused, "a pinned or parent
+region must refuse")`, for a region that is pinned with no children, or has children and is not
+pinned. The first frees memory a live object still sits in; the second frees a parent out from
+under its own children, which is the double-free this proof is named for.
+
+diff --git a/crates/memory_regions/src/lib.rs b/crates/memory_regions/src/lib.rs
+--- a/crates/memory_regions/src/lib.rs
++++ b/crates/memory_regions/src/lib.rs
+@@ -105,3 +105,3 @@ pub fn destroy_outcome(
+ ) -> DestroyOutcome {
+-    if pinned || children > 0 {
++    if pinned && children > 0 {
+         return DestroyOutcome::Refused;

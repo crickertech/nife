@@ -723,7 +723,7 @@ mod proofs {
     /// out is the worst one this contract could permit: a caller holding no credential capability,
     /// or talking to a service that died, reading the kernel's refusal as a successful login. The
     /// host test sweeps a few dozen values around the boundary; this sweeps all of them.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/credential_protocol/falsifications/proofs.no_reply_word_but_match_ever_authenticates.patch`
     #[kani::proof]
     fn no_reply_word_but_match_ever_authenticates() {
         let r0: u64 = kani::any();
@@ -753,7 +753,7 @@ mod proofs {
     /// harness already pins, which DECISIONS §46 refuses. What that costs is worth naming: this
     /// harness's coverage is a fact about the *suite*, so deleting or weakening that sibling
     /// silently un-covers the wire format.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/credential_protocol/falsifications/proofs.a_request_word_round_trips_every_field.patch`
     #[kani::proof]
     fn a_request_word_round_trips_every_field() {
         let op_in: u64 = kani::any();

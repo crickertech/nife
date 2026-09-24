@@ -1,0 +1,19 @@
+Falsifies `address_space_identifier::verification::two_live_asids_are_distinct`.
+
+The defect: the free bit is found with `count_ones` in place of `trailing_ones`. On a word whose
+set bits are packed at the bottom, which is what an allocator that has never freed anything
+produces, the two are the same number, so the defect is invisible for as long as nothing is ever
+returned. It stops agreeing the moment a hole appears.
+
+Expected to fail: the harness's `assert_ne!(x, y)`, on a word with a hole in it, where the
+count lands on a bit that is already set, the `|=` changes nothing, and the next allocation
+returns the same ASID. Two live address spaces then share a TLB tag.
+
+diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
+--- a/crates/address_space_identifier/src/lib.rs
++++ b/crates/address_space_identifier/src/lib.rs
+@@ -100,3 +100,3 @@ impl Allocator {
+             if *word != u64::MAX {
+-                let bit = word.trailing_ones() as usize;
++                let bit = word.count_ones() as usize;
+                 *word |= 1 << bit;

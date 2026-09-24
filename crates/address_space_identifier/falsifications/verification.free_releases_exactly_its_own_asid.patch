@@ -1,0 +1,19 @@
+Falsifies `address_space_identifier::verification::free_releases_exactly_its_own_asid`.
+
+The defect: the mask loses its negation, `&= 1 << bit` in place of `&= !(1 << bit)`. A dropped
+`!` is invisible at a glance and the line still reads as "touch this one bit". Freeing an ASID
+then keeps that bit and clears every other ASID in the same word of sixty-four.
+
+Expected to fail: the harness's `assert_eq!(a.bitmap[word] & !(1 << bit), before[word] & !(1 <<
+bit))`, which is the "only its own bit" half of the claim. Sixty-three live address spaces would
+silently become allocatable again while still running, which is the aliasing the other proof in
+this module rules out and this one is what stops arriving by the back door.
+
+diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
+--- a/crates/address_space_identifier/src/lib.rs
++++ b/crates/address_space_identifier/src/lib.rs
+@@ -114,3 +114,3 @@ impl Allocator {
+         if asid != 0 && (asid as usize) < ASIDS {
+-            self.bitmap[asid as usize / 64] &= !(1 << (asid as usize % 64));
++            self.bitmap[asid as usize / 64] &= 1 << (asid as usize % 64);
+         }

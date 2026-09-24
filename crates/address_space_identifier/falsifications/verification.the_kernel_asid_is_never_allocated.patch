@@ -1,0 +1,20 @@
+Falsifies `address_space_identifier::verification::the_kernel_asid_is_never_allocated`.
+
+The defect: the free bit is found with `trailing_zeros` in place of `trailing_ones`. The two
+names sit next to each other in the integer API and both read as "find the first free one" to
+someone who has not fixed in their head that a set bit means in use here. On a bitmap whose low
+word is zero the two agree, which is every state a freshly booted allocator that has not yet
+reserved ASID 0 is in.
+
+Expected to fail: the harness's `assert_ne!(asid, 0)`, on any state whose low word has bit 0 set
+and bit 1 clear, where the allocator hands a user address space the kernel's own tag and the TLB
+will serve one the other's memory.
+
+diff --git a/crates/address_space_identifier/src/lib.rs b/crates/address_space_identifier/src/lib.rs
+--- a/crates/address_space_identifier/src/lib.rs
++++ b/crates/address_space_identifier/src/lib.rs
+@@ -100,3 +100,3 @@ impl Allocator {
+             if *word != u64::MAX {
+-                let bit = word.trailing_ones() as usize;
++                let bit = word.trailing_zeros() as usize;
+                 *word |= 1 << bit;

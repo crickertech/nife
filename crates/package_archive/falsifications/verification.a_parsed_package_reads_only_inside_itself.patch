@@ -1,0 +1,20 @@
+Falsifies `package_archive::verification::a_parsed_package_reads_only_inside_itself`.
+
+The defect: the table of contents is measured in entries rather than in bytes, dropping the
+`* MEMBER_LEN`. The line still reads as "the header plus the table", and every package this
+tree writes is far longer than its own table, so the check it weakens never fires on a
+well-formed file.
+
+Expected to fail: the harness's panic-freedom claim rather than either assertion, as an
+out-of-bounds slice inside `extent`. A header claiming sixty-four members in a 272-byte buffer
+passes the weakened length check and `parse` then indexes a table entry that is not there. This
+is the install path, so the buffer is whatever arrived.
+
+diff --git a/crates/package_archive/src/lib.rs b/crates/package_archive/src/lib.rs
+--- a/crates/package_archive/src/lib.rs
++++ b/crates/package_archive/src/lib.rs
+@@ -250,3 +250,3 @@ impl<'a> Package<'a> {
+         }
+-        let table_end = HEADER_LEN + count * MEMBER_LEN;
++        let table_end = HEADER_LEN + count;
+         if bytes.len() < table_end {

@@ -1,0 +1,20 @@
+Falsifies `package_archive::verification::a_short_file_is_refused`.
+
+The defect: the length guard covers the magic alone, `bytes.len() < 8` in place of
+`bytes.len() < HEADER_LEN`. The eight is the literal the very next term needs, which is what
+makes it the plausible number to write, and the count read four lines down then lands inside a
+buffer that has no header.
+
+Expected to fail: the harness's `assert_eq!(Package::parse(&bytes), Err(Error::BadMagic))` on a
+buffer one byte short of a header. With the magic present, the weakened guard lets parsing
+continue and the answer becomes `Truncated` or `TooManyMembers` instead of a refusal, so a file
+too short to hold a header is read as though it held one.
+
+diff --git a/crates/package_archive/src/lib.rs b/crates/package_archive/src/lib.rs
+--- a/crates/package_archive/src/lib.rs
++++ b/crates/package_archive/src/lib.rs
+@@ -238,3 +238,3 @@ impl<'a> Package<'a> {
+     pub fn parse(bytes: &'a [u8]) -> Result<Self, Error> {
+-        if bytes.len() < HEADER_LEN || bytes[..8] != MAGIC {
++        if bytes.len() < 8 || bytes[..8] != MAGIC {
+             return Err(Error::BadMagic);

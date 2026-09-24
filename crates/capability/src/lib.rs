@@ -517,7 +517,7 @@ mod verification {
     /// **Rights cannot be laundered through a chain.** If B is derived from A and C from B, then C
     /// is no more than A. This is why a *flat* subset check suffices and we never need to walk a
     /// derivation tree to bound a capability: subset is transitive, so the chain can only narrow.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.subset_is_transitive.patch`
     #[kani::proof]
     fn subset_is_transitive() {
         let (a, b, c) = (

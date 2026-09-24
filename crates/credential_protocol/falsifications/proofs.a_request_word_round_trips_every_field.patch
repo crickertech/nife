@@ -1,0 +1,20 @@
+Falsifies `credential_protocol::proofs::a_request_word_round_trips_every_field`.
+
+The defect: the identity length is read one bit low, `w0 >> 15` where the encoder shifts by 16.
+This is the defect this harness can catch, and the choice is deliberate: its own doc comment
+records that a swap applied to BOTH sides leaves it verifying, because an encoder round-tripped
+through its own decoder moves with the defect. A one-sided shift does not move together, which
+is the shape this harness is actually evidence for.
+
+Expected to fail: the harness's `assert!(id_len(w) == i)`, at any identity length with a bit
+above the lowest set, where a server parses a length the client never sent and reads the wrong
+run of bytes out of the shared page.
+
+diff --git a/crates/credential_protocol/src/lib.rs b/crates/credential_protocol/src/lib.rs
+--- a/crates/credential_protocol/src/lib.rs
++++ b/crates/credential_protocol/src/lib.rs
+@@ -242,3 +242,3 @@ pub const fn op(w0: u64) -> u64 {
+ pub const fn id_len(w0: u64) -> usize {
+-    ((w0 >> 16) & 0xffff) as usize
++    ((w0 >> 15) & 0xffff) as usize
+ }
