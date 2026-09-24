@@ -49,7 +49,8 @@
 //! notes/sink-protocol.md, which together carry the argument). **Provisional: calef has not
 //! ratified it.** It was `ROLE_WRITER` inside the `sink` binary until milestone 292 split that
 //! binary into the three programs it had always been. `sink` is kept as the contract word because
-//! the 2026-09-13 structural-versus-current test (design/naming.md) keeps it: `byte_sink_protocol` is a
+//! the 2026-09-13 structural-versus-current test (design/naming/vocabulary-rulings.md) keeps it:
+//! `byte_sink_protocol` is a
 //! wire contract named for what it carries and makes no disposal claim, and this program is named
 //! for the contract it speaks rather than for an end of a stream. `transcript` names the thing it
 //! writes, which is a pinned constant rather than anything it computes, and a reader who sees

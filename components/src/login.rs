@@ -237,7 +237,7 @@
 //! a login, so the stem was genuinely open. calef kept it: `login` is the field's name for this role
 //! whoever speaks it, a reader arriving from Unix lands in the right place, and the stem is carried by a
 //! wire vocabulary two programs agree on. The argument and the refused alternatives are in
-//! `design/naming.md`, "The `login` stem stays".
+//! `design/naming/vocabulary-rulings.md`, "The `login` stem stays".
 //!
 //! # BUGS
 //!

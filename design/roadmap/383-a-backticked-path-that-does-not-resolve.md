@@ -89,9 +89,10 @@ that commit's own CI run.
 The check above strips `::symbol` and asserts only the path, so `` `ipc::Endpoint` `` passes as long
 as the crate exists. §113 renamed `Endpoint` to `Rendezvous` on 2026-08-23, and nine prose sites
 still cited `ipc::Endpoint` a month later. A crate-rename sweep would have turned every one into
-`inter_process_communication::Endpoint`, a type that has never existed: design/naming.md's "A sweep
-can turn a stale pointer into a fabricated one" has the case. A symbol that does not resolve is the
-same defect as a path that does not, one `::` further along.
+`inter_process_communication::Endpoint`, a type that has never existed:
+design/naming/rename-traps.md's "A sweep can turn a stale pointer into a fabricated one" has the
+case. A symbol that does not resolve is the same defect as a path that does not, one `::` further
+along.
 
 **Measured with a throwaway prototype, 2026-09-19**: over every tracked `.md` file, match
 `` `crate::Symbol` `` where `crate` is a directory in `crates/`, and grep that crate's `src/` for a

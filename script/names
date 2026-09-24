@@ -140,7 +140,7 @@ import name_provenance                                                      # no
 # `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host` and the root-level workspaces. What is
 # genuinely out of scope is `scripts/` (the helper drawer) and types. `scripts/` was priced and
 # refused by milestone 446 (the naming worklist says what it covers, and stops saying what it used
-# to). design/naming.md's BUGS section is the one place that carries the reason, and this comment
+# to). design/naming/provenance-limits.md is the one place that carries the reason, and this comment
 # deliberately cites it rather than restating it, because the last copy of this scope claim went
 # stale without anyone noticing.
 SURFACES = [
