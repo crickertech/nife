@@ -150,7 +150,7 @@ uefi-boot: booted under OVMF from \EFI\BOOT\BOOTX64.EFI
 **`-display none` suppresses the host window, not the emulated adapter**, which is why any of this
 works headlessly: OVMF finds a GOP here for the same reason a real machine's firmware finds one.
 
-## The shell on the screen, too (milestone 400, provisional number)
+## The shell on the screen, too
 
 Everything above is the **kernel's** voice. Since milestone 299 the console is a userspace process
 writing COM1, so until milestone 400 (the shell on the firmware's screen) the tour reached the screen and the shell's prompt did not. Now
