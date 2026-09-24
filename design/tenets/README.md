@@ -12,3 +12,4 @@ name in this tree.*
 | [three-principles.md](three-principles.md) | the customer ranking function, the method as a result, and the stranger test |
 | [mechanisms-not-memory.md](mechanisms-not-memory.md) | the ladder's rungs, the evening that produced it, and what rung zero cost |
 | [elegance-over-convenience.md](elegance-over-convenience.md) | why an argument from implementation cost is the weakest one available here |
+| [reversibility.md](reversibility.md) | why each category is irreversible, and the two failures that shaped the rule |
