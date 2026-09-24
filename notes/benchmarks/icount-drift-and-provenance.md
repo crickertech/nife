@@ -67,6 +67,25 @@ tracks the compiler by construction moves by exactly as much as a nightly moved 
 nightly that made this kernel slower would then report nothing, and catching that is most of what
 the tripwire is for.
 
+Who re-records, and whether the bump then waits, changed on 2026-09-24. calef ruled:
+
+> Our default should be to merge and we should only block it if there is a compelling reason to.
+
+The refusal above stands: a person or a maintainer session still reads the delta and writes the `--why`. But that is
+not a hold. Once the floors are re-recorded and CI is green, the bump merges like any other pull
+request. It is held with `needs-architect` only for a compelling reason: a changed proof or
+falsification result, or a bench move beyond tolerance. A lint silenced only by a crate- or
+workspace-level allow counts too, as do a changed test output and a compile break too large to fix
+small. The list lives in
+`.github/workflows/toolchain-bump.yml`'s header.
+
+To separate the compiler from the code, compare the bump pull request's bench job with the
+merge-group bench run of its base commit: same tree, old nightly. `--check` alone compares against
+the floors, which also carry whatever drift `main` accumulated since the last save. The first bump
+under the ruling, `nightly-2026-09-24` (PR #1250), is the worked example. On identical source,
+aarch64 and x86_64 did not move at all and riscv64 `ipc_rtt` got 0.58% faster. The x86_64 floors
+were already 0.4% to 2.3% under the tree on `main`.
+
 ### The emulator is the other half of the same fact (2026-09-21)
 
 An icount count is a function of two things: the compiler that emitted the instructions and the
