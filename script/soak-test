@@ -4,7 +4,7 @@
 #
 #   script/soak-test                             # aarch64, one minute
 #   script/soak-test --arch riscv64 --for 10m    # the architecture radon runs
-#   script/soak-test --arch x86_64 --smp 1       # xenon's architecture (see BUGS)
+#   script/soak-test --arch x86_64 --smp 1       # xenon's architecture, forced to one core
 #
 # `design/fatal-risks.md`'s fifth entry ("it cannot be made reliable on multicore, and the bugs
 # appear only on silicon") names its decisive experiment as sustained multi-core stress with the
@@ -49,9 +49,12 @@
 # - **`wakes` is not part of `rounds`** and the two rates are not comparable with each other. A wake
 #   is not a round trip, and `wakerate` is a property of the machine (TICK_HZ times the online
 #   cores) rather than of the workload.
-# - **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults
-#   to one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). A
-#   single-core soak is not a multicore soak, and `remote=0` in its report is how it says so.
+# - **`--arch x86_64` soaks two cores** since 2026-09-23, because that runner's `NIFE_SMP` default
+#   moved from 1 to 2 when milestone 315 (a port revoke that reaches every core) closed the last
+#   defect holding it there. It soaked one
+#   before that, and `remote=0` in the report of such a run is how it says a single-core soak is not
+#   a multicore soak. `--smp` still overrides in either direction; three cores and above remain
+#   opt-in (`arch::x86_64::ap_boot`'s BUGS #1 is closed on TCG and unmeasured on silicon).
 #
 # Name: ratified 2026-09-14 (calef, shown `script/soak` for ratification; milestone 297 performed
 # the rename). Coined as `soak` by milestone 219's lane on 2026-09-01: a noun, hyphen-free because it

@@ -39,9 +39,10 @@ and no amount of kernel work changes it. A system in this state is a research de
 which is a legitimate thing to be and is not what DECISIONS §14 (a verified-Rust capability microkernel that runs real workloads) claims.
 
 **Evidence today, both directions.** For: milestone 27 (Rust `std` on the native ABI) works, and
-milestone 64 sorted crates.io by build status. `kilo` runs. Against: DECISIONS §105
-(`std::thread::spawn` stays declined) means `rayon`, `tokio` and `crossbeam` compile and link but
-cannot spawn; `std::process` refuses everything; there is no `fork`, no POSIX, no libc tier three.
+milestone 64 sorted crates.io by build status. `kilo` runs. Against: DECISIONS
+§105 (`std::thread::spawn` stays declined) means `rayon`, `tokio` and `crossbeam` compile and link
+but cannot spawn; `std::process` refuses everything; there is no `fork`, no POSIX, no libc tier
+three.
 
 **The experiment:** milestone 121 (`ripgrep`: enumeration as a capability), chosen because `ripgrep`
 has a real dependency tree, walks a filesystem, and uses threads.
@@ -59,11 +60,12 @@ notes/ripgrep-on-nife.md has it; PR #600 for the first two, milestone 303 for x8
 - **x86_64 took two more milestones and the second was a disk.** Milestone 184 (extend the `std` port
   to x86_64) made `std_exerciser` pass there on 2026-09-14 and `ripgrep` build, and **a build is not
   a transcript**: the run needed a RedoxFS disk the FS service could find, which `q35` could not
-  offer because the lookup walked the virtio-mmio bus that machine does not have. Milestone 303
-  (x86_64's FS service has a server and no disk it can find) closed that on 2026-09-16, and the
-  transcript is the same 62 bytes. So the honest sentence is now *unmodified third-party software
-  runs on nife*, with no architecture qualifier, which is what DECISIONS §19 (architectural parity is
-  a tenet) asks before the qualifier comes off. `notes/ripgrep-on-nife.md` has the parity table.
+  offer because the lookup walked the virtio-mmio bus that machine does not have.
+  Milestone 303 (x86_64's FS service has a server and no disk it can find) closed that on
+  2026-09-16, and the transcript is the same 62 bytes. So the honest sentence is now *unmodified
+  third-party software runs on nife*, with no architecture qualifier, which is what DECISIONS
+  §19 (architectural parity is a tenet) asks before the qualifier comes off.
+  `notes/ripgrep-on-nife.md` has the parity table.
 - **What stops it is that the ABI has no argument vector.** `std::env::args()` compiles std's
   `unsupported` backend and yields nothing, so `ripgrep` parses no arguments and prints its own
   *"requires at least one pattern to execute a search"*. **Somebody else's application reached its
@@ -92,12 +94,12 @@ already names the failure: *nobody reads branches.*
 **2026-09-19: milestone 64 (enough `std` to run somebody else's crate) turned BUILT, and it moves
 this risk very little.** Its last pass bound file times by path (`Metadata::modified` on `GETMTIME`,
 `std::fs::set_times` on `SETMTIME_AT`), which was the one item its block still called outstanding.
-Nothing above depended on it: `ripgrep` stops at the missing argument vector (milestone 205), not at
-`std::fs`. What it adds is one more std surface that answers rather than refuses, with a caveat a
-stranger's program can trip over: a file written on nife reports an mtime in early 1970, because the
-FS server stamps a per-mount counter (notes/std.md; proposed as
-design/roadmap/497-a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
-lane, which does not normally edit this file; the status check requires the entry to know.
+Nothing above depended on it: `ripgrep` stops at the missing argument vector of milestone 205 (how a
+foreign program is told what to do), not at `std::fs`. What it adds is one more std surface that
+answers rather than refuses, with a caveat a stranger's program can trip over: a file written on
+nife reports an mtime in early 1970, because the FS server stamps a per-mount counter (notes/std.md;
+proposed as design/roadmap/497-a-filesystem-server-that-knows-the-time.md). Written by the milestone
+64 lane, which does not normally edit this file; the status check requires the entry to know.
 
 **The same published argument that sharpens risk 8 sharpens this one**, and it is the same paper:
 Li et al.'s case for an incremental path rests on clean-slate kernels having *"significantly fewer
@@ -133,9 +135,10 @@ the study; PR #589.
   (`dtb::be32`'s unchecked `at + 4`, reachable from a corrupt device tree on the boot path;
   `pci::intx_irq`'s pin-0 underflow). That is the survivorship asymmetry this file's rule 1 warned
   about, showing up as evidence rather than as an excuse.
-- **The strongest counterfactual is nearly a measurement.** The milestone 6 timer re-arm drift (100
-  Hz configured, ~70 Hz delivered) has its property **already proved in this tree**, over
-  already-written code, in `crates/timetable`'s `next_after`. The timer does not call it.
+- **The strongest counterfactual is nearly a measurement.** The timer re-arm drift of
+  milestone 6 (threads, the context switch, and preemption), 100 Hz configured and ~70 Hz delivered,
+  has its property **already proved in this tree**, over already-written code, in
+  `crates/timetable`'s `next_after`. The timer does not call it.
 - **The numbers were wrong and are now counted:** **145** harnesses, not the roadmap's "112+";
   `script/verify` runs **140**; 31,725 of 206,728 source lines are reachable, though **both sides of
   that ratio count comments**, and `kernel/src` is 40% comment by measurement (25,762 of 64,818
@@ -173,17 +176,19 @@ assertion asked nothing, and nothing in this tree currently distinguishes those 
 **And the amber moved the same day.** Milestone 193 (put `kernel/src` within reach of the prover) was
 minted from this finding and built hours later: two properties proved over `kernel/src/syscall.rs`
 with nothing moved into a crate first, **both falsified before being believed** by re-introducing
-milestone 142's real wrapping-multiply defect and watching them turn red. That is the counterfactual
-this study said the tree did not have, and it now exists. It cost about 10 seconds of
-`script/verify`. `kernel/src/arch/`, `user/` and `xtask` are still out of reach, so the amber stands;
-what changed is that the reason is now a worklist rather than a wall.
+the real wrapping-multiply defect of milestone 142 (a text display good enough that people use it
+instead of a GUI) and watching them turn red. That is the counterfactual this study said the tree
+did not have, and it now exists. It cost about 10 seconds of `script/verify`. `kernel/src/arch/`,
+`user/` and `xtask` are still out of reach, so the amber stands; what changed is that the reason is
+now a worklist rather than a wall.
 
 **And on 2026-09-16 a proof caught a real kernel defect, on an architecture the prover had never
-compiled.** Milestone 304 found that `cargo kani -p kernel` selects its `arch/` subtree by
-`#[cfg(target_arch)]`, which under Kani is the **host**, so every CI job and the dev Mac had been
-proving `arch/aarch64/` and nothing of the other two. The premise was measured rather than assumed:
-two `assert!(false)` probes placed in `arch/riscv64/` and `arch/x86_64/` produced *"4 successfully
-verified harnesses, 0 failures"*, because neither subtree was compiled.
+compiled.** Milestone 304 (only ever compiled one architecture, and it was the runner's) found that
+`cargo kani -p kernel` selects its `arch/` subtree by `#[cfg(target_arch)]`, which under Kani is the
+**host**, so every CI job and the dev Mac had been proving `arch/aarch64/` and nothing of the other
+two. The premise was measured rather than assumed: two `assert!(false)` probes placed in
+`arch/riscv64/` and `arch/x86_64/` produced *"4 successfully verified harnesses, 0 failures"*,
+because neither subtree was compiled.
 
 The first proof ever pointed at `arch/x86_64/irq.rs` went red. `gsi_vector` is a flat
 `GSI_VECTOR_BASE.wrapping_add(gsi)`, and `MAX_REDIRECTION_ENTRIES` is documented as the reason it
@@ -202,10 +207,11 @@ proof catches regressions. **riscv64 remains unreachable to the prover and nobod
 that**: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host.
 The fix was deliberately not made in that lane, because it changes a public signature and a
 documented policy; it was raised as a proposal with gate `DECISION`, calef chose to route by
-redirection index on 2026-09-16, and it was built the same day as
-[milestone 308](roadmap/308-route-gsi-by-index.md). **The fix does not add to this risk's
-evidence and slightly complicates it**: the harness's `kani::assume(base == 0)` is gone, so a
-standing proof now covers the case, but no machine here can execute the path, which
+redirection index on 2026-09-16, and it was built the same day as milestone 308 (a GSI reaches its
+vector by redirection index, not by its own number), whose block is
+[roadmap/308-route-gsi-by-index.md](roadmap/308-route-gsi-by-index.md). **The fix does not add to
+this risk's evidence and slightly complicates it**: the harness's `kani::assume(base == 0)` is gone,
+so a standing proof now covers the case, but no machine here can execute the path, which
 `kernel/src/arch/x86_64/irq.rs`'s module `BUGS` records where a reader meets the feature. A proof
 that catches a regression on hardware nobody owns is still the honest shape of what this risk asks
 about.
@@ -359,17 +365,17 @@ entry is about. The instrument now runs weekly and has completed twice, so this 
 than work.
 
 **The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
-workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped
-the runaway mutant: **10,012 mutants over 64 crates, 91.7% of viable mutants killed**. Against the
-38 crates the baseline covers, like for like, **93.6% against 92.4%**: the score went *up*.
-`notes/mutation-testing.md` has the tables.
+workflow completed for the first time, all eight shards, once milestone 277 (bound what one mutant
+may allocate)'s memory bound stopped the runaway mutant: **10,012 mutants over 64 crates, 91.7% of
+viable mutants killed**. Against the 38 crates the baseline covers, like for like, **93.6% against
+92.4%**: the score went *up*. `notes/mutation-testing.md` has the tables.
 
 **So the "fall to 85.3%" was an artifact, and the entry below is kept as the account it is.** That
 reading came from a one-eighth sample taken while two crates were being scored against suites that
-could not run, and milestone 280 fixed both: `uefi_loader` now scores 100% and `documentation` 95.4%,
-the two crates the drop had been blamed on. The 1.9-point gap between the like-for-like 93.6% and
-the corpus 91.7% is the 26 crates that did not exist at baseline, which is a worklist rather than a
-verdict.
+could not run, and milestone 280 (unexplained holes in the published score) fixed both:
+`uefi_loader` now scores 100% and `documentation` 95.4%, the two crates the drop had been blamed on.
+The 1.9-point gap between the like-for-like 93.6% and the corpus 91.7% is the 26 crates that did not
+exist at baseline, which is a worklist rather than a verdict.
 
 `script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
@@ -387,21 +393,23 @@ No new milestone; milestone 85 already owned it, and it ran on 2026-09-14.
 **Correction, 2026-09-11, and its second half closed three days later.** That paragraph used to close
 "and the weekly workflow already publishes the report", and the workflow had published nothing.
 `mutation.yml`'s own `BUGS` section records it: the workflow **had never once succeeded**, four
-scheduled runs red from 2026-08-10, found by milestone 232's audit on 2026-09-03. Milestone 238
-repaired one of the two causes (shard indices counted from one, so a job died in twenty seconds every
-run and shard 0 was never tested). **The other was repaired by milestone 277 on 2026-09-12** (a
-runaway mutant exhausting the runner's memory inside the timeout meant to catch it, which had taken
-the 2026-09-07 run), and the next scheduled run, 2026-09-14, was the workflow's first success.
-**The cadence is alive**; `script/cadence-check` is what reported it dead, and one success is not yet
-a cadence.
+scheduled runs red from 2026-08-10, found by milestone 232 (does anything run it, and does it
+block)'s audit on 2026-09-03. Milestone 238 (two scheduled checks have never once succeeded)
+repaired one of the two causes (shard indices counted from one, so a job died in twenty seconds
+every run and shard 0 was never tested). **The other was repaired by milestone 277 on 2026-09-12**
+(a runaway mutant exhausting the runner's memory inside the timeout meant to catch it, which had
+taken the 2026-09-07 run), and the next scheduled run, 2026-09-14, was the workflow's first success.
+**The cadence is alive**; `script/cadence-check` is what reported it dead, and one success is not
+yet a cadence.
 
 **One number published in between, and it read worse: 83.4%, corrected to 85.3%.** It came from the
 single shard that survived, a uniform one-eighth sample across all 60 crates rather than the 38 host
 crates the 92.4% figure covers, so it was never a like-for-like reading. Two crates carried most of
 the apparent fall and neither was explained at the time: `uefi_loader` at 15% and `manual` at 52%.
-**Both turned out to be measurement rather than quality** (milestone 280, built 2026-09-13), as did a
-third, `system_initializer`, before them (milestone 244). The census of 2026-09-14 above supersedes
-this number; it is kept here because it is what this entry was ranked on for eleven days.
+**Both turned out to be measurement rather than quality** (milestone 280, built 2026-09-13), as did
+a third, `system_initializer`, before them, in milestone 244 (the largest crate in the tree is
+proved by nothing a mutation can reach). The census of 2026-09-14 above supersedes this number; it
+is kept here because it is what this entry was ranked on for eleven days.
 
 **Both repairs landed and the reading arrived.** The runaway mutant was milestone 277, built
 2026-09-12, which made the clean full run possible for the first time since 2026-08-03; the run
@@ -412,8 +420,9 @@ since 2026-09-03 was drained with the ruling, which is what a proposal is for.
 from 92.4% to 83.4% and offered three options about how bad the fall was. By the time it was read the
 fall had been corrected twice, first to 85.3% and then out of existence, so none of its three options
 described the tree. The reading above is against the census instead. It is the fifth proposal in two
-days whose premise expired between filing and reading; milestone 323 carries the argument that
-promotion, not filing, is where that is cheapest to catch.
+days whose premise expired between filing and reading; milestone 323 (the falsification record is
+incomplete in five ways) carries the argument that promotion, not filing, is where that is cheapest
+to catch.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -707,9 +716,10 @@ this list that can come back saying the concurrency is correct.
 IOMMU, does not survive contact with a real device.
 
 **Evidence today:** milestone 16b proved IOMMU-backed DMA isolation against QEMU's emulation of the
-ratified RISC-V IOMMU, over the §18 PCIe transport, and milestone 35 built the DMA validator. All of
-it is virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist
-(milestone 143).
+ratified RISC-V IOMMU, over the PCIe transport of §18 (one driver, two buses, the seam in the
+kernel), and milestone 35 (prove the DMA-confinement boundary) built the DMA validator. All of it is
+virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist (milestone
+143).
 
 **Status: RUN, and as of 2026-09-16 all three of its parts are measured on silicon.** The two
 2026-09-04 halves are below; the third was taken on 2026-09-16 and is the bullet that used to read
@@ -720,9 +730,10 @@ TRNG cannot test.
 The risk names three things and they were never one claim. Measured on radon, transcripts at
 `target/board/radon-2026-09-04-trng-success.log` and `bench/radon-2026-09-16/tour-083200.log`:
 
-- **Confined: yes**, 2026-09-03. Milestone 159's driver is an EL0 process started from the archive,
-  reaching the JH7110's TRNG through a capability that names no device. This is the tree's only
-  confined driver for a real, non-virtio device.
+- **Confined: yes**, 2026-09-03. Milestone 159 (a real hardware entropy source: the JH7110's
+  TRNG)'s driver is an EL0 process started from the archive, reaching the JH7110's TRNG through a
+  capability that names no device. This is the tree's only confined driver for a real, non-virtio
+  device.
 - **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
   draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
   boot rather than a constant in silicon or a stale register file.
@@ -747,9 +758,10 @@ The risk names three things and they were never one claim. Measured on radon, tr
   `jh7110-trng.c` on the same silicon, is interrupt-driven where this driver polls and remains
   unmeasured.
 
-**What it took is worth recording, because none of it was the driver.** Milestone 239 found the
-device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
-`starfive,jh7110-trng`. Milestone 220 found the block's clocks gated and its reset asserted, and this
+**What it took is worth recording, because none of it was the driver.** Milestone 239 (radon's
+device tree does not describe the TRNG) found the device tree spells the node with the vendor
+U-Boot's `starfive,trng` rather than mainline's `starfive,jh7110-trng`. Milestone 220 (this kernel
+drives no clock or reset controller) found the block's clocks gated and its reset asserted, and this
 kernel had never programmed either. And milestone 159's own boot tour asked for 32 bytes down a
 channel that carries 8, so its success line had been **unreachable on any device, working or dead,
 since the day it was written** and survived because QEMU has no TRNG node to take the other arm.
@@ -758,8 +770,8 @@ since the day it was written** and survived because QEMU has no TRNG node to tak
 refutes nothing; the claim is about cost, and cost is what has not been measured.
 
 **The decisive experiment:** one real, non-virtio device on real silicon, confined, at throughput.
-The JH7110's GMAC (milestone 53) or NVMe behind milestone 163 (the JH7110's PCIe root complex) are
-the candidates.
+The JH7110's GMAC from milestone 53 (the board's own peripherals: network and storage on real
+silicon), or NVMe behind milestone 163 (the JH7110's PCIe root complex), are the candidates.
 
 **Journey 3 settles most of this as a side effect**, because a framebuffer and a keyboard on real
 hardware are real devices.
@@ -823,13 +835,14 @@ PCIe SSD; `notes/xenon-firmware.md`, IMG_4091).
 
 calef ran that wipe on 2026-09-17, so the disk is this project's to write to.
 
-**The driver exists too, as of 2026-09-17** (milestone 261, §86's option 2a). An EL0 process holding
-two endpoints, one page of BAR0 and a run of DMA pages brings a controller from reset through
-identify to an I/O queue pair and serves the block verbs, with the IOMMU the whole of what stops it
-reaching memory it was not given, and `kernel/src/user/non_volatile_memory_express_tests.rs` asserts that confinement on
-every leg the runner attaches a controller to. Milestone 318 then rewrote its assertions against the
-geometry each boot is handed, which is what lets the same case run on xenon's Micron rather than
-only on `mknvmedisk`'s 8 MiB image.
+**The driver exists too, as of 2026-09-17**: milestone 261 (the NVMe driver leaves the kernel, on
+the machine that can finally confine it), §86's option 2a. An EL0 process holding two endpoints, one
+page of BAR0 and a run of DMA pages brings a controller from reset through identify to an I/O queue
+pair and serves the block verbs, with the IOMMU the whole of what stops it reaching memory it was
+not given, and `kernel/src/user/non_volatile_memory_express_tests.rs` asserts that confinement on
+every leg the runner attaches a controller to. Milestone 318 (the NVMe boot test on real geometry)
+then rewrote its assertions against the geometry each boot is handed, which is what lets the same
+case run on xenon's Micron rather than only on `mknvmedisk`'s 8 MiB image.
 
 **So the remaining distance to this risk's decisive experiment is a bench evening, and nothing
 else.** Every piece is on `main` and the stick is written. Two things still have to be true on the
@@ -870,22 +883,23 @@ notes/confinement-claims.md; PR #614.
   reading *"a livelock, not a lost wakeup"*, a correct red with nothing in it about confinement.
 
 **Status: AUDITED, 2026-09-17, and the answer is a qualified yes with one exception found and
-fixed.** Milestone 313 read this risk's question adversarially under the userspace-confinement lens,
-the first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
-has it; findings fixed 3, minted 3, accepted 1.
+fixed.** Milestone 313 (the security audit that was due since August) read this risk's question
+adversarially under the userspace-confinement lens, the first security audit since 2026-08-17.
+`design/audit-reports/2026-09-17-userspace-confinement.md` has it; findings fixed 3, minted 3,
+accepted 1.
 
-**One published claim was false as stated, on a path taken every boot.** DECISIONS §12 says *a
-consumed capability cannot be used again*. On `x86_64` it was not: `SYS_CAP_DELETE` cleared the
-capability table and **not** the cached grant the context switch installs into the TSS I/O bitmap, so
-a thread that dropped its `PortRange` kept COM1 for the rest of its life. `system_initializer`
-performs exactly that delete on every x86 boot. Fixed in `sched::delete_current_cap`, with a test and
-a falsification replayed red.
+**One published claim was false as stated, on a path taken every boot.** DECISIONS §12 (Call/Reply
+IPC: a one-shot reply capability) says *a consumed capability cannot be used again*. On `x86_64` it
+was not: `SYS_CAP_DELETE` cleared the capability table and **not** the cached grant the context
+switch installs into the TSS I/O bitmap, so a thread that dropped its `PortRange` kept COM1 for the
+rest of its life. `system_initializer` performs exactly that delete on every x86 boot. Fixed in
+`sched::delete_current_cap`, with a test and a falsification replayed red.
 
 **A second published sentence about the hardware was false and is now true.** `crates/paging`'s
-decoder reports user pages as not kernel-executable, and milestone 307 wrote that the hardware makes
-it so; on x86 that holds only with `CR4.SMEP`, which nothing set. The bit is now set per core where
-CPUID offers it, and 307's sentence is struck through with the correction beside it rather than
-edited away.
+decoder reports user pages as not kernel-executable, and milestone 307 (which assertion actually
+fires when a confinement claim is broken) wrote that the hardware makes it so; on x86 that holds
+only with `CR4.SMEP`, which nothing set. The bit is now set per core where CPUID offers it, and
+307's sentence is struck through with the correction beside it rather than edited away.
 
 **The headline claim was not found false anywhere this audit looked**, and what it looked at is
 stated rather than implied: components that took device or network authority since the last audit,
@@ -904,11 +918,12 @@ sweeps capabilities precisely so that no capability still names a page the alloc
 out, and an in-flight one reopened that. Fixed in the three sweeps that lacked it, with a test red
 first on all three architectures; `notes/confinement-claims.md` carries it and the eight attacks that
 held. **The caveat is the one that keeps the gate closed**: it was us attacking our own system, which
-is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And one window was accepted rather than closed at the time: `PortRange::REVOKE`
-reached one core, so a revoked holder on another core kept its bitmap for at most one tick
-(DECISIONS §152's `BUGS`, corrected the same day, and
-[milestone 315](roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and calef
-promoted out of this entry's proposal on 2026-09-17).
+is the thing milestone 198 exists to stop being the only kind of attack this project has seen. And
+one window was accepted rather than closed at the time: `PortRange::REVOKE` reached one core, so a
+revoked holder on another core kept its bitmap for at most one tick. That window is recorded in
+§152 (the port-range capability)'s `BUGS`, corrected the same day, and in
+[milestone 315](roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and
+calef promoted out of this entry's proposal on 2026-09-17.
 
 **Corrected 2026-09-23: that window is closed.** Milestone 315 (a port revoke that reaches every
 core) is BUILT. The revoke now resets this core and rides the TLB shootdown's NMI to the rest, and
@@ -921,13 +936,14 @@ above, which is the one that matters: the attacking was still us attacking our o
 we closed ourselves, found by our own test, is the same category of evidence as the audit that found
 it, and this entry's verdict rests on that category rather than on any single hole.
 
-**And the audit produced a third instance of this file's recurring shape.** Milestone 299's two port
-tests could not fail in the direction they exist for: a wrongly permitted `out` was followed by a
-`SEND` nobody received, so the run hung instead of going red. That is row 26's shape one object over,
-found only because a draft of finding 1 hung. After milestone 305's vacuous `U`-bit test and
-milestone 307's six unreachable assertions, **three independent sweeps have now each found
-confinement tests that could not fail**, which is the strongest evidence in this file that the
-question risk 3 asks is answered differently inside the kernel than outside it.
+**And the audit produced a third instance of this file's recurring shape.** Milestone 299 (the
+serial console becomes a userspace driver)'s two port tests could not fail in the direction they
+exist for: a wrongly permitted `out` was followed by a `SEND` nobody received, so the run hung
+instead of going red. That is row 26's shape one object over, found only because a draft of finding
+1 hung. After milestone 305's vacuous `U`-bit test and milestone 307's six unreachable assertions,
+**three independent sweeps have now each found confinement tests that could not fail**, which is the
+strongest evidence in this file that the question risk 3 asks is answered differently inside the
+kernel than outside it.
 
 **What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
 was the point: these named claims are tested, and each has been shown to fail when the claim is
@@ -936,19 +952,22 @@ trying to escape, rather than us demonstrating that a planned escape fails. That
 and is gated behind milestone 198 by calef's no-third-parties position.
 
 **The six kernel rows got their mechanism on 2026-09-16, and one of them was not testing its own
-claim.** This entry said until that day that those rows had none; milestone 305 built it, on top of
-milestone 210's `cargo xtask test --test <substring>` (built 2026-08-31, and the note claiming the
-mechanism "does not exist" had been stale for sixteen days). Seven of the eight tests behind rows 21
-to 26 now carry a replayable falsification. The sweep is **48 swept, 0 survivors, 2 min 55 s warm**.
+claim.** This entry said until that day that those rows had none; milestone 305 (the six kernel
+confinement rows get a falsification a machine can replay) built it, on top of milestone 210 (no
+kernel test can be run by name)'s `cargo xtask test --test <substring>` (built 2026-08-31, and the
+note claiming the mechanism "does not exist" had been stale for sixteen days). Seven of the eight
+tests behind rows 21 to 26 now carry a replayable falsification. The sweep is **48 swept, 0
+survivors, 2 min 55 s warm**.
 
 **The finding is the one this risk exists to produce, and it is worse than a missing test.**
 `the_page_tables_say_u_mode_cannot_read_the_kernels_memory` was patched to remove the `U`-bit check
 from `mmu::user_can_read` **outright**, and the test still passed. `user_can_read` went through
 `translate_user`, whose `Mapper` is built with `Half::Low` *always*, so a high-half kernel address
 returned `None` before any leaf was read. **The assertion answered "U-mode cannot read the kernel"
-by refusing to look**, and had done so since milestone 41, with every gate in this tree green
-throughout. `is_mapped_in_current_space` exists forty lines away for exactly this case and says so
-in its own doc comment. Fixed in 305 (`translate_in_either_half`) and measured both ways.
+by refusing to look**, and had done so since milestone 41 (dead code: triage the suppressions, and
+un-blindfold the gate), with every gate in this tree green throughout. `is_mapped_in_current_space`
+exists forty lines away for exactly this case and says so in its own doc comment. Fixed in 305
+(`translate_in_either_half`) and measured both ways.
 
 That is the shape of failure this file's rule 1 is about: **a test that cannot come back red is
 indistinguishable from a test that passes**, and nothing but a falsification can tell them apart.
@@ -1091,7 +1110,8 @@ effort."*
 **Sharpened, because the ISA count is not the fatal part.** An OS that runs on two of three
 architectures is still an OS. What would be fatal is what a failure would reveal: that adding an
 architecture requires changing the kernel rather than adding a directory under `arch/`, which is
-exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) claim it does not.
+exactly what DECISIONS §4 (kernel shape, with two cheap rules)'s rule 1 and §19 (architectural
+parity is a tenet) claim it does not.
 
 **Widened 2026-09-23 from architectures to machines, and the ruling is calef's.** He raised it about
 rented computers: *"A nife that runs on one cloud platform but not another is also its own form of
@@ -1141,28 +1161,30 @@ the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
 Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
 because x86 is hard, but because it is newest: milestone 161 was unfinished when this was written
-(it is `BUILT` since 2026-09-19; see the dated paragraph below), milestone 177's text says
-x86_64 has no real interactive boot entry point at all, and 166 and 167 are each a piece of the same
-unfinished edge.
+(it is `BUILT` since 2026-09-19; see the dated paragraph below), milestone 177 (wire the graphical
+terminal stack into the real interactive boot)'s text says x86_64 has no real interactive boot entry
+point at all, and 166 and 167 are each a piece of the same unfinished edge.
 
 **Two of those closed, 2026-09-01 and 2026-09-02, and this entry did not notice for ten days.** It
-used to cite milestone 164 as the reason x86_64 has no `fs_server`. That milestone is `BUILT`: the
-whole of it turned out to be one build flag (`--cfg aes_force_soft`, which selects `aes`'s portable
-software backend), and x86_64 userspace now builds `aes`, `redoxfs_server` and `mkfs`, with the last
-two in the x86_64 archive. Milestone 165 (x86_64 PCI enumeration) is `BUILT` too. **The risk is not
-weakened by that so much as re-sited**: what is left on this edge is the boot entry point and the
-orchestrator, not the toolchain, which is a shorter list and a different kind of work.
+used to cite milestone 164 (x86_64 userspace can't build `aes`: no SSE, no scalar fallback) as the
+reason x86_64 has no `fs_server`. That milestone is `BUILT`: the whole of it turned out to be one
+build flag (`--cfg aes_force_soft`, which selects `aes`'s portable software backend), and x86_64
+userspace now builds `aes`, `redoxfs_server` and `mkfs`, with the last two in the x86_64 archive.
+Milestone 165 (x86_64 PCI enumeration) is `BUILT` too. **The risk is not weakened by that so much as
+re-sited**: what is left on this edge is the boot entry point and the orchestrator, not the
+toolchain, which is a shorter list and a different kind of work.
 
 **The third claim above is a premise rather than a status, so no gate will ever catch it.** This
 entry still says milestone 177's text has x86_64 with no real interactive boot entry point at all,
 and reads that as meaning the graphical stack is the only route to a shell. That does not follow.
-`swish` never talks to a UART on any architecture; it talks to a console server over an endpoint, and
-what actually blocks x86_64 is that §121 leaves no userspace holder for that endpoint. Whether a
-kernel thread may answer there instead is `design/decisions/149-kernel-served-console-endpoint.md`,
-`PROPOSED` since 2026-09-09. **If §149 is decided yes, 177 stops being a prerequisite** and milestone
-182 reaches a shell over serial, which is also what a bench session needs. If it is decided no, the
-sentence above stands as written. Either way this risk's decisive experiment below is unaffected,
-because milestone 87 is about the boot entry and not about the shell.
+`swish` never talks to a UART on any architecture; it talks to a console server over an endpoint,
+and what actually blocks x86_64 is that §121 (what a device capability is when the device has no
+page) leaves no userspace holder for that endpoint. Whether a kernel thread may answer there instead
+is `design/decisions/149-kernel-served-console-endpoint.md`, `PROPOSED` since 2026-09-09. **If
+§149 (may the kernel answer on an endpoint) is decided yes, 177 stops being a prerequisite** and
+milestone 182 reaches a shell over serial, which is also what a bench session needs. If it is
+decided no, the sentence above stands as written. Either way this risk's decisive experiment below
+is unaffected, because milestone 87 is about the boot entry and not about the shell.
 
 **Status: RUN, 2026-09-17. GREEN, and this is the verdict this entry was missing.** The sharpened
 claim is falsified: adding x86_64 did not require changing the kernel outside a new `arch/`
@@ -1242,17 +1264,18 @@ shares. What remains on this edge is unchanged: the boot entry's remaining work 
 orchestrator, schedule rather than restructure. xenon has still not been asked to bring four cores
 online with the fix.
 
-**Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the
-way it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182
-reached a shell over serial on x86_64: `script/shell-check` has a third leg that boots the UEFI
-image a customer's stick carries, types 60 of its 64 lines at the prompt and reads the answers.
-Milestone 177 closed separately, and its defect is the interesting half for this risk: the graphical
-boot hung because two userspace drivers each sent a one-time report that the boot code had stopped
-receiving, so both sat in a blocking send. That is a wiring mistake in a capability protocol, not an
-architecture-shaped cost, and it was identical on aarch64 and riscv64, which is this entry's claim
-holding rather than bending. **So the sentence above that reads "x86_64 has no real interactive boot
-entry point at all" is retired**, and what remains on this edge is what the 2026-09-19 entry for
-milestone 161 says remains: the orchestrator, and xenon confirming four cores with the counting fix.
+**Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the way
+it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182 (x86_64's
+own interactive-boot entry point) reached a shell over serial on x86_64: `script/shell-check` has a
+third leg that boots the UEFI image a customer's stick carries, types 60 of its 64 lines at the
+prompt and reads the answers. Milestone 177 closed separately, and its defect is the interesting
+half for this risk: the graphical boot hung because two userspace drivers each sent a one-time
+report that the boot code had stopped receiving, so both sat in a blocking send. That is a wiring
+mistake in a capability protocol, not an architecture-shaped cost, and it was identical on aarch64
+and riscv64, which is this entry's claim holding rather than bending. **So the sentence above that
+reads "x86_64 has no real interactive boot entry point at all" is retired**, and what remains on
+this edge is what the 2026-09-19 entry for milestone 161 says remains: the orchestrator, and xenon
+confirming four cores with the counting fix.
 
 **It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
 asking why it should outrank finishing milestone 16 (real hardware + IOMMU-backed driver
@@ -1341,14 +1364,15 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 
 ## BUGS
 
-- ~~**Nothing gates this file.**~~ Closed 2026-09-11 for the mechanical half by milestone 275:
-  `script/fatal-risks --check` runs in `script/lint` and compares what this file says about a
-  milestone or a decision against what the roadmap and the decision index record. It found four
-  live disagreements on its first run, every one of them a case a person had already had to catch by
-  asking: milestone 191 recorded `NOT-STARTED` while risk 2 and the running order both called its
-  experiment run; risk 3 crediting a weekly report the workflow had never published; risk 6 calling
-  the hw-entropy step untimed after the tour began timing it; and risk 9 citing milestone 164 as the
-  reason x86_64 has no `fs_server` after 164 turned `BUILT`.
+- - ~~**Nothing gates this file.**~~ Closed 2026-09-11 for the mechanical half by milestone 275 (a
+  gate that diffs `design/fatal-risks.md` against the roadmap it cites): `script/fatal-risks
+  --check` runs in `script/lint` and compares what this file says about a milestone or a decision
+  against what the roadmap and the decision index record. It found four live disagreements on its
+  first run, every one of them a case a person had already had to catch by asking: milestone 191
+  recorded `NOT-STARTED` while risk 2 and the running order both called its experiment run; risk 3
+  crediting a weekly report the workflow had never published; risk 6 calling the hw-entropy step
+  untimed after the tour began timing it; and risk 9 citing milestone 164 as the reason x86_64 has
+  no `fs_server` after 164 turned `BUILT`.
 
   **What is not closed is the larger half, and it stays named here rather than implied.** A gate can
   see a status word contradicting the record. It cannot see a premise being overtaken, which is what
@@ -1357,9 +1381,10 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
   have caught that, and nothing here claims to. **A green `script/fatal-risks` means no status word
   in this file contradicts the record it names; it is not a warrant that the arguments still hold.**
 - ~~**Two entries have no owner.**~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202,
-  both scoped by calef, and both reframed in the process. Risk 5's experiment could not come back red
-  as written and now can; risk 7's needed framing before a lane, and got §134's. **Neither can return
-  a clean green**, and both blocks say so where a reader meets them.
+  both scoped by calef, and both reframed in the process. Risk 5's experiment could not come back
+  red as written and now can; risk 7's needed framing before a lane, and got the framing of §134 (a
+  harness carries a machine-replayable falsification record, or it is not evidence). **Neither can
+  return a clean green**, and both blocks say so where a reader meets them.
 - **The ranking is a judgement, not a calculation.** "Chance of fatal" is nobody's measurement, and
   two readers could order this differently on the same evidence.
 - **A green result is not proof of anything.** Every experiment here can only fail to kill the

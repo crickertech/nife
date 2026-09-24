@@ -114,7 +114,7 @@
 //!   out frames the display adapter answers at. Until a machine forces the question, the panic
 //!   names both ranges and is the better answer.
 
-use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering};
 
 use paging::x86_64::{Ia32e, Vtd};
 use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageSize, PageTable};
@@ -510,10 +510,41 @@ const SHOOTDOWN_ALL: u64 = u64::MAX;
 /// reachable, because the message that ends the spin is an NMI.
 static SHOOTDOWN_LOCK: AtomicBool = AtomicBool::new(false);
 
-/// What the cores named by [`SHOOTDOWN_PENDING`] are being asked to invalidate: one page, or
-/// [`SHOOTDOWN_ALL`]. Written under [`SHOOTDOWN_LOCK`], published by the `Release` store to
+/// The payload of the round in flight, read according to [`SHOOTDOWN_KIND`]: a virtual address (or
+/// [`SHOOTDOWN_ALL`]) for [`KIND_PAGE`], and a packed `(base, count)` port range for
+/// [`KIND_PORT_GRANT`]. Written under [`SHOOTDOWN_LOCK`], published by the `Release` store to
 /// `SHOOTDOWN_PENDING` that follows it.
+///
+/// **One word for two kinds rather than two words**, because only one round is ever in flight and a
+/// second static would be a second thing to keep in step with the first. The name kept its `_VA`
+/// spelling: it is what every existing reader calls it, and renaming a static that carries the older
+/// meaning in every one of them would be a naming decision this lane does not get to make.
 static SHOOTDOWN_VA: AtomicU64 = AtomicU64::new(0);
+
+/// **What the cores named by [`SHOOTDOWN_PENDING`] are being asked to do**, added by
+/// milestone 315 (a port revoke that reaches every core). Until then the answer was always
+/// "invalidate a translation" and did not need saying.
+///
+/// Written under [`SHOOTDOWN_LOCK`] and published by the same `Release` store to
+/// `SHOOTDOWN_PENDING` that publishes [`SHOOTDOWN_VA`], so a handler that sees its own bit has seen
+/// both halves of the message.
+static SHOOTDOWN_KIND: AtomicU8 = AtomicU8::new(KIND_PAGE);
+
+/// [`SHOOTDOWN_KIND`]: discharge [`SHOOTDOWN_VA`] from the TLB, one page or everything.
+const KIND_PAGE: u8 = 0;
+
+/// [`SHOOTDOWN_KIND`]: take the port range packed into [`SHOOTDOWN_VA`] out of this core's TSS I/O
+/// permission bitmap if it is the one installed there (milestone 315). Nothing about memory, and it
+/// shares this protocol for one reason: the NMI is the only message on x86 that reaches a core with
+/// interrupts masked, which is where a revoked holder's core routinely is.
+const KIND_PORT_GRANT: u8 = 1;
+
+/// Pack a port range into [`SHOOTDOWN_VA`]'s word. Both halves are `u16`, so this is lossless and
+/// needs no sentinel: a range is never confused with an address because [`SHOOTDOWN_KIND`] says
+/// which one the word is.
+const fn pack_port_range(base: u16, count: u16) -> u64 {
+    (base as u64) << 16 | count as u64
+}
 
 /// **Which cores have not yet acknowledged**, as a bitmask of cpu ids. The sender sets it and spins
 /// until it reads zero; each target clears its own bit from the NMI handler. A mask rather than a
@@ -554,6 +585,24 @@ static SHOOTDOWN_PENDING: AtomicUsize = AtomicUsize::new(0);
 /// to hand its caller an undischarged obligation, which is the one thing `paging::TlbFlush` exists
 /// to prevent. Worth revisiting with `script/bench` numbers rather than by argument.
 fn shoot_down_others(va: u64) {
+    broadcast(KIND_PAGE, va);
+}
+
+/// **Take a port range out of every other online core's TSS bitmap** (milestone 315), the remote
+/// half of `segments::revoke_port_grant_everywhere`, which carries the defect this closes and the
+/// measurement that found it.
+///
+/// It is [`shoot_down_others`]'s protocol with a different step at the far end, and reusing it is
+/// the point: the acknowledgement mask, the single-round lock and the NMI delivery are the parts
+/// that are hard to get right, and there is no second copy of them to keep in step.
+pub(super) fn revoke_port_grant_others(base: u16, count: u16) {
+    broadcast(KIND_PORT_GRANT, pack_port_range(base, count));
+}
+
+/// Send `kind` with `word` to every other online core and spin until each has acknowledged. The
+/// body [`shoot_down_others`] and [`revoke_port_grant_others`] share; the doc above
+/// `shoot_down_others` is the design, because that is the caller the design was written for.
+fn broadcast(kind: u8, word: u64) {
     // Nothing to tell, or nothing to tell it with. `local_apic_ready` is the earlier of the two:
     // `mmu::init` maps the whole machine before `init_local_apic` runs.
     if !super::irq::local_apic_ready() {
@@ -573,9 +622,10 @@ fn shoot_down_others(va: u64) {
         core::hint::spin_loop();
     }
 
-    SHOOTDOWN_VA.store(va, Ordering::Relaxed);
-    // Release: this publishes the `va` above. A handler that sees its own bit set has, by the
-    // matching `Acquire` load, also seen the address that bit is about.
+    SHOOTDOWN_KIND.store(kind, Ordering::Relaxed);
+    SHOOTDOWN_VA.store(word, Ordering::Relaxed);
+    // Release: this publishes the two stores above. A handler that sees its own bit set has, by the
+    // matching `Acquire` load, also seen the message that bit is about.
     SHOOTDOWN_PENDING.store(others, Ordering::Release);
 
     for cpu in cpu_set::cpus_in(others) {
@@ -612,20 +662,27 @@ fn shoot_down_others(va: u64) {
 /// truth and needs no per-CPU pointer to read. Nothing else here dereferences per-CPU state, takes
 /// a lock, or prints.
 pub fn serve_shootdown_nmi() -> bool {
-    let bit = 1usize << (super::irq::local_apic_id() as usize);
+    let me = super::irq::local_apic_id() as usize;
+    let bit = 1usize << me;
 
     // Acquire: pairs with the sender's `Release` store, so seeing our bit means seeing its `va`.
     if SHOOTDOWN_PENDING.load(Ordering::Acquire) & bit == 0 {
         return false;
     }
 
-    match SHOOTDOWN_VA.load(Ordering::Relaxed) {
+    let word = SHOOTDOWN_VA.load(Ordering::Relaxed);
+    match SHOOTDOWN_KIND.load(Ordering::Relaxed) {
+        // The port revoke (milestone 315). It names this core by the APIC id read above rather than
+        // by `cpu::id()`, for the reason this function's own heading gives.
+        KIND_PORT_GRANT => {
+            super::segments::revoke_installed_port_grant_on(me, (word >> 16) as u16, word as u16);
+        }
         // SAFETY: rewriting CR3 with the value it already holds changes no mapping and invalidates
         // every non-global entry, which with `CR4.PGE` clear is every entry. See `flush_asid`.
-        SHOOTDOWN_ALL => unsafe { install(read_cr3()) },
+        _ if word == SHOOTDOWN_ALL => unsafe { install(read_cr3()) },
         // SAFETY: TLB maintenance is always sound, at any address.
-        va => unsafe {
-            core::arch::asm!("invlpg [{}]", in(reg) va, options(nostack, preserves_flags));
+        _ => unsafe {
+            core::arch::asm!("invlpg [{}]", in(reg) word, options(nostack, preserves_flags));
         },
     }
 

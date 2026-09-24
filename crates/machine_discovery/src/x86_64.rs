@@ -308,7 +308,9 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
     u64::from_le_bytes(w)
 }
 
-/// Machine-checked proofs over the PVH handoff (DECISIONS §14, milestone 319).
+/// Machine-checked proofs over the PVH handoff and the `CPUID` decode. DECISIONS
+/// §14 (a verified-Rust capability microkernel) is why a parser here is proved rather than only
+/// tested, and milestone 319 (the crate that parses firmware) is where the first of these landed.
 ///
 /// This is the first structure the x86 kernel reads through a pointer somebody else chose, and the
 /// module header already argues that a parser proved only inside a booting kernel is proved by
@@ -379,6 +381,74 @@ mod verification {
         if let Some(m) = module(&module_bytes, index) {
             assert!(m.end() >= m.addr);
         }
+    }
+
+    /// **A feature is never reported from a leaf the part does not answer.**
+    ///
+    /// `CPUID` has no fault for a leaf a part does not implement. A read above the maximum answers
+    /// with some *other* leaf's data, so "this bit is clear" and "this leaf is not there" arrive as
+    /// the same bits on the wire and only the maximum tells them apart. That rule is the whole of
+    /// what [`Isa::decode`] decides, and it is stated four separate times, once per leaf, with two
+    /// different maxima: the standard one in `leaf0[0]` and the extended one in `extended_max_leaf`,
+    /// which are different numbers in different spaces and read the same way in a diff.
+    ///
+    /// What makes a proof worth more than the host tests beside it is that the consequence is a
+    /// *refusal path nothing here can take*: milestone 524 (the three `x86_64` boot gates) gates the
+    /// boot on NX and SYSCALL, and every machine this project runs on reports both, so a decode that
+    /// invented them from a part's leaf-0 data would be silent on every machine in the building.
+    ///
+    /// Could plausibly have been false: gating an *extended* leaf on the *standard* maximum is one
+    /// character of difference and reads as correct, and on any modern part `leaf0[0] >= 7` holds, so
+    /// the wrong gate and the right one agree everywhere a test is likely to look.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/x86_64.verification.a_feature_is_never_reported_from_a_leaf_the_part_does_not_answer.patch`
+    #[kani::proof]
+    fn a_feature_is_never_reported_from_a_leaf_the_part_does_not_answer() {
+        let w = CpuidWords {
+            leaf0: [kani::any(), 0, 0, 0],
+            leaf7_0: [0, kani::any(), 0, 0],
+            extended_max_leaf: kani::any(),
+            extended_leaf1_edx: kani::any(),
+            extended_leaf7_edx: kani::any(),
+            // One symbolic word repeated. The brand claim below is about whether the bytes were
+            // copied at all, so twelve distinct words would buy nothing but solver time.
+            brand: [kani::any(); 12],
+        };
+        let isa = Isa::decode(&w);
+
+        if w.extended_max_leaf < 0x8000_0001 {
+            assert!(!isa.features.contains(NX));
+            assert!(!isa.features.contains(SYSCALL));
+            // The two required rows both live in that leaf, so a part which does not answer it can
+            // never clear the gate. This is the claim the boot depends on, rather than a restatement
+            // of the branch above it.
+            assert!(isa.missing_requirements().any());
+        }
+        if w.extended_max_leaf < 0x8000_0007 {
+            assert!(!isa.features.contains(INVARIANT_TSC));
+        }
+        if w.extended_max_leaf < 0x8000_0004 {
+            // Not `brand_str`, which trims and validates: the claim is that nothing was copied.
+            assert_eq!(isa.brand, [0u8; 48]);
+        }
+        if w.leaf0[0] < 7 {
+            assert!(!isa.rdseed());
+        }
+
+        // `REQUIRED` and `WARNED` are folded out of `TABLE` by a `const fn` comparing discriminants,
+        // which is the one place a row's gate can be got wrong without any call site changing. So
+        // the refusal is tied back to the two features by name: a table edit that demoted NX to
+        // `Gate::Warn` would boot a part whose page tables' no-execute is a comment.
+        assert_eq!(
+            isa.missing_requirements().any(),
+            !(isa.features.contains(NX) && isa.features.contains(SYSCALL))
+        );
+        assert!(!isa.unpromised().contains(NX) && !isa.unpromised().contains(SYSCALL));
+
+        kani::cover!(
+            !isa.missing_requirements().any(),
+            "some part clears the boot gate"
+        );
+        kani::cover!(isa.missing_requirements().any(), "some part is refused");
     }
 }
 

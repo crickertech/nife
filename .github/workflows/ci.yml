@@ -198,6 +198,29 @@ jobs:
             echo "needed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # **The one thing a documentation-only change CAN break, and the skip above used to hide it.**
+      # `crates/documentation`'s corpus tests walk `notes/`, `design/decisions/` and
+      # `design/roadmap/` and assert that the renderer loses no characters on any page in them,
+      # which is precisely the set the predicate above calls "nothing a build or a boot can catch".
+      # It was wrong about that. On 2026-09-23 `notes/rented-metal.md` landed with a twelve-column
+      # table against a renderer bound of eight, this job skipped, the required check posted success,
+      # and `main` was red while reading green until the next branch that happened to touch a
+      # non-prose path opened the gate. A test whose entire subject is documents must not sit behind
+      # a gate that a documentation change does not open.
+      #
+      # This runs INSTEAD of the build rather than beside it, which is what keeps the skip's own
+      # reason intact: no QEMU, no `script/bootstrap`, no cache restore, one host crate, seconds.
+      # The `needed == 'true'` arm already runs these tests inside `script/ci-build`, so between the
+      # two arms the corpus is checked on every pull request whatever it touched.
+      #
+      # It is deliberately NOT a widening of the predicate above. Adding `notes/` and `design/` to
+      # the "needs the build" side would drag QEMU, a bootstrap and a ten-minute kernel build onto
+      # every prose commit to catch a three-second host test, and the predicate is shared verbatim
+      # with `cpu matrix` and `verify`, which a markdown file genuinely cannot affect.
+      - name: The corpus tests, which are what a documentation-only change can break
+        if: steps.scope.outputs.needed != 'true'
+        run: cargo test -p documentation
+
       - uses: Swatinem/rust-cache@v2
         if: steps.scope.outputs.needed == 'true'
       # QEMU, built from source and cached. Ubuntu 24.04 ships 8.2 and `-device riscv-iommu-pci`

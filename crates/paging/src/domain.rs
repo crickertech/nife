@@ -185,7 +185,7 @@ mod verification {
     /// over fully symbolic inputs. Kani checks arithmetic overflow and panics on every operation, so a
     /// run that trips nothing is the totality proof; it is worth its own harness because the builder
     /// calls these on a region a caller supplied.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.the_grant_enumeration_is_total.patch`
     #[kani::proof]
     fn the_grant_enumeration_is_total() {
         let r = DmaRegion {
@@ -204,7 +204,7 @@ mod verification {
     /// (refused), not a trailing partial page (never enumerated), and not a low address reached by
     /// wrapping (refused). Since IOVA == PA, this is equally the statement that the device translates
     /// only to granted physical memory.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.an_enumerated_page_lies_inside_the_grant.patch`
     #[kani::proof]
     fn an_enumerated_page_lies_inside_the_grant() {
         let r = DmaRegion {
@@ -238,7 +238,7 @@ mod verification {
     /// below the page count resolves, so the builder's defensive branch cannot fire and the loop maps
     /// exactly `pages` pages. Split from the soundness harness because it is the fact the builder's
     /// control flow depends on, and it should be named where a reader of that branch will look.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.a_page_index_below_the_count_always_resolves.patch`
     #[kani::proof]
     fn a_page_index_below_the_count_always_resolves() {
         let r = DmaRegion {
@@ -265,7 +265,7 @@ mod verification {
     /// at all would satisfy soundness perfectly and confine the device by starving it, which is not
     /// the confinement anybody wants, and the failure would surface as a mysterious device fault
     /// rather than as a refusal.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.every_whole_page_of_the_grant_is_enumerated.patch`
     #[kani::proof]
     fn every_whole_page_of_the_grant_is_enumerated() {
         let r = DmaRegion {
@@ -311,7 +311,7 @@ mod verification {
     /// write to a live leaf ([`MapError::AlreadyMapped`]): without injectivity a perfectly legal grant
     /// could fail its own build. Together with soundness and completeness this pins the mapped set to
     /// exactly the grant's whole pages, counted once each.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.the_enumeration_is_injective.patch`
     #[kani::proof]
     fn the_enumeration_is_injective() {
         let r = DmaRegion {
@@ -342,7 +342,7 @@ mod verification {
     /// with an unaligned base or an end that wraps `u64`, [`grant_pages`] errors, so the builder maps
     /// nothing at all rather than mapping a rounded or wrapped page set. This is the fail-closed half
     /// of the property: the two inputs that could produce an *over*-map are the two that are refused.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/domain.verification.a_grant_the_domain_cannot_express_is_refused.patch`
     #[kani::proof]
     fn a_grant_the_domain_cannot_express_is_refused() {
         let r = DmaRegion {

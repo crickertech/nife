@@ -292,7 +292,7 @@ mod verification {
     use crate::{Half, PAGE_SIZE, PageSize};
 
     /// **The walk never indexes past a table.** For every address and level, the index is < 512.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.index_is_always_in_bounds.patch`
     #[kani::proof]
     fn index_is_always_in_bounds() {
         let va: u64 = kani::any();
@@ -303,7 +303,7 @@ mod verification {
 
     /// **The four indices and the offset tile the address exactly**, which is what proves the shift
     /// arithmetic: if two levels shared a bit, two addresses could walk to one entry.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.the_indices_and_offset_tile_the_address.patch`
     #[kani::proof]
     fn the_indices_and_offset_tile_the_address() {
         let va: u64 = kani::any();
@@ -317,7 +317,7 @@ mod verification {
 
     /// **Distinct pages take distinct paths.** Two page-aligned addresses with the same four indices
     /// are the same page: the arithmetic core of address-space isolation.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.distinct_pages_take_distinct_paths.patch`
     #[kani::proof]
     fn distinct_pages_take_distinct_paths() {
         let a: u64 = kani::any::<u64>() & ADDR_MASK;
@@ -332,7 +332,7 @@ mod verification {
     }
 
     /// **The two halves are disjoint.** No address belongs to both the low and high half.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.the_two_halves_are_disjoint.patch`
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
@@ -398,7 +398,7 @@ mod verification {
     }
 
     /// **No table descriptor ever reads as a block**, for every address.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.a_table_entry_is_never_a_block.patch`
     #[kani::proof]
     fn a_table_entry_is_never_a_block() {
         let pa: u64 = kani::any();

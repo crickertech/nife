@@ -209,19 +209,19 @@ calef, 2026-09-23: *"We are all owners here so let's make certain we don't let t
 the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
 own it."*
 
-The complement to **"Nobody remembers, so build the mechanism that does not need them to"** above,
-not a restatement of it: that section says do not rely on someone noticing; this one says that once
-you have noticed, the problem is yours to route, not to leave for whoever's pull request it happened
-to land on. Read alone, the first tenet lets a reader conclude that a problem outside their own lane
-is not their business. It is not.
+The complement to **"Nobody remembers, so build the mechanism that does not need them to"**: that
+tenet says do not rely on anyone noticing; this one says that once you have, the problem is yours to
+route, not to leave for whoever's pull request it lands on. A load-sensitive flake was written into
+`notes/load-sensitive-assertions.md` twice and left both times, because "every individual encounter
+looked like someone else's problem." Noticing is not owning until the problem has an owner.
 
-A load-sensitive test flake in `kernel/src/user/current_cpu_tests.rs` failed CI repeatedly across
-many pull requests on 2026-09-22 and 2026-09-23, correctly diagnosed and written into
-`notes/load-sensitive-assertions.md` twice, then left: every pull request that hit it was not the one
-that caused it, "every individual encounter looked like someone else's problem," and it was chased
-only after calef asked directly. The same day, pull request #1054 sat unassigned for a day because a
-workflow opened it and nothing assigned it, and a stale-draft warning `merge-drain.sh` correctly
-posted on #1087 went unacted on for 24 hours. Noticing is not owning until the problem has an owner.
+**And owning is not recording.** calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
+than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* The test
+is *move fast on what can be undone*'s, applied to the fix: cheap and reversible, fix it now and the
+record is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS` entry is
+the right answer to the second case and an evasion in the first. Acting on what you half understand
+is worse than reporting it, so **a refusal carrying its reason is an action**: milestone 323 (the
+falsification record is incomplete in five ways) refused two gaps for want of hardware.
 
 ## Elegance and performance beat implementation convenience
 

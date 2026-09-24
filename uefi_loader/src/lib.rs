@@ -12,6 +12,7 @@
 
 #![cfg_attr(not(test), no_std)]
 
+pub mod device_tree_from_acpi;
 pub mod device_tree_patch;
 pub mod efi;
 pub mod handoff;

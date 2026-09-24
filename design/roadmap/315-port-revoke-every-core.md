@@ -1,111 +1,164 @@
 # 315. A port revoke that reaches every core
 
-**Status: NOT-STARTED.** Promoted from
-`design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md` by calef on 2026-09-17, the day
-milestone 313's security audit raised it as finding 4. *(Number provisional until the merge queue
-lands it.)*
+**Status: BUILT 2026-09-23.** Built by a lane on `milestone/315-port-revocation-two-core`. Promoted
+from `design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md` by calef on 2026-09-17, the
+day milestone 313 (the security audit that was due since August) raised it as finding 4.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It was `DECISION` until 2026-09-18, when calef answered
-[§153](../decisions/153-two-core-x86-test-sequencing.md): **close this milestone first, then default
-`NIFE_SMP` to 2.** A lane can start today.
+It was gated `DECISION` until 2026-09-18, when calef answered
+§153 (how a two-core x86_64 test earns its place),
+[the decision file](../decisions/153-two-core-x86-test-sequencing.md): **close this milestone
+first, then default
+`NIFE_SMP` to 2.** Both halves are done, and the second is the verification of the first.
 
-**And the scope shrank while the decision was open.** This block said the test was the deliverable
-and would be the first port test able to observe the revocation window. **That test already exists.**
-Milestone 316 fixed `ap_boot`'s BUG #3 (the boot-core-identity defect that failed
-`every_secondary_runs_scheduled_work` about half the time at two cores), and with a working
-substrate `a_revoked_holder_faults_on_its_next_port_write` became the observer: of 12 two-core runs,
-**all seven failures are that one assertion**, `left: 2, right: 1`, the revoked holder's `out`
-succeeding.
+## What it owed, and what landed
 
-So this milestone owes **the broadcast, and the default flip**:
+1. **The broadcast.** `arch::x86_64::segments::revoke_port_grant_everywhere` resets this core's TSS
+   I/O permission bitmap and then tells every other online core to do the same, over the TLB
+   shootdown's NMI (`mmu::revoke_port_grant_others`). `sched::delete_port_range_caps_impl` calls it
+   in place of the core-local reset.
+2. **The default flip.** `scripts/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to 2.
 
-1. `PortRange::REVOKE` and `sched::delete_current_cap`'s port half broadcast
-   `revoke_installed_port_grant` to every online core after clearing the cached grants.
-2. **Flip `NIFE_SMP`'s default from 1 to 2 as this milestone's closing step.** §153 is explicit that
-   the flip is not a separate judgment: the two-core suite going green *is* the verification that
-   the broadcast worked. Leaving it to be remembered is how it would not happen.
+## The defect was reproduced before it was fixed
 
-## What this is
+The scope had already shrunk while the decision was open: this block once said the test was the
+deliverable and would be the first port test able to observe the revocation window, and milestone
+316 found that the test already existed. `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
+became that observer the moment 316 gave it a working two-core substrate.
 
-`PortRange::REVOKE`, and `sched::delete_current_cap`'s port half, broadcast
-`arch::x86_64::segments::revoke_installed_port_grant(base, count)` to every online core after
-clearing the cached grants, so a revoked holder running on another core faults on its very next
-`in`/`out` rather than on its next context switch.
+**7 of 12 full two-core runs** is 316's campaign figure. This lane established its own, on the same
+host (patagonia, no induced load), against the filtered leg `cargo xtask test --arch x86_64 --test
+x86_port` at `NIFE_SMP=2`:
 
-**The pieces already exist.** The IPI that runs a core-local step on every online core and waits is
-the TLB shootdown's (`notes/x86-tlb-shootdown.md`). The core-local step was written for exactly this
-broadcast. What is missing is the call between them, and the test.
+| campaign | runs | failures |
+|---|---|---|
+| filtered, uninstrumented | 12 | **3** |
+| filtered, instrumented | 30 | **2** |
 
-## Why it is open at all
+Every failure was the same assertion at the same line, `x86_port_tests.rs`'s `left: 2, right: 1`:
+the child's `out` was **permitted** and it exited cleanly (`EVENT_EXIT`) where the test demands a
+fault. The filtered leg runs three tests rather than 326, which is why its rate is lower than the
+full suite's; it is the same failure.
 
-[DECISIONS §152](../decisions/152-port-range-capability.md)'s `BUGS` said x86 ran one core, so the
-core-local reset was the whole machine. `smp::seat_cpus_from_acpi` made that false: the tour boots
-two cores under OVMF and **xenon booted four on 2026-09-17**. The reset stayed core-local.
+## What actually raced, with the evidence
 
-So a revoked holder on a second core keeps that core's TSS bitmap until its next context switch,
-**at most one tick**, during which its `in`/`out` succeed against a capability that no longer
-exists. Milestone 313 **accepted** that window with its reason (bounded, cannot reopen, no consumer
-holds a port on two cores today) and recorded it at the function. §152's entry was corrected the
-same day. This is the closing move.
+`PortRange::REVOKE` deletes the capability from every thread's table and clears the cached grant
+(`thread::Thread::port_range_grant`) under `sched::IPC_TABLES`, then resets the TSS bitmap. The reset
+was **core-local**, which was the whole machine when DECISIONS §152 (the port-range capability)
+recorded it and stopped being so when `smp::seat_cpus_from_acpi` made this port multi-core.
 
-## The decision this is gated on
+A core's bitmap permits a range only while the thread holding it is the thread running there, so the
+window needs the holder to be *running on another core* at the instant of the revoke. The test's own
+shape produces exactly that: it starts the child, revokes, and sends the wake, and when the send
+lands before the child reaches its `RECV` the child's `RECV` returns without ever switching away. So
+the grant core 1 installed at switch-in is still installed when the `out` executes, and core 0's
+reset never touched it.
 
-**The test is the deliverable, not the broadcast**, and the test needs two cores on x86_64. That is
-where the problem is.
+**Measured rather than argued.** A temporary snapshot of `INSTALLED_PORT_GRANT`, taken at the revoke
+and read by the test after the outcome arrived:
 
-`scripts/qemu-runner-x86_64.sh` sets `SMP="${NIFE_SMP:-1}"` **deliberately**, and its comment gives
-two open reasons: AP-bring-up flakiness at three or more cores, and a boot-core-identity bug that
-makes `smp::tests::every_secondary_runs_scheduled_work` fail **about half the time at two**. Both
-are recorded in `arch::x86_64::ap_boot`'s own `BUGS` (#1 and #3). Separately,
-milestone 412 (design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md)
-records the UEFI leg's two-core assertion failing one run in three.
+| what the snapshot said at the revoke | runs | outcome |
+|---|---|---|
+| revoker on cpu 0, **cpu 1 holds a grant** | 2 | **both failed** (`EVENT_EXIT`) |
+| revoker on cpu 1, cpu 0 holds a grant | 5 | all passed |
+| no core holds a grant | 27 | all passed |
+| revoker on cpu 0, cpu 1 holds a grant | 1 | passed (the holder switched away in time) |
 
-So a new two-core port test would ride on a configuration where an existing SMP test is already
-flaky. **Two ways to sequence it, and they are not close enough to pick without calef:**
+A remote core holding the grant is necessary and not sufficient, which is exactly what a window of
+"until that core's next context switch" predicts.
 
-1. **Order this behind `ap_boot`'s BUGS #1 and #3.** The test lands on a two-core configuration
-   somebody trusts, which is what makes a confinement test worth having. The cost is that this
-   milestone then waits on SMP work nobody has scheduled, and the window stays open meanwhile.
-2. **Give it an opt-in `NIFE_SMP=2` leg**, separate from the default suite. The test exists now and
-   can see a window nothing else can. The cost is a test that may be red for reasons unrelated to
-   what it tests, which is the exact condition under which tests get muted, and this tree has spent
-   2026-09-16 and 2026-09-17 finding three separate confinement tests that could not fail.
+## The fix, and the one thing that makes it sound
 
-**Recorded rather than decided** because the maintainer asked three times in one session and it
-never reached a file, which is the failure AGENTS.md names: *open decisions live in a file, not in a
-conversation.*
+The remote half rides `mmu::shoot_down_others`' protocol rather than a new one: `SHOOTDOWN_KIND`
+says which step the round is for and `SHOOTDOWN_VA` carries a packed `(base, count)` instead of an
+address. The acknowledgement mask, the single-round lock and the NMI delivery are the parts that are
+hard to get right, and there is now no second copy of them to keep in step. The NMI is forced rather
+than preferred for the same reason it was for a page (notes/x86-tlb-shootdown.md): the target core
+is routinely spinning for `IPC_TABLES` with interrupts masked, because the revoker is holding it.
 
-## What the test has to do, whichever way it is sequenced
+**Broadcasting alone would not have been enough**, and this is the part that is not in the proposal.
+The far end writes a TSS from an NMI handler, at an arbitrary instruction boundary. Two windows stay
+open if nothing else changes: a core can read a grant the sweep has already cleared and install it
+*after* the broadcast, and the NMI can land in the middle of that install. Both shut on one rule,
+now stated at `segments::set_port_range_grant_on`: a core's port bitmap is written only by a thread
+holding `sched::IPC_TABLES`, or by an NMI that such a thread sent.
 
-Written down now because it is the part most likely to go wrong, and because milestone 313's own
-finding 2 is the warning.
+Making it true took moving `schedule`'s `install_port_grant` inside the locked region (it read the
+grant under the lock and installed it after) and `delete_current_cap`'s core-local reset with it.
+The cost on a machine where nothing holds a port is one compare inside the critical section instead
+of one outside it, because `set_port_range_grant` returns after a single comparison when the grant
+has not changed.
 
-- **The assertion is the fault arriving**, positively observed. Not the absence of a successful
-  `out`. Milestone 299's two port tests were found to hang rather than go red precisely because a
-  wrongly-permitted `out` was followed by a `SEND` nobody received, and a draft of 313's finding 1
-  hung the same way.
-- **Three outcomes must be distinguishable**: fault seen, no fault before the deadline, and the
-  other core never scheduled the holder. Only the first two are about revocation, and a test that
-  cannot tell the third apart will be read as flaky when it is uninformative.
-- **A bounded wait, not a race.** The window is one tick. One shape that converts the race into an
-  observation: have the holder report a monotonic count of successful `out`s and assert the count
-  **stops advancing** within a bounded window after the revoke. That also measures the width of the
-  window rather than only its existence, which would put a number on the "at most one tick" the
-  audit accepted on reasoning.
+`delete_current_cap` owes **no** broadcast: the thread dropping its own capability is the thread
+whose grant is installed, and it is running on this core, so this core is the only core to tell.
+
+## What proves it
+
+`user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` at two cores, which failed
+before the change and passes after it, on the counts in the tables above. It is a gate rather than a
+measurement now: two cores is the default, so it runs on every `script/test --arch x86_64`. So does
+`user::tests::an_asid_flush_reaches_the_other_cores`, the TLB-shootdown test from
+milestone 161 (the x86_64 kernel port), which had
+been verified by hand and gated by nothing.
+
+## BUGS
+
+- **Three cores and above are still opt-in and still unmeasured on silicon.** The flip is to 2, not
+  to 4 like the other two runners. `ap_boot`'s `BUGS` #1 was closed on QEMU TCG in 2026-09-19 and
+  xenon has never been asked to bring all four cores online; the line to read there is
+  `smp: N core(s) online`.
+- **Every number here is QEMU TCG on one host**, and on an aarch64 host QEMU runs an x86_64 guest
+  round-robin unless `NIFE_TCG_THREAD=multi` is set, so two cores take turns rather than executing
+  in the same instant. The window this closes was wide enough to fire anyway; a narrower one might
+  not be visible here at all.
+- **The broadcast is unbatched and unmeasured**, like the TLB shootdown it rides. A revoke of one
+  range costs one full round trip to every online core. Nothing in `script/bench` prices it, and
+  nothing should until a workload revokes a port range more than once per boot.
+- **The NMI handler's work is proportional to the range**, where the TLB step is constant. Taking
+  back COM1's eight ports is eight bit writes and nothing to think about, but a grant over the whole
+  16-bit port space would spend 8 KiB of bitmap writes inside an NMI on every online core. The
+  switch path has always paid the same cost for the same range and this inherits it rather than
+  introducing it, and nothing in the tree grants a range wider than a device's.
+- **`SHOOTDOWN_VA` now carries something that is not a virtual address**, and keeps its name. The
+  spelling is what every existing reader calls it and renaming a static that still carries the older
+  meaning in most of its uses is a naming decision a lane does not get to make.
 
 ## Follow-on
 
-- **Decision.** `design/decisions/153-two-core-x86-test-sequencing.md`, **DECIDED 2026-09-18**:
-  close this milestone first, then default `NIFE_SMP` to 2, so the flip verifies the broadcast
-  rather than being a judgment somebody has to keep making.
+- **Recorded.** `exceptions::NMIS_UNCLAIMED` should stay at zero and no test asserts it, which was
+  already `notes/x86-tlb-shootdown.md`'s `BUGS` entry and is now load-bearing for a second protocol
+  rather than one. It stays a recorded limitation rather than becoming a milestone here.
+- **Recorded.** `loom` does not fit this protocol, and the reason is worth keeping. It was the
+  obvious instrument to reach for (notes/interleaving.md has five protocols modelled this way) and
+  it cannot see either half of this defect. The bug was a message that was never sent rather than an
+  interleaving of the messages that were, and the enforcement it failed at is a CPU reading a TSS
+  bitmap on an `out` instruction, which is outside any Rust memory model. The shootdown protocol's
+  atomics *are* a hand-rolled candidate and now serve two kinds rather than one, but they live under
+  `arch/`, so lifting them to a host crate is the bigger question notes/interleaving.md already
+  parks for `arch/*/irq.rs`. Milestone 355 (four crates were lifted so loom could search them) is
+  where that would go if it goes anywhere.
+- **Recorded.** The reconciliation from milestone 316 (which core booted) still stands: it saw
+  26 two-core boots and zero
+  `smp: cpu 1 did not start`, against the one-in-three recorded by milestone 412 (`script/test`'s
+  UEFI leg asserts two cores online), and this lane's runs add
+  more of the same evidence without being the dedicated measurement 412 asks for.
 
 ## Index row
 
-`PortRange::REVOKE` clears the capability table and the cached grants, but the TSS I/O bitmap reset
-is core-local, and `smp::seat_cpus_from_acpi` made x86 multi-core after DECISIONS §152 recorded that
-it was not. So a revoked holder running on another core keeps COM1 for at most one tick. Milestone
-313's audit accepted that window with its reason and recorded it at the function; this broadcasts
-the existing core-local reset over the existing TLB-shootdown IPI so the fault arrives on the next
-`in`/`out` instead. The test is the deliverable rather than the broadcast: it would be the first
-port test to run on two cores and the first able to observe the window at all, which is why its
-sequencing against `ap_boot`'s open SMP bugs is a decision rather than a scheduling detail.
+**Built:** 2026-09-23
+
+`PortRange::REVOKE` cleared the capability table and the cached grants but reset the TSS I/O bitmap
+on the revoker's core only, which was the whole machine when DECISIONS §152 recorded it and stopped
+being so when `smp::seat_cpus_from_acpi` made x86 multi-core; a revoked holder running on another
+core kept COM1 until that core's next context switch. Milestone 313's audit accepted the window on
+reasoning, and at two cores it was red in 7 of 12 full runs of the test written to see it. This lane
+reproduced it (3 of 12, then 2 of 30 on a filtered leg), named the cause with a snapshot of
+`INSTALLED_PORT_GRANT` taken at the revoke that read "revoker on cpu 0, cpu 1 holds a grant" on both
+captured failures, and closed it by broadcasting the reset over the TLB shootdown's NMI with a kind
+tag on the existing protocol. The half the proposal did not have is that broadcasting alone leaves
+the window reopenable: `schedule` read the grant under `IPC_TABLES` and installed it after, so a
+core could install a grant the sweep had already cleared, and the NMI could land inside that
+install. Moving the install under the lock gives one rule instead, stated at the writer, that every
+TSS bitmap write is made by a holder of `IPC_TABLES` or by an NMI one sent. `NIFE_SMP` defaults to 2
+as the closing step per DECISIONS §153, which makes both this test and milestone 161's
+TLB-shootdown test gates rather than things somebody verified by hand.
