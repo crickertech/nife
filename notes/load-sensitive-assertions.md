@@ -88,6 +88,8 @@ is saturated, so all three red at once is a load gauge, not three regressions.
 2. Ask about the object, not the machine. A thread is asked about by its generational `Tid`
    (`thread_present`). A region is asked about by `memory_region::usage`, or by its own frames
    through `testing::RegionRun`. A single frame is asked about through `memory::is_page_frame_used`.
+   A held tick is asked about through `timer::tick_pending`, not the clock
+   ([preemption window](load-sensitive-assertions/preemption-window-tick.md)).
 3. Denominate a budget in what the guest actually received. A descheduled emulator delivers fewer
    ticks per second, so a tick budget stretches under exactly the load that broke a counter
    deadline. A user program has no tick reading yet, so it uses a clock with a measured margin.
@@ -124,7 +126,6 @@ remains) or fixed. A fixed site can still carry a residual in BUGS below.
 
 | assertion | file | status | what was done, or what is left | appendix |
 |---|---|---|---|---|
-| `holding_a_lock_masks_the_timer`, the liveness check | `arch/aarch64/timer.rs` | open | "the timer is not ticking at all", seen once on 2026-08-27; positive direction, not chased | [unowned reds](load-sensitive-assertions/unowned-reds.md) |
 | five userspace retry loops over the refusal of §16 (object revocation) | `system_initializer`, `login.rs`, `swish.rs`, `job_undertaker.rs`, `timetable.rs` | open | a yield count waiting on a timer tick; two trap on exhaustion. Milestone 185 (sweep userspace's bounded retry loops onto a clock), not started | [caretaker teardown](load-sensitive-assertions/caretaker-teardown-wait.md) |
 | `a_process_spends_memory_region_and_the_kernel_never_allocates` | `user/tests.rs` | open | a global `used()` equality across a process run. Never seen red; found by reading on 2026-09-24 | this page, BUGS |
 | `a_user_program_that_never_yields_is_preempted_anyway` | `user/tests.rs` | open | a wall-clock window with no wait; needs all four cores descheduled; never seen red | [known residuals](load-sensitive-assertions/known-residuals.md) |
@@ -136,6 +137,8 @@ remains) or fixed. A fixed site can still carry a residual in BUGS below.
 | `ticks_arrive_at_the_configured_rate` | both `timer.rs` | fixed | asserts the re-arm grid law (08-03); an exhausted retry budget prints `UNMEASURED` (08-18) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
 | `the_handler_keeps_up_when_no_lock_is_held` | both `timer.rs` | fixed | deleted 2026-08-18; `script/icount` makes the claim | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
 | `holding_a_lock_masks_the_timer`, the masking window | both `timer.rs` | fixed | both reads moved inside the critical section; `ticks_on(core)` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
+| `holding_a_lock_masks_the_timer`, liveness and release; `the_timer_is_ticking` | both `timer.rs` | fixed | wait for the pending bit inside the lock, and on the property under a 1 s bound (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
+| `unmasking_delivers_the_tick_that_was_held`, `a_masked_window_takes_no_preemption` | `preemption_window_tests.rs` | fixed | the window waits for `timer::tick_pending`; QEMU raised ticks up to 86 ms late (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
 | `work_can_be_placed_on_every_core` | `smp.rs` | fixed | asserts arrival at the named core (`PerCpu::adopted`), not execution (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_thread_that_never_yields_is_preempted_anyway` | `sched.rs` | fixed | the spinner is waited on, not sampled; the budget is 200 delivered ticks (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_sender_blocks_until_a_receiver_arrives`, `other_threads_run_while_one_is_blocked` | `sched.rs` | fixed | five yield-count waits became `wait_for` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
@@ -225,6 +228,7 @@ them, so an older citation of a dated section still resolves.
 | [unowned-reds](load-sensitive-assertions/unowned-reds.md) | `run_swap`, the current-cpu frame, the liveness check | "Two unowned reds, recorded rather than chased: 2026-08-27" |
 | [x86-pcie-interrupt-counter](load-sensitive-assertions/x86-pcie-interrupt-counter.md) | a counter sampled late | "A counter that could not have been late, only sampled late: 2026-09-04" |
 | [free-page-frames-sweep](load-sensitive-assertions/free-page-frames-sweep.md) | 46 reads of the global counter | "The sweep, 2026-09-23" |
+| [preemption-window-tick](load-sensitive-assertions/preemption-window-tick.md) | a tick raised late, read as one dropped | "A tick not yet raised, read as a tick dropped: 2026-09-24" |
 
 ## See also
 
