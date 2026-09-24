@@ -1,6 +1,10 @@
-# Which of the constitution must be carried, and which is a brief
+# 579. Which of the constitution must be carried, and which is a brief
 
-**Status: PROPOSED 2026-09-23.** calef asked whether the roles in `AGENTS.md` should become skills,
+**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+`constitution-carry-vs-brief`, filed 2026-09-23, on calef's instruction of 2026-09-23 to give the
+two unnumbered proposals on `main` a number. The text below is the proposal's own, unedited except
+for this paragraph and the `## Index row` section: the argument is its author's and promotion is not
+the moment to improve it. As filed: calef asked whether the roles in `AGENTS.md` should become skills,
 and whether that would shrink the constitution. The answer worked out in conversation was no to
 skills and yes to the underlying instinct: some of what `AGENTS.md` carries is only needed at a
 specific, known task, not on every turn of every session, and `briefs/` (built for milestone 118's
@@ -281,3 +285,11 @@ the tree rather than only in a chat log:
 
 `briefs/` already does what a skill would be asked to do here, without the vendor lock-in and without
 weakening principle 3, and five candidates above are ready to populate it further.
+
+## Index row
+
+Classifies every passage of `AGENTS.md` by whether an agent must already be carrying it or can look
+it up when the task arrives, and finds five briefs' worth of prose that fails the carry test. It is
+the still-open "split" half of milestone 118 (CLAUDE.md has a budget, and the rules that get
+violated move up the ladder), run against a timing test rather than 118's duplication test, and it
+is blocked on calef because neither `AGENTS.md` nor `briefs/` is a developer lane's to edit.

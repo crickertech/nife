@@ -422,10 +422,10 @@ fourteen lines went to `briefs/merge-and-cleanup.md` and `briefs/session-start.m
 deleted. The number was taken with `wc -l` from the finished file, not by arithmetic against the
 diff, because two branches earlier the same day each raised this ceiling honestly from the same base
 and produced a wrong number between them. The considered act, and it is a different one from every
-raise below: `design/roadmap/proposals/constitution-carry-vs-brief.md` classified every passage of
-the file by whether it has to fire when nobody is looking for it, and found **85% must be carried**,
-so this is a targeted extraction rather than the split this section has been asking for. The three
-passages that moved (the merge checklist's one line, the prune-the-worktree paragraph, the
+raise below: milestone 579 (which of the constitution must be carried, and which is a brief)
+classified every passage of the file by whether it has to fire when nobody is looking for it, and
+found **85% must be carried**, so this is a targeted extraction rather than the split this section
+has been asking for. The three passages that moved (the merge checklist's one line, the prune-the-worktree paragraph, the
 `nife-dev` relink) all fire at one event performed by one role, and the watcher pair moved because
 most of its nine lines already duplicated `briefs/survey-the-queue.md`. What stayed behind in each
 case is the ambient clause with no task to trigger it: prune promptly and never prune uncommitted

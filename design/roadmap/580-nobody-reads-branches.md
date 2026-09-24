@@ -1,8 +1,16 @@
-# Nobody reads branches, so give the maintainer a command that does
+# 580. Nobody reads branches, so give the maintainer a command that does
 
-**Status: PROPOSED 2026-09-23.** Decided the same day; see "What calef decided" below. Kept in
-this directory rather than promoted, because the disposition is a fix to an existing script, not a
-numbered milestone, and there is no numbered block for it to be drained into. Raised by the
+**Status: BUILT.** *(Number minted at promotion.)* Promoted from the proposal
+`nobody-reads-branches`, filed 2026-09-23, on calef's instruction of 2026-09-23 to give the two
+unnumbered proposals on `main` a number. The text below is the proposal's own, unedited except for
+this paragraph, the removal of its `**Gate: NONE.**` line and the two sections appended at the end:
+the argument is its author's and promotion is not the moment to improve it. The gate line goes
+because a BUILT block may not carry one, and what it said (nothing here touches the syscall
+surface, adds a dependency, or needs hardware) was true and is now moot: the mechanism landed in
+`scripts/lane-claim-check.sh` the same day it was proposed, in commit `448928d93`. As filed: decided
+the same day; see "What calef decided" below. It was kept in the proposals directory rather than
+promoted at the time, because the disposition is a fix to an existing script, not a numbered
+milestone, and there was no numbered block for it to be drained into. Raised by the
 `maintainer/nobody-reads-branches` lane, written while surveying the 25 remote branches calef's
 2026-09-23 sweep found carrying no open pull request, the oldest last touched nine days earlier.
 Verified independently against the live repository while drafting this: 24 of the 25 are real lane
@@ -10,8 +18,6 @@ branches (`milestone/*`, `maintainer/*`, `fix/*`); the 25th, `gh-readonly-queue/
 is the merge queue's own synthetic candidate branch, not a lane's, and any mechanism built from this
 proposal must exclude that shape the same way `lane-claim-check.sh` already excludes the ones it
 found.
-
-**Gate: NONE.** Nothing here touches the syscall surface, adds a dependency, or needs hardware.
 
 ## What calef decided
 
@@ -265,3 +271,29 @@ widening cost.
 - **Not a change to §90's claim mechanism itself.** The claim stays a draft pull request; this
   proposal is about what happens when a branch never reaches one, or reaches one and then nobody
   looks again.
+
+## Follow-on
+
+- **Done.** The `LEFTOVER`/`CLOSED` conflation this proposal named as out of scope was fixed in the
+  same change that implemented it. `scripts/lane-claim-check.sh` now reports a merged pull request
+  and a closed-unmerged one on separate lines, and never recommends deleting from the closed line.
+- **Recorded.** What the widening cost stays a limitation, in that script's own `BUGS` section: the
+  activity feed is read one page deep and an older branch reports with an unknown age, the script
+  writes to stdout only so nothing reaches a lane that is not looking, and "holds work" is sized by
+  `git diff --shortstat` rather than read.
+- **Refused.** A fourth watcher script, `scripts/orphan-branch-check.sh`, which was this proposal's
+  own closing recommendation. calef refused it on 2026-09-23: a narrow new watcher competes for the
+  same attention the tree already fails to spend on the three it has. The same reasoning covers
+  re-surfacing a stale draft that `merge-drain.sh` already reported once, which this proposal listed
+  as out of scope and which stays with `merge-drain.sh`.
+
+## Index row
+
+**Built:** 2026-09-23
+
+A branch with no open pull request is invisible to every watcher the tree had, and a 2026-09-23
+sweep found 25 of them, the oldest nine days old. This block separates that failure into four
+shapes with different correct actions, measures the grace window that tells a dead branch from a
+live one, and records calef's ruling that the fix belongs in a script that already has a reader
+rather than in a new one. `scripts/lane-claim-check.sh` now covers every branch except `main` and
+`gh-readonly-queue/*`, on a second and much longer clock.
