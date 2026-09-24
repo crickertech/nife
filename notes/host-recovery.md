@@ -237,12 +237,12 @@ is the Mac's own addition to a freshly written file, not something out of the im
 ### BUGS
 
 - **A Linux host refuses a name with no `user.` prefix.** The store holds bytes and requires no
-  namespace (`filesystem_protocol::xattr::valid_name` refuses only NUL and over-length), because there is no
-  privilege here for a namespace to mean. Linux does have one, and `lsetxattr` answers `EPERM` for a
-  name outside it. The tool reports the errno rather than rewriting the name: silently turning `foo`
-  into `user.foo` would hand back a file whose metadata does not say what the backup said. In
-  practice Samba writes `user.`-prefixed names, so this bites a name nife invented, not a name
-  that came from a client.
+  namespace (`filesystem_protocol::xattr::is_valid_name` refuses only NUL and over-length), because
+  there is no privilege here for a namespace to mean. Linux does have one, and `lsetxattr` answers
+  `EPERM` for a name outside it. The tool reports the errno rather than rewriting the name: silently
+  turning `foo` into `user.foo` would hand back a file whose metadata does not say what the backup
+  said. In practice Samba writes `user.`-prefixed names, so this bites a name nife invented, not a
+  name that came from a client.
 - **Linux refuses attributes on a symlink at all**, for any `user.*` name. macOS takes them
   (`XATTR_NOFOLLOW`). So the same image extracted on the two hosts can differ in exactly that one
   place, and only the Linux run says so.

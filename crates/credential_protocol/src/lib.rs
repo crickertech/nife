@@ -102,24 +102,24 @@
 //! assert_eq!(place(&mut page, b"", b"hunter2", verify::VERIFY), None);
 //! ```
 //!
-//! [`authenticated`] is the one function a caller must not get wrong, and what makes it safe is that
-//! **every way of not being an unambiguous match is `false`**, including the case where there is no
-//! credential service to ask. A caller that read a missing capability as a successful login would be
-//! the worst bug this crate could permit, so the contract refuses to let it be written:
+//! [`is_authenticated`] is the one function a caller must not get wrong, and what makes it safe is
+//! that **every way of not being an unambiguous match is `false`**, including the case where there
+//! is no credential service to ask. A caller that read a missing capability as a successful login
+//! would be the worst bug this crate could permit, so the contract refuses to let it be written:
 //!
 //! ```
-//! use credential_protocol::{MALFORMED, MATCH, MISMATCH, OK, authenticated, code};
+//! use credential_protocol::{MALFORMED, MATCH, MISMATCH, OK, code, is_authenticated};
 //!
-//! assert!(authenticated(MATCH));
+//! assert!(is_authenticated(MATCH));
 //!
-//! assert!(!authenticated(MISMATCH));  // the wrong secret, or an identity that is not in the store
-//! assert!(!authenticated(OK));        // a provisioning success is not an authentication
-//! assert!(!authenticated(MALFORMED));
+//! assert!(!is_authenticated(MISMATCH)); // the wrong secret, or an identity not in the store
+//! assert!(!is_authenticated(OK)); // a provisioning success is not an authentication
+//! assert!(!is_authenticated(MALFORMED));
 //!
 //! // `abi::Error` is -1 to -8. As a `u64` each is enormous, so no reply code collides with one,
 //! // and an empty capability slot is distinguishable from an answer without a probe request.
 //! assert_eq!(code(-4i64 as u64), None);
-//! assert!(!authenticated(-4i64 as u64));
+//! assert!(!is_authenticated(-4i64 as u64));
 //! ```
 //!
 //! # A miss and a wrong password are the same answer
@@ -331,7 +331,7 @@ pub const fn code(r0: u64) -> Option<u64> {
 /// A missing capability, a malformed request, a service that died, and a wrong password all become
 /// `false` here. That is the safe direction, and having it in the contract means no caller has to
 /// remember which of five codes were the good ones.
-pub const fn authenticated(r0: u64) -> bool {
+pub const fn is_authenticated(r0: u64) -> bool {
     matches!(code(r0), Some(MATCH))
 }
 
@@ -656,7 +656,7 @@ mod tests {
         }
         for err in 1i64..=8 {
             assert_eq!(code((-err) as u64), None, "kernel error -{err}");
-            assert!(!authenticated((-err) as u64), "kernel error -{err}");
+            assert!(!is_authenticated((-err) as u64), "kernel error -{err}");
         }
         assert_eq!(code(0), None);
         assert_eq!(code(MAX_CODE + 1), None);
@@ -668,9 +668,9 @@ mod tests {
     #[test]
     fn nothing_but_match_authenticates() {
         for w in 0u64..=MAX_CODE + 4 {
-            assert_eq!(authenticated(w), w == MATCH, "reply word {w}");
+            assert_eq!(is_authenticated(w), w == MATCH, "reply word {w}");
         }
-        assert!(!authenticated(u64::MAX));
+        assert!(!is_authenticated(u64::MAX));
     }
 }
 
@@ -727,7 +727,7 @@ mod proofs {
     #[kani::proof]
     fn no_reply_word_but_match_ever_authenticates() {
         let r0: u64 = kani::any();
-        assert!(authenticated(r0) == (r0 == MATCH));
+        assert!(is_authenticated(r0) == (r0 == MATCH));
         // And the discrimination itself: a code is a code exactly when it is in range, so no
         // arithmetic on a kernel error word can land inside the reply space.
         match code(r0) {

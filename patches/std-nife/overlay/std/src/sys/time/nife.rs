@@ -143,7 +143,7 @@ impl SystemTime {
             )
         };
         let r = page.read();
-        if !clockproto::state::known(r.state) {
+        if !clockproto::state::is_known(r.state) {
             panic!(
                 "SystemTime::now() on nife: the machine does not know what time it is (no \
                  RTC, or an RTC reading outside the sanity window). Reporting 1970 instead would \

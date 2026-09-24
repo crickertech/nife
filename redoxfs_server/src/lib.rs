@@ -639,7 +639,7 @@ impl<D: Disk> Server<D> {
     /// was not. In the running system `out` is the shared page, which is larger than
     /// [`xattr::MAX_VALUE`] by construction, so this cannot fire on the wire.
     pub fn get_xattr(&mut self, handle: u32, name: &[u8], out: &mut [u8]) -> Result<(u32, usize)> {
-        if !xattr::valid_name(name) {
+        if !xattr::is_valid_name(name) {
             return Err(Error::new(xattr::ERANGE));
         }
         let ptr = self.node_at(handle, dir::READ, EBADF)?;
@@ -670,7 +670,7 @@ impl<D: Disk> Server<D> {
         // Checked before anything is allocated or opened, so a client cannot make the server size a
         // buffer from a length it invented. `store::set` checks again, and that is the copy the host
         // tests exercise; this one is the boundary.
-        if !xattr::valid_name(name) {
+        if !xattr::is_valid_name(name) {
             return Err(Error::new(xattr::ERANGE));
         }
         if value.len() > xattr::MAX_VALUE {
@@ -707,7 +707,7 @@ impl<D: Disk> Server<D> {
     /// refused with [`dir::EROFS`]. `ENODATA` if it was not set, rather than a quiet success: the
     /// caller asked about one specific thing.
     pub fn remove_xattr(&mut self, handle: u32, name: &[u8]) -> Result<()> {
-        if !xattr::valid_name(name) {
+        if !xattr::is_valid_name(name) {
             return Err(Error::new(xattr::ERANGE));
         }
         let ptr = self.node_at(handle, dir::WRITE, EROFS)?;

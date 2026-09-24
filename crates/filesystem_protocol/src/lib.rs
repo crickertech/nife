@@ -133,7 +133,7 @@
 //! assert_eq!(&buf[..n], b"report.txt");
 //!
 //! // A read-only grant is not a policy that could have said yes, so a write gets EROFS.
-//! assert!(!grant::writable(spec));
+//! assert!(!grant::is_writable(spec));
 //! assert_eq!(grant::EROFS, 30);
 //!
 //! // A name too long to travel in two words is refused by the caller, not truncated on the wire.
@@ -1856,7 +1856,7 @@ pub mod grant {
     }
 
     /// Whether a spec word grants writing.
-    pub const fn writable(w: u64) -> bool {
+    pub const fn is_writable(w: u64) -> bool {
         spec_rights(w) & WRITE != 0
     }
 
@@ -2169,7 +2169,7 @@ pub mod xattr {
     /// the one byte refused, because every client that will ever write one of these names (Samba, and
     /// anything speaking the POSIX API) hands it over as a C string, and a name with a NUL in it
     /// would come back shorter than it went out.
-    pub const fn valid_name(name: &[u8]) -> bool {
+    pub const fn is_valid_name(name: &[u8]) -> bool {
         if name.is_empty() || name.len() > MAX_NAME {
             return false;
         }
@@ -2205,7 +2205,7 @@ pub mod xattr {
         /// fit or the name is not one this store holds.
         pub fn encode(out: &mut [u8], name: &[u8]) -> Option<usize> {
             let n = record_len(name.len());
-            if !super::valid_name(name) || out.len() < n {
+            if !super::is_valid_name(name) || out.len() < n {
                 return None;
             }
             out[0] = name.len() as u8;
@@ -2262,7 +2262,9 @@ pub mod xattr {
     /// correctness is only available inside the FS server, which is an argument *for* the layer
     /// rather than a consolation for it.
     pub mod store {
-        use super::{E2BIG, ENODATA, ENOSPC, ERANGE, MAX_COUNT, MAX_KIND, MAX_VALUE, valid_name};
+        use super::{
+            E2BIG, ENODATA, ENOSPC, ERANGE, MAX_COUNT, MAX_KIND, MAX_VALUE, is_valid_name,
+        };
 
         /// A record's fixed header: one byte of name length, four of kind, two of value length.
         pub const RECORD_HEADER: usize = 1 + 4 + 2;
@@ -2352,7 +2354,7 @@ pub mod xattr {
             value: &[u8],
             out: &mut [u8],
         ) -> Result<usize, i32> {
-            if !valid_name(name) {
+            if !is_valid_name(name) {
                 return Err(ERANGE);
             }
             if value.len() > MAX_VALUE {
@@ -2385,7 +2387,7 @@ pub mod xattr {
         /// if it was not set: the caller asked about one specific thing, so "it was not there" is the
         /// answer rather than a silent success. `out` must be at least `blob.len()`.
         pub fn remove(blob: &[u8], name: &[u8], out: &mut [u8]) -> Result<usize, i32> {
-            if !valid_name(name) {
+            if !is_valid_name(name) {
                 return Err(ERANGE);
             }
             let mut used = 0;
@@ -4030,10 +4032,10 @@ mod tests {
         let rw = grant::spec(16, grant::READ | grant::WRITE);
         assert_eq!(grant::spec_len(ro), 16);
         assert_eq!(grant::spec_len(rw), 16);
-        assert!(!grant::writable(ro));
-        assert!(grant::writable(rw));
+        assert!(!grant::is_writable(ro));
+        assert!(grant::is_writable(rw));
         // And a zero-rights spec grants nothing, rather than defaulting to something.
-        assert!(!grant::writable(grant::spec(4, 0)));
+        assert!(!grant::is_writable(grant::spec(4, 0)));
     }
 
     #[test]
@@ -4972,7 +4974,7 @@ mod tests {
         // between, and a name and value the store will actually accept.
         assert_ne!(PROBE, PROBE_MOVED);
         assert!(grant::fits(PROBE.as_bytes()) && grant::fits(PROBE_MOVED.as_bytes()));
-        assert!(xattr::valid_name(NAME));
+        assert!(xattr::is_valid_name(NAME));
         assert!(VALUE.len() <= xattr::MAX_VALUE);
         // Checked at COMPILE time: both sides are constants, so a fixture that fell back to the
         // default kind should fail the build rather than wait for the suite. The same discipline

@@ -373,28 +373,28 @@ impl ConfigPage {
         unsafe { core::slice::from_raw_parts(self.base, PAGE_BYTES) }
     }
 
-    fn recognized(&self) -> bool {
+    fn is_recognized(&self) -> bool {
         self.bytes()[OFF_MAGIC..OFF_MAGIC + 8] == MAGIC
     }
 
     /// `TZ`, or `None` if this process holds no config page, the page is unrecognized, or `TZ`
     /// was never declared onto it.
     pub fn tz(&self) -> Option<&str> {
-        self.recognized()
+        self.is_recognized()
             .then(|| read_field(self.bytes(), OFF_TZ_LEN, OFF_TZ))
             .flatten()
     }
 
     /// `LANG`, or `None` for the same three reasons [`tz`](Self::tz) can be `None`.
     pub fn lang(&self) -> Option<&str> {
-        self.recognized()
+        self.is_recognized()
             .then(|| read_field(self.bytes(), OFF_LANG_LEN, OFF_LANG))
             .flatten()
     }
 
     /// `TERM`, or `None` for the same three reasons [`tz`](Self::tz) can be `None`.
     pub fn term(&self) -> Option<&str> {
-        self.recognized()
+        self.is_recognized()
             .then(|| read_field(self.bytes(), OFF_TERM_LEN, OFF_TERM))
             .flatten()
     }

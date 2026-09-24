@@ -143,7 +143,7 @@ impl Wiring {
     /// ambient monotonic counter. 0 when the machine does not know.
     pub fn wall_nanos(&self) -> u64 {
         let r = self.page().read();
-        if clock_protocol::state::known(r.state) {
+        if clock_protocol::state::is_known(r.state) {
             clock_protocol::wall_nanos(r.offset_nanos, monotonic_nanos())
         } else {
             0

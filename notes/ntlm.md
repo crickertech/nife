@@ -219,17 +219,17 @@ let w0 = proto::place_ntlm_proof(
 ).unwrap();
 
 let (r0, _) = call(SERVICE, w0, 0);
-if proto::authenticated(r0) {
+if proto::is_authenticated(r0) {
     let session_key = proto::session_key(page).unwrap();
     // ... derive the SMB2 signing key from it, sign the session ...
 }
 proto::wipe(page);              // the key is ours now; it should not outlive the exchange
 ```
 
-`authenticated` is the whole client-side API for the verdict, and it collapses "there is no secrets
-service", "the request was malformed", "the service died" and "the proof is wrong" into one
-`false`. Testing whether the session key is nonzero instead would be a second, weaker
-authentication check sitting beside the real one.
+`is_authenticated` is the whole client-side API for the verdict, and it collapses "there is no
+secrets service", "the request was malformed", "the service died" and "the proof is wrong" into one
+`false`. Testing whether the session key is nonzero instead would be a second, weaker authentication
+check sitting beside the real one.
 
 ### Check the chain without a service (host, in a test)
 
