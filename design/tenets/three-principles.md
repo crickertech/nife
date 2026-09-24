@@ -3,7 +3,8 @@
 *Appendix to [`AGENTS.md`](../../AGENTS.md), which carries the principles themselves as rules. This
 file carries their evidence: the measurements, the failures that confirmed them, and calef's own
 wording. A reader who only needs to act can stay in `AGENTS.md`; this is where the argument is
-checked or challenged. Moved here 2026-09-23 (UTC) on calef's authorization, unchanged in substance.*
+checked or challenged. Moved here 2026-09-23 (UTC) on calef's authorization, unchanged in
+substance.*
 
 These are not aspirations. Each names a mechanism that keeps it true when nobody is watching, which
 is the only kind of principle a free software project can enforce: a volunteer cannot be made to
@@ -17,25 +18,24 @@ depends on either works on a Tuesday or it does not, and the failure arrives as 
 missing rather than as a red check.
 
 **This principle has now been confirmed in the only way that counts, which is by failing.** It was
-written on 2026-08-05 pointing at milestone 55, a Time Machine target the family's Macs back up to,
-whose own block called it *"The actual goal, and probably the largest single piece of work in the
-project."* On **2026-08-30** calef reported that the family's backups run on **borg over SSH on
-cordoba**, with **Immich** for images, built with the existing Linux ecosystem while nife was not
-ready; Time Machine and SMB are both out of that path. Journey 2 was retired the same day and
-milestone 55's premise went with it.
+written on 2026-08-05 pointing at milestone 55 (Time Machine: SMB3 with Apple's extensions), a Time
+Machine target the family's Macs back up to, whose own block called it *"The actual goal, and
+probably the largest single piece of work in the project."* On **2026-08-30** calef reported that
+the family's backups run on **borg over SSH on cordoba**, with **Immich** for images, built with the
+existing Linux ecosystem while nife was not ready; Time Machine and SMB are both out of that path.
+Journey 2 was retired the same day and milestone 55's premise went with it.
 
 That is not the principle failing. A customer with a real deadline went elsewhere because this
 system could not meet it, which is **the principle working**, and is the outcome it exists to make
 visible early rather than late.
 
-**calef is the first customer, not the audience** (his correction on this section, 2026-08-05:
-*"It isn't about me running it. It is about customers. I'm just the first customer."*). That
-distinction is
-load-bearing rather than modest. "The architect runs it" ranks work by one person's convenience and
-has no answer when that person's taste and a stranger's needs diverge; "a customer runs it" ranks it
-by what anyone taking this system on would require. The two agree today because there is exactly one
-customer. They stop agreeing the moment there are two, and the wording that survives that is the one
-worth writing now.
+**calef is the first customer, not the audience** (his correction on this section, 2026-08-05: *"It
+isn't about me running it. It is about customers. I'm just the first customer."*). That distinction
+is load-bearing rather than modest. "The architect runs it" ranks work by one person's convenience
+and has no answer when that person's taste and a stranger's needs diverge; "a customer runs it"
+ranks it by what anyone taking this system on would require. The two agree today because there is
+exactly one customer. They stop agreeing the moment there are two, and the wording that survives
+that is the one worth writing now.
 
 What that means concretely, and it is a reordering rather than a slogan:
 
@@ -54,8 +54,8 @@ What that means concretely, and it is a reordering rather than a slogan:
 - **And the path is vacant for a second reason, which is ours rather than the customer's** (calef,
   2026-08-30): *"I don't think we expose nife to third parties (aka other customers) until we have a
   package manager and a trivial install process."* So there is a **precondition on the ranking
-  function itself**. Package management and an install story are not items on the customer path; they
-  are what makes one possible, and until they exist a second customer cannot be accepted if one
+  function itself**. Package management and an install story are not items on the customer path;
+  they are what makes one possible, and until they exist a second customer cannot be accepted if one
   appeared. He wants them **early, for our own sake as much as anyone's**: the people building this
   are the ones repeatedly hand-wiring what a package would install.
 - A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
@@ -78,9 +78,9 @@ principle and the fatal-risk list holding the ordering together.
 ## 2. The method is a result, and it is currently undocumented
 
 Measured on **2026-08-30**, from a first commit on 2026-07-12: **49 days, 103 milestones built of
-193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099
-commits**, on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a
-filesystem, a network stack and a compositor.
+193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099 commits**,
+on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a filesystem, a
+network stack and a compositor.
 
 **That line count includes comments**, and `kernel/src` measures 40% of them, so a size comparison
 against another project belongs in code lines. (The superseded 2026-08-05 figures are in git.)
@@ -95,8 +95,9 @@ stranger, and nothing in this tree currently states it.
 is marketing:
 
 - The numbers above are **size and rate, not quality.** 63 built milestones is a count of blocks
-  marked BUILT, and this tree found nine of them misrecorded in a single sweep (§76). Take the number
-  as a scale, never as a claim about correctness.
+  marked BUILT, and this tree found nine of them misrecorded in a single sweep (§76 (what catches a
+  milestone status wrong in both places)). Take the number as a scale, never as a claim about
+  correctness.
 - **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
   the review discipline. The same method without them produces a great deal of code that nobody can
   trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
@@ -109,17 +110,17 @@ is marketing:
 
 ## 3. A newcomer must be able to succeed without asking anyone
 
-This is the principle that most of this file already serves without naming it, and it is the one that
-inverts hardest for a project like this one. In a company a high standard can be enforced through
-people, because they are paid and can be managed. **Here the only enforcement is that the work
-answers its own questions**, because a contributor who has to ask will simply leave, and will do so
-silently.
+This is the principle that most of this file already serves without naming it, and it is the one
+that inverts hardest for a project like this one. In a company a high standard can be enforced
+through people, because they are paid and can be managed. **Here the only enforcement is that the
+work answers its own questions**, because a contributor who has to ask will simply leave, and will
+do so silently.
 
 So a standard that is not also generous produces an empty repository. That is why:
 
-- **The documentation standard is FreeBSD's**: task-oriented, in-tree, real `EXAMPLES`, and an honest
-  `BUGS` section next to the feature rather than in a tracker. A page without a worked example has
-  not finished explaining itself.
+- **The documentation standard is FreeBSD's**: task-oriented, in-tree, real `EXAMPLES`, and an
+  honest `BUGS` section next to the feature rather than in a tracker. A page without a worked
+  example has not finished explaining itself.
 - **`BUGS` sections are not modesty, they are the mechanism.** A newcomer who hits a limitation the
   docs named will trust the docs. One who hits a limitation the docs hid will not trust anything
   again, and there is no relationship to fall back on.

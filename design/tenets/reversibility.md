@@ -5,33 +5,34 @@ test. This file carries why each category is on that list, the two failures of r
 agents changed about the calculus. Moved here 2026-09-23 (UTC) on calef's authorization, unchanged
 in substance.*
 
-calef, 2026-08-05. The ladder in `AGENTS.md` says how hard to make a thing hold. This says how much care to
-spend deciding it, and the two are not the same question: a cheap decision still deserves a
+calef, 2026-08-05. The ladder in `AGENTS.md` says how hard to make a thing hold. This says how much
+care to spend deciding it, and the two are not the same question: a cheap decision still deserves a
 mechanism, and an expensive one is not made safe by adding a gate afterwards.
 
-**Most decisions here are reversible and should be made quickly, by whoever is holding the problem.**
-Code, notes, roadmap wording, which milestone a lane takes, how a script is structured. Getting these
-wrong costs an hour. Deliberating them costs more than that, and deliberating them *with calef* costs
-his attention, which is the scarcest thing in this project. `scripts/merge-drain.sh` was rewritten
-three times in one evening, each version wrong in a way the next one fixed, and that was cheaper than
-designing it correctly up front would have been.
+**Most decisions here are reversible and should be made quickly, by whoever is holding the
+problem.** Code, notes, roadmap wording, which milestone a lane takes, how a script is structured.
+Getting these wrong costs an hour. Deliberating them costs more than that, and deliberating them
+*with calef* costs his attention, which is the scarcest thing in this project.
+`scripts/merge-drain.sh` was rewritten three times in one evening, each version wrong in a way the
+next one fixed, and that was cheaper than designing it correctly up front would have been.
 
 **A few decisions are expensive, and the expense is almost never the code.** It is the consequences
 that cannot be recalled:
 
 - **Anything two programs agree on.** A wire format, an opcode number, a packed word. The code is a
   morning's work; the un-shipping is not.
-- **Names.** Trivial to change mechanically and expensive in every other way, because a name lands in
-  61 call sites, in a reader's head, and in the vocabulary people use to disagree. This is why names
-  are calef's, and why a lane ships a **provisional** one instead of waiting.
-- **Dependencies** (§46), especially in the shipping graph. Adding one is a morning; removing one
-  after a subsystem is built on it is a project.
-- **The syscall surface** (§10, §16), which is a boundary rather than a habit, and which every
-  future program is written against.
-- **Facts that leave the machine**, and this is the truly irreversible category. A published claim, a
-  benchmark number a stranger quotes, a secret material once stored. §79 is the case: approving an
-  `NTOWFv2` beside an Argon2id tag was worth an hour of argument, because the decision cannot be
-  unmade by deleting the code.
+- **Names.** Trivial to change mechanically and expensive in every other way, because a name lands
+  in 61 call sites, in a reader's head, and in the vocabulary people use to disagree. This is why
+  names are calef's, and why a lane ships a **provisional** one instead of waiting.
+- **Dependencies**, §46 (thin primitives or whole subsystems), especially in the shipping graph.
+  Adding one is a morning; removing one after a subsystem is built on it is a project.
+- **The syscall surface**: §10 (the capability-based microkernel process model) and §16 (object
+  revocation), which is a boundary rather than a habit, and which every future program is written
+  against.
+- **Facts that leave the machine**, and this is the truly irreversible category. A published claim,
+  a benchmark number a stranger quotes, a secret material once stored. §79 (holding
+  password-equivalent material) is the case: approving an `NTOWFv2` beside an Argon2id tag was worth
+  an hour of argument, because the decision cannot be unmade by deleting the code.
 
 **The test is not "can I revert the commit". It is "who else has already acted on this".**
 
@@ -52,5 +53,5 @@ committing quickly to a name.**
 The failures on record are both of that shape. A blind `sed` swept a rename across the tree and
 rewrote the very row recording that the name had been *refused*, which is a cheap edit destroying an
 expensive record. And a lane's provisional name went unquestioned by a maintainer who endorsed it,
-against a refusal that already existed and that nobody could find, which is milestone 115's whole
-reason for being.
+against a refusal that already existed and that nobody could find, which is the whole reason for
+being of milestone 115 (the names that were ratified, and the ones that were refused).
