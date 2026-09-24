@@ -49,7 +49,8 @@ tree is paying the debt down, the second says whether the ratchet is holding. Bo
 
 **What this section does not yet decide**: whether the cap applies to every document or to a class of
 them (question 2, where the recommendation below argues for every document, and where the two marked
-exceptions to date, `AGENTS.md` at 5,873 words of imperatives and `design/fatal-risks.md` at 4,176,
+exceptions to date, `AGENTS.md` at 5,873 words of imperatives and `design/fatal-risks.md` at 4,235
+(it was 4,176 when this section was first written, and grew during the density pass),
 are the evidence either way). *(The section
 number **212** is provisional; the integrator mints it at merge, like anything else global to the
 tree.)*
