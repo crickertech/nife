@@ -311,8 +311,8 @@ jobs:
 
           \`\`\`
           script/bench --check && script/bench --riscv --check && script/bench --x86 --check
-          script/bench --save --why "nightly bump: <what moved>"
-          script/bench --riscv --save --why "..." && script/bench --x86 --save --why "..."
+          script/bench --save --why \"nightly bump: <what moved>\"
+          script/bench --riscv --save --why \"...\" && script/bench --x86 --save --why \"...\"
           \`\`\`
 
           **This job deliberately does not do that for you.** A bump that re-recorded the floors as
