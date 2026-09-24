@@ -59,7 +59,7 @@ none has, after the day it was written. The cause is not the harnesses. It is on
 
 **So 64,818 lines of `kernel/src` are out of reach by construction, and that is exactly where every
 concurrency, hardware-contract and resource-accounting defect in the corpus lived.** DECISIONS §14
-(the demonstration OS) promises a verified core. Today the verified part is the pure crates and the
+(a verified-Rust capability microkernel that runs real workloads) promises a verified core. Today the verified part is the pure crates and the
 core is not in it.
 
 ## The distance is much shorter than anyone assumed, and this is measured

@@ -853,7 +853,14 @@ fi
 # This compares a citation's parenthetical gloss against the record's own title or body, and checks
 # that an attributed block quote still exists in the file it names. See notes/citations.md for the
 # tolerance rule and for the honest list of what it still cannot see.
+#
+# The selftest runs first and costs nothing (fixtures, no subprocesses, no tree), for the reason
+# `script/fatal-risks --selftest` runs first a few checks above: a green `--check` looks identical
+# whether the scanner works or has quietly stopped seeing a shape. It had stopped seeing two, a
+# citation split by a line break and a lettered milestone, and neither failed anything until
+# milestone 583 (a citation a line break split, or a lettered milestone).
 echo "==> citations"
+"$(dirname "$0")/citations" --selftest >/dev/null
 "$(dirname "$0")/citations" --check
 
 # The ratchet on that gate, and the only check here that reads the DIFF rather than the tree
@@ -2117,8 +2124,8 @@ fi
 #    was written (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` won for CRATES
 #    because it is what both of them already were, and a second habit is how the first one rots.
 #
-#    **The suffix became `_protocol` at milestone 265** (calef, 2026-09-05: `_proto` is a truncation,
-#    and it is equally short for `prototype`, a word this tree uses for a real thing). The check is
+#    **The suffix became `_protocol` at milestone 265** (`_proto` is a truncation, and it collides
+#    with the other word it could be short for). calef ruled that on 2026-09-05. The check is
 #    the same check; only the string moved.
 #
 #    **The glob is the whole hazard here and is why it is `*protocol` and not `*proto*`.** This loop

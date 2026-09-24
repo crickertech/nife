@@ -58,8 +58,8 @@ decision of its own, not on this one.
 - **It does not answer the competitor question itself, only defers it again**, on the same terms
   §14 originally parked it: until the demonstrator has proved something a customer would want, not
   until a calendar date or an amount of code.
-- **It does not touch milestone 142** ("a text display worth living in," good typography on this
-  system's own terms) or any other rung-adjacent work that is explicitly *not* GUI-toolkit work.
+- **It does not touch milestone 142** (a text display good enough that people use it instead of a
+  GUI) or any other rung-adjacent work that is explicitly *not* GUI-toolkit work.
   142's own doc frames itself as "a sibling of rung three that rung three then consumes," useful
   independent of whether rung three ever proceeds. Text-mode quality-of-life work is exactly what
   this decision asks for more of, not less.
@@ -69,6 +69,6 @@ decision of its own, not on this one.
 The same trigger `competitor-question.md` already named, read literally now that its first half is
 satisfied: a reason the world needs another OS, proved by something useful built and running on
 text mode, not merely asserted. Two candidates now stand for that proof, not one: milestone 55
-(Time Machine, the original customer path) and the 169-174 self-hosting line (a daily-driver text
-environment). Whoever eventually reopens rungs three and four should point at what got built and
+(Time Machine: SMB3 with Apple's extensions), which was the original customer path, and the
+169-174 self-hosting line (a daily-driver text environment). Whoever eventually reopens rungs three and four should point at what got built and
 used, not just at time having passed.

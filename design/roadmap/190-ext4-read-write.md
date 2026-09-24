@@ -105,7 +105,7 @@ Three further costs, recorded so a later reader is not surprised: the rest of th
 `iomem_access` for a virtio-mmio shim onto the block server); GPLv2 and therefore vendoring Linux;
 and, most likely to be fatal, **`arch/lkl`'s documented hosts are POSIX and Windows userspace**, so
 whether it builds for a freestanding non-x86 target at all is unverified and DECISIONS §19
-(architectural parity is a gate) requires all three.
+(architectural parity is a tenet) requires all three.
 
 **LKL is not refused forever.** If §105 Option A is ever built because shared-memory threading is
 right on its own merits, LKL becomes a genuinely exciting lane that unlocks far more than ext4, and

@@ -186,4 +186,5 @@ use.
 - **LGPL is treated as GPL throughout and they differ**, materially, for linking. A future case that
   wants to *link* LGPL rather than run it is not covered here and should not be decided by analogy.
 - **The demonstration claim is untested.** No GPL program runs on nife today. Milestone 121
-  (`ripgrep`, MIT/Unlicense) is not even a test of it, and the first real one is `git` or `nano`.
+  (`ripgrep` on nife: enumeration as a capability) is MIT/Unlicense, so it is not even a test of
+  it, and the first real one is `git` or `nano`.

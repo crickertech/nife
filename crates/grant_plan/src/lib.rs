@@ -333,8 +333,9 @@ programs! {
         /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
         /// `BUGS`.
         Pgrep { id: 9, name: "pgrep" },
-        // **There was a `Watch` here until milestone 281** (`user/src/watch.rs`, `crates/watch`, both
-        // deleted 2026-09-13), and the reason it went is a test worth reusing rather than a one-off.
+        // **There was a `Watch` here until milestone 281** (`watch` holds exactly what `ps` holds,
+        // so it is nothing), which deleted `user/src/watch.rs` and `crates/watch` on 2026-09-13.
+        // The reason it went is a test worth reusing rather than a one-off.
         //
         // **Two programs are two programs when they hold different authority.** `Watch`'s manifest was
         // [`Prog::Ps`]'s with one field changed, and the program held the same three slots from the same

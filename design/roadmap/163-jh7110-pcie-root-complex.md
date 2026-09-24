@@ -31,7 +31,7 @@ and any real PCIe-attached NIC, replacing the QEMU-only fake device with a real 
 
 ## Why it matters, and what it unblocks
 
-**DECISIONS §86** (whether the NVMe driver can leave the kernel for a confined userspace program)
+**DECISIONS §86** (whether an NVMe driver can leave the kernel, and what capability would let it)
 holds itself `PROPOSED` specifically pending this: its own recommendation is "Option 2, but not
 yet... hold this PROPOSED until the board-side work (the JH7110's PLDA XpressRICH root complex)
 exists, for the same reason §23 built multi-queue confinement only after single-queue worked: the

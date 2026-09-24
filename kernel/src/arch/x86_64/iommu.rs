@@ -56,7 +56,8 @@
 //!   one is real future work (walking every DRHD, and routing a device to its owning unit by the
 //!   device-scope lists `machine_discovery::acpi::DmarStructures` currently skips).
 //! - **No interrupt remapping.** `ECAP.IR` is read and *reported* since milestone 317
-//!   ([`interrupt_remapping_available`], and the bring-up line `print_summary` writes), and that
+//!   (the interrupt-remapping flags, and where MSI confinement actually lives) by
+//!   [`interrupt_remapping_available`] and the bring-up line `print_summary` writes, and that
 //!   is all: this driver never sets `GCMD.IRE`, never allocates an interrupt-remapping table, and
 //!   never programs an entry in one. MSI/MSI-X delivery is unaffected either way (this kernel does
 //!   not remap interrupts on any architecture yet), but a future PCI MSI driver on x86 would want
