@@ -45,7 +45,10 @@ how often, and what did it catch."
 Each is a mechanism that reported success while doing nothing, and no two are the same defect.
 
 - **`falsifications.yml` replayed nothing for three weekly runs and reported success each time.**
-  Twenty-three days. The population it was not checking grew from 40 records to 74 in that window.
+  Twenty-two days. *(Corrected 2026-09-24 from "twenty-three": the window starts at the
+  workflow's deployment, which is pull request #603's merge to `main` on 2026-09-01, not the
+  commit's author time on 2026-08-31. Pull request #1166's correction-of-error record,
+  `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, has the derivation.)* The population it was not checking grew from 40 records to 74 in that window.
   Nobody could tell *swept and found nothing* from *swept nothing*, because the workflow emitted the
   same result for both.
 - **`scripts/trunk-health.sh` reads CI's conclusion to say when `main` goes red.** `ci.yml` skipped
