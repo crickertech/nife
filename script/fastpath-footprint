@@ -86,7 +86,11 @@
 #
 # Usage:
 #   script/fastpath-footprint            # measure all three ISAs and check against the baselines
-#   script/fastpath-footprint --save     # re-record the baselines (a statement that a change is intended)
+#   script/fastpath-footprint --save --why "<reason>"
+#                                         # re-record the baselines (a statement that a change is
+#                                         # intended). --why is required and repeatable, as for
+#                                         # script/bench --save (milestone 302 (a
+#                                         # baseline records what it was saved against)).
 #   script/fastpath-footprint --arch aarch64
 #   script/fastpath-footprint --features fastpath_pad  # E3 (milestone 134): build with an extra
 #                                         # kernel feature (comma-separated for more than one) and
@@ -130,17 +134,21 @@
 #     is now: x86_64 was widened in on 2026-08-27, `bench/fastpath-x86_64.txt` exists, and
 #     `kernel/src/arch/x86_64/fastpath_pad.rs` does not, so `--features fastpath_pad --arch x86_64`
 #     is still the one thing here that only works on two of three.)
-#   - **The footprint baselines do not name the nightly they were measured on**, and symbol sizes
-#     move with the compiler for the same reason icount counts do. `bench/baseline-*.txt` carries a
-#     `# toolchain:` line since 2026-09-21 and `script/lint` checks it; `bench/fastpath-*.txt` does
-#     not, so a bump can still erode this gate's 5% band silently. It was left that way on purpose
-#     rather than swept in: stamping these files means re-saving them, and calef's 2026-09-21
-#     ruling is that they are not to be re-saved while what a byte of footprint buys cannot be
-#     measured at all (see `L1I` below, and milestone 370 (a layout control)). The erosion is not
-#     hypothetical: measured 2026-09-21 on `nightly-2026-09-20`, every figure on every ISA is above
-#     its baseline, and riscv64's `syscall_entry` is **+4.7% against a 5% band**, so this gate is
-#     one nightly away from failing for a reason no commit is responsible for. The first deliberate
-#     `--save` here is where the stamp belongs.
+#   - **The footprint baselines name their nightly only from the next `--save`.** Symbol sizes move
+#     with the compiler for the same reason icount counts do, so since 2026-09-24 `--save` writes
+#     the `# toolchain:`, `# date:` and `# why:` lines `bench/baseline-*.txt` carries (milestone
+#     302's shape; see `SAVE` below for why there is no `# qemu:` line). The three committed files
+#     predate that and were deliberately not re-saved to get it: calef's 2026-09-21 ruling is that
+#     they are not to be re-saved while what a byte of footprint buys cannot be measured (see `L1I`
+#     below, and milestone 370 (a layout control)). Until that save, a failure here cannot say which
+#     compiler its floor came from, and the check says so. The erosion is not hypothetical: measured
+#     2026-09-21 on `nightly-2026-09-20`, every figure on every ISA was above its baseline, and
+#     riscv64's `syscall_entry` was **+4.7% against a 5% band**.
+#   - **Once stamped, nothing compares the stamp against the pin.** `script/lint`'s
+#     baseline-toolchain check globs `bench/baseline-*.txt` only. Widening it to these files would
+#     make every toolchain bump re-save the footprint floors, which is the re-save the 2026-09-21
+#     ruling holds back, so that is calef's call rather than a lint edit. Until then the stamp is
+#     a record a failing run prints, not a gate.
 #   - **`syscall_entry` is flat, so an inlining decision can move bytes into it that no syscall
 #     fetches.** Three instances in two days on 2026-09-04, each closed with `#[inline(never)]` on
 #     the folded callee. `design/roadmap/368-a-flat-entry-set-counts-bytes-no-syscall-fetches.md`
@@ -156,12 +164,18 @@ set -e
 cd "$(dirname "$0")/.."
 
 save=""
+# Newline-separated, because POSIX sh has no arrays and a reason is prose that may contain spaces.
+why=""
 arches="aarch64 riscv64 x86_64"
 features=""
 layout=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --save) save=1 ;;
+        --why) shift; [ -n "$(printf '%s' "$1" | tr -d '[:space:]')" ] && why="$why$1
+" ;;
+        --why=*) v="${1#--why=}"; [ -n "$(printf '%s' "$v" | tr -d '[:space:]')" ] && why="$why$v
+" ;;
         --arch) shift; arches="$1" ;;
         --features) shift; features="$1" ;;
         --layout) layout=1 ;;
@@ -177,6 +191,17 @@ done
 # replace the real baseline with an experimental one, which is the mistake this refuses outright.
 if [ -n "$features" ] && [ -n "$save" ]; then
     echo "script/fastpath-footprint: --save with --features would overwrite the baseline with an experimental build; not doing that" >&2
+    exit 2
+fi
+
+# **A save records why, beside the numbers**, the rule milestone 302 made for the icount floors and
+# for the same reason: a commit message is read once, on the day it is written, and a floor that
+# cannot say why it holds its value cannot tell the next reader drift from a regression. Refused
+# here rather than at the write so it costs a second instead of three release builds. A blank
+# `--why` is dropped above, so `--why ""` does not satisfy it.
+if [ -n "$save" ] && [ -z "$why" ]; then
+    echo "script/fastpath-footprint: --save needs --why \"<reason>\"; the reason is written into the" >&2
+    echo "  baseline beside the numbers. Repeat --why once per reason when one save covers several moves." >&2
     exit 2
 fi
 
@@ -223,13 +248,35 @@ for arch in $arches; do
     cold_fns=$(grep -rhA3 --include='*.rs' '#\[cold\]' kernel/src crates \
         | grep -oE 'fn [a-z_0-9]+' | sed 's/fn //' | sort -u | tr '\n' ' ')
 
-    ARCH="$arch" DIS="$tmp/dis.txt" BASE="bench/fastpath-$arch.txt" SAVE="$save" \
+    ARCH="$arch" DIS="$tmp/dis.txt" BASE="bench/fastpath-$arch.txt" SAVE="$save" WHY="$why" \
         COLD_FNS="$cold_fns" NOCHECK="$features" LAYOUT="$layout" \
         NM="$tools/llvm-nm" ELF="target/$target/release/kernel" \
         LAYOUT_OUT="target/fastpath-layout-$arch${features:+-$(echo "$features" | tr ',' '+')}-pad${NIFE_FASTPATH_PAD:-1}-shift${NIFE_FASTPATH_SHIFT:-0}.txt" python3 - <<'PYEOF' || status=1
-import os, re, sys, collections
+import os, re, sys, collections, datetime
 
 arch, dis_path, base_path, save = os.environ["ARCH"], os.environ["DIS"], os.environ["BASE"], os.environ["SAVE"]
+
+
+def pinned_nightly():
+    """The channel `rust-toolchain.toml` pins, read the way `xtask/src/bench.rs`'s `pinned_nightly`
+    reads it, so the two headers cannot disagree about what the pin is."""
+    try:
+        for line in open("rust-toolchain.toml"):
+            if line.lstrip().startswith("channel"):
+                m = re.search(r'"([^"]+)"', line)
+                return m.group(1) if m else None
+    except OSError:
+        pass
+    return None
+
+
+def stamped_toolchain(path):
+    """The `# toolchain:` a baseline was saved under, or None for a file that predates the stamp."""
+    for line in open(path):
+        m = re.match(r"^#\s*toolchain:\s*(\S+)\s*$", line)
+        if m:
+            return m.group(1)
+    return None
 
 # **Local labels are not symbols.** The riscv build emits 1,994 `.Lpcrel_hi*` headers, which would
 # otherwise chop real functions into fragments and make every size wrong. Skipping them keeps the
@@ -695,8 +742,22 @@ if nocheck:
         print(f"    (no baseline at {base_path} to compare against)")
     sys.exit(0)
 
+# **The provenance lines, in the shape `bench/baseline-*.txt` carries** (milestone 302): one fact per
+# line, first, so `script/lint`'s `^#\s*toolchain:\s*(\S+)\s*$` would read this file unchanged if it
+# is ever widened to it. The pin rather than the running compiler, for `xtask/src/bench.rs`'s
+# reason: rustup resolves the compiler from the pin, so they are one fact, and a one-shell override
+# is not a fact about the repository. **There is no `# qemu:` line, deliberately.** Nothing here
+# runs an emulator: these numbers are a function of the compiler that emitted the bytes and of the
+# `llvm-objdump` that read them, and that objdump is the pinned toolchain's own `llvm-tools`
+# (`tools` above), so `# toolchain:` names both. A `# qemu:` line would record an instrument that
+# did not take part.
 if save:
+    stamp = "# toolchain: %s\n# date: %s\n" % (
+        pinned_nightly() or "unrecorded",
+        datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"))
+    stamp += "".join("# why: %s\n" % w.strip() for w in os.environ["WHY"].splitlines() if w.strip())
     with open(base_path, "w") as f:
+        f.write(stamp)
         f.write(
             "# bench/fastpath-%s.txt: an upper bound on the IPC fastpath's instruction footprint.\n"
             "# Written by script/fastpath-footprint --save. Updating this file is a statement that a\n"
@@ -753,13 +814,13 @@ for key, got in GATED:
     if delta > TOL:
         print(f"fastpath-footprint: {arch}: {key} grew {delta*100:.1f}% ({ref} -> {got}), over the {TOL*100:.0f}% bound.",
               file=sys.stderr)
-        print("  Shrink it, or re-record with --save in the commit that causes the growth and say why.",
+        print("  Shrink it, or re-record with --save --why \"...\" in the commit that causes the growth.",
               file=sys.stderr)
         bad = True
     elif delta < -TOL:
         print(f"fastpath-footprint: {arch}: {key} shrank {-delta*100:.1f}% ({ref} -> {got}), over the {TOL*100:.0f}% bound.",
               file=sys.stderr)
-        print("  The baseline is stale: re-record with --save to lock in the tighter bound (no justification needed for shrinking, just an explicit acknowledgment).",
+        print("  The baseline is stale: re-record with --save --why \"...\" to lock in the tighter bound (a shrink needs no defence, only a reason on record).",
               file=sys.stderr)
         bad = True
     elif abs(delta) > 0.001:
@@ -768,6 +829,20 @@ for key, got in GATED:
         # above are the distance to the budget, and they are what the gate is about; this is the
         # secondary signal that catches a sudden jump inside one pull request.
         print(f"    drift: {key} {delta*100:+.1f}% against baseline ({ref}), within the {TOL*100:.0f}% band")
+
+# **Which compiler the floor came from, said at the moment it matters.** A toolchain bump moves
+# symbol sizes with no commit responsible, so a failure against a floor saved under another nightly
+# is not evidence against this branch. This does not fail anything on its own: the pin is checked
+# nowhere for these files (the BUGS entry above says why), and an unstamped file is the truthful
+# state of every floor saved before 2026-09-24.
+if bad:
+    was, pin = stamped_toolchain(base_path), pinned_nightly()
+    if was is None:
+        print(f"  {base_path} does not say which nightly produced it, so a compiler bump since the "
+              f"last save cannot be ruled out. The next --save records it.", file=sys.stderr)
+    elif pin and was != pin:
+        print(f"  {base_path} was saved under {was}; this build is {pin}. Part or all of the "
+              f"movement may be the compiler's, not this branch's.", file=sys.stderr)
 sys.exit(1 if bad else 0)
 PYEOF
     rm -rf "$tmp"
