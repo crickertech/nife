@@ -270,6 +270,12 @@ impl Volume {
     }
 
     /// The partition-relative sector where `cluster` begins.
+    ///
+    /// `cluster` must be at least [`ROOT_CLUSTER`] (2); clusters 0 and 1 are the FAT's own
+    /// reserved entries and have no sectors, and the subtraction below underflows on them (a panic
+    /// in a debug build, a wrap in release). Every caller in this tree passes a constant from 2
+    /// up; noted by the 2026-09-24 security audit rather than made checked, because a `const fn`
+    /// returning an `Option` would push a `?` into a writer whose inputs are all its own.
     pub const fn cluster_sector(&self, cluster: u32) -> u64 {
         self.data_first_sector() + (cluster - ROOT_CLUSTER) as u64 * CLUSTER_SECTORS as u64
     }

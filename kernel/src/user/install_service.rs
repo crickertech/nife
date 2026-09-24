@@ -33,8 +33,13 @@
 //! 3. **That disk does not already carry nife.** An installed machine boots from a file too, so
 //!    without this check every boot of every installed machine would pause to offer to wipe itself.
 //!    The check is a survey process, not a parse in the kernel: `installer`'s `ROLE_SURVEY`, spawned
-//!    with the disk and **no entropy endpoint**, so it cannot write a table anything would read
-//!    back. That is `disk_partitioner`'s verify role, one milestone along.
+//!    with the disk and **no entropy endpoint**. That is `disk_partitioner`'s verify role, one
+//!    milestone along. **What the missing endpoint narrows is what the survey would write, not what
+//!    it can** (2026-09-24 security audit): a `blk` endpoint is the whole disk with no read-only
+//!    form, a reader of a partition table never checks that its ids were drawn from anywhere, so a
+//!    survey that chose to could write any table, or zeros, anywhere on that disk. What stops it is
+//!    the program's role, which is rung three of AGENTS.md's ladder; `confirm`'s section below
+//!    prices the read-only `blk` that would make it rung one.
 //! 4. **Somebody answers.** The wait is bounded, so a stick booted on a machine with no console
 //!    reaches the prompt instead of hanging.
 //!
@@ -436,8 +441,9 @@ fn spawn_installer(
         crate::sched::grant_at(SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))
             .expect("installer slot 1 was occupied");
         // **Slot 2 is the difference between the two roles and nothing else is.** A survey holds
-        // the same disk and cannot write a table anything would read back, because a partition
-        // table carries unique ids and this process has no way to draw one.
+        // the same disk, writable; without entropy it cannot draw the unique ids a *new* table
+        // carries, which narrows what the program would write and not what it can (module docs,
+        // "When the offer is made", item 3).
         if entropy.is_some() {
             crate::sched::grant_at(SLOT_ENTROPY, rendezvous_cap(ep, Rights::WRITE))
                 .expect("installer slot 2 was occupied");
