@@ -40,6 +40,17 @@
 //!
 //! # BUGS
 //!
+//! - **It reads its own build product and is not hardened against a hostile ELF** (2026-09-24
+//!   security audit). The one caller is `xtask/src/stick.rs`, on the ELF `xtask` linked seconds
+//!   earlier, so the trust boundary is the build host and an attacker who can rewrite that file
+//!   already runs code there. "Every read is checked" above is true of reads and not of the
+//!   arithmetic around them: `phoff` near `u64::MAX` overflows before `u32_at` can refuse it, a
+//!   `PT_DYNAMIC` offset is never bounds-checked the way `PT_LOAD`s are, a `memsz` of 2^44 with
+//!   `filesz` 0 passes every check and sizes the image `Vec` from it, and `DT_RELAENT = 0` with a
+//!   large `DT_RELASZ` loops at one address pushing fixups until memory runs out. xtask builds in
+//!   the dev profile, so the overflows are panics rather than wraps. Hardening is about twenty lines
+//!   of `checked_*` and a cap on `image_end`; it is not done because nothing hostile reaches this
+//!   crate, and this entry is what has to change first if that stops being true.
 //! - **Only `RELATIVE` relocations are converted.** A static PIE with no dynamic symbols produces
 //!   nothing else, and anything else is refused with its type number.
 //! - **The image carries no debug directory and no symbols**, so a firmware debugger sees addresses

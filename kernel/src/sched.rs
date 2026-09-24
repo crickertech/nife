@@ -3444,8 +3444,12 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) 
         // The NMI is forced rather than chosen: it is the only message an x86 core takes while it
         // spins for this very lock with interrupts masked (notes/x86-tlb-shootdown.md). A no-op on
         // every architecture with no TSS.
+        //
+        // The invoker's own core is spared when there is an invoker (`keeper.is_some()`): its
+        // installed bitmap is the invoker's own grant, which this sweep deliberately left in the
+        // invoker's table (2026-09-24 security audit; `segments::revoke_port_grant_everywhere`).
         #[cfg(target_arch = "x86_64")]
-        crate::arch::segments::revoke_port_grant_everywhere(base, count);
+        crate::arch::segments::revoke_port_grant_everywhere(base, count, keeper.is_some());
     }
 }
 

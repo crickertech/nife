@@ -2523,6 +2523,31 @@ print(f'environment names: {len(ours)} live, and every one named in prose is rea
       f'({len(RETIRED)} retired on the record)')
 PY
 
+# 10. **No tracked file is one `.gitignore` says not to track** (2026-09-24 security audit). The
+#     tree ignores `__pycache__/` and `*.pyc`, and on 2026-09-18 a lane committed
+#     `scripts/__pycache__/name_provenance.cpython-314.pyc` anyway: `git add` refuses an ignored
+#     path, but `git add -f`, a GUI, and `git add -A` after a stale index entry all get past it, and
+#     nothing then notices. Compiled bytecode in a tree is a small supply-chain surface (Python
+#     imports the `.pyc` when its mtime matches, and a reader diffs the `.py`) and a large hygiene
+#     tell. `git ls-files -ci --exclude-standard` is the whole check, and it is empty today.
+echo "==> tracked files the tree ignores"
+ignored=$(git ls-files -ci --exclude-standard)
+if [ -n "$ignored" ]; then
+	echo "lint: these tracked files match .gitignore, and a tracked file the tree says to ignore is a mistake somebody forced past git:" >&2
+	printf '  %s\n' $ignored >&2
+	echo "  Remove it from the index (git rm --cached <path>) or, if it is meant to be tracked, un-ignore it." >&2
+	exit 1
+fi
+echo "tracked-but-ignored files: none"
+
+# 11. **The merge queue's admission predicate says what it means** (2026-09-24 security audit). The
+#     drain arms auto-merge as `nife-smelter[bot]` on every eligible pull request, the ruleset on
+#     `main` requires zero approving reviews, and until that audit "eligible" admitted a pull request
+#     from any fork on GitHub. The predicate is now one file, scripts/queue-eligible.jq, and this
+#     self-test checks it against fixtures and checks that both consumers still splice it.
+echo "==> the merge queue's admission predicate"
+"$(dirname "$0")/../scripts/queue-eligible-selftest.sh"
+
 echo "==> markdown links and the notes index"
 # Two checks, and deliberately NOT a markdown linter. A survey of all 95 markdown files found zero
 # broken relative links and exactly one unindexed note, so generic style rules (heading case, line

@@ -109,6 +109,12 @@ const SSTATUS_FS_INITIAL: u64 = 0b01 << 13;
 /// `FS = Dirty`: what the hardware sets the instant an FP register is written, and therefore what
 /// the first-use handler writes into the trap frame once it has loaded a register file.
 pub(super) const SSTATUS_FS_DIRTY: u64 = 0b11 << 13;
+/// `sstatus.VS`, bits 10:9: the vector extension's own enable, the same four-state field as `FS`.
+/// This module saves no vector register, so [`init`] turns it Off beside `FS` (2026-09-24 security
+/// audit). Hardwired to zero on a hart without V (QEMU's `rv64` default, radon's U74), so the
+/// clear is a no-op there; on a hart that arrives from firmware with it open, a thread could
+/// otherwise keep vector state that `hand_over` neither saves nor scrubs.
+const SSTATUS_VS: u64 = 0b11 << 9;
 
 /// **Put this hart into the state the rest of this module assumes**: FP off.
 ///
@@ -120,6 +126,10 @@ pub(super) const SSTATUS_FS_DIRTY: u64 = 0b11 << 13;
 /// call site.
 pub fn init() {
     disable();
+    // SAFETY: clears two bits in `sstatus`, which names no memory.
+    unsafe {
+        asm!("csrc sstatus, {}", in(reg) SSTATUS_VS, options(nomem, nostack, preserves_flags));
+    }
 }
 
 /// Let this hart execute FP instructions, by moving `FS` out of Off.

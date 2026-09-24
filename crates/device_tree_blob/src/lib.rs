@@ -88,6 +88,10 @@ pub enum Error {
     BadToken(u32),
     /// The caller's output slice was too small to hold every region found.
     TooManyRegions,
+    /// The header's `totalsize` is larger than [`MAX_TOTALSIZE`], so
+    /// [`from_ptr`](DeviceTreeBlob::from_ptr) refused to build a slice of that length over
+    /// memory nobody has checked. Carries the size claimed.
+    TooLarge(usize),
     /// A `reg` pair whose `start + size` does not fit in 64 bits, so the region names memory that
     /// cannot exist.
     ///
@@ -107,6 +111,21 @@ const FDT_END: u32 = 0x9;
 
 const MAGIC: u32 = 0xd00d_feed;
 const HEADER_LEN: usize = 40;
+
+/// The largest `totalsize` [`DeviceTreeBlob::from_ptr`] will believe, 2 MiB.
+///
+/// `from_ptr` has to trust the header's own length field before anything is validated, and the
+/// magic check only says the pointer is *at* a blob, not that the blob is as long as it claims.
+/// Without a ceiling, a header whose `totalsize` reads `0xffff_ffff` becomes a 4 GiB slice that
+/// the walkers then read through the direct map past the end of RAM, and the first the kernel
+/// hears of it is a data abort in `memory::init` before any handler can say why (2026-09-24
+/// security audit). Firmware is the trust boundary here, so this is boot robustness rather than
+/// confinement; the ceiling costs one comparison and turns that abort into [`Error::TooLarge`].
+///
+/// 2 MiB is Linux's own figure for the same slot (`MAX_FDT_SIZE` is `SZ_2M` in
+/// `arch/arm64/include/asm/boot.h`), and the largest blob this tree has met is QEMU's `virt` at
+/// under 64 KiB, with radon's U-Boot tree under 32 KiB.
+pub const MAX_TOTALSIZE: usize = 2 * 1024 * 1024;
 
 fn be32(bytes: &[u8], at: usize) -> Result<u32, Error> {
     // `at + 4` is a checked add, not a bare one: `at` comes straight out of the (untrusted) blob,
@@ -148,8 +167,13 @@ impl<'a> DeviceTreeBlob<'a> {
             return Err(Error::BadMagic(magic));
         }
         let total = be32(header, 4)? as usize;
+        if total > MAX_TOTALSIZE {
+            return Err(Error::TooLarge(total));
+        }
 
-        // SAFETY: the magic checked out, so `ptr` really is a blob, and `total` is the length it declares for itself; the caller's contract covers the whole of it for `'a`.
+        // SAFETY: the magic checked out, so `ptr` really is a blob, and `total` is the length it
+        // declares for itself, now bounded by `MAX_TOTALSIZE`; the caller's contract covers the
+        // whole of it for `'a`.
         let bytes = unsafe { core::slice::from_raw_parts(ptr, total) };
         Self::from_bytes(bytes)
     }
