@@ -5,7 +5,7 @@ no sentence over 40 words, and 4 or fewer bold spans per 1,000 words. Rule 4 sta
 The ratchet is the enforcement, and two proposed rules stay dropped. Raised by calef the same day,
 reading a maintainer session's proposal to cap document length. A maintainer session then measured
 the tree and proposed four rules, he replied *"Set them."*, and he then changed the median from 25 to
-20 and split rule 3 in two. The section number is provisional; the integrator mints it at merge.
+20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24.
 
 His words, which are the whole brief:
 
@@ -16,7 +16,7 @@ His words, which are the whole brief:
 
 How densely this tree's prose must be written, in numbers a script can count.
 
-The sibling decision, provisional 212 on branch `maintainer/prose-budget`, bounds how much a
+The sibling decision, [§212 (a prose budget)](212-a-prose-budget-for-every-document.md), bounds how much a
 document may be: 3,000 words of main body, with depth in capped appendices. This one bounds how
 densely those words must be written. The two are separate on purpose, and this section links rather
 than absorbs, which is 212's convention demonstrating itself.
@@ -134,7 +134,7 @@ mostly load-bearing contrast, and they are this tree's actual idiom (*a fact rat
 
 Rule 3 fails every document in the tree, so a cliff would be 994 instant failures and a migration
 project nobody wants. The gate sits at rung 2 of the `AGENTS.md` ladder, a check that fails loudly,
-and it wants a milestone. The milestone number is not minted here; the integrator does that at merge.
+and it is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), shared with §212's.
 
 - A document's median sentence length, longest sentence and bold density may not rise. That is the
   shape of the unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall
@@ -151,9 +151,8 @@ and it wants a milestone. The milestone number is not minted here; the integrato
 - The gate must split on block boundaries before it splits sentences. Otherwise it fails documents
   that pass, for the reason recorded above.
 
-Also owed, and not done here: `AGENTS.md`'s `## Style` section links to this section as the record,
-rather than growing a list of numbers. A lane must not edit `AGENTS.md`, so the maintainer does that
-at merge.
+`AGENTS.md`'s `## Style` section links to this section as the record, rather than growing a list of
+numbers. The maintainer added that link at merge.
 
 ## What it costs
 
@@ -179,7 +178,7 @@ gate reads. No exclusion was carved, and the table-cell precedent was not extend
 
 The collision is real and appears in three subsystems. `design/decisions/` writes `**Status:`,
 `design/fatal-risks.md` writes `**The ... experiment ...:**`, and every citation in the tree writes
-`**milestone 41**`. Each is a field a script parses, wearing emphasis. `design/fatal-risks.md`
+`**milestone 41 (dead code)**`. Each is a field a script parses, wearing emphasis. `design/fatal-risks.md`
 measures exactly 4.0 per 1,000 words with all seventeen of its spans being machinery, so it meets
 the budget and has nothing left for emphasis.
 

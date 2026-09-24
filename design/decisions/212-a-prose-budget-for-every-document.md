@@ -51,9 +51,7 @@ tree is paying the debt down, the second says whether the ratchet is holding. Bo
 them (question 2, where the recommendation below argues for every document, and where the two marked
 exceptions to date, `AGENTS.md` at 5,873 words of imperatives and `design/fatal-risks.md` at 4,235
 (it was 4,176 when this section was first written, and grew during the density pass),
-are the evidence either way). *(The section
-number **212** is provisional; the integrator mints it at merge, like anything else global to the
-tree.)*
+are the evidence either way). *(Section number 212 was minted at merge on 2026-09-24.)*
 
 calef's framing:
 
@@ -72,9 +70,7 @@ instead. calef refused that split, and the refusal is the load-bearing part of t
 And on mechanism: *"We can make generous use of hyperlinks. They're awesome."* Read that as licence
 to link rather than restate, here and everywhere.
 
-**A sibling section, provisional §213 (writing standards), is on branch
-`maintainer/writing-standards` at `design/decisions/213-writing-standards.md`; both its number and
-its path are provisional.** It bounds how densely a document must be written, where this one bounds
+**A sibling section, [§213 (writing standards)](213-writing-standards.md), minted 2026-09-24.** It bounds how densely a document must be written, where this one bounds
 how much of it there may be. They are two decisions, and the pairing is why: a cap on length with no
 density standard is satisfiable by terse vagueness, and a density standard with no cap still permits
 a book. Two sections linking to each other instead of merging into one is this section's own
@@ -183,7 +179,7 @@ reproducing what another document already says. This only works because links he
 
 ## The gate, described and not built
 
-Propose it as a milestone; the number is the integrator's.
+It is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), minted 2026-09-24 and shared with §213's gate.
 
 - **A word count per file in `script/lint`**, main body only.
 - **A ratchet on growth**, per (d) above, so the 174 do not all go red on day one.
