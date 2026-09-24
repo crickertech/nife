@@ -217,9 +217,8 @@ which is what a smaller record predicts: a dropped write damages less. **0 silen
 
 **A correction this re-run forced, and it is not about the record level.** The counts above used to
 read 93, 372 and 186, with 112 recovered and 74 refused. Those are milestone 37's, and the workload
-has grown since: the same suite at the *old* record level counts 134 fault points today, not 93. The
-numbers were stale before this lane touched anything, and nothing was checking them, because they
-live in prose and the tests assert the property rather than the count. That is rung four working as
+has grown since: the same suite at the *old* record level counts 134 fault points today, not 93. Nothing
+was checking them, because they live in prose and the tests assert the property rather than the count. That is rung four working as
 badly as rung four works; the property is gated and the arithmetic describing it is not.
 
 The third row is the honest limit. RedoxFS's `Disk` trait has no flush and no barrier, so ordering is
@@ -227,30 +226,32 @@ the device's job, and a device that acknowledges a write it never persists can l
 pointing at a block that never landed. What is guaranteed is that this is never *silent*: every
 `BlockPtr` carries a seahash of the block it names, checked on every read.
 
-**Half of that gap was ours and is closed** (milestone 55's durability half, 2026-08-18). The
-sentence that used to sit here said our block server issued no `VIRTIO_BLK_T_FLUSH`, so on real
-hardware the durability of the last acknowledged write was the device's word rather than ours. It
-now issues one: `filesystem_protocol::blk::FLUSH` (op 4) is a real device flush the block server waits on, and
+**Half of that gap was ours and is closed**, 2026-08-18, by the durability half of milestone 55
+(Time Machine). Our
+block server used to issue no `VIRTIO_BLK_T_FLUSH`, so the last acknowledged write's durability was
+the device's word rather than ours. It now issues one: `filesystem_protocol::blk::FLUSH` (op 4) is a real device flush the block server waits on, and
 `filesystem_protocol::fs::SYNC` (op 19) is the file-service verb that asks for it. A device that never offered
 `VIRTIO_BLK_F_FLUSH` gets `EOPNOTSUPP` all the way up rather than a quiet success, which is the part
-that matters: the old behaviour's problem was not the missing flush so much as that nothing above it
-could tell.
+that matters: the old problem was less the missing flush than that nothing above it could
+tell.
 
 **The half that is still the device's is still the device's**, and it is what the third row
 measures: ordering *between* writes, which nothing on this contract expresses. A `SYNC` says
 "everything acknowledged so far is durable now"; it does not say "these two writes landed in this
 order", and RedoxFS's `Disk` still has no barrier to say it with. A device that lies about its own
-flush is likewise outside anything we can check. That is the engine's and the hardware's territory,
-not the driver's.
+flush is likewise outside anything we can check.
 
 **The controls.** Three, and the strongest needs no tampering at all: the lying-device sweep produces
-74 images the filesystem refuses, so the injector is demonstrably destroying things. Then
-`only_this_generation` blanks every header slot but one, taking the ring's history away, and **92 of
-93 fault points stop mounting**, which isolates the fallback as the mechanism. Then, with no mount at
-all, a commit torn at 2048 bytes fails `Header::valid()` while the previous generation's slot stays
-valid and stays older.
+72 images the filesystem refuses (2 at the mount, 70 at a read), so the injector is demonstrably
+destroying things. Then `only_this_generation` blanks every header slot but one, taking the ring's
+history away, and **133 of 134 fault points stop mounting**, which isolates the fallback as the
+mechanism. *(Re-measured 2026-09-24 with
+`cargo test --release --test crash_consistency -- --nocapture` in `redoxfs_server/`; these had been the
+74 and 92 of 93 from milestone 37 (prove RedoxFS's crash consistency).)* Then, with no mount at all,
+a commit torn at 2048 bytes fails `Header::valid()` while the previous generation's slot stays valid
+and stays older.
 
-**A fourth control turned up on its own, and it is the one worth remembering.** The harness's first
+**A fourth control turned up on its own.** The harness's first
 version treated any failed `open_file` as "the name is absent". A dropped write to a directory's tree
 block makes that lookup answer `EIO`, so nine fault points reported filesystems that never existed,
 empty root and all. It looked like a serious RedoxFS bug for about ten minutes and it was a test bug:
