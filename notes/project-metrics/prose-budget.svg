@@ -44,9 +44,9 @@
 <text class="mut" x="503.5" y="308.0" font-size="9" text-anchor="middle">not<tspan x="503.5" dy="10">measured</tspan><title>2026W37: not measured</title></text>
 <text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W38</text>
 <text class="mut" x="562.1" y="308.0" font-size="9" text-anchor="middle">not<tspan x="562.1" dy="10">measured</tspan><title>2026W38: not measured</title></text>
-<path class="seg s0" d="M601.4,324.0 V71.4 Q601.4,67.4 605.4,67.4 H636.0 Q640.0,67.4 640.0,71.4 V324.0 Z"><title>2026W39, words over the cap: 578.8</title></path>
+<path class="seg s0" d="M601.4,324.0 V71.1 Q601.4,67.1 605.4,67.1 H636.0 Q640.0,67.1 640.0,71.1 V324.0 Z"><title>2026W39, words over the cap: 579.6</title></path>
 <text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W39</text>
-<text class="fg val" x="620.7" y="62.4" font-size="10" text-anchor="middle">578.8</text>
+<text class="fg val" x="620.7" y="62.1" font-size="10" text-anchor="middle">579.6</text>
 <rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
 <text class="fg" y="74" font-size="11"><tspan x="689" dy="0">words over the cap</tspan></text>
 </svg>
