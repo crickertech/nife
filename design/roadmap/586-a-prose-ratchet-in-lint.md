@@ -41,6 +41,22 @@ truth was 20. A gate built on that splitter fails documents that pass.
 Markup a script parses, such as the `**Status:` line, counts as bold under §213. That is a marked
 exception in §213's `BUGS`, not a carve-out the gate should invent.
 
+## Design note, 2026-09-24: quoted text is exempt from the sentence limits
+
+The sentence-length check must not count text inside quotation marks against the 40-word limit or
+the median. A verbatim quote cannot be rewrapped. Splitting it changes what the speaker said, and
+the tree's quotation convention (and `script/citations`, for attributed quotes) holds quotes word
+for word.
+
+The evidence is `notes/stranger-test/run-5.md`, condensed to §213 on 2026-09-24. Its only sentence
+over 40 words is a stranger's worst-thing answer, quoted verbatim in `*"..."*`. Every other
+sentence in that file and its seven sibling appendices was brought under the limit. A gate without
+this exemption would fail that file for the one sentence it must not change.
+
+The exemption covers the quoted span, not the sentence around it. A lead-in wrapped around a quote
+is still prose and is still measured with the quote removed. Bold inside a quote still counts, since
+bold is the writer's markup rather than the speaker's.
+
 ## What would make it not worth doing
 
 If the baseline file churns on every pull request, the ratchet costs more attention than it saves.
