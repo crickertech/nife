@@ -314,7 +314,8 @@ MEASURES = [
                       'unsafe_trust_userspace_density',
                       'unsafe_trust_shared', 'unsafe_trust_boot_chain',
                       'unsafe_trust_unclassified']),
-    ('fatal-risks', ['fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run']),
+    ('fatal-risks', ['fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run',
+                     'fatal_risks_total']),
     ('coverage', ['coverage_lines_pct', 'coverage_min_file_pct']),
     ('prose-budget', ['prose_excess_words', 'prose_documents_over_cap']),
     # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them up:
@@ -1215,16 +1216,27 @@ def fatal_risks(tree):
     not a kind of result.
 
     **Weeks before the field existed are read through `RETIRED_MEANING`**, and a risk with no status
-    line at all counts in none of the three, so the bars sum to nine only from the week every entry
-    carried one. That is the honest shape: an entry that said nothing said nothing.
+    line at all counts in none of the three. That is the honest shape: an entry that said nothing
+    said nothing.
+
+    **`fatal_risks_total` is every risk in that week's file, not the sum of the three**, which is
+    `names()`' shape for the same problem. Without it the chart showed five, four and five risks in
+    2026W36 to 2026W38 and a reader took it for the count of risks, when all nine had been on `main`
+    since pull request #588 landed on 2026-08-31 UTC. Risks 4, 5, 8 and 9 had no status line then,
+    and risk 3 said `STALE` in 2026W37, a word `RETIRED_MEANING` does not translate because it said
+    the old result had expired rather than which of the three the risk was. The gap between the total
+    and the three columns is drawn as `unclassified` and not stored, as `names_no_block` is, because
+    it is not a value `Experiment status` can hold.
     """
-    counts = {'fatal_risks_run': 0, 'fatal_risks_not_run': 0, 'fatal_risks_cannot_run': 0}
+    counts = {'fatal_risks_run': 0, 'fatal_risks_not_run': 0, 'fatal_risks_cannot_run': 0,
+              'fatal_risks_total': 0}
     text = tree.text.get('design/fatal-risks.md')
     if not text:
         return counts
     parts = re.split(r'^## (\d+)\.', text, flags=re.M)
     for i in range(1, len(parts), 2):
         body = parts[i + 1]
+        counts['fatal_risks_total'] += 1
         m = FATAL_RISK_STATUS.search(body)
         if m:
             key = m.group(1).lower().replace('-', '_')
@@ -1665,6 +1677,9 @@ def _fold(kind):
 DERIVED = {
     'model_commits_other_shown': _fold('commits'),
     'model_lines_other_shown': _fold('lines'),
+    'fatal_risks_unclassified': lambda row: max(
+        0.0, _cell(row, 'fatal_risks_total') - sum(_cell(row, 'fatal_risks_' + s)
+                                                   for s in ('run', 'not_run', 'cannot_run'))),
     'names_no_block': lambda row: max(
         0.0, _cell(row, 'names_total') - sum(_cell(row, _col('names', s)) for s in NAME_STATUSES)),
     'tokens_per_milestone': _tokens_per_milestone,
@@ -1735,7 +1750,8 @@ CHARTS = [
      'design/fatal-risks.md; this says whether an experiment happened, never what it found. The '
      'findings are in that file, in prose',
      [('RUN', 'fatal_risks_run'), ('NOT-RUN', 'fatal_risks_not_run'),
-      ('CANNOT-RUN', 'fatal_risks_cannot_run')],
+      ('CANNOT-RUN', 'fatal_risks_cannot_run'),
+      ('unclassified', 'fatal_risks_unclassified')],
      1.0, None, None),
     ('velocity.svg', 'Milestones built each week',
      'a flow, not a stock: what the index says turned BUILT in those seven days',

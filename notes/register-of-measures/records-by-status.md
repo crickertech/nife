@@ -30,6 +30,21 @@ shorter than nine: a risk with no status line at all counts in none of the three
 `AUDITED` are read as `RUN` for those weeks, and `NOT YET`, `UNRUN` and `UNTESTED` as `NOT-RUN`,
 `NOT-RUN` and `CANNOT-RUN`. None of those five words may be written today.
 
+**The bars reach nine from 2026W36, because the chart counts every risk and not only the classified
+ones.** Until 2026-09-24 it drew only the three status columns, so 2026W36 to 2026W38 read five,
+four and five, and calef read that, fairly, as the number of risks: *"We've had 9 things that would
+kill nife longer than just this week."* All nine were on `main` from pull request #588, which
+landed 2026-08-31 UTC. `fatal_risks_total` now counts the risks in each week's file, and the gap
+between it and the three columns is drawn as **unclassified**, the shape the naming chart already
+uses for a name with no provenance block. Arithmetic, not a stored column, because it is not a
+value `Experiment status` can hold. In those weeks it is risks 4, 5, 8 and 9, which had no status
+line, and in 2026W37 risk 3 as well, whose line said `STALE`: the old result had expired, which
+says nothing about which of the three the risk was.
+
+2026W35 and earlier are zero, and zero is right. The file was written on 2026-08-30 and its commit
+carries that date, but a week is counted from `main` at the week's end, and `main` did not have it
+until the merge early on 2026-08-31 UTC, which is 2026W36.
+
 ## Architecture decisions by status
 
 From `design/decisions/README.md`. The grey band in the first three weeks is the honest bucket. A
