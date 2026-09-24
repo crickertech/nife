@@ -21,6 +21,12 @@
 //!    audit finding turned into a test: the first two prove the grant follows the capability across
 //!    a switch and a revoke, and neither could see that `SYS_CAP_DELETE` left it behind.
 //!
+//! 4. **A holder that takes the range back from everyone else keeps its own bitmap.**
+//!    [`a_take_back_leaves_the_invokers_own_bitmap_installed`] is the 2026-09-24 audit's finding
+//!    turned into a test: `PortRange::REVOKE` spares the invoker's capability, and until that audit
+//!    the arch half reset the invoker's own core anyway, so the sparing was true of the table and
+//!    false of the hardware until the next switch-in.
+//!
 //! `x86_64` only: there is no port space, and no TSS I/O bitmap, on the other two architectures.
 
 use abi::fault::{EVENT_EXIT, EVENT_FAULT, FAULT_EP_SLOT};
@@ -311,4 +317,32 @@ fn a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write() {
         "the faulting pc was not the `out` instruction: a red for the wrong reason",
     );
     reap(region);
+}
+
+/// **A take-back leaves the invoker's own bitmap installed.** `PortRange::REVOKE` deletes the range
+/// from every table but the invoker's; the invoker is the thread running on this core, so the
+/// bitmap this core has installed is the invoker's own grant. Before the 2026-09-24 audit's fix the
+/// arch half reset it regardless, and the invoker's next `out` faulted until its next switch-in.
+///
+/// The test thread is a kernel thread, so it cannot execute a ring-3 `out`; it installs the grant
+/// the switch path would have installed and asks the TSS afterwards. Interrupts are masked across
+/// the four steps because a switch away and back would re-install the test thread's own (absent)
+/// grant and the assertion would read the switch rather than the take-back. The broadcast inside
+/// the take-back needs nothing from this core's interrupts: the other cores answer an NMI.
+#[test_case]
+fn a_take_back_leaves_the_invokers_own_bitmap_installed() {
+    use crate::arch::{interrupts, segments};
+
+    let was_enabled = interrupts::disable();
+    segments::set_port_range_grant(Some((COM1_BASE, COM1_COUNT)));
+    sched::delete_port_range_caps_from_others(COM1_BASE, COM1_COUNT);
+    let after = segments::installed_port_grant();
+    segments::set_port_range_grant(None);
+    interrupts::restore(was_enabled);
+
+    assert_eq!(
+        after,
+        Some((COM1_BASE, COM1_COUNT)),
+        "the take-back reset the invoker's own core; the sparing held in the table and not in the TSS",
+    );
 }

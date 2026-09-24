@@ -475,9 +475,29 @@ pub(super) fn revoke_installed_port_grant_on(id: usize, base: u16, count: u16) {
 /// notes/x86-tlb-shootdown.md for why an ordinary IPI deadlocks against a core spinning for a lock
 /// with interrupts masked, which is exactly what a core waiting for `IPC_TABLES` is doing while the
 /// revoker holds it.
-pub fn revoke_port_grant_everywhere(base: u16, count: u16) {
-    revoke_installed_port_grant(base, count);
+///
+/// **`spare_this_core` is the take-back's asymmetry reaching the hardware** (2026-09-24 security
+/// audit). `PortRange::REVOKE` deletes the range from every table *but the invoker's*, and the
+/// invoker is by definition the thread running on this core, so this core's installed bitmap is
+/// the invoker's own grant whenever it names the range. Until that audit the local reset ran
+/// unconditionally: a boot-endowed holder that took its range back from everyone else lost its own
+/// bitmap until its next switch-in, and its next `out` faulted it to its supervisor. Fails closed,
+/// and latent, because nothing in the tree invokes the take-back yet; a whole-machine sweep
+/// (`keeper == None`) passes `false` and resets here too. The remote half is unaffected either way:
+/// no other core can be running the invoker.
+pub fn revoke_port_grant_everywhere(base: u16, count: u16, spare_this_core: bool) {
+    if !spare_this_core {
+        revoke_installed_port_grant(base, count);
+    }
     super::mmu::revoke_port_grant_others(base, count);
+}
+
+/// The grant this core's TSS currently permits, if any: `(base, count)` as
+/// [`set_port_range_grant`] installed it. Read for tests and diagnostics; the switch path keeps its
+/// own copy in the thread.
+pub fn installed_port_grant() -> Option<(u16, u16)> {
+    // SAFETY: this core's own slot, read only; a different core reads a different index.
+    unsafe { INSTALLED_PORT_GRANT[crate::cpu::id()] }
 }
 
 /// **Bench-only** (DECISIONS §121's amendment, 2026-08-24): the I/O permission bitmap option 1
