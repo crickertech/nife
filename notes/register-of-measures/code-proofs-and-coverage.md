@@ -127,17 +127,50 @@ Reading the aggregate as "the coverage the floor is set against" is natural and 
 panel exists so the deck stops inviting it. The argument is `script/coverage`'s own: a per-total
 number hides a hole, because a big well-tested crate subsidizes an untested one.
 
-### The series starts at 2026W39
+### How the earlier weeks were filled
 
-A short line here is a missing record rather than a new problem. A per-file minimum needs that
-week's lcov, and only the aggregate was ever kept from each run. There is nothing to recompute the
-earlier weeks from.
+The series first ran live at 2026W39. On 2026-09-24 a lane backfilled 2026W31 to 2026W38 at calef's
+request. Each week's minimum comes from an lcov at the same commit as that week's aggregate in the
+table above. It was run through today's `script/coverage` floor pass: the awk program, extracted
+verbatim. Each `SF:` path was pointed at a checkout of that week's commit, so the pass's file-exists
+check behaves as it did. Nothing re-derives the minimum outside that pass.
 
-Re-measuring them the way coverage was backfilled would not help either. The exemption list in
-`script/coverage` has changed several times: build scripts in 2026-08-30, the host half of
-`stick_maker` in 2026-09-19. A minimum taken today over an old lcov would cover a population that
-week's gate did not have. Empty weeks are marked on the chart rather than drawn as zero. The
-`unsafe_trust_*` series gets the same treatment for the ten weeks before its census existed.
+An lcov was accepted only if its aggregate reproduced the week's published `coverage_lines_pct`.
+
+| week | commit | lcov from | lines hit / found | minimum | lowest file |
+|---|---|---|---|---|---|
+| 2026W30 | `aef018cdaa3a` | CI run 30226124959 | 1954 / 2114 | **empty** | |
+| 2026W31 | `190268d086f0` | local rebuild, nightly-2026-08-02 | 11019 / 12106 | 83.3 | `crates/slots/src/lib.rs` |
+| 2026W32 | `f6fd097488b1` | local rebuild, nightly-2026-08-04 | 15712 / 16746 | 84.3 | `crates/isa/src/cpu_list.rs` |
+| 2026W33 | `60698aa1a594` | CI run 31967229305 | 20564 / 21976 | 81.1 | `crates/manual/src/index.rs` |
+| 2026W34 | `132f6ad08ade` | CI run 32672743875 | 25084 / 26624 | 81.2 | `crates/smb_proto/src/authenticator.rs` |
+| 2026W35 | `685900ec6bf5` | local rebuild, nightly-2026-08-30 | 27330 / 28959 | 81.2 | `crates/smb_proto/src/authenticator.rs` |
+| 2026W36 | `d0b254c5a5e6` | CI run 34033434189 | 26029 / 27571 | 84.6 | `crates/machine_discovery/src/interrupt_id.rs` |
+| 2026W37 | `5cd67cd3f193` | CI run 34785112245 | 26433 / 27922 | 84.0 | `crates/machine_discovery/src/interrupt_id.rs` |
+| 2026W38 | `5d9d5e4c1f6a` | local rebuild, nightly-2026-09-17 | 26064 / 27525 | 84.0 | `crates/machine_discovery/src/interrupt_id.rs` |
+| 2026W39 | `3dd86628a` | CI run 35917383053, the control | 32365 / 33994 | 84.0 | `crates/machine_discovery/src/interrupt_id.rs` |
+
+Hold these caveats against the numbers:
+
+- 2026W39 is the control. The same pass over its CI lcov reproduced the live 84.0.
+- Three weeks' commits never ran CI, and 2026W35's CI lcov read 94.3 against the published 94.4.
+  Those four were rebuilt locally, in a detached worktree at the recorded commit, by that commit's
+  own `script/coverage` on its own pinned nightly, which is how the aggregates were measured on
+  2026-09-19. All four reproduced the published aggregate. W31, W32 and W35 matched lines hit
+  exactly; W38 was one line higher, 26064 against 26063. 2026W35's CI lcov gave the same 81.2
+  minimum.
+- The CI lcovs for W33, W36 and W37 match the published per cent, but not the raw counts. The CI
+  runner hit 9 to 39 fewer lines than the dev Mac did, and in W36 and W37 found about 30 fewer. The
+  per cent was the acceptance test, and it held.
+- Today's exemptions acted on exactly the files each week's own `script/coverage` exempted. The list
+  only grew, and in every one of these lcovs the only exempt file present is `crates/virtio`, exempt
+  since 2026-07-31. There is one `build.rs`, in W38's, and W38's script already exempted build
+  scripts. The protocol crates that were renamed on 2026-09-14 were never exempt, so the old
+  `_proto` names do not matter. The earlier objection, that a minimum taken today covers a
+  population that week's gate did not have, therefore does not apply to these eight weeks.
+- 2026W30 stays empty. Its commit predates the floor, which arrived on 2026-07-27. The pass reads
+  `crates/abi/src/lib.rs` at 0% in its lcov and would print 0.0 for a gate nobody ran. That is the
+  reasoning that leaves 2026W29's aggregate empty.
 
 ### Where the number comes from
 
@@ -192,7 +225,10 @@ proving nothing. Watch the direction on this chart; a drop deserves more attenti
 
 ### BUGS
 
-- The series cannot be backfilled, for the reason under "The series starts at 2026W39".
+- The backfill has no command of its own. It was `script/coverage`'s floor pass, extracted by hand
+  and run over a downloaded or rebuilt lcov, then `script/metrics --coverage-for <WEEK>
+  --coverage-min-from <floor.txt>`. "How the earlier weeks were filled" is the recipe; a second
+  backfill would repeat it by hand.
 - Nothing ties `floor.txt` to a commit, any more than it ties the lcov to one. `--coverage-min-from`
   believes the caller about which week it measured.
 - The cell is carried across a `--backfill` like the aggregate. After a row is repointed at a later

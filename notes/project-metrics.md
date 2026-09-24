@@ -170,7 +170,9 @@ backfilled that way on 2026-09-19. 2026W29 is empty because no instrument existe
 
 The minimum per-file coverage, which is the number `script/coverage` actually gates on at 80%.
 **The aggregate above can hold steady while one file slides**, so this is the panel that predicts a
-failing build; the series starts at 2026W39 because earlier runs kept only the aggregate.
+failing build. 2026W31 to 2026W38 were backfilled on 2026-09-24 from each week's own lcov;
+2026W30 is empty because the floor did not exist yet. The provenance is in the register's
+[proofs and coverage](register-of-measures/code-proofs-and-coverage.md) appendix.
 
 ## The prose budget
 
