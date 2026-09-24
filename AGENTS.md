@@ -217,6 +217,36 @@ do".
 A developer's final report ends by handing off: what its work unblocked, and what it found that
 wants a lane of its own.
 
+**Lane count is set against the collision surface, not against queue depth** (calef, 2026-08-16,
+overturning his own 2026-08-04 delegation on measured evidence). Throughput is measured in merged
+work. The question to ask before launching is not "how deep is the queue" but "what files will this
+lane touch, and who else is in them". The measurement that overturned the old rule, and the three
+ceilings below, are in [design/tenets/lane-count.md](design/tenets/lane-count.md).
+
+- Disjoint subsystems: launch freely. Four is a reasonable working number, not a ceiling.
+- Two lanes in the test-wiring hotspot (`kernel/src/user/tests.rs`, the QEMU runners,
+  `xtask/src/main.rs`): expect to resolve a conflict by hand, and brief the second one to fold into
+  the first's shape rather than inventing a third. It is often cheaper to sequence those two.
+- The real ceilings are elsewhere, and they are worth naming so they are decided rather than
+  discovered: the attention to read reports and resolve conflicts, the token budget, and runner
+  concurrency.
+
+**The second ceiling is memory**, and it is independent of the collision surface. So: at most one full
+`script/verify` at a time on this machine, and never a mutation sweep beside lanes. When two lanes
+must gate together, `VERIFY_JOBS=2` each shares the budget rather than doubling it. The tell is easy
+to misread: a heavy job dying with no failing assertion, reported as a cancellation or a timing
+failure rather than as memory.
+
+**The third ceiling was disk**, and the lever moved with it: lanes gate in CI rather than here
+([`briefs/gate-in-ci.md`](briefs/gate-in-ci.md)), which takes QEMU and `script/verify` off this
+machine. Lanes are asynchronous, so the wall-clock cost is nobody's wait. Two habits survive: run any
+local gate from a lane's worktree rather than the main checkout, and prune promptly, because disk is
+the only pressure here that destroys work rather than delaying it.
+
+**Prune a lane's worktree the moment its pull request merges**, and never prune one with uncommitted
+work in it. [`briefs/merge-and-cleanup.md`](briefs/merge-and-cleanup.md) has the commands, the order,
+and both recorded failures.
+
 Identified work leaves the lane in a tracked form, or the merge waits. A lane that finds work it
 is not doing may report it in exactly two shapes, and "worth doing someday" is neither. Either a
 proposed milestone (provisional; the integrator mints the number at merge like every other global
