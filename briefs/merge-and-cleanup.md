@@ -4,10 +4,10 @@ finished. Do the work; do not ask questions.
 
 **Where this came from.** The three clauses below lived in `AGENTS.md` (the merge-checklist line,
 the prune-the-worktree paragraph, and the `nife-dev` relink), moved here on 2026-09-23 by the
-extraction that `design/roadmap/proposals/constitution-carry-vs-brief.md` proposed. They fire at one
-event and are performed by one role, which is the whole test that moved them. The constitution keeps
-a pointer and keeps the one clause that is genuinely ambient, which is that every lane takes
-`nife-dev` and nobody should try to stop it.
+extraction that milestone 579 (which of the constitution must be carried, and which is a brief)
+proposed. They fire at one event and are performed by one role, which is the whole test that moved
+them. The constitution keeps a pointer and keeps the one clause that is genuinely ambient, which is
+that every lane takes `nife-dev` and nobody should try to stop it.
 
 **Why the mechanics belong in a file rather than in prose nobody re-reads.** The failure this
 prevents is the one failure in this system that destroys work rather than delaying it, and it has
