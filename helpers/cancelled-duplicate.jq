@@ -1,4 +1,4 @@
-# scripts/cancelled-duplicate.jq: the CI run a concurrency group cancelled as a duplicate of its
+# helpers/cancelled-duplicate.jq: the CI run a concurrency group cancelled as a duplicate of its
 # own same-second sibling, and which GitHub then reads as the pull request's newest, empty suite.
 #
 # The cause is in notes/merge-queue.md's BUGS (#1203, 2026-09-24): one push raised two
@@ -19,7 +19,7 @@
 # forever. No file, label or comment holds the state: `gh run rerun` is what writes it.
 #
 # Consumers splice this file in front of their program (jq cannot compose `-f` with inline text);
-# scripts/cancelled-duplicate-selftest.sh checks it against fixtures.
+# helpers/cancelled-duplicate-selftest.sh checks it against fixtures.
 def cancelled_duplicates:
   .workflow_runs
   | group_by(.name)[]

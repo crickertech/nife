@@ -370,7 +370,7 @@ stranded_numbers() {
 # `synchronize` events; the group cancels the newer copy before any job exists; GitHub reads the
 # newest run per workflow, so the empty cancelled suite hides the green one and the queue answers
 # "11 of 13 required status checks are expected". No workflow-level fix is sound, so the drain
-# reruns the run it finds. The detection is scripts/cancelled-duplicate.jq, the note's own query,
+# reruns the run it finds. The detection is helpers/cancelled-duplicate.jq, the note's own query,
 # and `rerunnable` is what decides: only a run at `run_attempt` 1, so the same run is never rerun
 # twice and the run itself is the record. The rerun needs `actions: write`, which the App's token
 # does not carry, since milestone 128 (the automation gets its own identity) minted it with

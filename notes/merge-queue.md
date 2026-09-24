@@ -483,7 +483,7 @@ $ gh api "repos/crickertech/nife/actions/workflows/ci.yml/runs?event=merge_group
 A push that finds one logs `==> <sha> was tested by merge group run <id>; skipping the suite` in its
 `draft gate` step, with the run's URL on the next line.
 
-`scripts/trunk-health.sh` reads a skipped push run as green, since the run concludes `success`, and
+`helpers/trunk-health.sh` reads a skipped push run as green, since the run concludes `success`, and
 names the merge-group runs behind it. That keeps this green distinct from the skipped-docs green its
 own `BUGS` still warns about.
 
@@ -820,7 +820,7 @@ that needs distinct GitHub identities rather than a better log; the proposal is
   #1211 each have a cancelled CI run followed 20 to 66 seconds later by a successful one, which is
   a draft marked ready, and none of them was stranded.
 
-  **The drain does this now** (#1252, 2026-09-24): the query above is `scripts/cancelled-duplicate.jq`,
+  **The drain does this now** (#1252, 2026-09-24): the query above is `helpers/cancelled-duplicate.jq`,
   spliced into `merge-drain.sh`, and a pull request in this shape gets its cancelled duplicate
   rerun once, logged as `RERAN #N run <id>`. Once is decided by the run's own `run_attempt`, so no
   file or label holds the state; a duplicate already at attempt 2 is a `STALLED.` line for a person.

@@ -118,7 +118,7 @@
 
 set -e
 cd "$(dirname "$0")/.."
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 
 exec python3 - "$@" <<'PY'
 import atexit

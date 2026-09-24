@@ -170,10 +170,10 @@ then the runner that execs QEMU. A bounded run killed cargo on time and left QEM
 times out of three with a 25-second bound on patagonia (found by the `audit_sink` rename lane,
 #1228, while confirming the login stack came up). This was not a regression in milestone 226
 (`qemu-bounded.sh` leaves an emulator behind). 226 gave the killer more reasons to fire, but it
-always fired at `$CHILD` alone. `scripts/qemu-bounded.sh` now collects `$CHILD`'s descendants with
+always fired at `$CHILD` alone. `helpers/qemu-bounded.sh` now collects `$CHILD`'s descendants with
 `pgrep -P` before signalling anything, because a killed parent re-parents its children and they
 cannot be found afterwards, and it sends TERM, then KILL, to all of them. The same three runs after
-the fix left no survivor. `scripts/qemu-bounded-selftest.sh` case 9 fails on the old script and
+the fix left no survivor. `helpers/qemu-bounded-selftest.sh` case 9 fails on the old script and
 passes on the new one. The x86_64 runner was not rerun, because this Mac has no x86 emulator lane
 handy; it is the same shape as case 9 and should be closed with it.
 

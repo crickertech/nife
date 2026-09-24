@@ -141,7 +141,7 @@ report_lock_holders() {
 
 # The child and everything beneath it, leaves included. Signalling only `$CHILD` bounds the process
 # this script started, and that is QEMU only when the command execs it. `cargo xtask shell` is
-# cargo, then xtask, then the runner that execs QEMU; `scripts/qemu-runner-x86_64.sh` is a shell
+# cargo, then xtask, then the runner that execs QEMU; `helpers/qemu-runner-x86_64.sh` is a shell
 # with QEMU beneath it. In both, a TERM to the child alone ends the child and leaves QEMU running
 # under pid 1 (found 2026-09-24: three bounded `cargo xtask shell` runs in a row, three orphans).
 # So the list is taken before anything is signalled, because a killed parent re-parents its

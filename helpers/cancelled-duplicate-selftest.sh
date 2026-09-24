@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# scripts/cancelled-duplicate-selftest.sh: the drain's "rerun the cancelled duplicate, once"
+# helpers/cancelled-duplicate-selftest.sh: the drain's "rerun the cancelled duplicate, once"
 # detection, checked against fixtures, and its consumer checked for still using it.
 #
 # Fixtures, all on one head SHA:
@@ -53,7 +53,7 @@ fi
 #    other route.
 f="$here/merge-drain.sh"
 if ! grep -qF '"$(cat "$CANCELLED_JQ")"' "$f"; then
-	echo "$me: merge-drain.sh does not splice scripts/cancelled-duplicate.jq; a rerun without the detection is a rerun of anything cancelled." >&2
+	echo "$me: merge-drain.sh does not splice helpers/cancelled-duplicate.jq; a rerun without the detection is a rerun of anything cancelled." >&2
 	exit 1
 fi
 if ! grep -q 'rerunnable' "$f"; then
