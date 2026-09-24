@@ -8,6 +8,10 @@ members. Time Machine speaks SMB, Samba stores Apple's metadata as extended attr
 (`streams_xattr`), and RedoxFS has none. So this is on the critical path to hardware, not a
 feature we thought would be nice.
 
+That premise is gone. Milestone 55 (Time Machine: SMB3 with Apple's extensions, and mDNS) was
+removed on 2026-08-30, because its customer backs up with borg over SSH instead. The layer stays as
+built and works; it is no longer on anyone's critical path.
+
 The contract is `filesystem_protocol::xattr`; the layer is `redoxfs_server/src/lib.rs`; the mechanism was decided
 in DECISIONS §34's 2026-07-31 amendment.
 

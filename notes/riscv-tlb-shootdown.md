@@ -186,8 +186,8 @@ machine). The baseline is re-saved to match, because the change is intended and 
 
 **This is a tie recorded plainly rather than a win overclaimed.** The measurement that would settle it
 needs hardware with a real TLB: `--real` runs under Hypervisor.framework, which executes the host's
-own ISA and so has no RISC-V leg, and the VisionFive 2 has not arrived. Milestone 24's board work is
-where this number gets taken.
+own ISA and so has no RISC-V leg, and the VisionFive 2 had not arrived when this was written. It has
+since (radon, about 2026-08-21), and this note does not record whether the number was taken there.
 
 ## Two things this turned up that nobody had written down
 

@@ -35,6 +35,11 @@ The roadmap named five separable rights. There are six.
 `ALL` is the six together, and it is what the mount binds its root with. Nothing below the root can
 ever be constructed with more.
 
+A seventh rung, `SETTIME`, arrived on 2026-08-24 with `touch -t`, under §112 (`touch`'s two behaviors need
+two rights). It gates setting a name's mtime to an instant the caller asserts, and `ALL` now includes
+it; see [touch.md](touch.md). The case for six above still holds: the seventh splits off a power none
+of the six carried.
+
 ### `DESCEND` earns its own rung, and this is the finding
 
 The roadmap's five did not separate walking in from reading. Bundle them and **granting a directory

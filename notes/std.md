@@ -243,6 +243,8 @@ What binds, and how it maps to the contract:
   `LISTEN_DENIED` is `PermissionDenied` (ask whoever spawned you; no other port will help),
   `LISTEN_IN_USE` is `AddrInUse` (pick another port), and a refused `ACCEPT` is `WouldBlock` (the
   listener is still armed, call again).
+  The `std_net` test boot runs this as its negative control: the same binary prints `listen
+  refused` on a stack granted no ports, on aarch64 and riscv64.
 
   **A listener and a connection are two socket ids, and the listener never gets a frame.** That is
   DECISIONS §25 showing through the PAL rather than a choice made here: the shared frame is the
@@ -849,7 +851,7 @@ completes, not why the poll path did not.
 *(Milestone 64, fourth pass, 2026-08-18.)*
 
 **The dangerous std call is not the one that returns `Unsupported`. It is the one that compiles and
-then kills you.** Four have been found so far, each by a different accident:
+then kills you.** Five have been found so far, each by a different accident:
 
 | call | what it was | found by |
 |---|---|---|

@@ -75,9 +75,10 @@ INTERRUPT_STATUS read (the ISR, via the transport) deasserts the line, and its I
 re-enables the source. MSI-X (the device writes a message to raise an interrupt, many vectors,
 no sharing) is the modern mechanism and a deliberate later step; nothing we drive needs it.
 
-The swizzle and the ECAM base are hardcoded constants with **witnesses**: host tests parse the
-riscv fixture's device tree and hold the constants against the machine's own `reg` and all
-sixteen `interrupt-map` entries (crates/pci/tests/qemu_virt_dtb.rs), the UART pattern.
+The swizzle is a hardcoded formula with a **witness**: host tests parse the riscv fixture's
+device tree and hold `intx_irq` against all sixteen of the machine's own `interrupt-map` entries
+(crates/pci/tests/qemu_virt_dtb.rs), the UART pattern. The ECAM base was a constant held the same
+way; it is now parsed from the tree (above), and the same test pins the parse to the old value.
 
 ## What is proven, and where the edges are
 

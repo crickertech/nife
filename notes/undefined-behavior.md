@@ -12,7 +12,8 @@ good for the allocation it was derived from, and an integer-minted pointer only 
 whose provenance was exposed), uninitialized reads, use-after-free, out-of-bounds, invalid values,
 and leaks at process exit.
 
-The rest of the tree's analysis surface cannot see that class. Kani proves the properties it is
+The rest of the tree's analysis surface cannot see that class, and Miri is its third leg, after the
+proofs and the fuzzers ([interleaving.md](interleaving.md) is the fourth). Kani proves the properties it is
 asked about; the fuzzers see crashes and hangs; clippy sees shapes; the type system stops at every
 `unsafe` block. There are 224 `unsafe` occurrences under `crates/`, concentrated in `ipc`,
 `user_mode_heap`, `intrusive_fifo`, `virtio`, and `paging`, and an aliasing bug in one of them passes every

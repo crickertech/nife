@@ -120,7 +120,8 @@ protocols, and by that count the block/wake path had nothing to explore: every f
 under `SCHED`. What the fourth bench stop demonstrated is that a lock-based protocol still has an
 interleaving space, in the *gaps between critical sections*: a thread that parks itself releases
 `SCHED` and keeps running until its core saves its context, and a waker can take the lock inside
-that window. All three of this protocol's recorded races live in that gap. So the model puts
+that window. All three of this protocol's recorded races live in that gap (the third was a bench
+reading since overturned, and is held as hardening; see the table below). So the model puts
 `SCHED` behind a `loom::sync::Mutex`, the thread's saved context in a `loom::cell::UnsafeCell`
 written outside the lock (where `switch_to` writes the real one), each core's critical sections in
 a loom thread in the kernel's program order, and lets loom order the sections. What it checks is
@@ -135,7 +136,7 @@ not have.
 | `a_stolen_thread_resumes_on_its_saved_context` | the steal edge of the same window: a preempted thread sits `Ready` with `on_cpu` still set, and the single-owner queue discipline (serve only on the owning core, after `finish_switch`) is what orders the thief's resume after the context save |
 | `a_thief_that_pops_a_foreign_queue_steals_an_unsaved_context` | **the reconstruction**, `#[should_panic]`: break the single-owner rule and loom must find the thief taking a mid-switch-out thread |
 | `an_undelivered_wake_racing_a_park_strands_nobody` | boot 8's gate under race: a spurious wake with nothing delivered is `Refused` in every interleaving, before or after the switch-out completes; the receiver stays parked and waiting, the real sender still completes the rendezvous, and the resume sees a delivery |
-| `without_the_gate_a_spurious_wake_completes_an_empty_rendezvous` | **the reconstruction**, `#[should_panic("resumed with nothing delivered")]`: the pre-boot-8 wake (deferral kept, gate absent) strands the receiver in every interleaving, which is exactly what the bench recorded |
+| `without_the_gate_a_spurious_wake_completes_an_empty_rendezvous` | **the reconstruction**, `#[should_panic("resumed with nothing delivered")]`: the pre-boot-8 wake (deferral kept, gate absent) strands the receiver in every interleaving. This is what boot 8's dump was read as, and notes/visionfive2.md's fifth stop (2026-08-15) overturned that reading; the gate stays as hardening |
 
 Two mechanics worth copying. The model's invariants are **real `assert!`s, not `debug_assert!`s**,
 because this script compiles `--release` and a should-panic reconstruction with its tripwire

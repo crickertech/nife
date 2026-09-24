@@ -351,8 +351,10 @@ relies on Rust to correctly abstract details of the machine executing the code."
 **So Verus does not reach the code Kani cannot reach.** It reaches *around* it, by letting a human
 write down what the hardware seam promises and then proving the rest against that promise. Kani
 cannot do that, and that difference is real and is the honest case for Verus. But it is a different
-claim from "the prover reaches the driver", and the VisionFive 2's undelivered-wake defect, which
-lives in that seam, would have been on the trusted side of an Atmosphere-shaped boundary too.
+claim from "the prover reaches the driver", and the timer re-arm drift, which lives in that seam,
+would have been on the trusted side of an Atmosphere-shaped boundary too. (This sentence named the
+VisionFive 2 undelivered wake until 2026-09-24; that reading is retracted, as the residue section
+above records.)
 
 ## The number that decides it: proof effort
 
@@ -610,9 +612,10 @@ verification results:: 1 verified, 0 errors
   asserts *"due to the lack of managed runtime, verified Rust code can be compiled and executed on
   bare metal"*, which is the authors' claim about their own x86_64 kernel, not a Verus project
   statement, and says nothing about a custom target JSON or `aarch64-unknown-none-softfloat`.
-- **`design/fatal-risks.md` risk 2 and `notes/proof-retrospective.md` both still say
-  `kernel/src` is unreachable by construction.** Both are stale by three weeks and neither was
-  touched here; risk 2's text is calef's.
+- **`design/fatal-risks.md` risk 2 and `notes/proof-retrospective.md` both said `kernel/src` is
+  unreachable by construction** when this was written, stale by three weeks, and neither was touched
+  here. Risk 2 has since been reworded to the past tense ("were out of reach", checked 2026-09-24);
+  the retrospective is a dated record of 2026-08-30 and reads as one.
 - **This note names no winner and is not evidence for a decision either way.** It was written to
   price a question, and the pricing has a factor-of-several uncertainty that only running Verus on
   real code would remove.
