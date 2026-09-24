@@ -164,6 +164,19 @@ nothing but a core's worth of memory. Until one of the two scripts changes (the 
 TERM and HUP and forwarding them to QEMU would be the smaller fix), **after bounding an x86_64
 run, `pgrep -l qemu-system-x86` and walk the parent chain**, and treat a PPID of 1 as yours.
 
+**Corrected 2026-09-24: the killer now signals the child's whole tree, which closes the paragraph
+above and a wider case it did not name.** The same shape hit `cargo xtask shell`: cargo, then xtask,
+then the runner that execs QEMU. A bounded run killed cargo on time and left QEMU under pid 1, three
+times out of three with a 25-second bound on patagonia (found by the `audit_sink` rename lane,
+#1228, while confirming the login stack came up). This was not a regression in milestone 226
+(`qemu-bounded.sh` leaves an emulator behind). 226 gave the killer more reasons to fire, but it
+always fired at `$CHILD` alone. `scripts/qemu-bounded.sh` now collects `$CHILD`'s descendants with
+`pgrep -P` before signalling anything, because a killed parent re-parents its children and they
+cannot be found afterwards, and it sends TERM, then KILL, to all of them. The same three runs after
+the fix left no survivor. `scripts/qemu-bounded-selftest.sh` case 9 fails on the old script and
+passes on the new one. The x86_64 runner was not rerun, because this Mac has no x86 emulator lane
+handy; it is the same shape as case 9 and should be closed with it.
+
 ### 4. Killing a harness does not kill its children
 
 Moved here from `AGENTS.md` on 2026-09-23 (UTC), where it was the anecdote attached to the rule that
@@ -228,6 +241,12 @@ forever, by design, exactly like real hardware. So every interactive run must be
     file that would not decode. Parking the core with `wait_for_interrupt` between polls fixed it
     outright. Worth remembering for anything else in this tree that busy-waits inside a guest while
     a host is trying to talk to QEMU.
+- **A process that leaves the tree escapes the bound.** The killer finds what to signal by walking
+  `pgrep -P` down from its child at the moment it fires. A descendant that double-forks or calls
+  `setsid` to reparent itself to pid 1 before then is no longer under the child, and is not
+  signalled. Nothing in this tree's QEMU paths does that today. A process group would catch it,
+  but a background job in its own group cannot read the terminal, and interactive `cargo xtask
+  shell` runs need exactly that.
 - **A kernel's serial log is binary to `grep`.** The test logs carry the guest's control bytes, so
   `grep FAILED log` says `Binary file log matches` or nothing, rather than the line. Use `grep -a`.
 

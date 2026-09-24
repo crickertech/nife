@@ -36,6 +36,9 @@
 # 7. **a failure names who holds the disk image** (milestone 226).
 # 8. **and does not name a mere reader**, which is what made the first version of that diagnostic
 #    fire on a green `script/test`.
+# 9. **the bound reaches an emulator that is not the child** (2026-09-24). `cargo xtask shell` and
+#    the x86_64 runner both put QEMU below the process this script starts, and signalling only
+#    that process left QEMU under pid 1 every time.
 #
 # # BUGS
 #
@@ -221,6 +224,18 @@ else
     pass "a read-only holder is not reported"
 fi
 kill -TERM "$reader" 2>/dev/null || true
+
+echo "==> 9. the bound reaches an emulator the child started rather than exec'd"
+mark="qbst9-$$"
+# `; true` keeps `sh -c` from exec'ing QEMU, so the emulator is a grandchild of the wrapper.
+"$BOUNDED" 5 sh -c "$(idle_qemu "$mark"); true" >/dev/null 2>&1 || true
+sleep 3
+if [ -z "$(emulator_pid "$mark")" ]; then
+    pass "a grandchild emulator was reaped with the bound"
+else
+    fail "a grandchild emulator outlived the bound, ppid=$(ps -o ppid= -p "$(emulator_pid "$mark")" | tr -d ' ')"
+    pkill -f "$mark" 2>/dev/null || true
+fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
