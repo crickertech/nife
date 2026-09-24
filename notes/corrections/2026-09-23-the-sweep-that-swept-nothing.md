@@ -16,9 +16,16 @@ exists at all.
 
 `.github/workflows/falsifications.yml` is that sweep, run weekly: it replays every recorded
 falsification patch against its own harness and reports any that stayed green. Milestone 194 (build
-§134: the falsification record, its lint, and the sweep that replays it) built it, on 2026-08-31,
-and **nobody ran it once**. Its first execution of any kind was the cron seven days later, which
-refused.
+§134: the falsification record, its lint, and the sweep that replays it) built it, and pull
+request #603 merged it to `main` on 2026-09-01 at 02:16. Its first execution of any kind was the
+cron six days later, which refused.
+
+**The workflow was never tested when it was deployed.** No run of `falsifications.yml` has ever
+replayed a record, let alone watched one go red on purpose: its Actions history holds seven runs as
+of 2026-09-24, the first of them the cron of 2026-09-07, and six refused while the seventh was
+cancelled before its sweep step finished. The six records pull request #603 reports "all replaying
+red" were replayed by `script/falsifications --sweep` outside Actions, which tested the script and
+never the workflow that runs it.
 
 The sweep step is
 
@@ -51,8 +58,9 @@ into is the file that stopped the sweep.
 
 | When | What |
 |---|---|
-| 2026-08-31 18:18 | `24a1e0a7b` lands the lint hook, the weekly sweep, the per-pull-request gate and the note. The `tee` and the `continue-on-error` are both in that first commit, and the file has not been touched on `main` since. |
-| 2026-08-31 to 2026-09-07 | Seven days in which the workflow is not run at all. There is no dispatch, no trial, and no run of any kind. |
+| 2026-08-31 18:18 | `24a1e0a7b` is written: the lint hook, the weekly sweep, the per-pull-request gate and the note. The `tee` and the `continue-on-error` are both in that first commit. |
+| 2026-09-01 02:16 | Pull request #603 merges it to `main`, which is when the workflow is deployed. The file is not touched on `main` again until the fix on 2026-09-24. |
+| 2026-09-01 to 2026-09-07 | Six days in which the workflow is not run at all. There is no dispatch, no trial, and no run of any kind. |
 | 2026-09-07 10:47:57 | First scheduled run, 34113314569, and the first execution of this workflow in any form. Refuses at 10:48:35.396, 0.5 s after the step starts. Reports success. |
 | 2026-09-14 11:01:12 | Second scheduled run, 34836043991. Refuses at 11:01:46.017. Reports success. |
 | 2026-09-21 11:10:46 | Third scheduled run, 35592675887. Refuses at 11:11:24.014. Reports success. |
@@ -64,6 +72,7 @@ into is the file that stopped the sweep.
 | 2026-09-23 20:49:25 | `falsify/machine-discovery` dispatches. Refuses. |
 | 2026-09-23 20:50:57 | `falsify/crates-paging` posts the same finding as a comment on pull request #1159, deliberately not fixing it, because `.github/` is shared and two siblings were dispatching that workflow at the time. |
 | 2026-09-23 21:16:38 | This record's own pull request, #1166, trips another instance of the same shape while being written. `coe-architect-label.yml`, merged hours earlier to put `needs-architect` on every COE by default, detects the new file correctly and then fails to apply the label, because `gh pr edit` was called without `--repo` in a job that never checks the repository out. The step's `if` takes the else arm as designed, the job reports **pass**, and no label appears. |
+| 2026-09-24 16:41:34 | Pull request #1156 merges the `$RUNNER_TEMP` fix to `main`. The fixed workflow has not run since; the next scheduled run is Monday 2026-09-28. |
 
 **Six completed runs, six refusals. The count of falsification patches this workflow has replayed in
 its lifetime is zero.** The one run that carried the fix was cancelled by its own concurrency group
@@ -72,7 +81,7 @@ before it got there.
 ## Impact
 
 **Every scheduled sweep the mechanism has ever had produced no evidence, and published a refusal as
-though it were a report.** That is 23 days from the workflow landing to the finding, covering the
+though it were a report.** That is 22 days from the workflow landing on `main` to the finding, covering the
 three Mondays of 2026-09-07, -14 and -21.
 
 **The population it was not checking was growing the whole time**, which matters because the value
@@ -184,8 +193,8 @@ many units**, and zero should be loud. That is a rung-two artefact this tree doe
 convention for, and building one is what the second action item below is.
 
 **And there is a sharper cause than any of the above, which is that this workflow was never once
-observed working.** It landed at 18:18 on 2026-08-31 and its first execution of any kind was the
-cron seven days later, which refused. No dispatch, no trial run, nothing. A defect that would have
+observed working.** It landed on `main` at 02:16 on 2026-09-01 and its first execution of any kind
+was the cron six days later, which refused. No dispatch, no trial run, nothing. A defect that would have
 shown itself in 35 seconds of somebody's attention instead took three weeks and a lane reading a log
 for another reason.
 
@@ -194,7 +203,7 @@ carries a machine-replayable falsification record, or it is not evidence) says a
 evidence until somebody has made it go red on purpose, because a proof that cannot fail proves
 nothing and looks exactly like one that can. **A CI gate is a claim of the same kind, and this tree
 requires nothing of it.** A gate ships green against a tree where its defect is absent, which is
-indistinguishable from a gate that cannot fire, and that is why 5's shape one level out: the gate's
+indistinguishable from a gate that cannot fire. That is the fifth why's shape one level out: the gate's
 first green is the "checked nothing" case, and it is the case everybody reads as success.
 
 `coe-architect-label.yml` is the second instance, and the contrast is the measurement. It shipped

@@ -36,7 +36,7 @@ thing in [stack.md](stack.md).
 this tree writes COEs: what happened, a timeline with times, the impact, a root cause reached by five
 whys, and action items that resolve to a decision, a proposal or a milestone. The entries above are
 scars, which is a record that something healed. These are records of what was changed so it would not
-happen again. The directory name is provisional, as §210 says.
+happen again.
 
 **[The weekly falsification sweep replayed nothing and reported success](corrections/2026-09-23-the-sweep-that-swept-nothing.md)**
 (2026-09-23). A `tee` into the checkout dirtied the tree before the sweep's own dirty-tree guard read

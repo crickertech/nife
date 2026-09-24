@@ -2,8 +2,7 @@
 
 **Status: PROPOSED 2026-09-23.**
 `a-mechanism-reports-its-denominator`: ratified 2026-09-23 (calef, reviewing
-`notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md` on pull request #1166). Raised by the
-first correction of error in this tree,
+`notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md` on pull request #1166). Raised by
 `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, whose fifth why reaches a habit
 rather than a bug and whose action items must resolve to something under §210 (a correction of
 error, and its action items are decisions, proposals or milestones).

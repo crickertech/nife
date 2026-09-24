@@ -24,8 +24,8 @@ first green is the one everybody reads as confirmation that the thing works.
 
 ## The two instances that prompted it
 
-**The weekly falsification sweep.** `falsifications.yml` landed 2026-08-31 18:18 UTC. Its first
-execution of any kind was the cron seven days later, which refused to run and reported success. It
+**The weekly falsification sweep.** `falsifications.yml` landed on `main` on 2026-09-01. Its first
+execution of any kind was the cron six days later, which refused to run and reported success. It
 replayed zero patches in three scheduled runs over three weeks, and the population it was not
 checking grew from 40 records to 74 in that window. A dispatch on the day it landed would have shown
 it in 35 seconds.
