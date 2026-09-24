@@ -270,7 +270,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 209 | DECIDED | [State handoff is an opaque blob over a granted frame, and it is optional](209-state-handoff-is-an-opaque-blob-and-it-is-optional.md) |
 | 210 | DECIDED | [A correction of error, and its action items are decisions, proposals or milestones](210-a-correction-names-its-action.md) |
 | 211 | DECIDED | [What a fatal-risk verdict says, and what the chart can plot as a result](211-what-a-fatal-risk-verdict-says.md) |
-| 212 | PROPOSED | [A prose budget: 3,000 words of main body, with appendices under the same cap](212-a-prose-budget-for-every-document.md) |
+| 212 | DECIDED | [A prose budget: 3,000 words of main body, with appendices under the same cap](212-a-prose-budget-for-every-document.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
