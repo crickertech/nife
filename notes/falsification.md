@@ -509,7 +509,54 @@ independent implementation of `str_eq` standing on the expectation side on purpo
 
 `script/falsifications` reads **36 of 146** after this lane, from 35.
 
+## `machine_discovery` swept clean, and the gap was a harness that did not exist
+
+2026-09-23. The crate parses ACPI tables and device trees, which is the bytes a machine hands us,
+so it was taken as a falsification target on the reading that `script/falsifications --unfalsified`
+would name several of its harnesses. It named none. All fifteen already carried `replayable`
+records, written by milestone 319 (the crate that parses firmware), and
+`script/falsifications --sweep machine_discovery` replayed all fifteen on patagonia: **15 swept, 0
+survivors, 0 stale or broken**. Nothing here needed repair.
+
+**Two of those fifteen were false when they were written**, which is the strongest evidence in this
+note against fatal risk 2's claim that the proofs prove trivia.
+`acpi::the_dmar_fixed_part_decodes_without_arithmetic_overflow` found `host_address_width` computing
+`body[0] + 1` in a `u8`, which panicked the x86 boot path on a firmware byte of `0xff`, and
+`an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus` found the window size wrong beside
+it. Both are on a boot path, both were found by the proof rather than by a test, and both are
+recorded at the harness.
+
+### What was actually missing
+
+Milestone 524 (the three `x86_64` boot gates) added 342 lines to `x86_64.rs` on 2026-09-21 and no
+harness with them, so nothing was `unfalsified`: the code was *unproved*, which no ratio in this
+note can see. That is worth stating as its own shape, because it is the cheaper failure to have and
+the harder one to notice. **The worklist counts harnesses, so code with no harness is invisible to
+it**, and a crate can go to 100% falsified by adding nothing and proving nothing.
+
+The gap closed here is `a_feature_is_never_reported_from_a_leaf_the_part_does_not_answer` (name
+provisional). `CPUID` has no fault for a leaf a part does not implement: a read above the maximum
+answers with some other leaf's data, so absence and a clear bit are the same bits on the wire, and
+the four maximum-leaf gates in `Isa::decode` are the only thing telling them apart. Its falsification
+gates an extended leaf on the standard maximum, one word of difference that every machine in this
+building agrees with, which is why a proof and not a test is what catches it.
+
 ## BUGS
+
+- **The weekly sweep in CI has swept nothing since it was written, and reported success every
+  time.** Found 2026-09-23 by dispatching `falsifications.yml` on a lane branch and reading the log:
+  `script/falsifications --sweep refuses to run on a dirty working tree`, because the step is
+  `script/falsifications --sweep 2>&1 | tee sweep.txt` and the redirection creates `sweep.txt` in the
+  checkout **before** the script reads `git status`, which counts an untracked file as dirty. The
+  refusal returns 2, `tee` is the last command in the pipe, so the step exits 0 and the job is green.
+  Every scheduled run since 2026-08-31, when the workflow was written, has this in its log. The
+  refusal is the script working exactly as its own BUGS section says it should; what failed is a
+  report that says nothing and looks like a report that says everything, which is the shape this
+  whole note exists to refuse, one level out. The fix is to write the transcript outside the
+  checkout (`$RUNNER_TEMP`), and it is a workflow edit rather than a script one, so it is recorded
+  here rather than taken by the lane that found it (which was confined to `crates/machine_discovery`).
+  **Until it is fixed, a `replayable` record older than the last hand-run sweep is a claim nothing
+  has re-checked.**
 
 - **The self-referential sweep cannot be a gate and cannot be repeated cheaply.** No check
   distinguishes "asserts through the function under test" from "legitimately asserts agreement",
