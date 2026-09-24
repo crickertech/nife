@@ -1,4 +1,4 @@
-# A tick not yet raised, read as a tick dropped: 2026-09-24
+# A tick not yet raised: 2026-09-24
 
 *(An appendix of [notes/load-sensitive-assertions.md](../load-sensitive-assertions.md), which holds
 the register and the rules. Written by the `fix/riscv-cpu-matrix-flake` lane, pull request #1212.)*

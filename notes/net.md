@@ -642,6 +642,11 @@ proved by construction rather than by assertion.
 
 ### BUGS: the check fails intermittently, and the mechanism is still not identified
 
+*Identified 2026-09-24: `read-failed` is `EINTR`, a signal on the held read, and the prober now reads
+again instead of dropping the connection. The errno, the base rate and the fix are in
+[the inbound EINTR appendix](load-sensitive-assertions/inbound-eintr.md). The history below is kept
+as it was written.*
+
 **The state of it.** `inbound check (riscv64)` has gone red twice with nothing wrong that anybody
 could name, and the floor has already been lowered once (from all four to three) to absorb it. It
 must not be lowered again: at three it still proves each of the two listeners answered, and at two it
