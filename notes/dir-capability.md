@@ -13,11 +13,9 @@ attacks are `kernel/src/user/fs_service.rs`'s `start_granted_dir` and
 `kernel/src/user/dir_capability_tests.rs`. This note is the argument around them. Read
 [fs-server.md](fs-server.md) first for the contract this extends.
 
-What milestone 47 goes on to build (`cd`, `pwd`, `ls`, `mkdir`, `rm`, globbing, completion) is the
-easy part once this exists, and it is deliberately not here. The five commands are built:
-[shell-navigation.md](shell-navigation.md). Four of them were indeed easy; `rm` was not, because
-"remove a name" and "destroy an object" are one operation in the engine underneath until you make
-them two.
+What milestone 47 (navigation and naming) builds on this, from `cd` to globbing and completion, is
+in [shell-navigation.md](shell-navigation.md). Four were easy; `rm` was not, because
+"remove a name" and "destroy an object" are one operation in the engine until you make them two.
 
 ## The ladder, and why there are six rungs
 
@@ -32,13 +30,12 @@ The roadmap named five separable rights. There are six.
 | `REMOVE` | take a name out of it | `RENAME`'s source (and `UNLINK`, later) |
 | `DESCEND` | walk into a child directory | `OPENDIR`, and `MKDIR` alongside `CREATE` |
 
-`ALL` is the six together, and it is what the mount binds its root with. Nothing below the root can
-ever be constructed with more.
+`ALL` is every rung together, and it is what the mount binds its root with. Nothing below the root
+can ever be constructed with more.
 
-A seventh rung, `SETTIME`, arrived on 2026-08-24 with `touch -t`, under §112 (`touch`'s two behaviors need
-two rights). It gates setting a name's mtime to an instant the caller asserts, and `ALL` now includes
-it; see [touch.md](touch.md). The case for six above still holds: the seventh splits off a power none
-of the six carried.
+A seventh rung, `SETTIME`, arrived on 2026-08-24 with `touch -t` under §112 (`touch`'s two behaviors
+need two rights): setting a name's mtime to an instant the caller asserts ([touch.md](touch.md)). It
+splits off a power none of the six carried, so the case for six stands.
 
 ### `DESCEND` earns its own rung, and this is the finding
 
@@ -122,8 +119,6 @@ delete what is there", made structural.
 
 ## The structural finding: the handle is the authority, the endpoint is the boundary
 
-This is the most important thing in the milestone, and it was not obvious going in.
-
 **The FS server's handle table is per *server*, not per client.** Two clients sharing one endpoint
 share those handles. A rights-carrying handle therefore attenuates only *its holder*: anyone holding
 the FS-service endpoint can name `fs::ROOT` and be back at the image root, whatever narrow handle
@@ -146,14 +141,14 @@ endpoints, which this kernel does not offer; adding it means giving endpoint cap
 
 `fs_file_caretaker` has to inspect requests, because a file capability and a directory capability
 speak different protocols and it is translating between them. **`fs_subtree_caretaker` performs no
-rights checks whatsoever**, and that is the design rather than an omission.
+rights checks**, by design.
 
 At startup it sends exactly **one** `OPENDIR`, asking for the granted name with the granted rights.
 The FS server intersects those with its own and refuses if the intersection came up short, so a
 wiring that asked for more than exists dies at the caretaker's first request instead of coming up
 serving a capability nobody meant to hand out. Everything the client can reach afterwards, it
-reaches *through the handle that request minted*. The attenuation lives in the handle the server
-minted, and there is no branch in the caretaker that could be wrong about it.
+reaches *through the handle that request minted*, so there is no branch in the caretaker that could
+be wrong about it.
 
 What the process actually does is **translate a namespace**. The client numbers its handles in its
 own space starting at `fs::ROOT`, which is the granted directory; the caretaker maps each to the FS
@@ -280,7 +275,8 @@ Both names go through `check_component`, so `..` means nothing here either.
 ## What the guest tests prove, and from where
 
 Three `#[test_case]`s, one module for both ISAs rather than an aarch64 test with a riscv twin:
-nothing in them is architecture-specific, so the parity gate (§19) is met by literally the same test
+nothing in them is architecture-specific, so the parity gate, §19 (architectural parity is a tenet), is met by the
+same test
 running twice.
 
 Each wires a `fs_subtree_caretaker` holding a capability to the fixture's `sub` with one rights set,

@@ -37,8 +37,7 @@ single-operation or single-shape measurements. This is the one that is not.
 <https://trustworthy.systems/publications/theses_public/05/Warton:be.abstract>) says only that
 "significant memory savings can be achieved without degrading the kernels performance" and that
 "preliminary results show improvement in the kernels performance due to the single stack
-architecure, however more experiments are required to verify this result." The stronger, specific
-figure appears in the 2016 retrospective. Both are real citations; they are not the same strength of
+architecure, however more experiments are required to verify this result." Both are real citations; they are not the same strength of
 claim, and this tree has already carried a fabricated block quote for twelve days, so the provenance
 is written down rather than remembered.
 
@@ -53,7 +52,7 @@ assumption. That is the whole reason this milestone exists rather than a rewrite
 ## What Warton ran AIM7 on, and why the 20% is not a target
 
 Checked on **2026-09-13**, because AGENTS.md's fourth question is *is the premise true?* and nobody
-had asked what the 20% was measured **on**. It took two documents, and the second one settles it.
+had asked what the 20% was measured **on**.
 
 ### The retrospective does not say, and that is worth knowing before quoting it
 
@@ -324,8 +323,7 @@ threads landed.
 Five is the floor because it is what 2026-09-16 used and the two evenings should be comparable in
 design. Nothing can power-cycle radon remotely (milestone 224); this is a person at the bench.
 
-One boot is never enough. A jobs-per-minute figure from a single boot is a draw rather than a
-result, because on radon placement alone moves throughput by up to fifteenfold (`notes/soak.md`).
+A jobs-per-minute figure from a single boot is a draw rather than a result: on radon placement alone moves throughput by up to fifteenfold (`notes/soak.md`).
 
 ### 5. Clean each log before committing it
 
@@ -368,8 +366,7 @@ grep -ah '^job-mix-kind: tasks=1 ' jobmix-boot1.log     # and what they cost alo
 | points still wider than 10% across boots | not a verdict; record the spread and say which point failed |
 
 **Who writes the verdict.** The risk's entry in `design/fatal-risks.md` is edited from these numbers
-by whoever holds that file, not by a lane and not from QEMU. This table is the reading this page
-suggests; it is not the verdict.
+by whoever holds that file, not by a lane and not from QEMU.
 
 ### 8. Record it
 
