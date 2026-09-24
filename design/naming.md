@@ -2,102 +2,296 @@
 
 What the tree's names mean, which conventions are rules, and which of those a machine checks.
 
-Written at milestone 46, alongside the rename that made four of the names honest. The headline rule
-and its argument are [DECISIONS §39](../design/decisions/39-component-names.md); this note is the working reference and covers
-the parts §39 does not: crates, scripts, where a document goes, and the two numbering schemes that
-look alike and are not.
+This file is the authority for naming conventions, per §155 (the naming conventions move out of the
+constitution, and the note becomes the rule). `AGENTS.md` keeps only the authority: names are
+calef's, ship a provisional one and say so, never rename on your own initiative. Where the two
+disagree, this file is the rule and `AGENTS.md` is the bug. The headline rule is
+[§39 (a component is named for what it is)](decisions/39-component-names.md).
 
-**This document is the authority for naming conventions** (`design/decisions/` §155, 2026-09-18),
-and it moved here from `notes/` on the same ruling, because a file that is normative is not a note.
-`AGENTS.md` keeps only the authority itself, which is the part a lane must act on without opening
-anything: **names are calef's, ship a provisional one and say so, never rename on your own
-initiative.** Everything else (the spelling conventions, the acronym test, nouns over verbs, the
-failure modes, how to perform a ratified rename) is here. **Where the two disagree, this file is the
-rule for conventions and `AGENTS.md` is the bug**, which is the reverse of what was true before §155.
+This page is what a lane or a maintainer acts on. The argument, history, worked examples and every
+recorded refusal live in the [appendices](#appendices), split out on 2026-09-24 under §212 (a prose
+budget) and §213 (writing standards).
 
-**This overturns milestone 262 by finishing what it started.** On 2026-09-05 the rule was written
-out twice, in full, in both files, and 262 shrank that to one statement per rule in `AGENTS.md` with
-the case for it here. The residue was still duplication: when the acronym test changed on 2026-09-18
-it again had to be edited in both places in one commit, and nothing compares the two. §155 removes
-the duplication rather than shrinking it, and buys back 58 lines of a constitution that is on a
-budget (milestone 118). What makes that safe is the **provisional name**: a lane that has never read
-this file invents a name that is expected to change, so the conventions are needed at ratification
-and at rename, which are the unhurried moments, not at invention.
+## Who names things
 
-## The rules a lane applies
+calef names the crates, the programs, the shared modules and the public functions. A name is global
+to the tree, so the person who can see the whole tree decides it. In a capability system a name is
+often the only thing that says what a program may do.
 
-Moved here verbatim from `AGENTS.md` by §155; the argument for each is further down this document.
+- A lane ships a provisional name, marks its `Name:` block `provisional`, and says so in its report.
+  The integrator surfaces it.
+- Nobody renames on their own initiative. A rename is a naming decision with extra steps.
+- A function name is more reversible than a crate's, so the "recommend on reversible forks" latitude
+  applies more freely there.
+- The conventions below matter at ratification and at rename. A lane inventing a provisional name
+  need not have read this file.
 
-new crate, program or module ships a **provisional** name, says so in its report, and expects it to
-change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
-decision with extra steps. A function name is more reversible than a crate's, typically fewer call
-sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
-there than one level up. **Performing a ratified rename has its own rules**, because the cheap
-edit is what destroys the expensive record: status decides what moves (a `BUILT` block is an account
-and keeps the old name, a `PROPOSED` one is live intent and moves), a quotation never moves, and you
-enumerate before sweeping. "Performing a ratified rename" below has the worked example and what is not gateable.
+## A name is a claim
 
-**The three failure modes to name against.** **Abbreviations** that need a decoder (`capsh`,
-`uheap`, `vt`). **Generic words** that could name almost anything in an operating system (`compose`,
-`measure`, `regions`, `slots`, `caps`, `frames`). And, on the other side of the line, **standard
-terms a reader already knows from outside**, which are the best names available (`elf`, `pci`,
-`paging`, `glob`): this rule is not a licence to rename everything.
+A name is a claim, made before a reader sees a line of code. A wrong one is a stale comment nobody
+can skip. `netd` claimed a Unix daemon, a model this OS rejected. `linedisc` claimed a reader who
+does not exist: calef did not recognise it, and he built the system. So name a component for what it
+is, and prefer a word that parses without prior Unix exposure.
 
-**An acronym is spelled out where its expansion is a phrase people actually say, and stays whole
-where nobody says it** (calef, 2026-09-18, §154, which supersedes two earlier tests). Ask it again
-of any acronym inside the expansion. What decides it is whether anybody *uses* the expansion, not
-whether one exists, because only a spoken one is free to the expert. So `device_tree_blob`
-and `globally_unique_identifier_partition_table` go, `pci` and `elf` stay (nobody says "peripheral
-component interconnect"), `pcie` becomes `pci_express` with no special case, and this **deratifies
-`dma_validator`, `nvme`, `gpt`, `dtb`, `ipc`, `asid`** while re-ratifying `pci` and `elf` under it.
+Name against three failure modes:
 
-**Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
-takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
-`fs_subtree_caretaker`. A verb names an action and a namespace is not one, which is audible at the
-call site: `line_edit::expand_output` reads as an instruction where `line_editor::expand_output`
-reads as a location. The exception is a **term of art that happens to be a verb**, where the word is
-the one the field already uses: `bind` (§50) is Plan 9's, and respelling it as a noun would assert
-novelty where there is none.
+- Abbreviations that need a decoder: `capsh`, `uheap`, `vt`. Ask whether a competent stranger who
+  has never read this tree would recognise the name.
+- Generic words that could name almost anything in an operating system: `compose`, `measure`,
+  `regions`, `slots`, `caps`, `frames`.
+- On the other side of the line, standard terms a reader already knows are the best names
+  available: `elf`, `pci`, `paging`, `glob`. That covers shape too, so `supply-chain` keeps its
+  hyphen. This rule is not a licence to rename everything.
 
-**A crate and a program may share a name, and it says something when they do**: the crate is that
-program's logic, lifted out so it can be host-tested and Kani-reachable while the program keeps the
-IO. `coremark`, `line_editor` and `compositor` are all this pair, and splitting the names would hide
-a relationship worth seeing.
+### The acronym test
 
-### The convention: one rule per domain, and each domain's own
+An acronym is spelled out where its expansion is a phrase people actually say, and stays whole where
+nobody says it. That is §154 (the acronym test is whether the phrase is spoken, applied
+recursively), ruled 2026-09-18. Ask it again of any acronym inside the expansion. So `dtb` became
+`device_tree_blob` and `pcie` becomes `pci_express`, while `pci` and `elf` stay. §154 deratified
+`dma_validator`, `nvme`, `gpt`, `dtb`, `ipc` and `asid`.
 
-**`snake_case` is the rule for Rust things, not for everything.** Six domains, each keeping its own:
+The test applies to names this tree authors. A name that arrives across somebody else's interface
+keeps their spelling, with an expansion written where the reader meets it. `initrd` is a Devicetree
+property and a QEMU flag, so it stays.
+
+### Nouns, not verbs
+
+A crate, a program or a module is a thing, so it takes a thing's name (calef, 2026-08-01).
+`line_edit::expand_output` reads as an instruction; `line_editor::expand_output` reads as a
+location. A term of art that happens to be a verb is the exception: `bind` is Plan 9's word, per §50
+(namespace composition).
+
+### A shared name says something
+
+When a crate and a program share a name, the crate is that program's logic, lifted out to be
+host-tested while the program keeps the IO: `line_editor`, `compositor`, `coremark`. A note tells
+them apart as "the `line_editor` crate" and "the `line_editor` binary". The crate `video_terminal`
+(named for its protocol) and the program `display_terminal` (named for its role) differ on purpose.
+
+## Spelling, per domain
 
 | Domain | Form | Because |
 |---|---|---|
-| Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
-| Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
-| Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
-| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
-| Any other directory | `hyphens` if it needs two words | a directory is a path element, and paths are hyphenated outside this repository |
+| Crates, programs, modules | `snake_case` | Rust's own convention |
+| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`) |
+| Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs, where a hyphen separates words |
+| Repo-root markdown | `SCREAMING_SNAKE_CASE` | GitHub recognises `README.md`, `SECURITY.md` and `CONTRIBUTING.md` by name |
+| A directory holding a Rust package | exactly the package's name | the directory and the package are one thing |
+| Any other directory | `hyphens` if it needs two words | a directory is a path element |
 
-These are splits *across* domains on a **stable** property: a file either is a Cargo target or is an
-executable in `script/`, and `script/test` will never become a `[[bin]]`. **There is no second tier
-*within* a domain**, because a split inside one would key on something unstable, which is the two-tier
-rule calef rejected. A short name for a typed command is then a *choice its author makes* rather than
-a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
+The splits run across domains on a stable property, and there is no second tier within one. Short
+names for programs a person types were refused as a rule, because `wc` went from plumbing to a typed
+pipeline stage in a day. A short name is its author's choice.
 
-**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, which bounds a
+`nifefs` caps a program's archive name at `NAME_LEN = 32` bytes. Crates are unbounded. Do not let
+the limit pick a name.
+
+## Programs, crates and scripts
+
+- Never `-d`, which claims a Unix daemon. The vocabulary is component (the shippable unit), service
+  (what it offers) and contract (the wire protocol). "Server" is a fine role word.
+- A program's binary, source file and archive entry share one string.
+- Wire-contract crates end in `_protocol`, per milestone 265 (`_proto` is a truncation). `abi`
+  predates the suffix. `compositor` and `line_editor` hold protocol modules but are logic crates.
+- A crate that is a component's engine takes the component's name.
+- An `_exerciser` loads a capability of the system, with no contract probed. A `_test_client`
+  exercises a service contract from outside. Plain names like `fs_client` stay free for real
+  clients.
+- `c_` means written in C. `c_shim`, `c_seam`, `c_confiner` and `c_swappable` are not one family.
+- Fixtures and benchmarks live in `fixtures/`, per milestone 175 (split `user/`), and take program
+  names.
+- The shell is `swish`, since shell names are identities (`bash`, `zsh`). `capsh` is Linux libcap's.
+- A builtin takes Unix's word where one exists (`cd`, `ls`, `apropos`). It must not share its first
+  word with a program, since builtins match first.
+- `script/` is typed by people: no extension, hyphenated, and the Scripts to Rule Them All set keeps
+  its standard names. `scripts/` holds helpers other scripts call, with an extension. Every
+  `script/` entry needs a row in [notes/scripts.md](../notes/scripts.md).
+- `target/` is build output, and `targets/` holds the tracked target JSON.
+
+## Words calef has ruled on
+
+Each sets a test that reaches past the word. The arguments are in
+[vocabulary-rulings.md](naming/vocabulary-rulings.md).
+
+| Ruling | The test it sets |
+|---|---|
+| A half implies two; a third of anything is an arm | "half" is for a two-way split; a branch of three or more is an arm, part, piece or leg |
+| A terminus that is structural, or one that is merely current | name a program for an end of stream only if no grant could end it. calef ruled `audit_sink` should be `login_audit_receiver` |
+| An identity is what you present; a principal is what you become | `principal` is the authenticated actor holding a capability set |
+| The `login` stem stays | ratified 2026-09-15 for the whole family |
+| The casing of `nife` | lowercase everywhere, prose included |
+
+## Where a name's provenance lives
+
+Provenance lives at the name, per milestone 115 (the names that were ratified, and the ones that
+were refused). A crate's `lib.rs` header, a program's module doc, a `script/` entry's comment and a
+Cargo package's manifest each carry one `Name:` block. Adding a name touches one file, so lanes
+cannot collide.
+
+The refusals are the valuable half. A refused name is visible nowhere else, and the person who most
+needs it is the one about to propose it again.
+
+### The four states
+
+| State | Means | What clears it |
+|---|---|---|
+| `provisional` | whoever chose it expects it to change, per §89 (`provisional` becomes the fourth provenance state) | a ruling |
+| `unrecorded` | nothing in the tree or its history says why | research, then a ruling |
+| `recorded` | something outside the block argues the name; calef never ruled | a ruling |
+| `ratified` | calef ruled, with the date and what was refused | done |
+
+### The forms
+
+```
+Name: ratified <YYYY-MM-DD> (<who>, <where>). Refused `x` (why), `y` (why).
+Name: recorded (<where>). <what the tree already argues, and what it does not settle>
+Name: unrecorded. <what the history does and does not say>
+Name: provisional, <who minted it, and when>. <what was considered>
+```
+
+- The date on `ratified` sits outside the parentheses, and `recorded` names its citation. Both are
+  checked as form, never as truth.
+- A block is never its own evidence. "It got here first" is not a reason.
+- A reason goes in parentheses, and a refusal clause ends at its sentence, so the parser does not
+  read a citation such as `capsh(1)` as a refusal.
+- `unrecorded` is a first-class answer. Cite the commit that introduced the name.
+- One block per file, in plain spelling, per milestone 283 (one provenance block per file). The
+  parse reads the first block only and cannot see a `Name:` line wearing markdown.
+- A lane never writes `ratified`. Nothing checks that state against calef.
+- The maintainer writes the block at ratification, in the commit that applies the name.
+- A directory under `design/` or `notes/` records its name in its own `README.md`, per §75
+  (directories carry provenance in their own README).
+
+### The commands
+
+```
+script/names <name>        has this name been refused, and where does the reason live?
+script/names --refused     everything turned down, and what holds each refusal
+script/names --unratified  the worklist, ordered by exposure; provisional first
+script/names --check       the gate; script/lint runs it
+```
+
+The gate checks presence and form, and never keys on `ratified`, so an unratified name never fails
+a build.
+
+## Where a document goes
+
+| | holds | shape |
+|---|---|---|
+| `design/` | the option space, before a decision | "here are four answers and three are bad" |
+| `design/decisions/` | the decision, and the argument that settled it | numbered `§N`, append-only |
+| `design/tenets/` | why a rule in `AGENTS.md` holds | one file per theme, linked from the rule |
+| `notes/` | what exists, and what building it taught us | a glossary, indexed in `notes/README.md` |
+
+What decides it is what a document is for. `design/roadmap/` sits in `design/` because a milestone
+block argues for doing something. Every concept and finding gets a note, indexed in
+[notes/README.md](../notes/README.md).
+
+## `§N` is not milestone N
+
+Decision numbers and milestone numbers are separate schemes over the same integers.
+
+- Write `§N` only for a decision, and "milestone N" in full, never a bare `N`.
+- Name it on first mention: "milestone 31 (the capability shell)". `script/citations` checks it.
+- Two files claiming one number is fatal. A gap is reported and passes.
+- When sessions collide, the later lander takes the next free number and leaves the hole, per §194
+  (sessions interleave rather than serialize).
+- A number is provisional until the merge queue lands it.
+
+## Branches
+
+A branch that looks like a milestone claim must parse as `milestone/<N>-<slug>`, because
+`script/lint` check 4b reads it. `scripts/branch-name-check.sh` refuses a near-miss such as
+`milestone-126-pgrep`, per §77 (the branch-prefix list now describes the tree). Other prefixes are
+convention: `maintainer/`, `fix/`, `bench/`, `audit/`. Write `feature/`, never `feat/`.
+
+## Performing a ratified rename
+
+A rename is cheap to type and expensive in every other way. A sweep edits a record as cheaply as
+code, and a revert cannot restore a refusal it rewrote. The incidents behind each step are in
+[rename-what-moves.md](naming/rename-what-moves.md),
+[rename-where-names-hide.md](naming/rename-where-names-hide.md) and
+[rename-traps.md](naming/rename-traps.md).
+
+1. Enumerate before sweeping. Renaming `crates/manual` matched 89 files, and 37 were the crate. List
+   the true positives, read them, then edit.
+2. Take `script/names | tail -3` before and after. The refusal count must not move.
+3. Status decides what moves, not directory. Status belongs to the passage, not the file.
+
+   | Kind | Moves? |
+   |---|---|
+   | `BUILT` block, dated audit report, closed decision | No: an account keeps the names it used |
+   | `PROPOSED` proposal, a `PARTIAL` block's open scope | Yes: live intent |
+   | A dated measurement inside a live document | No: keep the name, add a clause saying why |
+   | Any quotation | Never |
+
+4. A quotation never moves. Put a note beside it instead. A `Name:` block's `replacing` clause is a
+   quotation. So is a citation of another project: its file name, URL, version string and symbols.
+5. The ownership test: if the thing keeps its name when our crate is deleted, the name is not ours.
+   That keeps `satp.ASID`, PCI's `CLASS_NVME` and QEMU's `-device nvme`.
+6. A crate drags its directory, package, dependency entries, fuzz targets, public types named for
+   the acronym (`Gpt`, though `Guid` stays) and a note named for it. Notes named for a concept stay,
+   as do roadmap slugs.
+7. A path is navigation, so fix a broken one even in a `BUILT` block. Grep links and prose paths.
+8. A program's name is a string literal nothing type-checks. Grep the quoted name too: shell tables,
+   `xtask` archive tuples, gate rows, `.conf` files, tests and derived identifiers.
+9. A crate's name also lives outside Rust: `build.rs` paths, `--exclude` lists, mutation globs,
+   baselines, gate globs and each workspace's `Cargo.lock`. Build all eight workspaces (every
+   tracked `Cargo.toml` with a `[workspace]` table, outside `vendor/`).
+10. Run a gate whose subject you renamed against a deliberately wrong name once. It may have stopped
+    looking.
+11. Resolve a pointer before rewriting it, or the sweep fabricates one.
+12. Take the census twice and classify every line of the second, in the crate's provenance block.
+13. Tells: `git status` shows `R`, not `A`. Backtick `crates/<name>` in doc comments. Grep
+    `](<name>)`. macOS `git grep` ignores `\b`, so re-check a zero. Width-check a rewrap.
+
+This is rung three of the ladder: no gate can tell an account from an intention in prose.
+
+## What is checked, and what cannot be
+
+`script/lint`'s naming block, whose count the script owns:
+
+1. No name ending in `-d` (a real word goes in `naming_allow`, with a reason).
+2. No "daemon" outside `design/` and `script/lint`.
+3. Contract crates spelled `*_protocol`.
+4. A milestone-claim branch that parses.
+5. No `#[path]` module shared by two binaries.
+6. Lowercase, hyphenated `notes/` and `design/` filenames.
+7. One `Name:` block per name, in a known state.
+
+A separate check refuses a count above two before "halves". `linedisc` would pass every check. What
+caught it was a person not knowing the word, and that remains the test.
 
 ## Appendices
 
-Each former section of this page now lives in one of these files, verbatim, under its old heading.
+Every former section kept its heading, so a citation by section name resolves in the file listed.
+The directory and stems are provisional, minted 2026-09-24.
 
-| appendix | holds |
+| Appendix | Former sections |
 |---|---|
-| [programs-scripts-and-directories.md](naming/programs-scripts-and-directories.md) | the argument that a name is a claim, the component and program conventions, shell builtins, `script/` against `scripts/`, and directories |
-| [crates.md](naming/crates.md) | the crate rule and how far it reaches, nouns over verbs, the acronym history, and what `crates/` holds |
-| [provenance.md](naming/provenance.md) | milestone 115's mechanism: why the record is derived, the states, the `Name:` block forms, the numbers, and worked `script/names` examples |
-| [provenance-limits.md](naming/provenance-limits.md) | the known limits of `Name:` blocks and `script/names`, including the kinds of name the worklist does not cover and why `scripts/` helpers are left out |
-| [documents-numbers-and-gates.md](naming/documents-numbers-and-gates.md) | where a document goes, why `§N` is not milestone N, why a numbering gap passes, the branch convention, and what `script/lint` checks |
-| [vocabulary-rulings.md](naming/vocabulary-rulings.md) | the individual words calef has ruled on and the tests they set: halves and arms, abbreviations we receive, structural termini, identity and principal, the `login` stem, and the casing of `nife` |
-| [rename-what-moves.md](naming/rename-what-moves.md) | which occurrences of a ratified name move and which stay, the refusal-count gate, and the habits that keep a sweep from rewriting a record |
-| [rename-where-names-hide.md](naming/rename-where-names-hide.md) | the sites a compiler cannot see when a program or crate is renamed, and why the census is taken twice |
-| [rename-traps.md](naming/rename-traps.md) | the smaller failures past renames hit: foreign identifiers, parser artefacts, stale pointers, broken word boundaries, rewraps and generated files |
-| [what-milestone-63-left-alone.md](naming/what-milestone-63-left-alone.md) | the names milestone 63 left in place on purpose, so the next reader does not "fix" one by mistake |
+| [programs-scripts-and-directories.md](naming/programs-scripts-and-directories.md) | The rule everything else is a corollary of; Components; Shell builtins; Scripts; Directories |
+| [crates.md](naming/crates.md) | Crates; What `crates/` holds |
+| [provenance.md](naming/provenance.md) | Where a name's provenance lives; The three states; The three forms; EXAMPLES |
+| [provenance-limits.md](naming/provenance-limits.md) | the provenance BUGS |
+| [documents-numbers-and-gates.md](naming/documents-numbers-and-gates.md) | Where a document goes; `§N`; Branches; What is checked |
+| [vocabulary-rulings.md](naming/vocabulary-rulings.md) | the rulings above, the received abbreviation, and the casing of `nife` |
+| [rename-what-moves.md](naming/rename-what-moves.md) | Performing a ratified rename, through A quotation never moves |
+| [rename-where-names-hide.md](naming/rename-where-names-hide.md) | program strings, copied crates, crates outside the compiler, the census |
+| [rename-traps.md](naming/rename-traps.md) | A sweep can turn a stale pointer into a fabricated one, and six other traps |
+| [what-milestone-63-left-alone.md](naming/what-milestone-63-left-alone.md) | the former BUGS |
+
+## BUGS
+
+- Crates, programs, `script/` entries and Cargo packages carry blocks, and directories carry a
+  README. Types do not, and nothing gates them.
+  [provenance-limits.md](naming/provenance-limits.md) says which kinds of name are uncovered.
+- `scripts/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
+  says what it covers). None of their paragraphs recorded a refusal when that was priced.
+- A `ratified` is never checked against calef, and a `recorded` citation is never followed.
+- `dma_validator`'s block still reads `ratified 2026-08-01`, though §154 deratified the name, so
+  `script/names` counts it settled. Found 2026-09-24; it waits on calef's ruling.
+- The `audit_sink` to `login_audit_receiver` rename, ruled 2026-09-13, was never performed.
+  `components/src/audit_sink.rs` still carries the old name; the rename is owed to a lane.
+- The boot mode is still `shell` (`cargo xtask shell`) while the program is `swish`.
+- `design/capsicum-and-the-retrofit-question.md` still names `worker` in a present-tense claim.
