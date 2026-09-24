@@ -1,105 +1,57 @@
 # Working on nife
 
-*This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude
-Code keeps finding it (decided 2026-08-14). It addresses any competent agent, which is what it
-always did; the in-tree citations of "CLAUDE.md" keep resolving through the symlink and were
-deliberately not rewritten, per this file's own blind-sed scar. The architect is **calef**
-(GitHub username; Chris Alef): older records and commits may say Chris, and both are the same
-person, renamed 2026-08-15 at his request. The OS itself was renamed the same day: **nife**, formerly cricker-os (milestone 120), and older records, commits, and quoted transcripts keep the old name where they describe the past.*
+<!-- prose-budget: exception. 6,279 words (wc -w, this marker included) against a 3,000-word
+     cap. Ratified by calef on 2026-09-24 (UTC) at 5,873 words; the cuts he ruled that day, and
+     principle 2 taking #1198's text under his ruling on numbers, moved it here. Reason: this file
+     is nothing but rules, every reason having moved to design/tenets/, and the imperatives alone
+     do not fit the cap; rules were not cut to make them fit. Marker syntax is PROVISIONAL until
+     the prose-budget gate exists. -->
+
+*This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude Code
+keeps finding it, and the in-tree citations of "CLAUDE.md" resolve through that symlink. It
+addresses any competent agent. The architect is calef. Two renames and one pivot sit behind the old
+names a reader will meet in older records:
+[design/tenets/project-history.md](design/tenets/project-history.md). Every reason, measurement and
+anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from the rule it
+explains; a reader who only needs to act never has to open one. This file is a **ratified exception
+to the 3,000-word prose budget**, at 6,279 words (calef, 2026-09-24, UTC), because what is left
+after that move is rules, and rules were not cut to fit a cap.*
 
 ## What this project is
 
 A capability microkernel for aarch64, in Rust, built from the first instruction. **It is a
-demonstration OS** (DECISIONS §14): a verified-Rust capability microkernel that runs real
-workloads, built to stand next to Linux, macOS, and seL4 on the primitives that define an OS and
-win where a minimal kernel should. calef (Chris Alef) is an experienced software engineer and engineering
-leader; on this project he is the **architect and reviewer**, not the line-by-line builder.
+demonstration OS**, DECISIONS §14 (the project's direction): a verified-Rust capability microkernel
+that runs real workloads, built to stand next to Linux, macOS, and seL4 on the primitives that
+define an OS and win where a minimal kernel should. calef (Chris Alef) is an experienced software
+engineer and engineering leader; on this project he is the architect and reviewer, not the
+line-by-line builder.
 
-That should drive your judgment calls. **A complete, correct, well-documented, benchmarked
-milestone is the goal.** Proceed autonomously, produce whole pieces, and let calef steer at the
-design forks.
-
-This began as a learning project and pivoted to a demonstrator, deliberately and on the record
-(2026-07-26). If you find the old "understanding is the goal, explain every line as we build it
-together" framing anywhere, it is stale; this file is the current word.
+That should drive your judgment calls. A complete, correct, well-documented, benchmarked milestone
+is the goal. Proceed autonomously, produce whole pieces, and let calef steer at the design forks.
 
 ## How to work
 
-**Default to autonomous execution.** Implement complete, correct, tested milestones; commit per
-proven piece (green tests first); push after green. You are building the demonstrator. calef
-reviews architecture and outcomes, not every line.
+Default to autonomous execution. Implement complete, correct, tested milestones; commit per proven
+piece (green tests first); push after green. You are building the demonstrator. calef reviews
+architecture and outcomes, not every line.
 
 ## Three principles, and what makes each one hold
 
-These are not aspirations. Each names a mechanism that keeps it true when nobody is watching, which
-is the only kind of principle a free software project can enforce: a volunteer cannot be made to
-care, so the work has to carry the standard on its own.
+Each names a mechanism that keeps it true when nobody is watching, which is the only kind of
+principle a free software project can enforce. The evidence, the failures that confirmed them and
+calef's own wording are in [design/tenets/three-principles.md](design/tenets/three-principles.md).
 
 ### 1. The ranking function is the shortest path to a system a customer runs
 
-**A customer running it is the only test that cannot be gamed.** A benchmark can be chosen, a gate
-can be written to pass, a note can describe a system that no longer exists. A backup somebody
-depends on either works on a Tuesday or it does not, and the failure arrives as their own data
-missing rather than as a red check.
-
-**This principle has now been confirmed in the only way that counts, which is by failing.** It was
-written on 2026-08-05 pointing at milestone 55, a Time Machine target the family's Macs back up to,
-whose own block called it *"The actual goal, and probably the largest single piece of work in the
-project."* On **2026-08-30** calef reported that the family's backups run on **borg over SSH on
-cordoba**, with **Immich** for images, built with the existing Linux ecosystem while nife was not
-ready; Time Machine and SMB are both out of that path. Journey 2 was retired the same day and
-milestone 55's premise went with it.
-
-That is not the principle failing. A customer with a real deadline went elsewhere because this
-system could not meet it, which is **the principle working**, and is the outcome it exists to make
-visible early rather than late.
-
-**calef is the first customer, not the audience** (his correction on this section, 2026-08-05:
-*"It isn't about me running it. It is about customers. I'm just the first customer."*). That
-distinction is
-load-bearing rather than modest. "The architect runs it" ranks work by one person's convenience and
-has no answer when that person's taste and a stranger's needs diverge; "a customer runs it" ranks it
-by what anyone taking this system on would require. The two agree today because there is exactly one
-customer. They stop agreeing the moment there are two, and the wording that survives that is the one
-worth writing now.
-
-What that means concretely, and it is a reordering rather than a slogan:
-
-- When two milestones are both ready, **the one on the customer path goes first.** **As of
-  2026-08-30 that path is vacant**, and saying so plainly is the point: a roadmap that still named
-  one would be ranking by a workload nobody runs. It was 54 (a network file service a Mac can mount)
-  and 55 (Time Machine) until that date; both are repriced in their own blocks.
-- **The first customer was too big, and that is the lesson worth carrying.** A family backup server
-  is among the largest things a home system can be asked to be: a filesystem it did not format, a
-  network protocol, crash consistency, and somebody's only copy. This principle said to rank by the
-  shortest path to a customer, and the path chosen was one of the longest available. **A first
-  customer should be something nife can plausibly be adequate at within a milestone or two.**
-- **While the path is vacant the tie breaks toward design/fatal-risks.md**, nine claims that, if
-  false, mean the project should stop. It is a stand-in for a customer, not a replacement: a real
-  workload with a real user outranks everything on it the moment one exists.
-- **And the path is vacant for a second reason, which is ours rather than the customer's** (calef,
-  2026-08-30): *"I don't think we expose nife to third parties (aka other customers) until we have a
-  package manager and a trivial install process."* So there is a **precondition on the ranking
-  function itself**. Package management and an install story are not items on the customer path; they
-  are what makes one possible, and until they exist a second customer cannot be accepted if one
-  appeared. He wants them **early, for our own sake as much as anyone's**: the people building this
-  are the ones repeatedly hand-wiring what a package would install.
-- A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
-  are what make the demonstrator a demonstrator. But when they compete for a lane, the tie breaks
-  toward the thing that gets a real workload running.
-- **Security and performance are not separate goals; they are what "runs it" means.** No customer
-  runs a backup server they do not trust with the only copy, and none runs one that takes a week.
-  That is why the audit cadence, the confinement claims and the benchmark tripwire are on this path
-  rather than beside it.
-- Naming is on this path too, and it is the least obvious member. A person using the system meets a
-  name before they meet anything else, and in a capability system the name is often the only thing
-  that says what a program may *do*.
-
-**The honest caveat: the system is not ready for a customer, this one included, and 2026-08-30
-settled how far off that is rather than leaving it as a feeling.** Saying the principle out loud is
-what stops the roadmap drifting into a collection of interesting kernels, and the drift is a live
-risk now rather than a hypothetical one, because with no customer named there is nothing but this
-principle and the fatal-risk list holding the ordering together.
+When two milestones are both ready, the one on the customer path goes first. As of 2026-08-30 that
+path is vacant, so the tie breaks toward [design/fatal-risks.md](design/fatal-risks.md), nine claims
+that, if false, mean the project should stop. A real workload with a real user outranks everything
+on that list the moment one exists. A first customer must be something nife can plausibly be
+adequate at within a milestone or two. Do not expose nife to a second customer before there is a
+package manager and a trivial install process (calef, 2026-08-30). Security, performance and naming
+are on this path rather than beside it: they are what "runs it" means. A milestone off the path is
+not thereby worthless, but when two compete for a lane, the tie breaks toward the thing that gets a
+real workload running.
 
 ### 2. The method is a result, and it has to be recorded with its caveats
 
@@ -107,9 +59,10 @@ From a first commit on 2026-07-12, this tree passed two hundred thousand lines o
 architectures in under three months, with a booting kernel on real RISC-V silicon, a shell, a
 filesystem, a network stack and a compositor. That order of magnitude was written 2026-09-24.
 
-**A number here changes at the pace of a decision, not at the pace of a commit** (calef, 2026-09-24).
-Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot; read them in code
-lines, since this tree comments heavily. (The 2026-08-05 and 2026-08-30 figures are in git.)
+**A number here changes at the pace of a decision, not at the pace of a commit** (calef,
+2026-09-24). Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot; read
+them in code lines, since this tree comments heavily. (The 2026-08-05 and 2026-08-30 figures are in
+git.)
 
 That is not a normal rate for one architect, and the reason is that the work is done by many agents
 in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
@@ -135,648 +88,384 @@ is marketing:
 
 ### 3. A newcomer must be able to succeed without asking anyone
 
-This is the principle that most of this file already serves without naming it, and it is the one that
-inverts hardest for a project like this one. In a company a high standard can be enforced through
-people, because they are paid and can be managed. **Here the only enforcement is that the work
-answers its own questions**, because a contributor who has to ask will simply leave, and will do so
-silently.
+Documentation is task-oriented and in-tree, with real `EXAMPLES` and an honest `BUGS` section beside
+the feature rather than in a tracker (see
+[design/tenets/documentation-standard.md](design/tenets/documentation-standard.md)). Every decision
+gets a written reason in `design/decisions/`, including the decisions that were refused. A name is a
+claim and the reader meets it first, so an unratified name is a worklist item and never a blocker.
+Anything that only works because someone knows it is a defect.
 
-So a standard that is not also generous produces an empty repository. That is why:
-
-- **The documentation standard is FreeBSD's**: task-oriented, in-tree, real `EXAMPLES`, and an honest
-  `BUGS` section next to the feature rather than in a tracker. A page without a worked example has
-  not finished explaining itself.
-- **`BUGS` sections are not modesty, they are the mechanism.** A newcomer who hits a limitation the
-  docs named will trust the docs. One who hits a limitation the docs hid will not trust anything
-  again, and there is no relationship to fall back on.
-- **A name is a claim, and the reader meets it first.** `script/names --unratified` is a worklist
-  rather than a wall precisely so that an unratified name never blocks anyone's build.
-- **Every decision has a written reason.** `design/decisions/` records why, including for decisions
-  that were refused, so a newcomer can disagree with an argument rather than with an authority.
-- **Anything that only works because someone knows it is a defect.** That is the previous section's
-  ladder, read from the newcomer's side.
-
-The test: **could a competent stranger, with only this repository, get to a passing build and a
-correct mental model without opening a chat window?** Where the answer is no, that is a bug in the
+The test: could a competent stranger, with only this repository, get to a passing build and a
+correct mental model without opening a chat window? Where the answer is no, that is a bug in the
 tree and not in the stranger.
 
 ## Nobody remembers, so build the mechanism that does not need them to
 
-calef, 2026-08-04, after an evening in which three separate duties turned out to belong to whoever
-happened to notice, and none of them noticed. **This is the tenet the roles below exist to serve**,
-so read it first: it explains why there is a steward and a merge drain at all, rather than a list of
-things a careful maintainer would simply do.
+Design for coordinating many, not for one attentive person (calef, 2026-08-04). Eleven lanes, a
+conversation in progress and a queue draining in the background are this project's normal condition,
+not its worst case. The evening that produced this, and the worked example on each rung, are in
+[design/tenets/mechanisms-not-memory.md](design/tenets/mechanisms-not-memory.md).
 
-**Design for coordinating many, not for one attentive person.** A convention that works when one
-person holds the whole system in their head fails the moment there are eleven lanes, a conversation
-in progress, and a queue draining in the background. That is this project's normal condition, not its
-worst case.
+The ladder, strongest first. When something must not go wrong, reach for the highest rung that fits:
 
-**The ladder, strongest first.** When something must not go wrong, reach for the highest rung that
-fits:
+1. Make the wrong state unrepresentable. A required struct field with no default is the strongest
+   form there is, because the mechanism is the compiler and the exception surface is zero.
+2. A gate that fails loudly, in `script/lint` or CI. Weaker, because somebody has to write it and it
+   can be wrong about the tree, but it fires without being remembered.
+3. A written record at the thing itself: provenance beside the name, not in a registry. It does not
+   fire on its own, but the next person to touch that code is already reading it.
+4. A note, a report, or a comment on a pull request. This is the floor.
 
-1. **Make the wrong state unrepresentable.** A required struct field with no default is the strongest
-   form there is, because the mechanism is the compiler and the exception surface is zero. Milestone
-   50 turned `InputSpec::Required` from a unit variant into one carrying `writes_while_reading`, and
-   that single choice means a program which writes while it reads **cannot be declared without
-   saying so**. A pull request comment had been written to remind the integrator of the same thing;
-   the type made the reminder redundant.
-2. **A gate that fails loudly**, in `script/lint` or CI. Weaker, because somebody has to write it and
-   it can be wrong about the tree: the check rejected the repository's second-commonest prefix until
-   §77 (the branch-prefix list now describes the tree). But it fires without being remembered.
-3. **A written record at the thing itself**, which is milestone 115's shape: provenance beside the
-   name, not in a registry. It does not fire on its own, but the next person to touch that code is
-   already reading it.
-4. **A note, a report, or a comment on a pull request.** This is the floor, and it is what everything
-   that failed on 2026-08-04 was relying on.
+"Somebody will notice" is not a mechanism. It is rung zero and it belongs on no list.
 
-**"Somebody will notice" is not a mechanism.** It is rung zero and it belongs on no list.
+An exception is allowed and must say so. When the higher rung costs more than the failure does,
+taking the lower one can be right. Write down that it is an exception and that it is a foot gun, in
+the place a reader meets it. An unmarked exception reads as a design, and the next person extends
+it.
 
-**An exception is allowed and must say so.** Sometimes the higher rung costs more than the failure
-does, and taking the lower one is the right call. When that happens, **write down that it is an
-exception and that it is a foot gun**, in the place a reader meets it. An unmarked exception reads as
-a design, and the next person extends it.
-
-**The tell that you are on too low a rung**: a fact that exists only at a call site or in a report,
-with no artifact anyone can read. That shape recurred three times in one day, each wearing different
-clothes: roadmap status that was wrong in both records and invisible to the gate comparing them
-(§76), naming decisions that lived in one table cell nobody could find (milestone 115), and a
-merge-order coupling that only a lane's report mentioned. When you notice it, move up a rung.
+The tell that you are on too low a rung: a fact that exists only at a call site or in a report, with
+no artifact anyone can read. When you notice it, move up a rung.
 
 ## We are all owners: see a problem, drive it to an owner, and if none, own it
 
 calef, 2026-09-23: *"We are all owners here so let's make certain we don't let things fall through
 the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
-own it."*
+own it."* Once you have noticed a problem, it is yours to route, not to leave for whoever's pull
+request it lands on. Noticing is not owning until the problem has an owner.
 
-The complement to **"Nobody remembers, so build the mechanism that does not need them to"**: that
-tenet says do not rely on anyone noticing; this one says that once you have, the problem is yours to
-route, not to leave for whoever's pull request it lands on. A load-sensitive flake was written into
-`notes/load-sensitive-assertions.md` twice and left both times, because "every individual encounter
-looked like someone else's problem." Noticing is not owning until the problem has an owner.
-
-**And owning is not recording.** calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
-than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* The test
-is *move fast on what can be undone*'s, applied to the fix: cheap and reversible, fix it now and the
-record is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS` entry is
-the right answer to the second case and an evasion in the first. Acting on what you half understand
-is worse than reporting it, so **a refusal carrying its reason is an action**: milestone 323 (the
-falsification record is incomplete in five ways) refused two gaps for want of hardware.
+And owning is not recording. calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
+than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* Apply
+*move fast on what can be undone*'s test to the fix: cheap and reversible, fix it now and the record
+is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS` entry is the right
+answer to the second case and an evasion in the first. Acting on what you half understand is worse
+than reporting it, so a refusal carrying its reason is an action.
 
 ## Elegance and performance beat implementation convenience
 
-calef, 2026-08-16: **"We wouldn't be building this project out of convenience. This whole
-enterprise is inconvenient."** Nobody writes a capability microkernel from the first instruction
-because it was the easy way to get a file server. The whole thing is a bet that doing the harder
-correct thing compounds, so an argument that reduces to "this option is less work to build"
-is arguing against the project's reason for existing.
+calef, 2026-08-16: "We wouldn't be building this project out of convenience. This whole enterprise
+is inconvenient." An argument that reduces to "this option is less work to build" is arguing against
+the project's reason for existing. The failure mode is not laziness, it is a recommendation that
+sounds like design: a case made in the vocabulary of architecture whose actual load-bearing clause
+is effort. The worked example, and why agents moved the balance further, are in
+[design/tenets/elegance-over-convenience.md](design/tenets/elegance-over-convenience.md).
 
-**The failure mode is not laziness, it is a recommendation that sounds like design.** The tell is
-a case made in the vocabulary of architecture whose actual load-bearing clause is effort. §92 is
-the worked example, recorded there on purpose: the caretaker-lifetime question got a first
-recommendation (job membership) over the better one (supervision, §40's subtree death), and the
-honest reason was that it was the smaller change to make. It took calef asking "why not option
-2?" to surface that, and the better answer was not merely better, it was *simpler to live with*:
-the chained case fell out for free instead of needing bookkeeping.
+The test, and it is one question. *Would I still choose this if both options were the same amount of
+work?* If the answer is no, the recommendation is about effort and must say so out loud, in those
+words, so the reader can weigh it as effort rather than mistake it for judgment.
 
-**The test, and it is one question.** *Would I still choose this if both options were the same
-amount of work?* If the answer is no, the recommendation is about effort and must say so out
-loud, in those words, so the reader can weigh it as effort rather than mistake it for judgment.
+It is not a licence to gold-plate. Elegance here means the option with fewer moving parts, fewer
+things to remember, and fewer places to be wrong. It does not mean more abstraction, more
+generality, or more machinery: those are usually *less* elegant and always more to maintain. Do not
+speculatively trait-ify, and do not take a dependency for tidiness: §46 (thin primitives or whole
+subsystems).
 
-**Why the balance moved, and this is what makes the tenet current rather than pious.** Agents
-made *code* dramatically cheaper: a subsystem can be rewritten in an hour. They made everything
-code is measured against exactly as expensive as before, because a reader's understanding, a
-constraint the next person inherits, a wire format two programs agree on, and a name in
-somebody's head are all unchanged. So the thing convenience buys shrank by an order of magnitude
-while the thing elegance buys held still. **An argument from implementation cost was always the
-weakest one available here; it is now weaker than it has ever been.**
-
-### What this does not license
-
-**It is not a licence to gold-plate, and the difference is falsifiable.** Elegance here means the
-option with fewer moving parts, fewer things to remember, and fewer places to be wrong. It does
-not mean the option with more abstraction, more generality, or more machinery: those are usually
-*less* elegant and always more to maintain. The tree already refuses speculative trait-ification
-for exactly this reason, and §46 refuses a dependency taken for tidiness.
-
-**Performance belongs in the sentence for the same reason.** A design that is slow is not elegant,
-whatever it looks like on the page, and this project measures rather than argues (`script/bench`,
+Performance belongs in the sentence for the same reason. Measure rather than argue (`script/bench`,
 the icount tripwire, the honest ties). A recommendation that trades measurable performance for a
 prettier structure owes numbers, not adjectives.
-
-**And it does not overturn the tenet below.** *Move fast on what can be undone* is about how much
-deliberation a decision deserves; this is about what you decide once you are deliberating. Deciding
-quickly and choosing the harder-to-build option are not in tension: most of tonight's decisions
-took minutes and several went to the more expensive answer.
 
 ## Move fast on what can be undone; be methodical on what cannot
 
 calef, 2026-08-05. The ladder above says how hard to make a thing hold. This says how much care to
-spend deciding it, and the two are not the same question: a cheap decision still deserves a
-mechanism, and an expensive one is not made safe by adding a gate afterwards.
+spend deciding it. The reasoning behind each category, and the two failures of record, are in
+[design/tenets/reversibility.md](design/tenets/reversibility.md).
 
-**Most decisions here are reversible and should be made quickly, by whoever is holding the problem.**
-Code, notes, roadmap wording, which milestone a lane takes, how a script is structured. Getting these
-wrong costs an hour. Deliberating them costs more than that, and deliberating them *with calef* costs
-his attention, which is the scarcest thing in this project. `scripts/merge-drain.sh` was rewritten
-three times in one evening, each version wrong in a way the next one fixed, and that was cheaper than
-designing it correctly up front would have been.
+Most decisions here are reversible and should be made quickly, by whoever is holding the problem.
+Code, notes, roadmap wording, which milestone a lane takes, how a script is structured. Deliberating
+them costs more than getting them wrong, and deliberating them *with calef* costs his attention,
+which is the scarcest thing in this project.
 
-**A few decisions are expensive, and the expense is almost never the code.** It is the consequences
-that cannot be recalled:
+A few decisions are expensive, and the expense is almost never the code. Be methodical on these:
 
-- **Anything two programs agree on.** A wire format, an opcode number, a packed word. The code is a
-  morning's work; the un-shipping is not.
-- **Names.** Trivial to change mechanically and expensive in every other way, because a name lands in
-  61 call sites, in a reader's head, and in the vocabulary people use to disagree. This is why names
-  are calef's, and why a lane ships a **provisional** one instead of waiting.
-- **Dependencies** (§46), especially in the shipping graph. Adding one is a morning; removing one
-  after a subsystem is built on it is a project.
-- **The syscall surface** (§10, §16), which is a boundary rather than a habit, and which every
-  future program is written against.
-- **Facts that leave the machine**, and this is the truly irreversible category. A published claim, a
-  benchmark number a stranger quotes, a secret material once stored. §79 is the case: approving an
-  `NTOWFv2` beside an Argon2id tag was worth an hour of argument, because the decision cannot be
-  unmade by deleting the code.
+- Anything two programs agree on. A wire format, an opcode number, a packed word.
+- Names. A name lands in dozens of call sites, in a reader's head, and in the vocabulary people use
+  to disagree. This is why names are calef's, and why a lane ships a provisional one instead of
+  waiting.
+- Dependencies, §46 (thin primitives or whole subsystems), especially in the shipping graph.
+- The syscall surface: §10 (the capability-based microkernel process model) and §16 (object
+  revocation), which every future program is written against.
+- Facts that leave the machine: a published claim, a benchmark number a stranger quotes, a secret
+  material once stored. This is the truly irreversible category.
 
-**The test is not "can I revert the commit". It is "who else has already acted on this".**
+The test is not "can I revert the commit". It is "who else has already acted on this".
 
-**Two mechanisms here exist to widen a door that looks narrow, and both should be used rather than
-deliberated around.** A **provisional name** converts a naming decision from expensive to cheap by
-saying out loud that it is not settled. A **recorded limitation** in a `BUGS` section does the same
-for a design compromise, by making it a known cost rather than an implied promise. Reach for these
-instead of stalling.
+Two mechanisms exist to widen a door that looks narrow, and both should be used rather than
+deliberated around. A provisional name converts a naming decision from expensive to cheap by saying
+out loud that it is not settled. A recorded limitation in a `BUGS` section does the same for a
+design compromise. Reach for these instead of stalling.
 
-**And one thing changed the calculus, which this project is unusual in having to notice.** Agents
-made *code* dramatically more reversible: a subsystem can be rewritten in an hour, so the old
-instinct to design carefully before typing is now often the expensive choice. They made **records no
-more reversible at all.** Nobody can un-publish a decision, un-teach a reader a name, or un-store a
-secret. So the gap between the two categories is wider here than it is in ordinary projects, and the
-mistake to guard against is spending on the wrong side of it: **deliberating over code while
-committing quickly to a name.**
-
-The failures on record are both of that shape. A blind `sed` swept a rename across the tree and
-rewrote the very row recording that the name had been *refused*, which is a cheap edit destroying an
-expensive record. And a lane's provisional name went unquestioned by a maintainer who endorsed it,
-against a refusal that already existed and that nobody could find, which is milestone 115's whole
-reason for being.
+Agents made code dramatically more reversible and records no more reversible at all. So the mistake
+to guard against is spending on the wrong side of the line: deliberating over code while committing
+quickly to a name.
 
 ## The three roles, and the one rule that keeps work moving
 
-Named 2026-08-04, after a night in which eleven agents shipped and the queue still went idle twice
-because nobody's job was noticing. The roles were already real; only their names and the top-up rule
-are new.
+Why each role holds the authority it holds, and the night that named them, are in
+[design/tenets/roles-and-the-queue.md](design/tenets/roles-and-the-queue.md).
 
-**A maintainer session's own context, not lane count or token rate, is its largest cost**: one
-session measured at roughly 233 million tokens against 5 million for the twenty lanes it
-dispatched. See `notes/what-a-session-carries.md`.
-
-- **Maintainer.** One per session, the session itself, **and sessions are plural** (2026-08-15,
-  the day two sessions' lanes met in one file). Three rules make plural maintainers safe, and two
-  of them are machinery that already exists. The **merge queue is the single merge authority**:
-  no session coordinates a landing with another, both enqueue, and the group build arbitrates.
-  **Anything minted stays provisional until the queue lands it**: §-numbers, milestone numbers,
-  and names can collide between sessions that cannot see each other, and the decisions and
-  roadmap gates in every group build are what catch it, which is the old integrator-mints rule
-  with the queue as the integrator of last resort. And the one new duty: **a lane's branch is
-  pushed the moment it is cut, and every session lists remote branches before briefing a lane**
-  (`git ls-remote --heads`), because the pushed branch is the only lane ledger another session
-  can see. Machine-global state keeps its existing owner: whoever merges relinks the toolchain
-  from the main checkout and prunes what they merged. Briefs developers, gates and merges their
-  work, mints anything global to the tree (`design/decisions/` sections, milestone numbers, names calef
-  has ratified), and keeps hygiene: prune the worktree, delete the branch, relink `nife-dev`,
-  leave no QEMU. Holds merge authority when calef grants it. **Maintainer, not project manager**,
-  because the name has to predict the authority: this role writes code, resolves conflicts and
-  merges, and a coordinate-only reading of it would leave the tree unowned.
-- **Developer.** A subagent executing exactly one milestone. Reports; never merges, never mints,
-  never edits `design/decisions/`, `design/` or this file, **except its own milestone's roadmap block,
-  which `script/lint` 4b requires it to edit** (calef, 2026-08-23, reaffirmed 2026-09-01 after two
-  lanes read the flat prohibition and reported the gate as impossible; the reason is beside the
-  check). Names anything new provisionally and says so.
-  **A developer polls its own background work to completion**; ending a turn to "wait for the
-  notification" while your own gate is running is the failure mode, not patience (calef,
-  2026-08-14, after five lanes in one day stopped mid-gate and each needed a manual resume). The
-  report comes after the gate, and nothing about a gate is finished until you have read its exit.
-  **A lane continues until it needs a human or it is done** (calef, 2026-08-26), the standing
-  default for every brief rather than a per-brief instruction: finishing one item on a milestone's
-  own list is not a stopping condition when the list has more on it, and "ran out of easy things"
-  is not the same as "ran out of things a lane can make progress on." The one genuine stop is
-  hitting something that is calef's own call (a design fork, a wire format, a naming decision) --
-  write that up as a proposal, the same shape this file already asks for elsewhere, and stop there,
-  rather than either inventing an answer or ending the turn early because the next item looked
-  harder than the last one.
-- **Every pull request and comment an agent writes opens by saying so.** One line, first thing
-  in the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the
-  author GitHub shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App
-  exists and the scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull
-  request with calef's `gh` token. This is rung four and it is honest about being rung four:
-  the mechanism is 128's App, and this is what the record says in the meantime. (calef, 2026-08-16:
-  *"it looks like I'm talking to myself a lot and the record would be nice to clarify who is
-  talking."*)
-- **A lane's first act is a draft pull request** (§90, 2026-08-16, amended 2026-09-05). Cut the
-  branch, **make one empty commit** (`git commit --allow-empty -m "claim: milestone N"`), push it,
-  and open the pull request as a **draft**, before any work. That is the claim, and it is why two
-  lanes cannot silently take the same milestone: the board is `gh pr list --draft` and it costs one
-  command. The claim and the deliverable are one object, so nothing has to be closed by hand, and a
-  lane that dies leaves a visible stale draft instead of an invisible gap. **The empty commit is
-  what keeps that true**: without it GitHub closes the draft as *merged* when the lane's base lands,
-  and the board reads empty while a lane works. §90 has the four cases and why they hid. **Check
-  that board before briefing**, alongside `git ls-remote --heads`.
-- **A developer works in a lane**, and the lane is the isolation rather than the person: its own
+- Maintainer. One per session, the session itself, and sessions are plural. The merge queue is the
+  single merge authority: no session coordinates a landing with another, both enqueue, and the group
+  build arbitrates. Anything minted stays provisional until the queue lands it: §-numbers, milestone
+  numbers and names can collide between sessions that cannot see each other. A lane's branch is
+  pushed the moment it is cut, and every session lists remote branches before briefing a lane (`git
+  ls-remote --heads`), because the pushed branch is the only lane ledger another session can see.
+  Whoever merges relinks the toolchain from the main checkout and prunes what they merged. Briefs
+  developers, gates and merges their work, mints anything global to the tree (`design/decisions/`
+  sections, milestone numbers, names calef has ratified), and keeps hygiene: prune the worktree,
+  delete the branch, relink `nife-dev`, leave no QEMU. Holds merge authority when calef grants it.
+  This role writes code, resolves conflicts and merges.
+- Developer. A subagent executing exactly one milestone. Reports; never merges, never mints, never
+  edits `design/decisions/`, `design/` or this file, except its own milestone's roadmap block, which
+  `script/lint` 4b requires it to edit. Names anything new provisionally and says so. A developer
+  polls its own background work to completion; ending a turn to "wait for the notification" while
+  your own gate is running is the failure mode, not patience. The report comes after the gate, and
+  nothing about a gate is finished until you have read its exit. A lane continues until it needs a
+  human or it is done (calef, 2026-08-26): finishing one item on a milestone's own list is not a
+  stopping condition when the list has more on it. The one genuine stop is hitting something that is
+  calef's own call: a design fork, a wire format, a naming decision. Write that up as a proposal and
+  stop there, rather than either inventing an answer or ending the turn early.
+- Every pull request and comment an agent writes opens by saying so. One line, first thing in the
+  body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the author GitHub
+  shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App exists and the
+  scheduled workflows author as `nife-smelter[bot]`, but a lane opens its pull request with calef's
+  `gh` token.
+- A lane's first act is a draft pull request, §90 (the claim is a draft pull request). Cut the
+  branch, make one empty commit (`git commit --allow-empty -m "claim: milestone N"`), push it, and
+  open the pull request as a draft, before any work. That is the claim, and it is why two lanes
+  cannot silently take the same milestone: the board is `gh pr list --draft`. The empty commit is
+  what keeps that true: without it GitHub closes the draft as *merged* when the lane's base lands.
+  Check that board before briefing, alongside `git ls-remote --heads`.
+- A developer works in a lane, and the lane is the isolation rather than the person: its own
   worktree, its own branch, one milestone, no visibility into the others. Two developers in one lane
-  is the merge problem this vocabulary exists to prevent.
-- **Steward.** Runs on an interval and holds a *lent* authority, which is what the name says: it
-  merges what has earned it (green on every check, from a developer briefed this session, touching
-  no syscall surface, no `design/decisions/` section and no dependency addition), cleans up behind
-  finished work (delete the branch, prune the worktree, relink `nife-dev`), reports queue depth
-  against the target, and raises what has stalled or gone unanswered. It exists because the
-  maintainer is structurally bad at noticing its own idleness: when it is busy, it is busy.
+  is forbidden; it is the merge problem this vocabulary exists to prevent.
+- Steward. Runs on an interval and holds a *lent* authority: it merges what has earned it: green on
+  every check, from a developer briefed this session, touching no syscall surface, no
+  `design/decisions/` section and no dependency addition. It cleans up behind finished work (delete
+  the branch, prune the worktree, relink `nife-dev`), reports queue depth against the target, and
+  raises what has stalled or gone unanswered. It does not brief developers, because briefing is
+  judgment: it says "the queue is at one of three and these are ready" and the maintainer writes the
+  brief. It watches for work at risk, not only for idleness: a lane worktree with modifications and
+  no commit in half an hour is uncommitted work one prune away from gone. It must never hold the
+  main checkout while a developer's gate is running.
 
-  **It does not brief developers**, because briefing is judgment and the good outcomes come from
-  briefs that name the specific hazard (the sixteen-slot cspace, the claim to verify, the file
-  another lane holds). A generic brief produces a worse lane than an idle slot costs. So the
-  steward says "the queue is at one of three and these are ready" and the maintainer writes it.
+### The top-up rule, which is the whole point
 
-  **It watches for work at risk**, not only for idleness: a lane worktree with modifications and no
-  commit in half an hour is uncommitted work one prune away from gone, which is the only failure in
-  this system that destroys rather than delays. That check earns its keep more than the idle one.
+When a developer finishes, the maintainer launches the next work before writing the report. Not
+after, and not when calef next asks. A conversation with calef never blocks the queue. Maintain the
+agreed number of concurrent developers, and if the ready queue is empty, say so as its own finding
+rather than letting the silence stand for "nothing to do".
 
-  **It must never hold the main checkout while a developer's gate is running**, which is the race
-  that took the `nife-dev` link out from under a lane on 2026-08-04. `caretaker` and
-  `undertaker` were unavailable as names: this tree already spends both on capability-narrowing
-  programs.
+A developer's final report ends by handing off: what its work unblocked, and what it found that
+wants a lane of its own.
 
-**The top-up rule, which is the whole point.** When a developer finishes, the maintainer **launches
-the next work before writing the report**. Not after, and not when calef next asks. A conversation
-with calef never blocks the queue; answering a question and keeping lanes full are concurrent, and
-the failure mode is always the same, which is that the answer feels like progress and the idle
-machine is invisible. Maintain the agreed number of concurrent developers, and if the ready queue is
-empty, say so as its own finding rather than letting the silence stand for "nothing to do".
+### What bounds lane count, and the three ceilings
 
-**A developer's final report ends by handing off**: what its work unblocked, and what it found that
-wants a lane of its own. That is the same discipline as milestone 94's, applied to scheduling rather
-than to findings.
+Lane count is set against the collision surface, not against queue depth (calef, 2026-08-16,
+overturning his own 2026-08-04 delegation on measured evidence). Throughput is measured in merged
+work. The question to ask before launching is not "how deep is the queue" but "what files will this
+lane touch, and who else is in them". The measurement that overturned the old rule, and the three
+ceilings below, are in [design/tenets/lane-count.md](design/tenets/lane-count.md).
 
-**Identified work leaves the lane in a tracked form, or the merge waits.** A lane that finds work it
-is not doing may report it in exactly two shapes, and "worth doing someday" is neither. Either a
-**proposed milestone** (provisional, the integrator mints the number at merge like every other global
-name), or a **recorded limitation written where a reader meets the feature**, in the `BUGS` section
-beside it, which is what §71's promotion triggers are then measured against. A finding with no home is
-the integrator's cue to hold the merge until it has one.
-
-This is rung three of the ladder, and it is worth naming why the lower rungs fail here specifically.
-A lane report is read once, by one person, on the day it is written. A pull request body is read while
-the diff is open and never again. Both feel like records while you are writing them, which is what
-makes this the failure that recurs: milestone 90 exists only because calef happened to be at his desk
-the day a report named it, and milestone 94 swept the tree for exactly this category and then left its
-own inventory in a pull request body for twelve days, by which point the item-level list was gone and
-had to be re-derived. See notes/untracked-work-sweep.md.
-
-**The merge checklist grows one line**: every piece of identified work in the lane's report has a
-home. `briefs/merge-and-cleanup.md` has that checklist whole, with the prune and the relink.
-
-Two things this deliberately does not do. **It does not gate**: no check can tell an intention from an
-observation in prose, and a lint that tried would be `git grep -w TODO`'s 82% false-positive rate
-wearing a different hat. And **it does not touch the `BUGS` convention**, which is the FreeBSD posture
-working as designed; the whole point is to route intentions *into* it rather than out of it.
-
-**Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
-only in chat scrollback is in exactly the medium milestone 94 was written to abolish, and on
-2026-08-04 five of them accumulated there in one day while that milestone was being built. They go
-in `design/decisions/` with `**Status: PROPOSED.**`, one section each: what is being decided, the
-options, the recommendation with its reason, and what is blocked until it is answered. (They lived
-briefly in `design/open-decisions.md`; milestone 114 absorbed that file, and the numbering is the
-integrator's at merge like every other section number.)
-
-**And work waiting on calef carries its own label and its own ask** (calef, 2026-08-04). The same
-principle one level out: a pull request held for him is a decision, and a queue that exists only in
-a chat message is the medium above. Two things, both at the moment the decision to hold is made and
-not later, because the failure this prevents is the maintainer forgetting it is holding something:
-
-- **The `needs-architect` label**, so the queue is `gh pr list --label needs-architect` rather than
-  a paragraph somebody has to have read. **It names the role, not the person** (calef, 2026-08-05):
-  he holds it today and would like a second architect tomorrow, and a mechanism that spells one
-  name has that name as its failure mode. Its description carries the reason a thing lands there at
-  all: outside standing merge authority, meaning the syscall surface, a new dependency, or a
-  `DECISIONS` section owed.
-- **A `## What I need from you` comment** naming the specific ask. Three properties make it worth
-  writing, and they are what separate it from a link to a diff. It should be **answerable without
-  reading the diff**, because the point is to spend calef's attention on the decision rather than on
-  reconstructing it. It should **say what happens if he says no**, since a recommendation with no
-  stated downside is not a recommendation. And it should **separate what is blocking from what is
-  eventually his**, so a naming backlog does not get tangled with a merge decision; milestone 115's
-  gate takes `unrecorded` as a truthful answer precisely so that provisional names never block.
-
-**Lane count is set against the collision surface, not against queue depth** (calef, 2026-08-16,
-overturning his own 2026-08-04 delegation on measured evidence). The reason survives its own rule:
-**throughput is measured in merged work.** What changed is what bounds it.
-
-The old rule counted open pull requests, and was right when it was written: under
-require-branches-up-to-date a serial drain landed **one thing at a time**, every merge staled
-every other branch, and lanes past that rate manufactured merge debt. GitHub's merge queue
-(milestone 119, enabled 2026-08-15) retired both facts. It lands **groups of up to five in one
-CI run** and rebases the group itself, so a deep queue is a batch rather than a backlog, and
-depth stopped predicting anything.
-
-**The measurement that overturned it.** In the twenty hours after the queue went live: 28 merges
-through 8 group builds, with four to five lanes running against a queue that sat six to twelve
-deep for most of it. The old table would have prescribed **one** lane for nearly all of that
-night. Of the four things that actually stalled the queue, three do not scale with lane count at
-all: a lint that rejected GitHub's own synthetic branch names and so failed every group build
-(one bug, fixed), evictions that GitHub does not auto-retry (queue behaviour, and the operator
-must re-enqueue), and seven per-pull-request `rustfmt` failures (now caught by the pre-push
-hook). Only the fourth scales, and it scales through **files rather than numbers**: four merge
-conflicts, every one of them in the same small hotspot where every lane wires its test
-(`kernel/src/user/tests.rs`, the QEMU runners, `xtask/src/main.rs`). Lanes in disjoint
-subsystems collided zero times.
-
-So the question to ask before launching is not "how deep is the queue" but **"what files will
-this lane touch, and who else is in them"**. Concretely:
-
-- **Disjoint subsystems: launch freely.** Four is a reasonable working number, not a ceiling.
-- **Two lanes in the test-wiring hotspot: expect to resolve a conflict by hand**, and brief the
-  second one to fold into the first's shape rather than inventing a third. It is often cheaper
-  to sequence those two than to merge them.
-- **The real ceilings are elsewhere**, and they are worth naming so they are decided rather than
+- Disjoint subsystems: launch freely. Four is a reasonable working number, not a ceiling.
+- Two lanes in the test-wiring hotspot (`kernel/src/user/tests.rs`, the QEMU runners,
+  `xtask/src/main.rs`): expect to resolve a conflict by hand, and brief the second one to fold into
+  the first's shape rather than inventing a third. It is often cheaper to sequence those two.
+- The real ceilings are elsewhere, and they are worth naming so they are decided rather than
   discovered: the attention to read reports and resolve conflicts, the token budget, and runner
-  concurrency, since group builds and per-branch CI compete for the same machines.
+  concurrency.
 
-**And there is a second ceiling, which is the machine and not the collision surface** (2026-08-31,
-learned three times in one day). Lane count is bounded by files; **concurrent heavy jobs are bounded
-by memory**, and the two are independent. `script/verify` defaults to four parallel solver jobs
-because its own header records a harness reaching **3.5 GB** and four fitting the dev Mac, so two
-lanes gating at once is eight solvers against a budget tuned for four. That day cost an
-out-of-memory kill that took the session with it, a `ci-build` whose timing assertions failed at 2.7x
-oversubscription and told nobody anything, and two `script/verify` runs killed by SIGTERM mid-CBMC.
+The second ceiling is memory, and it is independent of the collision surface. So: at most one full
+`script/verify` at a time on this machine, and never a mutation sweep beside lanes. When two lanes
+must gate together, `VERIFY_JOBS=2` each shares the budget rather than doubling it. The tell is easy
+to misread: a heavy job dying with no failing assertion, reported as a cancellation or a timing
+failure rather than as memory.
 
-**So: at most one full `script/verify` at a time on this machine, and never a mutation sweep beside
-lanes.** When two lanes must gate together, `VERIFY_JOBS=2` each shares the budget rather than
-doubling it. The tell is the same every time and is easy to misread: a heavy job dying with no
-failing assertion, reported as a cancellation or a timing failure rather than as memory.
+The third ceiling was disk, and the lever moved with it: lanes gate in CI rather than here
+([`briefs/gate-in-ci.md`](briefs/gate-in-ci.md)), which takes QEMU and `script/verify` off this
+machine. Lanes are asynchronous, so the wall-clock cost is nobody's wait. Two habits survive: run
+any local gate from a lane's worktree rather than the main checkout, and prune promptly, because
+disk is the only pressure here that destroys work rather than delaying it.
 
-**And a third ceiling, which was disk and is no longer the binding one** (2026-09-14, met four times
-in one session; repriced 2026-09-22). Five lanes at roughly 3 GB of `target/` each, plus **7.2 GB in
-the main checkout's own**, took a 252 GB volume to 1.9 GB free and then to a command failing
-mid-write with `No space left on device`. Pruning fixed it, and what decides lane count now is the
-memory and cores above. **So the lever moved with it: lanes gate in CI rather than here**
-(`briefs/gate-in-ci.md`), which takes QEMU and `script/verify` off this machine and unbinds lane
-count from 16 GB. The trade is wall-clock, 23 to 29 minutes a round, and **lanes are asynchronous**,
-so it costs nothing a person waits for. Two habits survive the repricing: **run any local gate from a
-lane's worktree rather than the main checkout**, the build tree nobody watches because it never
-appears in `git worktree list`; and prune promptly, because disk is still the only pressure here that
-destroys work rather than delaying it, and deletes keep succeeding while writes fail.
+Prune a lane's worktree the moment its pull request merges, and never prune one with uncommitted
+work in it. [`briefs/merge-and-cleanup.md`](briefs/merge-and-cleanup.md) has the commands, the
+order, and both recorded failures.
 
-**The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
-`verify` is still running, every time. Milestone 119 (the merge queue) measured that and is BUILT.
+### Identified work leaves the lane in a tracked form, or the merge waits
 
-**Prune a lane's worktree the moment its pull request merges**, and never prune one with
-uncommitted work in it. Those are the two clauses that have to be known before the cleanup starts;
-`briefs/merge-and-cleanup.md` has the commands, the order, and both recorded failures (eight
-finished worktrees, one at 3.3 GB; and 2026-07-31's zero bytes free with 42 worktrees holding
-78 GB, which killed two lanes mid-work).
+A lane that finds work it is not doing may report it in exactly two shapes, and "worth doing
+someday" is neither. Either a proposed milestone (provisional; the integrator mints the number at
+merge like every other global name), or a recorded limitation written where a reader meets the
+feature, in the `BUGS` section beside it. A finding with no home is the integrator's cue to hold the
+merge until it has one. Why a lane report and a pull request body do not count as records is in
+[design/tenets/routing-work-and-decisions.md](design/tenets/routing-work-and-decisions.md).
 
-**The watchers run unattended as `nife-smelter[bot]` in scheduled Actions workflows** (calef,
-2026-09-23; the watch that reads a machine's own lane worktrees stays per developer), and a session
+The merge checklist grows one line: every piece of identified work in the lane's report has a home.
+[`briefs/merge-and-cleanup.md`](briefs/merge-and-cleanup.md) has that checklist whole, with the
+prune and the relink. Two things this deliberately does not do: it does not gate, because no check
+can tell an intention from an observation in prose, and it does not touch the `BUGS` convention.
+
+### Open decisions, and work waiting on calef
+
+Open decisions live in a file, not in a conversation. A decision waiting on calef goes in
+`design/decisions/` with `**Status: PROPOSED.**`, one section each: what is being decided, the
+options, the recommendation with its reason, and what is blocked until it is answered. The number is
+the integrator's at merge.
+
+And work waiting on calef carries its own label and its own ask (calef, 2026-08-04), both at the
+moment the decision to hold is made and not later:
+
+- The `needs-architect` label, so the queue is `gh pr list --label needs-architect` rather than a
+  paragraph somebody has to have read. It names the role, not the person. A thing lands there when
+  it is outside standing merge authority: the syscall surface, a new dependency, or a
+  `design/decisions/` section owed.
+- A `## What I need from you` comment naming the specific ask. It must be answerable without reading
+  the diff, it must say what happens if he says no, and it must separate what is blocking from what
+  is eventually his.
+
+The watchers run unattended as `nife-smelter[bot]` in scheduled Actions workflows (calef,
+2026-09-23; the watch that reads a machine's own lane worktrees stays per developer). A session
 confirms they are alive *and reads what they already found*, because `merge-drain.sh` posts once per
-stall and then goes quiet by design (calef, 2026-08-26). `briefs/session-start.md` is that check,
-deferring the queue read to `briefs/survey-the-queue.md`. A queue reports, it does not resolve.
+stall and then goes quiet by design. [`briefs/session-start.md`](briefs/session-start.md) is that
+check, deferring the queue read to [`briefs/survey-the-queue.md`](briefs/survey-the-queue.md). A
+queue reports, it does not resolve. [`notes/merge-queue.md`](notes/merge-queue.md) has the
+workflows.
 
-They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
-green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
-pull request staled eight others that nothing picked back up. The steward was meant to cover this and
-did not, for a reason worth keeping: **it reported and never acted.** A stalled queue announced in a
-message is only useful if somebody reads the message. notes/merge-queue.md has the workflows, the
-plist that remains and the commands retiring the two it replaces, the token premise tested first,
-what the schedule costs, and a BUGS section honest that no watcher reports its own death.
+Do not try to route this by requesting a review. GitHub silently refuses a review request from the
+pull request's own author: `gh pr edit N --add-reviewer calef` returns success and sets zero
+reviewers, because every pull request here is authored under calef's account by the `gh` token.
+Assignees and labels do work; reviewers do not.
 
-**Do not try to route this by requesting a review.** GitHub silently refuses a review request from
-the pull request's own author: `gh pr edit N --add-reviewer calef` **returns success and sets zero
-reviewers**, because every pull request here is authored under calef's account by the `gh` token.
-That was tried on 2026-08-04 and the silent no-op looked exactly like a working queue, which is
-worse than an error. Assignees and labels do work; reviewers do not.
+Stop and bring it to calef only when it is genuinely his call: a design fork not already decided, a
+test that will not pass after real effort, a hardware or external dependency, or the machine
+contradicting the plan. Otherwise proceed and report what you did.
 
-**Stop and bring it to calef only when it is genuinely his call:** a design fork not already
-decided, a test that will not pass after real effort, a hardware or external dependency, or the
-machine contradicting the plan. Otherwise proceed and report what you did.
+### Shared state: the tree's, and the machine's
 
-**Keep the documentation current, because a demonstrator's docs are part of the deliverable.**
-Every design decision goes in `design/decisions/`; every concept and finding gets a note in `notes/`,
-indexed in `notes/README.md`. Record the *why* and the honest caveats.
-
-**The standard to aim at is FreeBSD's** (calef, 2026-07-30): the Handbook and the man pages, which
-are the best documentation in the field and are the reason a FreeBSD admin can answer a question
-without leaving the system. Four things make them that, and all four are things we can do:
-
-- **Task-oriented.** "How do I do X", in order, with the actual commands, rather than a reference
-  dump the reader has to reassemble.
-- **In-tree and versioned with the code**, so the docs cannot describe a system that no longer
-  exists. Already true here; keep it true.
-- **Real `EXAMPLES`.** A page without a worked example has not finished explaining itself.
-- **An honest `BUGS` section.** FreeBSD man pages document known limitations *in the manual*, next to
-  the feature, rather than only in a tracker. This is the one worth copying hardest, because it is
-  the convention this project already reaches for by instinct: the map "tie", the spawn caveat, the
-  scope notes on parity gaps. **Name the limitation where the reader meets the feature.**
-  When a limitation graduates from record to plan, and what forces the graduation, is §71's
-  convention: a `BUGS` entry is a fact, a roadmap row is intent, and the promotion triggers are
-  listed there.
-
-The point is not the format, which is theirs. It is the posture: documentation written for someone
-who has to *use* the thing, and honest enough that they trust it when it says something works.
-
-**Anything global to the tree is assigned by the integrator at merge, never claimed by a lane.**
+Anything global to the tree is assigned by the integrator at merge, never claimed by a lane.
 Concurrent lanes cannot see each other, so a lane that reaches for a shared resource is guessing.
-Two kinds bit us on 2026-07-30:
+The collisions that produced this rule are in
+[design/tenets/shared-state.md](design/tenets/shared-state.md).
 
-- **`design/decisions/` section numbers**, three collisions in one day. Preferred: a lane **does not
-  touch `design/decisions/` at all**, puts the reasoning in `notes/` and in its report, and the integrator mints
-  the section at merge. (Milestone 51's calendar lane did exactly this, unprompted, and it was the
-  only one of four that caused no conflict.) If a lane must write the section to make its own gates
-  pass, the number is **provisional**: say so in the report, and expect renumbering.
-- **Counts that span the tree.** The Kani harness count was written as 76 on one branch and 80 on
-  another; the merged tree had 95. Both were counted honestly. Take such a number at merge, from the
-  merged tree.
+- `design/decisions/` section numbers. Preferred: a lane does not touch `design/decisions/` at all,
+  puts the reasoning in `notes/` and in its report, and the integrator mints the section at merge.
+  If a lane must write the section to make its own gates pass, the number is provisional: say so in
+  the report, and expect renumbering.
+- Counts that span the tree. Take such a number at merge, from the merged tree.
 
-**Some shared state is global to the *machine*, not the repo**, and `rustup toolchain link` is the
-one that has bitten: `nife-dev` is one symlink for the whole user account, so it means whichever
-worktree ran `xtask std-src` last. **Every lane that gates takes it**, unavoidably, because
-`script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. That is
-expected: **do not tell a lane not to do the thing gating requires**, tell it to say in its report
-that it took the link. Relinking is the integrator's duty at merge and the command is in
-`briefs/merge-and-cleanup.md`. notes/std.md has the mechanism, the 2026-08-18 cross-contamination
-that prompted it, and why `std_src` relinking loudly still does not make concurrent lanes safe.
+Some shared state is global to the *machine*, not the repo, and `rustup toolchain link` is the one
+that has bitten: `nife-dev` is one symlink for the whole user account, so it means whichever
+worktree ran `xtask std-src` last. Every lane that gates takes it, unavoidably. That is expected: do
+not tell a lane not to do the thing gating requires, tell it to say in its report that it took the
+link. Relinking is the integrator's duty at merge, with the command in
+[`briefs/merge-and-cleanup.md`](briefs/merge-and-cleanup.md); the mechanism is in
+[`notes/std.md`](notes/std.md).
 
-**An unmerged branch is either abandoned or it is
-holding knowledge that is not on `main`, and the second case is a bug in where the knowledge lives.**
-`fix/redoxfs-write-loop` survived that prune because it carried an investigation's conclusion that
-`notes/fs-server.md` does not. **Nobody reads branches.** If a branch holds a finding worth keeping,
-land the finding in `notes/` and then delete the branch; do not keep the branch as the record.
+An unmerged branch is either abandoned or it is holding knowledge that is not on `main`, and the
+second case is a bug in where the knowledge lives. Nobody reads branches. If a branch holds a
+finding worth keeping, land the finding in `notes/` and then delete the branch; do not keep the
+branch as the record.
 
-**Benchmarks and cross-OS comparisons are first-class.** Measure, do not argue. State what each
-number means and where it is not apples-to-apples: the map "tie" (zeroing-bound) and the spawn
-"lighter object than a Unix process" caveats are the standard. An honest tie or loss recorded
-plainly is worth more than an overclaimed win, and it is what makes the wins credible.
+### Measuring, pushing back, and correcting the record
 
-**Push back when he's wrong, with a technical reason, and don't cave to be agreeable.** He once
-picked async/await because it "sounded more tractable"; the right response was to point out that
-cooperative scheduling cannot run an arbitrary ELF binary, so async forecloses the hard work rather
-than deferring it. He changed his mind. Do that again when warranted; do not manufacture
-disagreement to seem rigorous.
+Benchmarks and cross-OS comparisons are first-class. Measure, do not argue. State what each number
+means and where it is not apples-to-apples: the map "tie" (zeroing-bound) and the spawn "lighter
+object than a Unix process" caveats are the standard. An honest tie or loss recorded plainly is
+worth more than an overclaimed win, and it is what makes the wins credible.
 
-**Correct yourself loudly.** We told him QEMU passes a device tree pointer in `x0`. It doesn't. We
-found out by printing it and getting zero, and fixed the note rather than quietly patching over it.
-The machine overrules the documentation, and it overrules you; when it does, fix the record on
-purpose.
+Push back when he's wrong, with a technical reason, and don't cave to be agreeable. Do not
+manufacture disagreement to seem rigorous either.
 
-**Explain on request, however basic.** Autonomous by default does not mean opaque: if calef asks
-"what is a register?" or "why does `destroy` avoid `SCHED`?", answer properly, from the ground up,
-and write it down.
+Correct yourself loudly. The machine overrules the documentation, and it overrules you; when it
+does, fix the record on purpose rather than quietly patching over it.
+
+Explain on request, however basic. Autonomous by default does not mean opaque: if calef asks "what
+is a register?" or "why does `destroy` avoid `SCHED`?", answer properly, from the ground up, and
+write it down. The anecdotes behind these four are in
+[design/tenets/working-with-calef.md](design/tenets/working-with-calef.md).
 
 ## A fork reaches calef with its questions already answered
 
-calef, 2026-08-18, sharpening his own rule from the day before. The first version said to bring
-**options and costs**. That is not enough, and the correction is his: *"my intent is not just to have
-a lane surface a problem, but to investigate and propose solutions so that the questions I usually
-ask to help decide I don't need to ask."*
+calef, 2026-08-18: *"my intent is not just to have a lane surface a problem, but to investigate and
+propose solutions so that the questions I usually ask to help decide I don't need to ask."* The
+scarcest thing in this project is his attention. A fork that reaches him having spent it on lookups
+anyone could have run has been mishandled, even if it arrived with a tidy list of options. This
+binds whoever presents the fork, which is usually the maintainer rather than a lane.
 
-**The scarcest thing in this project is his attention**, not lane capacity: on 2026-08-17 fifteen
-milestones were gated on `DECISION` behind a nineteen-deep ready queue. So a fork that reaches him
-having spent his attention on lookups anyone could have run has been mishandled, even if it arrived
-with a tidy list of options.
+The seven questions. A proposal that cannot answer one should say so rather than leave it implied.
 
-**This binds whoever presents the fork, which is usually the maintainer rather than a lane.** Every
-question below was one calef had to ask a maintainer on 2026-08-18, about a crate name, and every one
-of them changed the answer. Writing it as a rule for lanes would let the same failure straight
-through.
+1. What else was considered, and why did each lose? A refusal with a reason for each, not a list.
+2. What does this tree already do in the analogous case? Almost always one grep, and it usually
+   decides.
+3. What is the prior art outside the tree? Read, not recalled; a claim from memory is marked as
+   such.
+4. Is the premise true? Verify the framing before defending a position inside it.
+5. What does each option cost, measured rather than asserted?
+6. How reversible is it, and who has already acted on it?
+7. Would we still choose this if both options cost the same? If the answer is no, the recommendation
+   is about effort and must say so in those words.
 
-### The seven questions, because they are stable
+The tell that a proposal is not ready is that it argues rather than shows. Questions 2 through 5 are
+all lookups. If the presenter is reaching for an adjective where a command would do, the work is not
+finished.
 
-They are not a template to fill in. They are the questions that actually got asked, and a proposal
-that cannot answer one should say so rather than leave it implied.
-
-1. **What else was considered, and why did each lose?** A list of alternatives is not an answer; a
-   refusal with a reason for each is. §75 already asks for this at the thing itself, and "the
-   refusals are the valuable half" is `script/names`' own line.
-2. **What does this tree already do in the analogous case?** Almost always one grep, and it usually
-   decides. Asked as *"what are our other entropy crates called?"*, answered by `entropy` and
-   `entropy_proto`, which settled a naming argument that had run for three exchanges.
-3. **What is the prior art outside the tree?** Read, not recalled. This tree carried a fabricated
-   block quote for twelve days through every gate, so a claim from memory is a claim to mark as such.
-4. **Is the premise true?** Verify the framing before defending a position inside it. A crate was
-   argued about for four exchanges as though its directory were settled; `patches/README.md` states
-   that directory is for patches carried against upstream projects, which disqualified the siting and
-   dissolved the argument.
-5. **What does each option cost, measured rather than asserted?** A flag either exists or it does
-   not. Milestone 106's block priced a timed wait as "a timer wheel or an ordered deadline list" and
-   measurement found every candidate structure costs one comparison per tick, with the ordered list
-   the *worst* of the three. §32 said a hung child needs the stronger right; measurement found the
-   mechanism is about thirty lines and the authority is the whole problem.
-6. **How reversible is it, and who has already acted on it?** The *move fast on what can be undone*
-   tenet's test, verbatim, because it decides how much of the above is worth buying.
-7. **Would we still choose this if both options cost the same?** §92's test, moved onto this list
-   because a test applied only when somebody remembers it is not a test. **If the answer is no, the
-   recommendation is about effort and must say so in those words**, so a reader can weigh it as
-   effort rather than mistake it for judgement. It is not an argument against cheap options: it asks
-   whether cost is doing the deciding, and cost deciding is legitimate when it is *stated*.
-
-**The tell that a proposal is not ready is that it argues rather than shows.** Questions 2 through 5
-are all lookups. If the presenter is reaching for an adjective where a command would do, the work is
-not finished.
-
-### Two limits, so this does not become a tax
-
-**Recommend on reversible forks; give options only on irreversible ones.** Milestone 54's lane
-recommended keeping the demo share guest-writable, usefully, because it can be undone. The
-blocked-thread lane named no winner, correctly, because a syscall-surface decision arriving with a
-recommendation is already most of the way made. The line is the one the *move fast* tenet draws:
-anything two programs agree on, a name, a dependency, the syscall surface, a fact that leaves the
-machine.
-
-**A fork only earns a lane when nobody can say what the options cost.** A lane costs a few hundred
-thousand tokens and up to an hour. If calef can answer in a sentence, researching first spends more
-than a wrong answer would. Most of the seven questions are minutes of grepping by whoever is holding
-the problem, and that is the common case rather than a lane.
-
-**And the failure mode to guard is proposal-shaped procrastination.** Some forks want a decision now
-and evidence later. "Let me research that" is an available way to not decide, and a lane is not a
-place to put a question you are avoiding.
+Two limits, so this does not become a tax. Recommend on reversible forks; give options only on
+irreversible ones (the *move fast* tenet's list: anything two programs agree on, a name, a
+dependency, the syscall surface, a fact that leaves the machine). And a fork only earns a lane when
+nobody can say what the options cost: if calef can answer in a sentence, researching first spends
+more than a wrong answer would. Guard against proposal-shaped procrastination, because a lane is not
+a place to put a question you are avoiding.
 
 ## The rules that hold the codebase together
 
-These come from `design/decisions/`. They are cheap to follow and expensive to retrofit.
+These come from `design/decisions/`. They are cheap to follow and expensive to retrofit. What each
+one buys is in [design/tenets/codebase-rules.md](design/tenets/codebase-rules.md).
 
-1. **All architecture-specific code lives under `kernel/src/arch/`.** Assembly, `asm!`,
-   system registers, CPU-specific behaviour. If you're writing `asm!` outside `arch/`, that
-   is the bug. This is what makes the Raspberry Pi port a new directory instead of a diff
-   across every file.
+1. All architecture-specific code lives under `kernel/src/arch/`. Assembly, `asm!`, system
+   registers, CPU-specific behaviour. If you're writing `asm!` outside `arch/`, that is the bug.
+2. A driver never reaches into a kernel global. It gets what it needs passed in (a base address,
+   later a DMA allocator, later an interrupt registration).
+3. The syscall surface stays narrow and explicit. It is a boundary, not a habit.
+4. Assume weak memory ordering. We're on ARM, which is the weak one, and that's a gift: don't
+   squander it.
+5. Architectural parity is a gate, not an aspiration: DECISIONS §19 (architectural parity is a
+   tenet). The targets are aarch64, riscv64, and x86_64, all three of which now boot on real
+   hardware. A kernel capability ships on every supported architecture, proven by the same suite, or
+   a scope note records the gap and the plan. If a feature works on one ISA and silently not
+   another, that is the bug.
+6. Taking a dependency is a decision, not a convenience (DECISIONS §46). Write it if it is on the
+   verification path, because you cannot restructure someone else's crate to make a model checker
+   tractable. Vendor it if correctness is won by *exposure* rather than by reading the spec, which
+   is why §46 says write the calendar and vendor the crypto.
+7. Anything two binaries must agree on is a crate, never a `#[path]` module (calef, 2026-08-01). If
+   a constant, an opcode, a layout, or an error code is shared by more than one program, it goes in
+   `crates/` and is depended on. `#[path = "x.rs"] mod x;` is not an option, and `script/lint` check
+   5 counts consumers per `#[path]` target and fails at two.
 
-2. **A driver never reaches into a kernel global.** It gets what it needs passed in (a base
-   address, later a DMA allocator, later an interrupt registration). See
-   `drivers/pl011.rs`: it takes a base address and knows nothing else.
-
-3. **The syscall surface stays narrow and explicit.** It is a boundary, not a habit.
-
-5. **Architectural parity is a gate, not an aspiration** (DECISIONS §19). The targets are
-   aarch64, riscv64, and x86_64, all three of which now boot on real hardware. A kernel capability ships on every
-   supported architecture, proven by the same suite, or a scope note records the gap and the
-   plan. If a feature works on one ISA and silently not another, that is the bug.
-
-Rules 2, 3 and 7 are what keep the microkernel option open (7 because a contract you cannot
-test is a contract you cannot trust to replace a component behind). We are deliberately **not**
-speculatively trait-ifying every subsystem, because that builds the wrong abstraction before
-the requirements are known.
-
-4. **Assume weak memory ordering.** We're on ARM, which is the weak one, and that's a gift:
-   we cannot develop hidden strong-ordering assumptions the way an x86-first project would.
-   Don't squander it.
-
-6. **Taking a dependency is a decision, not a convenience** (DECISIONS §46). The tree's shape is
-   thin architectural primitives (`aarch64-cpu`, `spin`, `tock-registers`) or whole subsystems we
-   would never write (`smoltcp`, vendored RedoxFS), with **nothing in between**: most crates here
-   have no external dependencies at all. Write it if it is on the verification path, because you cannot
-   restructure someone else's crate to make a model checker tractable. Vendor it if correctness is
-   won by *exposure* rather than by reading the spec, which is why §46 says write the calendar and
-   vendor the crypto.
-
-7. **Anything two binaries must agree on is a crate, never a `#[path]` module** (calef, 2026-08-01).
-   If a constant, an opcode, a layout, or an error code is shared by more than one program, it goes
-   in `crates/` and is depended on. `#[path = "x.rs"] mod x;` is not an option.
-
-   **Two reasons**, and `script/lint` check 5 carries the third: it counts consumers
-   per `#[path]` target and fails at two.
-
-   It removes a category that nothing enforces. A `#[path]` module is neither a program nor a crate,
-   so a reader meeting `cseam::GRANT_VA` cannot tell what they are looking at, and `user/src/` held
-   48 programs and 3 modules with nothing distinguishing them.
-
-      And it makes location self-enforcing for free. Once shared definitions live in `crates/`,
-   everything in `components/src/` is a program, with **no files moved** and nothing to remember.
-
-   This was already the tree's practice for seven crates (`filesystem_protocol`, `byte_sink_protocol`,
-   `credential_protocol`, `clock_protocol`, `entropy_protocol`, `network_time_protocol`,
-   `graphics_protocol`); `cseam.rs`, now the `c_seam` crate, never justified the `#[path]` mechanism.
+Rules 2, 3 and 7 are what keep the microkernel option open. We are deliberately not speculatively
+trait-ifying every subsystem, because that builds the wrong abstraction before the requirements are
+known.
 
 ## calef names the crates, the programs, and the shared modules
 
-**The name of a crate, a program, a module, or a public function is calef's call, not a lane's and
-not yours** (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is decided
-by the person who can see the whole tree, and the reason is his: names are what make this OS
-accessible to humans and to LLMs, and in a capability system the name is often the only thing that
-says what a program may *do*.
+The name of a crate, a program, a module, or a public function is calef's call, not a lane's and not
+yours (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is decided by
+the person who can see the whole tree. The reason is his: names are what make this OS accessible to
+humans and to LLMs, and in a capability system the name is often the only thing that says what a
+program may *do*.
 
-**So: propose, ship a provisional name, say so in your report, and never rename on your own
-initiative** (a rename is a naming decision with extra steps). That mechanism is what makes it safe
-not to have read the conventions before you start: a provisional name is expected to change, and the
-maintainer surfaces it.
+So: propose, ship a provisional name, say so in your report, and never rename on your own initiative
+(a rename is a naming decision with extra steps). That mechanism is what makes it safe not to have
+read the conventions before you start: a provisional name is expected to change, and the maintainer
+surfaces it.
 
-**[design/naming.md](design/naming.md) is the rule** (§155): the spelling conventions per domain, the
-acronym test, nouns over verbs, the failure modes, what `script/lint` can and cannot check, how to
-perform a ratified rename, and the refusals that shaped all of it. **Read it before you ratify or
-rename**; a lane inventing a provisional name does not have to. Where it and this file disagree,
-**that file is the rule** for naming conventions and this one is the bug; this file keeps only the
-authority above.
+[design/naming.md](design/naming.md) is the rule, §155 (the naming conventions move out of the
+constitution). It holds the spelling conventions per domain, the acronym test, nouns over verbs and
+the failure modes. It also holds what `script/lint` can and cannot check, how to perform a ratified
+rename, and the refusals that shaped all of it. Read it before you ratify or rename; a lane
+inventing a provisional name does not have to. Where it and this file disagree, that file is the
+rule for naming conventions and this one is the bug; this file keeps only the authority above.
 
-**Contributors are referred to by their GitHub username** in prose, attributions, records and lane
-reports; legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
+Contributors are referred to by their GitHub username in prose, attributions, records and lane
+reports. Legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
 patch `From:` headers), so a grep for a contributor finds them rather than everyone sharing a first
 name.
 
@@ -786,150 +475,110 @@ name.
 Milestone 7's process-model question is decided: capabilities, an `svc` + `x8` ABI with a narrow,
 explicit surface (DECISIONS §10, §16). The discipline that remains: the surface stays small and
 every method is deliberate. New methods are fine within the established capability model (object
-revocation added `Untyped::SPLIT` and `DESTROY` this way); **record each new method's semantics in
-`design/decisions/`, not just in code.** A method that does not fit the model, or a brand-new syscall
+revocation added `Untyped::SPLIT` and `DESTROY` this way); record each new method's semantics in
+`design/decisions/`, not just in code. A method that does not fit the model, or a brand-new syscall
 number, is a design fork, raise it before building it.
 
 ## Testing
 
-`script/test` (a thin wrapper over `cargo xtask test`) boots the kernel under QEMU and reports
-pass/fail via semihosting. The `script/*` commands are the normalized "Scripts to Rule Them All"
-front door (`setup`, `test`, `server`, `console`, ...); they delegate to `cargo xtask`, which is
-still the engine and exposes more (`gdb`, `objdump`, `image`). See notes/scripts.md.
+`script/test` boots the kernel under QEMU and reports pass/fail via semihosting.
+[notes/scripts.md](notes/scripts.md) has the `script/*` front door and what `cargo xtask` exposes
+beneath it.
 
-Tests should prove something specific that nothing else would have done for us. The boot
-self-tests in `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned
-(a bug here is a mystery crash), we're at EL1 (we are where we think we are). Don't add
-filler tests.
+Tests should prove something specific that nothing else would have done for us. The boot self-tests
+in `main.rs` are the model: `.bss` was zeroed (nobody else would have), `sp` is 16-byte aligned (a
+bug here is a mystery crash), we're at EL1 (we are where we think we are). Don't add filler tests.
 
-Pure logic (allocator algorithms, page-table math, scheduling policy, filesystem parsing)
-belongs in crates that compile for the **host**, so most tests run in milliseconds without
-an emulator.
+Pure logic (allocator algorithms, page-table math, scheduling policy, filesystem parsing) belongs in
+crates that compile for the host, so most tests run in milliseconds without an emulator.
 
 ## Commits
 
-One purpose per commit. The message explains **why**, not what (the diff shows what). If a
-commit records a correction or a surprise, say so in the message. See the milestone 1
-history for the shape.
+One purpose per commit. The message explains why, not what (the diff shows what). If a commit
+records a correction or a surprise, say so in the message. Why these rules read as opposites and are
+not, with the failure behind each, is in
+[design/tenets/git-in-a-worktree.md](design/tenets/git-in-a-worktree.md).
 
-**Commit early and push, then curate before reporting.** These two rules read as opposites and are
-not, and the resolution is a criterion rather than a compromise: **`git blame` is what a commit is
-for.** A reader tracing why a line looks the way it does must land on a commit that explains it.
+Commit early and push, then curate before reporting. The criterion that resolves the two: `git
+blame` is what a commit is for. A reader tracing why a line looks the way it does must land on a
+commit that explains it.
 
-So while working, commit whenever a piece works and push whenever a commit exists, because a pushed
-branch survives a dead session, a killed process and a laptop that will not wake, and nothing else
-does. On 2026-08-04 a lane sat on seven modified files with **zero commits for hours**; had that
-worktree been pruned the work was gone, and it was caught by inspection rather than by any
-mechanism. Uncommitted work in a lane worktree is the one thing no part of this system protects.
-
-Then, before reporting, **squash the checkpoints into the purposes** and force-push. A checkpoint is
-for the lane's own safety and has no reader; a purpose commit has one.
-
-**Squash against the base commit you branched from, never against `origin/main`**, and this trap was
-sprung the day the rule above was written (2026-08-04). Agent worktrees share one `.git`, so
-`origin/main` moves under a lane while it works: a developer that ran `git reset --soft origin/main`
-to squash silently staged **four other lanes' files as its own**, including a deletion, and caught it
-only by reading `git status` before committing. Record the base SHA when the branch is cut and squash
-against that. The wider rule it belongs to: in a worktree, `origin/*` is not a fixed point.
-
-**`git stash` is unsafe in these worktrees, for the same reason one level over.** The stash stack is
-per-`.git`, not per-worktree, so it is shared machine-wide across every lane. Found 2026-08-26 by the
-milestone 161 two-core-crash lane: another session pushed a stash between this lane's `git stash` and
-its `git stash pop`, so the pop popped *someone else's* entry into this lane's tree and conflicted.
-Nothing was lost that time (the conflict preserved the other entry, and it was restored and re-popped
-by name), but the failure mode is the same family as the squash-against-`origin/main` trap above: a
-command that reads as lane-local silently touches shared state. **Use a patch file
-(`git diff > /tmp/<lane>-<what>.patch`, later `git apply`) instead of `git stash` in a worktree**, the
-same way `origin/*` is not a fixed point once more than one lane can move it. **Name it what no other
-lane would**: this said `/tmp/x.patch` until two lanes both staged a body at `/tmp/pr-body.md` on
-2026-09-21 and one pushed the other's text.
-
-**Never squash across purposes.** Squash-*merging* is already impossible:
-`allow_squash_merge` is `false` on this repository, so the platform refuses it. This clause stays a
-prohibition because nothing gates it. Milestone 96's lane put the
-loader unification in its own commit *ahead of* the migration precisely so that a boot failure could
-not be ambiguous between two changes, which is the whole reason that structure exists. A
-squash-merge would have destroyed it. The merge commit carries the pull request's title, so
-`git log --first-parent` already reads as one entry per piece of work while the detail stays
-reachable underneath.
-
-The exceptions worth keeping unsquashed: a commit that records a correction or a surprise, and a
-commit whose separateness is itself the argument (96's loader, above).
+- While working, commit whenever a piece works and push whenever a commit exists. A pushed branch
+  survives a dead session, a killed process and a laptop that will not wake, and nothing else does.
+  Uncommitted work in a lane worktree is the one thing no part of this system protects.
+- Before reporting, squash the checkpoints into the purposes and force-push.
+- Squash against the base commit you branched from, never against `origin/main`. Agent worktrees
+  share one `.git`, so `origin/main` moves under a lane while it works, and `git reset --soft
+  origin/main` has silently staged four other lanes' files as one lane's own. Record the base SHA
+  when the branch is cut and squash against that. The wider rule: in a worktree, `origin/*` is not a
+  fixed point.
+- `git stash` is unsafe in these worktrees, for the same reason one level over: the stash stack is
+  per-`.git`, so it is shared machine-wide across every lane. Use a patch file (`git diff >
+  /tmp/<lane>-<what>.patch`, later `git apply`) instead, and name it what no other lane would.
+- Never squash across purposes. Squash-*merging* is already impossible (`allow_squash_merge` is
+  `false` on this repository); this clause stays a prohibition because nothing gates it. The
+  exceptions worth keeping unsquashed: a commit that records a correction or a surprise, and a
+  commit whose separateness is itself the argument.
 
 ## Every date in this tree is UTC
 
 calef, 2026-09-13, closing a gap that had been open since the first commit. Provenance blocks,
 roadmap rows, `design/decisions/` sections, notes and commit messages all carry dates, and
 `script/names` fails a ratification that lacks one, yet nothing said what zone any of them meant.
-The agents writing most of them run UTC; calef does not, so a ruling made in his evening was
-already being filed under the next day. **Write UTC.** Where a date is load-bearing and the hour
-is near midnight, put the time in the record too, because a reader cannot recover it later.
+The agents writing most of them run UTC; calef does not, so a ruling made in his evening was already
+being filed under the next day. **Write UTC.** Where a date is load-bearing and the hour is near
+midnight, put the time in the record too, because a reader cannot recover it later.
 
 ## Comments
 
-The kernel is commented far more heavily than production code would be, deliberately. A
-comment should explain a constraint the code can't show: *why* `sp` must be set before the
-first `bl`, *why* `.bss` needs zeroing by hand, *why* the baud divisors are ignored by QEMU
-but needed by a real Pi. Cross-reference the notes (`See notes/stack.md`) so the code and
-the glossary stay stitched together.
+The kernel is commented far more heavily than production code would be, deliberately. A comment
+should explain a constraint the code can't show: *why* `sp` must be set before the first `bl`, *why*
+`.bss` needs zeroing by hand, *why* the baud divisors are ignored by QEMU but needed by a real Pi.
+Cross-reference the notes (`See notes/stack.md`) so the code and the glossary stay stitched
+together.
 
 Do not write comments that restate the next line.
 
 ## Style
 
-calef's global preferences apply, and they matter here because the notes are prose he'll
-reread for months:
+calef's global preferences apply, and they matter here because the notes are prose he'll reread for
+months:
 
 - No em-dashes. Use commas, periods, semicolons, or parentheses.
-- No "delve", "comprehensive", "landscape", "moreover", "furthermore", "notably", "it's
-  worth noting", "straightforward".
+- No "delve", "comprehensive", "landscape", "moreover", "furthermore", "notably", "it's worth
+  noting", "straightforward".
 - No sycophantic openers, no filler conclusions that restate what was just said.
 - Plain, direct language. Vary sentence length. Write like a person.
 
 ## Never leave QEMU running
 
-A nife kernel that has finished its work calls `arch::halt()`, which is `loop { wfi }`.
-It never exits. So QEMU never exits either, unless something kills it or the kernel asks the
-host to terminate via semihosting (which only the test build does).
+A nife kernel that has finished its work calls `arch::halt()`, which is `loop { wfi }`. It never
+exits, so QEMU never exits either unless something kills it or the kernel asks the host to terminate
+via semihosting (which only the test build does). Two consequences:
 
-Two consequences:
+1. Every interactive or demo QEMU run must be bounded, with `scripts/qemu-bounded.sh <seconds>
+   <cmd...>`. `timeout(1)` does not exist on macOS, and `perl -e 'alarm N; exec @ARGV'` DOES NOT
+   WORK ON QEMU: QEMU installs its own `SIGALRM` handler and swallows the alarm, so the process runs
+   forever.
+2. `halt()` must use `wfi`, not `wfe`. QEMU implements `wfi` as a real vCPU halt and the host thread
+   sleeps; it merely spins on `wfe`, burning 99.7% of a host core. With `wfi` it is 0.0%.
 
-1. **Every interactive/demo QEMU run must be bounded** (see the note in Environment below).
-2. `halt()` must use **`wfi`, not `wfe`.** QEMU implements `wfi` as a real vCPU halt and the
-   host thread sleeps; it merely spins on `wfe`. A halted kernel using `wfe` burns **99.7% of
-   a host core**. With `wfi` it is 0.0%.
+After any session that ran QEMU, check `pgrep -l qemu` and clean up (`-l` rather than `-x
+qemu-system-aarch64`, because it matches both architectures). Three rules for that cleanup, and
+[`notes/qemu.md`](notes/qemu.md) has the four attempts it took to learn them:
+
+- Killing a harness does not kill its children, so a `pgrep` that reports nothing can still be
+  followed by a QEMU holding `target/nifefs.img`. Kill the tree at its root: walk `ps -o
+  pid,ppid,command` up to the harness and kill that.
+- The check runs in both directions. Before killing a "leaked" QEMU, walk `ps -o pid,ppid` UP from
+  it: a QEMU whose parent chain ends in a live harness is somebody's gate in flight, not a leak.
+- Ask who holds the file, not whether a process matches a name: `lsof target/nifefs.img` names the
+  holder even when your pattern does not.
 
 ## Environment
 
-- macOS on Apple Silicon (itself aarch64, which is a nice coincidence: kernel assembly is
-  the same ISA the laptop runs)
+- macOS on Apple Silicon (itself aarch64, which is a nice coincidence: kernel assembly is the same
+  ISA the laptop runs)
 - QEMU via Homebrew, `qemu-system-aarch64`
 - Rust nightly, pinned in `rust-toolchain.toml` (needed for `custom_test_frameworks`)
 - Target: `aarch64-unknown-none-softfloat`
-- `timeout(1)` does not exist on macOS, and **`perl -e 'alarm N; exec @ARGV'` DOES NOT WORK
-  ON QEMU.** QEMU installs its own `SIGALRM` handler and swallows the alarm, so the process
-  runs forever. This is not theoretical: it leaked eleven QEMU processes over one day of
-  development, burning a combined 729% CPU, the oldest with eight hours of CPU time on it.
-
-  Use `scripts/qemu-bounded.sh <seconds> <cmd...>` instead: SIGTERM, which QEMU honours, and since
-  milestone 226 a killer that fires on the bound, on the wrapper going away, and on its own TERM or
-  HUP. Still detached, so an early-exiting reader is bounded. `notes/qemu.md` has the rest.
-
-  **After any session that ran QEMU, check `pgrep -x qemu-system-aarch64` and clean up.**
-
-  **That check is not sufficient after you kill a harness, and on 2026-08-02 it took four attempts
-  to notice.** Killing a loop script does not kill its descendants: `pkill -f hunt-...` left
-  `cargo xtask test` running, which kept starting fresh QEMUs. So every check honestly reported "no
-  qemu" and the next command found one holding `target/nifefs.img`, which then failed unrelated
-  test runs with `Failed to get "write" lock` and looked like a bug in the code under test.
-
-  **And the check runs in both directions** (2026-08-15): before killing a "leaked" QEMU, walk
-  `ps -o pid,ppid` UP from it too. A QEMU whose parent chain ends in a live harness is somebody's
-  gate in flight, not a leak; the maintainer killed a lane's mid-suite emulator this way and the
-  lane's run failed for a reason no one could see from inside it.
-
-  Two habits fix it. **Ask who holds the file, not whether a process matches a name**:
-  `lsof target/nifefs.img` names the holder even when your pattern does not. And **kill the tree
-  at its root**: walk `ps -o pid,ppid,command` up to the harness and kill that, or the loop simply
-  starts another child. `pgrep -l qemu` is also worth preferring to `pgrep -x qemu-system-aarch64`,
-  because it matches both architectures and does not depend on getting the full name right.
