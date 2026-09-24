@@ -1,6 +1,12 @@
-# A mechanism owes evidence that it caught something a person would have missed
+# 584. A mechanism owes evidence that it caught something a person would have missed
 
-**Status: PROPOSED 2026-09-23.** Raised by calef the same day: *"I also want to have metrics on our
+**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+`does-this-layer-earn-its-keep`, filed 2026-09-23, on calef's instruction of 2026-09-24 to promote the proposals.
+The text below is the proposal's own, unedited except for this paragraph, the
+`## Index row` section, and the nine layer headings, which read `### 1. The watchers` and so
+looked like milestone headings to `script/roadmap --check`; they now read `### Layer 1: the
+watchers`: the argument is its author's and promotion is not the moment to
+improve it. As filed: raised by calef the same day: *"I also want to have metrics on our
 actions so that we can assess the effectiveness of our various layers. They need to demonstrate
 their value."* Written by a lane after four mechanisms were found on one day reporting success while
 checking nothing.
@@ -81,7 +87,7 @@ one question asked of them.
 Enumerated from the tree on 2026-09-23, not from memory. Nine layers, and the last four are where
 the honesty is.
 
-### 1. The watchers
+### Layer 1: the watchers
 
 `scripts/merge-drain.sh`, `scripts/trunk-health.sh`, `scripts/lane-claim-check.sh`,
 `scripts/at-risk-check.sh`, and `script/cadence-check`. Two run unattended under `launchd`; the rest
@@ -92,7 +98,7 @@ notice: a pull request enqueued that had been sitting, a stall notice posted, a 
 reported, a branch found with no claiming pull request, a worktree found holding uncommitted work, a
 scheduled workflow found to have stopped producing a result.
 
-### 2. The queue hold
+### Layer 2: the queue hold
 
 Pull request #1170 (`maintainer/when-main-goes-red`), unmerged as of this writing: hold the queue
 when `main` is red and land the fix alone.
@@ -102,7 +108,7 @@ been enqueued onto a broken trunk. The second half is what makes it a catch rath
 and it is countable at the moment the hold is placed because the eligible set is exactly what
 `merge-drain.sh` computes.
 
-### 3. The blocking gates
+### Layer 3: the blocking gates
 
 `script/lint` carries roughly fifty named checks. `ci.yml` and its siblings put nineteen check names
 on a pull request, of which eleven block, per
@@ -112,7 +118,7 @@ on a pull request, of which eleven block, per
 it merged. Red-then-fixed is the catch; red-then-abandoned is a different and also interesting
 event; red-then-merged-anyway does not happen here because the required set blocks.
 
-### 4. The scheduled cadences
+### Layer 4: the scheduled cadences
 
 `falsifications.yml`, `mutation.yml`, `audit-cadence.yml`, `undefined-behavior-check.yml`,
 `toolchain-drift.yml`, `vendor-watch.yml`, `stranger-cadence.yml`, `metrics.yml`, `verify.yml`.
@@ -123,7 +129,7 @@ is whether a cadence is still producing a result at all, and its own header reco
 `mutation testing` had failed four times out of four over four weeks with nothing turning red about
 it.
 
-### 5. The proof and falsification machinery
+### Layer 5: the proof and falsification machinery
 
 145-plus Kani harnesses, §134's per-harness falsification records, `script/verify`,
 `script/mutation`.
@@ -133,7 +139,7 @@ own replay patch. §134's records establish that each harness *can* fail; they s
 whether any of them has ever *caught* anything, and that is the gap this layer has to close about
 itself.
 
-### 6. The ledgers that already measure a layer
+### Layer 6: the ledgers that already measure a layer
 
 `script/rule-violations` totals strikes against each documented rule and flags the ones past three.
 `script/redo-rate` measures how often delegated work has to be done again. Both are hand-fed, and
@@ -145,7 +151,7 @@ happen*.
 for. Their design is the model to copy: a ledger a person appends to, honest that its numerator is
 what somebody reported.
 
-### 7. The briefs
+### Layer 7: the briefs
 
 `briefs/gate-in-ci.md`, `merge-and-cleanup.md`, `rebase-onto-main.md`, `session-start.md`,
 `survey-the-queue.md`, `triage-a-failing-check.md`.
@@ -153,7 +159,7 @@ what somebody reported.
 **What would count as a catch.** A lane that did not go wrong. That is the honest answer and it is
 also the reason this layer has no measure; see below.
 
-### 8. The role structure
+### Layer 8: the role structure
 
 Maintainer, developer, steward. §90 (the claim is a draft pull request), and its draft-as-claim
 rule. The lane-count rule against the collision surface. The ladder in `AGENTS.md`.
@@ -161,7 +167,7 @@ rule. The lane-count rule against the collision surface. The ladder in `AGENTS.m
 **What would count as a catch.** A collision that did not happen, a milestone two lanes did not both
 take, a piece of work that did not fall through a crack.
 
-### 9. The records layer
+### Layer 9: the records layer
 
 `design/decisions/`, the roadmap, the name provenance blocks, `BUGS` sections,
 `design/roadmap/proposals/`, which exists because of
@@ -388,3 +394,7 @@ construction, because a defect that cannot be typed produces a zero that means t
 blindness. And a low-frequency, high-consequence mechanism such as `at-risk-check.sh` is not judged
 on count. Both are statements about what a count can mean, so neither waits on the deferred
 question.
+
+## Index row
+
+Instruments the mechanisms this tree relies on (watchers, gates, cadences, proofs) to emit events rather than snapshots, so each can show it has caught something a person would have missed. Prompted by four mechanisms found on 2026-09-23 reporting success while checking nothing, it is the third step after §134's falsification records and the gate-must-have-failed rule; the first increment is the watchers alone, counted onto the metrics page, and whether a zero-catch count justifies removing a mechanism is deferred by calef until the data exists.
