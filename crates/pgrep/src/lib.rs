@@ -294,7 +294,7 @@ pub struct Selection<'a> {
     /// [`ps::Survey::complaint`], carried rather than re-derived so the two programs describe a
     /// refusal in the same words.
     complaint: Option<&'static str>,
-    /// [`ps::Survey::complete`]: whether the listing underneath is the whole domain. False means
+    /// [`ps::Survey::is_complete`]: whether the listing underneath is the whole domain. False means
     /// nothing is printed, because a filter over a partial listing is a partial answer wearing a
     /// complete one's clothes.
     complete: bool,
@@ -310,7 +310,7 @@ pub fn select<'s>(survey: &'s ps::Survey<'_>, selector: Selector) -> Selection<'
         selector,
         matched: rows.iter().filter(|r| selector.selects(r.state)).count(),
         complaint: survey.complaint(),
-        complete: survey.complete(),
+        complete: survey.is_complete(),
     }
 }
 

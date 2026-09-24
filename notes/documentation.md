@@ -99,11 +99,11 @@ first and the filter second, which is the order that entry existed to enforce.
 
 **And the corpus test still cannot guard it**, which was measured rather than assumed. Reverting the
 fix leaves this very page ruined from the block above onward, and `every_character_survives` passes:
-verbatim output loses no characters, and `Renderer::unclosed_fence` (added here, and the strongest
-thing the corpus check can assert) misses it too, because a bare closing fence three sections later
-matches the stuck one and lets the renderer out. A unit test is the guard. The lesson generalises
-past this bug: **a subsequence check proves nothing was dropped and nothing about what was ruined**,
-so a renderer wants both kinds of test and this one had only the first.
+verbatim output loses no characters, and `Renderer::has_unclosed_fence` (added here, and the
+strongest thing the corpus check can assert) misses it too, because a bare closing fence three
+sections later matches the stuck one and lets the renderer out. A unit test is the guard. The lesson
+generalises past this bug: **a subsequence check proves nothing was dropped and nothing about what
+was ruined**, so a renderer wants both kinds of test and this one had only the first.
 
 ## Installed
 
@@ -497,12 +497,12 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
 - **The index is 1.18x the markdown it indexes**, per the table above, and it was 1.56x when
   phase 1 measured it. The floor is what moves it: page alignment costs every bundle 16 KiB
   however small, so the ratio improves as the bundles grow rather than because anything got better.
-- **A source line longer than `documentation::LINE_MAX` (2048) loses its tail.** The longest line in this
-  repository is 1925 bytes <!--count:longest-markdown-line-->, so the corpus fits; a document from
-  elsewhere may not, and `Renderer::truncated` reports it while `doc` does not print it. The number
-  carries a marker because it drifted: these three places said 1835 for as long as the two gated
-  ones said 1841, which is the margin this milestone is measured against going stale in the prose
-  that explains it.
+- **A source line longer than `documentation::LINE_MAX` (2048) loses its tail.** The longest line in
+  this repository is 1925 bytes <!--count:longest-markdown-line-->, so the corpus fits; a document
+  from elsewhere may not, and `Renderer::is_truncated` reports it while `doc` does not print it. The
+  number carries a marker because it drifted: these three places said 1835 for as long as the two
+  gated ones said 1841, which is the margin this milestone is measured against going stale in the
+  prose that explains it.
 - **Table cells are truncated to their column width**, so a wide table on an 80-column terminal
   loses text. This is a formatting choice, not a parsing failure, and the corpus test runs at 4000
   columns to keep the two apart. A table too large for the renderer's buffers spills into a second

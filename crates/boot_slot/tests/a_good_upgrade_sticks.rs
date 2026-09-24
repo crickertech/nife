@@ -74,9 +74,9 @@ fn a_confirmation_is_idempotent_down_to_the_attribute_word() {
 /// guess.
 #[test]
 fn confirming_an_empty_slot_would_make_it_bootable_which_is_why_the_number_is_carried() {
-    assert!(!State::EMPTY.bootable());
+    assert!(!State::EMPTY.is_bootable());
     assert!(
-        !State::EMPTY.confirmed().bootable(),
+        !State::EMPTY.confirmed().is_bootable(),
         "priority zero still wins, so an empty slot survives a stray confirmation"
     );
 }

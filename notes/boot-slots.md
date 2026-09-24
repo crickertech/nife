@@ -169,8 +169,8 @@ it, or a perfectly good upgrade rolls back once its tries are spent.
 
 **The chooser tells the booted system which slot it is**, as a word on the kernel's command line
 (`boot_slot::cmdline`), and it has to be told rather than work it out: the try is spent *before* the
-handoff, so a slot started on its last try is no longer `bootable` and `select` now names the other
-one. The one boot a confirmation exists for is the one the inference gets backwards.
+handoff, so a slot started on its last try is no longer `is_bootable` and `select` now names the
+other one. The one boot a confirmation exists for is the one the inference gets backwards.
 
 **The criterion is the filesystem server mounting the installed disk and reporting ready**, with the
 progenitor built and measured and about to run. That is everything between power-on and the last

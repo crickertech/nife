@@ -60,7 +60,7 @@ fn qemu_virt_describes_the_four_cores_the_runner_starts() {
 
     assert_eq!(list.described, 4, "the runner passes -smp 4");
     assert_eq!(list.len, 4);
-    assert!(!list.truncated());
+    assert!(!list.is_truncated());
     assert_eq!(list.address_cells, 1, "QEMU virt numbers cores in one cell");
     assert_eq!(
         list.cpus().iter().map(|c| c.hwid).collect::<Vec<_>>(),
@@ -199,7 +199,7 @@ fn the_described_count_is_the_machines_and_the_length_is_ours() {
 
     assert_eq!(list.described, 7);
     assert_eq!(list.len, 7);
-    assert!(!list.truncated());
+    assert!(!list.is_truncated());
     assert!(
         list.described <= MAX_CPU_NODES,
         "widen the array if this trips"
@@ -239,15 +239,18 @@ fn both_architectures_answer_the_same_call() {
 ///
 /// The test above states the same property on a fixture that does not overflow, which proves the
 /// two numbers agree and nothing about what happens when they cannot. This is the other half, and
-/// it is the only place `truncated` is ever true: a predicate that answered `false` for every tree
-/// in the suite is a predicate no caller could rely on.
+/// it is the only place `is_truncated` is ever true: a predicate that answered `false` for every
+/// tree in the suite is a predicate no caller could rely on.
 #[test]
 fn a_machine_with_more_cores_than_fit_says_so() {
     let list = cpus(MANY_HARTS);
 
     assert_eq!(list.described, 18, "the tree describes eighteen");
     assert_eq!(list.len, MAX_CPU_NODES, "the record holds sixteen");
-    assert!(list.truncated(), "and a caller has to be able to see that");
+    assert!(
+        list.is_truncated(),
+        "and a caller has to be able to see that"
+    );
     assert_eq!(
         list.cpus().last().map(|c| c.hwid),
         Some(0xf),

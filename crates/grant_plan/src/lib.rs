@@ -1337,7 +1337,7 @@ impl<'a> RunSpec<'a> {
     /// one name where `rm *.txt` hands over a set.
     ///
     /// `false` for an index past the end, because a word that is not there was not quoted.
-    pub fn quoted(&self, i: usize) -> bool {
+    pub fn is_quoted(&self, i: usize) -> bool {
         i < self.npos && self.posq[i]
     }
 }
@@ -1599,7 +1599,7 @@ impl Holdings {
     /// shell with nothing bound resolves byte for byte as it did before this milestone.
     pub fn resolve(&self, token: &[u8]) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
         let p = nav::path(token)?;
-        if !p.from_root() {
+        if !p.is_from_root() {
             return match &self.second {
                 None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
                 Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
@@ -1926,11 +1926,11 @@ pub fn tokenize<'a, 'b>(line: &'a [u8], out: &'b mut [&'a [u8]]) -> &'b [&'a [u8
     while i < line.len() && n < out.len() {
         // A whitespace byte can never open or close a quote, so the cursor's state cannot change
         // while it is being skipped and this loop does not have to step it.
-        while i < line.len() && !c.open() && line[i].is_ascii_whitespace() {
+        while i < line.len() && !c.is_open() && line[i].is_ascii_whitespace() {
             i += 1;
         }
         let start = i;
-        while i < line.len() && !(!c.open() && line[i].is_ascii_whitespace()) {
+        while i < line.len() && !(!c.is_open() && line[i].is_ascii_whitespace()) {
             c.step(line[i]);
             i += 1;
         }
@@ -2594,7 +2594,7 @@ fn designate(
     // which is the one thing the steps cannot say for themselves. Everything downstream already
     // re-walks a recorded position from the root (`swish::open_at`), so rooting it here is the
     // whole of what the syntax needed.
-    let mut dir = if parsed.from_root() {
+    let mut dir = if parsed.is_from_root() {
         nav::Cwd::root()
     } else {
         cwd
@@ -2625,7 +2625,7 @@ fn designate(
 /// Every navigation refusal now reads as a fact about the token's shape, which it did not before
 /// 2026-08-18: `nav::Refused::Absolute` had its own line here because "there is no namespace to
 /// root a path in" was a statement about the model rather than about the token. A leading `/` roots
-/// in the holder's own namespace now (`nav::Path::from_root`), so the case is gone rather than
+/// in the holder's own namespace now (`nav::Path::is_from_root`), so the case is gone rather than
 /// re-worded.
 pub(crate) fn nav_refusal(_r: nav::Refused) -> Refusal {
     Refusal::FileNotNameable
@@ -2797,7 +2797,7 @@ impl Escalation {
     }
 
     /// Whether the policy has reached a forcible teardown (the shell stops watching after this).
-    pub fn spent(&self) -> bool {
+    pub fn is_spent(&self) -> bool {
         self.done
     }
 }
@@ -2872,10 +2872,10 @@ mod tests {
         let r = parse_run(b"wc \"my notes.txt\"");
         assert_eq!(r.prog, b"wc");
         assert_eq!(r.positionals(), [&b"my notes.txt"[..]]);
-        assert!(r.quoted(0), "the flag is what stops it being expanded");
+        assert!(r.is_quoted(0), "the flag is what stops it being expanded");
         assert_eq!(r.misquoted, None);
         // A bare operand is unchanged, so nothing about an ordinary line moved.
-        assert!(!parse_run(b"wc notes.txt").quoted(0));
+        assert!(!parse_run(b"wc notes.txt").is_quoted(0));
     }
 
     /// **A quoted token is never an option**, which is the sharpest edge quoting has here: `-r` is
@@ -5024,9 +5024,9 @@ mod tests {
     fn first_interrupt_is_cooperative_second_is_forcible() {
         let mut e = Escalation::new();
         assert_eq!(e.on_interrupt(), Action::Cooperative);
-        assert!(!e.spent());
+        assert!(!e.is_spent());
         assert_eq!(e.on_interrupt(), Action::Forcible);
-        assert!(e.spent());
+        assert!(e.is_spent());
         // Spent: further events do nothing.
         assert_eq!(e.on_interrupt(), Action::None);
         assert_eq!(e.on_tick(), Action::None);
@@ -5044,7 +5044,7 @@ mod tests {
         }
         // The last tick of the window escalates.
         assert_eq!(e.on_tick(), Action::Forcible);
-        assert!(e.spent());
+        assert!(e.is_spent());
     }
 
     #[test]
@@ -5054,7 +5054,7 @@ mod tests {
         for _ in 0..COOP_GRACE_TICKS * 2 {
             assert_eq!(e.on_tick(), Action::None);
         }
-        assert!(!e.spent());
+        assert!(!e.is_spent());
         // And a first ^C after a long quiet run is still cooperative.
         assert_eq!(e.on_interrupt(), Action::Cooperative);
     }

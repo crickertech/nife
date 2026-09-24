@@ -17,8 +17,8 @@
 //! | 3 | the machine picks slot 1 again, on a slot with no tries left |
 //!
 //! Boot 3 is the whole assertion. Slot 1 reaches it with `tries = 0`, which is a state
-//! `boot_slot::State::bootable` refuses unless the successful bit is set, so a machine that chooses
-//! it has read a bit that something on boot 2 wrote. Nothing about that can be faked by a
+//! `boot_slot::State::is_bootable` refuses unless the successful bit is set, so a machine that
+//! chooses it has read a bit that something on boot 2 wrote. Nothing about that can be faked by a
 //! transcript: the two boots are separate QEMU processes and the only thing between them is the
 //! disk.
 //!

@@ -320,13 +320,13 @@ pub fn split(line: &[u8]) -> Result<Line<'_>, Refusal> {
         let start = i;
         let mut c = word::Cursor::new();
         while i < line.len() {
-            if !c.open() && (is_op(line[i]) || is_diag_op(line, i, start)) {
+            if !c.is_open() && (is_op(line[i]) || is_diag_op(line, i, start)) {
                 break;
             }
             c.step(line[i]);
             i += 1;
         }
-        if c.open() {
+        if c.is_open() {
             return Err(Refusal::UnclosedQuote);
         }
         stages[n] = crate::trim(&line[start..i]);

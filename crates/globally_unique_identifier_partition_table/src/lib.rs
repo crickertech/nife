@@ -181,7 +181,7 @@ pub const ENTRY_ARRAY_BYTES: usize = DEFAULT_ENTRY_COUNT as usize * entry::SIZE;
 /// Block size is never a parameter in this crate's API. A caller passes the block it read, and the
 /// slice's own length is the block size, which removes a whole class of "we told it 512 and handed
 /// it 4096" bug.
-pub const fn block_size_ok(len: usize) -> bool {
+pub const fn is_block_size_ok(len: usize) -> bool {
     len >= MIN_BLOCK_SIZE && len <= MAX_BLOCK_SIZE && len.is_power_of_two()
 }
 
@@ -191,7 +191,7 @@ pub const fn block_size_ok(len: usize) -> bool {
 /// GPT" is useless to somebody holding the only copy of their data.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Error {
-    /// A buffer offered as one logical block is not a legal block size. See [`block_size_ok`].
+    /// A buffer offered as one logical block is not a legal block size. See [`is_block_size_ok`].
     BlockSize(usize),
     /// The eight bytes at offset 0 are not `EFI PART`. Usually means "this disk has no GPT",
     /// which is a normal answer rather than a corruption.
@@ -405,7 +405,7 @@ impl<'a> GloballyUniqueIdentifierPartitionTable<'a> {
         partitions: &[Entry],
         entry_array: &'a mut [u8],
     ) -> Result<GloballyUniqueIdentifierPartitionTable<'a>, Error> {
-        if !block_size_ok(block_size) {
+        if !is_block_size_ok(block_size) {
             return Err(Error::BlockSize(block_size));
         }
         if entry_array.len() < entry::SIZE || !entry_array.len().is_multiple_of(entry::SIZE) {
@@ -716,7 +716,7 @@ fn check_partitions(entries: &[u8], entry_size: usize, header: &Header) -> Resul
 /// the CHS fields, which are vestigial: `sgdisk` writes the real cylinder/head/sector of the last
 /// block, macOS writes `FE FF FF`, and both are correct because nothing reads them.
 pub mod mbr {
-    use crate::{Error, MbrProblem, block_size_ok};
+    use crate::{Error, MbrProblem, is_block_size_ok};
 
     /// The OS type byte that makes a record protective. Not a filesystem, a keep-out sign.
     pub const PROTECTIVE_OS_TYPE: u8 = 0xEE;
@@ -738,7 +738,7 @@ pub mod mbr {
     /// hold the truth and the convention is `0xFFFFFFFF`. That is the one place this format admits
     /// it is a fiction.
     pub fn write(block: &mut [u8], block_count: u64) -> Result<(), Error> {
-        if !block_size_ok(block.len()) {
+        if !is_block_size_ok(block.len()) {
             return Err(Error::BlockSize(block.len()));
         }
         block.fill(0);
@@ -763,7 +763,7 @@ pub mod mbr {
     /// descriptions of one disk, maintained by two different tools, silently diverging. Refusing it
     /// is a decision rather than an omission, and the error names it so the message can say so.
     pub fn validate(block: &[u8], block_count: u64) -> Result<(), Error> {
-        if !block_size_ok(block.len()) {
+        if !is_block_size_ok(block.len()) {
             return Err(Error::BlockSize(block.len()));
         }
         if block[SIGNATURE] != 0x55 || block[SIGNATURE + 1] != 0xAA {

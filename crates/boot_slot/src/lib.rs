@@ -73,7 +73,7 @@
 //! # The policy
 //!
 //! A slot is bootable when its priority is above zero **and** it has either been confirmed or has
-//! tries left ([`State::bootable`]). [`select`] returns the bootable slot of highest priority,
+//! tries left ([`State::is_bootable`]). [`select`] returns the bootable slot of highest priority,
 //! breaking a tie toward the lower index so that two slots written with the same priority still
 //! produce the same boot twice running.
 //!
@@ -240,7 +240,7 @@ impl State {
 
     /// **Can this slot be chosen?** Priority above zero, and either confirmed or with tries left.
     /// The same two clauses ChromeOS's firmware checks, in the same order.
-    pub const fn bootable(&self) -> bool {
+    pub const fn is_bootable(&self) -> bool {
         self.priority > 0 && (self.successful || self.tries > 0)
     }
 
@@ -345,7 +345,7 @@ pub fn select_excluding(slots: &[State], tried: u64) -> Option<usize> {
     slots
         .iter()
         .enumerate()
-        .filter(|(i, s)| s.bootable() && (*i >= 64 || tried & (1 << i) == 0))
+        .filter(|(i, s)| s.is_bootable() && (*i >= 64 || tried & (1 << i) == 0))
         .max_by_key(|(i, s)| (s.priority, core::cmp::Reverse(*i)))
         .map(|(i, _)| i)
 }
@@ -458,9 +458,10 @@ impl SlotHeader {
 ///
 /// A running system cannot work out which slot started it. The obvious inference, *"it is whatever
 /// [`select`] would pick now"*, is wrong in exactly the case that matters: the chooser spends a try
-/// before handing off, so a slot that was started with its last try is no longer [`State::bootable`]
-/// and [`select`] now names the other one. The one boot a confirmation exists for is the one the
-/// inference gets backwards, so the number has to be carried rather than recomputed.
+/// before handing off, so a slot that was started with its last try is no longer
+/// [`State::is_bootable`] and [`select`] now names the other one. The one boot a confirmation
+/// exists for is the one the inference gets backwards, so the number has to be carried rather than
+/// recomputed.
 ///
 /// # Why it is a word on the command line
 ///

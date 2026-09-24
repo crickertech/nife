@@ -92,7 +92,7 @@ const TEST_ROWS: usize = 8;
 fn walk(slot: u64, rows: &mut [pmap::Row; TEST_ROWS]) -> pmap::Listing<'_> {
     let l = pmap::collect(rows, &mut |cursor| list(slot, cursor));
     assert!(
-        l.complete() || l.refused(),
+        l.is_complete() || l.is_refused(),
         "the listing outgrew this test's row buffer, so what it reported is not the space",
     );
     l
@@ -131,7 +131,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
 
     let mut rows = [pmap::Row::default(); TEST_ROWS];
     let l = walk(viewer, &mut rows);
-    assert!(!l.refused());
+    assert!(!l.is_refused());
     assert_eq!(l.rows().len(), 3, "{:?}", l.rows());
     assert!(
         l.rows().contains(&pmap::Row {
@@ -201,7 +201,7 @@ fn an_empty_space_is_a_real_answer_not_a_refusal() {
 
     let mut rows = [pmap::Row::default(); TEST_ROWS];
     let l = walk(viewer, &mut rows);
-    assert!(!l.refused());
+    assert!(!l.is_refused());
     assert!(l.rows().is_empty());
     assert_eq!(l.complaint(), Some("this address space has nothing mapped"));
 

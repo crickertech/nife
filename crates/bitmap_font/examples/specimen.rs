@@ -86,7 +86,7 @@ impl Font {
         }
     }
 
-    fn ink(&self, byte: u8, x: usize, y: usize) -> bool {
+    fn is_ink(&self, byte: u8, x: usize, y: usize) -> bool {
         if x >= self.advance || y >= self.height {
             return false;
         }
@@ -454,8 +454,8 @@ fn half_blocks(font: &Font, text: &str) -> String {
     for band in (0..font.height).step_by(2) {
         for byte in text.bytes() {
             for x in 0..font.advance {
-                let top = font.ink(byte, x, band);
-                let bottom = font.ink(byte, x, band + 1);
+                let top = font.is_ink(byte, x, band);
+                let bottom = font.is_ink(byte, x, band + 1);
                 out.push(match (top, bottom) {
                     (true, true) => '\u{2588}',
                     (true, false) => '\u{2580}',
@@ -480,7 +480,7 @@ fn dots(font: &Font, text: &str) -> String {
     for y in 0..font.height {
         for byte in text.bytes() {
             for x in 0..font.advance {
-                out.push(if font.ink(byte, x, y) { '#' } else { '.' });
+                out.push(if font.is_ink(byte, x, y) { '#' } else { '.' });
             }
             out.push(' ');
         }
@@ -512,7 +512,7 @@ fn metrics(font: &Font) -> String {
         let mut ink = 0;
         for y in 0..font.height {
             for x in 0..font.advance {
-                if font.ink(byte, x, y) {
+                if font.is_ink(byte, x, y) {
                     ink += 1;
                     min_x = min_x.min(x);
                     max_x = max_x.max(x);

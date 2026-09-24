@@ -105,7 +105,7 @@
 /// count: a space's own budget (its backing region) is the only limit, and that is a runtime
 /// quantity, not a compile-time one. `MAX_ROWS` is sized generously (256) rather than exactly, and
 /// truncation is a real, reachable, and reported case here in a way it is not for `ps`. See `BUGS`
-/// and [`Listing::complete`].
+/// and [`Listing::is_complete`].
 pub const MAX_ROWS: usize = 256;
 
 /// One line of the listing: a mapped page and how it may be used.
@@ -180,14 +180,14 @@ impl Listing<'_> {
         self.rows
     }
 
-    /// Was this a refusal? Same meaning as `ps::Survey::refused`.
-    pub fn refused(&self) -> bool {
+    /// Was this a refusal? Same meaning as `ps::Survey::is_refused`.
+    pub fn is_refused(&self) -> bool {
         self.refused.is_some() || self.stalled
     }
 
-    /// Is this listing the whole space? Same meaning as `ps::Survey::complete`.
-    pub fn complete(&self) -> bool {
-        !self.refused() && !self.truncated
+    /// Is this listing the whole space? Same meaning as `ps::Survey::is_complete`.
+    pub fn is_complete(&self) -> bool {
+        !self.is_refused() && !self.truncated
     }
 
     /// What there is to complain about, or `None` when the walk succeeded and found mappings.
@@ -222,7 +222,7 @@ impl Listing<'_> {
 
     /// The table itself, on the output stream. Nothing at all on a refusal.
     pub fn write_report(&self, out: &mut dyn FnMut(&[u8])) {
-        if !self.complete() || self.rows.is_empty() {
+        if !self.is_complete() || self.rows.is_empty() {
             return;
         }
         out(b"              VA  PERM\n");
@@ -315,7 +315,7 @@ mod tests {
                 (0x0060_0000, abi::address_space::MAP_RO),
             ]),
         );
-        assert!(!l.refused());
+        assert!(!l.is_refused());
         assert_eq!(l.rows().len(), 3);
         assert_eq!(
             l.rows()[2],
@@ -337,8 +337,8 @@ mod tests {
             (abi::Error::NotPermitted as i64, 0, 0)
         });
 
-        assert!(!empty.refused(), "an empty space is not a refusal");
-        assert!(refused.refused());
+        assert!(!empty.is_refused(), "an empty space is not a refusal");
+        assert!(refused.is_refused());
 
         let empty_diag = shown(|o| empty.write_diagnostics(o));
         let refused_diag = shown(|o| refused.write_diagnostics(o));
@@ -357,7 +357,7 @@ mod tests {
             0 => (1, 0x0040_0000, abi::address_space::MAP_CODE),
             _ => (abi::Error::Gone as i64, 0, 0),
         });
-        assert!(l.refused());
+        assert!(l.is_refused());
         assert_eq!(l.rows().len(), 1);
         assert_eq!(shown(|o| l.write_report(o)), "");
         assert!(shown(|o| l.write_diagnostics(o)).contains("destroyed"));
@@ -369,7 +369,7 @@ mod tests {
         let l = collect(&mut rows, &mut |_| {
             (1, 0x0040_0000, abi::address_space::MAP_RO)
         });
-        assert!(l.refused());
+        assert!(l.is_refused());
         assert!(shown(|o| l.write_diagnostics(o)).contains("did not advance"));
     }
 
@@ -384,8 +384,8 @@ mod tests {
             )
         });
         assert_eq!(l.rows().len(), 2);
-        assert!(!l.complete());
-        assert!(!l.refused(), "running out of room is not a refusal");
+        assert!(!l.is_complete());
+        assert!(!l.is_refused(), "running out of room is not a refusal");
         assert!(shown(|o| l.write_diagnostics(o)).contains("more mapped"));
         assert_eq!(shown(|o| l.write_report(o)), "");
     }
