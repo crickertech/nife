@@ -91,9 +91,10 @@ fi
 # this script installs everything and the answer was no. `script/lint` runs six embedded Python
 # programs and about thirty files in script/ and scripts/ call python3, as does the Claude Code Stop
 # hook in .claude/settings.json; a machine without it fails the first gate with a bare "not found".
-# `gh` is how a lane claims work (script/claim opens the draft pull request that IS the claim, §90)
-# and how the watchers read the queue. macOS ships a python3 stub that prompts for the Command Line
-# Tools, which works but is not a check, so Homebrew's is installed when none answers.
+# `gh` is how a lane claims work (script/claim opens the draft pull request that IS the claim, per
+# §90 (the claim is a draft pull request)) and how the watchers read the queue. macOS ships a
+# python3 stub that prompts for the Command Line Tools, which works but is not a check, so
+# Homebrew's is installed when none answers.
 # The pinned cargo subcommands (cargo-mutants, cargo-fuzz, cargo-deny, cargo-llvm-cov, Kani) are
 # deliberately not here: each script that needs one installs its own pinned version on first use.
 for tool in python3 gh; do
