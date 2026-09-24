@@ -324,6 +324,9 @@ threads landed.
 Five is the floor because it is what 2026-09-16 used and the two evenings should be comparable in
 design. Nothing can power-cycle radon remotely (milestone 224); this is a person at the bench.
 
+One boot is never enough. A jobs-per-minute figure from a single boot is a draw rather than a
+result, because on radon placement alone moves throughput by up to fifteenfold (`notes/soak.md`).
+
 ### 5. Clean each log before committing it
 
 ```sh

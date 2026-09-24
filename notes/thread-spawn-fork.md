@@ -5,6 +5,10 @@
 rank 3, for where this was first named. This note is the six-questions write-up; the decision
 itself is calef's, requested on pull request #394.)*
 
+calef decided it on 2026-08-22: option C, decline, until a customer needs a thread (DECISIONS §105
+(`std::thread::spawn` stays declined, until a customer needs it)). The note below is the argument
+that decision was made against, kept as written.
+
 ## The question in one sentence
 
 `std::thread::spawn` needs N schedulable things that see **one shared, live, growable heap**.

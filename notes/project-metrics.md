@@ -131,8 +131,8 @@ written next to the feature it limits, so a falling line is the alarming one.
 ![Coverage](project-metrics/coverage.svg)
 
 Line coverage, each week measured by its own tree's `script/coverage` on its own pinned nightly, so
-this is the one series on the page that is not a restatement. 2026W29 is empty because no instrument
-existed yet; the dashed line is the per-file floor `script/coverage` gates on, drawn for scale.
+this is the one series on the page that is not a restatement. Weeks 2026W30 to 2026W38 were
+backfilled that way on 2026-09-19. 2026W29 is empty because no instrument existed yet; the dashed line is the per-file floor `script/coverage` gates on, drawn for scale.
 
 ## The lowest-covered file
 
