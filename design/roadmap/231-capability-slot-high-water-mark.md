@@ -1,7 +1,7 @@
 # 231. Nothing counts how many capability slots a boot actually uses, so the wall is always a surprise
 
 **Status: BUILT 2026-09-02.** Minted the same day by calef, from milestone 230's
-(`script/swish-check` is red on `main`, on both architectures, and nothing says so) own `BUGS`.
+(`script/shell-check` is red on `main`, on both architectures, and nothing says so) own `BUGS`.
 *(Number provisional until the merge queue lands it.)*
 
 It was minted with no gate and needed none. What it produces is itself a check: every boot now prints

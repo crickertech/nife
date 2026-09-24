@@ -51,7 +51,7 @@ screen were black.
 
 - The boot tour, on all three machines.
 - The console server and the shell (DECISIONS §21's line discipline).
-- Kernel fault reports, which milestone 230 (`script/swish-check` is red on `main`, on both
+- Kernel fault reports, which milestone 230 (`script/shell-check` is red on `main`, on both
   architectures, and nothing says so) found interleaving with the console server's own output because
   two address spaces drive the one device.
 - **And every automated gate**: `script/board-console` (milestone 216), the soak's heartbeat, and

@@ -54,7 +54,7 @@ two of them are the same defect:
 - **Milestone 222** (the one command a person runs before pushing has a leg that fails instead of
   skipping) found `script/test --hvf` failing rather than skipping, telling a contributor something
   was broken without saying whether it was theirs.
-- **Milestone 230** (`script/swish-check` is red on `main`, on both architectures, and nothing says
+- **Milestone 230** (`script/shell-check` is red on `main`, on both architectures, and nothing says
   so) found a check red for five days that **ran in neither `script/test` nor CI**. Its cause was a
   constant restored on two true observations by a lane that was right about everything it checked and
   shipped a system that could not boot, because **no suite in `script/test` boots the real init**.

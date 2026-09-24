@@ -41,7 +41,7 @@ buffer serves worst, is the constraint that probably decides it.
 
 ## Where it came from
 
-Milestone 230 (`script/swish-check` is red on `main`) named it while fixing something else: *"Decide
+Milestone 230 (`script/shell-check` is red on `main`) named it while fixing something else: *"Decide
 where the kernel's own output goes once userspace owns the console. Today the kernel and the
 `console` server drive the same UART from two address spaces with nothing arbitrating, so the
 streams interleave at byte granularity. It corrupts every bench session on argon, radon and xenon,

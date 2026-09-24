@@ -8,7 +8,7 @@ settings. Every number below was taken by running the thing or by reading the AP
 tree's verification reporting something that was not true, and no two were the same defect:
 milestone 214 (a test that prints "skipping" and returns is counted as passed), milestone 222 (the
 one command a person runs before pushing has a leg that fails instead of skipping), milestone 230
-(`script/swish-check` is red on `main`, on both architectures, and nothing says so), and milestone
+(`script/shell-check` is red on `main`, on both architectures, and nothing says so), and milestone
 233 (`login` dies on every boot, and the boot says it is ready). A test that lies, a gate that fails
 instead of skipping, a check nothing runs, and a check that passes while what it names is dead.
 `script/lint` has had three checks deleted for the "only ever rejects legitimate work" signature, so

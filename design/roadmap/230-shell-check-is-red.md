@@ -266,12 +266,13 @@ accounting move together and want a lane of their own.
   which is one address per program however many callers it has. The return address is in `x30`, `ra`
   or on the stack at the moment the kernel takes the fault and is not printed. The workaround that
   worked here is to fault on a *data* address derived from it, since `far` is printed.
-- **Recorded.** `script/shell-check`'s own BUGS says where the error moved: a boot that both stopped
+- **Recorded.** `script/swish-check`'s own BUGS (the script this block calls `shell-check`
+  throughout) says where the error moved: a boot that both stopped
   reporting and faulted passes, because `boot_claim`'s third case reads a concurrent kernel write as
   the explanation for an unreadable line and cannot tell that from init having gone silent in the
   same boot. The trade is deliberate, since a false red taxes every lane whose change had nothing to
   do with it and a false green is undone by repetition.
-- **Recorded.** `script/shell-check` also carries the residual in that third case: "was the kernel
+- **Recorded.** `script/swish-check` also carries the residual in that third case: "was the kernel
   writing during the boot" is six exact searches for short kernel strings, and a boot that destroyed
   all six would give the false red this design otherwise rules out structurally. Six independent
   chances is a better bet than one, not a proof.

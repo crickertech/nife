@@ -844,7 +844,7 @@ Milestone 239 taught `crates/jh7110_entropy`'s `discover` both spellings and mad
 on the board**; the two commands that settle it are in that milestone's block.
 
 **And it explains a second number in the same boot.** The tour reported `capability slots: 4 of 24 at
-peak` where QEMU reports 21. That is not a different measurement: milestone 230 (`script/swish-check`
+peak` where QEMU reports 21. That is not a different measurement: milestone 230 (`script/shell-check`
 is red on `main`, on both architectures, and nothing says so) established that init builds the login
 stack only when it has an entropy client. No TRNG node, no entropy, no login stack, a much smaller
 peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real board's**, and the

@@ -1,7 +1,7 @@
 # 233. `login` dies on every boot, and the boot says it is ready
 
 **Status: BUILT 2026-09-02.** Minted the same day by the maintainer, from milestone 230's
-(`script/swish-check` is red on `main`, on both architectures, and nothing says so) lane, which found
+(`script/shell-check` is red on `main`, on both architectures, and nothing says so) lane, which found
 it the moment that check could see straight. *(Number provisional until the merge queue lands it.)*
 
 It was minted with no gate, on the grounds that the cause was measured and the fix understood, and
