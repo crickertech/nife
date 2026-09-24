@@ -175,7 +175,7 @@ precondition above is met. `tss_iomap_switch` (`kernel/src/bench.rs`) is `yield_
 8192-byte write (`65536` ports `/ 8`, the exact size, not the round "8 KiB" this file used loosely),
 into a CPU-owned static, never wired to the live TSS's `iomap_base`. It measures the write option 1
 would add, not the enforcement. Full methodology and five-run medians for both a debug and a release
-kernel: `notes/benchmarks.md`, "2026-08-24: the TSS I/O-bitmap switch cost".
+kernel: `notes/benchmarks/x86-tss-iomap.md`, "2026-08-24: the TSS I/O-bitmap switch cost".
 
 **No icount leg exists on this ISA** (`icount()` already refuses `--arch x86_64`, and this port's
 runner attaches no image to pin QEMU's virtual clock to), so every number below is plain TCG on this

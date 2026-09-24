@@ -137,7 +137,7 @@ triage than average.
 remaining case, a boot-path parser with 77 survivors whose callers are three kernels. **It had
 already been triaged**, on 2026-09-19, by a lane that landed through an integration branch and so
 left no obvious pull request: 58 killed, 11 equivalent, 8 recorded gaps, all accounted for in
-`notes/mutation-testing.md`'s `### machine_discovery` section, which the maintainer did not read
+`notes/mutation-testing/machine-discovery.md`, which the maintainer did not read
 before briefing.
 
 **That is the third crate in a row whose census row did not mean what it appeared to**, after
