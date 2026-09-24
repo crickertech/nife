@@ -1,5 +1,11 @@
 # The nine things that would kill nife
 
+<!-- prose-budget: exception. 4,235 words against a 3,000-word cap. Ratified by calef on 2026-09-24
+     (UTC). Reason: nine entries each keeping a claim, a status, an experiment with an owner and a
+     cost, and their caveats do not compress below this without dropping one of the five; the running
+     order and BUGS spend about 836 words before the first entry. Marker syntax is PROVISIONAL until
+     the prose-budget gate exists. See this file's BUGS section. -->
+
 calef, 2026-08-30: *"something that would kill nife for me as a project is a fatal characteristic
 that would demonstrate the approach isn't viable... We should then try to prove or disprove those
 things."*
@@ -365,7 +371,10 @@ The argument for it is up there, not here.
 - A green result is not proof of anything. Every experiment here can only fail to kill the project,
   which is the nature of falsification, and worth saying before a clean run gets quoted as a claim.
 - The word budget is a constraint on this document, not on the truth. calef asked for 3,000 words and
-  this is about 4,200. Nine entries that each keep a claim, a status, an experiment with an owner and
+  this is about 4,200. **He accepted the overage on 2026-09-24 (UTC) as a marked exception**, so this
+  is a granted exception rather than an unpaid debt, and the marker near the top of the file is what a
+  future gate reads. The count still appears in the weekly prose-budget series, because a graph that
+  hid exceptions would hide what they cost. Nine entries that each keep a claim, a status, an experiment with an owner and
   a cost, and their caveats did not compress below that without dropping one of the five. The running
   order and this section are a fifth of the budget alone. Take the overage out of the entries rather
   than out of the caveats. Where this document is thin, the appendix beside it is not.
