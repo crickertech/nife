@@ -105,7 +105,7 @@ repos/crickertech/nife`). The only path is to build.
   machine (`du -sh ~/.rustup/toolchains/nightly-2026-09-17-*`).
 - QEMU for three architectures, from Homebrew on macOS, or apt on Linux, where **no Ubuntu release
   ships a QEMU with `riscv-iommu-pci`**, so `script/qemu-check` fails and `script/ci-qemu` builds one;
-  a stranger run measured that at twelve minutes (`notes/stranger-test.md`, run 2 and its
+  a stranger run measured that at twelve minutes (`notes/stranger-test/run-2.md`, run 2 and its
   2026-09-13 correction).
 - Homebrew's `llvm` for a cross-capable clang, and three contributor tools a person who only wants
   to run the system does not need: `shellcheck`, `cargo-machete` (compiled from source by
@@ -114,7 +114,7 @@ repos/crickertech/nife`). The only path is to build.
 Then the build. The cold build time was **not measured** by this lane: two other lanes were gating
 on this machine (QEMU for milestones 150 and 168 was running), and AGENTS.md records that timing
 assertions fail under oversubscription. The nearest recorded figure is a stranger run's
-`script/test` at "about 25 minutes wall clock" on a warm machine (`notes/stranger-test.md`).
+`script/test` at "about 25 minutes wall clock" on a warm machine (`notes/stranger-test/run-4.md`).
 
 **Ten minutes in, a stranger on a cold machine is still installing a toolchain.**
 
