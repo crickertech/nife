@@ -350,8 +350,12 @@ The argument for it is up there, not here.
 - The bold this document carries is the gate's, not the prose's. `script/fatal-risks` reads the
   Experiment status lines, the experiment lead-ins and the running order's verdict cells as markup,
   so those spans are machinery rather than emphasis. Every other bold span is gone, and what is left
-  spends nearly the whole writing-convention budget of four per thousand words. Editing this file
-  means spending the gate's budget, not your own.
+  spends the whole writing-convention budget of four per thousand words. Editing this file
+  means spending the gate's budget, not your own. calef ruled on 2026-09-24 (UTC) that markup a gate
+  parses is counted like any other bold, so no exclusion exists and this file has none left. He also
+  said the likely answer is to move these fields out of bold entirely, and that the decision waits on
+  the decision-frontmatter pilot, pull request #1195, reporting. Until then, do not add a bolded span
+  here without removing one.
 - ~~Two entries have no owner.~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202, both
   scoped by calef and both reframed in the process, risk 7's by §134 (a harness carries a
   machine-replayable falsification record, or it is not evidence). Neither can return a clean green,
