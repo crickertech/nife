@@ -50,7 +50,7 @@ will actually meet it.
 1. **Global assembly is skipped.** Boot entry, vectors, context switch, three architectures. Nothing
    in a harness reaches it, and nothing could.
 2. **`asm!` is an unsupported construct.** Every `asm!` site in `kernel/src/arch/`, plus the three
-   above. This is a *hard* boundary rather than a soft one, which is the good direction: if a
+   above. This is a *hard* boundary: if a
    harness ever calls into that code, Kani reports the unsupported construct instead of proving
    past it.
 
@@ -64,8 +64,7 @@ will actually meet it.
 3. **Two thirds of `kernel/src/arch/` is not compiled at all, and this is a `cfg` rather than a
    construct** (milestone 304, 2026-09-16). `arch/mod.rs` selects its subtree with
    `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one
-   architecture's `arch/` and no line of the other two. This is the item most likely to be
-   misread as coverage, because unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
+   architecture's `arch/` and no line of the other two. Unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
    report an unsupported construct, and a `cfg`-excluded file produces no diagnostic of any kind.
    `script/verify` now proves the `kernel` row on two hosts for this reason; see the table below
    for which architecture each one reaches and for the one that nothing reaches.

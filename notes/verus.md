@@ -7,14 +7,14 @@ is the first attempt to price that someday.*
 
 **Read this for the evidence, not for a verdict.** Adopting a verifier is a dependency and a
 methodology decision, which AGENTS.md puts in calef's hands, and the section that would record it is
-the maintainer's to mint. Nothing here recommends anything.
+the maintainer's to mint.
 
 ## What was read and run, and when
 
 | source | what it is | read or run |
 |---|---|---|
 | Chen, Li, Mesicek, Narayanan, Burtsev. *Atmosphere: Towards Practical Verified Kernels in Rust.* KISV '23, Oct 23 2023, 8 pages. DOI 10.1145/3625275.3625401. | the first Atmosphere paper | 2026-09-20, full text from `https://mars-research.github.io/doc/2023-kisv-atmo.pdf` |
-| Chen, Li, Zhang, Narayanan, Burtsev. *Atmosphere: Practical Verified Kernels with Rust and Verus.* SOSP '25, Oct 13-16 2025. DOI 10.1145/3731569.3764821. | the grown-up one, CC-BY | 2026-09-20, from `https://mars-research.github.io/doc/2025-sosp-atmo.pdf`. **That copy is 10 pages and the ACM reference block says 16**; it ends at Section 5 with no evaluation, no related work and no bibliography. Everything quoted from SOSP '25 below is from Sections 1 to 5. `dl.acm.org` returns 403 to an automated fetch of both the PDF and the full-text HTML. |
+| Chen, Li, Zhang, Narayanan, Burtsev. *Atmosphere: Practical Verified Kernels with Rust and Verus.* SOSP '25, Oct 13-16 2025. DOI 10.1145/3731569.3764821. | the grown-up one, CC-BY | 2026-09-20, from `https://mars-research.github.io/doc/2025-sosp-atmo.pdf`. **That copy is 10 pages and the ACM reference block says 16**; it ends at Section 5 with no evaluation, no related work and no bibliography. `dl.acm.org` returns 403 to an automated fetch of both the PDF and the full-text HTML. |
 | `notes/redleaf.md` (branch `maintainer/redleaf-comparison`) | the sibling lane, which read the full text | 2026-09-20, for Table 3 only, and attributed as second-hand below |
 | Lattuada, Hance, Cho, Brun, Subasinghe, Zhou, Howell, Parno, Hawblitzel. *Verus: Verifying Rust Programs using Linear Ghost Types.* OOPSLA 2023, 7(OOPSLA1):286-315. | the tool's own paper | 2026-09-20, from `https://matthias-brun.ch/assets/publications/verus_oopsla2023.pdf` |
 | The Verus guide, reference, `vstd` docs, and the `verus-lang/verus` source | what the project says about itself | 2026-09-20, `https://verus-lang.github.io/verus/guide/` and the GitHub tree |
@@ -41,11 +41,8 @@ only ever compiled one architecture, and it was the runner's) put two inside `ar
 added an x86_64 verify job. `notes/kernel-proofs.md` is the record, and this lane confirmed it runs.
 
 So the question is not *"can Kani reach `kernel/src`"*. It is **"what is left after milestone 193,
-and does Verus reach that residue"**, which is a much narrower and much more interesting question,
-because the residue is where Verus turns out to stop too.
-
-Risk 2's text is calef's to amend and this lane did not touch it. `notes/proof-retrospective.md`
-carries the same superseded sentence.
+and does Verus reach that residue"**, a narrower question, and the residue is where Verus turns out
+to stop too.
 
 ## What Kani actually stops at, measured rather than described
 
@@ -612,10 +609,10 @@ verification results:: 1 verified, 0 errors
   asserts *"due to the lack of managed runtime, verified Rust code can be compiled and executed on
   bare metal"*, which is the authors' claim about their own x86_64 kernel, not a Verus project
   statement, and says nothing about a custom target JSON or `aarch64-unknown-none-softfloat`.
-- **`design/fatal-risks.md` risk 2 and `notes/proof-retrospective.md` both said `kernel/src` is
-  unreachable by construction** when this was written, stale by three weeks, and neither was touched
-  here. Risk 2 has since been reworded to the past tense ("were out of reach", checked 2026-09-24);
-  the retrospective is a dated record of 2026-08-30 and reads as one.
+- **`design/fatal-risks.md` risk 2 and `notes/proof-retrospective.md` both said `kernel/src` was
+  unreachable by construction** when this was written, three weeks stale. Risk 2 now says it in the
+  past tense, its reach corrected 2026-09-24; the retrospective is a dated record of 2026-08-30 and
+  reads as one.
 - **This note names no winner and is not evidence for a decision either way.** It was written to
   price a question, and the pricing has a factor-of-several uncertainty that only running Verus on
   real code would remove.

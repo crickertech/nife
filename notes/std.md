@@ -865,7 +865,7 @@ then kills you.** Five have been found so far, each by a different accident:
 PAL functions that answer `Unsupported`, and a function that ends the process never answers. And the
 fifth could not be found by the method that found the middle three either: `sys/exit.rs` is not a
 `sys/<module>/mod.rs` backend, it is one file with a `cfg_select!` inside a function, so "read every
-module the PAL falls through" walks straight past it however carefully somebody does it.
+module the PAL falls through" walks straight past it.
 
 So the reading became a check.
 
@@ -880,9 +880,7 @@ It asks the compiler which `library/std/src/sys/**` sources it **actually compil
 targets, by unioning every `library/std/src/sys/` path out of cargo's own dep-info under
 `std_exerciser/target/`, and greps exactly those for bodies that end a process: `panic!`,
 `unimplemented!`, `todo!`, `rtabort!`, `intrinsics::abort()`, `panic_nounwind`. Comment lines are
-skipped, which is not fussiness: this tree's PAL files discuss the panics they replaced at length,
-and a check that could not tell a fix from its own explanation would have been useless on the day it
-was written.
+skipped, because this tree's PAL files discuss the panics they replaced at length.
 
 What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, **which carries the
 reason for every entry**. A new one fails the build with the file, the line, and the two things it

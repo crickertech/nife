@@ -2,9 +2,7 @@
 
 Milestone 30 is three pieces in order: multi-queue transport confinement, a userspace virtio-net
 driver behind it, and a TCP/IP stack (smoltcp) in a net server speaking a capability-shaped socket
-contract. This note records what is built, the prior art read before drawing the contract, the
-socket contract, whose design fork DECISIONS §25 (socket identity) resolved, the smoltcp pin, and
-the remaining work.
+contract.
 
 ## Piece 1: multi-queue confinement (built, both ISAs)
 

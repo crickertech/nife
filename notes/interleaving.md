@@ -4,8 +4,8 @@ The fourth leg of the analysis surface, after Kani ([verification.md](verificati
 ([fuzzing.md](fuzzing.md)) and Miri ([undefined-behavior.md](undefined-behavior.md)). Milestone 80.
 
 CLAUDE.md's fourth rule is *assume weak memory ordering*, and before this milestone **nothing in the
-tree could falsify a violation of it**. That is the gap, stated plainly: we had a rule, a lot of
-careful comments about acquire and release, and no instrument. The instrument found a real bug in
+tree could falsify a violation of it**. We had a rule, careful comments about acquire
+and release, and no instrument. The instrument found a real bug in
 the first protocol it was pointed at that had not been designed with it in mind.
 
 ## Why the other three tools cannot see this
@@ -115,7 +115,7 @@ behind `Thread`'s `on_cpu`/`wake_pending`/`wait_on`/`ipc_served`/`ipc_aborted` f
 crate, the kernel calls its transitions at every wake, park, switch and finish-switch site, and
 loom searches it on the host.
 
-**This one extends the method, and the extension is worth naming.** The survey above counts atomic
+**This one extends the method.** The survey above counts atomic
 protocols, and by that count the block/wake path had nothing to explore: every field is written
 under `SCHED`. What the fourth bench stop demonstrated is that a lock-based protocol still has an
 interleaving space, in the *gaps between critical sections*: a thread that parks itself releases
@@ -288,13 +288,12 @@ tests in `clock_protocol`, the kernel's clock tests on both ISAs, `script/verify
 `script/undefined-behavior-check` all passed before the fix and all pass after it: none of them asks
 a question this could answer. The failure mode it would have produced on the VisionFive 2 is a
 timestamp that is wrong by however far the clock last stepped, at a rate too low to reproduce and
-with no instrument pointed at it. That is precisely the class of bug milestone 80 exists to retire
-before the board lands.
+with no instrument pointed at it.
 
 ### And the pilot found nothing, which is its own result
 
-All six `work_steal_slot` harnesses passed on the first run, and that is worth having for three
-reasons rather than being a disappointment.
+All six `work_steal_slot` harnesses passed on the first run, which is worth having for three
+reasons.
 
 It converts three comments into checked facts (the herd collapsing to one claim, the release/acquire
 pairing, the accepted staleness of the load reading). It leaves a **regression test** on a protocol

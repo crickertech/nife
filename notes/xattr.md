@@ -3,14 +3,10 @@
 A named byte string attached to a file or a directory. Four verbs, a store the FS server keeps
 above RedoxFS rather than inside it, and one property that is only available where we built it.
 
-**Why this exists at all**: milestone 55 makes the board the Time Machine target for three family
-members. Time Machine speaks SMB, Samba stores Apple's metadata as extended attributes
-(`streams_xattr`), and RedoxFS has none. So this is on the critical path to hardware, not a
-feature we thought would be nice.
-
-That premise is gone. Milestone 55 (Time Machine: SMB3 with Apple's extensions, and mDNS) was
-removed on 2026-08-30, because its customer backs up with borg over SSH instead. The layer stays as
-built and works; it is no longer on anyone's critical path.
+**Why this exists at all**: milestone 55 (Time Machine: SMB3 with Apple's extensions, and mDNS)
+made the board a Time Machine target, and Samba stores Apple's metadata as extended attributes
+(`streams_xattr`), which RedoxFS lacks. That premise is gone: milestone 55 was removed on 2026-08-30,
+when its customer chose borg over SSH. The layer is built and works, on nobody's critical path.
 
 The contract is `filesystem_protocol::xattr`; the layer is `redoxfs_server/src/lib.rs`; the mechanism was decided
 in DECISIONS §34's 2026-07-31 amendment.
@@ -50,7 +46,7 @@ it under, and a client that wants one opens the file first exactly as `fgetxattr
 | `xattr::MAX_VALUE` | 3072 bytes | A `SETXATTR` carries a name and a value in **one page**, so `MAX_NAME + MAX_VALUE` must leave 4096 visible room |
 | `xattr::MAX_COUNT` | 16 per node | 16 names of 255 bytes plus their length prefixes is **4096 exactly**, which is what lets `LISTXATTR` have no cursor |
 
-Each ceiling answers its own errno, and that is the point rather than tidiness: `ERANGE` for a name
+Each ceiling answers its own errno: `ERANGE` for a name
 this store cannot hold, `E2BIG` for an over-long value, `ENOSPC` for the seventeenth attribute. A
 caller can act on which one it hit. DECISIONS §42's rule is that a verb which is offered fails
 loudly rather than degrading, and a store that clipped a value to fit would hand back a file that
@@ -60,7 +56,7 @@ looked intact and was not.
 
 `GETXATTR` and `LISTXATTR` need `dir::READ` and are refused with `EBADF`. `SETXATTR` and
 `REMOVEXATTR` need `dir::WRITE` and are refused with `dir::EROFS`. That is exactly what `READ` and
-`WRITE` on the file need and answer, and no seventh rung was added to milestone 47's ladder.
+`WRITE` on the file need and answer, and no rung was added for it to the ladder of milestone 47 (navigation and naming).
 
 An attribute is part of what a file *is*, not a separate object with its own authority, so a
 capability that may read a file may read what is attached to it. The other half of the argument is
@@ -72,8 +68,7 @@ capability's meaning cannot change out from under its holder.
 
 On Linux, layering metadata above a filesystem is worthless: anything can `open(2)` the file
 directly and walk around the layer. **Here nothing can.** Every path to these bytes goes through
-`filesystem_protocol`, so a layer above the filesystem is as authoritative as the filesystem. That is a
-capability-system property doing real work rather than a consolation.
+`filesystem_protocol`, so a layer above the filesystem is as authoritative as the filesystem.
 
 The argument that actually decided it was **reversibility** (DECISIONS §34). `filesystem_protocol` hides which
 implementation was chosen, so if attributes later prove central enough to justify diverging from a
@@ -97,8 +92,8 @@ the layer rather than a consolation for not forking the format.
 
 ## The three ways to get this wrong, and what each cost
 
-DECISIONS §34's amendment named all three in advance. They are worth restating as the *mechanism*
-rather than as a checklist.
+The amendment to DECISIONS §34 (RedoxFS is the primary filesystem) named all three in advance;
+here they are as mechanism.
 
 ### 1. A freed node's blob must die with it, or the next node inherits it
 
