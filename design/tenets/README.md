@@ -14,3 +14,4 @@ name in this tree.*
 | [elegance-over-convenience.md](elegance-over-convenience.md) | why an argument from implementation cost is the weakest one available here |
 | [reversibility.md](reversibility.md) | why each category is irreversible, and the two failures that shaped the rule |
 | [documentation-standard.md](documentation-standard.md) | why FreeBSD's Handbook and man pages are the standard, and what each part buys |
+| [lane-count.md](lane-count.md) | the measurement that retired queue depth, and the memory and disk ceilings |
