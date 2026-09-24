@@ -65,7 +65,7 @@ Shipped provisionally as **`local`** and **`ci`**.
 - **`runner` is not available**, and this is a lookup rather than a preference. This tree already
   spends the word in two senses, the CI machine and a script that runs something, across **163
   files** (`git grep -lw runner`, measured 2026-09-13), including four entry points named for it:
-  `scripts/qemu-runner-aarch64.sh` and its two siblings, `scripts/memory-bounded-runner.sh`, and
+  `helpers/qemu-runner-aarch64.sh` and its two siblings, `helpers/memory-bounded-runner.sh`, and
   `script/runner-container`. A third sense costs a reader the recognition, which is the ground §31
   already refused `witness` on.
 - **`before-push` / `ci-only`.** Says what a contributor does rather than where it happens. Against:

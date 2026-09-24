@@ -12,7 +12,7 @@
 # Deliberately NOT a member of the main workspace, and that is a live constraint rather than
 # habit. The primitive set is not fully settled: `rsa` is still calef's (see the `BUGS` in
 # src/lib.rs), and until the set is ratified none of these crates belongs in this repository's
-# `Cargo.lock`, in `deny.toml`'s reach, or in CI. `scripts/build-cryptography-exerciser.sh` builds
+# `Cargo.lock`, in `deny.toml`'s reach, or in CI. `helpers/build-cryptography-exerciser.sh` builds
 # it, nothing else does, and the kernel test skips when nobody has.
 #
 # Name: provisional, minted on 2026-09-20 by this milestone's lane. Names are calef's.

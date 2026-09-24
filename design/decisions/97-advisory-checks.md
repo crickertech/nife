@@ -48,7 +48,7 @@ actively expensive rather than merely unenforced.
 **GitHub's merge queue ignores a failing advisory check and merges anyway.** That is how `main` went
 red: #316's `fastpath footprint` failed and nothing stopped it.
 
-**`scripts/merge-drain.sh` refuses to enqueue a pull request with *any* failing check**, required or
+**`helpers/merge-drain.sh` refuses to enqueue a pull request with *any* failing check**, required or
 not. Its own comment says why, and the reasoning is sound in isolation: *"the queue ejects what fails,
 and nothing here should retry it and burn CI."*
 
@@ -176,7 +176,7 @@ call:
   repository's real GitHub branch-protection required-status-checks list. Live infrastructure with
   blast radius on every pull request currently moving through the merge queue; wants a quiet queue,
   the same constraint §88's own required-check proposal is waiting on.
-- **`scripts/merge-drain.sh`'s filter, narrowed to the required set**, per this section's own text
+- **`helpers/merge-drain.sh`'s filter, narrowed to the required set**, per this section's own text
   ("Whichever way option 1 goes, the drain's filter should be narrowed to the required set, so that
   one list decides"). Depends on the ruleset edit landing first, or the narrowing has nothing to
   narrow against.

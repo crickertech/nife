@@ -2,7 +2,7 @@
 
 **Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 217's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
-it holds, with one correction.** No tool in `script/`, `scripts/` or `xtask` reads a mounted card and
+it holds, with one correction.** No tool in `script/`, `helpers/` or `xtask` reads a mounted card and
 compares the two artifacts; the only way to find a mismatch is still to power the board and read
 `MEASURED BOOT REFUSED`. The `--card` option that writes a matched pair is in `script/board-image`
 rather than in `xtask` as the proposal implies, and it still copies the set as a set rather than

@@ -47,6 +47,6 @@ cd "$(dirname "$0")/.."
 
 # This boots nothing, and the line still costs nothing: `script/lint` asks every entry point that
 # could reach an emulator to resolve the project's QEMU, and an exemption is dearer than one line.
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 
 exec cargo xtask card-check "$@"

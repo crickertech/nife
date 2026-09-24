@@ -21,7 +21,7 @@ const UEFI_TARGET: &str = "x86_64-unknown-uefi";
 /// **The EFI system partition, staged as a directory** (milestone 87).
 ///
 /// A directory rather than an image, because nothing here has to build a FAT filesystem: QEMU's
-/// vvfat driver synthesises one from a directory (`scripts/qemu-uefi-x86_64.sh`), and a USB stick
+/// vvfat driver synthesises one from a directory (`helpers/qemu-uefi-x86_64.sh`), and a USB stick
 /// is formatted by the person holding it. That is the same fact from both ends, and it is why this
 /// milestone needed no new host tooling at all.
 pub(crate) fn esp_dir() -> std::path::PathBuf {
@@ -34,7 +34,7 @@ pub(crate) fn esp_dir() -> std::path::PathBuf {
 /// ```text
 /// cargo xtask uefi-image
 /// # then, under QEMU with real firmware:
-/// scripts/qemu-uefi-x86_64.sh target/esp
+/// helpers/qemu-uefi-x86_64.sh target/esp
 /// # or, on the Dell OptiPlex: copy target/esp/EFI/BOOT/BOOTX64.EFI to a FAT32 stick, same path.
 /// ```
 ///
@@ -201,7 +201,7 @@ pub(crate) fn uefi_stage(
     let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
     eprintln!("wrote {} ({size} bytes: {what})", target.display());
     eprintln!(
-        "  under QEMU with real firmware: scripts/qemu-uefi-x86_64.sh {}",
+        "  under QEMU with real firmware: helpers/qemu-uefi-x86_64.sh {}",
         esp.display()
     );
     // Said only for a loader a bench may have. The `screen_hold` build waits ten seconds at the
@@ -282,7 +282,7 @@ pub(crate) fn uefi_boot() -> bool {
     let _ = std::fs::remove_file(&sock);
     let _ = std::fs::remove_file(&shot);
 
-    let mut child = match Command::new("scripts/qemu-uefi-x86_64.sh")
+    let mut child = match Command::new("helpers/qemu-uefi-x86_64.sh")
         .arg(uefi_screen_esp_dir())
         .current_dir(workspace_root())
         .env("NIFE_SCREEN_MON", &sock)
@@ -312,7 +312,7 @@ pub(crate) fn uefi_boot() -> bool {
     {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("uefi-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
+            eprintln!("uefi-boot: failed to run helpers/qemu-uefi-x86_64.sh: {e}");
             return false;
         }
     };
@@ -750,7 +750,7 @@ pub(crate) fn uefi_test() -> bool {
     eprintln!();
     eprintln!("--- kernel tests under real firmware, x86_64 (QEMU q35 + OVMF) ---");
 
-    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+    let output = match Command::new("helpers/qemu-uefi-x86_64.sh")
         .arg(uefi_test_esp_dir())
         .current_dir(workspace_root())
         // **The devices the PVH runner attaches** (milestone 195), which the tour above needs none
@@ -774,7 +774,7 @@ pub(crate) fn uefi_test() -> bool {
     {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("uefi-test: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
+            eprintln!("uefi-test: failed to run helpers/qemu-uefi-x86_64.sh: {e}");
             return false;
         }
     };
@@ -796,7 +796,7 @@ pub(crate) fn uefi_test() -> bool {
         eprintln!("uefi-test: the kernel was handed a zero ACPI root pointer, which is PVH's tell");
         ok = false;
     }
-    // 3, not 0: see the doc comment. `scripts/qemu-uefi-x86_64.sh` execs QEMU rather than
+    // 3, not 0: see the doc comment. `helpers/qemu-uefi-x86_64.sh` execs QEMU rather than
     // translating this the way the PVH runner does, because that runner is a cargo `runner` and has
     // to speak cargo's success convention while this one has only ever had one caller.
     if output.status.code() != Some(i32::from(X86_DEBUG_EXIT_SUCCESS)) {
@@ -817,6 +817,6 @@ pub(crate) fn uefi_test() -> bool {
 ///
 /// `isa-debug-exit` terminates QEMU with `(value << 1) | 1`, so every status it can report is odd.
 /// The guest writes 1; QEMU exits 3. The matching half is `EXIT_SUCCESS` in
-/// `kernel/src/arch/x86_64/semihosting.rs`, and `scripts/qemu-runner-x86_64.sh` translates the same
+/// `kernel/src/arch/x86_64/semihosting.rs`, and `helpers/qemu-runner-x86_64.sh` translates the same
 /// number for cargo's benefit. Three files naming one number is the cost of a convention QEMU owns.
 const X86_DEBUG_EXIT_SUCCESS: u8 = 3;

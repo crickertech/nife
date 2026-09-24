@@ -70,7 +70,7 @@ plainly that the argument went with the directory.
 - `--proposed` and `--unclaimed` are gone. `--unclaimed`'s only source was the `Proposed.` branch,
   so it could only ever print nothing; the `--check` line that reported its count is gone with it.
 - `PROPOSED_DIR` is gone, and with it the `os.listdir` of the pile, the five per-file diagnostics,
-  and the import of `scripts/roadmap_proposals.py`.
+  and the import of `helpers/roadmap_proposals.py`.
 - **The directory can no longer come back in silence, and that is a stronger guard than the one
   removed.** The file loop used to skip `proposals` by name. It no longer does, so a
   `design/roadmap/proposals/` that reappeared would fail the check that already says nothing but
@@ -91,7 +91,7 @@ Keeping it as a guard against the directory returning would have been the softer
 one, because the file loop above now guards that outright, and two checks answering one question is
 the shape where the second stops being updated.
 
-### `scripts/roadmap_proposals.py` survives, cut to its parse half
+### `helpers/roadmap_proposals.py` survives, cut to its parse half
 
 Deleting it was the expected answer and it is the wrong one, for a reason that is specific to how
 `script/metrics` works. That dashboard is a **restatement**: `--backfill` rewrites every week's row
@@ -172,7 +172,7 @@ when it next runs, and nothing here touches the generated file.
   `--update`; it was already red on this block's base commit `d6db414` for reasons of its own. The
   branch that carries this block leaves the generated file alone on purpose, because two maintainer
   branches were open against that CSV when this landed.
-- **Refused.** *Deleting `scripts/roadmap_proposals.py`.* It was the expected answer and it is
+- **Refused.** *Deleting `helpers/roadmap_proposals.py`.* It was the expected answer and it is
   wrong: `script/metrics --backfill` restates every week from git history, so removing the parse
   would rewrite two true weeks (74 at 2026W36, 93 at 2026W38) to zero, which is the dashboard lying
   about a fortnight that happened. The module keeps its parse half and lost `promoted_from`.
@@ -190,7 +190,7 @@ a queue nobody is in. `script/fatal-risks` and `script/metrics` each kept a piec
 machinery. This block cuts the token, the two modes and the two checks that can no longer fail,
 keeps the argument for why the word existed beside what superseded it, and turns the file loop's
 existing "nothing else lives here" check into the guard that the directory cannot come back in
-silence. `scripts/roadmap_proposals.py` survives on one caller, because `script/metrics --backfill`
+silence. `helpers/roadmap_proposals.py` survives on one caller, because `script/metrics --backfill`
 restates every week from git history and deleting the parse would rewrite two true weeks to zero.
 It is also the first use of the convention it finishes: this block was minted by the lane that
 wrote it, with a provisional number.

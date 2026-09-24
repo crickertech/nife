@@ -162,7 +162,7 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_mode_run
 
 `--cfg kani` alone does not compile: the harnesses are written against Kani's intrinsics, and
 without the crate that provides them rustc stops at `use of unresolved module or unlinked crate
-kani`. `scripts/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
+kani`. `helpers/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
 invocations before the pass runs. The surface it has to cover is small, which is what makes this
 cheap: across 27 packages <!--count:harness-crates--> and 181 harnesses <!--count:kani-harnesses-->
 the tree uses exactly **five** Kani items, `any`, `proof` (181) <!--count:kani-harnesses-->,
@@ -429,7 +429,7 @@ with the test for what belongs in it, is notes/register-of-measures.md.
 ### The measurement, and the thing it found
 
 Measured over the Rust that runs on nife, which is every tracked `.rs` file except `vendor/`,
-`patches/`, and the host-side tooling in `bench/host/`, `xtask/`, `tools/`, `fuzz/` and `scripts/`.
+`patches/`, and the host-side tooling in `bench/host/`, `xtask/`, `tools/`, `fuzz/` and `helpers/`.
 Each exclusion's reason is in `script/lint` beside the derivation; `patches/` is a real hole rather
 than a boundary and the register's BUGS says so.
 

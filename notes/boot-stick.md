@@ -63,7 +63,7 @@ the tests reach: the rule (`disk.rs`), what each host's tools say (`macos.rs`, `
 `windows.rs`, read from captured output), and the whole conversation with the person (`cli.rs`, run
 against a fake host). `src/host/` only runs the tools, and is exempt from `script/coverage`'s floor
 with the reason recorded there: the coverage run cannot execute `diskutil` or erase a disk. It is
-run for real on each host instead, by `scripts/stick-maker-proof.sh` and the CI workflow.
+run for real on each host instead, by `helpers/stick-maker-proof.sh` and the CI workflow.
 
 The obvious rule was "external, on USB", and the machine this was written on refutes it. It has two
 USB hard disks attached, a 2 TB Seagate Portable and a 3 TB WD My Book, one holding backups:
@@ -158,10 +158,10 @@ riscv64:  uefi_loader: boot hart from RISCV_EFI_BOOT_PROTOCOL: 0
 `-machine virt` (ACPI on by default) the loader printed `the firmware offers no device tree (on QEMU
 virt, boot with acpi=off; ...)` and stopped, and under `acpi=off` it booted. That was recorded here
 as a kernel limit the loader reported rather than one it added, and it was the reason
-`scripts/qemu-stick.sh` passed `acpi=off`.
+`helpers/qemu-stick.sh` passed `acpi=off`.
 
 **It is fixed, 2026-09-23.** The loader now reads the tables and **writes the device tree** the kernel would have been
-handed (`uefi_loader/src/device_tree_from_acpi.rs`), so `NIFE_ACPI=on scripts/qemu-stick.sh aarch64
+handed (`uefi_loader/src/device_tree_from_acpi.rs`), so `NIFE_ACPI=on helpers/qemu-stick.sh aarch64
 target/stick` reaches the same shell prompt `acpi=off` does. The firmware's own tree still wins when
 a machine offers both, because it is the richer description. What the two boots differ by, measured
 the same day on the same stick:
@@ -199,11 +199,11 @@ wrong archive: radon's boot 12 and xenon's 2026-09-17 refusal have no way to hap
 | Claim | How | Result, 2026-09-19 |
 |---|---|---|
 | One directory boots on all three firmwares | `cargo xtask stick-boot`: `target/stick` as a USB stick under OVMF, EDK2 aarch64 and EDK2 riscv64 | All three to the progenitor |
-| The program writes a stick that boots on all three | `scripts/stick-maker-proof.sh`: a blank file erased, a FAT32 file copied onto, each booted under all three | Six of six to the progenitor; a file already on the FAT32 stick survived |
+| The program writes a stick that boots on all three | `helpers/stick-maker-proof.sh`: a blank file erased, a FAT32 file copied onto, each booted under all three | Six of six to the progenitor; a file already on the FAT32 stick survived |
 | Nothing is erased without `--erase` or the disk's name typed back; a refused disk stays refused when named; a host that cannot erase says so before asking | `crates/stick_maker/src/cli.rs`'s tests, which run the whole conversation against a fake host | All pass |
 | A backup disk is never offered | `crates/stick_maker` host tests on the captured `diskutil` documents, and `--list --all` on the machine itself | Both USB hard disks refused |
 | A mismatched kernel and archive cannot be embedded | The loader's build against a two-day-old archive | Build refused, entry named |
-| The x86_64 loader still boots after moving to `arch/x86_64` | `scripts/qemu-uefi-x86_64.sh target/esp` | Unchanged transcript |
+| The x86_64 loader still boots after moving to `arch/x86_64` | `helpers/qemu-uefi-x86_64.sh target/esp` | Unchanged transcript |
 
 ## The host axis: what ran, what was only built, what was not built
 
@@ -289,14 +289,14 @@ $ cargo xtask stick-boot
 stick-boot: x86_64: booted from BOOTX64.EFI to the progenitor
 stick-boot: aarch64: booted from BOOTAA64.EFI to the progenitor
 stick-boot: riscv64: booted from BOOTRISCV64.EFI to the progenitor
-$ scripts/stick-maker-proof.sh        # about twelve minutes: six boots, each held to its bound
+$ helpers/stick-maker-proof.sh        # about twelve minutes: six boots, each held to its bound
 ```
 
 Boot any stick image or directory under one firmware by hand:
 
 ```console
-$ scripts/qemu-stick.sh riscv64 target/stick
-$ NIFE_SMP=4 scripts/qemu-stick.sh aarch64 /path/to/written.img
+$ helpers/qemu-stick.sh riscv64 target/stick
+$ NIFE_SMP=4 helpers/qemu-stick.sh aarch64 /path/to/written.img
 ```
 
 Check what a stick carries, on any computer:

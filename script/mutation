@@ -20,7 +20,7 @@
 #
 # Each mutant's test binary runs under a memory ceiling (milestone 277), because cargo-mutants
 # bounds a mutant on time and the failure that kills this sweep is an allocation.
-# MUTATION_MEMORY_LIMIT_KB raises, lowers or (at 0) removes it; scripts/memory-bounded-runner.sh is
+# MUTATION_MEMORY_LIMIT_KB raises, lowers or (at 0) removes it; helpers/memory-bounded-runner.sh is
 # the mechanism and the argument.
 #
 # **A report, not a gate**, deliberately (roadmap 85): the full run costs hours, and a survivor is a
@@ -183,7 +183,7 @@ fi
 # mutation run rather than of the tree. MUTATION_MEMORY_LIMIT_KB tunes or disables it; the ceiling,
 # what it costs, and why macOS is opt-out are in the runner's own header.
 runner_var="CARGO_TARGET_$(rustc -vV | awk '/^host:/ {print toupper($2)}' | tr - _)_RUNNER"
-export "$runner_var=$(pwd)/scripts/memory-bounded-runner.sh"
+export "$runner_var=$(pwd)/helpers/memory-bounded-runner.sh"
 
 # Say once per RUN what the runner would otherwise have to say once per test binary, which at
 # ~9,900 mutants is not a notice but a flood. The macOS default is no ceiling (the runner's BUGS
@@ -192,7 +192,7 @@ export "$runner_var=$(pwd)/scripts/memory-bounded-runner.sh"
 # exists to stop being true.
 if [ "$(uname -s)" = "Darwin" ] && [ "${MUTATION_MEMORY_LIMIT_KB:-0}" = "0" ]; then
     echo "==> no per-mutant memory ceiling on macOS (default); a runaway mutant can still take the" >&2
-    echo "    machine. Set MUTATION_MEMORY_LIMIT_KB to bound it; see scripts/memory-bounded-runner.sh" >&2
+    echo "    machine. Set MUTATION_MEMORY_LIMIT_KB to bound it; see helpers/memory-bounded-runner.sh" >&2
 fi
 
 rc=0
@@ -208,7 +208,7 @@ case "$rc" in
        if [ "$rc" = "4" ]; then
            echo "==> the ceiling is a suspect: an honest test binary needing more address space than" >&2
            echo "    MUTATION_MEMORY_LIMIT_KB allows fails exactly like a broken baseline. Raise it," >&2
-           echo "    or set it to 0 to run unbounded (scripts/memory-bounded-runner.sh)." >&2
+           echo "    or set it to 0 to run unbounded (helpers/memory-bounded-runner.sh)." >&2
        fi
        exit "$rc" ;;
 esac

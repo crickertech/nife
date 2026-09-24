@@ -59,7 +59,7 @@ answers, in the prose's own words**, and a derivation.
 |---|---|---|
 | `kani-harnesses` | how many Kani proof harnesses the tree carries, which is what `script/verify` proves | `#[kani::proof…]` alone on its line, in any workspace package |
 | `harness-crates` | how many workspace packages carry at least one Kani proof harness | distinct packages among those files |
-| `sh-scripts` | how many `#!/bin/sh` scripts there are under `script/` and `scripts/`, which is the set shellcheck gates | files whose first line is exactly `#!/bin/sh` |
+| `sh-scripts` | how many `#!/bin/sh` scripts there are under `script/` and `helpers/`, which is the set shellcheck gates | files whose first line is exactly `#!/bin/sh` |
 | `longest-markdown-line` | how long the repository's longest markdown line is, in bytes, which is what `documentation::render::LINE_MAX` is sized against | tracked `*.md`, vendor excluded |
 | `syscalls` | how many syscall numbers the ABI defines, which is the whole width of the trap | `pub const SYS_*: u64` in `crates/abi/src/lib.rs` |
 | `rights-bits` | how many named single-bit rights a capability can carry | `pub const NAME: Rights = Rights(1 << N)` in `crates/capability` |
@@ -84,7 +84,7 @@ more than any number of descriptive ones.
 
 **The question is not decoration, it is the entry's most important field.** "How many `#!/bin/sh`
 scripts" has at least three defensible answers: `ls script/` gives 37, the shellcheck glob
-`script/* scripts/*.sh` gives 40, and "files that literally begin `#!/bin/sh`" gives 40 today and
+`script/* helpers/*.sh` gives 40, and "files that literally begin `#!/bin/sh`" gives 40 today and
 could give fewer tomorrow. A gate that answers a subtly different question than a human would is
 worse than no gate, because it fails a document that is right, and the way it gets fixed is by
 somebody deleting the marker.
@@ -111,7 +111,7 @@ $ grep -rc '#\[kani::proof' --include='*.rs' crates | awk -F: '{s+=$2} END {prin
 
 The gap between 123 and 119 is the whole reason for this step: two of the four are in the vendored
 RedoxFS, which this suite has never proved, and two are inside doc comments in
-`scripts/kani-lint-shim/` that describe the attribute rather than use it. A derivation that counted
+`helpers/kani-lint-shim/` that describe the attribute rather than use it. A derivation that counted
 them would be confidently wrong, in the direction nobody checks.
 
 **3. Add the registry entry** to the `==> counted claims` block in `script/lint`, with a docstring

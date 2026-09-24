@@ -108,7 +108,7 @@ perl -e 'alarm 10; exec @ARGV' qemu-system-aarch64 ...     # DOES NOT WORK
 **QEMU installs its own `SIGALRM` handler** (it uses timers internally), so the alarm is
 swallowed and the process runs forever. Every "bounded" run leaks a QEMU.
 
-QEMU *does* honour **SIGTERM**. Use `scripts/qemu-bounded.sh <seconds> <cmd...>`, which
+QEMU *does* honour **SIGTERM**. Use `helpers/qemu-bounded.sh <seconds> <cmd...>`, which
 starts a detached killer that survives a pipeline whose reader (`head`) exits early. That
 last part matters: `qemu ... | head -20` leaves QEMU alive, because `head` closing the pipe
 does not kill a process that has stopped writing.
@@ -134,7 +134,7 @@ That names a **file**. Nothing in it points at a process, so it reads as a bug i
 run was testing, and a lane that has read AGENTS.md's warning about leaked emulators can still
 lose an hour to it because the symptom does not look like that warning.
 
-`scripts/qemu-bounded.sh` now gives the killer two more reasons to fire. It **polls its parent**
+`helpers/qemu-bounded.sh` now gives the killer two more reasons to fire. It **polls its parent**
 once a second and kills the child as soon as the wrapper is gone, which covers a SIGKILLed
 wrapper and a dead session, neither of which runs a trap anywhere. And it **traps SIGTERM and
 SIGHUP**, so the one process that knows the child's pid does not take that knowledge with it
@@ -149,13 +149,13 @@ filter is what keeps the message quiet on a green run: the three test legs share
 firmware file). **Walk the parent chain up before killing what it
 names**: a QEMU whose parent is a live harness is somebody's gate in flight, not a leak.
 
-`scripts/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that
+`helpers/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that
 `perl`'s alarm is still swallowed. It is in no gate; run it if you touch the bounding script.
 
-**It does not bound `scripts/qemu-runner-x86_64.sh`, and it looks as if it does** (found
+**It does not bound `helpers/qemu-runner-x86_64.sh`, and it looks as if it does** (found
 2026-09-19 by milestone 134's per-IPC stack-depth lane, when the maintainer reaped a halted
 `qemu-system-x86_64` with PPID 1 that the lane had started through
-`scripts/qemu-bounded.sh 240 scripts/qemu-runner-x86_64.sh ...`). The killer signals `$CHILD`,
+`helpers/qemu-bounded.sh 240 helpers/qemu-runner-x86_64.sh ...`). The killer signals `$CHILD`,
 the process it started. The aarch64 and riscv64 runners end in `exec qemu-system-...`, so their
 child *is* QEMU. The x86_64 runner deliberately does not `exec` (its own comment: it has to turn
 `isa-debug-exit`'s odd status back into 0 afterwards), so its child is a shell with QEMU beneath
@@ -216,7 +216,7 @@ forever, by design, exactly like real hardware. So every interactive run must be
   found that `script/ci-qemu`'s configure line does not link on this SDK: `hw/display/apple-gfx.m`
   needs `--disable-cocoa --disable-pvg`. Nothing in the tree says so, because nothing in the tree has
   built QEMU on a Mac. And a QEMU installed into `$HOME/.cache/nife-qemu` is honoured by
-  `scripts/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
+  `helpers/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
   for one clone changes the emulator under every other lane.
 - **`cargo xtask uefi-boot`'s screen read used to be a race, and is now a handshake** (milestone
   445, superseding this entry's previous text). The check reads the guest's framebuffer through

@@ -3,13 +3,13 @@
 **Status: SUPERSEDED.** 2026-09-19, by the proposal `the-rest-of-the-x86-64-fixture-set`, which
 milestone 433 numbers 420 and which names the RNG as one of its six devices. Filed as a proposal on
 2026-09-03 by the milestone 247 sweep, from milestone 176's block. Checked on 2026-09-19 and the
-underlying gap is real: `scripts/qemu-runner-x86_64.sh` still attaches no RNG and says so in its own
+underlying gap is real: `helpers/qemu-runner-x86_64.sh` still attaches no RNG and says so in its own
 header ("no NIC, no GPU, no RNG"). This file's own instruction is what disposes of it, and it was
 written knowing this would happen: *"whoever promotes either should merge the two rather than run
 two lanes at the same fixture file"*. The larger lane is now numbered, so this one is the duplicate
 rather than the placeholder.
 
-**Gate: NONE.** It is a line in `scripts/qemu-runner-x86_64.sh` plus its wiring, and both the device
+**Gate: NONE.** It is a line in `helpers/qemu-runner-x86_64.sh` plus its wiring, and both the device
 and the client exist on the other architectures already.
 
 **In brief.** Attach a virtio-rng function to the x86_64 test runner and wire it through, so the
@@ -44,7 +44,7 @@ one. Milestone 215's block proposes this as one item in a larger x86_64 fixture 
 there rather than as a second piece of work."*
 
 Milestone 215's Follow-on names the larger lane: *"Attach the rest of the x86_64 test fixtures now
-that a function's interrupt works ... each a line in `scripts/qemu-runner-x86_64.sh` plus its
+that a function's interrupt works ... each a line in `helpers/qemu-runner-x86_64.sh` plus its
 wiring, starting with making the FS server's disk lookup transport-blind. The measure is the 36
 tests taking a 'no RedoxFS disk attached' arm."*
 

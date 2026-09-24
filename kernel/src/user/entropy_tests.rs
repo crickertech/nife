@@ -266,7 +266,7 @@ fn a_fill_gathers_across_round_trips() {
 /// **That flag reaches a TCG run and nothing else, which is a narrower fix than it sounds**
 /// (checked 2026-09-10, after the earlier wording here read as though a flag reliably fixed this
 /// skip). `--cpu` selects an *emulated* CPU model, so it has no meaning under HVF, where the guest
-/// runs the physical Apple Silicon core: `scripts/qemu-runner-aarch64.sh` refuses `NIFE_CPU` there
+/// runs the physical Apple Silicon core: `helpers/qemu-runner-aarch64.sh` refuses `NIFE_CPU` there
 /// outright ("the guest runs the physical core; `-cpu host` is mandatory"). And the HVF leg cannot
 /// answer the question anyway, for a reason that has nothing to do with entropy: QEMU 11.1.1's HVF
 /// accelerator wants `GICv3` and `kernel/src/drivers/gic.rs` speaks GICv2 only, so `--hvf` refuses

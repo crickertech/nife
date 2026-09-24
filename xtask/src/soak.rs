@@ -155,7 +155,7 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
             if !(mkdisk() && user()) {
                 return ExitCode::from(4);
             }
-            (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
+            (TARGET, "helpers/qemu-runner-aarch64.sh", initrd_path())
         }
         // **`mkdisk` here too, not only on aarch64** (found 2026-09-19 by the lane that closed
         // milestone 168's sampling hole): the riscv64 runner refuses a `NIFE_DISK` naming a missing
@@ -168,7 +168,7 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
             }
             (
                 RISCV_TARGET,
-                "scripts/qemu-runner-riscv64.sh",
+                "helpers/qemu-runner-riscv64.sh",
                 riscv_initrd_path(),
             )
         }
@@ -178,7 +178,7 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
             }
             (
                 X86_TARGET,
-                "scripts/qemu-runner-x86_64.sh",
+                "helpers/qemu-runner-x86_64.sh",
                 x86_initrd_path(),
             )
         }
@@ -408,7 +408,7 @@ pub(crate) fn soak_test() -> ExitCode {
             if !(mkdisk() && user()) {
                 return ExitCode::from(4);
             }
-            (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
+            (TARGET, "helpers/qemu-runner-aarch64.sh", initrd_path())
         }
         "riscv64" => {
             if !initrd_riscv() {
@@ -416,7 +416,7 @@ pub(crate) fn soak_test() -> ExitCode {
             }
             (
                 RISCV_TARGET,
-                "scripts/qemu-runner-riscv64.sh",
+                "helpers/qemu-runner-riscv64.sh",
                 riscv_initrd_path(),
             )
         }
@@ -426,7 +426,7 @@ pub(crate) fn soak_test() -> ExitCode {
             }
             (
                 X86_TARGET,
-                "scripts/qemu-runner-x86_64.sh",
+                "helpers/qemu-runner-x86_64.sh",
                 x86_initrd_path(),
             )
         }
@@ -517,7 +517,7 @@ pub(crate) fn soak_test() -> ExitCode {
     // spends a whole section on.
     //
     // **The children first, then the wrapper**, the same order and for the same reason as
-    // `run_bench` above: `scripts/qemu-runner-x86_64.sh` runs QEMU as a plain foreground child
+    // `run_bench` above: `helpers/qemu-runner-x86_64.sh` runs QEMU as a plain foreground child
     // rather than `exec`-ing into it, so killing the wrapper alone orphans the emulator. Found on
     // 2026-09-01 by an x86 soak that returned 0 and left a `qemu-system-x86_64` behind holding this
     // pipe. The other two runners `exec`, so `pkill -P` finds nothing there and costs one process.

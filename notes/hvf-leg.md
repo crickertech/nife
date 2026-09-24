@@ -1,6 +1,6 @@
 # The HVF leg: the aarch64 suite on the physical core
 
-*(Milestone 81. `script/ci-build`, `cargo xtask test --hvf`, `scripts/qemu-runner-aarch64.sh`.
+*(Milestone 81. `script/ci-build`, `cargo xtask test --hvf`, `helpers/qemu-runner-aarch64.sh`.
 The leg rode `script/gates` from 2026-08-04 until milestone 286 retired that script into
 `script/ci-build`'s table on 2026-09-13; every measurement below was taken under the old name.)*
 
@@ -56,7 +56,7 @@ Two things failed on the way there, and neither is the GIC:
 **What still happens when the machine will not start** (milestone 222's machinery, unchanged):
 `script/ci-build` skips the leg and says so; `script/test --hvf` fails with a paragraph saying the
 breakage is not yours; `cargo xtask test --hvf` asks before standing up its referees. All of it
-comes from one probe in `scripts/qemu-runner-aarch64.sh` that starts the runner's own machine
+comes from one probe in `helpers/qemu-runner-aarch64.sh` that starts the runner's own machine
 string paused and quits it, so nothing tests a QEMU version number.
 
 ## How to run it
@@ -150,7 +150,7 @@ which is precisely the trap CLAUDE.md warns about.
 
 ## The SMMU correction
 
-`scripts/qemu-runner-aarch64.sh` used to attach `iommu=smmuv3` on the TCG path only, on the
+`helpers/qemu-runner-aarch64.sh` used to attach `iommu=smmuv3` on the TCG path only, on the
 recorded ground that "smmuv3 emulation alongside HVF acceleration is the fragile combination."
 **Nobody had run it.** The suite on the physical core runs green with the SMMU attached, including
 `a_backing_outside_the_grant_is_refused_by_the_iommu`, the test that asserts the *hardware* faults
@@ -286,7 +286,7 @@ silence for a clean bill.
   on four cores. The host stops reading and kills the child, so the cost is bounded in practice,
   but a transcript from a failed HVF run ends in interleaved garbage after the 200-line budget, and
   anyone driving the runner **by hand** under HVF (rather than through `xtask`) will get a QEMU
-  that never stops. Use `scripts/qemu-bounded.sh` for that. A guest-side fix (recognising the
+  that never stops. Use `helpers/qemu-bounded.sh` for that. A guest-side fix (recognising the
   semihosting trap in the Unknown-reason handler and parking in `wfi` instead of panicking) is not
   built here; it would touch the exception path for a test-only benefit, and on its own it would
   make the leg *worse*: `hvf_kernel_leg` stops reading after 200 more lines, and a guest that went

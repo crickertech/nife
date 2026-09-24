@@ -16,7 +16,7 @@
 //!
 //! **The program here is ours, and its dependencies are not this repository's**, under DECISIONS
 //! §46 (thin primitives or whole subsystems; we write everything in between). It is built by
-//! `scripts/build-cryptography-exerciser.sh` and rides in the archive only when somebody ran it,
+//! `helpers/build-cryptography-exerciser.sh` and rides in the archive only when somebody ran it,
 //! exactly as `ripgrep` does and for the same reason: making a gate fetch a hundred crypto crates
 //! would take a dependency decision that is calef's. So this **skips** on every ordinary build and
 //! in all of CI.
@@ -29,7 +29,7 @@ use super::*;
 
 /// The reason this test gives when nobody built the program.
 const NO_CRYPTOGRAPHY_EXERCISER: &str = "no cryptography_exerciser in this archive: build it with \
-     scripts/build-cryptography-exerciser.sh, which fetches `rustls`, a crypto provider and the \
+     helpers/build-cryptography-exerciser.sh, which fetches `rustls`, a crypto provider and the \
      RustCrypto primitives from crates.io (milestone 442)";
 
 /// Every line the program prints before its last, in order, one per vector.

@@ -17,7 +17,7 @@ first, then default
    I/O permission bitmap and then tells every other online core to do the same, over the TLB
    shootdown's NMI (`mmu::revoke_port_grant_others`). `sched::delete_port_range_caps_impl` calls it
    in place of the core-local reset.
-2. **The default flip.** `scripts/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to 2.
+2. **The default flip.** `helpers/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to 2.
 
 ## The defect was reproduced before it was fixed
 

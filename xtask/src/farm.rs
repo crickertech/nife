@@ -48,7 +48,7 @@ pub(crate) fn std_exerciser_elf(triple: &str) -> PathBuf {
 
 /// **Unmodified `ripgrep` from crates.io, if somebody built it** (milestone 121).
 ///
-/// `scripts/build-ripgrep.sh` puts it here. Nothing in this build produces it, and that is the
+/// `helpers/build-ripgrep.sh` puts it here. Nothing in this build produces it, and that is the
 /// point: fetching `ripgrep` and its transitive crates is a crates.io dependency tree, which
 /// DECISIONS §46 makes calef's decision rather than a gate's. So the initrd carries it when it is
 /// on disk and does not when it is not, exactly as `std_exerciser` rides along, and
@@ -59,7 +59,7 @@ pub(crate) fn ripgrep_elf(triple: &str) -> PathBuf {
 
 /// **The crypto-provider workload, if somebody built it**: milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets).
 ///
-/// `scripts/build-cryptography-exerciser.sh` puts it here, and it rides in the archive on exactly
+/// `helpers/build-cryptography-exerciser.sh` puts it here, and it rides in the archive on exactly
 /// `ripgrep`'s terms and for exactly its reason. The program depends on `rustls` and a crypto
 /// provider; DECISIONS §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we
 /// make work) ruled on the first and explicitly not on the second, so making a gate fetch a

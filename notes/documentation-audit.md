@@ -147,6 +147,9 @@ xtask/src/main.rs:4701:    unsafe { std::env::set_var("NIFE_KBD", "1") };
 scripts/qemu-runner-aarch64.sh:250:if [ -n "$NIFE_KBD" ]; then
 ```
 
+Both captured runs above name `scripts/`, the drawer's name on the day of the audit. It is
+`helpers/` since 2026-09-23.
+
 **Ask whether the class is bigger than the instance.** It was both times the first sweep asked, and
 this is the step that turns a typo fix into a mechanism:
 

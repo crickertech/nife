@@ -121,7 +121,7 @@ SECTIONS
      * header for a real board's U-Boot -- exactly what it was before this milestone.
      *
      * UNLIKE aarch64, nothing strips this section back out before QEMU boots it: this port has
-     * no flat-Image / objcopy step at all (see scripts/qemu-runner-riscv64.sh's own header
+     * no flat-Image / objcopy step at all (see helpers/qemu-runner-riscv64.sh's own header
      * comment), so QEMU's `-kernel` loads the ELF's PT_LOAD segments directly, CFI included. That
      * is harmless extra RAM in a VM with QEMU's usual hundreds of megabytes and is not why this
      * section moved; see notes/cfi-unwind.md's BUGS section for the honest scope of what this

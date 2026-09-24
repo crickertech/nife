@@ -140,14 +140,14 @@ pub(crate) fn boot_check() -> bool {
         (
             "riscv64",
             RISCV_TARGET,
-            "scripts/qemu-runner-riscv64.sh",
+            "helpers/qemu-runner-riscv64.sh",
             initrd_riscv as fn() -> bool,
             riscv_initrd_path as fn() -> String,
         ),
         (
             "x86_64",
             X86_TARGET,
-            "scripts/qemu-runner-x86_64.sh",
+            "helpers/qemu-runner-x86_64.sh",
             initrd_x86 as fn() -> bool,
             x86_initrd_path as fn() -> String,
         ),

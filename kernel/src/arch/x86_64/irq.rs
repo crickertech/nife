@@ -68,7 +68,7 @@
 //! - **Interrupt remapping is not implemented, and this code assumes it is off.** A VT-d unit with
 //!   remapping enabled reinterprets a write to `0xfee0_0000..0xfef0_0000` as an index into a
 //!   remapping table, and the message [`alloc_msi_vector`] builds is a *compatibility-format*
-//!   message that such a unit rejects. `scripts/qemu-runner-x86_64.sh` runs `-device intel-iommu`
+//!   message that such a unit rejects. `helpers/qemu-runner-x86_64.sh` runs `-device intel-iommu`
 //!   without `intremap=on`, and firmware leaves it off by default, so this holds today on QEMU and
 //!   is the thing to check first if MSI stops arriving on a machine whose firmware turns it on.
 //!   The fix is a remapping table plus remappable-format messages, and it is a milestone rather
@@ -478,7 +478,7 @@ const MSI_VECTORS: u32 = SPURIOUS_VECTOR as u32 - MSI_VECTOR_BASE as u32;
 /// **With VT-d interrupt remapping enabled, this address is not delivered as written.** An
 /// interrupt-remapping unit reinterprets `0xfee0_0000..0xfef0_0000` writes as an index into a
 /// remapping table, and a message built the way this one is would be rejected as a malformed
-/// remappable request. `scripts/qemu-runner-x86_64.sh` runs `-device intel-iommu` **without**
+/// remappable request. `helpers/qemu-runner-x86_64.sh` runs `-device intel-iommu` **without**
 /// `intremap=on`, so DMA is translated and interrupt messages pass through; the same is true of
 /// every machine whose firmware leaves remapping off, which is the default. Turning it on is its
 /// own piece of work and is recorded as one; see this module's BUGS.

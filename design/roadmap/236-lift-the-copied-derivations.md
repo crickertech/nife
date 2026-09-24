@@ -59,7 +59,7 @@ heredoc, where nothing can import anything." A heredoc with a stable working dir
 perfectly well, and `script/lint`, `script/metrics` and `script/falsifications` all `cd` to the
 repository root before they run python. So the host crate the block priced was never the only way to
 get one definition, and the thing that made it a decision (three `script/` commands becoming
-consumers of a built artifact) does not arise. `scripts/rust_source.py` is a plain module, nothing
+consumers of a built artifact) does not arise. `helpers/rust_source.py` is a plain module, nothing
 executes it, and no caller's shape changed.
 
 **Two derivations are now one definition.** The comment-and-literal stripper, which is what makes a
@@ -89,15 +89,15 @@ to fire by perturbing the shared regex and its exclusion list: `147, 147, 145`, 
 exited 1.
 
 **The sweep for a fourth copy, which the block asked for.** Every constant and regex definition in
-`script/` and `scripts/` was compared across files. Two more shapes turned up and neither is this
+`script/` and `helpers/` was compared across files. Two more shapes turned up and neither is this
 hazard:
 
 - `FNAME = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")` in `script/decisions` and `script/journeys`.
   Both are gates on a filename convention, neither reports a number the other must match, and
   nothing downstream restates either. It is a convention spelled twice, not a derivation that can
   drift apart while both look authoritative.
-- The QEMU invocation fragments shared by `scripts/qemu-runner-aarch64.sh` and
-  `scripts/qemu-runner-riscv64.sh` (about a dozen `-drive`/`-device` lines). Shell rather than
+- The QEMU invocation fragments shared by `helpers/qemu-runner-aarch64.sh` and
+  `helpers/qemu-runner-riscv64.sh` (about a dozen `-drive`/`-device` lines). Shell rather than
   python, a machine configuration rather than a measurement, and out of this block's scope. Recorded
   here rather than turned into a milestone, because nothing yet says the two runners should be one.
 
@@ -114,7 +114,7 @@ diff.
 - **It compares one number, not a breakdown.** A per-package comparison would fail on a scope
   difference the three derivations deliberately have, so the count that actually reaches a reader is
   what is checked.
-- **`scripts/rust_source.py` is a provisional name.** Minted by this lane; names are calef's.
+- **`helpers/rust_source.py` is a provisional name.** Minted by this lane; names are calef's.
   Refused: `source_census`, because this tree already spends "census" on the `unsafe` count
   specifically and a module named for it would read as holding only that; `measures`, which collides
   with `notes/register-of-measures.md`, the same collision `script/metrics`' own header refused;
@@ -126,8 +126,8 @@ diff.
 
 ## Follow-on
 
-- **Refused.** Folding the QEMU invocation fragments shared by `scripts/qemu-runner-aarch64.sh` and
-  `scripts/qemu-runner-riscv64.sh` into one place. They are shell rather than python, a machine
+- **Refused.** Folding the QEMU invocation fragments shared by `helpers/qemu-runner-aarch64.sh` and
+  `helpers/qemu-runner-riscv64.sh` into one place. They are shell rather than python, a machine
   configuration rather than a measurement, and nothing yet says the two runners should be one.
 - **Refused.** Sharing the filename regex between `script/decisions` and `script/journeys`. Both
   gate a filename convention, neither reports a number the other must match, and nothing downstream
@@ -139,15 +139,15 @@ diff.
 - **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md`: the comparison checks one
   number rather than a breakdown, because a per-package comparison would fail on a scope difference
   the three derivations deliberately have.
-- **Recorded.** `scripts/rust_source.py` is Python in a tree that is otherwise Rust and shell. It
+- **Recorded.** `helpers/rust_source.py` is Python in a tree that is otherwise Rust and shell. It
   adds no dependency and no build step, and the third tooling language was accepted rather than
   argued for, because the alternative was a `cargo build` in front of three `script/` commands.
 - **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md` carries the provisional name.
-  `scripts/rust_source.py` was minted by the lane, names are calef's, and what was refused and why
+  `helpers/rust_source.py` was minted by the lane, names are calef's, and what was refused and why
   is written down beside it.
 
 ## Index row
 
 **Built:** 2026-09-03
 
-two lifted into `scripts/rust_source.py`; the harness count cannot be one definition and `script/lint` compares all three instead
+two lifted into `helpers/rust_source.py`; the harness count cannot be one definition and `script/lint` compares all three instead

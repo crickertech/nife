@@ -84,7 +84,7 @@ pub fn ecam_buses() -> u16 {
 /// bus outside it, but `PCI_ECAM_BUSES` on a machine that describes less than one bus could.
 ///
 /// Name: provisional (milestone 320 (every PCI bus the machine has)), every name listed here: this,
-/// [`ecam_buses`], [`survey`] and `NIFE_PCIE_ROOT_PORT` in `scripts/qemu-runner-x86_64.sh`. calef
+/// [`ecam_buses`], [`survey`] and `NIFE_PCIE_ROOT_PORT` in `helpers/qemu-runner-x86_64.sh`. calef
 /// names public items.
 pub fn ecam_bytes() -> u64 {
     u64::from(ecam_buses()) * BUS_BYTES
@@ -996,7 +996,7 @@ mod tests {
     ///
     /// The host bridge (bus 0, device 0, function 0) is the chipset's own function and is on the
     /// bus on every x86_64 machine, emulated or not, regardless of what `-device` flags
-    /// `scripts/qemu-runner-x86_64.sh` does or does not pass, which is what makes this a real
+    /// `helpers/qemu-runner-x86_64.sh` does or does not pass, which is what makes this a real
     /// read rather than a hope: before
     /// `enable_pcie_ecam` runs, this exact physical address **faults** (measured against QEMU's
     /// monitor, 2026-08-24: `xp` answers "Cannot access memory") rather than reading the

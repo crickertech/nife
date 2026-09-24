@@ -115,8 +115,8 @@ to report "I do not implement that leaf" other than answering with some other le
 feature from the guest.
 
 ```
-NIFE_CPU="max,nx=off"      scripts/qemu-bounded.sh 60 cargo xtask boot-check --arch x86_64
-NIFE_CPU="max,syscall=off" scripts/qemu-bounded.sh 60 cargo xtask boot-check --arch x86_64
+NIFE_CPU="max,nx=off"      helpers/qemu-bounded.sh 60 cargo xtask boot-check --arch x86_64
+NIFE_CPU="max,syscall=off" helpers/qemu-bounded.sh 60 cargo xtask boot-check --arch x86_64
 ```
 
 The first produces the assembly refusal, over a UART nothing had configured, before paging:

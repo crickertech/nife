@@ -51,11 +51,11 @@ Each is a mechanism that reported success while doing nothing, and no two are th
   `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, has the derivation.)* The population it was not checking grew from 40 records to 74 in that window.
   Nobody could tell *swept and found nothing* from *swept nothing*, because the workflow emitted the
   same result for both.
-- **`scripts/trunk-health.sh` reads CI's conclusion to say when `main` goes red.** `ci.yml` skipped
+- **`helpers/trunk-health.sh` reads CI's conclusion to say when `main` goes red.** `ci.yml` skipped
   `build + test` for documentation-only commits, so `main` was red for hours with every signal
   green. The watcher's own header claims *"The signal was never missing."* Pull request #1170 is
   correcting that claim.
-- **`scripts/merge-drain.sh` logs a snapshot and never an event.** A pass writes
+- **`helpers/merge-drain.sh` logs a snapshot and never an event.** A pass writes
   `10 armed, 7 stalled, of 17 unheld`. There are 3,355 passes on record in
   `~/Library/Logs/nife/merge-drain.log` and not one of them answers "how often did the drain act."
   The maintainer summed the snapshot across passes, got 4,967, and caught the meaninglessness only
@@ -92,8 +92,8 @@ the honesty is.
 
 ### Layer 1: the watchers
 
-`scripts/merge-drain.sh`, `scripts/trunk-health.sh`, `scripts/lane-claim-check.sh`,
-`scripts/at-risk-check.sh`, and `script/cadence-check`. Two run unattended under `launchd`; the rest
+`helpers/merge-drain.sh`, `helpers/trunk-health.sh`, `helpers/lane-claim-check.sh`,
+`helpers/at-risk-check.sh`, and `script/cadence-check`. Two run unattended under `launchd`; the rest
 are run by a session.
 
 **What counts as a catch.** The watcher acted or announced a transition that nobody was going to

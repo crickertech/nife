@@ -3,7 +3,7 @@
 A brief is self-contained instructions for a recurring task, with the judgment already made and the
 known failure modes named. Nothing about who reads it. Hand one to a lane the ordinary way:
 
-    scripts/open-lane.sh <worktree> briefs/<brief>.md
+    helpers/open-lane.sh <worktree> briefs/<brief>.md
 
 or read it yourself and follow it by hand. Both are the same document, because self-containment is
 what a brief is for, not a concession to a weaker reader.
@@ -15,7 +15,7 @@ belongs here is work "whose correctness a gate can check... **Not** design, not 
 trust", implying the opposite belonged to whichever model was judged capable enough to be trusted
 without one. calef challenged that on 2026-09-23: *"Why are the briefs reserved for just the low
 powered agents?"* It does not survive the question. The maintainer wrote that framing the same day
-it built `scripts/open-lane.sh`, and generalised from the one case in front of it, a rented
+it built `helpers/open-lane.sh`, and generalised from the one case in front of it, a rented
 open-weight model, to a rule about the directory that the case never justified.
 
 **The evidence against it is `notes/effort-levels.md`** (landing in pull request #1115): five

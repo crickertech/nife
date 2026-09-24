@@ -35,7 +35,7 @@ WorkingDirectory=/home/calef/nife
 # is the boundary and the key's own spend limit is the backstop. OPEN_LANE_HOST is deliberately not
 # set either: the default is loopback, and `tailscale serve` is what makes it reachable.
 EnvironmentFile=-/etc/open-lane-gateway.env
-ExecStart=/home/calef/nife/scripts/open-lane-gateway.sh
+ExecStart=/home/calef/nife/helpers/open-lane-gateway.sh
 Restart=on-failure
 RestartSec=10
 # It holds an API key and serves a network. Give it nothing it does not need.

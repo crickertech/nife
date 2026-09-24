@@ -677,7 +677,7 @@ honestly, which is a culture rather than a mechanism. **Say so where the reader 
   `com.nife.merge-drain` and its sibling running unattended on patagonia under `launchd`, with the
   asleep-or-shut-down gap named as accepted rather than closed.
 - **Outstanding.** Budget rule 2, pruning a lane's worktree at merge, is still prose only, and
-  nothing under `script/` or `scripts/` prunes or counts worktrees. Checked 2026-09-03.
+  nothing under `script/` or `helpers/` prunes or counts worktrees. Checked 2026-09-03.
 - **Outstanding.** Budget rule 3, squashing against the recorded base commit, is still prose only
   and no gate reads it; the `git stash` scar beside it in `AGENTS.md` is the same shape. Checked
   2026-09-03.

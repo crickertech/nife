@@ -388,7 +388,7 @@ Ordered as it was built, because each step is what made the next one debuggable.
 
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
-`scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
+`helpers/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
 
 **The evidence that the `arch/` split is real**: making the *entire* kernel compile for a third
 architecture took 42 compiler errors, every one of them a missing `arch::` name, and four `cfg` arms
@@ -511,7 +511,7 @@ In the order it should be done, because each is a prerequisite for the next.
    `rdtsc` and a PIT-measured rate for the reasons in step 13, [DECISIONS §127](../decisions/127-x86-64-timer-rdtsc.md));
    `user/build.rs` compiles the C seam;
    `xtask` packs an x86 archive, with the `read_stripped` cache-tag collision fixed before it could
-   fire and a real `target/init-measure-x86_64.txt`; `scripts/qemu-runner-x86_64.sh` passes
+   fire and a real `target/init-measure-x86_64.txt`; `helpers/qemu-runner-x86_64.sh` passes
    `-initrd`; and `crates/elf` was indeed ready.
 
    **What replaced it is a shorter list, and none of it is userspace.** Two items are genuinely new
@@ -542,7 +542,7 @@ In the order it should be done, because each is a prerequisite for the next.
    milestone 176 piece 2's job (decided, [§130](../decisions/130-cmos-rtc-delegation.md); not §121,
    which forecloses a CMOS port capability rather than building one); 15 wanted a PCI bus enumerated,
    which the discovery seam itself no longer blocks (item 0's PCI window is wired, milestone 165) but
-   `scripts/qemu-runner-x86_64.sh` still does, since it attaches no PCI device (`-device
+   `helpers/qemu-runner-x86_64.sh` still does, since it attaches no PCI device (`-device
    virtio-blk-pci` and friends) for anything to enumerate; 5 want a UART page, which §121 now answers
    permanently rather than pending (kernel-resident forever, no port capability, so these five stay
    skipped by design rather than by omission); 4 want a second core (item 5); 1 wants
@@ -641,7 +641,7 @@ In the order it should be done, because each is a prerequisite for the next.
    RISC-V's `boot_hartid` already is. Small, wants no hardware, and wants a lane.
 
    Full account of all three: `arch::x86_64::ap_boot`'s own `BUGS`, which stays the authoritative
-   record. `scripts/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1 because (1) and (3) are open and
+   record. `helpers/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1 because (1) and (3) are open and
    either can fail a run, so the `smp` tests this item's roster work would otherwise unblock keep
    skipping, honestly, until those two are answered. Whether (1) is a QEMU TCG emulation quirk or a
    real bug in this port's own code is exactly the kind of question milestone 87's real hardware
@@ -713,7 +713,7 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Milestone 164.** `fs_server` builds for `x86_64-unknown-none`. One build flag turned exit 101
   into exit 0; `redoxfs_server` and `mkfs` ride the x86_64 archive, and the 21 skips this item
   blamed on `aes` are gone.
-- **Milestone 215.** The runner attaches a PCI device now: `scripts/qemu-runner-x86_64.sh` carries
+- **Milestone 215.** The runner attaches a PCI device now: `helpers/qemu-runner-x86_64.sh` carries
   a `virtio-blk-pci` line with `iommu_platform=on` plus an `nvme` line, so the 15 skips that wanted
   an enumerated bus with something on it no longer have that cause.
 - **Done.** Item 6's "no PCI device is confined through it yet" is closed by that same disk: it

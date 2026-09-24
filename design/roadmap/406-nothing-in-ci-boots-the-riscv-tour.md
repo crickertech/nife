@@ -73,13 +73,13 @@ has already spent one lane telling them apart.
 `Progress` ratchets `spl`/`opensbi`/`uboot`/`handoff`/`banner`/`tour`, recognises five failure
 markers, and sets `userspace_ran` from the `init/build` line. `script/soak-test` already judges a QEMU run
 with it. So the missing piece is a caller that boots the default kernel with `-initrd` under
-`scripts/qemu-bounded.sh` and asks `Progress` whether it reached `Stage::Tour` with `userspace_ran`,
+`helpers/qemu-bounded.sh` and asks `Progress` whether it reached `Stage::Tour` with `userspace_ran`,
 not a new instrument.
 
 ## What it would take, priced
 
 The boot itself is one `cargo xtask` verb over machinery that is all present: `initrd_riscv()`,
-`scripts/qemu-runner-riscv64.sh`, `crates/board_console`. A bounded tour boot is seconds, not
+`helpers/qemu-runner-riscv64.sh`, `crates/board_console`. A bounded tour boot is seconds, not
 minutes, because the tour halts on its own; the cost is the riscv64 kernel build, which
 `script/ci-build` already pays for other reasons.
 

@@ -26,7 +26,7 @@ rustc -O --target aarch64-unknown-linux-musl -C target-feature=+crt-static \
 rm -rf "$WORK/iroot" && mkdir "$WORK/iroot" && cp "$WORK/init" "$WORK/iroot/init"
 ( cd "$WORK/iroot" && find . | cpio -o -H newc 2>/dev/null ) > "$WORK/initramfs.cpio"
 
-"$ROOT/scripts/qemu-bounded.sh" 40 \
+"$ROOT/helpers/qemu-bounded.sh" 40 \
     qemu-system-aarch64 -M virt,accel=hvf,gic-version=2 -cpu host -m 1024 \
     -kernel "$KERNEL" -initrd "$WORK/initramfs.cpio" \
     -append "console=ttyAMA0 rdinit=/init panic=1 quiet loglevel=0" \

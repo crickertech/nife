@@ -37,7 +37,7 @@ default, on purpose.** The decision is how to sequence that.
 
 ## Why one core is the default
 
-`scripts/qemu-runner-x86_64.sh` sets `SMP="${NIFE_SMP:-1}"`, and its comment is specific about why.
+`helpers/qemu-runner-x86_64.sh` sets `SMP="${NIFE_SMP:-1}"`, and its comment is specific about why.
 The original crash that held it at 1 is **fixed** (a missing cross-core TLB shootdown). Two reasons
 remain open, both recorded in `arch::x86_64::ap_boot`'s own `BUGS`:
 

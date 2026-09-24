@@ -61,7 +61,7 @@ name: mutation testing
 #     So `-j 2` is not the constraint and lowering it would not help: one runaway takes 14 GB by
 #     itself. **This is repaired as of milestone 277**: every mutant's test binary now runs under a
 #     4 GiB address-space ceiling, applied per test binary through a cargo runner
-#     (`scripts/memory-bounded-runner.sh`, wired up by `script/mutation`). A mutant that allocates
+#     (`helpers/memory-bounded-runner.sh`, wired up by `script/mutation`). A mutant that allocates
 #     without limit now fails its own allocation at 4 GiB and is recorded as an ordinary CAUGHT
 #     mutant, in under nine seconds and inside the auto timeout, and the sweep continues. The
 #     ceiling is 4.0x the largest honest test binary in the tree (`board_console`, 1,028 MiB

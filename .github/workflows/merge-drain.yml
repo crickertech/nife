@@ -33,7 +33,7 @@ name: merge drain
 #     not a mechanism.
 #   - **A scheduled workflow only runs from the default branch.** Nothing in this file takes effect
 #     until it is on `main`, so a change to the drain cannot be tested by pushing it to a branch.
-#     `workflow_dispatch` on `main` is the way to exercise it, and `scripts/merge-drain.sh --once`
+#     `workflow_dispatch` on `main` is the way to exercise it, and `helpers/merge-drain.sh --once`
 #     from any checkout is still the way to try a change before merging it.
 
 on:
@@ -80,7 +80,7 @@ jobs:
           app-id: ${{ secrets.AUTOMATION_APP_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_KEY }}
 
-      # **All branches, no blobs.** `scripts/lane-claim-check.sh` runs inside the drain's pass and
+      # **All branches, no blobs.** `helpers/lane-claim-check.sh` runs inside the drain's pass and
       # reads `origin/<branch>` refs directly (`git merge-base --is-ancestor`, `git rev-list
       # --count`, `git diff --shortstat`), so a single-ref checkout makes it silently report
       # nothing. `fetch-depth: 0` gets every branch; `filter: blob:none` keeps a 549 MB history from
@@ -100,4 +100,4 @@ jobs:
           # hostname; this tags itself with the run that can be opened and read.
           MERGE_DRAIN_INSTANCE: actions:${{ github.run_id }}
           MERGE_DRAIN_RERUN_TOKEN: ${{ github.token }}
-        run: scripts/merge-drain.sh --once
+        run: helpers/merge-drain.sh --once

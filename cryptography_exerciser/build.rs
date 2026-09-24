@@ -1,4 +1,4 @@
-//! The same linker contract as `std_exerciser`, with one change that `scripts/build-ripgrep.sh`
+//! The same linker contract as `std_exerciser`, with one change that `helpers/build-ripgrep.sh`
 //! already had to make and recorded as a finding rather than a workaround.
 //!
 //! `crates/user_mode_runtime/link.ld` puts every program at `0x40_0000` and `kernel/src/user.rs` puts every
@@ -24,7 +24,7 @@ fn main() {
     assert!(
         high.contains("0x1000000"),
         "crates/user_mode_runtime/link.ld no longer sets 0x400000 where this build script expects it; \
-         see scripts/build-ripgrep.sh, which makes the same substitution"
+         see helpers/build-ripgrep.sh, which makes the same substitution"
     );
 
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("link-high.ld");

@@ -147,7 +147,7 @@ and the author knew what to look for.
 ### Two notes on severity, because overclaiming would waste the reader's time
 
 **Finding 9 is latent; finding 10 is live but rarely reached.** The x86_64 QEMU runner attaches no
-virtio disk, NIC, GPU, or RNG (`scripts/qemu-runner-x86_64.sh` says so in its own header), so no
+virtio disk, NIC, GPU, or RNG (`helpers/qemu-runner-x86_64.sh` says so in its own header), so no
 x86_64 boot reaches a virtio ring today; the exposure is that the code is compiled, is shipped in
 the archive, and is wrong the day a device is attached, which is a day the roadmap plans for.
 Finding 10 needs no device: any panic in `pgrep` on x86_64 hangs the thread now. It is small only
@@ -245,7 +245,7 @@ These are worth more than the findings, because each one is a shape that did not
   that a tool reads rather than a human copies.
 - **`.cargo/config.toml`**: three `[target.*] runner` blocks. **`crates/paging/src/`**: `aarch64.rs`,
   `sv39.rs`, `x86_64.rs`. **`crates/machine_discovery/src/`**, **`bench/baseline-<arch>.txt`**,
-  **`scripts/qemu-runner-<arch>.sh`**, **`kernel/link-<arch>.ld`**, and twelve files under
+  **`helpers/qemu-runner-<arch>.sh`**, **`kernel/link-<arch>.ld`**, and twelve files under
   `kernel/src/arch/<arch>/`: all complete at three.
 
 **The pattern.** Everything that stayed complete is either a Rust `match` the compiler pushed on,
@@ -476,7 +476,7 @@ $ git grep -n 'not(target_arch' -- '*.rs' | grep -v '^vendor/'
 Four methods, run in this order. Stated because a later reader needs to know the shape of the hole
 rather than trust the count.
 
-1. **Grep for architecture names and triples** across `script/`, `scripts/`, `xtask/src/`,
+1. **Grep for architecture names and triples** across `script/`, `helpers/`, `xtask/src/`,
    `.github/`, `bench/`, every `Cargo.toml`, `.cargo/config.toml`, `rust-toolchain.toml`,
    `deny.toml`, `kernel/build.rs`, and `notes/`, ranked by hits per file, then read every file with
    a hit. Found findings 1 through 7.
@@ -503,7 +503,7 @@ rather than trust the count.
    (finding 8) and the CI comments cited above.
    **Blind to**: a claim phrased without those words.
 
-**What no method here covers.** This sweep read `notes/`, `script/`, `scripts/`, `xtask/`,
+**What no method here covers.** This sweep read `notes/`, `script/`, `helpers/`, `xtask/`,
 `.github/`, the manifests, and the `#[cfg]` sites. It did **not** read `design/roadmap/` or
 `design/decisions/` for incomplete architecture lists, on the ground that a roadmap block is intent
 rather than a gate and a decision records what was decided when it was decided. If a decision's

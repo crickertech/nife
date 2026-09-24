@@ -59,7 +59,7 @@ the physical core), each naming what did not run and why, with a closing line th
 TCG only. This is a fifth, and the four before it ask whether HVF *exists* where this one asks
 whether QEMU will start the machine the runner actually configures.
 
-**How it asks.** `scripts/qemu-runner-aarch64.sh` grows a probe: `NIFE_PROBE=1` starts that script's
+**How it asks.** `helpers/qemu-runner-aarch64.sh` grows a probe: `NIFE_PROBE=1` starts that script's
 own `$MACHINE` paused (`-S`, so nothing executes), quits it from the monitor, and reports QEMU's own
 refusal. It lives beside the machine string on purpose. A probe in a script of its own would have to
 restate `virt,accel=hvf,gic-version=2,iommu=smmuv3`, and the day the runner's string changed the

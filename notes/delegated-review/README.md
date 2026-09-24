@@ -26,17 +26,17 @@ the clean diff and passed the defective one.
 The reviewer was never told what it was looking for, was never told which arm it was in, and was
 never given this note, the ledger of verdicts, or the brief that named the defects.
 
-- **The prompt came out of two scripts and nothing else.** `scripts/review-bundle.sh` takes a
+- **The prompt came out of two scripts and nothing else.** `helpers/review-bundle.sh` takes a
   worktree and a commit and emits `git show` plus each changed file's pre-image. It holds no table of
   defects and takes no argument that could tell it which commit is which, so it cannot leak an answer
-  it does not have. `scripts/review-trial.sh` wraps that in one of two fixed paragraphs and posts it.
+  it does not have. `helpers/review-trial.sh` wraps that in one of two fixed paragraphs and posts it.
 - **Every prompt is reconstructible and every answer is committed verbatim**, in
   `transcripts.tar.gz`, one file per model, diff, posture and replicate:
 
       tar xzf notes/delegated-review/transcripts.tar.gz -C /tmp
 
   It unpacks to `transcripts/` (the 48 uniform-budget runs) and `transcripts-48k/` (the seven
-  supplementary ones). Re-run `scripts/review-bundle.sh` on the same commit and diff it against
+  supplementary ones). Re-run `helpers/review-bundle.sh` on the same commit and diff it against
   what the transcripts were answering.
 
 **Why it is an archive and not fifty-five files, which a reader meeting a `.tar.gz` in a notes
@@ -58,7 +58,7 @@ rule permits since 2026-09-22: a quotation is not the quoter's prose, so a sourc
 survives being quoted here. The reasoning is at the check. The archive still holds the originals,
 because bulk evidence is not quotation and does not belong inline.
 - **The same prompt went to defective and clean diffs alike**, so nothing in the wording separates
-  the arms. The two postures differ by one sentence, quoted in `scripts/review-trial.sh`.
+  the arms. The two postures differ by one sentence, quoted in `helpers/review-trial.sh`.
 - **The adversarial posture does not assert that a defect exists.** It says one *may* be hiding and
   that there may be none. Asserting one would have guaranteed false positives on the clean diffs and
   made the arm that decides this milestone meaningless.
@@ -288,6 +288,6 @@ So the shape to take from it, stated as a hypothesis this corpus is too small to
   predict.
 - **Temperature is the gateway's default**, so the transcripts are a record and not a reproducible
   build. The replicate spread is large enough that a single re-run will not match them.
-- **Cost was not measured.** `scripts/open-lane.sh` reads OpenRouter's credit balance around a lane
+- **Cost was not measured.** `helpers/open-lane.sh` reads OpenRouter's credit balance around a lane
   and this harness does not, so what these 55 reviews cost is not recorded and the adopt case is
   missing its price.

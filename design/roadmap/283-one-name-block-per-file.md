@@ -39,7 +39,7 @@ the file:
 
 > Does anything in this file read as a provenance header without being the one that was read?
 
-So `scripts/name_provenance.py` grows `headers()`, which finds every comment line whose content,
+So `helpers/name_provenance.py` grows `headers()`, which finds every comment line whose content,
 after the marker and any leading markdown, begins `Name:`, and `strays()`, which returns the ones
 that are not the line `block()` parsed, each with a token saying why it could not have been. Empty
 is the only healthy answer. `script/names --check` phrases those for a contributor, names the file
@@ -72,16 +72,16 @@ a placeholder still reports rather than vanishing. The alternative was rewriting
 own documentation to appease its own gate, which would have left the next person writing an example
 in a comment hitting the same wall with no escape they could see.
 
-## `scripts/name_provenance.py`'s own docstring: scope, not an exemption
+## `helpers/name_provenance.py`'s own docstring: scope, not an exemption
 
 That file's line 24 begins a paragraph `Name: provisional, minted by milestone 276's lane on
-2026-09-11.` inside its module docstring, deliberately, because `script/names` puts `scripts/` out
+2026-09-11.` inside its module docstring, deliberately, because `script/names` puts `helpers/` out
 of its own scope so the module carries no real block and that paragraph is the record instead.
 
 **It is handled by scope and needs no exemption**, which is worth saying plainly because the
 opposite would have been a foot gun `AGENTS.md` requires marking as one. `script/names` enumerates
 four surfaces (`crates/*/src/lib.rs`, `user/src/*.rs`, `script/*`, and every `Cargo.toml` outside
-`crates/`) and opens only those files. `scripts/name_provenance.py` is none of them and is never
+`crates/`) and opens only those files. `helpers/name_provenance.py` is none of them and is never
 read. There is no allow-list in this change, and the intended steady state is that there never is
 one: the same posture `script/lint` check 5 keeps.
 
@@ -107,7 +107,7 @@ question for calef rather than a lint to loosen.
 
 ## What was built
 
-- `scripts/name_provenance.py`: `_head(prefix)` (the one header spelling, used by both readers),
+- `helpers/name_provenance.py`: `_head(prefix)` (the one header spelling, used by both readers),
   `headers()`, `stray_reason()`, `strays()`, and four `STRAY_*` tokens in the same shape as the
   existing `NO_STATUS` / `NO_DATE` / `NO_CITATION`, so the judgement is shared and the wording stays
   at the caller.
@@ -139,7 +139,7 @@ right reason.
   example will read the module, which is one hop further than ideal.
 - **Nothing checks the fifth surface, because there is no fifth surface.** Names on things that are
   not a crate, a program, a `script/` entry point or a Cargo package (archive entries, wire strings,
-  public functions since 2026-08-23, types, `scripts/` helpers) carry no gate at all. This milestone
+  public functions since 2026-08-23, types, `helpers/` helpers) carry no gate at all. This milestone
   makes their records *quieter* rather than louder: the header spelling is now reserved for the
   file's own block, so an item-level record must say what it is in prose. design/naming.md's `BUGS`
   carries the uncovered list.
@@ -157,7 +157,7 @@ right reason.
   is worth more separated from the records than merged with them.
 - **Recorded.** The four limitations above stay limitations and live in this block's `BUGS`, which
   is where the next person changing `strays()` meets them. The one most likely to bite is the
-  angle-bracket escape hatch being documented in `scripts/name_provenance.py` rather than in the
+  angle-bracket escape hatch being documented in `helpers/name_provenance.py` rather than in the
   gate's own failure message.
 
 ## Index row

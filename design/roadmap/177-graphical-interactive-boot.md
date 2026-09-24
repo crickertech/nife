@@ -48,7 +48,7 @@ a from-scratch ELF-loading boot path rather than wiring. What remains here, buil
 built" below):
 
 1. **Attach the devices.** GPU and keyboard grants added to `BootEndowment`, and the interactive
-   boot's QEMU invocation (`scripts/qemu-runner-*.sh`'s non-test path, or a new demo-boot flag)
+   boot's QEMU invocation (`helpers/qemu-runner-*.sh`'s non-test path, or a new demo-boot flag)
    attaching the virtio-gpu and virtio-keyboard devices the test harness already exercises.
 2. **Swap the programs.** Replace `console`/`input` in `system_initializer::boot`'s spawn list with
    `display_terminal`/`compositor`/the virtio keyboard client, the same components milestone 23's

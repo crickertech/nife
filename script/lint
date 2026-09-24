@@ -23,7 +23,7 @@ cd "$(dirname "$0")/.."
 # This project's own QEMU, if `script/ci-qemu` has built one. This file matches its own
 # "the project's QEMU is on PATH" rule below, because a checker's source necessarily
 # carries every pattern it looks for; taking the line is cheaper than an exemption.
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 
 # The host pass excludes every crate that cannot compile for the host: `user_mode_runtime` (the EL0 syscall
 # runtime, inline `asm!` naming architecture registers) and everything that depends on it.
@@ -83,7 +83,7 @@ cargo clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 # runs only when someone runs the proofs, which is ~20 minutes and therefore rarely; this runs on
 # every pull request for about a second.
 #
-# The price is the shim in scripts/kani-lint-shim/, because the harnesses are written against Kani's
+# The price is the shim in helpers/kani-lint-shim/, because the harnesses are written against Kani's
 # intrinsics and a plain `--cfg kani` cannot compile them. Two crates, since an attribute macro can
 # only come from a proc-macro crate; read that directory for what the shim does and does not promise.
 # A clean pass here is not a proof, and `script/verify` remains the thing that proves.
@@ -91,11 +91,11 @@ echo "==> clippy: the Kani proof harnesses (--cfg kani)"
 shim=target/kani-lint-shim
 mkdir -p "$shim"
 attrs=$(rustc --print file-names --crate-type proc-macro --crate-name kani_attributes \
-    scripts/kani-lint-shim/kani_attributes.rs)
+    helpers/kani-lint-shim/kani_attributes.rs)
 rustc --edition 2024 --crate-type proc-macro --crate-name kani_attributes \
-    scripts/kani-lint-shim/kani_attributes.rs --out-dir "$shim"
+    helpers/kani-lint-shim/kani_attributes.rs --out-dir "$shim"
 rustc --edition 2024 --crate-type lib --crate-name kani \
-    scripts/kani-lint-shim/kani.rs --extern kani_attributes="$shim/$attrs" --out-dir "$shim"
+    helpers/kani-lint-shim/kani.rs --extern kani_attributes="$shim/$attrs" --out-dir "$shim"
 # Same package selection as the host pass above. `--all-targets` because a harness crate's
 # `cfg(test)` build compiles the harnesses too, and the two configurations are not the same
 # compilation.
@@ -1313,13 +1313,13 @@ echo "script docs: every script documented, every README reference resolves"
 # printed instructions, built the right QEMU, re-ran `script/setup` as told, and `qemu-check` found
 # `/usr/bin`'s 8.2.2 again. Same failure, same message, same remedy, forever.
 #
-# `scripts/qemu-path.sh` is the fix and this is the rung-two half of it. The mechanism is PATH
+# `helpers/qemu-path.sh` is the fix and this is the rung-two half of it. The mechanism is PATH
 # inherited by children, so it only works if the process at the TOP of the tree exported it, which
 # means every entry point that can reach an emulator has to source the fragment. That is a thing to
 # remember, and AGENTS.md is explicit that "somebody will notice" is rung zero.
 #
 # **The rule is mechanical on purpose, and it over-approximates.** A file under `script/` that runs
-# `cargo xtask`, names a `qemu-system-*` binary, or calls a `scripts/qemu-*` helper must source the
+# `cargo xtask`, names a `qemu-system-*` binary, or calls a `helpers/qemu-*` helper must source the
 # fragment. `script/apropos` and `script/crate-probes` are caught and boot nothing today; the line
 # costs them nothing, and the alternative is a judgement call per file plus an allow-list, which is
 # the shape `script/lint` check 5 and milestone 283 both refuse to grow.
@@ -1334,8 +1334,8 @@ import pathlib
 import re
 import sys
 
-TOKEN = re.compile(r"cargo\s+xtask\b|qemu-system-|scripts/qemu-")
-FRAGMENT = "scripts/qemu-path.sh"
+TOKEN = re.compile(r"cargo\s+xtask\b|qemu-system-|helpers/qemu-")
+FRAGMENT = "helpers/qemu-path.sh"
 
 def callable_body(path):
     """The file with full-line comments and backticked prose removed."""
@@ -1518,7 +1518,7 @@ import sys
 # (milestone 236: three derivations are copied between scripts, and nothing notices when they
 # drift). This script `cd`s to the repository root on line 18, which is what lets a heredoc import
 # at all; the block comment above `_unsafe_census` below says what stays here and why.
-# `dont_write_bytecode` because the import would otherwise leave a `scripts/__pycache__/`
+# `dont_write_bytecode` because the import would otherwise leave a `helpers/__pycache__/`
 # behind on every run, which is an untracked directory a gate has no business creating.
 sys.dont_write_bytecode = True
 sys.path.insert(0, 'scripts')
@@ -1540,7 +1540,7 @@ import rust_source                                                          # no
 # two lines, and the resulting "three modules" went into AGENTS.md as fact.
 
 # A proof harness: the attribute alone on its line, indented or not. Anchoring to the whole line is
-# what keeps prose ABOUT the attribute out of the count -- scripts/kani-lint-shim/ spells
+# what keeps prose ABOUT the attribute out of the count -- helpers/kani-lint-shim/ spells
 # `#[kani::proof]` twice inside doc comments, and neither is a harness. The `\b.*` tail admits
 # `#[kani::proof_for_contract(...)]`, which the tree does not use today; matching only the bare form
 # would give a count that is quietly low the day somebody does, and a low count is no better than a
@@ -1555,7 +1555,7 @@ HARNESS = re.compile(r'^[ \t]*#\[kani::proof\b.*\][ \t]*$', re.M)
 # are separate `python3` heredocs in a shell script, so there is no scope they could share. A new
 # entry should be argued for rather than added, and it belongs in both.
 _HARNESS_EXEMPT = {
-    'scripts/kani-lint-shim/kani_attributes.rs',
+    'helpers/kani-lint-shim/kani_attributes.rs',
     'vendor/redoxfs/src/node.rs',
 }
 
@@ -1573,7 +1573,7 @@ def _harness_hits():
     scope somebody last checked.
 
     The package list comes from the same `cargo metadata` walk this file's verify-table check uses,
-    with its EXEMPT set doing the work it already does: the `scripts/kani-lint-shim` source and
+    with its EXEMPT set doing the work it already does: the `helpers/kani-lint-shim` source and
     `vendor/redoxfs` carry harnesses this suite has never run, and counting them would make the
     number describe a suite nobody executes.
     """
@@ -1606,10 +1606,10 @@ def _harness_hits():
 
 
 def _sh_scripts():
-    """Files under script/ and scripts/*.sh whose first line is exactly `#!/bin/sh`.
+    """Files under script/ and helpers/*.sh whose first line is exactly `#!/bin/sh`.
 
     Assumes script/ is flat (it is: every entry is an executable, no subdirectories) and that
-    scripts/ mixes .sh files with directories, which is why only *.sh is globbed there. Deriving
+    helpers/ mixes .sh files with directories, which is why only *.sh is globbed there. Deriving
     from the shebang rather than from the glob is what makes the NAME true: the prose says
     "`#!/bin/sh` scripts", so the gate counts files that start with `#!/bin/sh`.
     """
@@ -1719,7 +1719,7 @@ def _security_audits():
 # one-time number nobody re-takes, which is the failure this milestone exists to fix, so it is a
 # derivation here instead. See notes/register-of-measures.md and notes/unsafe-obligations.md.
 #
-# **The counting lives in `scripts/rust_source.py` and the file WALK lives here**, which is
+# **The counting lives in `helpers/rust_source.py` and the file WALK lives here**, which is
 # milestone 236's line and worth reading before moving either. `script/metrics` derives the same
 # census over blobs it streams out of git at eight historical revisions, with nothing checked out,
 # because AGENTS.md forbids the checkout that would be needed; this gate is asked about the tree in
@@ -1818,7 +1818,7 @@ REGISTRY = {
         _notes_files,
     ),
     'sh-scripts': (
-        'how many `#!/bin/sh` scripts there are under script/ and scripts/, which is the set '
+        'how many `#!/bin/sh` scripts there are under script/ and helpers/, which is the set '
         'shellcheck gates',
         _sh_scripts,
     ),
@@ -2094,7 +2094,7 @@ if _census:
 # --- the three derivations that could not be made one (milestone 236) ----------------------------
 #
 # The `unsafe` census and the code-line count above no longer need a check: they are the same
-# function `script/metrics` calls, in `scripts/rust_source.py`, so there is nothing left to drift.
+# function `script/metrics` calls, in `helpers/rust_source.py`, so there is nothing left to drift.
 # The harness count could not be collapsed that way, and the reason is a real difference in what
 # each caller is allowed to do rather than a preference:
 #
@@ -2119,7 +2119,7 @@ _falsifications = subprocess.run(['script/falsifications', '--count'],
 _ways = {
     'script/lint, from cargo metadata': _pkg_count,
     'script/falsifications --count': int(_falsifications[0]),
-    'scripts/rust_source.py, which script/metrics calls': _text_count['total'],
+    'helpers/rust_source.py, which script/metrics calls': _text_count['total'],
 }
 if len(set(_ways.values())) != 1:
     print('lint: the tree carries three derivations of the harness count and they disagree:',
@@ -2134,7 +2134,7 @@ if len(set(_ways.values())) != 1:
     sys.exit(1)
 if _text_count['falsified'] != int(_falsifications[1]):
     print(f'lint: script/falsifications counts {_falsifications[1]} harnesses with evidence and '
-          f'scripts/rust_source.py counts {_text_count["falsified"]}, so the falsification ratio on '
+          f'helpers/rust_source.py counts {_text_count["falsified"]}, so the falsification ratio on '
           f'notes/project-metrics.md is not the one script/falsifications reports. See milestone 236.',
           file=sys.stderr)
     sys.exit(1)
@@ -2244,7 +2244,7 @@ fi
 #
 #    This was a fixed allowlist of eleven prefixes until 2026-08-17, and calef retired it after
 #    asking what the taxonomy was for. The answer, checked rather than argued: **nothing consumes
-#    it except this check.** A grep across `script/`, `scripts/`, `.github/workflows/` and `xtask/`
+#    it except this check.** A grep across `script/`, `helpers/`, `.github/workflows/` and `xtask/`
 #    for any other reader of a branch prefix returns only false positives (`bench/baseline-*.txt`
 #    is a directory, `$prefix/bin` is a shell variable). Only `milestone/N-` is read by anything,
 #    and 4b below is what reads it.
@@ -2276,13 +2276,13 @@ fi
 #    A detached HEAD (every CI pull_request run, since actions/checkout builds the merge commit)
 #    has no branch to judge and is skipped rather than guessed at, as before.
 #
-#    **The shape rule itself lives in scripts/branch-name-check.sh** (2026-09-22), not here. This
+#    **The shape rule itself lives in helpers/branch-name-check.sh** (2026-09-22), not here. This
 #    check only ever sees a branch that already exists, which means it fires after the worktree is
 #    made, after the work is written, sometimes after commits; script/claim runs the identical
 #    refusal before any of that, and a shared case statement is what keeps the two answers from
 #    drifting apart. See that file for the near-miss reasoning.
 branch="$(git -C "$(dirname "$0")/.." symbolic-ref --quiet --short HEAD || true)"
-. "$(dirname "$0")/../scripts/branch-name-check.sh"
+. "$(dirname "$0")/../helpers/branch-name-check.sh"
 nife_check_branch_name_shape "$branch" lint || exit 1
 
 # 4b. **A `milestone/N-*` branch must touch that milestone's roadmap file** (§90, 2026-08-16).
@@ -3136,7 +3136,7 @@ for p in meta["packages"]:
 # harness-clippy pass, and `vendor/redoxfs` is upstream code kept out of the workspace on purpose
 # (see the workspace Cargo.toml's own note). A new entry here should be argued for, not added.
 EXEMPT = {
-    "scripts/kani-lint-shim/kani_attributes.rs",
+    "helpers/kani-lint-shim/kani_attributes.rs",
     "vendor/redoxfs/src/node.rs",
 }
 
@@ -3197,7 +3197,7 @@ PY
 # same trap costing two renames a count), so the boundaries here are POSIX classes.
 echo "==> halves that are not halves"
 if git grep -nEi '(^|[^[:alnum:]_])(three|four|five|six|seven|eight|nine|ten|several|many)[[:space:]]+halves([^[:alnum:]_]|$)' \
-    -- '*.md' '*.rs' '*.yml' '*.toml' 'script/*' 'scripts/*' ':!vendor' ':!patches'; then
+    -- '*.md' '*.rs' '*.yml' '*.toml' 'script/*' 'helpers/*' ':!vendor' ':!patches'; then
     echo "lint: a count above two in front of that word. Two things have halves; three have arms," >&2
     echo "      parts or pieces (design/naming.md, \"A half implies two\")." >&2
     exit 1
@@ -3220,12 +3220,12 @@ if ! command -v shellcheck >/dev/null 2>&1; then
     exit 1
 fi
 cd "$(dirname "$0")/.."
-shellcheck --severity=warning script/* scripts/*.sh
+shellcheck --severity=warning script/* helpers/*.sh
 # Counted, not remembered. This line read "23 sh scripts" as a literal, so it kept saying 23 after a
 # 24th was added -- harmless here because the glob above is what actually checks them, but it is the
 # same defect as script/fmt's: a gate reporting a number it did not measure. Anything that looks like
 # evidence has to be derived from the thing it describes.
-echo "shellcheck: $(ls script/* scripts/*.sh | wc -l | tr -d ' ') sh scripts, no errors or warnings"
+echo "shellcheck: $(ls script/* helpers/*.sh | wc -l | tr -d ' ') sh scripts, no errors or warnings"
 
 # ShellCheck is a static analyzer and knows POSIX from bashisms, but it does not *run* a shell, so it
 # cannot catch a shell's own parser being wrong about syntax that is valid. `/bin/sh` on the dev Mac
@@ -3240,7 +3240,7 @@ echo "shellcheck: $(ls script/* scripts/*.sh | wc -l | tr -d ' ') sh scripts, no
 # on the machine that has the bug, not to prove the bug exists everywhere.
 echo "==> sh -n (does the dev machine's own /bin/sh parse every script)"
 shfail=""
-for f in script/* scripts/*.sh; do
+for f in script/* helpers/*.sh; do
     [ -f "$f" ] || continue
     head -n1 "$f" | grep -q '^#!.*\bsh\b' || continue
     if ! /bin/sh -n "$f" 2>/tmp/lint-sh-n.$$; then

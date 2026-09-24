@@ -147,7 +147,7 @@ that says whether the PIT calibration was right.
 - `kernel/src/arch/x86_64/tsc_probe.rs`: prints every calibration window, which is what turned the
   probe from "is the calibration right" into "is the estimator right" and is how the tables above
   were measured.
-- `scripts/qemu-runner-x86_64.sh`: forwards SIGTERM to QEMU. See below; this is a separate bug that
+- `helpers/qemu-runner-x86_64.sh`: forwards SIGTERM to QEMU. See below; this is a separate bug that
   this lane's own sweep tripped over several hundred times.
 - `notes/benchmarks.md` (since split: the table is in `notes/benchmarks/x86-tss-iomap.md` and the
   dated section in `notes/benchmarks/counter-frequency-and-calibration.md`): the 2026-08-24 x86
@@ -156,7 +156,7 @@ that says whether the PIT calibration was right.
 
 ## The bug this lane tripped over on its way, and fixed
 
-**`scripts/qemu-bounded.sh`'s bound did nothing on x86_64**, and the reason is one word in a
+**`helpers/qemu-bounded.sh`'s bound did nothing on x86_64**, and the reason is one word in a
 comment. `qemu-runner-x86_64.sh` is the only one of the three runners that does not `exec` QEMU,
 because it has to translate `isa-debug-exit`'s status afterwards, and it says so. But the wrapper
 bounds a run by sending SIGTERM **to the child it started**, which on aarch64 and riscv64 is QEMU
@@ -211,7 +211,7 @@ about everything except what another file would do to it.
   `design/roadmap/proposals/the-x86-boot-calibrates-once-and-can-be-wrong-by-4x.md`, is removed by
   this milestone: its two open questions are both answered above (the boot does print its
   confidence, and the local APIC timer is derived from the same windows).
-- **Recorded.** `scripts/qemu-bounded.sh`'s `BUGS` section still describes SIGKILL as the way its
+- **Recorded.** `helpers/qemu-bounded.sh`'s `BUGS` section still describes SIGKILL as the way its
   bound is defeated, and does not mention that a runner which does not `exec` defeats it with an
   ordinary TERM. The x86_64 runner is fixed here and now says so at the code; the wrapper's own
   `BUGS` is the place a reader would look first and is left for whoever next touches that file.

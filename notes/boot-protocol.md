@@ -110,7 +110,7 @@ for.
 
 ## Why the tests boot the same way the real thing does
 
-`.cargo/config.toml` points cargo's runner at `scripts/qemu-runner-aarch64.sh`, which strips the ELF
+`.cargo/config.toml` points cargo's runner at `helpers/qemu-runner-aarch64.sh`, which strips the ELF
 to a flat binary before launching QEMU. So `cargo test` and `cargo xtask run` take **the
 identical boot path.**
 

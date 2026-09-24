@@ -9,7 +9,7 @@
 //! **Why this directory is outside `script/coverage`'s floor, recorded there too**: the coverage
 //! run is an unprivileged Linux process, and nothing here can run in it. There is no `diskutil`
 //! on Linux and no `kernel32`; the Linux arm erases a whole block device as root. Each arm is
-//! instead run for real on its own host: macOS by `scripts/stick-maker-proof.sh` against
+//! instead run for real on its own host: macOS by `helpers/stick-maker-proof.sh` against
 //! hdiutil-attached files, Linux and Windows by `.github/workflows/stick-maker-hosts.yml` (a loop
 //! device through both paths; Windows discovery). That is a stronger signal than a line count, and
 //! it is where a regression here would show.

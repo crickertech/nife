@@ -173,7 +173,7 @@ with no arguments now runs all three.
 
 **The UEFI image under OVMF**: `cargo xtask uefi-image`'s `target/esp/EFI/BOOT/BOOTX64.EFI`, the file
 a customer copies to a USB stick (DECISIONS §157, milestone 198's rung 1), booted by
-`scripts/qemu-uefi-x86_64.sh`. Not QEMU's PVH `-kernel` path, which `script/test`'s x86_64 suite and
+`helpers/qemu-uefi-x86_64.sh`. Not QEMU's PVH `-kernel` path, which `script/test`'s x86_64 suite and
 `script/boot-check` use.
 
 Measured on patagonia, 2026-09-19, one core, the same kernel and archive, a temporary switch in the
@@ -238,7 +238,7 @@ says so where the step is), or the flush cost comes down in milestone 400's code
   in `$ ` and a line typed in that window could have the report spliced through its echo. The leg
   waits for the report's last line and presses Enter once for a fresh prompt. This is ordering the
   gate's own reads, not a readiness signal for input: typing before the prompt works (below).
-- **The RedoxFS disk is attached under firmware too, on request.** `scripts/qemu-uefi-x86_64.sh`
+- **The RedoxFS disk is attached under firmware too, on request.** `helpers/qemu-uefi-x86_64.sh`
   attaches `nifefs-redoxfs.img` as a second `virtio-blk-pci` function when `NIFE_UEFI_REDOXFS` is set
   (name provisional), because `>`, `<`, `ls` and `rm` need a filesystem. The leg sets it; nothing
   else does. It is opt-in rather than the PVH runner's attach-when-present because attaching it
@@ -324,7 +324,7 @@ this milestone does not build.
   halt with it.
 - **Recorded.** The stale gauge and the 100% core, in BUGS above and in `components/src/input.rs`.
 - **Recorded.** `uefi-test` red with the RedoxFS disk attached, in BUGS above and at
-  `scripts/qemu-uefi-x86_64.sh`'s `NIFE_UEFI_REDOXFS`.
+  `helpers/qemu-uefi-x86_64.sh`'s `NIFE_UEFI_REDOXFS`.
 - **Recorded.** The leg's CI cost, in `script/swish-check`'s header and `.github/workflows/ci.yml`;
   measured in CI by this pull request's first green run.
 - **Milestone 268.** Its x86_64 top rung is reachable and gated by this leg; 268's own

@@ -89,7 +89,7 @@ reader to infer a trend from a convention's birth.
   this column does not carry. The page names that number as the one to watch, and does not pretend
   this one is it.
 - **It counts four kinds of named thing, and the naming rule covers more.** Public function and
-  method names have been calef's since 2026-08-23 and nothing counts them; types, `scripts/` helpers
+  method names have been calef's since 2026-08-23 and nothing counts them; types, `helpers/` helpers
   and directory names are outside `script/names`' surfaces, so they are outside this series too.
   design/naming.md's `BUGS` carries what that leaves uncovered.
 
@@ -99,12 +99,12 @@ reader to infer a trend from a convention's birth.
 **204 names, 104 `ratified`, 37 `recorded`, 63 `provisional`, 0 `unrecorded`**, which is
 `script/names`' own table to the digit from a different walk of the tree.
 
-**The parse is shared rather than copied** (`scripts/name_provenance.py`, a provisional name), which
+**The parse is shared rather than copied** (`helpers/name_provenance.py`, a provisional name), which
 is milestone 236's (three derivations are copied between scripts, and nothing notices when they
 drift) rule applied the moment the dashboard became a second reader of these blocks. `script/names`
 keeps its file walk and `script/metrics` keeps its `git ls-tree`, because a gate is asked about the
 tree in front of it and a report is asked about eight revisions nobody has checked out; that is the
-same line `scripts/rust_source.py` already draws. `script/names`' output is byte-identical on every
+same line `helpers/rust_source.py` already draws. `script/names`' output is byte-identical on every
 mode, checked against the pre-refactor run on stdout and stderr both.
 
 **A chart, and it earned one.** The series was expected to be a near-flat total plus a slowly-moving
@@ -134,7 +134,7 @@ unchanged in all eight weeks and the seven existing SVGs are byte-identical.
 **The sixth column, and what it found.** `proposals_unnumbered` is **74 at 2026W36 and zero in every
 week before**, because the directory was created on 2026-09-04. One bar is a number rather than a
 series, so it gets no chart and a section of prose instead; the column exists so the series
-accumulates. Its parse is shared the same way (`scripts/roadmap_proposals.py`, also provisional), and
+accumulates. Its parse is shared the same way (`helpers/roadmap_proposals.py`, also provisional), and
 `script/roadmap`'s output is byte-identical on every mode.
 
 **The premise that it is a one-way queue is false, and the checking is the useful part.** Five
@@ -158,8 +158,8 @@ name is the mechanism working rather than failing, and the note that the band wo
   had, and `script/metrics --update` on trunk or `.github/workflows/metrics.yml` on Monday writes
   2026W37. Nothing is owed; this is recorded so the next reader does not file the missing row as a
   bug.
-- **Recorded.** `scripts/name_provenance.py` is a provisional name and calef names modules. It
-  carries no `Name:` block because `script/names` puts `scripts/` out of its own scope, which is the
+- **Recorded.** `helpers/name_provenance.py` is a provisional name and calef names modules. It
+  carries no `Name:` block because `script/names` puts `helpers/` out of its own scope, which is the
   same hole the `package` kind closed one surface over; its header paragraph is the record instead.
 - **Recorded.** design/naming.md's `BUGS` said `kernel`, `xtask`, `redoxfs_server` and
   `tools/redoxfs_host` were uncovered surfaces. They have carried blocks since the `package` kind

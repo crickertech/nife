@@ -7,7 +7,7 @@ smaller half. *(Number provisional until the merge queue lands it.)*
 **Gate: NONE.** It reads GitHub's run history, the same source `script/cadence-check` already reads.
 
 **Premise re-checked 2026-09-19 and still true, and the overdue run is now five weeks long.**
-`scripts/trunk-health.sh` still reports nothing about a repeated failure, and `script/cadence-check`
+`helpers/trunk-health.sh` still reports nothing about a repeated failure, and `script/cadence-check`
 still asks only when a workflow last succeeded. `script/audits --due` still names `documentation`,
 whose last sweep is 2026-08-17 and whose milestone trigger now reads +122 against a threshold of 10.
 The security sibling is the one thing that moved: it was audited on 2026-09-17 and is no longer due,
@@ -64,7 +64,7 @@ failed *with the same final line*. Sketch, for whoever builds it:
 - A workflow whose failures are all *different* is churning, and is a separate and less urgent
   finding; say so rather than folding it in.
 
-**The delivery is `scripts/trunk-health.sh`, not a new scheduled workflow**, for the reason
+**The delivery is `helpers/trunk-health.sh`, not a new scheduled workflow**, for the reason
 `script/cadence-check`'s header already states and this proposal must not undo: a scheduled workflow
 that watches scheduled workflows dies the way its subjects die.
 
@@ -97,7 +97,7 @@ same true report. An audit was overdue every week for a month, the mechanism sai
 every time, and no audit ran, which is milestone 92's tripwire firing four times into a process that
 still depended on somebody remembering. `script/cadence-check` cannot cover it, because a job whose
 healthy state is red has no green to be stale against and a job that never succeeded is reported for
-ever. The proposal is to report a repeat rather than a colour, from `scripts/trunk-health.sh` rather
+ever. The proposal is to report a repeat rather than a colour, from `helpers/trunk-health.sh` rather
 than a scheduled workflow that would die the way its subjects die. What makes it a block rather than
 a brief is the open question of who the report is for, since running an audit is a lane and a day
 and there is no pull request to hang the finding on.

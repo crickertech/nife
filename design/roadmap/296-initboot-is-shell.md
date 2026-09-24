@@ -61,7 +61,7 @@ server, and rebuilds the RedoxFS fixture the prompt's `>` and `<` read. `initboo
 *added* capability to anyone who typed the old name, and keeping the arm as it stood would have kept
 the copy this milestone exists to remove.
 
-**And the omission was staleness, not design.** `scripts/qemu-runner-aarch64.sh` attaches the
+**And the omission was staleness, not design.** `helpers/qemu-runner-aarch64.sh` attaches the
 fixture with `if [ -f "$REDOXFS_DISK" ]`, and the image lives at a fixed path under `target/`. So
 what an `initboot` boot got depended on whether somebody had run `script/console` or `script/test`
 in that checkout earlier: an environment that is a function of invocation history is not a design
