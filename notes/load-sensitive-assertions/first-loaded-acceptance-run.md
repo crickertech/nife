@@ -1,43 +1,44 @@
 # The first loaded acceptance run, 2026-08-17
 
 *(An appendix of [notes/load-sensitive-assertions.md](../load-sensitive-assertions.md), which holds
-the register and the rules. Moved there verbatim on 2026-09-24; "this page" and "above" in the text
-below meant the single note it came from.)*
+the register and the rules. Moved here on 2026-09-24 and tightened; pull request #1211's first
+commit has the text verbatim.)*
 
 ## The acceptance run, 2026-08-17: 45 loaded runs, 36 green, and what the nine reds were
 
-Milestone 62 has said since 2026-08-01 that its own fix cannot be verified by running the suite
-once: a flake that fires one run in six is indistinguishable from a fixed one until you have run it
-many times, so the evidence it asks for is a **repeat count under load**. Four rounds of this page
-produced such a count three times, by hand, and each time the number lived in a report. This is that
-count taken by an instrument that records its own conditions, `script/repeat-under-load`.
+Milestone 62 (tests that assert on time) has said since 2026-08-01 that its own fix cannot be
+verified by running the suite once. A flake that fires one run in six is indistinguishable from a
+fixed one until you have run it many times. So the evidence it asks for is a repeat count under
+load. Four rounds of the old note produced such a count three times, by hand, and each time the
+number lived in a report. This is that count taken by an instrument that records its own
+conditions, `script/repeat-under-load`.
 
-**The result is not the green the milestone hoped for, and that is the useful part.** Nine of
-forty-five runs went red. Eight were two assertions, in perfect ISA symmetry, both already named in
-this page's BUGS section as known residuals that only the icount instrument can close. The ninth was
-a real kernel bug that nothing in this tree had recorded.
+The result is not the green the milestone hoped for. Nine of forty-five runs went red. Eight were
+two assertions, in perfect ISA symmetry, both already named in the old BUGS section as known
+residuals that only the icount instrument could close. The ninth was a real kernel bug that nothing
+in this tree had recorded.
 
 ### The instrument and the conditions, stated before the result
 
-`script/repeat-under-load -n 45 -s 8`, which starts one busy loop per host core, runs `script/test`
-(both ISA legs plus the host crates), and records per run the elapsed seconds, the one-minute load
+`script/repeat-under-load -n 45 -s 8` starts one busy loop per host core and runs `script/test`
+(both ISA legs plus the host crates). Per run it records the elapsed seconds, the one-minute load
 average sampled every ten seconds, and how many QEMU processes were up.
 
 - Host: Mac15,3, 8 cores, Darwin 25.5.0 arm64. Tree `d9f0d151`.
 - 45 runs, 108 minutes of wall clock, 2026-08-17 22:46Z to 2026-08-18 00:34Z.
-- One-minute load average across the whole loop: **26.1 low, 63.0 peak**, which is at and above the
-  ~22 the eight-spinner recipe above puts an eight-core machine at.
-- **The machine was not mine alone, and that is recorded rather than smoothed over.** Two other
-  lanes were gating on the same laptop for the first third of it, one of them running its own
-  emulator under `-icount`. Their emulators are the `QEMUs seen` column: this run has at most one
-  alive at a time, so any sample reading two or more is a neighbour.
-- A pilot run of the same command was cut short after one run and is not counted here; the eight
+- One-minute load average across the whole loop: 26.1 low, 63.0 peak. That is at and above the ~22
+  the eight-spinner recipe puts an eight-core machine at.
+- The machine was not this lane's alone. Two other lanes were gating on the same laptop for the
+  first third of the loop, one of them running its own emulator under `-icount`. Their emulators are
+  the `QEMUs seen` column: this run has at most one alive at a time, so any sample reading two or
+  more is a neighbour.
+- A pilot run of the same command was cut short after one run and is not counted here. The eight
   spinners were stopped between every run, and the loop left no QEMU behind.
 
 ### Every run, in order
 
-Reporting only the interesting ones would be the exact dishonesty this milestone exists to remove,
-which is the second round's rule and it still holds.
+Reporting only the interesting ones would be the dishonesty this milestone exists to remove. That
+is the second round's rule, and it still holds.
 
 | run | result | seconds | 1-min load average (min/mean/peak) | QEMUs seen | what failed |
 |---|---|---|---|---|---|
@@ -89,43 +90,45 @@ which is the second round's rule and it still holds.
 
 ### The eight timing reds are two assertions, twice each, on both ISAs
 
-The symmetry is the finding, because it says this is a property of the assertions rather than of
-either architecture:
+The symmetry says this is a property of the assertions rather than of either architecture:
 
 | assertion | aarch64 | riscv64 | what it said |
 |---|---|---|---|
 | `ticks_arrive_at_the_configured_rate`, the eight-attempt retry budget | `timer.rs:414`, runs 2 and 13 | `timer.rs:455`, runs 8 and 14 | "no miss-free measurement window in eight tries" |
 | `the_handler_keeps_up_when_no_lock_is_held`, the taxonomy's cut | `timer.rs:470`, runs 11 and 29 | `timer.rs:509`, runs 3 and 5 | "the timer handler is taking longer than a whole tick period, with no lock held" |
 
-**Both were predicted on this page and neither had ever been observed.** The BUGS section says the
-drift test "can still go red on a pathological host, by design" and calls that "rarer by orders";
-and it says the taxonomy's cut leaves a one-period-wide window in which a host deschedule "still
-fails, wearing the message that blames this kernel", measured only by a lock-holding probe at 0.83
-of an interval. This run is the first time either was seen in the wild, and it corrects the first
-of those claims: **at these loads the retry budget is not rare.** It fired four times in
-forty-five runs, and one of those was the third run of the loop.
+Both were predicted in the old note, and neither had ever been observed. Its BUGS section said the
+drift test "can still go red on a pathological host, by design", and called that "rarer by orders".
+It also said the taxonomy's cut leaves a one-period-wide window in which a host deschedule "still
+fails, wearing the message that blames this kernel". That had been measured only by a lock-holding
+probe, at 0.83 of an interval. This run is the first time either was seen in the wild. It corrects
+the first claim: at these loads the retry budget is not rare. It fired four times in forty-five
+runs, and one of those was the third run of the loop.
 
 The taxonomy red carries its own numbers, which is the 2026-08-15 fix working even as the assertion
-fails: run 3 reported `last miss re-armed 55810 counter ticks late against an interval of 100000`.
+fails. Run 3 reported `last miss re-armed 55810 counter ticks late against an interval of 100000`.
 That is 0.56 of an interval, inside the "slow handler" bucket, and the handler was not slow. It is
 the documented window, observed, at a lateness lower than the probe that first measured it.
 
-**Neither is fixable by widening, and the run is evidence for that rather than against it.** The
-retry budget's second, implicit claim ("a host that cannot give eight clean windows is pathological
-or the handler is slow") is answered properly next door, by the sibling assertion carrying the
-taxonomy, which **passed immediately before this one panicked in run 2's log**. And widening the
-taxonomy's cut trades the flake for a slow handler going unreported, which BUGS already refuses.
-What both need is the instrument milestone 78 built the same day: under `-icount shift=0,sleep=off`
-virtual time is a function of instructions executed, so a contended host cannot move it at all.
+Neither is fixable by widening, and the run is evidence for that. The retry budget has a second,
+implicit claim: "a host that cannot give eight clean windows is pathological or the handler is
+slow". The sibling assertion carrying the taxonomy answers that properly, and it passed immediately
+before this one panicked in run 2's log. Widening the taxonomy's cut trades the flake for a slow
+handler going unreported, which BUGS already refuses. Both need the instrument that milestone 78 (the
+load-sensitive assertions) built the same day. Under `-icount shift=0,sleep=off` virtual time is a
+function of instructions executed, so a contended host cannot move it at all.
 
-**And that changes what these two are for, which is the thing to carry forward from this run.**
-`script/icount` now asserts **zero missed ticks** on both ISAs, which is a strictly stronger claim
-than either assertion above makes and is one a loaded host cannot falsify. It is a separate boot
-mode, so `script/test` still carries the wall-clock pair, still fails on them at roughly one run in
-six under this load, and no longer learns anything from them that the instrument does not assert
-better. That is a disposition worth making deliberately rather than a bound worth widening: the
-question for whoever takes it is whether the wall-clock pair keeps a claim of its own on a machine
-where `script/icount` is not run, not whether eight attempts should have been sixteen.
+That changes what these two are for. `script/icount` now asserts zero missed ticks on both ISAs. That
+is a strictly stronger claim than either assertion makes, and one a loaded host cannot falsify. It
+is a separate boot mode, so `script/test` still carries the wall-clock pair. The pair still fails at
+roughly one run in six under this load, and it no longer learns anything the instrument does not
+assert better. So this wants a deliberate disposition, not a wider bound. The question for whoever
+takes it: does the wall-clock pair keep a claim of its own on a machine where `script/icount` is not
+run? Not whether eight attempts should have been sixteen.
+
+(Correction, 2026-08-18: "strictly stronger" was true of the handler-latency assertion and false of
+the drift one. The instrument was blind to the drift bug until it gained a fourth claim; see
+[the timer disposition](timer-assertion-disposition.md).)
 
 ### The ninth red is not a timing assertion, and it wants its own lane
 
@@ -138,45 +141,42 @@ double free of frame 0x82a3e000
 ```
 
 That is `Frames::free`'s deliberate loud failure, and its doc comment is right that both cases it
-covers are kernel bugs. Nothing in `notes/` or `design/` records this; a grep for "double free"
-finds only the assertion itself. **One occurrence in forty-five loaded runs, and zero in the quiet
-run that preceded the loop.** It is recorded in the BUGS section of notes/object-revocation.md,
+covers are kernel bugs. Nothing in `notes/` or `design/` recorded this; a grep for "double free"
+found only the assertion itself. It occurred once in forty-five loaded runs, and zero times in the
+quiet run that preceded the loop. It is recorded in the BUGS section of notes/object-revocation.md,
 beside the `DESTROY` path it fired in.
 
-***Fixed 2026-08-18 in PR #316, and the diagnosis corrects this section rather than confirming
-it.*** The paragraph below reads the sighting as a rate question ("the next lane on it should assume
-the window is narrower than that") and that framing was wrong: it is not a rare race but an
-**ownership defect that reproduces deterministically on aarch64**, and riscv64 is only where the
-timing exposed it. `user_aspace_create` builds an address space inside a region the caller already
-holds an `Untyped` to, where `AddressSpace::new` carves its own, and both stored a bare `u64` whose
-`Drop` called `untyped::destroy` unconditionally: two names for one run of memory. The pin argument
-that was meant to make that safe holds only for a drop under `SCHED`, and `sched::finish_switch`
-releases `SCHED` before dropping. Beside it, `untyped::destroy` released `REGIONS` between deciding
-and removing the slot, so two callers could both pass the refusal check.
+Fixed 2026-08-18 in PR #316. The diagnosis corrects this section rather than confirming it. The
+last section of this appendix read the sighting as a rate question ("the next lane on it should assume the window
+is narrower than that"), and that framing was wrong. It is not a rare race. It is an ownership
+defect that reproduces deterministically on aarch64, and riscv64 is only where the timing exposed
+it. `user_aspace_create` builds an address space inside a region the caller already holds an
+`Untyped` to, where `AddressSpace::new` carves its own. Both stored a bare `u64` whose `Drop` called
+`untyped::destroy` unconditionally: two names for one run of memory. The pin argument meant to make
+that safe holds only for a drop under `SCHED`, and `sched::finish_switch` releases `SCHED` before
+dropping. Beside it, `untyped::destroy` released `REGIONS` between deciding and removing the slot, so
+two callers could both pass the refusal check.
 
-**The lesson for this page is about the instrument rather than the bug.** A loaded repeat count is
-good at *surfacing* a defect and actively misleading about *characterising* one: this run produced a
-frequency (1 in 45) for something that had no frequency, and had anyone budgeted the next lane
-against that number they would have gone looking for a narrow race instead of an ownership
-question. Treat a sighting from this instrument as "there is something here", never as "here is how
-often".
+The lesson is about the instrument rather than the bug. A loaded repeat count is good at surfacing a
+defect and actively misleading about characterising one. This run produced a frequency (1 in 45) for
+something that had no frequency. A lane budgeted against that number would have gone looking for a
+narrow race instead of an ownership question. Treat a sighting from this instrument as "there is
+something here", never as "here is how often".
 
-**Two details from the fix worth keeping on this page.** The write-up lives in the "Two names for
-one region" section of notes/object-revocation.md. And **the bug was found by reading, not by
-reproducing**: the lane that took it never saw the panic again and did not need to, because the
-deterministic test it landed stages the window by hand rather than racing for it. That is the same
-point as the paragraph above, arrived at from the other side: the instrument said where to look and
-was no use at all for saying what was there.
+Two details from the fix. The write-up lives in the "Two names for one region" section of
+notes/object-revocation.md. And the bug was found by reading, not by reproducing. The lane that took
+it never saw the panic again and did not need to, because its deterministic test stages the window
+by hand rather than racing for it. The instrument said where to look and was no use at all for
+saying what was there.
 
-Worth naming because it is the whole point of the milestone: a red run that means something. Eight
-of these nine reds are noise the instrument cannot yet remove, and the ninth is a memory-safety bug
-in the kernel. A suite that fails for reasons unrelated to the change trains everyone to re-run
-rather than to read, and this run is what that costs: the one red worth reading arrived wearing the
-same colour as eight that were not.
+This is the whole point of the milestone: a red run that means something. Eight of these nine reds
+are noise the instrument cannot yet remove, and the ninth is a memory-safety bug in the kernel. A
+suite that fails for reasons unrelated to the change trains everyone to re-run rather than read.
+Here the one red worth reading arrived wearing the same colour as eight that were not.
 
 ### Load average did not predict the failures; a second emulator did
 
-The most useful number in the table is the one this instrument added, and it was not the load
+The most useful number in the table is the one this instrument added, and it is not the load
 average:
 
 | condition | runs | red |
@@ -184,35 +184,34 @@ average:
 | a neighbouring lane's emulator seen during the run | 17 | 6 |
 | this run's emulator alone | 28 | 3 (one of which is the double free) |
 
-And the load average separates them not at all. Run 42 **passed** at a peak of 63.0, the highest in
-the table; run 11 **failed** at a peak of 33.8, near the lowest. Eight steady spinners raise the
-load average a great deal and apparently do not, on their own, reliably deschedule the vCPU across a
-250 ms measurement window; another TCG emulator competing for the same cores does.
+The load average separates them not at all. Run 42 passed at a peak of 63.0, the highest in the
+table. Run 11 failed at a peak of 33.8, near the lowest. Eight steady spinners raise the load
+average a great deal and apparently do not, on their own, reliably deschedule the vCPU across a
+250 ms measurement window. Another TCG emulator competing for the same cores does.
 
-**The honest caveat, and it cuts against the table above.** A run that dies in 43 seconds gives the
-ten-second sampler only four looks, so the neighbour count for exactly the runs that failed fastest
-is the least reliable figure here. Runs 2 and 29 are recorded at one and zero, and neither can be
-trusted to mean no neighbour was up. Read the split as a lead worth instrumenting properly, not as a
+The honest caveat cuts against the table above. A run that dies in 43 seconds gives the ten-second
+sampler only four looks. So the neighbour count for exactly the runs that failed fastest is the
+least reliable figure here. Runs 2 and 29 are recorded at one and zero, and neither can be trusted
+to mean no neighbour was up. Read the split as a lead worth instrumenting properly, not as a
 measured ratio.
 
 ### What this run proves, and three things it does not
 
-It proves the suite is **not** load-insensitive at the loads the recipe on this page manufactures,
-and it names exactly where: two assertions, both ISAs, both awaiting icount rather than a margin.
-That is a real answer to milestone 62's acceptance question, and it is a "no".
+It proves the suite is not load-insensitive at the loads the recipe manufactures, and it names
+exactly where: two assertions, both ISAs, both awaiting icount rather than a margin. That is a real
+answer to milestone 62's acceptance question, and it is a "no".
 
-It does **not** prove the other assertions are correct. Thirty-six green runs are thirty-six draws
-from one host at one load band, which is the fifth round's lesson arriving again: an injection that
-fires proves only that an assertion can fail, and a loop that passes proves only that it did not
-fail here. Milestone 124's lane did 45 loaded full-suite runs without reproducing a fault it was
-hunting.
+It does not prove the other assertions are correct. Thirty-six green runs are thirty-six draws from
+one host at one load band. That is the fifth round's lesson again: an injection that fires proves
+only that an assertion can fail, and a loop that passes proves only that it did not fail here. The
+lane for milestone 124 (a thread is born where it lives) did 45 loaded full-suite runs without
+reproducing a fault it was hunting.
 
-It does **not** establish a rate for the double free. One in forty-five is a sighting, not a
-frequency, and the lane that took it assumed the window was narrower than that, correctly: a
-thirty-run attempt on 2026-08-18 never reached the test, because at a host load of 63 the suite died
-first on the riscv64 timer assertion two sections up. The bug was diagnosed by reading the reclaim
-path instead.
+It does not establish a rate for the double free. One in forty-five is a sighting, not a frequency.
+The lane that took it assumed the window was narrower than that, correctly. A thirty-run attempt on
+2026-08-18 never reached the test: at a host load of 63 the suite died first on the riscv64 timer
+assertion two sections up. The bug was diagnosed by reading the reclaim path instead.
 
-And it does **not** transfer to CI. This is one laptop, one QEMU build, one load shape. GitHub's
-runners are a different machine with a different contention profile, which is the same caveat
-notes/cpu-models.md attaches to its own matrix.
+And it does not transfer to CI. This is one laptop, one QEMU build, one load shape. GitHub's runners
+are a different machine with a different contention profile, which is the caveat notes/cpu-models.md
+attaches to its own matrix.

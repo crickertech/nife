@@ -1,9 +1,8 @@
 # Load-sensitive assertions
 
-*(Milestone 78 (load-sensitive assertions) and milestone 62 (time-sensitive tests). This page is
-the register: how to recognise one of these assertions, the rule for fixing one, and every known
-site with its status. The history of each fix, with its runs and injections, is in the appendices
-under [`notes/load-sensitive-assertions/`](load-sensitive-assertions/), listed at the end.)*
+*(Milestone 78 (the load-sensitive assertions) and milestone 62 (tests that assert on time). This
+page is the register: how to recognise one, how to fix one, and every known site with its status.
+Each fix's history, runs and injections are in the appendices listed at the end.)*
 
 A load-sensitive assertion is a test that goes red because the host was busy, not because the
 kernel was wrong. The guest runs under QEMU on a shared machine. When other emulators, lanes or CI
@@ -11,15 +10,14 @@ jobs compete for the cores, the guest's vCPUs are descheduled for milliseconds a
 that measured the wrong thing then fails on a pull request that could not have reached it.
 
 The family was named on 2026-08-03, when five assertions had failed pull requests that changed no
-executable code. It has grown since, and it has cost real time: a flaky red trains people to re-run
-rather than read. On 2026-08-17 a loaded run produced nine reds. Eight were two known timer
-assertions, and the ninth was a real double free in the kernel, wearing the same colour
+executable code. Its cost is that a flaky red trains people to re-run rather than read. On
+2026-08-17 a loaded run produced nine reds: eight from two known timer assertions, and one real
+double free, wearing the same colour
 ([the first loaded acceptance run](load-sensitive-assertions/first-loaded-acceptance-run.md)).
 
 ## How to recognise one
 
-Five questions sort the family. Ask them in order; each was learned from a site the earlier ones
-missed.
+Ask these in order; each was learned from a site the earlier ones missed.
 
 ### 1. Which direction did it fail?
 
@@ -34,12 +32,12 @@ yet, so it can only make a count lower than the test expected.
   landing late. `notes/riscv-parity-scope.md` named the shape: "a wait written against something
   wider than the property".
 
-A negative failure cannot be fixed by a margin. Widening the bound only hides the defect, which is
-§61's reasoning about the dropped lints, applied to assertions.
+A negative failure cannot be fixed by a margin: widening the bound only hides the defect. That is
+§61 (a lint is adopted on evidence), applied to assertions.
 
 ### 2. Is a yield count standing in for a duration?
 
-A yield count is not a duration. Since §28 scatters threads across cores, a yield on a core with an
+A yield count is not a duration. Since §28 (SMP placement) scatters threads across cores, a yield on a core with an
 empty run queue returns in microseconds. Fifty of them can elapse before the awaited thread has been
 scheduled at all. The error runs both ways: a loaded host burns yields while another vCPU is
 descheduled, and a native host under Hypervisor.framework burns them in nanoseconds
@@ -71,14 +69,13 @@ rather than re-cut ([the timer disposition](load-sensitive-assertions/timer-asse
 
 The first four questions find assertions that fail when they should not. This one finds assertions
 that pass when they should not. A frame count is a weak detector of a page-table leak: eight thread
-stacks are 224 KiB against a 2 MiB table span. The reaper test missed milestone 6's leak entirely,
-and an injection proved it
+stacks are 224 KiB against a 2 MiB table span. The reaper test missed the stack-reuse leak of
+milestone 6 (threads, the context switch, and preemption) entirely, and an injection proved it
 ([stack reuse and proxy detectors](load-sensitive-assertions/stack-reuse-and-proxy-detectors.md)).
 
 ### What the harness tells you
 
-A guest knows it was late. It cannot know that eleven other emulators shared its eight cores. So
-`xtask` samples the host's load average during each emulated leg and prints it when a leg goes red,
+A guest cannot know that eleven other emulators shared its eight cores. So `xtask` samples the host's load average during each emulated leg and prints it when a leg goes red,
 with the core count and the oversubscription factor
 ([the host-load line](load-sensitive-assertions/host-load-line.md)). Read that line before
 theorising. Three host-side checks (`inbound`, `multicast`, `smb`) also fail together when the host
@@ -102,16 +99,16 @@ is saturated, so all three red at once is a load gauge, not three regressions.
    test's own window: a whole-machine defect kills the suite before the target test runs. An
    injection that fires shows only that the assertion can fail, not that it fails for the right
    reason.
-7. Then run it under load. Two clean matrices in a row proved nothing about the sites that failed on
-   the third, loaded one.
+7. Then run it under load. Two clean matrices proved nothing about the sites that failed on the
+   third, loaded one.
 
 ## The instruments
 
 - `script/repeat-under-load [-n runs] [-s spinners]` runs the suite repeatedly with one busy loop
-  per core. It records elapsed time, load average and how many QEMUs were up (see
-  [notes/scripts.md](scripts.md)). It surfaces a problem well and characterises one badly. Its
-  "1 in 45" for the double free was a sighting, not a rate: the bug was a deterministic ownership
-  defect, found by reading. A neighbouring emulator predicted reds better than the load average did.
+  per core, recording elapsed time, load average and how many QEMUs were up
+  ([notes/scripts.md](scripts.md)). It surfaces a problem well and characterises one badly: its
+  "1 in 45" for the double free was a sighting, and the bug was a deterministic ownership defect.
+  A neighbouring emulator predicted reds better than the load average did.
 - `script/icount` boots under `-icount shift=0,sleep=off`, where virtual time advances only when the
   guest retires instructions. It asserts the timer claims in instructions: arrival, whole-handler
   cost, zero missed ticks, and the re-arm grid law. The fourth claim was added after an injection
@@ -129,23 +126,23 @@ remains) or fixed. A fixed site can still carry a residual in BUGS below.
 
 | assertion | file | status | what was done, or what is left | appendix |
 |---|---|---|---|---|
-| `holding_a_lock_masks_the_timer`, the liveness check | `arch/aarch64/timer.rs` | open | "the timer is not ticking at all", seen once on 2026-08-27. Positive direction; whether it wants a clock-bounded wait is unmeasured | [unowned reds](load-sensitive-assertions/unowned-reds.md) |
-| five userspace retry loops over the §16 refusal | `system_initializer`, `login.rs`, `swish.rs`, `job_undertaker.rs`, `timetable.rs` | open | a yield count waiting on a timer tick. Two of them trap on exhaustion. Milestone 185 (sweep userspace's bounded retry loops onto a clock), not started | [caretaker teardown](load-sensitive-assertions/caretaker-teardown-wait.md) |
+| `holding_a_lock_masks_the_timer`, the liveness check | `arch/aarch64/timer.rs` | open | "the timer is not ticking at all", seen once on 2026-08-27; positive direction, not chased | [unowned reds](load-sensitive-assertions/unowned-reds.md) |
+| five userspace retry loops over the refusal of §16 (object revocation) | `system_initializer`, `login.rs`, `swish.rs`, `job_undertaker.rs`, `timetable.rs` | open | a yield count waiting on a timer tick; two trap on exhaustion. Milestone 185 (sweep userspace's bounded retry loops onto a clock), not started | [caretaker teardown](load-sensitive-assertions/caretaker-teardown-wait.md) |
 | `a_process_spends_memory_region_and_the_kernel_never_allocates` | `user/tests.rs` | open | a global `used()` equality across a process run. Never seen red; found by reading on 2026-09-24 | this page, BUGS |
-| `a_user_program_that_never_yields_is_preempted_anyway` | `user/tests.rs` | open | a wall-clock window with no wait. Needs all four cores descheduled for the whole window; never seen red | [known residuals](load-sensitive-assertions/known-residuals.md) |
+| `a_user_program_that_never_yields_is_preempted_anyway` | `user/tests.rs` | open | a wall-clock window with no wait; needs all four cores descheduled; never seen red | [known residuals](load-sensitive-assertions/known-residuals.md) |
 | `every_secondary_runs_scheduled_work` | `smp.rs` | open | indexes by the core a probe ran on. If it fails, take the placement probe's fix | [known residuals](load-sensitive-assertions/known-residuals.md) |
-| `a_finished_thread_is_reaped_and_its_memory_returned` | `sched.rs` | narrowed | per-`Tid` reap waits and a waited `used() <= before` (08-03). Stack reuse asserted directly by a one-thread probe (08-17) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md), [stack reuse](load-sensitive-assertions/stack-reuse-and-proxy-detectors.md) |
+| `a_finished_thread_is_reaped_and_its_memory_returned` | `sched.rs` | narrowed | per-`Tid` reap waits, a waited `used() <= before` (08-03); a one-thread stack-reuse probe (08-17) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md), [stack reuse](load-sensitive-assertions/stack-reuse-and-proxy-detectors.md) |
 | `a_dead_user_thread_frees_its_whole_address_space` | `user/tests.rs` | narrowed | per-`Tid` reap waits and a waited `used() <= before` (08-03) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md) |
 | `kernel_stacks_do_not_touch_the_frame_allocator_in_steady_state` | `sched.rs` | narrowed | each spawn followed to its own reap; a waited `free() >= free_before` (08-16) | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) |
-| `caretaker_teardown_reclaims_a_full_session_worth_of_memory` | `user/login_tests.rs`, `fixtures/src/login_test_client.rs` | narrowed | `destroy_with_retry` waits on the region with a 5 s clock ceiling, 40x the worst measured wait (08-28). The unit is wall clock | [caretaker teardown](load-sensitive-assertions/caretaker-teardown-wait.md) |
-| `ticks_arrive_at_the_configured_rate` | both `timer.rs` | fixed | asserts the re-arm grid law (08-03). An exhausted retry budget prints `UNMEASURED` instead of failing (08-18) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
-| `the_handler_keeps_up_when_no_lock_is_held` | both `timer.rs` | fixed | deleted on 2026-08-18. Its band could not be attributed; `script/icount` makes the claim | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
+| `caretaker_teardown_reclaims_a_full_session_worth_of_memory` | `user/login_tests.rs`, `fixtures/src/login_test_client.rs` | narrowed | `destroy_with_retry` waits on the region under a 5 s clock ceiling, 40x the worst wait (08-28) | [caretaker teardown](load-sensitive-assertions/caretaker-teardown-wait.md) |
+| `ticks_arrive_at_the_configured_rate` | both `timer.rs` | fixed | asserts the re-arm grid law (08-03); an exhausted retry budget prints `UNMEASURED` (08-18) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
+| `the_handler_keeps_up_when_no_lock_is_held` | both `timer.rs` | fixed | deleted 2026-08-18; `script/icount` makes the claim | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
 | `holding_a_lock_masks_the_timer`, the masking window | both `timer.rs` | fixed | both reads moved inside the critical section; `ticks_on(core)` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
-| `work_can_be_placed_on_every_core` | `smp.rs` | fixed | asserts arrival at the named core through `PerCpu::adopted`, not execution (08-04). The first round's "leave it alone" was wrong | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
+| `work_can_be_placed_on_every_core` | `smp.rs` | fixed | asserts arrival at the named core (`PerCpu::adopted`), not execution (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_thread_that_never_yields_is_preempted_anyway` | `sched.rs` | fixed | the spinner is waited on, not sampled; the budget is 200 delivered ticks (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_sender_blocks_until_a_receiver_arrives`, `other_threads_run_while_one_is_blocked` | `sched.rs` | fixed | five yield-count waits became `wait_for` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `threads_round_robin` | `sched.rs` | fixed | waits for every counter above zero, then for its own reaps (08-03) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md) |
-| five sites found on the physical core (milestone 81) | `sched.rs` (3), `user/reap_tests.rs`, `user/supervision_tests.rs` | fixed | yield counts became waits on the property (08-04) | [notes/hvf-leg.md](hvf-leg.md) |
+| five sites found on the physical core, milestone 81 (an HVF leg) | `sched.rs` (3), `user/reap_tests.rs`, `user/supervision_tests.rs` | fixed | yield counts became waits on the property (08-04) | [notes/hvf-leg.md](hvf-leg.md) |
 | `reclaim_frees_an_embryo_tcbs_region` | `sched.rs` | fixed | `thread_present(tid)` in place of a global headcount (08-16) | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) |
 | `a_migrated_kernel_thread_keeps_its_hart_pointer` | `smp.rs` | fixed | the drain budget is 200 delivered ticks through `testing::TickBudget` (08-18) | [migration drain](load-sensitive-assertions/migration-drain-tick-budget.md) |
 | `a_userspace_driver_reads_a_file_over_the_pcie_transport`, and three siblings | `user/tests.rs`, `user/riscv_virtio_tests.rs` | fixed | the baseline moved before `start_pci`; x86_64's `ROUTED_IRQS` stopped counting timer ticks (09-04) | [PCIe interrupt counter](load-sensitive-assertions/x86-pcie-interrupt-counter.md) |
@@ -175,12 +172,10 @@ been read against these questions.
 
 ## BUGS
 
-- Three frame bounds are still global and one-way: `used() <= before` in the reaper and
-  address-space tests, `free() >= free_before` in the kernel-stack test. A real one-shot leak of
-  `k` frames passes if a neighbour frees `k` frames in the same window. A persistent leak still
-  fails essentially every run. See [known residuals](load-sensitive-assertions/known-residuals.md),
-  which also records the reaper test's concurrency confound and the stack-reuse probe's two
-  residuals.
+- Three frame bounds are still global and one-way (the reaper, address-space and kernel-stack
+  tests). A one-shot leak of `k` frames passes if a neighbour frees `k` in the same window; a
+  persistent leak still fails. [Known residuals](load-sensitive-assertions/known-residuals.md) has
+  this and the stack-reuse probe's two residuals.
 - `a_process_spends_memory_region_and_the_kernel_never_allocates` (`user/tests.rs`) brackets a
   process run with a global `used()` equality. That is the swept shape in a function the sweep did
   not read, because it reads `memory::stats()` rather than `free_page_frames()`. It has never been
@@ -196,9 +191,8 @@ been read against these questions.
 - `ROUTED_IRQS` is a global count. The PCIe test proves some interrupt became some driver's message,
   and it is sound only while no second driver runs in the window. A per-intid delivery count wants
   the three arch handlers to route through one portable call.
-- `testing::RegionRun` works only for a root region. A child's pages return to its parent, so
-  `assert_returned` would fail a correct reclaim, and nothing in the type stops that misuse. It also
-  reads the run one frame at a time, so it is not atomic against another core.
+- `testing::RegionRun` works only for a root region, and nothing in the type stops a caller using
+  it on a child. It reads one frame at a time, so it is not atomic against another core.
 - The migration drain loses coverage quietly under load: each worker's lifetime is still counter
   time. And a `TickBudget` that re-anchors on every check would never expire; the harness's per-test
   ceiling is the backstop ([migration drain](load-sensitive-assertions/migration-drain-tick-budget.md)).
@@ -208,32 +202,31 @@ been read against these questions.
   11.0.2 fail disjoint sets of them, and nothing in the output names the emulator. Before reading a
   red post-run check as this family or as a regression, check which QEMU ran it. Milestone 414 (a
   red post-run check does not say which emulator produced it) is the fix.
-- The host-load line samples only while a leg runs, lands after the leg rather than beside the panic,
-  and a load average counts runnable threads rather than contention for QEMU's core
+- The host-load line samples only while a leg runs and lands after the leg, not beside the panic
   ([the host-load line](load-sensitive-assertions/host-load-line.md)).
 
 ## Appendices
 
-Each appendix verifies a row or a rule above. The headings column lets an older citation of a dated
-section find it: every heading this page used to carry is in one of these files.
+Each appendix verifies a row or a rule above. Every heading this page used to carry is in one of
+them, so an older citation of a dated section still resolves.
 
 | appendix | what it verifies | dated sections it holds |
 |---|---|---|
-| [global-baselines-and-the-drift-law](load-sensitive-assertions/global-baselines-and-the-drift-law.md) | the first five verdicts, the direction diagnostic, and the physical-core postscript | "The diagnostic that sorts the family", "The verdicts", "Postscript: a fast machine finds the same family" |
-| [host-load-line](load-sensitive-assertions/host-load-line.md) | the harness's load report and its limits | "The harness now says whether the host was loaded (2026-08-18)" |
-| [measurement-windows-and-the-load-recipe](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) | the window diagnostic, three fixes, the load recipe and its five runs | "The second round, 2026-08-04", "The instrument that was missing", "The handler-latency twins", "Recommended here, not built here" |
-| [known-residuals](load-sensitive-assertions/known-residuals.md) | the BUGS list as it stood, with its dated corrections | the former "BUGS" section |
-| [miss-taxonomy-and-clockless-loops](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) | the handler taxonomy on both ISAs, the embryo and kernel-stack fixes, twelve loaded runs | "The fourth round, 2026-08-16", the 2026-08-15 aarch64 taxonomy |
-| [stack-reuse-and-proxy-detectors](load-sensitive-assertions/stack-reuse-and-proxy-detectors.md) | the reaper test's blindness to milestone 6's leak, and nine injections | "The fifth round, 2026-08-17" |
-| [the-icount-claims](load-sensitive-assertions/the-icount-claims.md) | the instruction-denominated timer claims and their injections | "The sixth round, 2026-08-17" |
-| [first-loaded-acceptance-run](load-sensitive-assertions/first-loaded-acceptance-run.md) | 45 loaded runs, every one listed, and the double free | "The acceptance run, 2026-08-17" |
-| [timer-assertion-disposition](load-sensitive-assertions/timer-assertion-disposition.md) | the band diagnostic, the deletion, `UNMEASURED`, claim 4, and 18 runs | "The disposition, 2026-08-18" |
-| [migration-drain-tick-budget](load-sensitive-assertions/migration-drain-tick-budget.md) | the drain's budget in delivered ticks, its injections and cost | "The migration drain, 2026-08-18" |
-| [confirmation-run](load-sensitive-assertions/confirmation-run.md) | 45 of 45 green and the rule-of-three bounds | "The confirmation run, 2026-08-22" |
-| [caretaker-teardown-wait](load-sensitive-assertions/caretaker-teardown-wait.md) | the user-program retry loop, measured and fixed, and its five siblings | "The fifth round, 2026-08-27", "The disposition, 2026-08-28", "The measurement, and the number that settles it" |
-| [unowned-reds](load-sensitive-assertions/unowned-reds.md) | `run_swap`, the current-cpu frame, and the timer liveness check | "Two unowned reds, recorded rather than chased: 2026-08-27" |
-| [x86-pcie-interrupt-counter](load-sensitive-assertions/x86-pcie-interrupt-counter.md) | a counter sampled late, settled by reading and by a control | "A counter that could not have been late, only sampled late: 2026-09-04" |
-| [free-page-frames-sweep](load-sensitive-assertions/free-page-frames-sweep.md) | all 46 reads of the global counter, classified | "The sweep, 2026-09-23" |
+| [global-baselines-and-the-drift-law](load-sensitive-assertions/global-baselines-and-the-drift-law.md) | the first verdicts and the direction diagnostic | "The diagnostic that sorts the family", "The verdicts", "Postscript: a fast machine finds the same family" |
+| [host-load-line](load-sensitive-assertions/host-load-line.md) | the harness's load report | "The harness now says whether the host was loaded (2026-08-18)" |
+| [measurement-windows-and-the-load-recipe](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) | the window diagnostic and the load recipe | "The second round, 2026-08-04", "The instrument that was missing", "The handler-latency twins", "Recommended here, not built here" |
+| [known-residuals](load-sensitive-assertions/known-residuals.md) | the old BUGS list, with its corrections | the former "BUGS" section |
+| [miss-taxonomy-and-clockless-loops](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) | the handler taxonomy, the embryo and kernel-stack fixes | "The fourth round, 2026-08-16", the 2026-08-15 aarch64 taxonomy |
+| [stack-reuse-and-proxy-detectors](load-sensitive-assertions/stack-reuse-and-proxy-detectors.md) | a frame count blind to a stack leak, nine injections | "The fifth round, 2026-08-17" |
+| [the-icount-claims](load-sensitive-assertions/the-icount-claims.md) | the timer claims in instructions | "The sixth round, 2026-08-17" |
+| [first-loaded-acceptance-run](load-sensitive-assertions/first-loaded-acceptance-run.md) | 45 loaded runs, and the double free | "The acceptance run, 2026-08-17" |
+| [timer-assertion-disposition](load-sensitive-assertions/timer-assertion-disposition.md) | the band diagnostic, the deletion, claim 4 | "The disposition, 2026-08-18" |
+| [migration-drain-tick-budget](load-sensitive-assertions/migration-drain-tick-budget.md) | a drain budget in delivered ticks | "The migration drain, 2026-08-18" |
+| [confirmation-run](load-sensitive-assertions/confirmation-run.md) | 45 of 45 green | "The confirmation run, 2026-08-22" |
+| [caretaker-teardown-wait](load-sensitive-assertions/caretaker-teardown-wait.md) | a user-program retry loop, and five siblings | "The fifth round, 2026-08-27", "The disposition, 2026-08-28", "The measurement, and the number that settles it" |
+| [unowned-reds](load-sensitive-assertions/unowned-reds.md) | `run_swap`, the current-cpu frame, the liveness check | "Two unowned reds, recorded rather than chased: 2026-08-27" |
+| [x86-pcie-interrupt-counter](load-sensitive-assertions/x86-pcie-interrupt-counter.md) | a counter sampled late | "A counter that could not have been late, only sampled late: 2026-09-04" |
+| [free-page-frames-sweep](load-sensitive-assertions/free-page-frames-sweep.md) | 46 reads of the global counter | "The sweep, 2026-09-23" |
 
 ## See also
 
