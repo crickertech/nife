@@ -73,10 +73,23 @@ The schema was ratified before anyone had counted, and the corpus predating it s
 provenance thinly. Of 211 files, 59 state a raise date and 106 a decision date.
 
 The rest came from the repository, on calef's ruling of 2026-09-24 that a decision's date is the
-date its commit went to decided, and that a raise date is the date it was minted. `raised` is the
-file's first commit, found with `--follow` so a renumbered file keeps its origin, merged with a
-plain walk because `--follow` truncates at the rename. `decided` is the first commit whose text
-reads DECIDED or AMENDED, in either spelling, since history holds both. Author dates, UTC.
+date its commit went to decided, and that a raise date is the date it was minted, and on his
+sharpening of it the same day: *"We write things down when we raise them. There is no gap between
+the commit and when it was raised."* So a date read from git is the date, not a bound on it.
+
+`raised` is the first commit that wrote the decision down, wherever it then lived. For the 73
+sections that predate milestone 114 (split `DECISIONS.md`, and give a decision a status), that is
+the first commit whose `DECISIONS.md` (or, for the six it absorbed, `design/open-decisions.md`) carries the
+section's heading, matched by title as well as number so a renumbered section keeps its origin. The
+split commit's own date, 2026-08-04, is when the files were cut, not when anything was raised, and
+it dates none of them. After the split, `raised` is the file's first commit found with `--follow`,
+merged with a plain walk because `--follow` truncates at some renames; that is what dates §197 (a
+package is one archive file) to the proposal file it was promoted from, and §103 (what a `Frame`
+names) to its first number.
+
+`decided` is the first commit whose text reads DECIDED or AMENDED, in either spelling. A section
+filed into `DECISIONS.md` was filed decided, since open questions lived elsewhere until milestone 114
+absorbed them, so for those 42 files it is the raise commit. Author dates, UTC.
 
 | key | from the prose | from git | total |
 |---|---|---|---|
@@ -86,16 +99,20 @@ reads DECIDED or AMENDED, in either spelling, since history holds both. Author d
 | `ratified_by` | 168 by ruling | 0 | 168 |
 | `superseded_by` | 4 | 0 | 4 |
 
-Where both sources speak, the earlier wins. Each is an upper bound on when the thing happened, so
-the earlier is the tighter bound, and the difference is not small: git dates the 77 files created by
-milestone 114 (split `DECISIONS.md`, and give a decision a status)'s split commit to 2026-08-04, while §10 (process model: capability-based, microkernel)
-says in its own words that it was decided 2026-07-14. Twenty-nine files then claimed a decision date
-before their raise date, which is what an upper bound taken from a later commit looks like beside a
-stated fact, so `raised` is clamped to `decided` in those.
+Where both sources speak, the earlier wins, and that is now a rule about the prose rather than about
+git. The prose dates written before 2026-09-13 are calef's local day, not UTC, so a commit made on a
+Pacific evening lands one UTC day after the date the prose gives it. Fifteen files came out raised
+one day after they were decided, and `raised` is clamped to `decided` there. Twelve are that
+evening rollover. Three are not, and they are the exceptions to calef's "no gap": §28 (SMP
+placement), §34 (RedoxFS is the primary filesystem) and §46 (thin primitives or whole subsystems)
+each say they were decided the day before the commit that wrote them into `DECISIONS.md`, in local
+time too. One goes the other way: §100 (the terminal font)'s prose
+names its amendment date, and git's earlier decided date is the original ruling.
 
-A derived date therefore means "no later than", and that is recorded once in
-`design/decisions/README.md` and once in `script/decisions` rather than per file. A second key or a
-per-file marker would be machinery for a caveat that applies to two thirds of the corpus uniformly.
+A first pass of this migration dated the pre-split files from the split commit, 2026-08-04, and
+called every git date "no later than" to cover it. That was a tracing error presented as a caveat;
+the history before the split is in the repository, and following it moved 46 raise dates and 42
+decision dates back by up to three weeks.
 
 ## Why `ratified_by` came out and went back
 

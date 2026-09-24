@@ -86,26 +86,28 @@
 # decision's status becomes a field, and the index becomes generated) filled them from two sources
 # and a rule for choosing between them.
 #
-# **The rule: take the earlier of what the file says and what the repository shows.** Both are upper
-# bounds on when the thing actually happened, so the earlier one is the tighter bound and the only
-# defensible choice. The prose supplied 59 raise dates and 106 decision dates; git supplied the other
-# 152 and 62.
+# **The rule: take the earlier of what the file says and what the repository shows.** The prose
+# supplied 59 raise dates and 106 decision dates; git supplied the other 152 and 62. Prose written
+# before 2026-09-13 dates by calef's local day rather than UTC, so where the two disagree it is
+# usually the prose that is a day early, and the earlier is the one the file already states.
 #
-# `raised` is the file's first commit, found with `--follow` so a renumbered file keeps its real
-# origin, merged with a plain walk because `--follow` truncates a file's history at its rename.
-# `decided` is the first commit whose blob reads DECIDED or AMENDED, in either spelling, since
-# history contains both. **Author date, in UTC**, like every other date in this tree.
+# `raised` is the first commit that wrote the decision down. For the 73 sections that predate
+# milestone 114 (split `DECISIONS.md`, and give a decision a status) that is the first commit whose
+# `DECISIONS.md` (or `design/open-decisions.md`, for the six it absorbed) carries the heading, matched by
+# title and number. After the split it is the file's first commit, found with `--follow` so a
+# renumbered or promoted file keeps its origin, merged with a plain walk because `--follow`
+# truncates at some renames. `decided` is the first commit whose blob reads DECIDED or AMENDED, in
+# either spelling; a section filed into `DECISIONS.md` was filed decided, so for those it is the
+# raise commit. **Author date, in UTC**, like every other date in this tree.
 #
-# **Every git-derived date means "no later than".** This tree usually writes a decision up after the
-# conversation that settled it, so the commit is the filing rather than the ruling. The loosest case
-# is the 77 files created by milestone 114's split commit on 2026-08-04: for those, git can say only
-# that the decision predates the split, which is why a date the prose states wins. §10 (process
-# model: capability-based, microkernel) is the worked example, decided 2026-07-14 by its own account
-# and three weeks younger by git's.
+# **A git date is the date, not an upper bound.** calef, 2026-09-24: "We write things down when we
+# raise them. There is no gap between the commit and when it was raised." The split commit's date,
+# 2026-08-04, is when files were cut and dates no decision; a first pass used it and was wrong.
 #
-# Twenty-nine files came out claiming they were decided before they were raised, which is what an
-# upper bound from a later commit looks like when the prose holds the earlier fact. A decision cannot
-# be raised after it is decided, so `raised` is clamped to `decided` there.
+# Fifteen files came out raised the day after they were decided, and `raised` is clamped to
+# `decided` there. Twelve are a Pacific evening commit rolling over into the next UTC day. Three
+# (§28 (SMP placement), §34 (RedoxFS is the primary filesystem), §46 (thin primitives or whole
+# subsystems)) say in their own prose that they were decided the day before they were written up.
 #
 # **`ratified_by` is `calef` on all 168**, on his own ruling of 2026-09-24: he is the only ratifier
 # to date. An earlier pass of this migration filled the same 168 by inference and a reviewer was

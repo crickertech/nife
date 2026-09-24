@@ -73,17 +73,17 @@ nobody had written, which is §211 (what a fatal-risk verdict says, and what the
 lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
 weeks.
 
-**Where the dates came from, and what they mean.** Most of this corpus predates the schema and
-states neither date, so milestone 582 filled them from the file's own prose where it says, and from
-git where it does not: `raised` is the file's first commit, `decided` the first commit whose text
-reads DECIDED or AMENDED, both author dates in UTC. Where the two sources disagree the earlier wins,
-because each is an upper bound and the earlier one is tighter.
+**Where the dates came from.** Most of this corpus predates the schema and states neither date, so
+milestone 582 filled them from the file's own prose where it says, and from git where it does not:
+`raised` is the first commit that wrote the decision down, followed back through milestone 114's
+split into the single `DECISIONS.md` it came from, and `decided` the first commit whose text reads
+DECIDED or AMENDED. Both are author dates in UTC. Where the two sources disagree the earlier wins,
+since prose written before 2026-09-13 dates by calef's local day.
 
-So **a derived date means "no later than"**. A decision is usually written up after the conversation
-that settled it, and the 77 files created by milestone 114's split commit carry 2026-08-04 unless
-their own prose says something earlier. Read a date here as the latest it can have been, not as the
-hour of the ruling. There is no per-file marker for this and there should not be one: it is true of
-every date the prose did not state, and one sentence is the right weight.
+A git date is the date, not a bound on it: calef, 2026-09-24, *"We write things down when we raise
+them. There is no gap between the commit and when it was raised."* The split commit's own date,
+2026-08-04, dates nothing here. The block for milestone 582 (a decision's status becomes a field,
+and the index becomes generated) has the counts and the three decisions whose prose says otherwise.
 
 `ratified_by` is `calef` throughout, on his ruling of 2026-09-24: he is the only ratifier to date.
 
