@@ -14,8 +14,9 @@ describes.
 **This page is a deck** (calef, 2026-09-24). A chart is a heading, an image, and at most a line or
 two saying what it plots and what would otherwise be misread. Everything longer, the definitions,
 the arguments behind a measure, the deadlines, the reconciliations and the dated analyses, lives in
-[`notes/register-of-measures.md`](register-of-measures.md) under *The weekly series*, which is the
-half of this pair that does not change. Keep it that way: a caveat that cannot survive one line is
+[`notes/register-of-measures.md`](register-of-measures.md), whose *The weekly series* table routes
+each chart to the appendix that argues it. That register is the half of this pair that does not
+change. Keep it that way: a caveat that cannot survive one line is
 not a caption, it is a register entry.
 
 ## Read this before you read a number
