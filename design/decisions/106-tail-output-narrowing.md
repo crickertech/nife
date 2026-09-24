@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-22
+decided: 2026-08-22
+ratified_by: calef
+---
+
 # 106. Take the `terminal_sink_caretaker` narrowing: an unredirected tail stage's output goes to the screen, not the shell
 
-**Status: DECIDED.** calef, 2026-08-22, on a milestone 40 lane's write-up
+calef, 2026-08-22, on a milestone 40 (searchable, rendered, and installed by packages) lane's write-up
 (`notes/tail-output-narrowing.md`, pull request #392): option 1, take it. *"Proceed as you
 recommend as long as we have a milestone to address the fix"* (the caretaker-hop display race,
 tracked at milestone 151).

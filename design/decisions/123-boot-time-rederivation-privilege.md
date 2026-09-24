@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-24
+decided: 2026-08-24
+ratified_by: calef
+---
+
 # 123. Boot-time re-derivation: what grants the privilege, and how it dies after one use
 
-**Status: DECIDED.** calef, 2026-08-24, ratified option (a): a boot-only process holding a
+calef, 2026-08-24, ratified option (a): a boot-only process holding a
 construction budget and read access to the schedule store, re-deriving every durable session the
 store names, then deleting both capabilities from its own cspace in `root_supervisor`'s exact shape.
 The four hardening refinements below are to be built into it, not conditions on the ratification.

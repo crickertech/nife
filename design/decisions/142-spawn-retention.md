@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-04
+decided: 2026-09-04
+ratified_by: calef
+---
+
 # 142. What a spawner retains over a child after `START`
 
-**Status: DECIDED.** Answered 2026-09-03 by calef, after working the options through in
+Answered 2026-09-03 by calef, after working the options through in
 conversation: **R4 declaring R0.** Retention becomes a declared field on `ChildEndowment`, and what it
 declares today is what the tree already does, which is retain nothing. The reasoning, including why
 this unblocks milestone 133 rather than deferring it, is in "The decision" at the end. Written 2026-09-03 by the research lane `maintainer/research-spawn-retention`,

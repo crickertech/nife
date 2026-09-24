@@ -7,12 +7,15 @@ chose, what we rejected, and why. Revisit these deliberately, not accidentally.
 
 ## How this directory works
 
+**The table under `## The decisions` is generated.** Run `script/decisions --write-index` after
+adding a decision; the prose around it is written by hand and is not touched.
+
 One decision, one file, named `NN-slug.md`. The number is the identity: `§14` is
 `14-project-direction.md` and nothing else, and the 2,000-odd `§N` citations spread across the
 kernel, the crates, the notes and the roadmap all resolve here. GitHub renders this README as the
 directory index, so browsing to `design/decisions/` shows the table below.
 
-This was one 5,320-line file until milestone 114. Splitting it does the same three things the
+This was one 5,320-line file until milestone 114 (split `DECISIONS.md`, and give a decision a status). Splitting it does the same three things the
 roadmap split (milestone 76) did one directory over:
 
 - **A number cannot be claimed twice by accident.** Two lanes both wrote `## 30.` into the single
@@ -25,22 +28,71 @@ roadmap split (milestone 76) did one directory over:
 - **A status flip stops being a conflict.** Marking one decision superseded used to edit the file
   every other lane was also editing.
 
+Milestone 582 finished that argument one step further. The index table was still hand-maintained, so
+every lane minting a section edited one sorted file and collided with every other lane in flight,
+always, there. `briefs/rebase-onto-main.md` names it as case 4's worked example. Generating the
+table from the files removed the last additive-index conflict in this tree, the same move
+milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) made for `design/roadmap/README.md`.
+
 Do not renumber. A number that moves breaks citations that no gate can see are wrong, because a
 well-formed citation to the wrong section still resolves. Milestone 97 is where that check gets
 built, and this directory is what makes it cheap: once a decision is a file with a title, a
 citation's parenthetical name can be compared against that title.
 
-## Status
+## Frontmatter, which is where the status lives
 
-Every decision carries a status on the line under its title, and the table below repeats it. The
-two must agree, and `script/decisions --check` fails if they do not.
+Every decision opens with frontmatter, and it is the only record of its status. The prose may not
+restate it, because two copies of one fact in one file is what the schema was ratified to remove.
+The table below is generated from these keys by `script/decisions --write-index`, so a lane minting
+a section writes one file and nothing else.
+
+```yaml
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+```
+
+| key | values | required when |
+|---|---|---|
+| `status` | `PROPOSED`, `DECIDED`, `AMENDED`, `SUPERSEDED` | always |
+| `raised` | `YYYY-MM-DD`, UTC | always |
+| `decided` | `YYYY-MM-DD`, UTC | `status` is `DECIDED` or `AMENDED` |
+| `ratified_by` | a GitHub username | `status` is `DECIDED` or `AMENDED` |
+| `superseded_by` | a section number | `status` is `SUPERSEDED` |
+
+The schema is calef's, ratified 2026-09-23, and a lane does not extend it. Keys are snake_case,
+values uppercase, dates UTC like every other date in this tree.
+
+This was `**Status: DECIDED.**` in prose until milestone 582 (a decision's status becomes a field,
+and the index becomes generated). Two failures came from reading a field out of a sentence. A file
+said `**Status: NOT YET`, the regex captured `NOT`, dropped `YET`, and the report printed a word
+nobody had written, which is §211 (what a fatal-risk verdict says, and what the chart can plot as a result)'s finding. `design/fatal-risks.md`'s risk 7 carried two status
+lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
+weeks.
+
+**Where the dates came from.** Most of this corpus predates the schema and states neither date, so
+milestone 582 filled them from the file's own prose where it says, and from git where it does not:
+`raised` is the first commit that wrote the decision down, followed back through milestone 114's
+split into the single `DECISIONS.md` it came from, and `decided` the first commit whose text reads
+DECIDED or AMENDED. Both are author dates in UTC. Where the two sources disagree the earlier wins,
+since prose written before 2026-09-13 dates by calef's local day.
+
+A git date is the date, not a bound on it: calef, 2026-09-24, *"We write things down when we raise
+them. There is no gap between the commit and when it was raised."* The split commit's own date,
+2026-08-04, dates nothing here. The block for milestone 582 (a decision's status becomes a field,
+and the index becomes generated) has the counts and the three decisions whose prose says otherwise.
+
+`ratified_by` is `calef` throughout, on his ruling of 2026-09-24: he is the only ratifier to date.
 
 | Status | Means |
 |---|---|
 | `PROPOSED` | Raised, not yet decided. Options and a recommendation are in the file; nothing is built on it, and nothing should cite it as settled. Waiting on calef. |
 | `DECIDED` | It holds as written. |
-| `AMENDED` | It holds, but part of it was revised or overtaken by later work. The status line names what changed, and the amendment is in the file or in the decision it names. |
-| `SUPERSEDED BY N` | A later decision replaces it. Kept, never deleted, because the reasoning is the record: §8's deferral was correct and §10 is what it deferred to. |
+| `AMENDED` | It holds, but part of it was revised or overtaken by later work. The file names what changed, and the amendment is in the file or in the decision it names. |
+| `SUPERSEDED` | A later decision replaces it, and `superseded_by` names which. Kept, never deleted, because the reasoning is the record: §8 (DEFERRED to a hard decision point)'s deferral was correct and §10 (process model: capability-based, microkernel) is what it deferred to. The table below shows it as `SUPERSEDED BY N`, which is the two keys read together. |
 
 `AMENDED` is the token that pays for the vocabulary. Eleven decisions carry a revision that a reader
 of the opening paragraph would otherwise miss, and §26 is the sharpest: its first line still says
@@ -78,28 +130,28 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 17 | DECIDED | [The second architecture: RISC-V, and the page-table format trait](17-riscv-second-architecture.md) |
 | 18 | DECIDED | [The PCIe transport: one driver, two buses, the seam in the kernel](18-pcie-transport.md) |
 | 19 | DECIDED | [Architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64](19-architectural-parity.md) |
-| 20 | DECIDED | [IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b)](20-iommu-dma-isolation.md) |
+| 20 | DECIDED | [IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b (real hardware and IOMMU-backed driver isolation))](20-iommu-dma-isolation.md) |
 | 21 | AMENDED | [The terminal is a userspace component, and the kernel is out of the shell business (milestone 28)](21-terminal-in-userspace.md) |
 | 22 | AMENDED | [Rust `std` on the native ABI, the Hermit way (milestone 27)](22-rust-std-on-the-native-abi.md) |
-| 23 | DECIDED | [Multi-queue DMA confinement: the validator's second direction (milestone 30)](23-multi-queue-dma-confinement.md) |
+| 23 | DECIDED | [Multi-queue DMA confinement: the validator's second direction (milestone 30 (the network stack as a confined component))](23-multi-queue-dma-confinement.md) |
 | 24 | AMENDED | [Interrupting the foreground process: two-tier, shell-held, no new kernel surface](24-interrupting-the-foreground.md) |
 | 25 | DECIDED | [Socket identity: a socket id in phase one, minted endpoints as the tracked later step](25-socket-identity.md) |
 | 26 | AMENDED | [The fault endpoint: thread death becomes a message a supervisor holds](26-fault-endpoint.md) |
 | 27 | AMENDED | [The filesystem service: a capability-shaped contract over a component we did not write (milestone 32 phase 2)](27-filesystem-service.md) |
 | 28 | AMENDED | [SMP placement: two random choices at spawn, message-shaped stealing, local wakes](28-smp-placement.md) |
-| 29 | DECIDED | [The framebuffer is a bigger grant, not an exemption (milestone 29, the display ladder's rung one)](29-framebuffer-grant.md) |
-| 30 | DECIDED | [The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35)](30-dma-boundary-proof.md) |
-| 31 | DECIDED | [The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36)](31-foreign-language-seam.md) |
+| 29 | DECIDED | [The framebuffer is a bigger grant, not an exemption (milestone 29 (a display terminal), the display ladder's rung one)](29-framebuffer-grant.md) |
+| 30 | DECIDED | [The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35 (prove the DMA-confinement boundary))](30-dma-boundary-proof.md) |
+| 31 | DECIDED | [The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36 (a foreign-language component, seam first))](31-foreign-language-seam.md) |
 | 32 | DECIDED | [A supervisor may collect a corpse without being able to build one](32-reap-without-build.md) |
-| 33 | DECIDED | [The compositor's authority is memory, not messages (milestone 33, the display ladder's rung two)](33-compositor-authority.md) |
+| 33 | DECIDED | [The compositor's authority is memory, not messages (milestone 33 (a compositor), the display ladder's rung two)](33-compositor-authority.md) |
 | 34 | AMENDED | [RedoxFS is the primary filesystem, on three conditions](34-redoxfs-primary.md) |
 | 35 | DECIDED | [What a scanner is for here, and how its findings get dispositioned](35-scanner-findings.md) |
 | 36 | DECIDED | [The repository is part of the TCB (milestones 44 and 42)](36-repository-in-the-tcb.md) |
-| 37 | DECIDED | [Text is a value three witnesses compute, not a screenshot (milestone 29's remaining increment)](37-text-as-a-value.md) |
-| 38 | DECIDED | [A suppression is scoped to an item and carries a reason, or it does not ship (milestone 41)](38-scoped-suppressions.md) |
+| 37 | DECIDED | [Text is a value three witnesses compute, not a screenshot (the remaining increment of milestone 29 (a display terminal))](37-text-as-a-value.md) |
+| 38 | DECIDED | [A suppression is scoped to an item and carries a reason, or it does not ship (milestone 41 (dead code: triage the suppressions))](38-scoped-suppressions.md) |
 | 39 | DECIDED | [A component is named for what it is, and nothing is named for a daemon](39-component-names.md) |
 | 40 | DECIDED | [A supervisor's death is its subtree's death; there is no reaper of last resort](40-no-reaper-of-last-resort.md) |
-| 41 | DECIDED | [The endpoint is the broker, and a device is revoked by taking it back (milestone 23)](41-endpoint-as-broker.md) |
+| 41 | DECIDED | [The endpoint is the broker, and a device is revoked by taking it back (milestone 23 (a capability-routed component OS with live replacement))](41-endpoint-as-broker.md) |
 | 42 | AMENDED | [A filesystem declares what it offers and must be truthful; it is not required to be capable](42-truthful-filesystem.md) |
 | 43 | DECIDED | [Reading the clock is a page, setting it is a page you may write, proposing is an endpoint](43-clock-authority.md) |
 | 44 | DECIDED | [Entropy is a capability, `std::random` improves transparently, and the refusal is loud](44-entropy-capability.md) |
@@ -205,7 +257,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 144 | DECIDED | [The fastpath footprint gate gets a delta and a ceiling, and the ceiling is 16 KiB](144-fastpath-footprint-ceiling.md) |
 | 145 | PROPOSED | [Compartmentalization at process cost: is Qubes' mission the reason the world needs this OS?](145-compartmentalization-at-process-cost.md) |
 | 146 | PROPOSED | [Archive and compression: which pieces we write, which we take, and which we refuse](146-archive-and-compression-write-or-take.md) |
-| 147 | DECIDED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
+| 147 | DECIDED | [A timer a userspace service cannot hold](147-a-timer-a-userspace-service-cannot-hold.md) |
 | 148 | DECIDED | [Milestone 105's two forks: a supervisor restarts by asking, and resolves by asking the kernel](148-reap-and-thread-identity.md) |
 | 149 | DECIDED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
 | 150 | DECIDED | [How does a thread's CPU time reach userspace?](150-per-thread-cpu-accounting.md) |
@@ -254,18 +306,18 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 193 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](193-nvme-in-the-block-roster.md) |
 | 194 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](194-sessions-interleave-rather-than-serialize.md) |
 | 195 | DECIDED | [A reviewed recipe vouches for a package, and the machine's owner may overrule it](195-a-recipe-vouches-and-the-owner-may-overrule.md) |
-| 196 | DECIDED | [nife carries TLS: rustls for the protocol, and a crypto provider we make work](196-nife-carries-tls-and-builds-the-provider.md) |
+| 196 | DECIDED | [nife carries TLS: `rustls` for the protocol, and a crypto provider we make work](196-nife-carries-tls-and-builds-the-provider.md) |
 | 197 | DECIDED | [A package is one archive file, named and vouched for by its recipe](197-a-package-is-one-archive-file.md) |
 | 198 | DECIDED | [The glue is ours, the primitives are not](198-the-glue-is-ours-the-primitives-are-not.md) |
 | 199 | DECIDED | [The screen check asks instead of sampling](199-the-screen-check-asks-instead-of-sampling.md) |
-| 200 | DECIDED | [Two crates the documentation system refused](200-two-crates-the-documentation-system-refused.md) |
-| 201 | DECIDED | [One roadmap until a citation has to cross](201-one-roadmap-until-a-citation-has-to-cross.md) |
-| 202 | DECIDED | [Mechanical work goes to a cheaper model](202-mechanical-work-goes-to-a-cheaper-model.md) |
-| 203 | DECIDED | [Capacity is rented rather than bought](203-capacity-is-rented-not-bought.md) |
+| 200 | DECIDED | [Two crates the documentation system refused, and why each loses on its own terms](200-two-crates-the-documentation-system-refused.md) |
+| 201 | DECIDED | [One roadmap until a citation has to cross, and the blocked side declares the dependency](201-one-roadmap-until-a-citation-has-to-cross.md) |
+| 202 | DECIDED | [Mechanical work goes to a cheaper model, and the gates are why that is safe](202-mechanical-work-goes-to-a-cheaper-model.md) |
+| 203 | DECIDED | [Capacity is rented rather than bought, and what each of the three benches is still for](203-capacity-is-rented-not-bought.md) |
 | 204 | DECIDED | [How userspace asks where a thread runs](204-how-userspace-asks-where-a-thread-runs.md) |
 | 205 | DECIDED | [The subscription stays, and rented models fill the mechanical tail](205-the-subscription-stays-and-renting-fills-the-tail.md) |
 | 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
-| 207 | DECIDED | [The roadmap is a graph, and the block says so](207-the-roadmap-is-a-graph-and-says-so.md) |
+| 207 | DECIDED | [The roadmap is a graph, and the block says so in fields a script can walk](207-the-roadmap-is-a-graph-and-says-so.md) |
 | 208 | DECIDED | [Installing a package is granting it, and the activation set is versioned](208-installing-is-granting.md) |
 | 209 | DECIDED | [State handoff is an opaque blob over a granted frame, and it is optional](209-state-handoff-is-an-opaque-blob-and-it-is-optional.md) |
 | 210 | DECIDED | [A correction of error, and its action items are decisions, proposals or milestones](210-a-correction-names-its-action.md) |

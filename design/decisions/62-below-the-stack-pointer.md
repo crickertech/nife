@@ -1,6 +1,11 @@
-# 62. Nothing of yours lives below the live stack pointer
+---
+status: DECIDED
+raised: 2026-08-03
+decided: 2026-08-03
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 62. Nothing of yours lives below the live stack pointer
 
 Milestone 71 spent a day on a bug whose whole content is one sentence: **an object parked below the
 live `sp` is not yours.** Everything under `sp` belongs to a callee's frame, or to the trap vector,

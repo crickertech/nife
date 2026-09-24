@@ -123,7 +123,14 @@ def load(subdir, pattern):
         if not m:
             continue
         text = open(os.path.join(d, fname), errors="replace").read()
-        h = re.match(r"# (\d+)([a-z]?)\. (.+)$", text.split("\n", 1)[0])
+        # The H1 is the first line, unless frontmatter precedes it. A decision carries frontmatter
+        # since milestone 582 (a decision's status becomes a field, and the index becomes
+        # generated); a roadmap block does not yet.
+        lines = text.split("\n")
+        if lines[:1] == ["---"] and "---" in lines[1:]:
+            lines = lines[lines.index("---", 1) + 1:]
+        first = next((line for line in lines if line.strip()), "")
+        h = re.match(r"# (\d+)([a-z]?)\. (.+)$", first)
         if h:
             entry = (h.group(3).strip(), text, fname)
             out.setdefault(int(h.group(1)), entry)
@@ -666,8 +673,14 @@ if mode == "--ratchet":
             print(f"citations: {len(quiet)} modified file(s) not checked; their uncommitted edits "
                   "cite nothing, so the verdict below stands.")
 
+    # `--diff-algorithm=myers` is pinned because which lines count as ADDED depends on it, and a
+    # user's `diff.algorithm` config otherwise decides. Found 2026-09-24 on milestone 582's branch:
+    # under a local `patience` a heading moved below new frontmatter was unchanged and the ratchet
+    # passed; CI's default Myers diff called the same heading added and failed on it. Pinning git's
+    # own default makes a local run answer what CI will.
     diff = subprocess.run(
-        ["git", "-C", root, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--"] +
+        ["git", "-C", root, "diff", "--diff-algorithm=myers", "--unified=0", "--no-color",
+         f"{base}..{tip}", "--"] +
         list(EXCLUDE),
         capture_output=True, text=True,
     ).stdout

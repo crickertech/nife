@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-13
+decided: 2026-08-13
+ratified_by: calef
+---
+
 # 82. Ambient authority is the problem; replacing the ecosystem, not confining it, is the end state
 
-**Status: DECIDED.** calef, 2026-08-13, stating the project's thesis in full for the first time. §14
+calef, 2026-08-13, stating the project's thesis in full for the first time. §14 (a verified-Rust capability microkernel that runs real workloads)
 recorded what this kernel *is*; this records what problem it exists to solve, why the attempt is
 worth making now rather than a decade ago, and what winning looks like. It **amends §14's end
 state** and leaves its technical shape intact.

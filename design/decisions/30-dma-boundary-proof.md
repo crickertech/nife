@@ -1,6 +1,11 @@
-# 30. The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35)
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 30. The DMA boundary is proved for descriptors, and the proof says where it stops (milestone 35 (prove the DMA-confinement boundary))
 
 **The decision.** DMA confinement was the one isolation boundary in the system carried by tests rather
 than proof, and it is the boundary that makes "you need not trust the driver" true. It is now

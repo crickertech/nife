@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-30
+decided: 2026-08-30
+ratified_by: calef
+---
+
 # 135. Running GPL software is aggregation, the capability boundary is what makes it so, and packages are how it arrives
 
-**Status: DECIDED.** calef, 2026-08-30, ratifying the principle he raised himself and the two
+calef, 2026-08-30, ratifying the principle he raised himself and the two
 amendments below. Raised the same day, from the question of whether to delete the SMB
 implementation: *"Isn't delivering GPL software on nife as stand alone programs a worth
 demonstration in itself? There is a lot of GPL software we would want to run."* And then the

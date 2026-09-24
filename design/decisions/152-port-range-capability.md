@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-15
+decided: 2026-09-15
+ratified_by: calef
+---
+
 # 152. The port-range capability: object and method semantics on the syscall surface
 
-**Status: DECIDED.** calef, 2026-09-15, ratified the object, its one method, and the x86-only scope
+calef, 2026-09-15, ratified the object, its one method, and the x86-only scope
 together, when milestone 299 landed the working driver behind them. **Number provisional**, minted by a
 lane against the current README; the integrator renumbers if the merge queue collides it. This section
 records the one thing milestone 299 puts on the capability surface, because a new object type there is

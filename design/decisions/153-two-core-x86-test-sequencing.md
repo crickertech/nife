@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-17
+decided: 2026-09-18
+ratified_by: calef
+---
+
 # 153. How a two-core x86_64 test earns its place, when two-core x86_64 is not yet trustworthy
 
-**Status: DECIDED.** calef, 2026-09-18: **close milestone 315 first, then default `NIFE_SMP` to 2.**
+calef, 2026-09-18: **close milestone 315 (a port revoke that reaches every core) first, then default `NIFE_SMP` to 2.**
 Not one of the three options as written, because milestone 316 falsified the premise all three rested
 on between this file being raised and being answered. The reasoning is in "What changed, and what the
 question became" below.

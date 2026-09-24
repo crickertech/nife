@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-22
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 207. The roadmap is a graph, and the block says so in fields a script can walk
 
-**Status: DECIDED.** Ratified by calef on 2026-09-23, field names as written. Raised by calef, 2026-09-22, after a week in which milestone promotion kept
+The field names are as written below. Raised by calef, 2026-09-22, after a week in which milestone promotion kept
 going wrong: *"I don't quite get why promotions are so hard. This has been killing us for weeks."*
 and then, once numbering turned out not to be the cause, *"Even more important is expressing
 dependencies between milestones so that we execute the graph of milestones efficiently."*

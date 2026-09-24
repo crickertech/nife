@@ -1,6 +1,11 @@
-# 13. Capability revocation and untyped reclamation (frames)
+---
+status: DECIDED
+raised: 2026-07-23
+decided: 2026-07-23
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 13. Capability revocation and untyped reclamation (frames)
 
 Decided and built 2026-07-22 (milestone 13). The direction was parked in "Open design ideas" and
 notes/capability-lifecycle.md; the concrete mechanism is designed here, because it is a

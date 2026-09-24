@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-13
+decided: 2026-08-13
+ratified_by: calef
+---
+
 # 84. How we port: prefer software that has already dropped ambient authority
 
-**Status: DECIDED.** calef, 2026-08-13: *"Porting to rust is wrong if we port ambient authority along
+calef, 2026-08-13: *"Porting to rust is wrong if we port ambient authority along
 the way... I'd prefer to avoid reconstructing every application. That doesn't build a community."*
 
 §82 names the risk in its qualifications: cheap porting makes bad porting cheap, and an ecosystem of

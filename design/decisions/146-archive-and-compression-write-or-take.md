@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-05
+---
+
 # 146. Archive and compression: which pieces we write, which we take, and which we refuse
 
-**Status: PROPOSED.** Raised by calef, 2026-09-05, on being told no milestone covered archive
+Raised by calef, 2026-09-05, on being told no milestone covered archive
 utilities: *"Mint it. However we should debate write it and vendor it for each piece."*
 *(Section number provisional until the merge queue lands it.)*
 

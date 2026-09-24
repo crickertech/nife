@@ -1,6 +1,11 @@
-# 57. Extended attributes forward through the caretakers, and the server enforces direction
+---
+status: DECIDED
+raised: 2026-08-01
+decided: 2026-08-01
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 57. Extended attributes forward through the caretakers, and the server enforces direction
 
 Milestone 61. See `notes/xattr.md` and `notes/dir-capability.md`.
 

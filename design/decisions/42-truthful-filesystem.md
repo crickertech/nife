@@ -1,6 +1,13 @@
+---
+status: AMENDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
+
 # 42. A filesystem declares what it offers and must be truthful; it is not required to be capable
 
-**Status: AMENDED.** (the `NOREPLACE`-emulation-is-racy reason, corrected for `redoxfs_server`
+(the `NOREPLACE`-emulation-is-racy reason, corrected for `redoxfs_server`
 specifically by [DECISIONS §129](129-rename-noreplace-flag.md), 2026-08-25, recorded in place.)
 
 **Decided 2026-07-30, not yet built.** The rule that governs every filesystem backend behind the

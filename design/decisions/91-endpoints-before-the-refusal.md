@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-16
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 91. A region's endpoints are swept before its refusal, not after
 
-**Status: DECIDED.** Minted by the integrator at merge (2026-08-16), which is where a section
+Minted by the integrator at merge (2026-08-16), which is where a section
 global to the tree is assigned. The change is milestone-level rather than architectural: it
 reorders two phases inside an existing verb and adds no method, no object and no syscall.
 Recorded here because §16's revocation semantics are stated here, and a reader who learns that

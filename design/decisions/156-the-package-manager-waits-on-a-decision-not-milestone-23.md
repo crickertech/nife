@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-19
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 156. What the package manager waits on: a decision, not milestone 23 and not the repository split
 
-**Status: DECIDED.** calef, 2026-09-19 (16:32 UTC), in conversation with the maintainer: *"Yes, drop
+calef, 2026-09-19 (16:32 UTC), in conversation with the maintainer: *"Yes, drop
 MILESTONE 23 from the gate"*, as recommended below. Milestone 198's gate now reads `DECISION` alone.
 *(Section number provisional until the merge queue lands it.)* Proposed the same day by milestone
 198's scoping lane (`milestone/198-package-manager-scoping`) as

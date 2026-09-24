@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-19
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 196. nife carries TLS: `rustls` for the protocol, and a crypto provider we make work
 
-**Status: DECIDED.** calef, 2026-09-19 (22:01 UTC): *"Carrying a TLS stack seems like table stakes
+calef, 2026-09-19 (22:01 UTC): *"Carrying a TLS stack seems like table stakes
 these days"*, and, on being shown that no provider builds for our targets today, **take `rustls`
 and build the provider**. *(Section number provisional until the merge queue lands it.)*
 

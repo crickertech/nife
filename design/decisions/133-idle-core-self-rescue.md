@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-28
+decided: 2026-08-28
+ratified_by: calef
+---
+
 # 133. Whether an idle core should drain its own inbox before parking
 
-**Status: DECIDED.** calef, 2026-08-28: **no.** Raised by the lane that found and fixed the
+calef, 2026-08-28: **no.** Raised by the lane that found and fixed the
 `place_on` stale-locality lost wakeup (PR #576), which named the fork, recommended declining, and
 correctly declined to decide it alone.
 

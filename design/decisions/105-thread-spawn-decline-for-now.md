@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-22
+decided: 2026-08-22
+ratified_by: calef
+---
+
 # 105. `std::thread::spawn` stays declined, until a customer needs it
 
-**Status: DECIDED.** calef, 2026-08-22, on a milestone 64 lane's write-up (`notes/thread-spawn-fork.md`,
+calef, 2026-08-22, on a milestone 64 (enough `std` to run somebody else's crate) lane's write-up (`notes/thread-spawn-fork.md`,
 pull request #394): option C, decline. *"I don't know of a customer for A yet. We will likely do A
 when there is such a customer."*
 

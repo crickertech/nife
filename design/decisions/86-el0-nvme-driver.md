@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-15
+decided: 2026-09-04
+ratified_by: calef
+---
+
 # 86. Whether an NVMe driver can leave the kernel, and what capability would let it
 
-**Status: DECIDED.** Answered 2026-09-03 by calef, after the research pass below: **option 2a now,
+Answered 2026-09-03 by calef, after the research pass below: **option 2a now,
 designed so option 4 can be added without reshaping the EL0 driver, and the choice between them made
 by measurement rather than argument.** The reasoning is in "The decision" at the end of this section.
 Raised by milestone 53's storage lane (2026-08-15, pull request #193), which

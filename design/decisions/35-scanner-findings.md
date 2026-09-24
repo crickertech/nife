@@ -1,6 +1,11 @@
-# 35. What a scanner is for here, and how its findings get dispositioned
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 35. What a scanner is for here, and how its findings get dispositioned
 
 **Decided 2026-07-30 (milestone 45), the first time code scanning actually ran.** CodeQL found nine
 things, and **all nine are fixed**: seven CI jobs holding a `GITHUB_TOKEN` with permissions they never

@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-13
+decided: 2026-08-13
+ratified_by: calef
+---
+
 # 83. When the same thing exists in C and in Rust, take the Rust one
 
-**Status: DECIDED.** calef, 2026-08-13: *"we want to consider an approach of preferring rust
+calef, 2026-08-13: *"we want to consider an approach of preferring rust
 replacements of C libraries rather than relying on them. We are rust first in part because rust
 solves for so many potential security vulnerabilities."* A corollary of §82, and an axis §46 does not
 cover.

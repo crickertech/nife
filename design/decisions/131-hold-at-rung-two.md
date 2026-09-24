@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-26
+decided: 2026-08-26
+ratified_by: calef
+---
+
 # 131. The competitor question: hold at rung two, prove text-mode usefulness first
 
-**Status: DECIDED.** calef, 2026-08-26: *"I think we want to stick with a text mode OS until we've
+calef, 2026-08-26: *"I think we want to stick with a text mode OS until we've
 built something useful on text mode. Computers operated for decades without graphics."* And,
 sharpening it in the same conversation: *"I want a kick ass text mode. Something I'll love working
 with."* [Milestone 34](../roadmap/34-gpu-acceleration.md)'s own gate named this the live question

@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-22
+decided: 2026-09-22
+ratified_by: calef
+---
+
 # 205. The subscription stays, and rented models fill the mechanical tail
 
-**Status: DECIDED.** calef, 2026-09-22. *(Number provisional until the merge queue lands it.)*
+calef, 2026-09-22. *(Number provisional until the merge queue lands it.)*
 He had proposed downgrading Max 20x to Max 5x, freeing $100 a month for open-weight models, and
 cancelled that after the numbers came in. **Max 20x renews.**
 

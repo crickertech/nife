@@ -1,6 +1,11 @@
-# 37. Text is a value three witnesses compute, not a screenshot (milestone 29's remaining increment)
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 37. Text is a value three witnesses compute, not a screenshot (the remaining increment of milestone 29 (a display terminal))
 
 **Built 2026-07-30**, both ISAs, in QEMU. Font rendering, a VT state engine, a display terminal, and a
 real keyboard: the piece that makes the display ladder's framebuffer readable. Concept note

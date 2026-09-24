@@ -1,6 +1,11 @@
-# 31. The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36)
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 31. The foreign-language seam: C holds no capabilities and makes no syscalls (milestone 36 (a foreign-language component, seam first))
 
 **Built 2026-07-29**, both ISAs, in QEMU. *(Section number claimed while two other lanes were open;
 if one of them also took 30, this is the entry to renumber. It depends on §4 rule 3, §15, §16, §22,

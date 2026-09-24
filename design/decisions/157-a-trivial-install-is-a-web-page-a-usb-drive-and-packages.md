@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-19
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 157. A trivial install is a web page, a USB drive, and packages over the internet
 
-**Status: DECIDED.** calef, 2026-09-19 (16:40 UTC), in conversation with the maintainer:
+calef, 2026-09-19 (16:40 UTC), in conversation with the maintainer:
 
 > A trivial install is a web page that lets one download and install a minimal system via a USB
 > drive. That minimal system can then be expanded by installing packages over the internet.

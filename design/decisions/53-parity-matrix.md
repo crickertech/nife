@@ -1,6 +1,11 @@
-# 53. Parity is a matrix, not a pair
+---
+status: DECIDED
+raised: 2026-08-01
+decided: 2026-08-01
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 53. Parity is a matrix, not a pair
 
 Milestone 59. `CRICKER_CPU`, `xtask test --cpu`, `script/cpu-matrix`, a CI job of its own. See
 `notes/cpu-models.md`.

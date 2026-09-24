@@ -1,6 +1,11 @@
-# 40. A supervisor's death is its subtree's death; there is no reaper of last resort
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 40. A supervisor's death is its subtree's death; there is no reaper of last resort
 
 **Decided 2026-07-30 (calef), from the `disown` question in milestone 48.** When a supervisor dies,
 its children die with it and the parent restarts the subtree. There is **no privileged process that

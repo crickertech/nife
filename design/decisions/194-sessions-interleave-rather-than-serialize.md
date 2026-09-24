@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-19
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 194. Sessions interleave rather than serialize, and a renumber is the price
 
-**Status: DECIDED.** calef, 2026-09-19: **"Keep interleaving. We are modeling multiple contributors
+calef, 2026-09-19: **"Keep interleaving. We are modeling multiple contributors
 in the code base and interleaving seems like how we would handle that."** Two sessions landing work
 into the same global namespaces at the same time is the normal condition, not an incident, and the
 ordering is not to be serialized to avoid it.

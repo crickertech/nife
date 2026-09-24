@@ -1,6 +1,13 @@
+---
+status: AMENDED
+raised: 2026-07-28
+decided: 2026-07-28
+ratified_by: calef
+---
+
 # 22. Rust `std` on the native ABI, the Hermit way (milestone 27)
 
-**Status: AMENDED.** (the create/truncate half of the `Unsupported` list is superseded below.)
+(the create/truncate half of the `Unsupported` list is superseded below.)
 
 Decided and built 2026-07-28. Full write-up in notes/std.md; this records the decision and the
 forks inside it.

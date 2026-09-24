@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 208. Installing a package is granting it, and the activation set is versioned
 
-**Status: DECIDED.** Ruled by calef on 2026-09-23, reading milestone 507 (installing a package: mutate shared directories, compose a view, or only widen what can be spawned)'s three options with the maintainer: **A3, with
+Ruled by calef on 2026-09-23, reading milestone 507 (installing a package: mutate shared directories, compose a view, or only widen what can be spawned)'s three options with the maintainer: **A3, with
 rollback.** *(Section number provisional until the merge queue lands it.)*
 
 ## The ruling

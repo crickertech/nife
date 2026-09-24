@@ -309,10 +309,26 @@ def parse_decisions(rev):
             if not m:
                 continue
             body = show(rev, f"design/decisions/{name}") or ""
-            first = body.split("\n")[0] if body else name
+            # Two eras. Since milestone 582 (a decision's status becomes a field, and the index
+            # becomes generated) a decision's status is a frontmatter key; before it, the status was
+            # `**Status: DECIDED.**` in the prose under the title. Both are read, because this
+            # script walks history and history contains both.
+            lines = body.split("\n")
+            fm = {}
+            if lines[:1] == ["---"] and "---" in lines[1:]:
+                for line in lines[1:lines.index("---", 1)]:
+                    kv = re.fullmatch(r"([a-z_]+): (.+)", line)
+                    if kv:
+                        fm[kv.group(1)] = kv.group(2).strip()
+                lines = lines[lines.index("---", 1) + 1:]
+            first = next((line for line in lines if line.strip()), name)
             title = re.sub(r"^#+\s*\d*\.?\s*", "", first).strip() or name
-            sm = re.search(r"\*\*Status:\s*([A-Z][A-Z0-9 -]*)", body[:2000])
-            status = sm.group(1).strip().rstrip(".") if sm else None
+            status = fm.get("status")
+            if status == "SUPERSEDED" and fm.get("superseded_by"):
+                status = f"SUPERSEDED BY {fm['superseded_by']}"
+            if status is None:
+                sm = re.search(r"\*\*Status:\s*([A-Z][A-Z0-9 -]*)", body[:2000])
+                status = sm.group(1).strip().rstrip(".") if sm else None
             if status is None:
                 unparsed += 1
             entries[int(m.group(1))] = (status, title, body)

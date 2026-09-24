@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 191. Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 419's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 419 (`tasks=4` needs more repeats, not more power cycles)'s
 `DECISION` gate naming no section. Filed 2026-09-16 by the maintainer from the five-boot job-mix
 session on radon, where the fourth and fifth boots each landed outside the range the first three had
 established. *(Section number provisional until the merge queue lands it.)*

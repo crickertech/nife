@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-22
+decided: 2026-08-22
+ratified_by: calef
+---
+
 # 107. `missing_docs` moves to `workspace.lints.rust`, opt-out rather than opt-in
 
-**Status: DECIDED.** calef, 2026-08-22, on a milestone 68 lane's six-questions write-up (pull
+calef, 2026-08-22, on a milestone 68 (one lint policy, and the lints that lost) lane's six-questions write-up (pull
 request #395): switch to workspace-wide opt-out now.
 
 ## The question

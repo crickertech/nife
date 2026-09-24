@@ -1,6 +1,13 @@
+---
+status: AMENDED
+raised: 2026-08-30
+decided: 2026-08-30
+ratified_by: calef
+---
+
 # 134. A harness carries a machine-replayable falsification record, or it is not evidence
 
-**Status: AMENDED.** calef, 2026-08-30, in three rulings; the patch path amended 2026-08-31 when
+calef, 2026-08-30, in three rulings; the patch path amended 2026-08-31 when
 milestone 194's lane found the ratified spelling could not name eighteen of `paging`'s harnesses,
 clarified 2026-09-01 to say package rather than crate, and amended twice more from milestone 323's
 review: `Expected to fail:` ratified 2026-09-18 and "harness" widened to cover a kernel `#[test_case]`

@@ -1,6 +1,11 @@
-# 3. Use the crate ecosystem
+---
+status: DECIDED
+raised: 2026-07-13
+decided: 2026-07-13
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 3. Use the crate ecosystem
 
 `aarch64-cpu` for system-register access, `tock-registers` for typed MMIO. Not
 hand-rolled `asm!` and raw volatile pointer writes.

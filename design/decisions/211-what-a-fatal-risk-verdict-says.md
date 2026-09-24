@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-23
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 211. What a fatal-risk verdict says, and what the chart can plot as a result
 
-**Status: DECIDED.** Ratified by calef on 2026-09-23, **Experiment status** with values
+The field is **Experiment status**, with values
 **RUN**, **NOT-RUN**, **CANNOT-RUN**. Raised by calef, 2026-09-23, reading
 `notes/project-metrics/fatal-risks.svg`: it seems like the wrong graph, because it plots tested
 against untested and all nine risks have now been put to an experiment, so it is a flat line at

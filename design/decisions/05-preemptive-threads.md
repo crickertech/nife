@@ -1,6 +1,13 @@
+---
+status: AMENDED
+raised: 2026-07-13
+decided: 2026-07-13
+ratified_by: calef
+---
+
 # 5. Execution model: preemptive threads with real stacks
 
-**Status: AMENDED.** (the claim is sharpened below, and one word of the original is retracted there.)
+(the claim is sharpened below, and one word of the original is retracted there.)
 
 Rejected: async/await cooperative multitasking (where the Philipp Oppermann blog series
 ends).

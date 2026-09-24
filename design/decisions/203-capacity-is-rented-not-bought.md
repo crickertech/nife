@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-20
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 203. Capacity is rented rather than bought, and what each of the three benches is still for
 
-**Status: DECIDED.** calef, 2026-09-20, after a conversation that re-derived a hardware decision he
+calef, 2026-09-20, after a conversation that re-derived a hardware decision he
 had already converged on elsewhere and which this tree had never recorded. *(Section number
 provisional until the merge queue lands it.)*
 

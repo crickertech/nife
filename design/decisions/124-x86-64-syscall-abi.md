@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-24
+decided: 2026-08-24
+ratified_by: calef
+---
+
 # 124. Ratify the x86_64 syscall ABI
 
-**Status: DECIDED.** calef, 2026-08-24, ratified as written: `rax` carries the syscall number;
+calef, 2026-08-24, ratified as written: `rax` carries the syscall number;
 arguments ride `rdi`, `rsi`, `rdx`, `r10`, `r8`, `r9`. Raised the same day by calef, after milestone
 161's ring-3 lane (pull request #464, merged) made the x86_64 syscall ABI genuinely **spoken** rather
 than only written down: a real `syscall` executed from CPL 3 reaches the portable dispatcher through

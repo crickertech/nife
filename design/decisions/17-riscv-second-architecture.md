@@ -1,6 +1,11 @@
-# 17. The second architecture: RISC-V, and the page-table format trait
+---
+status: DECIDED
+raised: 2026-07-27
+decided: 2026-07-27
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 17. The second architecture: RISC-V, and the page-table format trait
 
 The port to RISC-V (rv64, QEMU `virt`) is the first real test of rule #1 ("all architecture-specific
 code lives under `arch/`"), an assumption held on faith since milestone 1. RISC-V over x86_64 because

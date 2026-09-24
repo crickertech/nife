@@ -1,6 +1,11 @@
-# 1. Target architecture: aarch64
+---
+status: DECIDED
+raised: 2026-07-13
+decided: 2026-07-13
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 1. Target architecture: aarch64
 
 Chosen over x86_64 and RISC-V.
 

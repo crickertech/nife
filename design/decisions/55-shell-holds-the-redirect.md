@@ -1,6 +1,11 @@
-# 55. The file behind a `>` is the shell itself, because one page cannot serve two clients
+---
+status: DECIDED
+raised: 2026-08-01
+decided: 2026-08-01
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 55. The file behind a `>` is the shell itself, because one page cannot serve two clients
 
 Milestone 50, finished 2026-08-01. `components/src/swish.rs`, `kernel::user::redirection_tests`. See
 `notes/pipes.md`.

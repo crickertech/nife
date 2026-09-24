@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 177. Whether AGENTS.md quotes measured numbers at all
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 350's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 350 (the comment ratio AGENTS.md quotes is wrong, and it climbs every week)'s
 `DECISION` gate and found it naming no section. Milestone 234's series produced the evidence and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue
 lands it.)*

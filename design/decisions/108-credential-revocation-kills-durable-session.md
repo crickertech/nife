@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-22
+decided: 2026-08-22
+ratified_by: calef
+---
+
 # 108. Disabling a user's login credentials kills their durable session
 
-**Status: DECIDED.** calef, 2026-08-22, on milestone 152's durable-delegation design (worked out in
+calef, 2026-08-22, on milestone 152 (authority that outlives the session that requested it)'s durable-delegation design (worked out in
 conversation, not yet built): *"disabling a user's login credentials should kill their durable
 session. That seems like the right consequence."*
 

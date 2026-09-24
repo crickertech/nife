@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-20
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 198. The glue is ours, the primitives are not
 
-**Status: DECIDED.** calef, 2026-09-20, on the lane report for milestone 442 (a crypto provider
+calef, 2026-09-20, on the lane report for milestone 442 (a crypto provider
 `rustls` can use on all three bare-metal targets): *"rustls-rustcrypto doesn't seem like a high
 quality dependency."* *(Section number provisional until the merge queue lands it.)*
 

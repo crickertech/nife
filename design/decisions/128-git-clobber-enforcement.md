@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-25
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 128. What enforces the git-clobber rule, now that it has crossed its own threshold
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, on the evidence below: "No repeat in three
+calef, 2026-08-25, in conversation, on the evidence below: "No repeat in three
 weeks seems like it isn't a problem any longer." Milestone 118's own violation ledger
 (`notes/rule-violations.md`) said the git-clobber rule sat at four open strikes, one past its own
 three-strike threshold, with no enforcement mechanism decided, and named this "calef's or the

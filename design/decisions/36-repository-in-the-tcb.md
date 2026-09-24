@@ -1,6 +1,11 @@
-# 36. The repository is part of the TCB (milestones 44 and 42)
+---
+status: DECIDED
+raised: 2026-07-30
+decided: 2026-07-30
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 36. The repository is part of the TCB (milestones 44 and 42)
 
 **Decided 2026-07-30.** §14 promises a verified core that confines code we did not write. That
 promise is only as strong as our ability to say *which* code we are running and *how it got in*, and

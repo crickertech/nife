@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-16
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 92. A caretaker is supervised by the client it serves
 
-**Status: DECIDED.** calef, 2026-08-16, after asking why the cheaper answer was not the better one.
+calef, 2026-08-16, after asking why the cheaper answer was not the better one.
 This unblocks the last item of milestone 31's phase 3, which the lane that scoped it declined to
 guess at.
 

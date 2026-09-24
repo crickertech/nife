@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-23
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 111. Inert configuration is a read-only page, and each declared key is validated against a closed domain
 
-**Status: DECIDED.** calef, 2026-08-23, on milestone 47's environment-variables fork.
+calef, 2026-08-23, on milestone 47 (`cd`, `pwd`, `ls`, `mkdir`, `rm`, paths, and environment)'s environment-variables fork.
 
 ## The question
 

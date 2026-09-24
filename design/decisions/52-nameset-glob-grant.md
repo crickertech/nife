@@ -1,6 +1,11 @@
-# 52. A set of names is a namespace, and that is how a glob is granted
+---
+status: DECIDED
+raised: 2026-08-01
+decided: 2026-08-01
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 52. A set of names is a namespace, and that is how a glob is granted
 
 Milestone 47's globbing lane. `crates/fs_proto`'s `nameset` and `grant` modules,
 `components/src/fs_nameset_caretaker.rs`, `kernel::user::SetGrant`, `grant_plan`'s expander. See

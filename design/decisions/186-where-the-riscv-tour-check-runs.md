@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 186. Where a riscv64 tour-boot check runs, what it asserts, and what it is called
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 406's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 406 (nothing on a pull request boots the riscv64 tour)'s
 `DECISION` gate naming no section. *(Section number provisional until the merge queue lands it.)*
 
 ## What is being decided

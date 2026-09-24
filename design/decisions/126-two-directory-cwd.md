@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-25
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 126. A process holding two directory capabilities gets a real, single, moving `cwd`
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, closing one of [milestone
+calef, 2026-08-25, in conversation, closing one of [milestone
 154](../roadmap/154-multi-directory-namespace.md)'s own three "still open" items. Raised as a
 direct question: "Let's do a real cwd. Isn't that a better user experience?" Answered yes, with
 the boundary behavior settled below.

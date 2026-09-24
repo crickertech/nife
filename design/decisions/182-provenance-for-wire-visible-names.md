@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 182. Is a string two binaries agree on a name for `script/names`' purposes, or is it data?
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 398's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 398 (provenance for the names two programs agree on)'s
 `DECISION` gate naming no section. The finding itself is milestone 283's: its gate fired on a record
 nobody knew was there. *(Section number provisional until the merge queue lands it.)*
 

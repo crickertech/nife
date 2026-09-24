@@ -1,8 +1,13 @@
+---
+status: DECIDED
+raised: 2026-07-14
+decided: 2026-07-14
+ratified_by: calef
+---
+
 # 10. Process model: capability-based, microkernel. Untyped memory deferred.
 
-**Status: DECIDED.**
-
-Decided 2026-07-14, at the §8 decision point, before any of milestone 7 was written.
+Settled at the §8 (DEFERRED to a hard decision point) decision point, before any of milestone 7 (user mode: EL0, capabilities, the ELF loader, and IPC) was written.
 
 **A process names a resource by holding an unforgeable token it was handed. There is no
 ambient authority, and there is no global namespace.** Drivers and services are userspace

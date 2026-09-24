@@ -1,6 +1,11 @@
-# 59. Append is an open mode, so `>>` costs a character and a flag
+---
+status: DECIDED
+raised: 2026-08-03
+decided: 2026-08-03
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 59. Append is an open mode, so `>>` costs a character and a flag
 
 Milestone 50 finished the prompt's operators: `|`, `<`, `>` and now `>>`, on both ISAs.
 

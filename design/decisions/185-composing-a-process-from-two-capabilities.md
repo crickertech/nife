@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 185. What carries the claim that userspace composes a process from an authority you can count on one hand
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 404's
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 404 (composing a process from two capabilities is proved for two verbs and no more)'s
 `DECISION` gate naming no section. The gap was opened deliberately by milestone 295, performing
 calef's ruling to retire `components/src/builder.rs`, and that lane recorded it rather than closing
 it. *(Section number provisional until the merge queue lands it.)*

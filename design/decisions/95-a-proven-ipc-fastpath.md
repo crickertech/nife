@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-18
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 95. A hand-written IPC fastpath, and whether it can stay proven
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, on the recommendation below as written:
+calef, 2026-08-25, in conversation, on the recommendation below as written:
 *"Don't decide yet."* Raised 2026-08-18 by calef, in one question: *"Can we do the fast path and
 still make it proven?"* It follows milestone 132, whose gate measured the gap and deliberately did
 not close it.

@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-16
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 90. The claim is a draft pull request; the status flip is a gate
 
-**Status: DECIDED.** calef, 2026-08-16, from the observation that a team of humans would use an
+calef, 2026-08-16, from the observation that a team of humans would use an
 issue tracker to stop two developers taking the same task, that this project has no analog, and
 that **an issue tracker cannot be stuck in a merge queue.**
 

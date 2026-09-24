@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-09-20
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 199. The screen check asks instead of sampling
 
-**Status: DECIDED.** calef, 2026-09-20, choosing option A from three put to him after the check
+calef, 2026-09-20, choosing option A from three put to him after the check
 failed under load. *(Section number provisional until the merge queue lands it.)*
 
 **The ruling.** The boot's screen assertion stops sampling a transient state and starts asking for

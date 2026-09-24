@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-18
+decided: 2026-08-18
+ratified_by: calef
+---
+
 # 99. Where Apple's metadata lands: stream or sidecar
 
-**Status: DECIDED.** Raised 2026-08-18 by a milestone 55 lane, which was asked to answer the fork
+Raised 2026-08-18 by a milestone 55 (Time Machine: SMB3 with Apple's extensions, and mDNS) lane, which was asked to answer the fork
 rather than build it. **Decided the same day by calef: option 1, plus a new milestone for the
 file-server workload** (milestone 137).
 

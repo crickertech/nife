@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 161. Which subset counts as running Vaultwarden
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 66 gated on
+Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s lane, which found milestone 66 (somebody else's real application, running here) gated on
 `DECISION` with no decision anywhere a reader can open. The ask is the block's own and has been
 written in its `BUGS` section since it was filed: *"'Runs Vaultwarden' is not one bit... Which
 subset counts should be decided before the work starts, or the goalposts will move to wherever the

@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-26
+decided: 2026-08-26
+ratified_by: calef
+---
+
 # 130. How the kernel-resident CMOS RTC reaches the userspace clock service
 
-**Status: DECIDED.** calef, 2026-08-26: "Ratify option 3." [Milestone 176](../roadmap/176-x86-64-discovery-seam-wide-half.md)'s
+calef, 2026-08-26: "Ratify option 3." [Milestone 176](../roadmap/176-x86-64-discovery-seam-wide-half.md)'s
 own lane sized this while building the milestone's second piece and found a real design fork rather
 than a shape to build, correctly declining to invent an answer.
 
@@ -97,4 +104,4 @@ a naming or wire-format call reserved above. Milestone 176's piece 2 is now unbl
 
 ## What was blocked until this was answered
 
-All of milestone 176's piece 2. Piece 1 (COM1's IRQ) is complete and independent of this.
+All of milestone 176 (the x86_64 discovery seam's wide half: COM1's IRQ and a CMOS RTC)'s piece 2. Piece 1 (COM1's IRQ) is complete and independent of this.

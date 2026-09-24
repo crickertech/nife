@@ -1,6 +1,11 @@
-# 49. Removal is a directory operation, and `-r` widens the grant rather than setting a flag
+---
+status: DECIDED
+raised: 2026-07-31
+decided: 2026-07-31
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 49. Removal is a directory operation, and `-r` widens the grant rather than setting a flag
 
 **Built 2026-07-31** (milestone 47). Concept note: notes/rm.md. Rests on §47's rights ladder and §48's
 navigation.

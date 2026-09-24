@@ -1,6 +1,12 @@
+---
+status: SUPERSEDED
+raised: 2026-07-13
+superseded_by: 11
+---
+
 # 6. SMP: single-core, refactor when it hurts
 
-**Status: SUPERSEDED BY 11.** (§11 is the scheduler rewrite this section named as its accepted cost.)
+(§11 (SMP: per-CPU run queues, message-based migration) is the scheduler rewrite this section named as its accepted cost.)
 
 Boot CPU 0 only. Globals and a big lock are fine for now.
 

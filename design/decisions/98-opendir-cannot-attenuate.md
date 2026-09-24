@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-08-18
+---
+
 # 98. `OPENDIR` cannot be asked to attenuate, so a held directory probes for its own rights
 
-**Status: PROPOSED.** Raised 2026-08-18 by milestone 122's lane, which shipped the workaround and
+Raised 2026-08-18 by milestone 122 (`OPENDIR` reaches the PAL)'s lane, which shipped the workaround and
 said so rather than presenting it as a design. What is proposed is the replacement, and it is a
 **wire change**, which is why it is calef's and not a lane's.
 

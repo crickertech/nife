@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-27
+decided: 2026-08-27
+ratified_by: calef
+---
+
 # 132. What `PageFrame::REVOKE` owes an overlapping run
 
-**Status: DECIDED.** calef, 2026-08-27: **option C for questions 1 and 2**, built rather than
+calef, 2026-08-27: **option C for questions 1 and 2**, built rather than
 deferred; question 3 (the device half) stays open. Raised the same day by milestone 142's lane, out
 of the adversarial security review of DECISIONS §102's build. **The section number is provisional**: a lane does not mint one,
 and the integrator renumbers this at merge like every other global name. Cited from

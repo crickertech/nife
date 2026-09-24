@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-05
+decided: 2026-08-05
+ratified_by: calef
+---
+
 # 80. One build for the kernel and everything that runs on it
 
-**Status: DECIDED.** Raised by calef on 2026-08-05 ("at what point is it working against us that all
+Raised by calef on 2026-08-05 ("at what point is it working against us that all
 the software gets built and tested with every change?"), measured the same day, and settled as: **keep
 one build, and let the split fall out of running software this project did not write.**
 
