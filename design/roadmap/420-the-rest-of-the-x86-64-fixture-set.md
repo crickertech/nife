@@ -10,11 +10,11 @@ structural obstacle: `virtio::find_block_device_n` spans virtio-mmio and virtio-
 a machine with no mmio bus can find its disk.
 
 **Premise re-checked 2026-09-19 and still true, device by device.**
-`scripts/qemu-runner-x86_64.sh` attaches two `virtio-blk-pci` functions and one `nvme` controller
+`helpers/qemu-runner-x86_64.sh` attaches two `virtio-blk-pci` functions and one `nvme` controller
 and nothing else: no `virtio-net-pci`, no `virtio-gpu-pci`, no `virtio-keyboard-pci`, no
 `virtio-rng-pci`, and no crash, GPT or blank disk.
 
-**What the work is.** `scripts/qemu-runner-x86_64.sh` attaches two `virtio-blk-pci` functions (the
+**What the work is.** `helpers/qemu-runner-x86_64.sh` attaches two `virtio-blk-pci` functions (the
 nifefs image and the RedoxFS image) and an NVMe controller, and nothing else. Missing, each with a
 test in the tree that skips for want of it: milestone 37's crash disk, milestone 57's GPT and blank
 disks, a `virtio-net-pci` NIC, a `virtio-gpu-pci`, a `virtio-keyboard-pci` and a `virtio-rng-pci`.
@@ -37,7 +37,7 @@ records that `console`, `input` and `keyboard_driver` want work beyond attaching
 
 ## Index row
 
-`scripts/qemu-runner-x86_64.sh` attaches the nifefs image, the RedoxFS image and an NVMe controller,
+`helpers/qemu-runner-x86_64.sh` attaches the nifefs image, the RedoxFS image and an NVMe controller,
 and nothing else, so milestone 37's crash disk, milestone 57's GPT and blank disks, a NIC, a GPU, a
 keyboard and an RNG are each a test in the tree that skips for want of a device QEMU emulates on
 `q35`. Each is one `-device` line plus the matching `mk*disk` call in the x86_64 leg and, for the

@@ -141,7 +141,7 @@ this milestone's first run produced.
 last successful scheduled run is more than 15 days old, and a workflow too young to have fired is
 excused by its own creation date. It is **deliberately not a scheduled workflow**, which is the
 whole design and the reason milestone 232 declined to build it: a cron that watches crons dies the
-way its subjects die. Delivery is `scripts/trunk-health.sh`, which already runs under `launchd` and
+way its subjects die. Delivery is `helpers/trunk-health.sh`, which already runs under `launchd` and
 could not have caught this on its own, structurally: its trunk check filters runs to `main`'s
 current tip, and a weekly run matches that tip only until the next merge. It is not in `script/lint`
 or `script/gates`, for `script/audits`' recorded reason.
@@ -158,7 +158,7 @@ or `script/gates`, for `script/audits`' recorded reason.
   representative; they do nothing to stop a runaway mutant taking a runner, and round-robin arguably
   spreads the runaways across more shards than `slice` concentrated them in. On 2026-09-03, four of
   eight shards still died. See the handoff below.
-- **The cadence check inherits patagonia's gap.** `scripts/trunk-health.sh` runs under `launchd` on
+- **The cadence check inherits patagonia's gap.** `helpers/trunk-health.sh` runs under `launchd` on
   one Mac, so a machine asleep is a watcher not watching. That cost is already recorded and accepted
   in AGENTS.md; this does not change it.
 - **`audit cadence` is still red and this does not touch it.** It is red because two audits are
@@ -245,7 +245,7 @@ ship under a feedback loop that slow.
   shards died on the run that finally published, and a full refresh needs a run where enough shards
   survive.
 - **Recorded.** `AGENTS.md` already accepts the gap `script/cadence-check` inherits. It is delivered
-  through `scripts/trunk-health.sh`, which runs under `launchd` on one Mac, so a machine asleep is a
+  through `helpers/trunk-health.sh`, which runs under `launchd` on one Mac, so a machine asleep is a
   watcher not watching.
 - **Recorded.** `design/decisions/74-audit-cadence.md` holds the cadence and what it is for. `audit
   cadence` is red because two audits are genuinely due, which is the signal working rather than a

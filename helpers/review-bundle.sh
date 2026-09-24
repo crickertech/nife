@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build the diff bundle a delegated reviewer sees: the commit, then every changed file's pre-image.
 #
-#     scripts/review-bundle.sh <worktree> <commit> > bundle.txt
+#     helpers/review-bundle.sh <worktree> <commit> > bundle.txt
 #
 # **Provisional name**, the harness for milestone 521 (does an AI review of a pull request catch anything the gates and the maintainer do not). This is the half of the experiment that enforces
 # blindness, so it is deliberately dumb: everything it emits comes out of `git show` and `git cat-file`
@@ -39,5 +39,5 @@ git show --find-renames --name-status --format= "$c" | while read -r status path
     git cat-file -e "$c^:$old" 2>/dev/null || continue
     echo
     echo "--- $old (before) ---"
-    git show "$c^:$old" | awk 'NR<=1200; NR==1201 { print "[... truncated at 1200 lines by scripts/review-bundle.sh ...]"; exit }'
+    git show "$c^:$old" | awk 'NR<=1200; NR==1201 { print "[... truncated at 1200 lines by helpers/review-bundle.sh ...]"; exit }'
 done

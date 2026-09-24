@@ -292,7 +292,7 @@ pub const DATA_MAX: usize = 4096 - OFF_PAYLOAD as usize;
 /// `xtask`'s prober spells `IN_MSG` and `OUT_MSG` again as its own literals, exactly as the
 /// pinned [MS-NLMP] vectors beside the credential tests are spelled twice: the gate's claim is that
 /// two independently-written sides agree, and a shared constant would let one edit move both. The
-/// port is spelled a third time in `scripts/qemu-runner-*.sh`, where a `hostfwd` names the guest
+/// port is spelled a third time in `helpers/qemu-runner-*.sh`, where a `hostfwd` names the guest
 /// side, because a shell script cannot read a Rust crate. A drift in either is loud (the prober
 /// reports "the guest served 0 of N"), which is the honest cost of the split.
 pub mod fixture {

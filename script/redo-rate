@@ -24,7 +24,7 @@
 #
 # - **The sample is tiny and the verdicts are one reviewer's.** Five rows on one day. A second
 #   reviewer would disagree about at least one of them, and nothing here records that.
-# - **Nothing appends automatically.** `scripts/open-lane.sh` could write the cost row itself, but
+# - **Nothing appends automatically.** `helpers/open-lane.sh` could write the cost row itself, but
 #   the verdict needs a human who has read the diff, so a half-automated row would be a row with the
 #   important column blank, which reads as "clean" to anyone skimming.
 # - **A clean verdict is not a claim that the work was good**, only that it needed nothing further.

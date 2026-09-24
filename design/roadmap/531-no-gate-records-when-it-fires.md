@@ -300,7 +300,7 @@ point without one, the existing surface is a worklist, and the worklist is `scri
 `AGENTS.md` names three hazards that destroy work rather than delaying it: uncommitted work in a lane
 worktree ("the one thing no part of this system protects"), disk ("the only pressure here that
 destroys work rather than delaying it"), and the shared stash stack. All three are at rung four
-today. **Nothing in `script/` or `scripts/` runs `git worktree list`, and nothing anywhere reads
+today. **Nothing in `script/` or `helpers/` runs `git worktree list`, and nothing anywhere reads
 `df`** outside one CI resource trace; both were grepped rather than assumed.
 
 Measured on patagonia while writing this, 2026-09-21:
@@ -317,13 +317,13 @@ Measured on patagonia while writing this, 2026-09-21:
 
 ### Addition C: one watcher over the lane fleet
 
-**What it is.** One script, run from `scripts/trunk-health.sh` the way `script/cadence-check` already
+**What it is.** One script, run from `helpers/trunk-health.sh` the way `script/cadence-check` already
 is, reporting three readings: worktrees with uncommitted work and no commit inside a window; free
 space on the volume against a floor; worktree count and total `target/` footprint including the main
 checkout's.
 
 **Explicitly not a gate**, and the precedent decides it rather than taste.
-`scripts/lane-claim-check.sh` faced the identical question and answered it in its own header: nothing
+`helpers/lane-claim-check.sh` faced the identical question and answered it in its own header: nothing
 should fail a build over this, because the lane that most needs telling is mid-work, and `script/lint`
 was refused for exactly that reason. The same applies here twice over, since the subject is another
 worktree's state and a gate that fails a lane over a sibling's dirt would be the "only ever rejects

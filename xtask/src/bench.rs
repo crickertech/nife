@@ -228,7 +228,7 @@ fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
         return false;
     }
 
-    let mut cmd = Command::new("scripts/qemu-runner-riscv64.sh");
+    let mut cmd = Command::new("helpers/qemu-runner-riscv64.sh");
     cmd.arg(format!("target/{RISCV_TARGET}/debug/kernel"));
     // icount pins virtual time (rdtime) to the instruction stream; sleep=off so it never waits on the
     // wall clock. This is what makes the riscv counts deterministic and comparable to aarch64's.
@@ -280,7 +280,7 @@ fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
 /// line, including the PIT-calibrated TSC frequency itself (`bench: cntfrq 999935600` on all
 /// three), so `run_bench`'s existing tick-count machinery needed no x86-specific change.
 ///
-/// `scripts/qemu-runner-x86_64.sh` attaches no disk and builds no initrd, so this needs neither
+/// `helpers/qemu-runner-x86_64.sh` attaches no disk and builds no initrd, so this needs neither
 /// `mkdisk` nor `user()`. `cargo xtask bench --x86 [--real] [--check|--save]`.
 fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     if !run(
@@ -301,7 +301,7 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
         return false;
     }
 
-    let mut cmd = Command::new("scripts/qemu-runner-x86_64.sh");
+    let mut cmd = Command::new("helpers/qemu-runner-x86_64.sh");
     cmd.arg(format!("target/{X86_TARGET}/debug/kernel"));
     // **One core, pinned here rather than inherited from the runner**, which is what `bench()` and
     // `bench_riscv` have always done and what this arm alone forgot. The reason is theirs: a
@@ -309,7 +309,7 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     // "single hart" because that is what this was for.
     //
     // It was inherited and not pinned until 2026-09-23, when milestone 315 (a port revoke that
-    // reaches every core) moved `scripts/qemu-runner-x86_64.sh`'s default to 2 and five counters
+    // reaches every core) moved `helpers/qemu-runner-x86_64.sh`'s default to 2 and five counters
     // went outside the tripwire without a line of benchmarked code changing. Measured rather than
     // argued (notes/benchmarks.md, the 2026-09-23 section): at `NIFE_SMP=1` this branch is within
     // 2.3% of the baseline on every row, and at `NIFE_SMP=2` `spawn_reap` is 7.4x it, because
@@ -536,7 +536,7 @@ fn run_bench(
         }
     }
     // Kill any QEMU the runner itself spawned before killing the runner: on `q35`
-    // (`scripts/qemu-runner-x86_64.sh`) `cmd` is a *wrapper* that runs `qemu-system-x86_64` as a
+    // (`helpers/qemu-runner-x86_64.sh`) `cmd` is a *wrapper* that runs `qemu-system-x86_64` as a
     // plain foreground child rather than `exec`-ing into it (the runner's own header explains why:
     // it has to translate `isa-debug-exit`'s odd-only exit status). `child.kill()` therefore only
     // ever reaches the wrapper on that leg, and killing the wrapper first orphans the emulator

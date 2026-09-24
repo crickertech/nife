@@ -133,7 +133,7 @@ $ script/audits --worklist
  moved/cited  commits  last edit   document
    20/24           31  2026-08-04  notes/shared-page-audit.md
    15/16           94  2026-08-03  notes/glyphs.md
-                       xtask/src/main.rs, scripts/qemu-runner-aarch64.sh, ...
+                       xtask/src/main.rs, helpers/qemu-runner-aarch64.sh, ...
    11/12           48  2026-08-03  notes/framebuffer-contract.md
     8/8            40  2026-08-04  notes/compositor.md
 ```

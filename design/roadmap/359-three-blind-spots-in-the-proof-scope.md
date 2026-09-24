@@ -6,7 +6,7 @@ day and the two open cases are both still open: the attribution loop still ends
 `needed.append((f, "not attributable to a crate; runs by default"))` with no classification for a
 binary file, and the header still lists `Cargo.lock` among the paths it cannot attribute, with the
 comment beside `cargo metadata` explaining that registry packages have no file a diff can name. The
-third blind spot stays fixed: `script/` and `scripts/` are both recognised, commented in place.
+third blind spot stays fixed: `script/` and `helpers/` are both recognised, commented in place.
 
 **Gate: NONE.** The predicate is one Python block inside `script/verify`, it has no dependency on
 any other milestone, and a change to it is exercised by the wiring it lives in.

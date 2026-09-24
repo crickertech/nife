@@ -17,7 +17,7 @@ nothing checked it.
 
 135 proposed the mechanism as *milestone 113's shim shape applied to loom crates*. **It does not
 transfer, because that work is already done and was done by 135 itself.** 113 built
-`scripts/kani-lint-shim/` because `cfg(kani)` code is written against intrinsics a plain rustc
+`helpers/kani-lint-shim/` because `cfg(kani)` code is written against intrinsics a plain rustc
 cannot resolve, so making the proof harnesses visible to clippy needed a fake `kani` crate. Loom has
 no such problem: it is an ordinary crates.io dependency behind `[target.'cfg(loom)'.dependencies]`,
 so the whole of 113's benefit costs one flag, and `script/interleaving-check` already carries it:

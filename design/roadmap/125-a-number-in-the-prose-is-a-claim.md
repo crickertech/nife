@@ -106,7 +106,7 @@ applies here: insist a marked number be right, never that every number be marked
 
 **A mistake to avoid:** a gate that re-derives a count by a method subtly different from the one a
 human would use, so it fails on a correct document. The `#!/bin/sh` count is the warning: `ls script/`
-gives 32, the shellcheck gate covers `script/* scripts/*.sh` which is 37 files, and "how many `#!/bin/sh`
+gives 32, the shellcheck gate covers `script/* helpers/*.sh` which is 37 files, and "how many `#!/bin/sh`
 scripts" has at least three defensible answers. **The registry entry must say which question it
 answers**, in the same words the prose uses.
 

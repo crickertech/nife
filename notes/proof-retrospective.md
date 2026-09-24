@@ -51,7 +51,7 @@ below was taken from the merged worktree at base `f1f138a8` on 2026-08-30, with 
 | Quantity | Value | Command |
 |---|---|---|
 | Lines matching `kani::proof` anywhere | 148 | `grep -rn "kani::proof" --include="*.rs" . \| grep -v target \| wc -l` |
-| Of those, doc-comment mentions in `scripts/kani-lint-shim/` | 3 | same, filtered to that path |
+| Of those, doc-comment mentions in `helpers/kani-lint-shim/` | 3 | same, filtered to that path |
 | **Actual harnesses** | **145** | `grep -rn "^\s*#\[kani::proof\]" --include="*.rs" . \| grep -v target \| wc -l` |
 | Harnesses under `crates/` | 143 | same, scoped to `crates/` |
 | Harnesses in `vendor/redoxfs` | 2 | same, scoped to `vendor/` |

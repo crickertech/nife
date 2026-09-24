@@ -1,7 +1,7 @@
 # 88. `needs-architect` as a required check, rather than as a script's restraint
 
 **Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
-written: *"Ratify it."* (raised 2026-08-16, when the merge queue reduced `scripts/merge-drain.sh` to
+written: *"Ratify it."* (raised 2026-08-16, when the merge queue reduced `helpers/merge-drain.sh` to
 an admission policy and made the weakness of that policy the only thing left in it.)
 
 **Number is provisional**: §87 was in flight in an unmerged pull request when this was written, so

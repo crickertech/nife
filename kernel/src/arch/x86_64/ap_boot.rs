@@ -16,7 +16,7 @@
 //!
 //! **Three failures were found bringing this up, and all three are now root-caused and fixed.**
 //! They are kept here because this is where each was found and where a reader meets the symptom.
-//! `scripts/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to **2** since 2026-09-23; the last thing
+//! `helpers/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to **2** since 2026-09-23; the last thing
 //! holding it at 1 was not a bring-up bug at all (see the end of #3). Three or more cores is still
 //! opt-in and unmeasured on silicon.
 //!

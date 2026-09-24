@@ -54,7 +54,7 @@ assigned before this section exists.
 (`ece6d72c`) gives `__image_size = 0x350000` on aarch64. This tree, with CFI present throughout,
 gives the identical `0x350000`. The flat `Image` binary the two builds' `objcopy -O binary` produce
 -- the actual bytes a bootloader or QEMU's `-kernel Image` path loads -- is **byte-for-byte
-identical**, `cmp` confirmed. aarch64's flat-image steps (`scripts/qemu-runner-aarch64.sh`,
+identical**, `cmp` confirmed. aarch64's flat-image steps (`helpers/qemu-runner-aarch64.sh`,
 `xtask/src/inspect.rs`'s `image()`) now `--remove-section` the CFI back out before boot, since that
 is the one place a bootloader actually reads these bytes into memory; the full ELF `gdb <elf>`
 reads keeps the content either way. riscv64 and x86_64 have no such strip and none was added (see

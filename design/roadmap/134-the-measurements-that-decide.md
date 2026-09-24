@@ -396,8 +396,8 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   radon. A knee that moves right says the stacks caused it and a process kernel buys it back with
   colouring; one that stays at 8 says the TCBs (also page-aligned) did, which an event kernel would
   not remove either. Either is a sharper input to §96 than it has. Can ride on the E3 evening.
-- **Recorded.** notes/qemu.md: `scripts/qemu-bounded.sh` does not bound
-  `scripts/qemu-runner-x86_64.sh`, because that runner does not `exec` QEMU, so the bound kills the
+- **Recorded.** notes/qemu.md: `helpers/qemu-bounded.sh` does not bound
+  `helpers/qemu-runner-x86_64.sh`, because that runner does not `exec` QEMU, so the bound kills the
   shell and orphans the emulator (found when this lane's release boot left one with PPID 1).
 - **Recorded.** notes/stack-high-water.md's BUGS: the instrument copies `os_primitives_benchmarker`'s
   and `soaker`'s role numbers as local constants, as `bench.rs` and `soak.rs` already do, against

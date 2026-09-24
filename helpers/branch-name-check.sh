@@ -1,7 +1,7 @@
-# scripts/branch-name-check.sh: the one shape rule for a milestone-claim branch name.
+# helpers/branch-name-check.sh: the one shape rule for a milestone-claim branch name.
 #
 # There is no shebang because this file is sourced, not run, the same reason
-# scripts/qemu-path.sh has none: it exists to be read into another script's shell rather than
+# helpers/qemu-path.sh has none: it exists to be read into another script's shell rather than
 # spawn its own, so ShellCheck is told which dialect to assume instead of inferring one.
 # shellcheck shell=sh
 #
@@ -20,7 +20,7 @@
 # first. So the `case` statement lives here once, and script/lint and script/claim both source it.
 #
 # Name: provisional, minted 2026-09-22 pulling this out of script/lint's check 4. Hyphenated and
-# unadorned like scripts/qemu-path.sh, the other sourced-not-run helper in this directory; a verb
+# unadorned like helpers/qemu-path.sh, the other sourced-not-run helper in this directory; a verb
 # phrase because it names an action (check a branch name) rather than a thing. calef has not ruled
 # on it.
 

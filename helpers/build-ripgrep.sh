@@ -18,8 +18,8 @@
 # joined at milestone 184, which built `x86_64-unknown-nife` and its `std` farm; before that there
 # was no `std` on x86_64 and therefore no `ripgrep`.
 #
-# Usage: scripts/build-ripgrep.sh [version]     (default 14.1.1)
-#        NIFE_RIPGREP_TRIPLES="x86_64-unknown-nife" scripts/build-ripgrep.sh   (one target only)
+# Usage: helpers/build-ripgrep.sh [version]     (default 14.1.1)
+#        NIFE_RIPGREP_TRIPLES="x86_64-unknown-nife" helpers/build-ripgrep.sh   (one target only)
 #
 # See notes/ripgrep-on-nife.md for what it does and does not do once it is running.
 set -euo pipefail

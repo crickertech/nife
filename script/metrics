@@ -95,7 +95,7 @@
 #   run by the weekly workflow rather than by `script/lint` or CI, so nothing gates on it, and the
 #   next scheduled run heals it. Noted 2026-09-20 after a maintainer chased it twice in one session.
 # - **Which files carry a name is written twice**: here in `name_surfaces`, and in `script/names`'
-#   SURFACES table. The parse is shared (`scripts/name_provenance.py`); the enumeration is not,
+#   SURFACES table. The parse is shared (`helpers/name_provenance.py`); the enumeration is not,
 #   because this script reads a historical `git ls-tree` and that one reads the working tree. The
 #   two drifted once already: milestone 175 moved programs to `components/` and `fixtures/` on
 #   2026-09-13, `script/names` was told and this was not, and `names_total` showed a collapse from
@@ -115,7 +115,7 @@
 #   `unsafe_trust_*` columns (added by the unsafe-census-by-trust-boundary milestone, provisional)
 #   classify each `crates/` member as kernel-only, userspace-only, shared or boot-chain, from a
 #   `cargo metadata` resolve graph read ONCE on 2026-09-20 and baked into
-#   `scripts/rust_source.py` as `KERNEL_ONLY_CRATES`/`USERSPACE_ONLY_CRATES`/`SHARED_CRATES`. It
+#   `helpers/rust_source.py` as `KERNEL_ONLY_CRATES`/`USERSPACE_ONLY_CRATES`/`SHARED_CRATES`. It
 #   cannot be re-derived per historical week for the same reason the coverage cell cannot: this
 #   script is forbidden from running cargo or checking anything out (see the top of this file), so
 #   applying today's table to a commit whose dependency graph actually differed is the same
@@ -149,10 +149,10 @@ from datetime import date, datetime, timedelta, timezone
 # consumer of a built artifact. What stays here rather than moving is the file SOURCING below: this
 # script reads blobs at historical revisions and never checks anything out, and that tolerance is
 # deliberately not in the shared count.
-# `dont_write_bytecode` because the import would otherwise leave a `scripts/__pycache__/`
+# `dont_write_bytecode` because the import would otherwise leave a `helpers/__pycache__/`
 # behind on every run, which is an untracked directory a gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, 'scripts')
+sys.path.insert(0, 'helpers')
 import name_provenance                                                      # noqa: E402
 import roadmap_proposals                                                    # noqa: E402
 import rust_source                                                          # noqa: E402
@@ -658,7 +658,7 @@ def decisions(tree):
 
 # The four kinds of named thing `script/names` knows about, enumerated out of a tree's paths
 # rather than off the disk. This is the half milestone 236's rule says stays at the caller: the
-# parse of a `Name:` block is shared (`scripts/name_provenance.py`), and the file sourcing is not,
+# parse of a `Name:` block is shared (`helpers/name_provenance.py`), and the file sourcing is not,
 # because `script/names` is asked about the tree in front of it and this is asked about eight
 # revisions nobody has checked out.
 #
@@ -796,7 +796,7 @@ def bugs(tree):
             'bugs_rust': sum(len(_RS_BUGS.findall(t)) for _p, t in tree.rust())}
 
 
-# The unsafe census (milestone 134) and the harness count, both from `scripts/rust_source.py`.
+# The unsafe census (milestone 134) and the harness count, both from `helpers/rust_source.py`.
 # The columns keep their `unsafe_` prefix here because a CSV header has no other namespace; the
 # shared function's keys are the unprefixed ones a caller in `script/lint` reads.
 
@@ -809,7 +809,7 @@ def unsafe_census(tree):
 def unsafe_trust_census(tree):
     """The same census, split by trust boundary rather than by kernel/src/arch/.
 
-    See `scripts/rust_source.py`'s own comment on `trust_boundary_census` for the classification
+    See `helpers/rust_source.py`'s own comment on `trust_boundary_census` for the classification
     and its caveats (`shared`, `boot_chain` and `unclassified` are populations this number cannot
     collapse into either side without guessing). Only the columns this page and a future ceiling
     could plausibly want are kept; `trust_boundary_census` also computes `*_code_lines` for

@@ -38,7 +38,7 @@ passes.
   banner (`QEMU 11.0.2 monitor - type 'help' for more information`) came back over the wire.
 - **Unix socket creation in `/tmp` on this sandbox.** A plain Python `socket.bind()` to a
   `/tmp` path succeeded with no permission error.
-- **The runner script wiring.** `scripts/qemu-runner-riscv64.sh` passes `-monitor
+- **The runner script wiring.** `helpers/qemu-runner-riscv64.sh` passes `-monitor
   unix:$NIFE_GPU_MON,server,nowait` exactly when `NIFE_GPU_MON` is set, which is the same
   mechanism `xtask`'s aarch64 leg and this riscv64 leg both use, and neither the socket path
   nor the flag differs from what the note describes as already proven.

@@ -58,7 +58,7 @@ use crate::{print, println};
 //     had that number read as evidence of honest slowness, which sent an investigation looking for a
 //     slow path in a test whose server was already dead. Raising a budget to "measure" something
 //     returns only the new budget.
-//   - `scripts/qemu-bounded.sh` remains the outermost backstop, for a kernel that wedges so hard the
+//   - `helpers/qemu-bounded.sh` remains the outermost backstop, for a kernel that wedges so hard the
 //     timer IRQ itself stops. It did NOT fire in the reported case because that run invoked `cargo`
 //     directly instead of going through the wrapper: **a bypassable backstop is not a backstop**,
 //     which is precisely why the ceiling belongs in the kernel, where nothing can route around it.
@@ -1035,7 +1035,7 @@ impl<T: Fn()> Testable for T {
 /// Run it with:
 ///
 /// ```text
-/// scripts/qemu-bounded.sh 200 cargo test -p kernel \
+/// helpers/qemu-bounded.sh 200 cargo test -p kernel \
 ///     --features watchdog_probe --target aarch64-unknown-none-softfloat
 /// ```
 ///

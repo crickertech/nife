@@ -45,7 +45,7 @@ Checked rather than assumed: vfkit ([crc-org/vfkit](https://github.com/crc-org/v
 is written in Go internally, but that is irrelevant here, since nothing in this tree would ever
 touch its source. As an **external host binary invoked by a runner script**, it is the identical
 shape this tree already depends on for `qemu-system-aarch64`/`-riscv64`/`-x86_64`: installed via
-Homebrew, shelled out to from `scripts/qemu-runner-*.sh`, never vendored, zero lines in the Cargo
+Homebrew, shelled out to from `helpers/qemu-runner-*.sh`, never vendored, zero lines in the Cargo
 build graph. A Swift runner would instead be the tree's first non-Rust *source file*, with its own
 `swiftc`/`Package.swift` step nothing else here needs. The "new language in the repository" framing
 above applies to the Swift option only; it does not transfer to vfkit, which is why the two were

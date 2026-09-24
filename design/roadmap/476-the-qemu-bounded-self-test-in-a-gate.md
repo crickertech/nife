@@ -25,7 +25,7 @@ under `## Follow-on`:
 
 The self-test starts real emulators and costs about a minute, against a script that changes twice a
 year. It is in no gate on purpose, and the block calls that what it is: rung two declined
-deliberately, and a foot gun, because a later simplification of `scripts/qemu-bounded.sh` will not
+deliberately, and a foot gun, because a later simplification of `helpers/qemu-bounded.sh` will not
 be caught by CI.
 
 ## Revisit

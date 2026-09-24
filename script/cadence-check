@@ -24,7 +24,7 @@
 # before because something was supposed to be watching. Milestone 232 named that trap and declined to
 # build into it.
 #
-# So the delivery is `scripts/trunk-health.sh`, which is not a GitHub workflow at all. It runs from
+# So the delivery is `helpers/trunk-health.sh`, which is not a GitHub workflow at all. It runs from
 # `launchd` on patagonia every five minutes, it already reports transitions rather than every poll,
 # and a maintainer session is already told to confirm it is alive. That is one rung up from prose and
 # it reuses machinery that exists rather than adding a cadence that can itself lapse.
@@ -83,7 +83,7 @@
 #     3 scheduled workflow(s) have produced no result in the last 15 days. Nobody is assigned to this.
 #
 # `toolchain-drift` reads `live` in that run while its last two daily runs were red, and that is the
-# intended reading rather than a miss: a red daily is `scripts/trunk-health.sh`'s existing job, and
+# intended reading rather than a miss: a red daily is `helpers/trunk-health.sh`'s existing job, and
 # this one answers the different question of whether an answer is still arriving at all.
 #
 # **One of the cadences is not a workflow**, and it is the only one this file can check without a
@@ -110,7 +110,7 @@
 #   hold the week. `script/effort`'s own `BUGS` carries that hole; nothing out here can see it.
 # - **It reports, and cannot fix.** That is the same boundary `script/audits` and the merge drain
 #   keep, and it is deliberate: red means "go look", never "an automation handled it".
-# - **The delivery inherits patagonia's gap.** `scripts/trunk-health.sh` runs under `launchd` on one
+# - **The delivery inherits patagonia's gap.** `helpers/trunk-health.sh` runs under `launchd` on one
 #   Mac, so a machine asleep is a watcher not watching. That cost is recorded and accepted in
 #   AGENTS.md rather than solved, and this file does not change it.
 # - **A cadence that is red for a good reason still reads as dead.** `audit cadence` is red because
@@ -151,7 +151,7 @@ quiet=""
 # records are discarded, so a month of nobody remembering is a month permanently missing.
 #
 # This is where the reminder goes, because this file is already the answer to "a thing that is due
-# and has not happened" and `scripts/trunk-health.sh` already calls it every five minutes on
+# and has not happened" and `helpers/trunk-health.sh` already calls it every five minutes on
 # patagonia, which is the same machine that holds the records. The alternative was a new watcher,
 # which would be a new cadence that can itself lapse.
 #

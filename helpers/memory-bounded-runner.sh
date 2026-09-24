@@ -1,9 +1,9 @@
 #!/bin/sh
-# scripts/memory-bounded-runner.sh: run one host test binary under a hard memory ceiling.
+# helpers/memory-bounded-runner.sh: run one host test binary under a hard memory ceiling.
 #
 # **The name is PROVISIONAL** (milestone 277): names are calef's, and a lane ships one saying so.
-# It sits between the two families already in this directory. `scripts/qemu-runner-*.sh` are cargo
-# runners; `scripts/qemu-bounded.sh` bounds a process that would otherwise never stop. This is both,
+# It sits between the two families already in this directory. `helpers/qemu-runner-*.sh` are cargo
+# runners; `helpers/qemu-bounded.sh` bounds a process that would otherwise never stop. This is both,
 # which is what the compound is trying to say.
 #
 # WHY THIS EXISTS (milestone 277). cargo-mutants bounds a mutant on TIME and on nothing else:
@@ -21,18 +21,18 @@
 # it. script/mutation points CARGO_TARGET_<HOST>_RUNNER here for the length of a mutation run and
 # nothing else in the tree does, so an ordinary `cargo test` is untouched.
 #
-#   scripts/memory-bounded-runner.sh <test-binary> [args...]
+#   helpers/memory-bounded-runner.sh <test-binary> [args...]
 #
 # MUTATION_MEMORY_LIMIT_KB sets the ceiling in kibibytes, overriding the default. `0` disables the
 # bound and runs the binary bare, which is how you reproduce the failure this exists to prevent.
 #
 # EXAMPLES
 #   # What script/mutation does, for one binary.
-#   scripts/memory-bounded-runner.sh target/debug/deps/glob-1a2b3c4d
+#   helpers/memory-bounded-runner.sh target/debug/deps/glob-1a2b3c4d
 #
 #   # Watch the bound fire. 64 MiB is below what any real suite here needs, so this aborts with
 #   # "memory allocation of N bytes failed" and exits non-zero, which is what a killed mutant is.
-#   MUTATION_MEMORY_LIMIT_KB=65536 scripts/memory-bounded-runner.sh target/debug/deps/glob-1a2b3c4d
+#   MUTATION_MEMORY_LIMIT_KB=65536 helpers/memory-bounded-runner.sh target/debug/deps/glob-1a2b3c4d
 #
 #   # Turn it on for a macOS run, which is not the default; see BUGS.
 #   MUTATION_MEMORY_LIMIT_KB=4194304 script/mutation -p glob

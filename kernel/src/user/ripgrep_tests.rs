@@ -5,7 +5,7 @@
 //! decisive experiment because it is not a toy. It has forty transitive crates, it walks a
 //! filesystem, and it is written for a world with threads, a command line, and `mmap`.
 //!
-//! **The program here is not ours and is not patched.** `scripts/build-ripgrep.sh` downloads the
+//! **The program here is not ours and is not patched.** `helpers/build-ripgrep.sh` downloads the
 //! published `ripgrep` crate and builds it with a target spec and three link arguments; there is no
 //! overlay, no vendored copy and no fork. Everything this test observes is therefore a fact about
 //! the platform rather than about our port of a program.
@@ -15,7 +15,7 @@
 //! than a lane's. See notes/ripgrep-on-nife.md.
 //!
 //! **All three ISAs run it**, which is DECISIONS §19 rather than thoroughness: a capability ships on
-//! every supported architecture or a scope note records the gap and the plan. `scripts/build-ripgrep.sh`
+//! every supported architecture or a scope note records the gap and the plan. `helpers/build-ripgrep.sh`
 //! builds for `aarch64-unknown-nife`, `riscv64-unknown-nife` and (since milestone 184)
 //! `x86_64-unknown-nife` in one pass, and one test body serves all three because nothing it asserts
 //! is architecture-specific. **It runs on all three since milestone 303**, which gave `q35` a RedoxFS
@@ -25,7 +25,7 @@
 use super::*;
 
 /// The reason this test gives when nobody built `rg`.
-const NO_RIPGREP: &str = "no rg in this archive: build it with scripts/build-ripgrep.sh, which \
+const NO_RIPGREP: &str = "no rg in this archive: build it with helpers/build-ripgrep.sh, which \
                           fetches the published ripgrep crate from crates.io (milestone 121)";
 
 /// **The block server's ELF**, one program in every archive since milestone 291. This was two
@@ -108,7 +108,7 @@ fn unmodified_ripgrep_runs_and_has_no_arguments_to_run_on() {
     );
 
     // **Give the 256-page heap back** (`user::holding`'s reasoning). This program is in the archive
-    // only when somebody ran `scripts/build-ripgrep.sh`, so a permanent charge here would make the
+    // only when somebody ran `helpers/build-ripgrep.sh`, so a permanent charge here would make the
     // suite's frame ledger fail for exactly the person running the experiment and pass for everyone
     // else. The thread is already gone, so one call is enough.
     let _ = crate::sched::reclaim_region(rg.heap);

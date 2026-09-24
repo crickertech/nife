@@ -20,7 +20,7 @@
 # design/roadmap/420-the-rest-of-the-x86-64-fixture-set.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
-# run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
+# run with helpers/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
 
 set -e
 
@@ -284,7 +284,7 @@ fi
 # status translation below.
 #
 # **Because it is not `exec`, this script has to forward signals itself**, and until 2026-09-21 it
-# did not. `scripts/qemu-bounded.sh` bounds a run by sending SIGTERM to *the child it started*,
+# did not. `helpers/qemu-bounded.sh` bounds a run by sending SIGTERM to *the child it started*,
 # which on aarch64 and riscv64 is QEMU (both those runners `exec`) and here was this shell. The
 # shell died, QEMU was reparented to pid 1, and the bound did nothing: the `calib` lane's
 # calibration sweep orphaned an emulator on every single boot before anyone looked, and the
@@ -296,7 +296,7 @@ fi
 # finishing, so the status has to be read a second time after the child is actually reaped.
 #
 # The `exec 3<&0` / `<&3 3<&-` dance is not decoration either, and it is the same one
-# `scripts/qemu-bounded.sh` documents at length: POSIX gives a backgrounded command's stdin
+# `helpers/qemu-bounded.sh` documents at length: POSIX gives a backgrounded command's stdin
 # /dev/null *before* its own redirections, so under dash (every CI runner's /bin/sh) a plain `<&0`
 # duplicates /dev/null onto itself and nothing piped in ever reaches the serial port. The
 # descriptor is saved before the job is backgrounded, and closed in the child so QEMU inherits no

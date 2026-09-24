@@ -502,7 +502,7 @@ open('target/initrd.img','wb').write(d)
 EOF
 $ cargo build -p kernel --features shell --target aarch64-unknown-none-softfloat
 $ NIFE_INITRD=target/initrd.img NIFE_DISK=target/nifefs.img \
-      scripts/qemu-bounded.sh 20 scripts/qemu-runner-aarch64.sh \
+      helpers/qemu-bounded.sh 20 helpers/qemu-runner-aarch64.sh \
       target/aarch64-unknown-none-softfloat/debug/kernel
 ```
 

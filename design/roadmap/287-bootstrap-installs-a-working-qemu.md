@@ -44,7 +44,7 @@ human to type them is describing a mechanism instead of being one.
 **Three, and this is the load-bearing one: the printed remedy looped.** `script/ci-qemu` installs
 into `${QEMU_PREFIX:-$HOME/.cache/nife-qemu}`. The **only** thing in the entire tree that ever put
 that prefix on PATH was `.github/workflows/ci.yml`, at three separate `$GITHUB_PATH` lines. Nothing
-in `script/`, nothing in `scripts/`, nothing in `xtask`. So a Linux developer following the
+in `script/`, nothing in `helpers/`, nothing in `xtask`. So a Linux developer following the
 instructions verbatim spent twelve minutes building the right QEMU, re-ran `script/setup` as told,
 and `qemu-check`'s `command -v qemu-system-aarch64` found `/usr/bin`'s 8.2.2 again. Same failure,
 same message, same remedy, forever.
@@ -56,8 +56,8 @@ to be, and exactly what the fix it prompted was never run against.
 ## Who owns the PATH, which was the real question
 
 The emulator is invoked **by bare name from 38 sites across 16 files**, in three languages:
-`exec qemu-system-aarch64` at the bottom of `scripts/qemu-runner-aarch64.sh`, the riscv64 and x86_64
-runners beside it, `scripts/qemu-uefi-x86_64.sh`, a `subprocess` argument list in
+`exec qemu-system-aarch64` at the bottom of `helpers/qemu-runner-aarch64.sh`, the riscv64 and x86_64
+runners beside it, `helpers/qemu-uefi-x86_64.sh`, a `subprocess` argument list in
 `script/netboot-rehearsal`, probe lines in `script/gates` and `script/cpu-matrix`, and
 `script/qemu-check` itself. **So the mechanism is PATH inherited by children, not one spawn site to
 patch.** Four options were priced.
@@ -80,7 +80,7 @@ would cover `script/test` and its siblings, but it reaches neither `script/qemu-
 two mechanisms, and the Rust one would need its own copy of "where is the prefix and is it the pinned
 version", which is the drift above.
 
-**Taken: one sourced fragment, `scripts/qemu-path.sh`, read by every entry point that can reach an
+**Taken: one sourced fragment, `helpers/qemu-path.sh`, read by every entry point that can reach an
 emulator.** It has no shebang because it is sourced rather than executed: it exists to edit the
 caller's PATH, which an executed script cannot do. One copy of the logic, one line per entry point,
 and every one of the 38 bare-name invocations gets the right emulator without being touched.
@@ -93,17 +93,17 @@ them and loses on a measurement, not on taste.
 
 ## What was built
 
-- **`scripts/qemu-path.sh`** (**name provisional**, minted by this lane): prepends
+- **`helpers/qemu-path.sh`** (**name provisional**, minted by this lane): prepends
   `${QEMU_PREFIX:-$HOME/.cache/nife-qemu}/bin` to PATH when that prefix holds the pinned version.
   Idempotent, so an entry point calling another cannot stack the prefix up.
 - **`script/bootstrap`**: the dead `linux` comparison is `Linux`; on a Linux `qemu-check` failure it
   now says what the next twelve minutes are for and then **runs `script/ci-qemu`**, sources the
   fragment, and re-checks. It also sources the fragment before its `command -v` probes, so a second
   bootstrap does not re-run the whole apt branch against a prefix that already holds what is wanted.
-- **Twenty-five other `script/` entry points**: one `. scripts/qemu-path.sh` each, immediately after
+- **Twenty-five other `script/` entry points**: one `. helpers/qemu-path.sh` each, immediately after
   the `cd` to the repository root.
 - **`script/lint`**, *the project's QEMU is on PATH*: a file under `script/` that runs `cargo xtask`,
-  names a `qemu-system-*` binary, or calls a `scripts/qemu-*` helper must source the fragment.
+  names a `qemu-system-*` binary, or calls a `helpers/qemu-*` helper must source the fragment.
 - **`notes/scripts.md`** and **`notes/stranger-test.md`** (the correction above).
 
 ## The version gate, and the demotion it prevents
@@ -179,14 +179,14 @@ half is fixed and proven, and a different wall is standing behind it.
   `if [ "$os" = linux ]`, which was false on *every* machine, and then `exit 1`; the new code
   evaluates `if [ "$os" != Linux ]` and then `exit 1`. On macOS those are the same two statements, so
   that path is bit-for-bit what it was. The only other macOS-visible change is the added
-  `. scripts/qemu-path.sh` lines, which no-op unless `$HOME/.cache/nife-qemu/bin/qemu-system-aarch64`
+  `. helpers/qemu-path.sh` lines, which no-op unless `$HOME/.cache/nife-qemu/bin/qemu-system-aarch64`
   exists, and `script/ci-qemu` (the only thing that creates it) refuses to run off Linux. **Nobody
   has run any of that on a Mac**, which is the honest end of the sentence: no gate in this repository
   runs on macOS, so the architect's own machine is the first one that will.
 - **The gate cannot check that the source line is in the right place.** It checks presence. A line
   placed before the `cd`, or after the work it is supposed to affect, passes. Ordering inside a shell
   script is not something a grep can hold.
-- **The gate cannot see `scripts/`, `xtask`, or a Makefile.** Its scope is `script/*`, on the
+- **The gate cannot see `helpers/`, `xtask`, or a Makefile.** Its scope is `script/*`, on the
   reasoning that everything else is spawned by something in there and inherits. If a future cargo
   `runner` or CI step invokes an emulator without passing through a `script/` entry point, nothing
   fires.
@@ -207,7 +207,7 @@ half is fixed and proven, and a different wall is standing behind it.
   then builds a QEMU that shadows the three emulator packages entirely. **Measured on the built
   prefix**, QEMU's own `make install` ships `efi-virtio.rom`, six `pxe-*.rom` option ROMs and every
   `edk2-*.fd` firmware into `$prefix/share/qemu` (71 files), which is also where
-  `scripts/qemu-uefi-x86_64.sh` already looks first, so the two firmware packages look redundant too.
+  `helpers/qemu-uefi-x86_64.sh` already looks first, so the two firmware packages look redundant too.
   **That is where the evidence stops**, and proving it needs the x86_64 UEFI gate and the netboot
   rehearsal run green with those packages absent, which is more than this lane could show. Nothing
   was removed. 396 names the four runs that would close it and prices the prize honestly: a few
@@ -240,6 +240,6 @@ better error message, and three defects sat on it. The message never printed (`[
 while `uname -s` says `Linux`). Printing is rung four. And the two commands it printed looped: `script/ci-qemu` installs into `$HOME/.cache/nife-qemu` and the only thing in the tree that ever
 put that on PATH was `ci.yml`, so twelve minutes of building ended at `/usr/bin`'s 8.2.2 again,
 forever. notes/stranger-test.md had recorded it fixed and was wrong for twenty-eight days.
-bootstrap now runs `ci-qemu` itself; `scripts/qemu-path.sh` (**name provisional**) is the PATH
+bootstrap now runs `ci-qemu` itself; `helpers/qemu-path.sh` (**name provisional**) is the PATH
 half, sourced rather than executed because the emulator is named bare from 38 sites and
 inheritance reaches them all; `script/lint` gates that every entry point resolves it.

@@ -2,8 +2,8 @@
 #
 # Drain the merge queue: enqueue every pull request that does not need calef.
 #
-#     scripts/merge-drain.sh              # run until nothing is left to enqueue
-#     scripts/merge-drain.sh --once       # one pass, then exit (for a cron or a check)
+#     helpers/merge-drain.sh              # run until nothing is left to enqueue
+#     helpers/merge-drain.sh --once       # one pass, then exit (for a cron or a check)
 #
 # PROVISIONAL NAME. Minted 2026-08-04; not put to calef. See the `Name:` block below.
 #
@@ -50,7 +50,7 @@
 #
 # Name: unrecorded. Provisional, minted 2026-08-04 and not yet put to calef. Named for what it does
 # to the queue rather than for the mechanism, in the family of `qemu-bounded.sh`. It lives in
-# `scripts/` rather than `script/` because it is a maintainer's tool and not a front door a
+# `helpers/` rather than `script/` because it is a maintainer's tool and not a front door a
 # contributor types; `script/` is the normalised "Scripts to Rule Them All" set (notes/scripts.md).
 # See notes/merge-queue.md.
 
@@ -80,7 +80,7 @@ if [ -z "$once" ] && [ "$(git rev-parse --git-dir 2>/dev/null)" != ".git" ]; the
 	echo "$(basename "$0"): refusing to watch from a lane worktree." >&2
 	echo "  A watcher outlives the lane that started it, and pruning that lane's worktree kills" >&2
 	echo "  it silently, because /bin/sh reads a script lazily. Run it from the main checkout:" >&2
-	echo "    cd <main checkout> && scripts/$(basename "$0") &" >&2
+	echo "    cd <main checkout> && helpers/$(basename "$0") &" >&2
 	echo "  ('--once' is fine from anywhere; only the watching form is refused.)" >&2
 	exit 2
 fi
@@ -297,7 +297,7 @@ pass() {
 	# return, because an empty queue is exactly when an unclaimed lane is easiest to miss:
 	# nothing else on this pass will print a word. Milestone 204; the script owns its own
 	# grace period and its own false-positive shapes.
-	sh scripts/lane-claim-check.sh || true
+	sh helpers/lane-claim-check.sh || true
 
 	# Before admitting anything, reconcile what is already admitted: a label that arrived after an
 	# enqueue is the one case the queue itself cannot see. See dequeue_held's own comment.

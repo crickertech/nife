@@ -2,8 +2,8 @@
 #
 # Say when `main` is red, and say when it recovers.
 #
-#     scripts/trunk-health.sh             # watch until stopped
-#     scripts/trunk-health.sh --once      # print the current state and exit
+#     helpers/trunk-health.sh             # watch until stopped
+#     helpers/trunk-health.sh --once      # print the current state and exit
 #
 # PROVISIONAL NAME. Minted 2026-08-04; not put to calef. See the `Name:` block below.
 #
@@ -42,15 +42,15 @@
 # history has a mechanism until something is lost: `launchctl list` showed `com.nife.merge-drain` and
 # `com.nife.trunk-health` and nothing else.
 #
-# `scripts/at-risk-check.sh` does the reading; this file decides when to speak. Folded in here rather
-# than as a third `launchd` job, on the reasoning `scripts/merge-drain.sh` already uses for
-# `scripts/lane-claim-check.sh`: a third watcher is a third thing to start, a third thing that can die
-# silently (this file's own BUGS section, and `scripts/merge-drain.sh`'s, both say neither reports its
+# `helpers/at-risk-check.sh` does the reading; this file decides when to speak. Folded in here rather
+# than as a third `launchd` job, on the reasoning `helpers/merge-drain.sh` already uses for
+# `helpers/lane-claim-check.sh`: a third watcher is a third thing to start, a third thing that can die
+# silently (this file's own BUGS section, and `helpers/merge-drain.sh`'s, both say neither reports its
 # own death), and a third entry in every "confirm the watchers are alive" step in AGENTS.md and
 # notes/merge-queue.md. Reusing a loop that already runs on this cadence costs one function call.
 #
 # Unlike RED/GREEN, this reports every pass rather than only the transition: see
-# `scripts/at-risk-check.sh`'s own BUGS section for why (a worktree still at risk on the next poll is
+# `helpers/at-risk-check.sh`'s own BUGS section for why (a worktree still at risk on the next poll is
 # still exactly as at risk, and there is no cheap way to distinguish "still true" from "newly true"
 # without a second piece of state this script does not otherwise keep).
 #
@@ -90,7 +90,7 @@ if [ -z "$once" ] && [ "$(git rev-parse --git-dir 2>/dev/null)" != ".git" ]; the
 	echo "$(basename "$0"): refusing to watch from a lane worktree." >&2
 	echo "  A watcher outlives the lane that started it, and pruning that lane's worktree kills" >&2
 	echo "  it silently, because /bin/sh reads a script lazily. Run it from the main checkout:" >&2
-	echo "    cd <main checkout> && scripts/$(basename "$0") &" >&2
+	echo "    cd <main checkout> && helpers/$(basename "$0") &" >&2
 	echo "  ('--once' is fine from anywhere; only the watching form is refused.)" >&2
 	exit 2
 fi
@@ -130,9 +130,9 @@ cadence() {
 }
 
 # See this file's own header ("A second watch folded in here") for why this lives here rather than
-# as a third `launchd` job. `scripts/at-risk-check.sh` reports and never acts; this only relays it.
+# as a third `launchd` job. `helpers/at-risk-check.sh` reports and never acts; this only relays it.
 at_risk() {
-	scripts/at-risk-check.sh 2>/dev/null || true
+	helpers/at-risk-check.sh 2>/dev/null || true
 }
 
 if [ -n "$once" ]; then

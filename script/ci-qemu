@@ -35,9 +35,9 @@
 set -e
 cd "$(dirname "$0")/.."
 
-# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# This project's own QEMU, if `script/ci-qemu` has built one (helpers/qemu-path.sh says why
 # PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
-. scripts/qemu-path.sh
+. helpers/qemu-path.sh
 # Absolute repo root, captured before the cold-cache path cd's into the QEMU build tree. The
 # qemu-check call at the end runs from inside that build dir (there is no cd back), so a relative
 # `script/qemu-check` there resolved against the tarball, not the repo, and died with "not found"

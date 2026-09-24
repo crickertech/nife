@@ -12,7 +12,7 @@ they drift).
 **The premise that made the copies look unavoidable is false, and checking it is what shrank this
 milestone.** `script/lint` and `script/metrics` both `cd` to the repository root before they
 `exec python3`, so their heredocs have a stable working directory, and a heredoc with a stable
-working directory can `sys.path.insert(0, 'scripts')` and import like anything else. Nothing about
+working directory can `sys.path.insert(0, 'helpers')` and import like anything else. Nothing about
 being a shell entry point prevented it. That matters because the alternative on the table was a host
 crate, which would have made three `script/` commands depend on a `cargo build` and changed what a
 `script/` command is; this changes nothing a caller can see.
@@ -102,7 +102,7 @@ THREAD_SAFETY = re.compile(r'\bunsafe\s+impl\b[^{;]*?\b(?:Send|Sync)\s+for\b')
 # `bench/host/` holds the Linux and macOS programs the cross-OS comparison runs: ~100 `unsafe`
 # blocks of libc FFI that those operating systems require and that say nothing about nife's
 # soundness. Counting them would move the census every time somebody added a comparison. `xtask/`,
-# `tools/`, `fuzz/` and `scripts/` are build and image tooling that runs on the developer's Mac and
+# `tools/`, `fuzz/` and `helpers/` are build and image tooling that runs on the developer's Mac and
 # cannot fault the kernel.
 #
 # `patches/` is excluded for a different reason and it is the one worth reading: it holds our
@@ -116,7 +116,7 @@ THREAD_SAFETY = re.compile(r'\bunsafe\s+impl\b[^{;]*?\b(?:Send|Sync)\s+for\b')
 #
 # The list is exclusions rather than inclusions on purpose: a new subsystem directory is counted by
 # default, and being left out has to be somebody's decision.
-HOST_ONLY = ('bench/host/', 'xtask/', 'tools/', 'fuzz/', 'scripts/', 'patches/')
+HOST_ONLY = ('bench/host/', 'xtask/', 'tools/', 'fuzz/', 'helpers/', 'patches/')
 
 
 def unsafe_census(files):
@@ -181,7 +181,7 @@ def unsafe_census(files):
 # `components` or `fixtures` (the two packages holding every EL0 program, milestone 175 (split
 # `user/`: `components/` for services, `fixtures/` for test and benchmark programs)). A crate
 # reachable from both sides is `SHARED`. This is mechanical and checkable
-# (`cargo metadata | scripts/<this file's own derivation>`, not reproduced as a script here because
+# (`cargo metadata | helpers/<this file's own derivation>`, not reproduced as a script here because
 # `script/metrics` can never run cargo -- see this file's own module docstring -- so the result is
 # baked in below, the same trade `MILESTONE_STATUSES`/`NAME_STATUSES` already make in
 # `script/metrics`: today's definition, applied uniformly across history).
@@ -345,10 +345,10 @@ PROOF = re.compile(r'#\[kani::proof\b')
 FALSIFICATION = re.compile(r'\bFalsification:\s+(replayable|attested|unfalsified)\b')
 
 # Directories holding `#[kani::proof]` that belong to no workspace package, expressed as path
-# prefixes because that is all a text-only derivation has. `scripts/` is the `kani-lint-shim` source
+# prefixes because that is all a text-only derivation has. `helpers/` is the `kani-lint-shim` source
 # `script/lint` compiles by hand; `patches/` is our `std` platform layer. `vendor/redoxfs` is the
 # third such file and is already outside every caller's file set.
-NOT_A_PACKAGE = ('scripts/', 'patches/')
+NOT_A_PACKAGE = ('helpers/', 'patches/')
 
 
 def falsification_records(text):

@@ -138,7 +138,7 @@ awk -F: -v floor="$floor" '
         # whole conversation with the person, tested against a fake host (cli.rs). What is exempt
         # only runs the tools of a host, and none of it can run here: this is an unprivileged Linux
         # process, with no diskutil, no kernel32, and no block device it may erase as root. Each
-        # arm is run for real on its own host instead, by scripts/stick-maker-proof.sh (macOS)
+        # arm is run for real on its own host instead, by helpers/stick-maker-proof.sh (macOS)
         # and .github/workflows/stick-maker-hosts.yml (Linux on a loop device, and Windows), which
         # is where a regression in it would show. src/main.rs is the dozen lines that hand cli::run
         # the real machine; a test never executes the main of a binary, in the same structural

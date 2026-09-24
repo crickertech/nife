@@ -155,7 +155,7 @@ than an answer to it.
   of this milestone's scope by the brief, and it did not fire in 26 two-core boots here, which is
   consistent with its recorded "three or later" bound and proves nothing about three.
 - **The two-core suite is not clean**, per the section above, and `NIFE_SMP` therefore still
-  defaults to 1 in `scripts/qemu-runner-x86_64.sh`. Nothing in CI gates two cores, and nothing here
+  defaults to 1 in `helpers/qemu-runner-x86_64.sh`. Nothing in CI gates two cores, and nothing here
   changes that. The two-core result above is a measurement on one host, not a promise.
 - **Milestone 412
   (`design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`)

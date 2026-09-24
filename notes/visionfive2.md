@@ -1090,7 +1090,7 @@ always attaches a controller... absence is a lost QEMU flag, not a machine witho
 `grep` across `kernel/src/` for the same shape (`.expect("no virtio-... device", ...)`) found at
 least six more tests with the identical assumption, spanning RNG (`credential_tests.rs`,
 `disk_tests.rs`, `ntp_tests.rs`, `std_service.rs`), GPU (`display_tests.rs`), and the disk surveyor
-programs, all correct on QEMU, all unreachable on bare silicon, because `scripts/qemu-runner-riscv64.sh`
+programs, all correct on QEMU, all unreachable on bare silicon, because `helpers/qemu-runner-riscv64.sh`
 wires roughly forty `NIFE_*`-gated synthetic devices the manual boot path has no equivalent for.
 
 **This is the honest stopping point for "run the test suite on silicon" as currently scoped.** The

@@ -19,6 +19,6 @@ target/
 mutants.out/
 mutants.out.old/
 
-# Python bytecode from the shared modules under scripts/ (a run of script/names leaves one).
+# Python bytecode from the shared modules under helpers/ (a run of script/names leaves one).
 __pycache__/
 *.pyc

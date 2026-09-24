@@ -66,7 +66,7 @@ again. The input driver:
 into QEMU arrives at the receive FIFO and the shell runs it. Getting there flushed out two real
 things in the harness, both recorded because they cost real time:
 
-- `scripts/qemu-bounded.sh` backgrounds QEMU (`"$@" &`) so it can enforce a timeout. A
+- `helpers/qemu-bounded.sh` backgrounds QEMU (`"$@" &`) so it can enforce a timeout. A
   backgrounded command's stdin is redirected to `/dev/null` by the shell (POSIX), which silently
   swallowed all piped input. Fixed with an explicit `<&0`.
 - `-nographic` **multiplexes** the serial port with the QEMU monitor on stdio, and piped input was

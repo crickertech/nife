@@ -194,7 +194,7 @@ SECTION = re.compile(r"^## (?:(\d+)\. )?(.+)$", re.M)
 # guess.
 EXPERIMENT = re.compile(r"\*\*The [a-z ]*experiment\b([^*:]*)(?::\*\*|\*\*)", re.I)
 STATUS_LINE = re.compile(r"\*\*Status: ([A-Z]+)\b")
-PATHISH = re.compile(r"`((?:design|notes|script|scripts|crates|kernel|user|xtask)/[A-Za-z0-9_./-]+"
+PATHISH = re.compile(r"`((?:design|notes|script|helpers|crates|kernel|user|xtask)/[A-Za-z0-9_./-]+"
                      r"\.(?:md|rs|sh|toml|yml))`")
 PROPOSAL = re.compile(r"`(design/roadmap/proposals/[A-Za-z0-9_./-]+\.md)`")
 

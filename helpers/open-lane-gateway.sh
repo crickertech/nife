@@ -1,8 +1,8 @@
 #!/bin/sh
-# Start the LiteLLM gateway that `scripts/open-lane.sh` talks to.
+# Start the LiteLLM gateway that `helpers/open-lane.sh` talks to.
 #
 #     export OPENROUTER_API_KEY=sk-or-...        # issued by OpenRouter, stays on this machine
-#     scripts/open-lane-gateway.sh
+#     helpers/open-lane-gateway.sh
 #
 # **There is no gateway password, deliberately** (calef, 2026-09-22). The tailnet is the boundary
 # and the OpenRouter key carries a spend limit, so a second secret would guard little and cost a

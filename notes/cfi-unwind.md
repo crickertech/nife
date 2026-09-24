@@ -88,7 +88,7 @@ same `0x350000`. The flat `Image` binary the two builds' `objcopy -O binary` pro
 QEMU/board boot artifact) is **byte-for-byte identical**, `cmp` confirmed.
 
 **aarch64 also strips `.eh_frame`/`.eh_frame_hdr` back out of that flat binary**, in
-`scripts/qemu-runner-aarch64.sh` and `xtask/src/inspect.rs`'s `image()`, with
+`helpers/qemu-runner-aarch64.sh` and `xtask/src/inspect.rs`'s `image()`, with
 `llvm-objcopy --remove-section`. This is the one place a real bootloader or QEMU's `-kernel Image`
 path actually loads the bytes into memory; the full ELF `gdb <elf>` reads keeps the content either
 way.
@@ -321,7 +321,7 @@ byte-for-byte, not merely argued.
 
 - **riscv64 and x86_64 do not strip `.eh_frame` out of the image QEMU actually boots**, unlike
   aarch64. Neither port has a flat-Image/objcopy step at all: QEMU's `-kernel` loads each ELF's
-  `PT_LOAD` segments directly (see each port's own `scripts/qemu-runner-*.sh` header comment), so
+  `PT_LOAD` segments directly (see each port's own `helpers/qemu-runner-*.sh` header comment), so
   the CFI (currently a few hundred bytes to ~30 KiB depending on how much the compiler emits for a
   given build) rides along into guest RAM. This is harmless in a QEMU VM with the usual hundreds of
   megabytes and was not deemed worth introducing a new strip-then-boot step for two ports that do

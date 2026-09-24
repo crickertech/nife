@@ -66,7 +66,7 @@ written; check the roadmap index for its number before citing it.)
 **The VT-d half has now landed and been exercised against this driver (2026-08-25), and the
 *confinement* gap this section named is closed on x86_64.** VT-d itself landed earlier this
 session (milestone 161 item 6, `kernel/src/arch/x86_64/iommu.rs`) but had confined no real PCI
-device; this is that exercise. `scripts/qemu-runner-x86_64.sh` now attaches `-device nvme` the same
+device; this is that exercise. `helpers/qemu-runner-x86_64.sh` now attaches `-device nvme` the same
 way the aarch64 and riscv64 runners do (no `iommu_platform` flag, same as the other two, since a
 real PCI device's DMA is not virtio's opt-in), and
 `kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end` now runs for real (an account: that module is `kernel/src/non_volatile_memory_express.rs` since 2026-09-18, and milestone 261 replaced that test with the EL0 one, so neither the path nor the symbol resolves today)
@@ -368,7 +368,7 @@ deliver one.
 **Every option here that maps any part of BAR0 to EL0 has to answer where the MSI-X table lives and
 who may write it, and this tree has never asked.** Measured, not asserted:
 
-- ~~`scripts/qemu-runner-x86_64.sh` sets `IOMMU="-device intel-iommu"` with no `intremap=on`, so
+- ~~`helpers/qemu-runner-x86_64.sh` sets `IOMMU="-device intel-iommu"` with no `intremap=on`, so
   **interrupt remapping is off in every x86_64 boot this tree runs.**~~ **False. Amended 2026-09-18
   by milestone 317, which asked the machine instead of the script.** `ECAP` read from inside the
   guest, QEMU 11.1.1, `q35`/TCG: `-device intel-iommu` gives `0xf00f4a` with `IR` **set**;
@@ -377,7 +377,7 @@ who may write it, and this tree has never asked.** Measured, not asserted:
   **So the capability was offered in every boot this tree has ever run, and the kernel never writes
   `GCMD.IRE`.** `kernel-irqchip=split` is not required either; that is a KVM constraint, and all
   three irqchip settings start `intremap=on` with no diagnostic.
-- `scripts/qemu-runner-aarch64.sh` uses `gic-version=2`, which has no ITS, so there is no MSI
+- `helpers/qemu-runner-aarch64.sh` uses `gic-version=2`, which has no ITS, so there is no MSI
   translation path on that machine either. **Confirmed 2026-09-18, and it cannot simply be
   switched.** `gic-version=3` moves `reg[1]` from the GICC to the GICR and adds `its@8080000`, but
   `memory::init` matches the interrupt controller by its `intc@` **name prefix** and never reads

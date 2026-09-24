@@ -28,7 +28,7 @@ shape, gated on env vars the QEMU runner scripts set and a bare board boot canno
 | `kernel/src/user/compositor_tests.rs` | virtio-gpu (compositor's device) | `NIFE_GPU` |
 | `kernel/src/user/entropy_tests.rs` | virtio-rng | `NIFE_RNG` |
 
-`scripts/qemu-runner-riscv64.sh` wires roughly forty `NIFE_*`-gated synthetic devices. Every one
+`helpers/qemu-runner-riscv64.sh` wires roughly forty `NIFE_*`-gated synthetic devices. Every one
 of these tests is correct as written for the machine it has always run on. None of them is wrong
 the way the six bugs milestone 16a's bench session found were wrong (a hardcoded fact about
 QEMU's specific configuration that is false on other hardware). These are correct claims about a

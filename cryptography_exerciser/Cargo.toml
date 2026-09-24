@@ -15,7 +15,7 @@
 #     §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we make work)
 #     ruled on `rustls` and explicitly not on a provider. Keeping this package out of the
 #     workspace keeps every crate below out of the shipping graph, out of `Cargo.lock`, and out of
-#     CI, exactly as `scripts/build-ripgrep.sh` keeps ripgrep's forty crates out. Nothing in
+#     CI, exactly as `helpers/build-ripgrep.sh` keeps ripgrep's forty crates out. Nothing in
 #     `script/test` builds this and no gate needs it; the kernel test skips when the archive has no
 #     `cryptography_exerciser`.
 #

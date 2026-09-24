@@ -50,7 +50,7 @@ it happens to cover.**
 **And this gap is already a recorded limitation rather than an unknown.** `design/naming.md`'s BUGS
 carries "Three surfaces, and the tree has more than three kinds of name", which tracks the closures
 (directories by §75 in 2026-08-16, Cargo packages in 2026-08-18) and states plainly that types and
-`scripts/` helpers are still uncovered. It also records a live casualty: `fs_maker` was resolved to
+`helpers/` helpers are still uncovered. It also records a live casualty: `fs_maker` was resolved to
 `mkfs` by whoever was mid-task, because `redoxfs_server/src/bin/` is a place nothing looks. That is
 a `BUGS` entry, which under §71 is a fact rather than a plan, and this section is where it becomes a
 plan or is refused on the record.

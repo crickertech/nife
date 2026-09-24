@@ -18,7 +18,7 @@ What exists now:
 
 | Piece | Where | Proved by |
 |---|---|---|
-| `stick_maker` (provisional), the host program | `crates/stick_maker` | host tests on captured `diskutil` documents and on the whole conversation against a fake host; `scripts/stick-maker-proof.sh` on macOS; `.github/workflows/stick-maker-hosts.yml` on Linux and Windows runners |
+| `stick_maker` (provisional), the host program | `crates/stick_maker` | host tests on captured `diskutil` documents and on the whole conversation against a fake host; `helpers/stick-maker-proof.sh` on macOS; `.github/workflows/stick-maker-hosts.yml` on Linux and Windows runners |
 | `BOOTAA64.EFI` and `BOOTRISCV64.EFI` beside `BOOTX64.EFI` | `uefi_loader/src/arch/` | `cargo xtask stick-boot` |
 | The universal stick (U1) | `cargo xtask stick` stages `target/stick` | all three firmwares boot the one directory, and the stick the program writes, to the progenitor |
 | An ELF-to-PE converter, since rustc has no riscv64 UEFI target | `crates/portable_executable` (provisional) | host tests, and EDK2 loading its output |
@@ -105,7 +105,7 @@ much as for this. radon's RAM does contain the riscv64 kernel's `0x8020_0000`.
 - **Some flash sticks clear the removable-media bit** and are not offered, with no override, on
   purpose.
 - **Names are provisional**: `stick_maker`, `portable_executable`, `device_tree_patch`, `cargo xtask
-  stick` and `stick-boot`, `scripts/qemu-stick.sh`, `scripts/stick-maker-proof.sh`, the download
+  stick` and `stick-boot`, `helpers/qemu-stick.sh`, `helpers/stick-maker-proof.sh`, the download
   names `stick_maker-<os>-<cpu>`, and `NIFE.TXT`.
 
 ## Index row

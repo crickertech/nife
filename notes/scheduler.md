@@ -166,11 +166,11 @@ each pass, so the heartbeat sees a healthy kernel and only the ceiling stops it.
 fail, so it is not in the normal suite:
 
 ```text
-scripts/qemu-bounded.sh 200 cargo test -p kernel \
+helpers/qemu-bounded.sh 200 cargo test -p kernel \
     --features watchdog_probe --target aarch64-unknown-none-softfloat
 ```
 
-**The outermost backstop.** `scripts/qemu-bounded.sh` still guards the case where the kernel wedges so
+**The outermost backstop.** `helpers/qemu-bounded.sh` still guards the case where the kernel wedges so
 hard the timer IRQ stops. It did not fire for the RedoxFS livelock only because that run invoked
 `cargo` directly instead of the wrapper: **a bypassable backstop is not a backstop**, which is exactly
 why the ceiling lives in the kernel, where nothing can route around it.
@@ -283,7 +283,7 @@ is wide there, not evidence of a second bug.
 | 2026-08-03 | CI, PR #29, which changed `design/roadmap.md` and nothing else | **aarch64** |
 
 Every row is the same test and the same watchdog. The last one arrived in the wild, on the aarch64
-runner (`scripts/qemu-runner-aarch64.sh`, `target/aarch64-unknown-none-softfloat`), while this milestone was
+runner (`helpers/qemu-runner-aarch64.sh`, `target/aarch64-unknown-none-softfloat`), while this milestone was
 being written, and it is the independent confirmation of what the widened-window control had already
 shown.
 

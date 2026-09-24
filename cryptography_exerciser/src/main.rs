@@ -63,7 +63,7 @@
 //! - **It is absent from every ordinary build and from CI**, because its dependencies are not this
 //!   repository's to take, which is DECISIONS §46 (thin primitives or whole subsystems; we
 //!   write everything in between), until calef rules on them. The kernel test skips when
-//!   the archive has no `cryptography_exerciser`; `scripts/build-cryptography-exerciser.sh` is
+//!   the archive has no `cryptography_exerciser`; `helpers/build-cryptography-exerciser.sh` is
 //!   what puts one there.
 
 // `entropy_backend` defines `getrandom`'s two custom-backend symbols and nothing references them

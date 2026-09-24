@@ -278,7 +278,7 @@ mechanism, and an expensive one is not made safe by adding a gate afterwards.
 **Most decisions here are reversible and should be made quickly, by whoever is holding the problem.**
 Code, notes, roadmap wording, which milestone a lane takes, how a script is structured. Getting these
 wrong costs an hour. Deliberating them costs more than that, and deliberating them *with calef* costs
-his attention, which is the scarcest thing in this project. `scripts/merge-drain.sh` was rewritten
+his attention, which is the scarcest thing in this project. `helpers/merge-drain.sh` was rewritten
 three times in one evening, each version wrong in a way the next one fixed, and that was cheaper than
 designing it correctly up front would have been.
 
@@ -911,7 +911,7 @@ Two consequences:
   runs forever. This is not theoretical: it leaked eleven QEMU processes over one day of
   development, burning a combined 729% CPU, the oldest with eight hours of CPU time on it.
 
-  Use `scripts/qemu-bounded.sh <seconds> <cmd...>` instead: SIGTERM, which QEMU honours, and since
+  Use `helpers/qemu-bounded.sh <seconds> <cmd...>` instead: SIGTERM, which QEMU honours, and since
   milestone 226 a killer that fires on the bound, on the wrapper going away, and on its own TERM or
   HUP. Still detached, so an early-exiting reader is bounded. `notes/qemu.md` has the rest.
 

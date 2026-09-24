@@ -265,14 +265,14 @@ pub(crate) fn initrd_riscv() -> bool {
         blobs.push(("std_exerciser", bytes));
     }
     // **Unmodified `ripgrep`** (milestone 121), on the same terms as aarch64's: present iff
-    // `scripts/build-ripgrep.sh` has been run, absent from every ordinary build and from CI.
+    // `helpers/build-ripgrep.sh` has been run, absent from every ordinary build and from CI.
     // DECISIONS §19 is why this leg exists at all: the same experiment on both ISAs, or a scope
     // note says which one it skipped and why.
     if let Ok(bytes) = read_stripped(&ripgrep_elf("riscv64-unknown-nife").display().to_string()) {
         blobs.push(("rg", bytes));
     }
     // **The crypto-provider workload** of milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets), on the same terms and for the same
-    // reason: present iff `scripts/build-cryptography-exerciser.sh` has been run.
+    // reason: present iff `helpers/build-cryptography-exerciser.sh` has been run.
     if let Ok(bytes) = read_stripped(
         &cryptography_exerciser_elf("riscv64-unknown-nife")
             .display()
@@ -425,12 +425,12 @@ pub(crate) fn initrd_x86() -> bool {
     ) {
         blobs.push(("std_exerciser", bytes));
     }
-    // **Unmodified `ripgrep`** (milestones 121 and 184), present iff `scripts/build-ripgrep.sh` ran.
+    // **Unmodified `ripgrep`** (milestones 121 and 184), present iff `helpers/build-ripgrep.sh` ran.
     if let Ok(bytes) = read_stripped(&ripgrep_elf("x86_64-unknown-nife").display().to_string()) {
         blobs.push(("rg", bytes));
     }
     // **The crypto-provider workload** (milestone 442), on the same terms and for the same
-    // reason: present iff `scripts/build-cryptography-exerciser.sh` has been run.
+    // reason: present iff `helpers/build-cryptography-exerciser.sh` has been run.
     if let Ok(bytes) = read_stripped(
         &cryptography_exerciser_elf("x86_64-unknown-nife")
             .display()
@@ -528,14 +528,14 @@ pub(crate) fn initrd_aarch64() -> bool {
         files.push(("mkfs", bytes.as_slice()));
     }
     // **Unmodified `ripgrep`** (milestone 121), on exactly the terms above: present iff
-    // `scripts/build-ripgrep.sh` has been run, absent from every ordinary build and from CI. The
+    // `helpers/build-ripgrep.sh` has been run, absent from every ordinary build and from CI. The
     // archive name is `rg`, which is what the program is called everywhere else in the world.
     let ripgrep = read_stripped(&ripgrep_elf("aarch64-unknown-nife").display().to_string()).ok();
     if let Some(bytes) = &ripgrep {
         files.push(("rg", bytes.as_slice()));
     }
     // **The crypto-provider workload** (milestone 442), on exactly those terms: present iff
-    // `scripts/build-cryptography-exerciser.sh` has been run, absent from every ordinary build and
+    // `helpers/build-cryptography-exerciser.sh` has been run, absent from every ordinary build and
     // from CI, because the crates under it are a dependency decision calef has not made.
     let cryptography = read_stripped(
         &cryptography_exerciser_elf("aarch64-unknown-nife")

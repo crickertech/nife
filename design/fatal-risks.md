@@ -1312,7 +1312,7 @@ compiles to an empty body: not a build failure, a silently missing compiler fenc
 `components/src/entropy.rs`'s `barrier()` has the identical two-arm shape and is not in the sweep's
 table, found rereading it for this entry rather than in the original sweep. The sweep's own
 severity note argues the four it found are latent rather than live, because
-`scripts/qemu-runner-x86_64.sh` attaches no virtio device on any x86_64 boot today; that argument is
+`helpers/qemu-runner-x86_64.sh` attaches no virtio device on any x86_64 boot today; that argument is
 unchanged for the fifth. **Closed 2026-09-23 by milestone 186**, and the argument above is kept as written because it is
 what the entry found rather than what the tree now holds: the five are one function,
 `user_mode_runtime::virtio::virtio_ring_barrier`, whose x86_64 arm is a compiler fence and whose

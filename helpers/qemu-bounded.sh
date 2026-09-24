@@ -2,7 +2,7 @@
 #
 # Run a command with a hard time limit, and actually kill it.
 #
-#     scripts/qemu-bounded.sh 10 qemu-system-aarch64 -machine virt ...
+#     helpers/qemu-bounded.sh 10 qemu-system-aarch64 -machine virt ...
 #
 # # Why this exists
 #

@@ -12,13 +12,13 @@ will drift while both keep looking authoritative, and the pile's whole defence a
 graveyard is that a script can see it, so a second definition that quietly disagreed about what
 counts is the one failure this record cannot afford.
 
-**What is deliberately not here**, the same line `scripts/rust_source.py` and
-`scripts/name_provenance.py` draw: only the derivation over a filename and a file's text. The
+**What is deliberately not here**, the same line `helpers/rust_source.py` and
+`helpers/name_provenance.py` draw: only the derivation over a filename and a file's text. The
 directory LISTING stays at the caller, because `script/roadmap` reads the working tree and
 `script/metrics` reads blobs at revisions nobody has checked out.
 
 Name: provisional, minted by milestone 276's lane on 2026-09-11, and it is a shared python module
-under `scripts/`, which `script/names` puts out of its own scope, so this paragraph is the record
+under `helpers/`, which `script/names` puts out of its own scope, so this paragraph is the record
 rather than a `Name:` block. `proposals` alone would not say which proposals (this tree also has
 `**Status: PROPOSED**` decisions in `design/decisions/`, a different record with a different form);
 `roadmap_records` would promise the index rows too, which live in two different parses that this
