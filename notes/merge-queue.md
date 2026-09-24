@@ -741,6 +741,45 @@ that needs distinct GitHub identities rather than a better log; the proposal is
   behind it.** Sixty was right for the work and wrong for runner supply. The honest fix is fewer
   runs competing for runners, and A′ is the first of those. When the queue stops starving, lower
   the timeout again, because the cost of a long timeout only shows up when a group is actually stuck.
+- **One push can raise two `synchronize` events, and when the cancelled copy is the newer run the
+  pull request is stranded, green and armed, outside the queue** (#1203, 2026-09-24). Every
+  workflow on `e0875d56` ran twice at 15:43:24, including `coe architect label`, which listens only
+  for `opened`, `reopened` and `synchronize`, so it was not `ready_for_review` (that fired at
+  15:30:28). The concurrency group cancelled one copy of each within a second and before any job
+  existed. For verify the cancelled copy was the older id (36022255755) and nothing broke. For CI it
+  was the newer id (36022256151, over 36022255835's success), and a forced enqueue answered "11 of
+  13 required status checks are expected": CI's eleven. So GitHub reads the newest suite per
+  workflow, and an empty cancelled suite there hides a green one. Rerunning the cancelled run fixed
+  it, at the cost of a whole second suite (attempt 2 ran 16:41 to 17:37).
+
+  **No workflow-level fix is sound.** The duplicate event is GitHub's. A pending run is always
+  cancelled when a newer one joins its group, whatever `cancel-in-progress` says. Putting the SHA in
+  the group key would stop the duplicates cancelling each other, but a new push would then stop
+  superseding the old one. Skipping when a same-SHA run already succeeded would also skip after a
+  draft run that concluded `success` with every job skipped, which is #567 again. **The detection
+  belongs in the drain**, which can rerun the run it finds:
+
+  ```sh
+  sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
+  gh api "repos/crickertech/nife/actions/runs?head_sha=$sha&event=pull_request&per_page=100" --jq '
+    .workflow_runs | group_by(.name)[] | sort_by(.id) as $r | ($r | last) as $n
+    | select($n.conclusion == "cancelled")
+    | select([$r[] | select(.id != $n.id and .created_at == $n.created_at
+                            and (.conclusion == "success" or .status != "completed"))] | length > 0)
+    | $n.id'          # each id printed: gh run rerun <id>
+  ```
+
+  The same-second condition is what separates this from the ordinary supersede. #1207, #1209 and
+  #1211 each have a cancelled CI run followed 20 to 66 seconds later by a successful one, which is
+  a draft marked ready, and none of them was stranded.
+- **A branch stacked on another pull request, then merged with `main`, has two merge bases, and
+  GitHub calls that a conflict that git does not see** (#1220, 2026-09-24). #1220 was cut from
+  #1213's branch. After #1213 landed and `main` was merged back in, `git merge-base --all` gave
+  both `47c3a3c9` and #1213's own commit. `git merge-tree` merged cleanly against every entry ahead
+  of it in the queue, but the queue marked it `UNMERGEABLE`, built no group for it, and evicted it
+  with `merge_conflict` at 20:00:51. Its page said `CONFLICTING`. **Once the base pull request
+  lands, rebase the stacked commits onto `main` rather than merging `main` in.** The tell is
+  `git merge-base --all origin/main HEAD` printing more than one line.
 
 **A branch in the merge queue cannot be pushed to, and the error names the fix without naming the
 cost.** `git push` is rejected with `GH006: Protected branch update failed ... Branches that are
