@@ -88,7 +88,7 @@ is saturated, so all three red at once is a load gauge, not three regressions.
 2. Ask about the object, not the machine. A thread is asked about by its generational `Tid`
    (`thread_present`). A region is asked about by `memory_region::usage`, or by its own frames
    through `testing::RegionRun`. A single frame is asked about through `memory::is_page_frame_used`.
-   A held tick is asked about through `timer::tick_pending`
+   A held tick is asked about through `timer::is_tick_pending`
    ([preemption window](load-sensitive-assertions/preemption-window-tick.md)).
 3. Denominate a budget in what the guest actually received. A descheduled emulator delivers fewer
    ticks per second, so a tick budget stretches under exactly the load that broke a counter
@@ -138,7 +138,7 @@ remains) or fixed. A fixed site can still carry a residual in BUGS below.
 | `the_handler_keeps_up_when_no_lock_is_held` | both `timer.rs` | fixed | deleted 2026-08-18; `script/icount` makes the claim | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
 | `holding_a_lock_masks_the_timer`, the masking window | both `timer.rs` | fixed | both reads moved inside the critical section; `ticks_on(core)` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `holding_a_lock_masks_the_timer`, liveness and release; `the_timer_is_ticking` | both `timer.rs` | fixed | wait for the pending bit, or the property (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
-| `unmasking_delivers_the_tick_that_was_held`, `a_masked_window_takes_no_preemption` | `preemption_window_tests.rs` | fixed | waits for `timer::tick_pending`; QEMU raised ticks 86 ms late (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
+| `unmasking_delivers_the_tick_that_was_held`, `a_masked_window_takes_no_preemption` | `preemption_window_tests.rs` | fixed | waits for `timer::is_tick_pending`; QEMU raised ticks 86 ms late (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
 | `inbound check` (host prober) | `xtask/src/inbound.rs` | fixed | an `EINTR` read dropped a held connection, losing its round (09-24) | [inbound EINTR](load-sensitive-assertions/inbound-eintr.md) |
 | `work_can_be_placed_on_every_core` | `smp.rs` | fixed | asserts arrival at the named core (`PerCpu::adopted`), not execution (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_thread_that_never_yields_is_preempted_anyway` | `sched.rs` | fixed | the spinner is waited on, not sampled; the budget is 200 delivered ticks (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
