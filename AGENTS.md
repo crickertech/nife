@@ -884,7 +884,7 @@ reread for months:
 - No "delve", "comprehensive", "landscape", "moreover", "furthermore", "notably", "it's
   worth noting", "straightforward".
 - No sycophantic openers, no filler conclusions that restate what was just said.
-- Plain, direct language. Vary sentence length. Write like a person.
+- Plain, direct language. Vary sentence length. Write like a person. The numbers are [§213 (writing standards)](design/decisions/213-writing-standards.md), and length is [§212 (a prose budget)](design/decisions/212-a-prose-budget-for-every-document.md).
 
 ## Never leave QEMU running
 
