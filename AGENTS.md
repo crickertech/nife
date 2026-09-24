@@ -305,8 +305,8 @@ can tell an intention from an observation in prose, and it does not touch the `B
 
 ### Open decisions, and work waiting on calef
 
-Open decisions live in a file, not in a conversation. A decision waiting on calef goes in
-`design/decisions/` with `**Status: PROPOSED.**`, one section each: what is being decided, the
+Open decisions live in a file, not in a conversation. One waiting on calef goes in `design/decisions/`
+marked [`status: PROPOSED`](design/decisions/README.md), one file each: what is being decided, the
 options, the recommendation with its reason, and what is blocked until it is answered. The number is
 the integrator's at merge.
 
