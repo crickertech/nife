@@ -89,9 +89,13 @@ hours later. Two properties proved over `kernel/src/syscall.rs`, with nothing mo
 first. Both were falsified before being believed, by re-introducing the real wrapping-multiply
 defect of milestone 142 (a text display good enough that people use it instead of a GUI) and
 watching them turn red. That is the counterfactual this study said the tree did not have, and it now
-exists. It cost about 10 seconds of `script/verify`. `kernel/src/arch/`, `user/` and `xtask` are
-still out of reach, so the amber stands; what changed is that the reason is now a worklist rather
-than a wall.
+exists. It cost about 10 seconds of `script/verify`. `kernel/src/arch/`, `user/` and `xtask` were
+still out of reach that day, so the amber stood; what changed is that the reason became a worklist
+rather than a wall. *(Corrected 2026-09-24: this read "are still out of reach" long after it
+stopped being true. `user/` came within reach with milestone 197 above, `xtask` compiles and is
+refused on value, and milestone 304 below put `arch/x86_64/` beside `arch/aarch64/`. Only
+`arch/riscv64/` is still out of reach, and the amber now rests on that and on the survivorship
+caveat, not on reach.)*
 
 And on 2026-09-16 a proof caught a real kernel defect, on an architecture the prover had never
 compiled. Milestone 304 (only ever compiled one architecture, and it was the runner's) found that

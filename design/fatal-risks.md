@@ -107,9 +107,12 @@ went red on a latent defect: the class this risk exists to ask about, and the fi
 
 The caveat, and it is this entry's most valuable line. Every defect a proof has caught here was
 caught *while the harness was being written*. That is weaker evidence than a standing proof catching
-a regression, and it is the survivorship asymmetry rule 1 warned about. `arch/`, `user/` and `xtask`
-are still out of reach, and riscv64 is unreachable to the prover with nothing anyone here can do
-about it. So state the claim as what it is: proofs over the pure crates, kernel largely unverified.
+a regression, the survivorship asymmetry rule 1 warned about. **Corrected 2026-09-24:** this said
+`arch/`, `user/` and `xtask` were still out of reach. Milestone 197 (`user/` and `xtask` are out of
+reach of the prover) brought `user/` within reach on 2026-08-31 and refused `xtask` on value;
+milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) proves `arch/x86_64/`
+beside `arch/aarch64/`. Only riscv64 is unreachable, and nobody here can change that. So the claim is
+proofs over the pure crates and slices of the kernel, most of it unverified.
 [Appendix](fatal-risks/proofs-and-their-reach.md).
 
 ## 3. The tests do not test anything, and the quality is illusory
@@ -163,7 +166,7 @@ rather than inherited, and their open problem is risk 5. And `sel4bench` has nev
 so the peer is Linux rather than the state of the art in minimal kernels.
 
 Ranked fourth on purpose. This is where a skeptic expects the project to die, and where it has the
-most evidence that it will not. That evidence is the wrong shape: one crossing at a time.
+most evidence that it will not.
 [Appendix](fatal-risks/the-crossing-cost.md).
 
 ## 5. It cannot be made reliable on multicore, and the bugs appear only on silicon
@@ -255,9 +258,9 @@ supports is that these named claims are tested, and each shown to fail when brok
 The claim: everything works and no one has a reason to run it.
 
 **Experiment status: CANNOT-RUN, 2026-09-23.** Untestable by this project's own policy, and no
-verdict. That is the finding rather than an apology. The other eight can come back red. This one
+verdict. The other eight can come back red. This one
 cannot come back at all, and a fatal risk that cannot be tested is the most dangerous state a fatal
-risk can be in. Rule 1 says why: an entry that cannot fail is indistinguishable from one that passed.
+risk can be in.
 Risks 3 and 7 found tests of that shape inside the kernel. This is the same defect one level out, in
 the file that judges the project.
 
@@ -322,7 +325,6 @@ architectures is the largest single lever available, and it should be a decision
 ## The running order
 
 Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's verdict is the entry's.
-The argument for it is up there, not here.
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
