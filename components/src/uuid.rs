@@ -111,7 +111,7 @@
 
 use entropy_protocol as entropy;
 use globally_unique_identifier_partition_table::guid::Guid;
-use user_mode_runtime::{call, exit, granted, send};
+use user_mode_runtime::{call, exit, is_granted, send};
 
 /// Slot 0: where the identifier goes. An endpoint with `WRITE`, under the sink contract.
 const REPORT: u64 = 0;
@@ -127,7 +127,7 @@ const ENTROPY_SLOT: u64 = grant_plan::ENTROPY_SLOT;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
-    let has_diag = granted(DIAG_SLOT);
+    let has_diag = is_granted(DIAG_SLOT);
 
     // **Draw first, print second**, which is the ordering the refusal forces rather than a style:
     // this program must write nothing at all when it holds no entropy, so nothing may go out

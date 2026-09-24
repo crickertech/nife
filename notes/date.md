@@ -92,7 +92,8 @@ printing `Thu 1970-01-01 00:00:04 UTC` as though it were a fact.
 clock has nothing mapped at `CLOCK_VA`, so a probe that read it would fault instead of answering. So
 the probe invokes the capability slot with a method number no object type defines: an empty slot
 answers `NoSuchSlot`, a real `Frame` answers `BadMethod`, and a refusal from an object is proof one
-is there. The std PAL's `granted()` solves the same problem the same way; they are the same problem.
+is there. The std PAL's `is_granted()` solves the same problem the same way; they are the same
+problem.
 
 ## What the tests prove, and one gap they close
 

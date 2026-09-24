@@ -145,7 +145,7 @@ static REACHABLE: AtomicU8 = AtomicU8::new(0);
 /// `pub(crate)` for `sys/paths/nife.rs`, which needs the same fact for the same reason: naming a
 /// place a process has no capability for is the answer-instead-of-refusing failure this platform's
 /// own notes keep recording.
-pub(crate) fn reachable() -> bool {
+pub(crate) fn is_reachable() -> bool {
     match REACHABLE.load(Ordering::Relaxed) {
         1 => true,
         2 => false,
@@ -173,7 +173,7 @@ pub(crate) fn reachable() -> bool {
 /// program as "this platform cannot do that", which is the silent-degradation shape DECISIONS §42
 /// forbids and which would have made a narrowed grant indistinguishable from no grant at all.
 ///
-/// What makes -1 unambiguous here is [`reachable`]: every entry point in this module checks it
+/// What makes -1 unambiguous here is [`is_reachable`]: every entry point in this module checks it
 /// first and returns `Unsupported` when the slot is empty, so by the time a `request` is issued a
 /// server has already answered one message. A kernel `NoSuchSlot` cannot follow that. -3 stays,
 /// because `ESRCH` really is not in the FS server's vocabulary and `NotPermitted` from the kernel
@@ -519,7 +519,7 @@ fn open_rights(opts: &OpenOptions) -> u64 {
 /// `OPEN` the last name in `path`, walking to the directory that holds it. Returns the server's
 /// handle.
 fn open_handle(path: &Path, opts: &OpenOptions) -> io::Result<u64> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     let mut p = page();
@@ -545,7 +545,7 @@ fn open_handle(path: &Path, opts: &OpenOptions) -> io::Result<u64> {
 /// `AlreadyExists` rather than being retried, because a silent retry would turn a lost race into a
 /// caller writing over a file it believes it just made.
 fn create_handle(path: &Path, opts: &OpenOptions) -> io::Result<u64> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     let mut p = page();
@@ -808,7 +808,7 @@ impl DirBuilder {
     /// handle is closed immediately. Nothing is lost by that: a later `read_dir` of the same name
     /// mints another one, and holding this one would be a handle-table slot leaked per `mkdir`.
     pub fn mkdir(&self, p: &Path) -> io::Result<()> {
-        if !reachable() {
+        if !is_reachable() {
             return Err(unsupported_err());
         }
         let mut page = page();
@@ -1248,7 +1248,7 @@ impl Dir {
     /// carries is the authority over the directory rather than a mode. Here that authority is
     /// literal.
     pub fn open(path: &Path, _opts: &OpenOptions) -> io::Result<Dir> {
-        if !reachable() {
+        if !is_reachable() {
             return Err(unsupported_err());
         }
         if count_names(path)? == 0 {
@@ -1462,7 +1462,7 @@ impl Drop for File {
 /// for the reason [`FileAttr`] gives. `accessed`/`created` still refuse, so nothing here invents a
 /// fact the contract does not carry.
 pub fn stat(path: &Path) -> io::Result<FileAttr> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     // ``, `.` and `/` name the granted directory, which no `OPEN` can reach: it is the directory
@@ -1521,7 +1521,7 @@ pub fn exists(path: &Path) -> io::Result<bool> {
 ///
 /// The listing is drained here rather than streamed; [`ReadDir`] says why.
 pub fn readdir(p: &Path) -> io::Result<ReadDir> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     // One guard for the whole exchange, because `page()` is not reentrant: every OPENDIR name,
@@ -1585,7 +1585,7 @@ pub fn readdir(p: &Path) -> io::Result<ReadDir> {
 /// keeps reading, exactly as POSIX promises, and `filesystem_protocol::fs::UNLINK` records why the contract
 /// draws that line. A directory is refused (`IsADirectory`); [`rmdir`] is its verb.
 pub fn unlink(p: &Path) -> io::Result<()> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     let mut page = page();
@@ -1600,7 +1600,7 @@ pub fn unlink(p: &Path) -> io::Result<()> {
 /// Unix's `rm -r` does belongs in userspace where each step can be checked against the capability
 /// for that level. A file is refused (`NotADirectory`), the mirror of [`unlink`]'s refusal.
 pub fn rmdir(p: &Path) -> io::Result<()> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     let mut page = page();
@@ -1625,7 +1625,7 @@ pub fn rmdir(p: &Path) -> io::Result<()> {
 /// by side, and that is the contract's rather than a nicety: the source directory loses a name
 /// (`REMOVE`) and the destination gains one (`CREATE`).
 pub fn rename(old: &Path, new: &Path) -> io::Result<()> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     let mut page = page();
@@ -1743,7 +1743,7 @@ pub fn set_perm_nofollow(_p: &Path, _perm: FilePermissions) -> io::Result<()> {
 /// A `FileTimes` with nothing set changes nothing, and still resolves the name, so a missing file
 /// is `NotFound` as it is on Unix rather than a vacuous success.
 pub fn set_times(p: &Path, times: FileTimes) -> io::Result<()> {
-    if !reachable() {
+    if !is_reachable() {
         return Err(unsupported_err());
     }
     if times.accessed.is_some() {

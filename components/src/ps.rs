@@ -91,7 +91,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_mode_runtime::{exit, granted, send, survey, survey_record};
+use user_mode_runtime::{exit, is_granted, send, survey, survey_record};
 
 /// The output sink: where the table goes. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -108,7 +108,7 @@ static HAS_DIAG: AtomicBool = AtomicBool::new(false);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
-    HAS_DIAG.store(granted(DIAG_SLOT), Ordering::Relaxed);
+    HAS_DIAG.store(is_granted(DIAG_SLOT), Ordering::Relaxed);
 
     // **Walk first, complain second, print third.** A survey cannot know its complaints up front:
     // the domain may be refused on the first call or vanish on the tenth, and §67's reader drains

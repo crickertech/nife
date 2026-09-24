@@ -106,7 +106,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use calendar::{DateTime, Format, UtcOffset};
 use clock_protocol::{ClockPage, state};
-use user_mode_runtime::{exit, granted, monotonic_nanos, send};
+use user_mode_runtime::{exit, is_granted, monotonic_nanos, send};
 
 /// Slot 0: where the output goes. An endpoint with `WRITE`, and the same 16-bytes-per-message
 /// framing the std PAL's stdout uses (`w0` = the byte count, `w1`|`w2` = the bytes, little-endian),
@@ -149,7 +149,7 @@ pub extern "C" fn _start(fmt: u64, offset_minutes: u64, provenance: u64) -> ! {
     // sentence below has to know which endpoint it is going to. A wiring that granted none (the
     // guest tests, which spawn this program directly) leaves the slot empty and every complaint goes
     // back in-band on the output, which is what `date` did before §67.
-    HAS_DIAG.store(granted(DIAG_SLOT), Ordering::Relaxed);
+    HAS_DIAG.store(is_granted(DIAG_SLOT), Ordering::Relaxed);
 
     // The state first, before anything computes a time from the offset. This ordering is the whole
     // difference between this program and `SystemTime::now()`: it has an error channel and uses it.
@@ -315,9 +315,9 @@ fn diag_end() {
 /// answer. So it invokes the capability in the slot with a method number no object type defines:
 /// an empty slot answers `NoSuchSlot`, and a real `PageFrame` answers `BadMethod`, which is a refusal
 /// from an object that exists and is therefore proof one is there. Same shape as the std PAL's
-/// `granted()`; the two are the same problem.
+/// `is_granted()`; the two are the same problem.
 fn clock_page() -> Option<ClockPage> {
-    if !granted(CLOCK_SLOT) {
+    if !is_granted(CLOCK_SLOT) {
         return None;
     }
     // SAFETY: the wiring maps the clock page read-only at CLOCK_VA alongside the capability the
