@@ -19,7 +19,7 @@
 //! near-identical lines, and the failure that caused is the reason milestone 96 exists: a fix that
 //! lands in one copy and not the other is **a boot that reaches userspace and prints nothing at
 //! all**, with no fault and no message. That shape cost three separate lanes an evening each.
-//! `script/shell-check` boots both ISAs and types at the prompt, which is what makes it the gate
+//! `script/swish-check` boots both ISAs and types at the prompt, which is what makes it the gate
 //! that proves this: it is the only thing in the tree that runs the real progenitor.
 //!
 //! # Examples
@@ -28,7 +28,7 @@
 //! it takes is a syscall on a capability the kernel granted at spawn, so there is nothing to assert
 //! and nowhere to assert it: `script/test`'s host pass excludes this crate (it depends on `user_mode_runtime`'s
 //! EL0 `asm!`, an exclusion `script/lint` derives and checks), and the thing that actually proves this
-//! code is `script/shell-check`, which boots both ISAs and types at the prompt. So the example below
+//! code is `script/swish-check`, which boots both ISAs and types at the prompt. So the example below
 //! is `no_run`: type-checked against the real signatures, and executed by that gate.
 //!
 //! A progenitor's whole source, near enough. Everything a board contributes is the **table of slot numbers
@@ -179,7 +179,7 @@
 //! costs rather than leaving it as a feeling.** This crate reaches `user_mode_runtime` through the dependency
 //! graph, so it does not build for the host at all; `script/lint`, `script/coverage` and
 //! `.cargo/mutants.toml` all exclude it, and a gate in `script/lint` derives that set from cargo
-//! metadata so the four lists cannot drift apart again. `script/shell-check` is what proves this
+//! metadata so the four lists cannot drift apart again. `script/swish-check` is what proves this
 //! code, and it is a real gate: it boots both ISAs and types at the prompt, and it is the only
 //! thing in the tree that runs a real progenitor.
 //!
@@ -276,7 +276,7 @@
 //! had raised the constant to `28 // TEMP: generous bisection value` while chasing an unrelated
 //! flake; a cleanup put it back to 17 on the evidence that the prose said 17 and `script/test` was
 //! green at 17, which is true and blind, because no suite in `script/test` boots this program. The
-//! boot that does is `script/shell-check`, and it ran in neither `script/test` nor CI, so `main`
+//! boot that does is `script/swish-check`, and it ran in neither `script/test` nor CI, so `main`
 //! trapped here for five days behind a green tree. That is milestone 230's whole subject and the
 //! reason both of those now run this.
 //!
@@ -563,7 +563,7 @@ const SECOND_DIR_CARETAKER_PAGES: u64 = JOB_REGION_PAGES;
 
 /// **The job pool.** Six live jobs at once, which is far more than a prompt has ever needed and is
 /// deliberately small: the whole claim of this increment is that a *bounded* budget is enough once
-/// the regions come back, so a budget nobody could exhaust would prove nothing. `script/shell-check`
+/// the regions come back, so a budget nobody could exhaust would prove nothing. `script/swish-check`
 /// runs thirteen jobs through it, so widening this silently retires that gate.
 pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
 
@@ -1396,12 +1396,12 @@ pub fn boot(
     //
     // **Unverified against a real boot.** `second_dir` is `None` at every shipped entry point
     // (DECISIONS §126: what the subtree should be is calef's call), so this branch has never run
-    // under `script/shell-check`, which is the only thing in the tree that runs a real progenitor.
+    // under `script/swish-check`, which is the only thing in the tree that runs a real progenitor.
     // `build_caretaker` retypes two more objects into *this process's* capability table right
     // where the comment two screens up already documents this table as tight ("the shell's
     // `build_child` had no slot left ... and failed silently"). The failure mode if this pushes
     // the progenitor over sixteen slots is exactly that one: a boot that reaches userspace and prints
-    // nothing. Whoever first passes `Some` here should watch for it and run `script/shell-check`
+    // nothing. Whoever first passes `Some` here should watch for it and run `script/swish-check`
     // before trusting this path.
     let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
         assert!(
@@ -1655,7 +1655,7 @@ pub fn boot(
             // provisioning has even been attempted, is not "wait for the service to come up" the
             // way the entropy block's own `recv(ready)` is -- it is "wait for a message that
             // cannot exist until this same function seals the store a few lines further down", a
-            // deadlock this process would never wake from. Found by running `script/shell-check`
+            // deadlock this process would never wake from. Found by running `script/swish-check`
             // and watching it hang rather than fault: no `[PANIC]`, nothing kept building, because
             // this process was genuinely blocked rather than trapped.
             //
@@ -1880,7 +1880,7 @@ pub fn boot(
     // And prove it from the inside, on the two primitives that build things, before anything else
     // runs. `NoSuchSlot` (-1) rather than `NotPermitted` (-3) is the whole claim: the capability is
     // *gone*, not narrowed, so there is nothing there to name. This is `root_supervisor`'s proof at
-    // the interactive prompt, and `script/shell-check` reads the sentence.
+    // the interactive prompt, and `script/swish-check` reads the sentence.
     // SAFETY: as above: the kernel validates the capability and the method.
     let frame = unsafe { invoke(ut, abi::memory_region::RETYPE, 0, 0, 0) };
     // SAFETY: as above: the kernel validates the capability and the method.
@@ -1905,7 +1905,7 @@ pub fn boot(
     // claim about what the progenitor refuses is worth what the check behind it is worth, and only the progenitor can
     // run that check. The affirmative line is the load-bearing one. A measured boot's natural bug is
     // for the check to evaporate when the build step does not run, and a boot that says nothing
-    // looks exactly like a boot that measured everything, so `script/shell-check` reads this
+    // looks exactly like a boot that measured everything, so `script/swish-check` reads this
     // sentence and a boot that stopped measuring fails the gate instead of passing quietly.
     let mut buf = [0u8; SENTENCE];
     announce(
@@ -1957,8 +1957,8 @@ pub fn boot(
     // Knowing `login` survived means `login` saying so, which is a message, an endpoint and a wait
     // this process does not have, and a boot that blocks on a child's readiness is a boot that
     // hangs when the child is the thing that is broken. The survival claim lives in
-    // `script/shell-check` instead, which fails the boot if the kernel reported killing any user
-    // thread; see `shell_check_leg`'s own `no user thread was killed` check.
+    // `script/swish-check` instead, which fails the boot if the kernel reported killing any user
+    // thread; see `swish_check_leg`'s own `no user thread was killed` check.
     if login_ready {
         fn push(buf: &mut [u8; SENTENCE], n: &mut usize, src: &[u8]) {
             for &b in src {
@@ -2737,7 +2737,7 @@ fn announce(term_ep: u64, text: &[u8]) {
 /// sets `unvouched` on a substituted program was proved by nothing: changing its `true` to `false`
 /// started an unvouched binary and turned nothing in the tree red. Moving the three-way answer into
 /// `measured_boot` put it beside `verify_in_manifest`, which is where the rest of that rule already
-/// lives, and left this line: an archive read and a call. `script/shell-check` still proves that the
+/// lives, and left this line: an archive read and a call. `script/swish-check` still proves that the
 /// boot *makes* the call, on both ISAs, with the table the kernel measured, and nothing about that
 /// changed.
 fn measured<'a>(fs: &nifefs::Fs<'a>, table: &str, name: &str) -> measured_boot::Verdict<'a> {

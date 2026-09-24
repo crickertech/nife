@@ -7,7 +7,7 @@
 //!
 //!     cargo xtask run      boot the kernel (the milestone tour), print to this terminal
 //!     cargo xtask shell    boot straight to the interactive shell (add --hvf for the real core)
-//!     cargo xtask shell-check  boot that same shell, type at it, and check what it answered
+//!     cargo xtask swish-check  boot that same shell, type at it, and check what it answered
 //!     cargo xtask test     host tests (milliseconds), then the kernel under QEMU
 //!                          (--hvf runs the aarch64 kernel leg on the physical core)
 //!     cargo xtask gdb      boot paused, waiting for a debugger on :1234
@@ -46,7 +46,7 @@ mod package;
 mod rollback;
 mod scanout;
 mod screen;
-mod shell_check;
+mod swish_check;
 mod soak;
 mod stick;
 mod suite;
@@ -62,7 +62,7 @@ use crate::host::cargo;
 use crate::icount::icount;
 use crate::inspect::{gdb, image, objdump};
 use crate::manual::{manual_store, tree_apropos};
-use crate::shell_check::shell_check;
+use crate::swish_check::swish_check;
 use crate::soak::{job_mix_sweep, soak_test};
 use crate::suite::{test, undefined_behavior_check};
 use crate::uefi::{uefi_boot, uefi_image, uefi_test};
@@ -121,7 +121,7 @@ fn main() -> ExitCode {
             maybe_hvf();
             eprintln!("--- booting nife to an interactive shell (type `help`, Ctrl-C to quit) ---");
             // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only
-            // virtio-rng stopgap"), the same terms `shell_check_leg` already attaches one on: this
+            // virtio-rng stopgap"), the same terms `swish_check_leg` already attaches one on: this
             // is the interactive boot itself, not the bench boot sharing its runner, so there is
             // no icount-drift reason to keep it test-leg only, and the whole point of the
             // amendment is that a person booting this way should have one.
@@ -213,7 +213,7 @@ fn main() -> ExitCode {
         // it. Runs at the end of `std-exerciser` (and so inside `script/test`); exposed on its own
         // because re-reading the list after a nightly bump should not need a rebuild.
         "std-aborts" => std_aborts(),
-        "shell-check" => shell_check(),
+        "swish-check" => swish_check(),
         // The boot ladder's gate (milestone 268, item 6): boot every architecture's default kernel
         // and fail if its self-test verdict is not green. See script/boot-check.
         "boot-check" => boot_check(),
@@ -249,9 +249,9 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|package|install-boot|rollback-boot|confirm-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
+                "usage: cargo xtask <build|run|shell|swish-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|package|install-boot|rollback-boot|confirm-boot|stick|stick-boot|screen-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script|card-check> [--hvf]"
             );
-            eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
+            eprintln!("       cargo xtask swish-check [--arch aarch64|riscv64]");
             eprintln!(
                 "       cargo xtask install-boot   (x86_64/OVMF: a stick installs itself onto an NVMe disk, then that disk boots with the stick detached)"
             );
@@ -328,7 +328,7 @@ fn maybe_hvf() {
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-        // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_ACCEL", "hvf") };
         eprintln!("--- on the real Apple Silicon core via Hypervisor.framework ---");
     }

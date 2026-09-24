@@ -70,7 +70,7 @@ each internally consistent, is stronger evidence than a pinned expectation could
 
 ## BUGS
 
-- ~~**Nothing gates the `--features shell` boot.**~~ **CLOSED 2026-08-02 by `script/shell-check`**,
+- ~~**Nothing gates the `--features shell` boot.**~~ **CLOSED 2026-08-02 by `script/swish-check`**,
   which milestone 50 wrote when it finished `>>` (§59). It boots the interactive system on both ISAs,
   types five lines, and reads the answers, and it is the only thing in the tree that runs the real
   `system_initializer`. The entry stands as written otherwise, because its argument is what got it

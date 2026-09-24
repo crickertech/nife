@@ -250,7 +250,7 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// exits non-zero has answered; a child the progenitor could not build gets [`SPAWN_FAILED`]; a child the
 /// kernel killed **sends nothing at all**, so the shell's single read had nothing to complete it
 /// and the prompt never came back (measured 2026-09-02: `least_authority_demo` patched to trap, and
-/// `script/shell-check` reporting "the prompt never came back to take `least_authority_demo 7`").
+/// `script/swish-check` reporting "the prompt never came back to take `least_authority_demo 7`").
 ///
 /// **Provisional name**, like everything a lane mints: a word in a protocol is exactly the kind of
 /// name calef decides.

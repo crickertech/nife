@@ -207,7 +207,7 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// architectures was green at 17. Both of those observations were true. Neither could see the
 /// failure, because **`script/test` never boots the real progenitor**: every suite that runs the shell
 /// has the kernel play the progenitor, and the only gate that runs `system_initializer` is
-/// `script/shell-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
+/// `script/swish-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
 /// 2026-08-28 and `main` booted straight into the silent halt this file's BUGS section describes:
 /// with a virtio-rng attached, the progenitor fills all seventeen slots building `credentialer` and dies at
 /// `user_mode_runtime::trap` before a console exists to carry a word about it. It stayed that way for five
@@ -243,7 +243,7 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// **This is a record, not a target**, on exactly the terms as the `size_of` assertions above: the
 /// point is that a reader quoting it gets the number the machine agrees with. [`report_peak`] is
 /// what keeps it honest, by saying on the console when a boot goes past it, and
-/// `script/shell-check` fails on that sentence. When it fires, measure, update this, and re-read
+/// `script/swish-check` fails on that sentence. When it fires, measure, update this, and re-read
 /// the headroom arithmetic in [`CAPABILITY_TABLE_SLOTS`]'s own doc rather than raising that
 /// constant reflexively.
 ///
@@ -260,7 +260,7 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// `WRITE` view of that same endpoint at spawn, and the progenitor is the only process that can make that
 /// grant. One capability held across the peak is one slot on the peak.
 ///
-/// It was found by `script/shell-check` failing on this sentence, on the first run after the
+/// It was found by `script/swish-check` failing on this sentence, on the first run after the
 /// wiring landed, which is the whole point of milestone 231: every raise of
 /// [`CAPABILITY_TABLE_SLOTS`] before that one was reactive, after a silent halt that named
 /// something else. **The ceiling is not raised**, per this constant's own instruction: twenty-four

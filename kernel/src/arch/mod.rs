@@ -34,7 +34,7 @@ mod x86_64;
 pub use x86_64::*;
 
 /// **What this architecture is called**, in the spelling the rest of the tree already uses for it:
-/// `cargo xtask test --arch`, `script/shell-check --arch`, and the target directory names.
+/// `cargo xtask test --arch`, `script/swish-check --arch`, and the target directory names.
 ///
 /// It is here rather than in each architecture's own module because it is the one fact about an
 /// architecture that is not about the hardware: it is what a person types and what a log is

@@ -100,19 +100,19 @@ pub(crate) fn cargo(args: &[&str]) -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_INITRD", initrd_path()) };
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_DISK", disk_path()) };
     // Attach a virtio-net NIC too (milestone 30): slirp needs no host file, so it is always on for
     // tests, and the net driver's DHCP round-trip test exercises it.
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_NET", "1") };
 
     run("cargo", args)

@@ -15,7 +15,7 @@ need either the same treatment or a decision that one mechanism serves all of th
 startable today.
 
 **In brief.** `CAPABILITY_TABLE_SLOTS` now reports `capability slots: 21 of 24 at peak` on every
-boot, and `script/shell-check` fails if the kernel flagged a boot as having gone past the peak
+boot, and `script/swish-check` fails if the kernel flagged a boot as having gone past the peak
 recorded beside the constant. No other fixed-size table has that. `MAX_REGIONS` and
 `nifefs::NAME_LEN` have no gauge at all. `sched::MAX_THREADS` has its own `PEAK_THREADS`, built
 separately and reported differently. So the shape is being solved once per table by hand.
@@ -42,7 +42,7 @@ know both. One more hand-rolled gauge makes three.
 ## The fork inside it, which is small
 
 Whether to generalise or to repeat is worth deciding rather than defaulting into. A shared mechanism
-means one place to read, one output format, and one check in `script/shell-check`; it costs an
+means one place to read, one output format, and one check in `script/swish-check`; it costs an
 abstraction over constants that differ in kind, since `nifefs::NAME_LEN` is a length bound on a name
 and not a count of live objects, and forcing those into one gauge may be the wrong shape. Repeating
 costs a reader a new name per table. A lane can settle this by looking at what the three remaining
@@ -59,7 +59,7 @@ constant is still raised only after it has failed silently."*
 ## Index row
 
 `CAPABILITY_TABLE_SLOTS` reports `capability slots: 21 of 24 at peak` on every boot and
-`script/shell-check` fails if the kernel flagged a boot as having gone past the peak recorded beside
+`script/swish-check` fails if the kernel flagged a boot as having gone past the peak recorded beside
 the constant. No other fixed-size table has that. The argument for the first gauge applies unchanged:
 `CAPABILITY_TABLE_SLOTS` was raised three times and every raise was reactive, after a silent failure
 that named something else, milestone 230 being the worked example that cost a bisect over a

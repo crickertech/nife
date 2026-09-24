@@ -168,7 +168,7 @@ is no alias and no class of thing for an alias to be stale about.
 
 Two commits, in that order, and the separation is the point rather than tidiness. The first makes
 `system_initializer` the boot program on all three boards under the old entry name, so a boot failure
-belongs to the structure. The second renames. `script/shell-check` is green on both legs at each of
+belongs to the structure. The second renames. `script/swish-check` is green on both legs at each of
 them, which is the only way that separation is worth anything.
 
 ### The contradiction, settled
@@ -321,7 +321,7 @@ applied, stated so it can be disagreed with:
   the tree currently redirects them, and the honest mitigation is that `progenitor` appears in the
   boot transcript's first lines, where `init:` used to.
 - **The boot transcript prefix changed**, from `init: ` to `progenitor: `, in
-  `crates/system_initializer`. `script/shell-check` matches those strings exactly and moved with
+  `crates/system_initializer`. `script/swish-check` matches those strings exactly and moved with
   them. Anyone with a saved transcript, or a script grepping one, sees a different word.
 - **Dangling references remain in `design/`, and they are not oversights.** 471 occurrences of the
   word sit in other milestones' roadmap blocks and in `design/decisions/`, which a developer lane may

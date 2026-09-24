@@ -8,6 +8,11 @@ It was minted with no gate, on the grounds that the defect was reproducible on p
 nothing this project does not have. That held: it was reproduced, root-caused, bisected to a merge,
 fixed, and `script/shell-check` is green on both architectures.
 
+**The script is `script/swish-check` since 2026-09-23**, and this block keeps the old name
+throughout, including in its title and its filename, because it is an account of what happened under
+the name it happened under. The rename's reasons are in `script/swish-check`'s own `Name:` block:
+one hyphen from `shellcheck`, and `shell` no longer naming any program here.
+
 **In brief.** With a virtio-rng attached, which both plain legs set unconditionally via `NIFE_RNG=1`,
 the interactive boot **traps in init at `user_rt::trap` with no message**. The same build with the
 device absent reaches a prompt normally. The cause is capability-slot exhaustion in

@@ -21,7 +21,7 @@ would build the shell kernel: the four modes are the plain tour, `--soak`, `--jo
 and the last three *replace the end of* the tour rather than skipping it, which the script says in
 its own argument check ("all replace the end of the boot tour; pick one"). So every VisionFive 2
 (radon) boot this tree can produce runs the tour. `riscv_shell_boot` is `#[cfg(feature = "shell")]`,
-`script/shell-check` is the only thing in the tree that builds that kernel, and it builds it for
+`script/swish-check` is the only thing in the tree that builds that kernel, and it builds it for
 QEMU, so nothing here produces a board payload that would run `progenitor` and no bench record in
 `notes/visionfive2.md` shows one having run.
 
@@ -71,7 +71,7 @@ trimming is the reason it can.
 
 `progenitor` proves the claim far harder in QEMU: console server, input driver, line discipline,
 shell, terminal sink, job undertaker, one program on three architectures since milestone 266, gated
-by `script/shell-check`'s riscv64 leg in CI. If the board could boot it, this milestone would have
+by `script/swish-check`'s riscv64 leg in CI. If the board could boot it, this milestone would have
 retired the tour. The board cannot. `riscv_shell_boot` needs the PLIC initialised, the NS16550's
 registers delegated as a `DeviceFrame`, and the UART interrupt routed, and **the UART's PLIC source
 number is not the same on the board as in QEMU** (10 on QEMU `virt`, 32 on the JH7110; it was a
@@ -160,7 +160,7 @@ from the tree; these two bullets are the first thing it found.)*
 ## BUGS
 
 - **Nothing in CI asserts that the builder step ran.** `script/test`'s riscv64 leg returns at the
-  `#[cfg(test)]` arm before the tour; `script/cpu-matrix` runs that same suite; `script/shell-check`
+  `#[cfg(test)]` arm before the tour; `script/cpu-matrix` runs that same suite; `script/swish-check`
   boots the shell build; `script/bench --riscv --check` parks before the tour. The only callers are
   `script/soak-test`, `script/job-mix` and a board, and none of those runs on a pull request. This
   is why the step looked vestigial: it is not unused, it is **unasserted**, and the two are

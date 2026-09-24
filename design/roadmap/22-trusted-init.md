@@ -43,7 +43,7 @@ unchecked, and its *authority* is broad, so within that authority a corrupted in
    capability, its interrupt, and every capability reaching a live job's memory. A new `job_undertaker`
    (one endpoint, `READ`, no untyped, no restart policy) collects finished jobs and returns their
    regions to the pool. Proven the same way the rest of this milestone is: init prints, from inside
-   itself, that `RETYPE` now answers `NoSuchSlot` rather than `NotPermitted`, and `script/shell-check`
+   itself, that `RETYPE` now answers `NoSuchSlot` rather than `NotPermitted`, and `script/swish-check`
    runs eleven jobs through a six-job pool, so a boot that collected nothing fails partway down.
    The predicted sub-server for the spawn service was **refused with a reason** (the spawn service is
    the ELF loader and the loader is the archive, so a sub-server would hold every program in the

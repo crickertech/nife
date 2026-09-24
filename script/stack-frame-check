@@ -19,7 +19,7 @@
 #
 # Name: ratified 2026-08-13 (calef, on the rename). Shipped as `stack-frames` and renamed within the
 # day: a bare plural noun, when every other gate in script/ that fails a build carries a verb
-# (`interleaving-check`, `qemu-check`, `shell-check`, `undefined-behavior-check`, `vendor-verify`).
+# (`interleaving-check`, `qemu-check`, `swish-check`, `undefined-behavior-check`, `vendor-verify`).
 # The bare nouns in script/ (`citations`, `decisions`, `names`, `roadmap`) are query tools you run to
 # *look* at something, and this is not one: it fails builds, so it takes the family's `-check`.
 # Singular subject to match `interleaving-check` rather than `interleavings-check`.

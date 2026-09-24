@@ -1266,7 +1266,7 @@ online with the fix.
 
 **Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the way
 it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182 (x86_64's
-own interactive-boot entry point) reached a shell over serial on x86_64: `script/shell-check` has a
+own interactive-boot entry point) reached a shell over serial on x86_64: `script/swish-check` has a
 third leg that boots the UEFI image a customer's stick carries, types 60 of its 64 lines at the
 prompt and reads the answers. Milestone 177 closed separately, and its defect is the interesting
 half for this risk: the graphical boot hung because two userspace drivers each sent a one-time

@@ -54,7 +54,7 @@ it for every tool are `Machine` and `SelfTest`, which every architecture reaches
 of one. It was unreachable on `x86_64` until 2026-09-19: DECISIONS §149 (may the kernel answer on
 an endpoint) settled how `swish` gets a console there, milestone 299 (the x86 port-range
 capability) built the capability that makes `console` a userspace driver on that machine, and
-milestone 182 (x86_64's own interactive-boot entry point) added the `script/shell-check` leg that
+milestone 182 (x86_64's own interactive-boot entry point) added the `script/swish-check` leg that
 types at it. `script/boot-check` asserts this rung on all three architectures since the same day.
 
 ## The machine description: the same questions, not the same lines
@@ -148,7 +148,7 @@ $ cargo xtask board-console --replay target/boot-check-riscv64.log --until selft
   needs a watchdog `kernel/src/self_test.rs` does not own and says so.
 - **The prompt rung is the shell's banner, not the `$ `.** `crates/boot_ladder`'s own BUGS has the
   reason. So `script/boot-check` proves `swish` started and printed, not that a prompt was offered
-  or that anything could be typed at it. `script/shell-check` makes that stronger claim by typing.
+  or that anything could be typed at it. `script/swish-check` makes that stronger claim by typing.
 - **The injected leg is not in CI.** `--inject` rebuilds three kernels for one boolean, and what it
   proves is a property of the gate rather than of the change under test. Run it by hand when the
   self-test or the recogniser changes. This is rung four of AGENTS.md's ladder and it is said out

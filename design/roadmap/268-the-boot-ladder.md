@@ -148,7 +148,7 @@ prints, and not a marker that exists on one architecture, which is the defect be
   DECISIONS §121 (x86 port I/O): x86's console is a userspace driver holding a port-range
   capability. Milestone 299 (the x86 port-range capability) built that capability and the prompt
   with it, and milestone 182 (x86_64's own interactive-boot entry point) added the third
-  `script/shell-check` leg that types 60 of 64 script lines at it. The paragraph above recorded what was true on
+  `script/swish-check` leg that types 60 of 64 script lines at it. The paragraph above recorded what was true on
   2026-09-14 and is kept as that record.
 - **Done.** 2026-09-19. `script/boot-check` asserting the prompt, on all three architectures at
   once. See "Third pass" below; `BUGS (as built)`'s entry is marked closed rather than deleted.
@@ -235,7 +235,7 @@ $ echo $?
 ```
 
 Exit 1 is what fails CI: `boot-check` is a `local` row in `script/ci-build`'s table (milestone 286's
-one enumeration), and CI's test job names it beside `test` and `shell-check`. **The verdict has been
+one enumeration), and CI's test job names it beside `test` and `swish-check`. **The verdict has been
 seen red on all three**, which is the half of a gate that usually never gets checked.
 
 **And through the other reader too.** The proof condition names `--until`, which is the bench tool
@@ -279,7 +279,7 @@ reader would be gating something a bench run does not measure.
    read as a good one. `cargo xtask board-console --until machine|selftest|prompt`. Eight new host
    tests.
 6. **CI fails on a red verdict**: `script/boot-check`, a `local` row in `script/ci-build`'s table
-   (milestone 286's one enumeration), named by CI's test job beside `test` and `shell-check`.
+   (milestone 286's one enumeration), named by CI's test job beside `test` and `swish-check`.
 
 ### `crates/boot_ladder`, which was not in the plan
 
@@ -368,7 +368,7 @@ nife x86_64: the progenitor is running at ring 3; 2 of the processes it built st
   no prompt  : the console server cannot reach COM1 from ring 3 (§121); how a shell gets a console here is §149, not yet decided.
 ```
 
-The body it shares with riscv64 changed (every grant names its slot), and `script/shell-check`
+The body it shares with riscv64 changed (every grant names its slot), and `script/swish-check`
 still reaches and drives the prompt on aarch64 and riscv64 after it.
 
 **"Nothing halts" now holds on all three architectures.** The rung that is still missing on `x86_64`
@@ -484,7 +484,7 @@ two of the three packers are a no-op against a tree `script/test` has already bu
 
 **And it is the PVH `-kernel` boot on `x86_64`, not the UEFI image**, which is the choice worth
 recording because the number that prompted the question points the other way. Milestone 182's
-`script/shell-check` leg boots `BOOTX64.EFI` under OVMF and measures **about six minutes**, because
+`script/swish-check` leg boots `BOOTX64.EFI` under OVMF and measures **about six minutes**, because
 under firmware the console server waits for every byte to be painted on the screen. That is
 milestone 400 (the shell on the firmware's screen). Six minutes on a gate a person runs
 before every push is not a cost to absorb quietly, and the fidelity it buys (the loader, the
@@ -528,7 +528,7 @@ written down as one.
 - **Closed 2026-09-19: "`script/boot-check` does not check the prompt."** See "Third pass". The
   plan this entry wrote down is what was built, near enough to be worth saying: an archive on all
   three and the watch run to `Stage::Prompt`, in one change, once §149 was decided. What it got
-  wrong is that it expected the archive to make this a second `script/shell-check`. It does not:
+  wrong is that it expected the archive to make this a second `script/swish-check`. It does not:
   that gate types and this one reads, so this one needs no disk and no typing bound, and the two
   boot different `x86_64` images on purpose.
 - **One emulator was found orphaned after about fifteen `x86_64` boots** on 2026-09-19, reparented
@@ -541,7 +541,7 @@ written down as one.
   `swish` started and printed, not that a prompt was offered or that anything could be typed at it.
   `crates/boot_ladder`'s own BUGS has the reason (two bytes is too weak to key on in a log that has
   just carried a kilobyte of hex) and it is the recogniser's limitation rather than the gate's.
-  `script/shell-check` makes the stronger claim by typing, on all three architectures since
+  `script/swish-check` makes the stronger claim by typing, on all three architectures since
   2026-09-19, and this gate deliberately does not duplicate it.
 - **A riscv64 boot that wedges between its tour and its prompt takes the full 180-second cap to
   report.** `watch::Policy::quiet_after` is suppressed from `Stage::Tour` up, and riscv64 is the one

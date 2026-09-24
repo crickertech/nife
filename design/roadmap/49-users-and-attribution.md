@@ -12,7 +12,7 @@ it now)"`, the shape a cloud image's generated first-boot password already takes
 a `WRITE | GRANT` view of the interactive terminal so a successful login receives it, single-session,
 deny-cleanly (see `components/src/login.rs`'s "The terminal: single-session, deny cleanly"). `login` now
 hands back all three capabilities the milestone's own text names: a directory, a budget, and a
-terminal. Proven by `script/shell-check` on both ISAs (the generated-credential line above, printed
+terminal. Proven by `script/swish-check` on both ISAs (the generated-credential line above, printed
 by a real boot) and by `kernel::user::login_tests` (all ten tests, including the new
 `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`) on both ISAs.
 See BUGS for what remains a named, accepted limitation rather than a blocker.
@@ -241,7 +241,7 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
      views of capabilities `boot` already has (the file service pair, a fresh construction budget
      apiece) plus a client view of the entropy service `boot` built first. **Positioned after the
      shell's own build, not after the sink adapter** where an earlier version of this lane placed it
-     and found `script/shell-check` trapped in total silence: by the sink adapter, this table is
+     and found `script/swish-check` trapped in total silence: by the sink adapter, this table is
      already resting at eleven capabilities, and `credentialer`'s own six retypes on top of that is
      seventeen against sixteen usable slots. Right after `term_in` goes back and before `term_sink`/
      the undertaker's own supervision endpoint are retyped, this table rests at eight instead,
@@ -266,7 +266,7 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
   to init is `WRITE | GRANT` only) and which a writable mapping never needed anyway
   (`kernel::syscall::page_frame_map`'s own comment: a read/write mapping checks only `WRITE`); see
   `components/src/login.rs`'s own comment on that delegation for the full account. Both were found by
-  `script/shell-check`, not reasoned to in advance.
+  `script/swish-check`, not reasoned to in advance.
 
   **`kernel::user::spawn_init`'s and `riscv_shell_boot`'s own construction budget was raised**,
   2048 -> 12288 pages, for the same reason `kernel::cap::CAPABILITY_TABLE_SLOTS` was raised

@@ -1,7 +1,7 @@
 # 31. A capability shell: designation is authorization
 
 **Status: BUILT.** Closed 2026-08-17 by the lane that built phase 3's last item, init building a
-`fs_subtree_caretaker` per grant. The gate is `script/shell-check` on both ISAs: it types `caps rm
+`fs_subtree_caretaker` per grant. The gate is `script/swish-check` on both ISAs: it types `caps rm
 rmtree/rm-solo`, `rm -v rmtree/rm-solo` and `ls rmtree | wc` at the real prompt, so the authority is
 previewed, the name the command line designated is removed, and the two names beside it inside the
 same capability are still there. `rm gate.txt` beside them is the one grant shape that is still a
@@ -62,7 +62,7 @@ negative control**, which is the claim stated as a pair rather than asserted. `h
 (`components/src/swish.rs:128`, `dir: nav.dir.is_some()`), the kernel's shell boot path grants an FS service
 on both ISAs (`kernel/src/user.rs:1351` for riscv64, `fixtures/src/hello.rs:390` for aarch64), and the
 interactive runner carries a RedoxFS disk (`xtask/src/main.rs:5646`). The harness that was said not to
-exist is `script/shell-check`, which is the gate for `user/src/system_initializer.rs` and runs both
+exist is `script/swish-check`, which is the gate for `user/src/system_initializer.rs` and runs both
 legs.
 
 **Why this block did not say so for twelve days**, which is worth recording because it is the §76
@@ -133,7 +133,7 @@ reading as the mistake catalog. Feeds 23 and 22 (shrinking ambient authority, me
 layer); sits behind 28's terminal contract. **Effort: 4 lanes built** (the grant expression; then CREATE/TRUNCATE and per-file grants; then
 phase 3's larger half landing free under milestone 50; then init building the caretaker per grant,
 2026-08-17). Gating the interactive boot, which this line long named as the remaining cost, turned
-out to be `script/shell-check` and already built.
+out to be `script/swish-check` and already built.
 
 ## Follow-on
 

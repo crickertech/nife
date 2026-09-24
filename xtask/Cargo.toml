@@ -48,7 +48,7 @@ portable_executable = { version = "0.1.0", path = "../crates/portable_executable
 # against the same pattern the guest painted, from the same definition, so the two cannot drift.
 graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 # The 7x8 font (milestone 29's text increment), used directly by milestone 177's graphical
-# shell-check leg to decode a screendump's cells back into characters: the same glyph table the
+# swish-check leg to decode a screendump's cells back into characters: the same glyph table the
 # guest drew from, so a mismatch is the guest's picture being wrong rather than the host guessing.
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 # The real board's serial console (milestone 216): the recogniser that says how far a boot got, and

@@ -136,13 +136,13 @@ pub(crate) fn test() -> bool {
             // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
             // threads. xtask is single-threaded here: this runs on the main thread before the child
             // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-            // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+            // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
             unsafe { std::env::set_var("NIFE_CPU", model) };
         }
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-        // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
         None => unsafe { std::env::remove_var("NIFE_CPU") },
     }
 
@@ -167,7 +167,7 @@ pub(crate) fn test() -> bool {
             // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
             // threads. xtask is single-threaded here: this runs on the main thread before the child
             // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-            // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+            // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
             unsafe { std::env::set_var("NIFE_TEST_FILTER", f) };
         }
         // SAFETY: as above.
@@ -181,7 +181,7 @@ pub(crate) fn test() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if hvf {
         eprintln!(
@@ -308,7 +308,7 @@ pub(crate) fn test() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_GPU", "1") };
     // And a virtio keyboard (milestone 29's input), on the same terms and for the same reason: a
     // test-leg device only, on both ISA legs, and the keyboard test ASSERTS one is present rather
@@ -316,7 +316,7 @@ pub(crate) fn test() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_KEYBOARD", "1") };
     // And two virtio-rng devices, one per transport (milestone 56, the entropy half), on the same
     // terms again: a test-leg device only, both ISA legs, and the entropy tests ASSERT a device on
@@ -325,7 +325,7 @@ pub(crate) fn test() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_RNG", "1") };
     // And an NVMe controller (milestone 53's storage half), on the same terms: a test-leg device
     // only (the benchmark boot shares the runner and must not grow devices its instrument never
@@ -335,7 +335,7 @@ pub(crate) fn test() -> bool {
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
     unsafe { std::env::set_var("NIFE_NVME", nvme_disk_path()) };
 
     if legs.aarch64() {
@@ -401,17 +401,17 @@ pub(crate) fn test() -> bool {
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-        // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", riscv_initrd_path()) };
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-        // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_DISK", disk_path()) };
         // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
         // threads. xtask is single-threaded here: this runs on the main thread before the child
         // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-        // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // in swish_check_leg) copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_NET", "1") }; // a virtio-net NIC for the net test (m30)
         if !cargo_test_with_scanout_check(
             "riscv64",
@@ -465,7 +465,7 @@ pub(crate) fn test() -> bool {
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
         // single-threaded here: this runs on the main thread before the child that reads it is
-        // spawned, and the only thread xtask ever starts (the transcript reader in shell_check_leg)
+        // spawned, and the only thread xtask ever starts (the transcript reader in swish_check_leg)
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
         // **`NIFE_DISK` names the fixture set, not one disk**, exactly as it does on both other
@@ -477,7 +477,7 @@ pub(crate) fn test() -> bool {
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
         // single-threaded here: this runs on the main thread before the child that reads it is
         // spawned, and the only thread xtask ever starts (the transcript reader in
-        // shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        // swish_check_leg) copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_DISK", disk_path()) };
         if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
             return false;
@@ -504,7 +504,7 @@ pub(crate) fn test() -> bool {
             // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask
             // is single-threaded here: this runs on the main thread before the child that reads it
             // is spawned, and the only thread xtask ever starts (the transcript reader in
-            // shell_check_leg) copies pipe bytes into a String and never touches the environment.
+            // swish_check_leg) copies pipe bytes into a String and never touches the environment.
             unsafe {
                 std::env::set_var("NIFE_PCIE_ROOT_PORT", "1");
                 std::env::set_var("NIFE_TEST_FILTER", "found_on_the_bus_behind_it");

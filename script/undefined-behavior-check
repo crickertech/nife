@@ -19,7 +19,7 @@
 # Name: ratified 2026-08-03 (calef), replacing `miri`. Refused `miri` (it names the tool rather than
 # the function) and `sanitize` (in a project whose thesis is confining hostile input, that reads as
 # *input* sanitization, and the misreading is worse than the length it saves). The `-check` suffix
-# is established here, in `shell-check` and `qemu-check`, and eight of twenty-six scripts were
+# is established here, in `swish-check` and `qemu-check`, and eight of twenty-six scripts were
 # already hyphenated, so the long form costs nothing the directory was not already paying.
 
 set -e

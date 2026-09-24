@@ -277,7 +277,7 @@ again"). Handoffs 4 and 5 above are untouched: run 4 is still owed, and so is th
   diagnostic section it belongs to, with its own `BUGS`.
 - **Correct `notes/adding-a-program.md` step 4, and count `manifest()` as the seventh `grant_plan`
   edit: done, and the page was wrong in three further places** nobody had found. `cargo xtask build`
-  claimed to pack both archives and packs one, the `SHELL_CHECK_SCRIPT` example it gives does not
+  claimed to pack both archives and packs one, the `SWISH_CHECK_SCRIPT` example it gives does not
   compile against that array's type, and the page said which edits exist without ever saying which
   ones the machine catches. The page was verified by walking it with a scratch program, added and
   removed, rather than by reading it.
@@ -389,7 +389,7 @@ in `script/stranger-test`'s.
 `design/decisions/` file, or `crates/abi/src/lib.rs`. Run 5 never ran it, still reached no
 `design/decisions/` file, and still never opened `notes/net.md`. It had the name in front of it
 three times: in `ls script/`, in the guest builtin in `crates/swish/src/lib.rs`, and in
-`SHELL_CHECK_SCRIPT`'s transcript. The only page that says what it does is `notes/scripts.md`, which
+`SWISH_CHECK_SCRIPT`'s transcript. The only page that says what it does is `notes/scripts.md`, which
 five runs have not opened. Recorded in `script/apropos`'s `BUGS`.
 
 **`AGENTS.md` was never opened**, by a stranger that read `CONTRIBUTING.md` third and shipped a

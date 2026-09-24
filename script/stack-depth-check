@@ -41,7 +41,7 @@
 #
 # Name: recorded (this header, and its row in notes/scripts.md). Takes the `-check` suffix because
 # it fails builds rather than answering questions, which is the family `interleaving-check`,
-# `qemu-check`, `shell-check` and `undefined-behavior-check` are in and the bare nouns
+# `qemu-check`, `swish-check` and `undefined-behavior-check` are in and the bare nouns
 # (`citations`, `decisions`, `names`, `roadmap`) are not. Says `depth` where its sibling
 # `stack-frame-check` says `frame`, because one chain versus one frame is exactly the difference
 # between the two gates and a reader who knows one should be able to guess the other. Refused

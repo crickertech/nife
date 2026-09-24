@@ -36,7 +36,7 @@ exclude_globs = [
     # single number in that report. script/lint's "host pass excludes exactly the bare-metal crates"
     # gate now derives this list rather than trusting the paragraph above to be remembered.
     #
-    # `script/shell-check` is what proves this crate: it boots both ISAs and types at the prompt.
+    # `script/swish-check` is what proves this crate: it boots both ISAs and types at the prompt.
     # Excluding it here does not make it proved, and milestone 244's block carries the measured
     # split of what a host test could and could not have reached.
     "crates/system_initializer/**",

@@ -372,7 +372,7 @@ historical revisions where no block-derived answer exists.
 - **21 scripts under `script/` read `design/roadmap/`**, not 12 as first estimated: `audits`, `bench`,
   `board-netboot`, `boot-check`, `catch-up`, `ci-build`, `citations`, `fastpath-footprint`,
   `fatal-risks`, `icount`, `job-mix`, `journeys`, `lint`, `metrics`, `names`, `repeat-under-load`,
-  `roadmap`, `shell-check`, `vendor-verify`, `vendor-watch`, `verify`, plus `xtask/src/main.rs` and
+  `roadmap`, `swish-check`, `vendor-verify`, `vendor-watch`, `verify`, plus `xtask/src/main.rs` and
   two files under `scripts/`. Every one of them is a reason the record must stay readable from a
   checkout with no network. 443 changes which *file* two of them read, not that they read the tree.
 - **The proposals pile has no owner.** 24 files, all dated the same day, promoted only by an

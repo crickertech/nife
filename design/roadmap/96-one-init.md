@@ -7,7 +7,7 @@ expensive way.
 `hello.rs`'s init role and on riscv64 is `system_initializer`, and **the spawn service is written
 twice in roughly 140 near-identical lines**. The lane found it because `date` hung at an
 interactive prompt with no fault and no message: the fix had landed in one init and not the other.
-Along the way it also corrected notes/pipes.md, which claimed `script/shell-check` runs "the real
+Along the way it also corrected notes/pipes.md, which claimed `script/swish-check` runs "the real
 `system_initializer`" on both legs; it does not.
 
 **Why this is more than tidiness.** Every capability the shell delegates passes through this code,
@@ -19,7 +19,7 @@ cspace size and the shell's stack size (see the sizing pattern in the same repor
 **The work.** One spawn service, in a crate both inits depend on, per CLAUDE.md rule 7: what two
 binaries share is a crate, never a duplicated file. What legitimately differs between the two
 boards (slot numbers, which servers exist, the clock's position) becomes data the crate takes,
-not code it repeats. The parity gate makes the test easy to state: the same shell-check line must
+not code it repeats. The parity gate makes the test easy to state: the same swish-check line must
 pass on both legs, which is exactly what tonight's divergence broke.
 
 ## Scope note

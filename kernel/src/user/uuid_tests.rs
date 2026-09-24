@@ -11,9 +11,9 @@ use crate::sched::RendezvousId;
 ///
 /// **There is no `Some` arm here, and that is a limitation rather than a choice.** `Spawn::grants`
 /// fills a child's capability table from slot 0 upward and cannot place a capability at the slot a
-/// manifest names, which is the same gap `xtask`'s `shell-check` list already records for `date`'s
+/// manifest names, which is the same gap `xtask`'s `swish-check` list already records for `date`'s
 /// second stream. So the endowed half of this milestone is proven at the real prompt, through the
-/// real `crates/system_initializer`, by `script/shell-check`; see this module's own note in
+/// real `crates/system_initializer`, by `script/swish-check`; see this module's own note in
 /// `design/roadmap/111-entropy-for-a-child.md`.
 fn spawn_uuid_holding_no_entropy() -> RendezvousId {
     let image = program("uuid").expect("no uuid program in the initrd archive");

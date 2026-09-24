@@ -321,7 +321,7 @@ moment the mechanism landed.
 
 So at the prompt today the shell holds the image root, `holdings().dir` is true, a name on the line
 resolves, and since 2026-08-17 **The progenitor builds a `fs_subtree_caretaker` per directory grant**, so `rm`
-runs. `script/shell-check` types four lines on both ISAs: the preview (`caps rm rmtree/rm-solo`
+runs. `script/swish-check` types four lines on both ISAs: the preview (`caps rm rmtree/rm-solo`
 names the directory and says what `-r` would have added), the removal (`rm -v rmtree/rm-solo` prints
 the name it was given), the check (`ls rmtree | wc` counts two entries where there were three, so the
 sibling file and the whole doomed subtree inside the same capability are untouched), and the one grant
@@ -407,7 +407,7 @@ $ caps wc gate.txt
              holds an endpoint, not a file)
 ```
 
-`script/shell-check` types `wc gate.txt` and `wc < gate.txt` at the real prompt on both ISAs and
+`script/swish-check` types `wc gate.txt` and `wc < gate.txt` at the real prompt on both ISAs and
 requires the same three numbers from both, which is what makes "the same designation" a claim about
 the machine: one line reaches the file through an operator and one through a name, so if they
 disagree one of them opened something else.
@@ -460,7 +460,7 @@ The assessment above listed four, in different subsystems, and three of them wer
    because `date` probes the slot before touching the address.
 
 The old paragraph also said all of it "would ship unexercised, because nothing in the test suite
-boots the interactive shell". That stopped being true when milestone 50 wrote `script/shell-check`,
+boots the interactive shell". That stopped being true when milestone 50 wrote `script/swish-check`,
 which is the gate this landed against.
 
 ### What a delegable clock would still need

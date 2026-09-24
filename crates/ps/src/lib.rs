@@ -121,7 +121,7 @@
 //! - **No automated run spawns `ps` or `pgrep`.** This crate's own logic has host tests
 //!   and `kernel::user::survey_tests` covers the syscall underneath, but both shipped
 //!   programs are reachable only from an interactive prompt (`script/shell`): neither
-//!   `script/test` nor `script/shell-check` types them. (It said "three" and named `watch` until
+//!   `script/test` nor `script/swish-check` types them. (It said "three" and named `watch` until
 //!   milestone 281 deleted that program.) Found 2026-08-27 while raising
 //!   [`MAX_ROWS`] with the kernel's thread ceiling, which left a static measurement
 //!   (`-Z emit-stack-sizes` against `system_initializer::CHILD_STACK_PAGES`; the numbers are on

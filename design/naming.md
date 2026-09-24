@@ -1021,7 +1021,7 @@ gates on the literal and a rule whose own text trips its gate is a rule nobody c
 exactly right: this tree has honest halves everywhere (a crate's pure half and its host-tools half,
 milestone 74's aarch64 half and riscv64 half). For one branch of a split with three or more, this
 tree's own word is **arm**: `components/src/console.rs` speaks of "its x86 arm", and the boot
-ladder, the console server and the shell-check legs all read that way. "Part", "piece" and "leg" are
+ladder, the console server and the swish-check legs all read that way. "Part", "piece" and "leg" are
 the other honest choices; a "leg" in this tree already means one architecture's run of a gate.
 
 **What is gated and what is not.** `script/lint` reads only the shape that cannot be argued with: a

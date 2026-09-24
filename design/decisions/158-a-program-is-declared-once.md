@@ -32,7 +32,7 @@ else is generated from those or checked against them.
    wire-format change dressed as a deletion.
 5. **The count gate is three relationship checks, not a pinned number**: a spawnable program with no
    binary, a program the tree loads by name with no binary, and a spawnable program no
-   `SHELL_CHECK_SCRIPT` line runs. A pinned total would be one more hand-maintained number, failing
+   `SWISH_CHECK_SCRIPT` line runs. A pinned total would be one more hand-maintained number, failing
    on every legitimate addition.
 6. **`swish`'s exhaustive render match became a wildcard**, backed by a test that every program
    answering in words renders its answer. Eleven of its thirteen arms were empty, so the compile
@@ -82,6 +82,6 @@ item 4.
 ## BUGS
 
 Recorded beside the feature in `notes/adding-a-program.md`'s `BUGS`: a removed program's
-`SHELL_CHECK_SCRIPT` line is caught only by `script/shell-check`; the removal gate is a text scan
+`SWISH_CHECK_SCRIPT` line is caught only by `script/swish-check`; the removal gate is a text scan
 and misses names built at runtime; the wire-id pin covers only ids shipped before 2026-09-19; the
 `[[bin]]` reader knows four keys; and every archive now carries `pmap`, which nothing spawns.

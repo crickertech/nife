@@ -44,7 +44,7 @@ whose test kernel can load a user ELF, under `script/test`, on every pull reques
 
 That is **more** coverage than `builder` ever had, and it is worth saying out loud because it is the
 reason this is a proposal rather than an alarm: `script/test`'s riscv64 leg, `script/cpu-matrix`,
-`script/shell-check`, `script/bench --riscv --check` and `script/icount` all park before the tour, so
+`script/swish-check`, `script/bench --riscv --check` and `script/icount` all park before the tour, so
 no pull-request check has ever executed `builder`
 (milestone 406, `design/roadmap/406-nothing-in-ci-boots-the-riscv-tour.md`).
 

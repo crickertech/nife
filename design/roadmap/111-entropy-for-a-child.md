@@ -80,7 +80,7 @@ beside it.
 
 ## What was demonstrated
 
-**The endowment, at the real prompt, through the real init.** `script/shell-check` is the only gate
+**The endowment, at the real prompt, through the real init.** `script/swish-check` is the only gate
 that runs `crates/system_initializer` at all, and it is the only thing in this tree that can put a
 capability at a slot a manifest names (the kernel's own `Spawn` fills a capability table from slot 0
 upward). On aarch64 and riscv64:
@@ -127,9 +127,9 @@ row, and exactly one program in the whole manifest table declares the field.
 - **The endowed direction has no kernel-harness proof, on any ISA.** `Spawn::grants` fills a child's
   capability table from slot 0 upward and cannot place a capability at the slot a manifest names, so
   nothing under `script/test` can spawn a `uuid` that actually holds entropy. It is proven only by
-  `script/shell-check`, which does run in `script/gates` and in CI's `script/ci-build` since
+  `script/swish-check`, which does run in `script/gates` and in CI's `script/ci-build` since
   milestone 230, but which is one gate rather than the suite. This is the same gap `xtask`'s own
-  shell-check list already records for `date`'s declared second stream; see the Follow-on.
+  swish-check list already records for `date`'s declared second stream; see the Follow-on.
 - **Two slots of headroom left in init.** The measured peak is 22 of 24 and this milestone spent one
   of the three milestone 230 left. The next thing that holds a capability across init's login block
   should expect to spend another and should read `kernel::cap::CAPABILITY_TABLE_SLOTS`'s own

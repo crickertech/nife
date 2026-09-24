@@ -11,7 +11,7 @@
 #     It had been in `script/gates` since milestone 62.
 #   * `notes/scripts.md` listed `gates` as "`script/fmt --check`, `script/lint`, `script/test`,
 #     then `script/test --hvf`", three milestones after `image-permissions`, `icount` and
-#     `shell-check` joined it.
+#     `swish-check` joined it.
 #   * `CONTRIBUTING.md` and `.github/pull_request_template.md` both said "the five checks". There
 #     were six, and `script/gates` itself printed six names on every run.
 #
@@ -110,8 +110,8 @@ image-permissions|local|script/image-permissions
 icount|local|script/icount
 build-is-reproducible|local|script/build-is-reproducible
 test|local|script/test
-shell-check|local|script/shell-check
-shell-check-graphical|local|script/shell-check --graphical && script/shell-check --graphical-serial
+swish-check|local|script/swish-check
+swish-check-graphical|local|script/swish-check --graphical && script/swish-check --graphical-serial
 boot-check|local|script/boot-check
 hvf|local|hvf_leg
 fastpath-footprint|ci|script/fastpath-footprint

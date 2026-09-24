@@ -172,7 +172,7 @@ deliberately, so that a rename moves one set of words and not two.
 - **The captured transcripts in `notes/trusted-init.md` still read `init:`**, unchanged from 266's
   own `BUGS`, and so do the fenced diagrams in `notes/pipes.md`, whose column alignment is the
   meaning.
-- **This was not gated by a boot.** `script/test` and `cargo build` were run; `script/shell-check`
+- **This was not gated by a boot.** `script/test` and `cargo build` were run; `script/swish-check`
   needs a QEMU this container does not have, and CI is what runs it. The change is comments and
   strings, and the four strings that a person sees were each checked against every consumer in the
   tree first, but the honest statement is that no interactive boot ran here.

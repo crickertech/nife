@@ -97,7 +97,7 @@ read a branch.
 ## What it retires
 
 One program, one `[[bin]]`, one archive entry in each of `xtask`'s two architecture manifests, one
-typed command, one `Prog` variant and its wire id, two scripted shell-check lines, one crate, one
+typed command, one `Prog` variant and its wire id, two scripted swish-check lines, one crate, one
 kernel test module, and **two unratified names**. `ps` and `crates/ps` are untouched: the whole point
 of the reshaped milestone is that `ps` gains nothing, including the spin loop it would have gained
 from the flag.
@@ -128,7 +128,7 @@ from the flag.
   A `--sort` would be honest only once there is something to sort by. **Milestone 282** is exactly
   that, and `crates/ps`'s own `BUGS` names the same gap where a reader meets the listing.
 - **Nothing in an automated run types `ps` or `pgrep` any more, and one thing used to.** The scripted
-  shell-check session in `xtask/src/main.rs` typed `watch 3` and `caps watch 3`, and those lines went
+  swish-check session in `xtask/src/main.rs` typed `watch 3` and `caps watch 3`, and those lines went
   with the program. `ps` and `pgrep` were already reachable only from an interactive prompt, which
   `crates/ps`'s `BUGS` records; this does not widen that gap but it does remove the one neighbouring
   line that would have caught a regression in the domain grant at a real prompt.

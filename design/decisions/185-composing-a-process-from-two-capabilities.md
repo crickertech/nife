@@ -39,7 +39,7 @@ were 19c's object; the verbs past that point are all proved, from the other side
 
 **And the coverage is better than it was**, which is why this is a proposal rather than an alarm: no
 pull-request check has ever executed `builder`, because `script/test`'s riscv64 leg,
-`script/cpu-matrix`, `script/shell-check`, `script/bench --riscv --check` and `script/icount` all
+`script/cpu-matrix`, `script/swish-check`, `script/bench --riscv --check` and `script/icount` all
 park before the tour (milestone 406).
 
 ## What this tree already does in the analogous case

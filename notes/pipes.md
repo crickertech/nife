@@ -3,7 +3,7 @@
 *Milestone 50, the operators lane and its closure. `crates/grant_plan/src/line.rs`,
 `components/src/wc.rs`, `components/src/swish.rs`, `components/src/date.rs`, `components/src/terminal_sink_caretaker.rs`,
 `components/src/progenitor.rs`, `fixtures/src/hello.rs`, `crates/grant_plan/src/spawnproto.rs`,
-`script/shell-check`. The protocol half is notes/sink-protocol.md and you should read that first.*
+`script/swish-check`. The protocol half is notes/sink-protocol.md and you should read that first.*
 
 **All five operators run at a real prompt on both ISAs.** `|` landed first; `>` and `<` needed a
 boot in which one shell holds both a filesystem and a spawn channel, and building that turned up a
@@ -427,7 +427,7 @@ the correction and not the arrangement.)*
 *Written 2026-08-03; the duplication it describes was removed by milestone 96 the next day. The
 finding is kept because it is the reason the crate exists.*
 
-The section below on `script/shell-check` says it "is the only thing in the tree that runs the real
+The section below on `script/swish-check` says it "is the only thing in the tree that runs the real
 `system_initializer`". **That was wrong about which program it runs on aarch64**, and building `2>`
 found it the hard way: the shell delegated a diagnostic endpoint, nobody received it, and the prompt
 hung on the first `date` with no fault and no message.
@@ -449,7 +449,7 @@ grant orders differ, and nothing else does. The loader went the same way, from t
 reach through the crate. What the two files still say for themselves is the thing that is genuinely
 theirs, which is what the kernel put in which slot.
 
-What the gate proves is unchanged and is the reason it caught this: `script/shell-check` boots
+What the gate proves is unchanged and is the reason it caught this: `script/swish-check` boots
 **both** ISAs, so it runs both inits, which is exactly what a single-ISA gate would have missed. It
 is still the gate, because a shared crate removes the *drift* and not the risk: init's sixteen-slot
 capability table and the shell's bounded stack are both still sized in a constant and consumed in an order,
@@ -643,7 +643,7 @@ shell's, at plan time, which is where `InputSpec` already lives.
 
 Nothing caught it because the only line anybody had typed with an operand *and* an operator on it
 was `wc out.txt`, which is one stage and goes down `run`. `wc out.txt | wc` is now in the guest test
-and in `script/shell-check`, and its expected answer is derived from the line above it rather than
+and in `script/swish-check`, and its expected answer is derived from the line above it rather than
 written down.
 
 **The output ceiling was two numbers for one job.** Printing stopped at 32 sixteen-byte messages
@@ -1194,7 +1194,7 @@ at the prompt before anything is built. The first script to type `time least_aut
 So a harness that "the shell cannot tell apart" can still be wrong in a way no shell would notice,
 and the fix is the same one as above: the scripts have to exercise the shapes the boot exercises.
 
-`script/shell-check` closes it. It boots that system on both ISAs, types five lines at the prompt,
+`script/swish-check` closes it. It boots that system on both ISAs, types five lines at the prompt,
 and reads the answers back:
 
 ```text
@@ -1293,7 +1293,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
 - **`OP_PRINT` carries eight bytes, so a sixteen-byte sink message is two calls to the terminal.**
   That is the terminal contract's request shape rather than a choice (see notes/sink-protocol.md),
   and it doubles the round trips on a path that is a person reading text.
-- **`script/shell-check` is not in `script/test` or in CI.** It is the only gate on the real progenitor
+- **`script/swish-check` is not in `script/test` or in CI.** It is the only gate on the real progenitor
   (both of them) and nothing runs it automatically, which is a weaker version of the gap it closed.
   It has now caught two boots that printed nothing, which is two more than any automatic gate did.
   Wiring it into the CI test job is a one-line change and is deliberately still not taken here.

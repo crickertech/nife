@@ -150,7 +150,7 @@ Verified the same way `Endpoint` was: `script/lint` clean; `cargo test --workspa
 bare-metal `kernel`/`user`/`fs_server` targets) green, 142 test-suite runs including every doctest;
 the kernel builds clean for `aarch64-unknown-none-softfloat`, `riscv64imac-unknown-none-elf` and
 `x86_64-unknown-none` (the last is new since `Endpoint`'s rename: milestone 161 item 4 gave x86_64 a
-real kernel test leg); `cargo xtask shell-check` green on both aarch64 and riscv64; the two
+real kernel test leg); `cargo xtask swish-check` green on both aarch64 and riscv64; the two
 Kani-proof-bearing crates that touch the renamed `abi::address_space` module
 (`crates/capability`, 12 harnesses, and `crates/component_plan`, 5 harnesses) both verify successfully
 post-rename; and the full `script/test` suite green on aarch64, riscv64 and x86_64.

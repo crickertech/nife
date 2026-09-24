@@ -37,7 +37,7 @@
 #     payload it builds and on every card it writes, which is as far as a mechanism reaches here.
 #
 # Name: provisional, minted 2026-09-19 by this milestone's lane. It joins the `*-check` family
-# (boot-check, shell-check, qemu-check, cadence-check), which is the family of things that read an
+# (boot-check, swish-check, qemu-check, cadence-check), which is the family of things that read an
 # artifact and return a verdict; deliberately not `board-check`, because the `board-*` family is for
 # commands that build a payload or attach to a board and this one does neither. calef has not
 # ratified it.

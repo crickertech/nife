@@ -883,17 +883,17 @@ field over, and every mechanism it reaches for already existed.
   cannot pass by coincidence), a key the page never declared reads as `(unset)` rather than an
   empty string, a page nobody assembled (a zeroed frame) reads as no configuration at all rather
   than three empty strings, and a process granted no capability answers without touching
-  `CONFIG_VA`. **Also proven over the real interactive prompt**: `script/shell-check`'s canned
+  `CONFIG_VA`. **Also proven over the real interactive prompt**: `script/swish-check`'s canned
   script now runs `printenv` and `caps printenv` against a real, both-board boot
-  (`xtask::SHELL_CHECK_SCRIPT`), the same gate `date`'s own wiring is proven against, because
+  (`xtask::SWISH_CHECK_SCRIPT`), the same gate `date`'s own wiring is proven against, because
   `crates/system_initializer`'s per-command spawn logic (the `wants_clock`/`wants_config`
   match arms, the `caps`/`maps` assembly) is reachable only from a real init and is excluded from
   the host pass for that reason (`crates/system_initializer`'s own module doc says so; nothing in
   `script/test`'s automated kernel suite goes through `crates/system_initializer::boot` at all,
   every lighter guest-test harness reimplements its own bespoke spawn loop instead).
 
-**Running that gate is what caught a real bug, and it is exactly the bug `script/shell-check`
-exists to catch.** The first shell-check attempt failed silently before any prompt: init's own
+**Running that gate is what caught a real bug, and it is exactly the bug `script/swish-check`
+exists to catch.** The first swish-check attempt failed silently before any prompt: init's own
 capability table has sixteen slots, and this file's own comment ("milestone 50 added two more
 kernel grants... the shell's `build_child` had no slot left") already named that margin as having
 broken once before. A fourth permanently-held kernel grant (the config page, beside the clock page
@@ -901,7 +901,7 @@ and the filesystem pair) reproduced it. Fixed by moving `for_test_roles`'s delet
 console, line discipline and input are all built to before any of them are, since nothing in
 between ever reads those capabilities' contents and the slots they freed were sitting idle through
 the three builds that needed the room most (`crates/system_initializer/src/lib.rs`, the comment at
-the new deletion site carries the account). Verified by re-running `script/shell-check` on both
+the new deletion site carries the account). Verified by re-running `script/swish-check` on both
 boards after the fix. **This is the argument for the gate, made concrete**: nothing in the
 automated `script/test` suite would ever have caught this, because nothing in it boots a real init.
 

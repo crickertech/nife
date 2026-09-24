@@ -203,7 +203,7 @@ that it watches.
 - **`xtask`'s archive manifest.** `narrator` is packed into `initrd_aarch64`'s table. aarch64 only:
   the other two boots halt before the shared path, so packing it there would be archive bytes
   nothing can reach.
-- **`script/shell-check` runs the real boot on both legs.** Green.
+- **`script/swish-check` runs the real boot on both legs.** Green.
 
 ## The proof
 
@@ -239,7 +239,7 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   defect.** The narrative was unverified for its whole life, on both sides of the move: nothing
   asserted the lines reached the console when it was twenty `println!`s at EL1 either. It is worth
   a reader knowing that the tour's remaining demonstrations below are in the same position, with
-  the exception of the ones `script/shell-check` boots.
+  the exception of the ones `script/swish-check` boots.
 - **The move made the kernel 664 bytes bigger, and the deletion has not been re-measured.**
   Measured, above, on 2026-09-09. The move bought the split, the self-demonstrating claim, and a
   program; it did not buy bytes, and a reader should not infer that it did from the fact that a
@@ -250,7 +250,7 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   depend on the answer and an unverified number in a table of verified ones is worse than a gap.
 - **The interleaving hazard grew and then went away again, and the underlying one did not.** The
   kernel's own UART driver and the userspace console server write the same device with nothing
-  arbitrating, which `script/shell-check`'s BUGS section documents at length and milestone 230
+  arbitrating, which `script/swish-check`'s BUGS section documents at length and milestone 230
   proposes fixing. This milestone put fifteen more userspace-printed lines on the default boot; the
   deletion took all fifteen back, along with the `timer::spin_for` window that had been keeping the
   two writers apart. **The unarbitrated device is unchanged**, because it was never the narrative's
@@ -294,7 +294,7 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   milestone 296, by a fifth answer none of the four candidates could be: calef deleted the thing
   the proposal was naming.**
 - **Recorded.** The kernel's UART driver and the userspace console server write the same device
-  unarbitrated. The limitation is `script/shell-check`'s and milestone 230's, and it is **not**
+  unarbitrated. The limitation is `script/swish-check`'s and milestone 230's, and it is **not**
   this milestone's doing in either direction: 267 briefly added fifteen userspace-printed lines to
   the default boot and the 2026-09-13 deletion removed all fifteen along with the `timer::spin_for`
   window that separated the writers, leaving the hazard exactly where it was found. Recorded in the

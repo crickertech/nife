@@ -499,7 +499,7 @@ left nothing behind at all.
 
 **It got to green, and the build half is the finding.** `script/test` exits 0 on both ISAs (260
 aarch64 and 263 riscv64 kernel assertions under QEMU, on top of the host crates), `script/lint`,
-`script/fmt --check`, `script/names --check` and `script/shell-check` all pass, and `script/verify`
+`script/fmt --check`, `script/names --check` and `script/swish-check` all pass, and `script/verify`
 reached 91 harnesses across 17 of 19 crates with no failures before the stranger stopped waiting on
 `calendar` and `glob`. It also added a program, `doubler`, and answered `doubler 21` at the prompt on
 both instruction sets, which is the only way to test the how-to page rather than read it.
@@ -633,7 +633,7 @@ section the assertion's comment points at.
 
 `script/setup` had nothing to do: the pinned nightly and the pinned QEMU were already installed, so
 **B2 is not measured and B4 is measured only against the documented sequence**, exactly as
-pre-registered. `script/lint`, `script/shell-check` on both ISAs and `cargo xtask build` were green
+pre-registered. `script/lint`, `script/swish-check` on both ISAs and `cargo xtask build` were green
 on arrival. **Nothing in the tree was changed to reach green**, and the stranger says so plainly:
 *"the work turned out to be establishing that they do... The temptation to make a change so there is
 a change to show is exactly the trap the assertion's own message sets."*
@@ -863,12 +863,12 @@ Still unopened after four runs: **every file under `design/decisions/`**, `notes
   rather than an absence, and is run 3's closing diagnosis reproduced by a different reader.
 - **The two commands run most often are both blind to the most-warned-about mistake.** A program
   added to the aarch64 table and not the riscv one passes `cargo xtask build` and `script/lint`, and
-  is caught first by `script/shell-check` or `script/test`. The `BUGS` entry in
+  is caught first by `script/swish-check` or `script/test`. The `BUGS` entry in
   notes/adding-a-program.md says nothing gates the two lists against each other; this adds which
   gates a person will believe before they find out.
 - **Nothing in the suite counts programs.** 1312 tests before adding `tally` and 1312 after. A
   program's presence is proven only by a transcript line someone remembered to write into
-  `SHELL_CHECK_SCRIPT`.
+  `SWISH_CHECK_SCRIPT`.
 - **The eight places are a removal problem too, and only the addition has a page.** Reverting was
   clean only because every edit was in a file it could still name; a half-removed program is a
   `PROG_COUNT` too large and an init slot no variant claims, which is the same silent failure
@@ -1003,7 +1003,7 @@ that the recovery is `rm -rf std_exerciser/target`; that capability slot numbers
 per-program in `spawn_service` rather than fixed, while every existing program documents its slots
 as constants; that an integer argument reaches a non-interruptible child in `x1` via
 `tcb_start(tcb, 0, arg, 0)`; that a `caps` preview of an input operand needs `Holdings::dir`; that
-an argument-plus-input manifest breaks a `swish` host test; that `script/shell-check` prints no
+an argument-plus-input manifest breaks a `swish` host test; that `script/swish-check` prints no
 transcript on success, so a green run teaches nothing; and that this machine was pre-provisioned.
 
 #### The mental model, scored: six answered, one partly, one absent
@@ -1030,7 +1030,7 @@ because three runs could not reach `notes/net.md`, `notes/capabilities.md`, any 
 file, or `crates/abi/src/lib.rs`. Run 5 never ran it**, and the prediction registered before the run
 is confirmed in a stronger form than it was made: the stranger had the name in front of it **three
 times**. It ran `ls script/`, where `apropos` is the first entry. It read the guest's `apropos`
-builtin in `crates/swish/src/lib.rs`. It read `apropos photosynthesis` in `SHELL_CHECK_SCRIPT`. The
+builtin in `crates/swish/src/lib.rs`. It read `apropos photosynthesis` in `SWISH_CHECK_SCRIPT`. The
 affordance never fired, it reached no `design/decisions/` file, and it never opened `notes/net.md`,
 which is the gap the tool exists for. The reason is placement: the only page that says what
 `script/apropos` does is `notes/scripts.md`, and **five runs have now not opened `notes/scripts.md`
@@ -1072,7 +1072,7 @@ Still unopened after five runs: every file under `design/decisions/`, `notes/net
 - **Capability slot numbers are computed from the manifest by `spawn_service`, not constant**, while
   every existing program's documentation states its slots as fixed facts and
   `notes/adding-a-program.md` does not mention it.
-- **`script/shell-check` prints no transcript on success**, so a green run tells a newcomer nothing
+- **`script/swish-check` prints no transcript on success**, so a green run tells a newcomer nothing
   about what its new program actually did.
 
 **Its worst-thing answer, which is run 4's criticism arriving independently and sharper.** Asked
@@ -1228,7 +1228,7 @@ to take on faith."*
    and the account-wide prefix), and `script/stranger-test`'s `BUGS` (a stranger can write to the
    machine). Why QEMU exited 1 rather than 3 is unmeasured and is a lane of its own; see the
    milestone 117 block's follow-on.
-2. **The session ended with no write-up.** It backgrounded a re-test and a `script/shell-check`,
+2. **The session ended with no write-up.** It backgrounded a re-test and a `script/swish-check`,
    wrote *"Waiting for both background runs to complete"*, and `claude -p` ended the run there,
    killing both. The debriefs recovered its findings because they resume the session; the
    deliverable was never written. Home: `script/stranger-test`'s `BUGS`, with the two remedies,

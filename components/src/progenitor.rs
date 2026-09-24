@@ -18,7 +18,7 @@
 //! That is [DECISIONS §19](../../design/decisions/19-architectural-parity.md)'s own failure mode,
 //! and the bill was paid once already: a fix that landed in one copy and not the other presented as
 //! a boot that reached userspace and printed nothing at all, with no fault and no message.
-//! `script/shell-check` runs both legs, which is what makes it the gate for this file.
+//! `script/swish-check` runs both legs, which is what makes it the gate for this file.
 //!
 //! **One `GRANTS` table, all three architectures** (milestone 166 unified the kernel's boot
 //! loaders into `kernel::user::boot_progenitor`). Until then aarch64 numbered these capabilities
