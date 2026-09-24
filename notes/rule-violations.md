@@ -35,7 +35,8 @@ distinguish individual incidents), in the table below:
 | 2026-08-04 | a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first | 4 | resolved | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
 | 2026-08-04 | `pkill` a QEMU process by name/pattern instead of walking the process tree from the harness that owns it | 1 | open | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
 | 2026-09-23 | a cheap, reversible fix reported to calef instead of made ("owning is not recording") | 1 | escalated | AGENTS.md, "We are all owners" (the incident that wrote the rule) |
-| 2026-09-24 | a cheap, reversible fix reported to calef instead of made ("owning is not recording") | 2 | escalated | pull request #1202: a relayed lane report listed a stale line and a merge sequencing instead of doing them, and the correction was answered with a memory restating the rule |
+| 2026-09-24 | a cheap, reversible fix reported to calef instead of made ("owning is not recording") | 2 | escalated | pull request #1202: a relayed lane report listed a stale line and a merge sequencing instead of doing them, and the correction was answered with a memory restating the rule. #1202 described the Stop hook as living in `.claude/settings.json`, but `.claude/` was gitignored, so the file never reached `main` and the hook was wired for nobody until pull request #1216 |
+| 2026-09-24 | a conversation with calef never blocks the queue: work longer than a couple of tool calls goes to a background agent | 3 | escalated | pull request #1216, against AGENTS.md's top-up rule: calef asked "Why am I waiting?" three times in one session, for the bootstrap fix, the #1201 gloss fix, and the earlier #1201/#1179 sequencing, each done in the foreground |
 
 Columns:
 
