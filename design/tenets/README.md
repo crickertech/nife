@@ -15,3 +15,4 @@ name in this tree.*
 | [reversibility.md](reversibility.md) | why each category is irreversible, and the two failures that shaped the rule |
 | [documentation-standard.md](documentation-standard.md) | why FreeBSD's Handbook and man pages are the standard, and what each part buys |
 | [lane-count.md](lane-count.md) | the measurement that retired queue depth, and the memory and disk ceilings |
+| [roles-and-the-queue.md](roles-and-the-queue.md) | the night that named the roles, and why each holds the authority it holds |
