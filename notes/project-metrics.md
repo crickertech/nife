@@ -89,6 +89,9 @@ From the `Co-Authored-By` trailer. Attributed plus unattributed plus merge is ev
 week, and **a merge is a pull request landing rather than a piece of writing**. 2026W29 predates
 the convention, so it is absent rather than zero.
 
+The palette has eight hues, so **other models** is Opus 4.8, Fable 5.1 and any trailer the script
+does not recognise, drawn as one band; `notes/project-metrics/models.csv` keeps each apart.
+
 ## Lines touched, by the model that signed them
 
 ![Lines touched each week, by the model that signed them](project-metrics/models-lines.svg)
