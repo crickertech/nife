@@ -324,10 +324,11 @@ MEASURES = [
     ('cost', ['human_person_weeks', 'lane_tokens', 'lane_wall_clock_hours',
               'price_per_mtok_at_date', 'cash_spend']),
     # What a turn costs, from the same committed `effort.csv` as `cost` above (file name
-    # `context-per-turn.csv`, provisional, 2026-09-24, after the chart it feeds). These answer a
-    # different question from `lane_tokens`: not how much was spent, but what the unit of spending
-    # is. A turn is billed for the context it carried, and these say how large that was. Flows and
-    # a peak, never a stock: `lane_turns` and the share are per-week events, and
+    # `context-per-turn.csv`, after the chart it feeds; Name: ratified 2026-09-24 (calef, in
+    # session, when asked to ratify the two metrics files the split produced; nothing refused)).
+    # These answer a different question from `lane_tokens`: not how much was spent, but what the
+    # unit of spending is. A turn is billed for the context it carried, and these say how large that
+    # was. Flows and a peak, never a stock: `lane_turns` and the share are per-week events, and
     # `lane_context_per_turn_peak` is the largest single request in the week. The stock-versus-flow
     # line is the one this file already draws for `built_by_week`, and it is drawn again here
     # because this data is exactly the shape that invites the mistake.
