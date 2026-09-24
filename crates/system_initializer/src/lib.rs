@@ -636,7 +636,8 @@ const SH_FS_VA: u64 = 0x0060_0000; // the shell's half of the FS contract (swish
 const SH_CLOCK_VA: u64 = 0x00d0_0000;
 
 // -------------------------------------------------------------------------------------------
-// Milestone 49's login stack: credentialer, identity_provisioner, login, audit_sink.
+// The login stack of milestone 49 (users and attribution): credentialer, identity_provisioner,
+// login, login_audit_receiver.
 // -------------------------------------------------------------------------------------------
 
 /// Where `credentialer` maps its own provision page. Must match `components/src/credentialer.rs`'s own
@@ -801,17 +802,17 @@ pub fn boot(
     // three below.
     let ent_elf = measured(&fs, table, "entropy").elf;
     // **Milestone 49's login stack** (`credentialer`, `identity_provisioner`, `login`,
-    // `audit_sink`): optional in exactly the entropy service's own sense, and gated on it too --
-    // there is no salt, no password and no credential store without real entropy, so a boot with
-    // no entropy service has no login path either, the same way it has no login path with no
-    // filesystem (`have_login_stack`, below, checks both). Read here with the rest of this
+    // `login_audit_receiver`): optional in exactly the entropy service's own sense, and gated on
+    // it too -- there is no salt, no password and no credential store without real entropy, so a
+    // boot with no entropy service has no login path either, the same way it has no login path
+    // with no filesystem (`have_login_stack`, below, checks both). Read here with the rest of this
     // pass, not built yet: building happens later, after the shell's own construction has
     // returned this table to its resting count (see that block's own comment for why the timing
     // matters).
     let cred_elf = measured(&fs, table, "credentialer").elf;
     let idp_elf = measured(&fs, table, "identity_provisioner").elf;
     let login_elf = measured(&fs, table, "login").elf;
-    let audit_elf = measured(&fs, table, "audit_sink").elf;
+    let audit_elf = measured(&fs, table, "login_audit_receiver").elf;
     // The undertaker (milestone 22, the interactive increment). Read here with the rest, because
     // the archive is only readable while we hold it and every failure below is one `fail`. Required
     // rather than optional, unlike the adapter above: without it a bounded job pool fills and the
@@ -1569,12 +1570,12 @@ pub fn boot(
     }
 
     // **Milestone 49's login stack**: `credentialer`, `identity_provisioner`, `login`,
-    // `audit_sink`. Built here, after the shell (this table's own tightest peak, "one slot from
-    // the wall") has already returned its own transient capabilities, and before the giveaway
-    // below spends `ut` down to nothing: everything this block needs (`ut` itself, `term_ep`, the
-    // file service pair, a live client view of entropy) is still ours to spend here and nowhere
-    // later, the identical reasoning the entropy block's own comment gives for building *that*
-    // where it does.
+    // `login_audit_receiver`. Built here, after the shell (this table's own tightest peak, "one
+    // slot from the wall") has already returned its own transient capabilities, and before the
+    // giveaway below spends `ut` down to nothing: everything this block needs (`ut` itself,
+    // `term_ep`, the file service pair, a live client view of entropy) is still ours to spend here
+    // and nowhere later, the identical reasoning the entropy block's own comment gives for building
+    // *that* where it does.
     //
     // Optional, in the sink adapter's own sense: a boot with no filesystem, no working entropy
     // service, or any of these four programs missing or unvouched for simply has no login path,
@@ -1773,9 +1774,10 @@ pub fn boot(
                 // single-session terminal to its first successful caller
                 // (`components/src/login.rs`'s "The terminal: single-session, deny cleanly").
                 //
-                // `audit_sink` is built *first* and started before `login` ever runs, so the
-                // receiver for `login`'s blocking `AUDIT` send exists before there is any way to
-                // reach it (`components/src/audit_sink.rs`'s own doc on why this ordering matters).
+                // `login_audit_receiver` is built *first* and started before `login` ever runs,
+                // so the receiver for `login`'s blocking `AUDIT` send exists before there is any
+                // way to reach it (`components/src/login_audit_receiver.rs`'s own doc on why this
+                // ordering matters).
                 let audit = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let audit_program = audit_elf.as_ref().expect("have_login_stack checked this");
                 let audit_child = must(build_child(

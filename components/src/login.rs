@@ -208,9 +208,9 @@
 //!   whom) is checkable rather than merely claimed. See this program's BUGS on the scope of what
 //!   this endpoint proves. **Must be drained by something**, or the first successful login blocks
 //!   this process forever on this `send` (a plain rendezvous `SEND` queues until a receiver
-//!   arrives): `crates/system_initializer::boot` wires a dedicated `audit_sink` for exactly this
-//!   reason at real boot, and the kernel test harness's own `Wiring::audit` is what the guest test
-//!   suite drains it with.
+//!   arrives): `crates/system_initializer::boot` wires a dedicated `login_audit_receiver` for
+//!   exactly this reason at real boot, and the kernel test harness's own `Wiring::audit` is what
+//!   the guest test suite drains it with.
 //! - slot [`TERM_EP`]: `WRITE | GRANT` on the interactive terminal `crates/system_initializer::boot`
 //!   already wires. See "The terminal: single-session, deny cleanly" above.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
@@ -290,8 +290,9 @@
 //! kept because it costs one hash and catches a spawner that pairs the wrong two blobs.
 //!
 //! **How long the original defect had been live is unknown** and nobody bisected it. The audit trail
-//! did carry which step refused (`fail`'s `0xDEAD_0000_0000_0000 | step`) and `audit_sink` discards
-//! it, which is that program's own recorded limitation and is part of why nobody saw this.
+//! did carry which step refused (`fail`'s `0xDEAD_0000_0000_0000 | step`) and
+//! `login_audit_receiver` discards it, which is that program's own recorded limitation and is part
+//! of why nobody saw this.
 //!
 //! **Resolved, milestone 49's channel-per-client update.** [`REQUEST`] and [`RESULT`] used to be a
 //! single endpoint pair carrying an actual login's identity and secret, on a single shared staging

@@ -117,7 +117,7 @@ Each sets a test that reaches past the word. The arguments are in
 | Ruling | The test it sets |
 |---|---|
 | A half implies two; a third of anything is an arm | "half" is for a two-way split; a branch of three or more is an arm, part, piece or leg |
-| A terminus that is structural, or one that is merely current | name a program for an end of stream only if no grant could end it. calef ruled `audit_sink` should be `login_audit_receiver` |
+| A terminus that is structural, or one that is merely current | name a program for an end of stream only if no grant could end it. `audit_sink` became `login_audit_receiver` |
 | An identity is what you present; a principal is what you become | `principal` is the authenticated actor holding a capability set |
 | The `login` stem stays | ratified 2026-09-15 for the whole family |
 | The casing of `nife` | lowercase everywhere, prose included |
@@ -291,7 +291,5 @@ The directory and stems are provisional, minted 2026-09-24.
 - A `ratified` is never checked against calef, and a `recorded` citation is never followed.
 - `dma_validator`'s block still reads `ratified 2026-08-01`, though §154 deratified the name, so
   `script/names` counts it settled. Found 2026-09-24; it waits on calef's ruling.
-- The `audit_sink` to `login_audit_receiver` rename, ruled 2026-09-13, was never performed.
-  `components/src/audit_sink.rs` still carries the old name; the rename is owed to a lane.
 - The boot mode is still `shell` (`cargo xtask shell`) while the program is `swish`.
 - `design/capsicum-and-the-retrofit-question.md` still names `worker` in a present-tense claim.

@@ -88,16 +88,15 @@ the distinction is written down here rather than left in one block.
 The test, in one question: does the name claim an end-of-stream that is a property of the design, or
 one that is an accident of what has not been built yet?
 
-`components/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT`
-endpoint and discards it. "Sink" was accurate about today and wrong about the program. The discard
+`components/src/audit_sink.rs` (now `components/src/login_audit_receiver.rs`) receives one message
+per successful login on `login`'s `AUDIT` endpoint and discards it. "Sink" was accurate about today and wrong about the program. The discard
 exists because printing the record would need a `WRITE` view of the terminal, and handing that to a
 third process was refused *for now*. The moment somebody grants it, the program keeps records and
 its name says it does not. A name that has to change when a capability is granted is naming the gap
 rather than the thing.
 
-*Corrected 2026-09-24: the rename has not been performed. The program is still
-`components/src/audit_sink.rs`, and its `Name:` block reads "provisional, and ruled" with
-`login_audit_receiver` as the ruled name.*
+*Corrected 2026-09-24: the rename had not been performed when this file was split. It was
+performed later the same day, and the program's `Name:` block now reads `ratified 2026-09-13`.*
 
 The three that survived the same question, and each for its own reason:
 
