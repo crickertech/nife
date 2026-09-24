@@ -1,4 +1,4 @@
-# scripts/queue-stranded.jq: which pull requests the merge queue has left stranded, in one place.
+# helpers/queue-stranded.jq: which pull requests the merge queue has left stranded, in one place.
 #
 # On 2026-09-24 #1202, #1200 and #1207 each sat armed (`autoMergeRequest` set), `mergeStateStatus`
 # CLEAN, every required check green, and never entered `mergeQueue.entries`; each went in only when
@@ -7,7 +7,7 @@
 # it instead, and this file is the whole of the decision.
 #
 # `stranded($queued; $cutoff)` admits a pull request that:
-#   - passes `eligible` (scripts/queue-eligible.jq, spliced ahead of this file by every consumer),
+#   - passes `eligible` (helpers/queue-eligible.jq, spliced ahead of this file by every consumer),
 #     so a head in another repository can never be enqueued by this path, whatever else is true;
 #   - is armed (`autoMergeRequest` present) and CLEAN (`mergeStateStatus`), which is the state in
 #     which the platform should already have enqueued it;
@@ -25,10 +25,10 @@
 # CLEAN pull request has no such check anyway, and a status context (no `completedAt`)
 # contributes its `createdAt`.
 #
-# scripts/queue-stranded-selftest.sh checks this against fixtures, including the one that matters
+# helpers/queue-stranded-selftest.sh checks this against fixtures, including the one that matters
 # most: an armed, CLEAN, old, unqueued pull request from a fork is refused, because `eligible`
 # runs first. Consumers splice this file after queue-eligible.jq:
-#     jq -r "$(cat scripts/queue-eligible.jq)$(cat scripts/queue-stranded.jq)" '...'
+#     jq -r "$(cat helpers/queue-eligible.jq)$(cat helpers/queue-stranded.jq)" '...'
 def stranded($queued; $cutoff):
   eligible
   | select(.autoMergeRequest != null)

@@ -349,7 +349,7 @@ blocked_by() {
 # #1207 each sat armed, CLEAN, every required check green, and never entered `mergeQueue.entries`;
 # each went in only when a person called the `enqueuePullRequest` mutation by hand, and a session
 # watcher was doing that as a stopgap. This is that call, made by the drain, on the predicate in
-# scripts/queue-stranded.jq: eligible (the same admission every arming passes, spliced first so the
+# helpers/queue-stranded.jq: eligible (the same admission every arming passes, spliced first so the
 # enqueue path cannot admit a head the drain would not arm), armed, CLEAN, absent from the queue,
 # and in that state since before now minus STRANDED_MINUTES. **The minutes stand in for "two
 # consecutive passes"**: each `merge-drain.yml` run is one `--once` pass in a fresh process, five

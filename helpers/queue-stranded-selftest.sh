@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# scripts/queue-stranded-selftest.sh: the merge drain's "enqueue what the platform left behind"
+# helpers/queue-stranded-selftest.sh: the merge drain's "enqueue what the platform left behind"
 # predicate, checked against fixtures, and its consumer checked for still using it.
 #
 # The property that matters is the third fixture: **the enqueue path cannot lose the admission
 # predicate.** `stranded` is defined on top of `eligible`, so a fork's pull request that is armed,
 # CLEAN, old and unqueued is refused here for the same reason it is never armed
-# (scripts/queue-eligible.jq). If someone rewrites `stranded` without `eligible` in front of it,
+# (helpers/queue-eligible.jq). If someone rewrites `stranded` without `eligible` in front of it,
 # this test goes red, and so does the drain's own composition check below. script/lint runs it.
 
 set -e
