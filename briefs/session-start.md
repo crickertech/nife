@@ -13,20 +13,37 @@ happens to notice, and that is precisely the arrangement this project has alread
 for hours, `main` went red with nobody assigned, and merging one pull request staled eight others
 that nothing picked back up.
 
-## 1. Are the two watchers alive
+## 1. Are the watchers alive
+
+**Two of the three moved into GitHub Actions on 2026-09-24** and run as `nife-smelter[bot]`, so what
+you are checking is a run list rather than a laptop:
+
+    gh workflow list --repo crickertech/nife | grep -Ei "merge drain|trunk health"
+    gh run list --repo crickertech/nife --workflow "merge drain" --limit 3
+    gh run list --repo crickertech/nife --workflow "trunk health" --limit 3
+
+Both must read `active` in the first command, and both must show a run within the last fifteen
+minutes in the others. A `disabled_inactivity` or `disabled_manually` workflow is a stopped watcher;
+re-enable it with `gh workflow enable`. GitHub also drops scheduled runs under load, so one missing
+tick is not a fault and an hour of them is.
+
+**A failed `trunk health` run is the finding, not a fault in the watcher.** That job exits non-zero
+when `main` is red or a cadence is dead, deliberately, because a printed line inside a green run is
+a line nobody reads. Open it and act on it.
+
+The third watcher is per developer and stays on your own machine, because it reads your own lane
+worktrees and nothing else can:
 
     launchctl list | grep nife
 
-Two entries must be present, `com.nife.merge-drain` and `com.nife.trunk-health`. If either is
-missing, start it the old way, which is still how both run on any machine that is not patagonia:
+One entry must be present, `com.nife.at-risk`. If it is missing, `notes/merge-queue.md` has the
+plist; until it is loaded, `scripts/at-risk-check.sh` is one pass you can run by hand from the main
+checkout. Nothing else should be in that list: `com.nife.merge-drain` and `com.nife.trunk-health`
+are retired, and a laptop still running either is a second drain arming the same pull requests the
+workflow is arming. The retirement commands are in `notes/merge-queue.md`.
 
-    cd /Users/calef/projects/nife
-    scripts/merge-drain.sh &
-    scripts/trunk-health.sh &
-
-`notes/merge-queue.md` has the `launchd` plists, the gap calef accepted rather than solved, why this
-is deliberately not automated further, and a `BUGS` section honest that neither script reports its
-own death.
+`notes/merge-queue.md` has the workflows, the plist, the tested premise they rest on, the cadence
+costs calef accepted, and a `BUGS` section honest that nothing reports a watcher's death.
 
 ## 2. Read what they already found
 
@@ -65,44 +82,57 @@ Two of them already have briefs of their own:
 
 ## EXAMPLES
 
-Both watchers alive (real output, patagonia, 2026-09-23):
+The two that run in Actions, healthy:
+
+    $ gh run list --repo crickertech/nife --workflow "merge drain" --limit 3
+    completed	success	merge drain	schedule	main	...	2m
+    completed	success	merge drain	schedule	main	...	7m
+    completed	success	merge drain	schedule	main	...	12m
+
+Five minutes apart is the cadence. Read the gaps, not only the conclusions: three green runs an hour
+old is a stopped watcher wearing a green badge.
+
+The one that stays on your machine, alive (real output shape, patagonia):
 
     $ launchctl list | grep nife
-    -	0	com.nife.trunk-health
-    -	0	com.nife.merge-drain
+    -	0	com.nife.at-risk
 
 The first column is the process id, `-` meaning the job is loaded but not currently running, which is
 correct for an interval job between ticks. The second column is the last exit status: **`0` is what
 you want, and a non-zero number there is a watcher that ran and failed**, which looks identical to a
 healthy one if you only check that the line exists.
 
-A session that finds one missing:
+A session that finds the retirement half-done:
 
     $ launchctl list | grep nife
-    -	0	com.nife.trunk-health
-    $ cd /Users/calef/projects/nife && scripts/merge-drain.sh &
-    [1] 48213
-    $ launchctl list | grep nife
-    -	0	com.nife.trunk-health
+    -	0	com.nife.at-risk
+    -	0	com.nife.merge-drain
 
-Note what that last line shows: starting it by hand does **not** make it appear in `launchctl list`,
-because it is now an ordinary background process rather than a `launchd` job. Check it with
-`pgrep -fl merge-drain` instead, and expect to have to start it again next session.
+That second line is two drains arming the same pull requests, the laptop's as `calef` and the
+workflow's as `nife-smelter[bot]`. Retire it with the commands in `notes/merge-queue.md`; do not
+leave it because it looks harmless.
 
 ## Stop, do not improvise
 
-- **A watcher whose `launchctl` exit status is non-zero.** Report it with the number. Do not reload
-  the job repeatedly hoping it takes; something is failing and the status is the only evidence.
+- **A watcher whose `launchctl` exit status is non-zero, or an Actions run that failed for a reason
+  that is not a red trunk.** Report it with the number or the run link. Do not reload the job or
+  re-run the workflow repeatedly hoping it takes; something is failing and that status is the only
+  evidence you have of what.
 - **Anything the survey reports that is not a rebase, a failing check, or a `needs-architect` hold.**
   Say what you saw and stop.
 
 ## BUGS
 
-- **Neither watcher reports its own death**, which is the gap calef accepted rather than solved. Step
-  1 exists only because of that, and step 1 runs when a session remembers to run it, so a watcher can
-  be down for as long as nobody opens a session.
-- **`launchctl list` shows the job, not whether it is doing anything useful.** A job loaded, exiting
-  0, and reading the wrong repository would look exactly like a healthy one here.
+- **No watcher reports its own death**, which is the gap calef accepted rather than solved. Moving
+  two of them into Actions made the evidence public rather than removing the gap: a disabled workflow
+  is visible to anyone who looks, and looking is still step 1 of a checklist a session has to
+  remember. A watcher can be down for as long as nobody opens a session.
+- **A green run list and a loaded job both show the mechanism, not the work.** A run that read the
+  wrong repository, or a `launchd` job exiting 0 against a checkout nobody uses, looks exactly like
+  a healthy one here.
+- **Scheduled runs are delayed under load and dropped at peak.** So "no run in the last five
+  minutes" is not evidence of anything on its own, which makes this check softer than the one it
+  replaced: you are reading a trend rather than a fact.
 - **Nothing measures whether a session actually runs this.** There is no gate, no log, and no record
   that a session started; the honest position is that this is rung three of the constitution's
   ladder, a written record for whoever opens it.

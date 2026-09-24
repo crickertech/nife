@@ -535,19 +535,19 @@ uncommitted work in it. Those are the two clauses that have to be known before t
 finished worktrees, one at 3.3 GB; and 2026-07-31's zero bytes free with 42 worktrees holding
 78 GB, which killed two lanes mid-work).
 
-**Two watchers run unattended on patagonia via `launchd`**, and a session confirms they are alive
-*and reads what they already found*, because `merge-drain.sh` posts once per stall and then goes
-quiet by design (calef, 2026-08-26). `briefs/session-start.md` is that check, and it defers the
-queue read itself to `briefs/survey-the-queue.md`. Resolving a conflict needs judgment a watcher
-does not have: a queue reports, it does not resolve.
+**The watchers run unattended as `nife-smelter[bot]` in scheduled Actions workflows** (calef,
+2026-09-23; the watch that reads a machine's own lane worktrees stays per developer), and a session
+confirms they are alive *and reads what they already found*, because `merge-drain.sh` posts once per
+stall and then goes quiet by design (calef, 2026-08-26). `briefs/session-start.md` is that check,
+deferring the queue read to `briefs/survey-the-queue.md`. A queue reports, it does not resolve.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
 pull request staled eight others that nothing picked back up. The steward was meant to cover this and
 did not, for a reason worth keeping: **it reported and never acted.** A stalled queue announced in a
-message is only useful if somebody reads the message. notes/merge-queue.md has the `launchd` plists,
-the gap calef accepted rather than solved, why this is deliberately not automated further, and a
-BUGS section honest that neither script reports its own death.
+message is only useful if somebody reads the message. notes/merge-queue.md has the workflows, the
+plist that remains and the commands retiring the two it replaces, the token premise tested first,
+what the schedule costs, and a BUGS section honest that no watcher reports its own death.
 
 **Do not try to route this by requesting a review.** GitHub silently refuses a review request from
 the pull request's own author: `gh pr edit N --add-reviewer calef` **returns success and sets zero
