@@ -32,6 +32,13 @@ name: coe architect label
 # with this comment as the only place that needs to change if calef ratifies a different layout or
 # number.
 #
+# **A record, not any file in that directory** (2026-09-24). §210 (a correction of error, and its
+# action items are decisions, proposals or milestones) now rules the path is
+# `notes/corrections/<date>-<slug>.md`, and the directory also holds files that are not records:
+# #1247 added `notes/corrections/README.md`, a naming-provenance note, and was labelled at 20:56
+# UTC by the rule as it stood. So only a dated `.md` file directly in COE_DIR counts, which is
+# COE_RECORD below.
+#
 # **This is a convenience, not a gate.** It routes attention; it does not block anything, and
 # nothing here is added to branch protection's required checks. A COE must never fail to exist
 # because a label API call failed, so every step below is written to report and continue rather
@@ -160,6 +167,9 @@ jobs:
           # decisions, proposals or milestones; see this file's header), which is UNRATIFIED as of
           # this writing. If calef ratifies a different path, this is the only line to change.
           COE_DIR="notes/corrections/"
+          # A record is `<date>-<slug>.md` directly in COE_DIR (§210); a README or anything else
+          # the directory holds is not a correction of error.
+          COE_RECORD="^${COE_DIR}[0-9]{4}-[0-9]{2}-[0-9]{2}-[^/]+\.md\$"
 
           add=false
           files=""
@@ -192,7 +202,7 @@ jobs:
             exit 0
           fi
 
-          matches="$(printf '%s\n' "$files" | grep -F "$COE_DIR" || true)"
+          matches="$(printf '%s\n' "$files" | grep -E "$COE_RECORD" || true)"
 
           # On a `synchronize`, a file the PR adds is only NEW if it did not exist before this
           # push; otherwise every push would re-add a label a human removed (requirement 1). So
