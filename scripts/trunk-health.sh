@@ -35,6 +35,7 @@
 # # What it says, and what it deliberately does not
 #
 # It reports the transition to red, naming the failing workflows, and the transition back to green.
+# A green reached by citing a merge-group run rather than repeating it says so, with the run IDs.
 # It does **not** report every red poll, because a trunk that stays broken for an hour is one fact
 # and not twenty-four.
 #
@@ -73,6 +74,14 @@
 #
 # # BUGS
 #
+#   - **A green from a push that skipped its suites is sound, and says so** (A′, 2026-09-24). CI and
+#     verify skip on a push to `main` when a `merge_group` run of the same workflow concluded
+#     `success` at that exact commit, because the queue builds the very commit that lands. Those
+#     runs conclude `success` with every gated job skipped, so this script reads them green, and
+#     prints the merge-group runs it is relying on so a reader can tell that green from the one
+#     below. It trusts the gate's lookup rather than re-deriving it: it does not check that the run
+#     it names belongs to the same workflow as each skipped push run, only that some merge-group run
+#     at this commit succeeded (CI or verify, whichever it found).
 #   - **A green conclusion is not a healthy tree, and this script cannot tell the difference.** See
 #     the correction above: a check whose steps were skipped reports `success`, so this watcher says
 #     GREEN while the test that would have caught the breakage never ran. Nothing here reads whether
@@ -122,7 +131,8 @@ fi
 
 
 state() {
-	sha=$(git ls-remote "$(git remote get-url origin 2>/dev/null || echo origin)" refs/heads/main 2>/dev/null | cut -c1-8)
+	full=$(git ls-remote "$(git remote get-url origin 2>/dev/null || echo origin)" refs/heads/main 2>/dev/null | cut -f1)
+	sha=$(printf '%.8s' "$full")
 	[ -z "$sha" ] && { echo "unknown"; return; }
 	runs=$(gh run list --repo "$REPO" --branch main --limit 12 \
 		--json workflowName,status,conclusion,headSha 2>/dev/null || echo '[]')
@@ -133,7 +143,17 @@ state() {
 	if [ -n "$failed" ]; then
 		echo "RED $sha $failed"
 	elif [ "$running" = "0" ]; then
-		echo "GREEN $sha"
+		# Say which kind of green (A′, 2026-09-24): a push the merge group already tested skips its
+		# suites and concludes `success` having run nothing here, which is sound only because the
+		# merge-group run at this same commit did run them. Naming that run is what separates it
+		# from the skipped-docs green in BUGS below. An API failure prints the plain form.
+		tested=$(gh api "repos/$REPO/actions/runs?event=merge_group&head_sha=$full&status=success" \
+			--jq '[.workflow_runs[] | select(.name == "CI" or .name == "verify") | "\(.name) \(.id)"] | join(", ")' 2>/dev/null || true)
+		if [ -n "$tested" ]; then
+			echo "GREEN $sha (merge group tested this commit: $tested)"
+		else
+			echo "GREEN $sha"
+		fi
 	else
 		echo "PENDING $sha"
 	fi
