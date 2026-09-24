@@ -1,6 +1,9 @@
 # Does a delegated AI review catch what the gates and the maintainer miss
 
-**Provisional name** (`notes/delegated-review/`). This is the run of milestone 521 (does an AI review
+*Name: provisional, minted 2026-09-22 by milestone 521's lane (`3bea19adf`), for
+`notes/delegated-review/`.*
+
+This is the run of milestone 521 (does an AI review
 of a pull request catch anything the gates and the maintainer do not), executed 2026-09-22 against
 the defects three rented models had produced the same morning. The threshold was written into that
 milestone's block and committed **before the first model call**, which `git log` on the block can be
