@@ -1068,8 +1068,9 @@ const APPDISP_TARGET_TOUCHES: u64 = 8_000_000;
 const APPDISP_IPC_PAIRS: usize = 8;
 /// Background IPC pairs for the second, higher-load condition: [`SCALE_MAX_PAIRS`] itself, 96
 /// threads, the same pair count E1's own sweep tops out at and "3x past the predicted knee" by
-/// that sweep's own doc comment. Milestone 134's register (`notes/register-of-measures.md`
-/// BUGS) named this the missing half of E4: the 8-pair condition sits inside E1's flat region, so
+/// that sweep's own doc comment. The register of milestone 134 (the register of measures) named
+/// this the missing half of E4, in a BUGS entry closed on 2026-08-23 that now lives in
+/// `notes/register-of-measures/cache-experiments.md`: the 8-pair condition sits inside E1's flat region, so
 /// a null result there is expected from E1's own curve rather than independent evidence, and a
 /// load nearer or past the knee is the stronger version of the experiment.
 #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
@@ -1217,13 +1218,16 @@ fn appdisp_best(
 /// [`APPDISP_WORKINGSET_KIB`], is the number: how much an IPC-heavy kernel costs an unrelated
 /// application's cache, not how much it costs the kernel's own IPC path.
 ///
-/// The high-load condition is the register's own follow-up (`notes/register-of-measures.md`
-/// BUGS, "a load nearer E1's knee... is the stronger version of this experiment and was not
-/// taken"): the original 8-pair run sits inside E1's flat region, where E1 itself found no cost on
-/// this machine, so a null result there was already expected rather than informative. 48 pairs
-/// puts the background load where E1 *did* find a knee (8-11% by 64-96 threads), which is where
-/// this experiment can actually distinguish "the kernel's own path got slower" from "the
-/// application's cache got evicted".
+/// The high-load condition is the register's own follow-up, from a BUGS entry that said a load
+/// nearer E1's knee was the stronger experiment and had not been taken (closed 2026-08-23; now in
+/// `notes/register-of-measures/cache-experiments.md`). The original 8-pair run (16 threads) sits
+/// inside E1's flat region, where E1 found no cost on the dev Mac, so a null result there was
+/// expected rather than informative. 48 pairs (96 threads) puts the background load past E1's
+/// knee: on the dev Mac E1 was flat to 16 threads and rose 8-11% by 64-96, and on radon
+/// (2026-09-04) the knee is at 16 threads, 1.68x. That is where this experiment can distinguish
+/// "the kernel's own path got slower" from "the application's cache got evicted". The register's
+/// "not a knee" is about E4's own result at this load (a small, consistent 2-9% displacement on
+/// the dev Mac), not about E1.
 #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn app_displacement() {
     if !real_single_hart_or_skip("app_displacement") {
