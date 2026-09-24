@@ -105,7 +105,7 @@ decision rather than as everything that happened to be found.
 
 | Candidate | Why it is not in the nine |
 |---|---|
-| `notes/benchmarks.md`, the seL4 comparison deferred to real hardware | tracked since 2026-08-15 by milestone 127 (the seL4 machine), whose board is bought |
+| `notes/benchmarks/calibration-against-sel4.md`, the seL4 comparison deferred to real hardware | tracked since 2026-08-15 by milestone 127 (the seL4 machine), whose board is bought |
 | `notes/ipc-tables-lock-inventory.md` (`sched-lock-inventory.md` when this table was written), contention that only exists on hardware we do not have | the same shape as above and waiting on the same silicon; a hardware trigger, not a decision |
 | `notes/load-sensitive-assertions.md`, "Recommended here, not built here" | milestone 78 owns it |
 | `notes/host-recovery.md`, a backup when the primary fails | the neighbouring finding in the same note became milestone 110; this one is a proposal nobody has taken, which is trigger 3's territory rather than a recorded limitation |

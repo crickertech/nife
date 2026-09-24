@@ -27,8 +27,8 @@ a merged file describes a binary nobody ever built.
     git add bench/
     git rebase --continue
 
-**3. `notes/benchmarks.md` conflicts.** Both sides are *additions* of different dated sections;
-neither replaces the other. Keep **both**, one after the other, and delete only the `<<<<<<<`,
+**3. `notes/benchmarks.md` or `notes/benchmarks/*.md` conflicts.** Both sides are *additions* of
+different dated entries or appendix rows; neither replaces the other. Keep **both**, one after the other, and delete only the `<<<<<<<`,
 `=======` and `>>>>>>>` marker lines.
 
 **4. Any additive index file conflicts.** `notes/README.md`, `design/decisions/README.md`, and

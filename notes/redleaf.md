@@ -322,9 +322,8 @@ against seL4's published Jetson TX1 figures, 413 + 426 = ~839 cycles for a round
 *"roughly 1.1x to 1.7x an L4-lineage round trip."*
 
 **So the honest statement of the gap is a chain of ratios rather than a subtraction**, and the chain
-has a missing link this tree already knows about: `notes/benchmarks.md` says *"there is no EL0 twin
-of it, so the structurally matched comparison to seL4's published pair is not currently measured at
-all"*, and milestone 188 (the IPC fastpath) owns closing that. Until it closes, nife's number and
+has a missing link this tree already knows about: `notes/benchmarks/calibration-against-sel4.md` says `call_reply` *"has no EL0
+twin. So the structurally matched comparison to seL4's published pair is not measured at all"*, and milestone 188 (the IPC fastpath) owns closing that. Until it closes, nife's number and
 RedLeaf's number are both roughly-6x-to-8x away from an L4-lineage crossing in opposite directions,
 each measured against a different seL4 run on a different machine.
 

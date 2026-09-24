@@ -380,7 +380,7 @@ run-to-run noise. That is the weak direction. E1 (IPC latency against thread cou
 that their own notes attribute to the dev Mac's large L1d muting the knee.
 
 **radon is the machine all three were designed against.** A StarFive VisionFive 2, four SiFive U74
-cores, **32 KB L1i and 32 KB L1d each** (notes/benchmarks.md's machine table). E1's prediction was
+cores, **32 KB L1i and 32 KB L1d each** (notes/benchmarks/kernel-footprint-and-caches.md's machine table). E1's prediction was
 computed against that number by name. Until 2026-09-04 none of the three could run there.
 
 ## What was in the way, and what closed it

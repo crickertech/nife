@@ -33,7 +33,7 @@ Both halves are load-bearing and the second is the one that cuts.
   it, a constant is sized against it, a claim in the documentation quotes it, or a customer notices
   when it moves. `documentation::render::LINE_MAX` is 2048 because the longest markdown line was 1841, so
   that measurement has a **consumer**; the kernel's image size, which
-  `notes/benchmarks.md` itself calls "the number that does not matter", has only a reader.
+  `notes/benchmarks/kernel-footprint-and-caches.md` calls "the number that does not matter", has only a reader.
 - *It moves on its own.* A constant somebody chose is not a measure, it is a decision, and it
   belongs in `design/decisions/`. The stack guard page is 4,096 bytes because a page is 4,096 bytes. The
   deepest chain that can reach that guard is a measure, because the compiler moves it every week
@@ -260,8 +260,8 @@ attached, which is not a thing to put on every push; the honest promotion is a s
 than a gate, and it wants a lane.
 
 **The cross-OS row is the register earning its keep on its first pass.** Its section in
-notes/benchmarks.md, "The first cross-OS numbers (nife vs Linux vs macOS)", **carries no date at
-all**, and the numbers in it are the ones a stranger is most likely to quote back at us: they are
+notes/benchmarks/cross-os-primitives.md, "The first cross-OS numbers (nife vs Linux vs macOS)", **carried no date
+until 2026-09-24**, and the numbers in it are the ones a stranger is most likely to quote back at us: they are
 the comparison against Linux and macOS. A dated measurement with no date is a `gated` row's opposite
 and a `dated` row's failure mode at once, and nothing in this tree would have said so. Dating it
 means re-taking it, because nobody now knows which run it was; that is a small lane and it is named
@@ -310,7 +310,7 @@ next person does not add them back.
 
 | number | why it is out |
 |---|---|
-| the kernel's image size (290,816 bytes on aarch64) | **no consumer.** notes/benchmarks.md derives it and then says in its own heading that it is "the number that does not matter": `.text` that never runs during an IPC costs nothing in cache |
+| the kernel's image size (290,816 bytes on aarch64) | **no consumer.** notes/benchmarks/kernel-footprint-and-caches.md derives it and then says in its own heading that it is "the number that does not matter": `.text` that never runs during an IPC costs nothing in cache |
 | `script/verify`'s wall clock (~47 minutes) | **no consumer.** It is a reader's patience, not a constraint anything is sized against, and notes/verification.md dates it honestly |
 | lines of Rust, crates, user programs, commits | **no consumer.** AGENTS.md's method figures are rhetoric about scale, and that file says so; a gate on them would be measuring a paragraph |
 | `nifefs`'s `NAME_LEN = 32` | **does not move on its own.** It is a decision with a cost per directory block, not a measurement |
