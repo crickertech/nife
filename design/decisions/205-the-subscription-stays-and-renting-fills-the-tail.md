@@ -63,3 +63,35 @@ the installer and 344k for rung 2b. So the tail is roughly **18% of a day's toke
   553 (what a lane spent on its milestone) exists to fix and has not.
 - **All prices are one day's observation** on one provider, with one model per row and no repeats.
   A second run of the same lane could move any of them.
+
+## The one-time reset was spent on 2026-09-23, and the insurance is gone
+
+**calef pulled the manual limit reset that night**, restoring capacity until Friday's weekly roll. He
+had one available before 2026-10-22 and now has none.
+
+**He spent it on the criterion this section's own conversation set**, which is worth recording
+because it is the difference between a decision and a reaction: the maintainer recommended holding
+it until the routing work landed, and named the single case for spending early as *hitting the
+weekly wall mid-build, where the alternative is idling until the window rolls*. That was the case.
+The projection was running out by the following morning.
+
+**What it lifted, and what it did not**, because these are easy to conflate and only the first is
+about money:
+
+- **Tokens: lifted**, to Friday.
+- **Memory: unchanged.** A Kani harness still reaches about 3.5 GB against this machine's 16 GB, so
+  one solver at a time holds whatever the budget says.
+- **CI runners: unchanged, and binding that night.** Two pull requests carrying 44 and 21 new
+  falsification records sat behind 35 queued runs org-wide. More tokens buys more lanes that queue
+  behind the same runners.
+
+So the reset bought **authoring** capacity, not **verification** capacity, and the night's work was
+stacked on the second.
+
+**The routing work is now more urgent, not less.** This section priced an open-model tail and the
+maintainer proposed batch variants at roughly half price and an `effort` lever. Neither landed.
+`notes/effort-levels.md` measured `effort` as a **null result** on the task it tested: prompt wording
+explained all of the correctness and the level explained none. Batch pricing was raised three times
+and never applied to a single lane.
+
+**There is no second reset behind the next wall.** That is the whole of what changed.
