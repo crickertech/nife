@@ -11,7 +11,8 @@ that split the file; naming is calef's.*
 **The claim:** the thing that makes the thesis interesting, drivers outside the kernel behind an
 IOMMU, does not survive contact with a real device.
 
-**Evidence today:** milestone 16b proved IOMMU-backed DMA isolation against QEMU's emulation of the
+**Evidence today:** milestone 16 (real hardware and IOMMU-backed driver isolation)'s 16b proved
+IOMMU-backed DMA isolation against QEMU's emulation of the
 ratified RISC-V IOMMU, over the PCIe transport of §18 (one driver, two buses, the seam in the
 kernel), and milestone 35 (prove the DMA-confinement boundary) built the DMA validator. All of it is
 virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist (milestone
@@ -116,7 +117,7 @@ experiment is one real non-virtio device on real silicon, confined, at throughpu
 **no board this project owns has an IOMMU in front of a real NVMe controller**. xenon has both, and
 its firmware transcription says so precisely: a `Micron 2450 NVMe 256GB` on M.2 PCIe SSD-0 with SATA
 in AHCI rather than RAID, *"so the NVMe is a plain PCIe function rather than hidden behind Intel
-RST"*, on a machine milestone 87 selected partly for VT-d.
+RST"*, on a machine milestone 87 (the x86_64 bare-metal machine) selected partly for VT-d.
 
 **And that machine now boots nife, as of 2026-09-17** (milestone 87, `BUILT`), which removes the
 last thing standing between this risk and its decisive experiment that was not code. Its first

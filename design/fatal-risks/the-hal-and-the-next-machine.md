@@ -64,8 +64,10 @@ port and not one machine's configuration.
 **The status is asymmetric, and that is the useful part.** riscv64 already disproves the strong form:
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
-Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
-because x86 is hard, but because it is newest: milestone 161 was unfinished when this was written
+Jetson TX1, milestone 127 (the seL4 machine, so identical silicon referees the comparison)) is well
+documented. **x86_64 is where the risk actually lives**, and not
+because x86 is hard, but because it is newest: milestone 161 (the x86_64 kernel port: bring up the HAL's third architecture)
+was unfinished when this was written
 (it is `BUILT` since 2026-09-19; see the dated paragraph below), milestone 177 (wire the graphical
 terminal stack into the real interactive boot)'s text says x86_64 has no real interactive boot entry
 point at all, and 166 and 167 are each a piece of the same unfinished edge.
@@ -211,7 +213,8 @@ kernel.** Finding 9 is five driver `barrier()` functions (`crates/virtio`, `gpu_
 the original sweep, `components/src/entropy.rs`) with an `aarch64` arm and a `riscv64` arm and no
 `x86_64` arm, so on x86_64 each compiled to an empty body: not a build failure, a silently missing
 compiler fence. `components/src/non_volatile_memory_express.rs` has all three arms, because the NVMe
-driver was x86_64's own reason for existing (DECISIONS §86), which is the control case: when a driver
+driver was x86_64's own reason for existing (DECISIONS §86 (whether an NVMe driver can leave the kernel, and what capability would let it)), which
+is the control case: when a driver
 is built *for* the new architecture the third arm arrives with it, and when it predates the
 architecture it does not. **Closed 2026-09-23 by milestone 186** into one function,
 `user_mode_runtime::virtio::virtio_ring_barrier` (name provisional), whose fourth-architecture arm is a

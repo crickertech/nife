@@ -8,7 +8,8 @@ the six-pager has. Where a study has its own home in `notes/` this page links it
 it. **Name provisional** (`design/fatal-risks/` and this file's stem), minted 2026-09-23 by the lane
 that split the file; naming is calef's.*
 
-**The claim:** the verification half of DECISIONS §14 is real but narrow, and narrow in the direction
+**The claim:** the verification half of DECISIONS §14 (the project's direction: a verified-Rust capability
+microkernel that runs real workloads) is real but narrow, and narrow in the direction
 that does not matter.
 
 **Evidence today:** 112+ Kani harnesses and `notes/verification.md`. Against: the VisionFive 2's
