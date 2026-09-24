@@ -212,7 +212,7 @@ FIELDS = (['week', 'commit', 'date']
              'unsafe_trust_userspace', 'unsafe_trust_userspace_code_lines',
              'unsafe_trust_userspace_density',
              'unsafe_trust_shared', 'unsafe_trust_boot_chain', 'unsafe_trust_unclassified',
-             'fatal_risks_tested', 'fatal_risks_untested',
+             'fatal_risks_run', 'fatal_risks_not_run', 'fatal_risks_cannot_run',
              'coverage_lines_pct', 'coverage_min_file_pct']
           # Milestone 519's cost columns. Three units on purpose, and no fourth column adding them
           # up: person-weeks for the comparison against the verification literature, tokens with a
@@ -841,26 +841,65 @@ def harnesses(tree):
     return {'harnesses_' + key: value for key, value in counts.items()}
 
 
-def fatal_risks(tree):
-    """How many of the nine claims that would kill nife have been put to an experiment.
+# The ratified field and its three values, as `script/fatal-risks` gates them. calef ruled on
+# 2026-09-23 and `design/fatal-risks.md`'s vocabulary section carries the argument; the enumeration
+# is duplicated here rather than imported because `script/fatal-risks` is a shell wrapper around a
+# heredoc with nothing importable in it, and because this reader is asked about HISTORY, where the
+# words were different. A word that leaves the ratified set breaks the gate before it reaches here.
+FATAL_RISK_STATUS = re.compile(r'^\*\*Experiment status: ([A-Z][A-Z-]*)\b', re.M)
 
-    Tested versus untested only. A verdict column was considered and refused: three of the four
-    statuses written so far say GREEN or AMBER in capitals, and risk 7's says neither ("RUN,
-    2026-08-31, and it found the thing this risk exists to find"), so a colour series would be
-    reading a sentence and guessing. The count of risks that have been RUN at all is the fact the
-    file actually carries.
+# **What the five retired words meant, for reading past revisions only.** This is a translation
+# table over history, not a second vocabulary: nothing may be written in these words today, and
+# `script/fatal-risks` fails on any of them. They are here so the series says something true about
+# the weeks before the ruling instead of reporting a tree that had no field as a tree with nine
+# unanswered risks. `MEASURED` and `AUDITED` were always claims about how WELL an experiment was
+# done, and an experiment done well is one that ran.
+RETIRED_FATAL_RISK_STATUS = re.compile(r'^\*\*Status: ([A-Z]+)', re.M)
+RETIRED_MEANING = {'RUN': 'run', 'MEASURED': 'run', 'AUDITED': 'run',
+                   'UNRUN': 'not_run', 'NOT': 'not_run', 'UNTESTED': 'cannot_run'}
+
+
+def fatal_risks(tree):
+    """The nine claims that would kill nife, by ratified Experiment status.
+
+    **This replaces a tested/untested pair, and the refusal it replaces was right when it was
+    written.** That docstring said a verdict column "would be reading a sentence and guessing",
+    because three of the four statuses then written said GREEN or AMBER in capitals and risk 7's
+    said neither. Nothing about that reading has been overturned. What changed on 2026-09-23 is the
+    thing being read: calef ratified a closed field, `Experiment status`, with exactly three values,
+    and `script/fatal-risks` now fails on a fourth. So this parses an enumeration rather than a
+    sentence, which is a different act from the one that was refused.
+
+    **It is still not a verdict series, and that is deliberate.** What an experiment FOUND stays in
+    the file's prose, where `GREEN`, `AMBER`, `MEASURED` and `AUDITED` already are. A chart of
+    findings was the other half of the proposal raised on 2026-09-23 and calef did not take it.
+
+    **Why the pair had to go.** All nine entries carried a status line by 2026-09-23, so
+    `fatal_risks_tested` sat at nine and `fatal_risks_untested` at zero and the chart was a flat
+    line carrying no information. The new series can move in both directions and has a third value
+    the old pair could not express, which is the one risk 8 needs: an experiment nobody may run is
+    not a kind of result.
+
+    **Weeks before the field existed are read through `RETIRED_MEANING`**, and a risk with no status
+    line at all counts in none of the three, so the bars sum to nine only from the week every entry
+    carried one. That is the honest shape: an entry that said nothing said nothing.
     """
+    counts = {'fatal_risks_run': 0, 'fatal_risks_not_run': 0, 'fatal_risks_cannot_run': 0}
     text = tree.text.get('design/fatal-risks.md')
     if not text:
-        return {'fatal_risks_tested': 0, 'fatal_risks_untested': 0}
+        return counts
     parts = re.split(r'^## (\d+)\.', text, flags=re.M)
-    tested = untested = 0
     for i in range(1, len(parts), 2):
-        if re.search(r'^\*\*Status:', parts[i + 1], re.M):
-            tested += 1
+        body = parts[i + 1]
+        m = FATAL_RISK_STATUS.search(body)
+        if m:
+            key = m.group(1).lower().replace('-', '_')
         else:
-            untested += 1
-    return {'fatal_risks_tested': tested, 'fatal_risks_untested': untested}
+            old = RETIRED_FATAL_RISK_STATUS.search(body)
+            key = RETIRED_MEANING.get(old.group(1)) if old else None
+        if key and 'fatal_risks_' + key in counts:
+            counts['fatal_risks_' + key] += 1
+    return counts
 
 
 def coverage_from_lcov(path):
@@ -1306,9 +1345,11 @@ CHARTS = [
       ('shared (both, unresolved)', 'unsafe_trust_shared'),
       ('boot chain (uefi_loader)', 'unsafe_trust_boot_chain'),
       ('unclassified', 'unsafe_trust_unclassified')], 1.0, None, None),
-    ('fatal-risks.svg', 'The nine things that would kill nife',
-     'design/fatal-risks.md; tested means an experiment has been run, not that it came back green',
-     [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],
+    ('fatal-risks.svg', 'The nine things that would kill nife, by Experiment status',
+     'design/fatal-risks.md; this says whether an experiment happened, never what it found. The '
+     'findings are in that file, in prose',
+     [('RUN', 'fatal_risks_run'), ('NOT-RUN', 'fatal_risks_not_run'),
+      ('CANNOT-RUN', 'fatal_risks_cannot_run')],
      1.0, None, None),
     ('velocity.svg', 'Milestones built each week',
      'a flow, not a stock: what the index says turned BUILT in those seven days',
