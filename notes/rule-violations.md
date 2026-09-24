@@ -34,6 +34,8 @@ distinguish individual incidents), in the table below:
 | 2026-08-04 | squash against `origin/main` instead of the recorded base SHA | 1 | open | AGENTS.md, "Commits" |
 | 2026-08-04 | a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first | 4 | resolved | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
 | 2026-08-04 | `pkill` a QEMU process by name/pattern instead of walking the process tree from the harness that owns it | 1 | open | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
+| 2026-09-23 | a cheap, reversible fix reported to calef instead of made ("owning is not recording") | 1 | escalated | AGENTS.md, "We are all owners" (the incident that wrote the rule) |
+| 2026-09-24 | a cheap, reversible fix reported to calef instead of made ("owning is not recording") | 2 | escalated | pull request #1202: a relayed lane report listed a stale line and a merge sequencing instead of doing them, and the correction was answered with a memory restating the rule |
 
 Columns:
 
