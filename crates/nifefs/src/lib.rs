@@ -747,20 +747,32 @@ mod verification {
     /// entry reads, up to offset [`HEADER_LEN`] + [`MAX_FILES`] * [`ENTRY_LEN`] inside
     /// [`DIR_BLOCKS`], in bounds).
     ///
-    /// **BUGS: a guard weakened enough to admit this length gets no verdict, not a red one.**
-    /// Measured 2026-09-24. Once the one concrete length passes the guard, symbolic execution
-    /// enters the entry loop, whose bound is a `count` read from symbolic bytes, and with no unwind
-    /// bound CBMC unrolls it without end: `< BLOCK` ran into CI's 45-minute timeout on #1156, and
-    /// the off-by-one `< DIR_BLOCKS * BLOCK - 1` was killed at 420 s. So the recorded falsification
-    /// is a reordering (magic before length), which this harness refutes in under a second, and the
-    /// weakened-guard class is caught only in the sense that a replay never finishes. The fix that
-    /// was measured and not taken is `#[kani::unwind(3)]`: the correct tree never reaches a loop
-    /// here, so the proof would be unchanged, and the `< BLOCK` defect then fails in 2.6 s. It was
-    /// left out because a change to a proof's bounds is a change to what it proves and deserves its
-    /// own review, even where the measured answer is that it would not be; it is the next step if
-    /// the weakened guard should become a replayable record of its own.
+    /// **Why this harness carries `#[kani::unwind(9)]`, and why it proves nothing less for it.**
+    /// Without a bound, a guard weakened enough to admit this one length got no verdict at all:
+    /// symbolic execution entered the entry loop, whose bound is a `count` read from symbolic
+    /// bytes, and CBMC unrolled it without end (`< BLOCK` ran into CI's 45-minute timeout on #1156;
+    /// the off-by-one `< DIR_BLOCKS * BLOCK - 1` was killed at 420 s). On the correct tree no loop
+    /// is reachable, because the length is concrete and the guard returns before the magic compare,
+    /// so the bound adds no unwinding assertion and removes no path. Measured 2026-09-24, three runs
+    /// each, Kani 0.67.0 on patagonia: **before**, SUCCESSFUL, 0 of 164 checks failed (18
+    /// unreachable), 0.16 to 0.21 s; **after**, SUCCESSFUL, the same 0 of 164 (18 unreachable),
+    /// 0.16 to 0.29 s.
+    ///
+    /// **9 rather than a smaller bound**, because 9 is the least that lets the 8-byte magic compare
+    /// finish. At 3 the `< BLOCK` replay went red in 4.3 s, but its unwinding failure was in
+    /// `memcmp`, an artifact of the bound, and the only paths reaching the assertion were
+    /// `BadMagic` ones. At 9 it goes red in 19.6 s with the unwinding failure in `parse`'s own entry
+    /// loop and paths where a short image is actually accepted, which is the defect this harness is
+    /// named for.
+    ///
+    /// **BUGS: one record per harness.** §134 (a harness carries a machine-replayable falsification
+    /// record) spells its path `<module.path>.<harness>.patch`, so the weakened guard replaced the
+    /// reordering (magic before length) that #1217 recorded while the harness was unbounded. That
+    /// one still goes red under this bound (1.1 s, measured) and is what to reach for if this
+    /// record ever needs a cheaper replay.
     /// Falsification: replayable `crates/nifefs/falsifications/verification.a_short_image_is_refused_not_indexed.patch`
     #[kani::proof]
+    #[kani::unwind(9)]
     fn a_short_image_is_refused_not_indexed() {
         const SHORT: usize = DIR_BLOCKS * BLOCK - 1;
         let image: [u8; SHORT] = kani::any();
