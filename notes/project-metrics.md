@@ -7,10 +7,11 @@
 have a home in this directory. `script/metrics` and the directory `notes/project-metrics/` are
 **provisional**; naming is calef's, and a lane ships a provisional name and says so.*
 
-One row per ISO week, computed by `script/metrics` from git history. The data is
-[`notes/project-metrics/weekly.csv`](project-metrics/weekly.csv), in the tree, versioned with the
-code it describes, so this page renders the repository's own numbers rather than holding a copy of
-them that can rot.
+One row per ISO week, computed by `script/metrics` from git history. The data is one CSV per
+measure in [`notes/project-metrics/`](project-metrics/), in the tree, versioned with the code it
+describes, so this page renders the repository's own numbers rather than holding a copy of them that
+can rot. A measure's file carries the weeks it has something to say about and no others, so a series
+that began in 2026W39 starts there rather than trailing ten blank cells behind it.
 
 This is the half of `notes/register-of-measures.md` that moves. That register says which numbers
 this kernel **owes itself**: which ones a decision rests on, which ones a constant is sized against,
@@ -57,7 +58,7 @@ bars are.
 2026W29 and there is no 2026W28.
 
 **The charts show the ten most recent weeks; the CSV keeps every one** (calef, 2026-09-19). So
-2026W29 leaves the charts when 2026W39 arrives, and stays in `weekly.csv`, which is the table view
+2026W29 leaves the charts when 2026W39 arrives, and stays in its measure's CSV, the table view
 the charts rely on for the three colours that sit under 3:1 on a white page. A week is never
 deleted, only no longer drawn.
 
@@ -955,6 +956,38 @@ row is repointed at a later commit of the same week the minimum describes the ea
 someone re-measures. And the minimum is one file: two files at 81% and one at 81% draw the same
 bar, which is what `floor.txt`'s band counts are for and the chart is not.
 
+## The prose budget
+
+![Words over the cap](project-metrics/prose-budget.svg)
+
+![Documents over the cap](project-metrics/prose-budget-documents.svg)
+
+calef ratified a prose budget on 2026-09-23 (UTC): 3,000 words of main body per document, enforced
+as a ratchet, so a document already over may not grow and one under may not cross. The decision
+section is proposed in pull request #1187 and has no number yet. A ratchet is invisible without a graph, which is why
+this panel exists and why calef asked for it the same day he ratified the cap.
+
+The first chart is the debt: how many words would have to move into appendices for the tree to meet
+its own rule. The second is how many places that work sits in. Two panels rather than one, because
+the series stack with nothing. They also move independently: splitting one long document cuts the
+debt and leaves the count where it was.
+
+Both are measured over every `.md` directly under `design/`, `design/decisions/`,
+`design/roadmap/`, `notes/` and `briefs/`, plus `AGENTS.md`. Directly under, not recursively, which
+is the scope the ruling's own evidence paragraph used. Words are whitespace-separated over the whole
+file. Main body and whole file are the same number until a document here has an appendix.
+
+Every document is counted, one carrying a marked exception included. The exception mechanism belongs
+to the gate the ruling asks for, which does not exist yet. A chart that subtracted exempted
+documents would hide the debt rather than measure it, and the debt is what the chart is for.
+
+**BUGS.** A word cap rewards moving prose rather than cutting it, which the ruling says in its own
+`BUGS` section. Every file can pass while the tree's total grows, and these two series will show
+that as a falling debt against a rising document count. Neither chart measures whether anybody reads
+the words. And the numbers here include `AGENTS.md`, while the ratified headline figures (569,775
+words, 174 documents, 2026-09-23) were measured without it. `AGENTS.md` alone is 10,967 words, so
+the two reconcile exactly at 7,967 words and one document.
+
 ## How it stays current
 
 `script/metrics --update` recomputes the current week's row and redraws the charts.
@@ -1022,8 +1055,9 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   a merge that resolves two branches' concurrently-added columns into one header needs a `--backfill`
   afterward or the older rows carry the new columns as empty cells. This happened to
   `unsafe_trust_*` from 2026-09-21 to 2026-09-23 (see "That backfill was lost for two days" above)
-  and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on `weekly.csv`
-  after any commit that merges two metrics branches is worth a look before trusting the row count.
+  and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on
+  `notes/project-metrics/` after any commit that merges two metrics branches is worth a look before
+  trusting the row count.
 - **`milestones_built_this_week` will not equal the week-on-week change in the `Built` stock, in
   any week.** It is deliberate and it is the section above, but it reads as an error to anyone who
   differences two rows and expects the flow to fall out, which is what happened on 2026-09-23.

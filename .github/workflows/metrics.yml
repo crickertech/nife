@@ -1,8 +1,8 @@
 name: project metrics
 
 # **Append this week's row; never change what a past week said.** The dashboard is
-# notes/project-metrics.md and the data behind it is notes/project-metrics/weekly.csv, in the tree,
-# versioned with the code it describes.
+# notes/project-metrics.md and the data behind it is one CSV per measure in
+# notes/project-metrics/, in the tree, versioned with the code it describes.
 #
 # The same three-step split `toolchain-bump.yml` uses, and for the same reason:
 #
@@ -31,7 +31,8 @@ name: project metrics
 # Monday-only the right split rather than a compromise.
 #
 # **The Monday/daily split does not, on its own, protect the columns a schema change adds.** On
-# 2026-09-20 a merge conflict in `weekly.csv` was resolved by restoring an older copy (one still
+# 2026-09-20 a merge conflict in the data, then one wide `weekly.csv` and since split per measure
+# by milestone 581 (one metrics file per measure), was resolved by restoring an older copy (one still
 # missing that week's newly merged `unsafe_trust_*` columns) and then running `--update`, which only
 # ever rewrites the current week and any week missing entirely; every other existing row is left
 # exactly as read. So the restored columns stayed blank on every past row for three days, until
@@ -166,8 +167,8 @@ jobs:
           title="metrics: record $week"
           body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
 
-          Adds or refreshes the \`$week\` row in \`notes/project-metrics/weekly.csv\` and redraws the
-          SVGs in \`notes/project-metrics/\`. The page is
+          Adds or refreshes the \`$week\` row in each measure's CSV under
+          \`notes/project-metrics/\` and redraws the SVGs beside them. The page is
           [\`notes/project-metrics.md\`](../blob/main/notes/project-metrics.md).
 
           **Read the diff, not just the charts.** Every column is a restatement under today's

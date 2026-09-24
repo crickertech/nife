@@ -3,8 +3,8 @@
 **This file is appended to and never regenerated.** Every other file in this directory is written by
 a script from evidence the tree already holds, and rerunning the script reproduces it byte for byte.
 This one holds facts no script can derive: what a person paid, on what day, and what a vendor was
-charging at the time. `script/metrics` reads it to fill two columns of
-[`weekly.csv`](weekly.csv) and nothing writes it back.
+charging at the time. `script/metrics` reads it to fill two columns of [`cost.csv`](cost.csv) and
+nothing writes it back.
 
 So the rule is the one a ledger has always had. **Add a row; do not edit a row.** A figure that turns
 out to be wrong gets a new row with a date and a note saying what it corrects, because the point of a
@@ -127,6 +127,6 @@ a rate derived from three quarters of a week's tokens is not that week's rate.
   purchase week look like a spending problem.
 - **calef's time is not in this file and never will be.** Milestone 519 refuses time tracking, and
   the standing datum is one calendar week of full-time work per calendar week, carried in
-  `weekly.csv`'s `human_person_weeks` column. At any plausible rate for an experienced engineer's
+  `cost.csv`'s `human_person_weeks` column. At any plausible rate for an experienced engineer's
   time it is the overwhelming majority of what this project has cost, and a ledger of cash alone
   would invite a reader to forget that.

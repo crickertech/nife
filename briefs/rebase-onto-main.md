@@ -96,12 +96,17 @@ branch is usually worse than mechanical: on 2026-09-24 one branch rewrote the wa
 `helpers/` while `main` had rewritten the same sections to move the watchers into scheduled Actions
 workflows, so the two sides disagreed about facts rather than about a path.
 
-**`notes/project-metrics/weekly.csv`.** This is the `bench/` rule one level over: do not hand-merge
-measurements. Every metrics branch adds columns to it, so both sides typically add disjoint columns
-*and* carry the same week measured at two different trees. Taking either side discards the other's
-data, and merging the headers leaves every earlier row blank in whichever columns came from the other
-side. The resolution is a header merge followed by `script/metrics --backfill`, run once, which is a
-measurement re-run rather than a rebase step. Abort and say so.
+**A CSV in `notes/project-metrics/`.** This is the `bench/` rule one level over: do not hand-merge
+measurements. Both sides typically carry the same week measured at two different trees, so taking
+either side discards the other's data. The resolution is to take `main`'s side and run
+`script/metrics --update`, once, which is a measurement re-run rather than a rebase step. Abort and
+say so.
+
+Milestone 581 (one metrics file per measure) made this rarer than it was. Until 2026-09-23 the
+directory held one 58-column `weekly.csv`, every metrics branch added columns to it, and two
+branches adding disjoint measures conflicted with each other and with `main` over a header line
+neither had read. A measure now lives in its own file, so a new measure is a new file and a new file
+cannot conflict; what remains is two branches measuring the same week of the same measure.
 
 **A delete-versus-add hunk, even when one side is "just prose".** Before treating a deletion as
 housekeeping, check whether the region being deleted gained a **new `##` section** on `main`.
