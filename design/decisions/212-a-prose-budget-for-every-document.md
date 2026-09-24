@@ -5,11 +5,28 @@
 maintainer session spent most of a context window reading one document, `design/fatal-risks.md`, at
 17,742 words.
 
+**Appendix siting is ratified too, by calef on 2026-09-23 (UTC), answering question 3.** The default
+is a **parent-named sibling directory**: `design/fatal-risks.md` beside `design/fatal-risks/*.md`.
+A **thematic directory is a permitted exception when the appendices are independently citable**,
+which is why `AGENTS.md`'s tenets live in `design/tenets/` rather than in `AGENTS/`. Content that is
+a document in its own right is neither, and stays a **peer document** in the same directory, which is
+what `notes/register-of-measures.md` is beside `notes/project-metrics.md`.
+
+The reason the default is parent-named is the orphan rule, which is the one new failure this
+convention manufactures. A parent-named directory makes the check a path rule: every file under `X/`
+must be linked from `X.md`. A thematic directory can only be checked by walking links, so an
+exception costs more gate than the default does. **An exception is therefore marked where a reader
+meets it**, in the appendix directory's own `README.md`, with its reason.
+
+One premise that was checked rather than assumed, because it was the stated reason for a lane's
+choice: `script/lint`'s notes-index check is `glob.glob('notes/*.md')` and **does not recurse**, so
+appendices under `notes/<stem>/` never needed index rows. `design/tenets/` still earns its exception,
+on the ground that a tenet is cited on its own, not on the index ground.
+
 **What this section does not yet decide**, because calef is taking these one at a time and a reader
-would otherwise take them as settled: where an appendix lives and what may move into one (question
-3), how the cap is enforced against the 174 documents already over it (question 4), and whether the
-cap applies to every document or to a class of them (question 2, where the recommendation below
-argues for every document). Each answer amends this section. *(The section
+would otherwise take them as settled: how the cap is enforced against the 174 documents already over
+it (question 4), and whether the cap applies to every document or to a class of them (question 2,
+where the recommendation below argues for every document). Each answer amends this section. *(The section
 number **212** is provisional; the integrator mints it at merge, like anything else global to the
 tree.)*
 
