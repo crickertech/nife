@@ -34,13 +34,40 @@ message and does something. These two scripts act.
 
 ```console
 $ scripts/merge-drain.sh --once
+merge-drain: DEQUEUED #918 (needs-architect arrived after it was enqueued): the loader stops guessing
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
+merge-drain: ARMED #214 (the caretaker outlives its job)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
 $ scripts/merge-drain.sh            # loop until nothing is left to enqueue
 merge-drain: 2 armed, 0 stalled, of 2 unheld
 merge-drain: queue empty; nothing open that does not need calef
 ```
+
+**Two of those lines are events and the rest are snapshots, and only the events can be counted.**
+`ARMED` and `DEQUEUED` say what this pass *did*; every other line says what was *true* when the pass
+ended. Summing `4 armed` across passes double counts every pull request that was still armed on the
+next pass, which is why 3,355 passes of this log could not answer "how often does the drain act"
+when calef asked on 2026-09-23. `STALLED.` has the same defect: a stall that persists is re-printed
+every pass, which is why `notify` deduplicates the pull request comment and the log line does not.
+
+So:
+
+```console
+$ grep -c 'merge-drain: ARMED #' ~/Library/Logs/nife/merge-drain.log      # enqueues, countable
+$ grep -c 'merge-drain: DEQUEUED #' ~/Library/Logs/nife/merge-drain.log   # withdrawals, countable
+$ grep -c 'merge-drain: [0-9]* armed' ~/Library/Logs/nife/merge-drain.log # passes, not enqueues
+```
+
+`ARMED` prints only on the transition: arming is attempted on every eligible pull request on every
+pass, and the script suppresses the line where the pull request was already armed when the pass
+began. Without that suppression it would be a snapshot with a new name on it. This tree made the
+same mistake once before, in `script/metrics`, and the correction is written up there and in the
+"The only flow on this page" section of [project-metrics.md](project-metrics.md): a stock read late
+is merely stale, a flow read late lands in the wrong bucket.
+
+**The summary line stays**, because it answers a question the events cannot, which is whether
+anything is stuck right now.
 
 It takes the open pull requests **without** the `needs-architect` label, skips drafts, arms
 auto-merge on every one of them, and names anything that is conflicted or failing. That is the whole
@@ -627,6 +654,23 @@ the right answer, and the two must not be conflated: one is a queue for calef's 
 is a fact about two branches.
 
 ## BUGS
+
+**The event lines start from the day they landed, and the 3,355 passes before it cannot be
+backfilled.** The old log holds snapshots only, so the drain's action count begins on 2026-09-23 and
+any comparison across that boundary is between two different measurements.
+
+**`ARMED` counts what the DRAIN did, which is not the same as what happened to the queue.** A pull
+request a person armed by hand is already armed when the next pass begins, so the pass stays silent
+and no line records the arming at all. That is the right behaviour for the question the line exists
+to answer and the wrong one for "how did this pull request get into the queue". The queue's own
+timeline on the pull request is the record for the second question.
+
+**And this log can only ever say what the machinery did, never what a person did.** An action absent
+from it is ambiguous between "the drain did not do this" and "somebody did it by hand", and the
+ambiguity is worst exactly when it matters, which is when something unexpected happened. Closing
+that needs distinct GitHub identities rather than a better log; the proposal is
+[design/roadmap/proposals/who-took-the-step.md](../design/roadmap/proposals/who-took-the-step.md)
+(name provisional) and it is calef's call.
 
 **A branch in the merge queue cannot be pushed to, and the error names the fix without naming the
 cost.** `git push` is rejected with `GH006: Protected branch update failed ... Branches that are

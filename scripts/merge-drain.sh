@@ -166,7 +166,7 @@ dequeue_held() {
 			# Only speak when something actually moved. A held pull request that was never queued is
 			# the common case and saying so every five minutes is how a watcher gets muted.
 			if [ "$after" -gt "$before" ]; then
-				echo "$ME: dequeued #$num ($why arrived after it was enqueued): $title"
+				echo "$ME: DEQUEUED #$num ($why arrived after it was enqueued): $title"
 			fi
 		done
 }
@@ -184,7 +184,7 @@ dequeue_held() {
 # GitHub retargets it to `main` when its base branch merges and is deleted, which is when it is armed.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" '
 			[ .[]
 			  | select(.isDraft == false)
@@ -333,6 +333,49 @@ blocked_by() {
 	printf '%s' "$1" | sed -n 's/.*[Bb]locked-by:[[:space:]]*#\([0-9][0-9]*\).*/\1/p' | head -1
 }
 
+# The numbers currently IN the merge queue. One call, asked once per pass and reused, because
+# `mergeQueue.entries` is the only thing that knows about a pull request whose arming has already
+# become membership. See the verification block in `pass` for why neither field alone covers both
+# shapes of "armed".
+queued_numbers() {
+	gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){mergeQueue{entries(first:50){nodes{pullRequest{number}}}}}}' \
+		--jq '.data.repository.mergeQueue.entries.nodes[].pullRequest.number' 2>/dev/null
+}
+
+# # This log has two kinds of line, and only one of them can be counted
+#
+# **A snapshot answers "what is true now"; an event answers "what happened".** Every line this
+# script printed until 2026-09-23 was a snapshot, and the summary line is the clearest case:
+# `10 armed, 7 stalled, of 17 unheld` is the state of the queue at the end of one pass, so summing
+# it across passes double counts every pull request that was still armed on the next pass. With
+# 3,355 passes on record in `~/Library/Logs/nife/merge-drain.log`, the question calef asked on
+# 2026-09-23 -- how often does the drain act, as against him prompting a maintainer -- could not be
+# answered from any of them. The `STALLED.` lines have the same defect: a stall that persists is
+# re-detected and re-printed every pass, which is exactly why `notify` deduplicates the pull
+# request comment and the log line does not.
+#
+# **This tree has made the same mistake once before and the correction is already written down**,
+# so it is cited rather than re-argued: `script/metrics`' `built_by_week` and the "The only flow on
+# this page" section of notes/project-metrics.md. A stock read late is merely stale; a flow read
+# late lands in the wrong bucket.
+#
+# So two event lines are added, and both are named in capitals in the family of `STALLED.` so the
+# log stays greppable by one pattern per kind:
+#
+#     merge-drain: ARMED #N ...        this pass put #N into the queue, or armed it to enter
+#     merge-drain: DEQUEUED #N ...     this pass took #N back out
+#
+# **What makes them events rather than snapshots is the suppression, not the wording.** Arming is
+# idempotent and is attempted on every eligible pull request on every pass, so printing on every
+# successful call would reproduce the summary line's defect with a new name on it. `ARMED` is
+# therefore printed only where the pull request was *not* already armed when the pass began, which
+# is what `armed_before` is for; a pull request armed on Monday and still queued on Tuesday
+# contributes exactly one `ARMED` line. `DEQUEUED` already had this property and only needed the
+# name: it prints only when the `removed_from_merge_queue` count actually moved.
+#
+# The summary line stays. It answers a question the events cannot ("is anything stuck right now"),
+# and it is what the examples in notes/merge-queue.md show.
+#
 # Arming is one API call and changes nothing until the checks pass, so every eligible pull request
 # is armed on every pass. Under the merge queue that is the whole job: an armed pull request enters
 # the queue when its checks go green, and the queue lands them one at a time against the tip.
@@ -354,6 +397,11 @@ pass() {
 		echo "$ME: queue empty; nothing open that does not need calef"
 		return 1
 	fi
+
+	# What was ALREADY armed when this pass began. Both shapes, because the pull request object
+	# reports a null `autoMergeRequest` once arming has become queue membership. This is the
+	# baseline the `ARMED` event is printed against; see the events comment above `pass`.
+	armed_before=" $(printf '%s' "$q" | jq -r '.[] | select(.autoMergeRequest != null) | .number' 2>/dev/null | tr '\n' ' ')$(queued_numbers | tr '\n' ' ')"
 
 	armed=0
 	stalled=0
@@ -452,20 +500,36 @@ pass() {
 	# that produced the bug above one level along: the obvious field looks authoritative and is
 	# not. `mergeQueue.entries` is the only thing that knows about the second shape, and it is
 	# asked once per pass rather than once per pull request.
-	queued=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){mergeQueue{entries(first:50){nodes{pullRequest{number}}}}}}' \
-		--jq '.data.repository.mergeQueue.entries.nodes[].pullRequest.number' 2>/dev/null)
+	queued=$(queued_numbers)
 	for num in $attempted; do
 		if printf '%s\n' "$queued" | grep -qx "$num"; then
-			armed=$((armed + 1))
+			now_armed=1
 		elif [ "$(gh pr view "$num" --repo "$REPO" --json autoMergeRequest \
 			-q '.autoMergeRequest != null' 2>/dev/null)" = "true" ]; then
-			armed=$((armed + 1))
+			now_armed=1
 		else
+			now_armed=0
+		fi
+
+		if [ "$now_armed" = "0" ]; then
 			msg="$ME: STALLED. #$num took the call but is neither queued nor armed"
 			echo "$msg"
 			notify "$num" "merge-drain:not-armed" "$msg"
 			stalled=$((stalled + 1))
+			continue
 		fi
+
+		armed=$((armed + 1))
+
+		# The event, and the `case` is what keeps it one. A pull request armed on an earlier pass
+		# is armed again on this one, harmlessly and by design, so only the transition is printed.
+		case " $armed_before " in
+		*" $num "*) ;;
+		*)
+			title=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .title')
+			echo "$ME: ARMED #$num ($title)"
+			;;
+		esac
 	done
 
 	echo "$ME: $armed armed, $stalled stalled, of $n unheld"
