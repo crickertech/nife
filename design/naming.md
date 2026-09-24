@@ -839,13 +839,24 @@ the tracked custom target JSON (`aarch64-unknown-nife.json`). Nothing enforces t
 
 ## Where a document goes
 
-Three places, and the distinction is what the document is *for*, not what it is about.
+Four places, and the distinction is what the document is *for*, not what it is about.
 
 | | holds | shape |
 |---|---|---|
 | `design/` | the option space, before a decision | "here are four answers and three are bad" |
 | `design/decisions/` | the decision, and the argument that settled it | numbered `§N`, append-only |
+| `design/tenets/` | why a rule in `AGENTS.md` holds | one file per theme, linked from the rule |
 | `notes/` | what exists, and what building it taught us | a running glossary, indexed in `notes/README.md` |
+
+**`design/tenets/` was ratified by calef on 2026-09-24 (UTC)**, directory and filenames, when
+`AGENTS.md` was split into rules plus appendices. The reason that survived scrutiny is that a tenet
+gets cited on its own rather than only as `AGENTS.md`'s footnote, which makes it an argument about
+how to work and puts it beside the option space it reasons over. `notes/` was refused: a note
+records what exists and what building it taught us, and a tenet records neither. The first argument
+offered for `design/`, that thirteen rows would crowd `notes/README.md`, was refused with it:
+`script/lint` reads `notes/*.md` without recursing, so a `notes/tenets/` subdirectory would have
+cost that index nothing. The directory's own README carries the block, per §75 (carry provenance in
+their own README).
 
 `design/roadmap/` is the exception that proves the split: it lives in `design/` because a milestone
 block is an argument for doing something, not a record of having done it, even after the milestone

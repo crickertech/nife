@@ -4,8 +4,13 @@
 the anecdotes, the failures that produced a rule and the dates they were learned. Every one of them
 is linked from the rule it explains, and a reader who only needs to act never has to open one.
 
-*The directory name `tenets` is provisional (2026-09-23, UTC); calef ratifies it, like every other
-name in this tree.*
+*Name: ratified 2026-09-24 (calef, `design/naming.md`'s "Where a document goes"). A tenet gets
+cited on its own, by the code and the notes that live under it, rather than only as `AGENTS.md`'s
+footnote, so it belongs in `design/` beside the option space and the decisions. Refused `notes/`
+(a note records what exists and what building it taught us; a tenet is an argument for how to work,
+which is what `design/` holds), and refused the reason first offered for `design/`, that thirteen
+rows would crowd the glossary index: `script/lint` reads `notes/*.md` without recursing, so a
+`notes/tenets/` subdirectory would have cost that index nothing and the argument was never real.*
 
 | appendix | what it explains |
 |---|---|
