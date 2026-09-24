@@ -222,6 +222,9 @@ const fn all_distinct_names(names: &[&str]) -> bool {
     true
 }
 
+/// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+/// (design/naming/boolean-predicates-worklist.md). It does not yet follow the Rust predicate rule
+/// calef ratified 2026-09-24; recommended `bytes_eq`, because std's `ptr_eq` and `addr_eq` shape.
 const fn same_bytes(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;

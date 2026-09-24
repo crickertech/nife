@@ -389,6 +389,11 @@ pub fn confirm() {
 
 /// Print what is about to be destroyed and read the answer. `true` only for exactly
 /// [`CONFIRMATION`].
+///
+/// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+/// (design/naming/boolean-predicates-worklist.md). It acts, so the Rust predicate rule calef
+/// ratified 2026-09-24 exempts it, but it is a participle that reads as a question, on a function
+/// that prompts and reads the reply; recommended `ask_to_confirm`.
 fn asked(size_bytes: u64) -> bool {
     crate::println!("  install     : this system was booted from a file and can install itself.");
     crate::println!(

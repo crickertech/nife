@@ -107,6 +107,11 @@ names inside one crate or program, so each is cheap to change later.
 
 If calef says no to any of these, the name stays as it is and this table records the refusal.
 
+Each of these, and `removed` and `asked` below, carries a `/// Name: provisional` marker naming the
+recommendation, so it queues on `script/names --unratified` with every other unratified name
+(calef's standing direction, 2026-09-24). The std overlay's `no_capability` carries one too and
+does not show: `script/names` skips `patches/` on purpose, so that entry is visible only here.
+
 ## Fits as written
 
 A finite verb or a quantifier already says "this is a question" (see
