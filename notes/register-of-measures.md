@@ -575,7 +575,8 @@ this page already asks for `names_no_block` in the weeks before naming provenanc
 
 **That backfill was lost for two days and restored 2026-09-23.** The `unsafe_trust_*` columns
 above landed on `main` at 2026-09-20 23:30 (`3764a78d3`) with the ten weeks above already backfilled,
-matching this section's own numbers. The next commit to touch `weekly.csv`
+matching this section's own numbers. `weekly.csv` was then the single series file; milestone 581
+(one metrics file per measure) has since retired it. The next commit to touch `weekly.csv`
 (`6e8934474`, "Rebuild the weekly series after the merge", 2026-09-21) was resolving a conflict
 between two branches that had each added columns to the same file, and its message says the plan
 was to restore its own branch's cost columns and "let `script/metrics` add the trust-boundary
