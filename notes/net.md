@@ -3,7 +3,8 @@
 Milestone 30 is three pieces in order: multi-queue transport confinement, a userspace virtio-net
 driver behind it, and a TCP/IP stack (smoltcp) in a net server speaking a capability-shaped socket
 contract. This note records what is built, the prior art read before drawing the contract, the
-contract proposal (a design fork left for calef), the smoltcp pin, and the remaining work.
+socket contract, whose design fork DECISIONS §25 (socket identity) resolved, the smoltcp pin, and
+the remaining work.
 
 ## Piece 1: multi-queue confinement (built, both ISAs)
 
@@ -226,7 +227,7 @@ built.
 
 ## smoltcp: the pin, and a corrected assumption
 
-**Pin: smoltcp 0.13.1** (current on crates.io at 2026-07-28), `default-features = false`. Features
+**Pin: smoltcp 0.14.0**, bumped from 0.13.1 (current on crates.io at 2026-07-28) on 2026-08-24 in `b41b5b4b8`, `default-features = false`. Features
 to enable: `proto-ipv4`, `proto-dhcpv4`, `socket-tcp`, `socket-udp`, `medium-ethernet`. Divergence
 policy is the vendored-engine discipline (DECISIONS §18 point 3, and the RedoxFS pin): pin the
 version, carry any patch as a recorded diff, note the reason. No patch is known to be needed yet;

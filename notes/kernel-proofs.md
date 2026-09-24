@@ -57,9 +57,10 @@ will actually meet it.
    **This was written as "all of `kernel/src/arch/`" and that was too strong** (milestone 255,
    2026-09-04). The boundary is `asm!` and MMIO, not the directory: 4,004 of `arch/`'s 16,225 lines
    are in files containing no `asm!` at all, and `arch/aarch64/iommu.rs` is now proved in place. The
-   architecture layer is still overwhelmingly unverified, and the VisionFive 2's undelivered-wake
-   defect is still on the far side of this line, but "unreachable by construction" was a claim about
-   a directory and the truth is a claim about two constructs.
+   architecture layer is still overwhelmingly unverified, and the timer re-arm drift is still on the
+   far side of this line, but "unreachable by construction" was a claim about a directory and the
+   truth is a claim about two constructs. (This paragraph named the VisionFive 2 undelivered wake
+   until 2026-09-24; BUGS below records why that reading is retracted.)
 3. **Two thirds of `kernel/src/arch/` is not compiled at all, and this is a `cfg` rather than a
    construct** (milestone 304, 2026-09-16). `arch/mod.rs` selects its subtree with
    `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one

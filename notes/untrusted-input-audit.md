@@ -241,8 +241,12 @@ read never happened: the responder landed, fed nothing but the QEMU gate's injec
 retired with the crate. The clearance above is therefore a record of a crate at `32f835a1`, not a
 statement about anything on `main`, and the table under "What was examined" lists it for the same
 reason. A future DNS parser, unicast or multicast, gets a fresh read rather than inheriting this
-one; the code this cleared is at commit `0652c981` (notes/mdns.md). The NVMe finding and the
-credential clearance are unaffected.
+one; the code this cleared is at commit `0652c981` (notes/mdns.md). The NVMe finding is unaffected.
+
+The NTLM half of the credential clearance is history too, and this section missed it when it was
+written. `crates/ntlm` and the NTLM path through `crates/credentialer` were removed on 2026-08-30
+with the SMB implementation, their only consumer (notes/ntlm.md, last held at `685900ec`). The
+password half, Argon2id behind `verify::VERIFY`, still ships, and its clearance stands.
 
 ## What wants a lane
 
