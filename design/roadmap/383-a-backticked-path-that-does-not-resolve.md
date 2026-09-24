@@ -111,6 +111,49 @@ by a macro or reached through a re-export, which is a BUGS line for the check ra
 not to write it. Nothing was fixed from the 122; they want classifying first, by status, as the
 rename procedure says.
 
+## The directory half, which a drawer rename walks into
+
+*Added 2026-09-24 by a maintainer-delegated lane, from rebasing #1194 (`scripts/` becomes
+`helpers/`).*
+
+**A directory rename is the one change that makes every old-spelling path wrong at once, and it
+cannot be finished by the branch that does it.** #1194 swept 665 references and was rebased three
+times in one day. Each rebase found new `scripts/` paths that had landed on `main` in the meantime,
+from pull requests that never conflicted with the rename: 11 after the first rebase, 2 more after
+#1172 and #1202. At the third, five pull requests already in the merge queue ahead of it added about
+32 more lines naming `scripts/` (#1208, #1210, #1200, #1203, #1209). Nothing fails in either order.
+If the rename lands first, those paths ship dead. If it lands last, only a manual re-enumeration
+catches them, and the only thing that prompts one is somebody remembering to. #1194 was dequeued by
+hand to wait for them, which is rung zero.
+
+**The merge queue is what makes this check worth more than it looks.** `script/lint` runs in every
+group build (`merge_group` in `.github/workflows/ci.yml`), and a group build is the one place the
+rename and a late reference meet on the same tree. So a path check there fails whichever of the two
+lands second, in either order, with no one remembering anything.
+
+Three things this adds to the design above:
+
+- **Derive the rooted directories from the tree when the check runs, and do not list them.** The
+  list under "What it would check" names `script/` and not `scripts/`, `briefs/`, `.github/`,
+  `packages/` or `tools/`. A hard-coded list is the one-spelling trap again. A rename's old spelling
+  drops out of scope the moment the directory is gone, so the check goes quiet on exactly the paths a
+  rename strands. Treat a path as rooted if its first segment is a top-level directory now, *or* was
+  one in history (`git log --diff-filter=D --name-only` at the root, or a short list of retired roots,
+  each with a reason). The second clause is what lets it see `scripts/`.
+- **Not only markdown.** The rename's own enumeration found ten bare-string forms a path grep
+  misses: `sys.path.insert(0, 'scripts')`, a `pathlib.Path('scripts')` glob, `os.path.join(...,
+  "scripts")` in `script/names`, and `script/fatal-risks`' `PATHISH` alternation. It also found paths
+  in shell comments and in `.cargo/config.toml`. The Python and shell forms fail at run time, and
+  some only on a path nobody exercises. Comments and TOML never fail at all. So the check should read
+  backticked paths in code comments as well as in `.md` files. The string forms can stay with the
+  run-time failure they already have.
+- **The escape list's first entries are the rename's deliberate survivors.** #1194 kept 32 mentions
+  of `scripts/` on purpose: captured transcripts, passages whose subject is the `script`/`scripts`
+  confusion, dated census rows, and the prose recording the rename. That set was worked out by hand
+  three times, once per rebase, by diffing the enumeration against the previous pass. Holding it in
+  an allow-list with a reason per entry is exactly what would have made the second and third passes
+  mechanical.
+
 ## Index row
 
 262 citations in `notes/` pointed at a crate, a file or a Rust path that had been renamed away, and
