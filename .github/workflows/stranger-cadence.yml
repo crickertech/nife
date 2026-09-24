@@ -74,8 +74,9 @@ jobs:
             echo
             echo 'To resolve it, deliberately: read `notes/stranger-test.md` for the rubric and what'
             echo 'the previous runs cost and found, run `script/stranger-test --commit origin/main`'
-            echo 'on a machine with the toolchain, score the debrief against the rubric, and land a'
-            echo '`### Run <n>, <date>:` section under `## Runs` with what it found. Route what it'
+            echo 'on a machine with the toolchain, score the debrief against the rubric, write the run'
+            echo 'up as an appendix under `notes/stranger-test/`, and land a `### Run <n>, <date>:`'
+            echo 'heading under `## Runs` that summarises and links it. Route what it'
             echo 'finds into `BUGS` sections and roadmap handoffs rather than fixing it in the same'
             echo 'lane: a run that stops to fix things stops measuring.'
             echo
