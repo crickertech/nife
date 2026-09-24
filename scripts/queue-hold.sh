@@ -75,6 +75,14 @@
 #     nothing will release; the recovery list is in briefs/main-is-red.md, and it is one `release`.
 #     An unreleased hold is visible (the label, and `scripts/merge-drain.sh` reporting fewer unheld
 #     pull requests than there are open ones) but nothing announces it.
+#   - **A hold only holds because `scripts/merge-drain.sh` agrees to honour the label.** That is a
+#     coupling between two scripts and nothing enforces it: the drain runs unattended under `launchd`
+#     every 300 seconds, and until 2026-09-23 it re-enqueued everything held here, three times in one
+#     evening, invisibly (a dequeue leaves no trace of why an entry returned). Its admission policy
+#     now excludes `held-for-red-trunk` alongside `needs-architect`. **A drain running from a
+#     checkout older than that change will still undo a hold within five minutes**; stop it by hand
+#     (`launchctl unload ~/Library/LaunchAgents/com.nife.merge-drain.plist`) and reload it on
+#     release. briefs/main-is-red.md carries both commands.
 #   - **`gh pr list --label` reads a search index that lags the label write.** In the 2026-09-23
 #     rehearsal a `release --dry-run` run seconds after a label was added listed one held pull
 #     request where the real `release` a moment later found two. So `status` immediately after

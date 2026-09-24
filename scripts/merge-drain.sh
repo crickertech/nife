@@ -37,10 +37,11 @@
 # Two duties survive, and neither is something the platform knows:
 #
 #   - **The admission policy.** The queue merges what is enqueued; something has to decide what gets
-#     enqueued. Drafts are not asking to be merged, and `needs-architect` means the work is outside
-#     standing merge authority: it touches the syscall surface, adds a dependency, or owes a
-#     `DECISIONS` section. CLAUDE.md describes the label and the `## What I need from you` comment
-#     that goes with it.
+#     enqueued. Drafts are not asking to be merged; `needs-architect` means the work is outside
+#     standing merge authority (it touches the syscall surface, adds a dependency, or owes a
+#     `DECISIONS` section); and `held-for-red-trunk` means the trunk is broken and one fix is landing
+#     alone. CLAUDE.md describes the first label and the `## What I need from you` comment that goes
+#     with it; notes/main-is-red.md describes the second.
 #   - **Saying what stalled.** A queue never resolves a conflict (two were resolved by hand on
 #     2026-08-16), and a pull request whose checks fail is ejected rather than fixed. Both need a
 #     person, so both are reported and neither is retried.
@@ -85,6 +86,18 @@ HELD_LABEL="needs-architect"
 # changed with the instance would let two drains each post the same stall once.
 INSTANCE="${MERGE_DRAIN_INSTANCE:-$(hostname -s 2>/dev/null || echo unknown)}"
 ME="merge-drain[$INSTANCE]"
+
+# **A second hold, and it is a hold on the whole queue rather than on one pull request.**
+# `held-for-red-trunk` is placed by `scripts/queue-hold.sh` while `main` is broken, so that one fix
+# lands alone against a trunk nothing else is racing. This script had to learn it, and the way it
+# learned is the point: on 2026-09-23 the drain re-enqueued a held set **three times** while an
+# operator watched, because it runs under `launchd` with `StartInterval 300` and its admission
+# policy excluded exactly two things, drafts and `needs-architect`. A hold therefore survived five
+# minutes at most, and the failure was invisible in the worst way: a dequeue leaves no trace of why
+# an entry came back, so the operator concluded their own dequeue had failed and misdiagnosed it
+# twice. The two labels mean different things (one pull request needs calef; the trunk needs
+# everybody to stop) and behave identically here, which is why they are two names and one policy.
+RED_TRUNK_LABEL="held-for-red-trunk"
 once=""
 [ "$1" = "--once" ] && once=1
 
@@ -131,9 +144,13 @@ fi
 # work.
 dequeue_held() {
 	gh pr list --repo "$REPO" --state open 		--json number,labels,title 2>/dev/null |
-		jq -r --arg L "$HELD_LABEL" '
-			.[] | select((.labels | map(.name) | index($L))) | "\(.number)\t\(.title)"' 2>/dev/null |
-		while IFS="$(printf '\t')" read -r num title; do
+		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" '
+			.[]
+			| (.labels | map(.name)) as $names
+			| ([$L, $R] | map(select(. as $l | $names | index($l))) | first) as $why
+			| select($why != null)
+			| "\(.number)\t\($why)\t\(.title)"' 2>/dev/null |
+		while IFS="$(printf '\t')" read -r num why title; do
 			[ -n "$num" ] || continue
 			# `dequeuePullRequest` is a no-op on a pull request that is not queued, so this needs no
 			# membership test: asking is cheaper than checking, and the check would race anyway.
@@ -149,12 +166,13 @@ dequeue_held() {
 			# Only speak when something actually moved. A held pull request that was never queued is
 			# the common case and saying so every five minutes is how a watcher gets muted.
 			if [ "$after" -gt "$before" ]; then
-				echo "$ME: dequeued #$num ($HELD_LABEL arrived after it was enqueued): $title"
+				echo "$ME: dequeued #$num ($why arrived after it was enqueued): $title"
 			fi
 		done
 }
 
 # The unheld queue, lowest number first. Drafts are excluded: a draft is not asking to be merged.
+# Both hold labels are excluded, for the reasons beside their definitions above.
 #
 # **And only pull requests into `main`.** A pull request stacked on another's branch (the pattern a
 # maintainer uses so a follow-up can be reviewed before its base lands) targets a lane branch, which
@@ -167,11 +185,12 @@ dequeue_held() {
 queue() {
 	gh pr list --repo "$REPO" --state open \
 		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName 2>/dev/null |
-		jq -r --arg L "$HELD_LABEL" '
+		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" '
 			[ .[]
 			  | select(.isDraft == false)
 			  | select(.baseRefName == "main")
-			  | select((.labels | map(.name) | index($L)) | not) ]
+			  | select((.labels | map(.name) | index($L)) | not)
+			  | select((.labels | map(.name) | index($R)) | not) ]
 			| sort_by(.number)' 2>/dev/null || echo '[]'
 }
 

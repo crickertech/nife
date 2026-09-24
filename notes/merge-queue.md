@@ -47,6 +47,11 @@ auto-merge on every one of them, and names anything that is conflicted or failin
 script. Arming is one API call that changes nothing until the checks pass, so there is no reason to
 ration it, and an armed pull request enters GitHub's merge queue on its own when it goes green.
 
+**It never merges anything labelled `held-for-red-trunk` either**, added 2026-09-23 after it
+re-enqueued a held set three times in one evening: that label means `main` is broken and one fix is
+landing alone, which is a reason about the queue rather than about a pull request, and the drain's
+admission policy had no way to express one. See [notes/main-is-red.md](main-is-red.md).
+
 **It never merges anything labelled `needs-architect`**, which is the one policy the platform does
 not know. That label means the work is outside standing merge authority: it touches the syscall
 surface, adds a dependency, or owes a `DECISIONS` section.

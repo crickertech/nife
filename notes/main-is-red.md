@@ -26,6 +26,8 @@ a chat message. All three of those are the failure this note records.
 
 ## The four things that fail, with dates
 
+(There is a fifth below, found the same evening and ours rather than GitHub's.)
+
 Each of these is why a step of the procedure exists, and every one of them was learned by doing it
 wrong on **2026-09-23** unless another date is given.
 
@@ -58,6 +60,35 @@ wrong on **2026-09-23** unless another date is given.
    `scripts/trunk-health.sh`, which reads the conclusion, said green. Pull request #1168 fixes the
    skip. The durable lesson is the watcher's, and is now in its `BUGS`: **a conclusion is a claim
    about what ran, not about the tree.**
+
+## The fifth thing that fails, and it was ours
+
+**A watcher undid the hold three times, and the hold reported success each time.** Found 2026-09-23
+by watching the live queue refill. `scripts/merge-drain.sh` runs under `launchd` with
+`StartInterval 300`, and its admission policy excluded exactly two things, drafts and
+`needs-architect`. It knew nothing about `held-for-red-trunk`, so every hold survived at most five
+minutes and then quietly came apart.
+
+Two things make this worse than an ordinary bug and worth the space:
+
+- **The evidence points at the wrong thing.** Dequeuing leaves no record of why an entry returned, so
+  a refilled queue reads as the operator's own dequeue having failed. It was misdiagnosed twice
+  before anyone read the drain.
+- **It is the same class as the defect this note already records against `scripts/trunk-health.sh`:**
+  a mechanism whose assumption about its environment quietly stopped being true. The drain's
+  assumption was that the only reason to keep a pull request out of the queue is a label about that
+  pull request. A red trunk is a reason about the queue.
+
+The fix is in the drain rather than beside it, and it lands in both halves of the logic that file
+already has: the enqueue filter, and the 2026-09-18 re-check that dequeues what became held *after*
+admission. That re-check exists because admission was checked once and never re-checked, which is
+this failure one label earlier, so the new label belongs in the same argument.
+
+**The sequencing consequence, until that change is on `main`:** holding the queue requires stopping
+the drain by hand (`launchctl unload ~/Library/LaunchAgents/com.nife.merge-drain.plist`), and
+whoever does that owes the reload afterwards. The brief carries both commands, the reload as part of
+release rather than as a reminder, because a drain left dead is a queue that lands nothing and
+announces nothing.
 
 ## Why the record is a label
 
