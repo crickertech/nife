@@ -212,7 +212,7 @@ static LOCAL_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
 
 /// Where this machine's local APIC is, physically, or `None` if ACPI has not said yet.
 ///
-/// Name: provisional (milestone 161 (the x86_64 kernel port)): `mmu::LOCAL_APIC_PHYS` is the
+/// Name: provisional (milestone 161 (the kernel port)): `mmu::LOCAL_APIC_PHYS` is the
 /// architectural *default* constant and this is what the machine actually reported, which is a
 /// distinction worth a better pair of names than these two.
 pub fn local_apic_phys() -> Option<u64> {
@@ -419,7 +419,7 @@ pub const GSI_VECTOR_BASE: u8 = 0x30;
 /// no controller input and nothing to unmask), so an MSI intid **is** its vector, and the whole
 /// vector-to-intid inversion the trap handler used to owe for a device line never arises.
 ///
-/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing on x86_64)): calef
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing)): calef
 /// names public items.
 pub const MSI_VECTOR_BASE: u8 = 0xc0;
 

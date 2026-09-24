@@ -592,7 +592,7 @@ pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
 /// interrupt translation service.
 /// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
 ///
-/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing on x86_64)), with
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing)), with
 /// [`MsixCap`] and [`msix_cap`]: calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MsiTarget {

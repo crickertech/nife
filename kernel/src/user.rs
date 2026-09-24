@@ -700,7 +700,7 @@ pub fn load(image: &[u8], windowed: u64) -> Result<(AddressSpace, u64), LoadErro
         .map_new(USER_STACK_VA, Flags::user_data())
         .map_err(LoadError::Unmappable)?;
 
-    // The timebase page, from milestone 161 (the x86_64 kernel port) and its `cntfrq` follow-up,
+    // The timebase page, from milestone 161 (the kernel port) and its `cntfrq` follow-up,
     // widened to riscv64 on 2026-09-21: the
     // one number `user_mode_runtime::now()` needs on an architecture with no `CNTFRQ_EL0` to read it
     // from. `x86_64` measures it; `riscv64` reads it out of the device tree, which is privileged
