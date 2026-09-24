@@ -46,10 +46,10 @@ mod package;
 mod rollback;
 mod scanout;
 mod screen;
-mod swish_check;
 mod soak;
 mod stick;
 mod suite;
+mod swish_check;
 mod uefi;
 
 use crate::archive::{initrd_aarch64, initrd_riscv, initrd_x86};
@@ -62,9 +62,9 @@ use crate::host::cargo;
 use crate::icount::icount;
 use crate::inspect::{gdb, image, objdump};
 use crate::manual::{manual_store, tree_apropos};
-use crate::swish_check::swish_check;
 use crate::soak::{job_mix_sweep, soak_test};
 use crate::suite::{test, undefined_behavior_check};
+use crate::swish_check::swish_check;
 use crate::uefi::{uefi_boot, uefi_image, uefi_test};
 
 const TARGET: &str = "aarch64-unknown-none-softfloat";
