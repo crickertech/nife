@@ -87,6 +87,43 @@ else
     esac
 fi
 
+# Python 3 and the GitHub CLI. Neither was checked here until 2026-09-24, when calef asked whether
+# this script installs everything and the answer was no. `script/lint` runs six embedded Python
+# programs and about thirty files in script/ and scripts/ call python3, as does the Claude Code Stop
+# hook in .claude/settings.json; a machine without it fails the first gate with a bare "not found".
+# `gh` is how a lane claims work (script/claim opens the draft pull request that IS the claim, §90)
+# and how the watchers read the queue. macOS ships a python3 stub that prompts for the Command Line
+# Tools, which works but is not a check, so Homebrew's is installed when none answers.
+# The pinned cargo subcommands (cargo-mutants, cargo-fuzz, cargo-deny, cargo-llvm-cov, Kani) are
+# deliberately not here: each script that needs one installs its own pinned version on first use.
+for tool in python3 gh; do
+    if command -v "$tool" >/dev/null 2>&1 && "$tool" --version >/dev/null 2>&1; then
+        echo "==> $tool present: $("$tool" --version 2>&1 | head -1)"
+        continue
+    fi
+    echo "==> Installing $tool"
+    case "$os" in
+    Darwin)
+        if ! command -v brew >/dev/null 2>&1; then
+            echo "bootstrap: Homebrew not found; install it from https://brew.sh, then re-run." >&2
+            exit 1
+        fi
+        if [ "$tool" = python3 ]; then brew install python; else brew install gh; fi
+        ;;
+    Linux)
+        sudo apt-get update
+        sudo apt-get install -y "$tool"
+        ;;
+    *)
+        echo "bootstrap: unknown OS '$os'; install $tool by hand." >&2
+        exit 1
+        ;;
+    esac
+done
+if ! gh auth status >/dev/null 2>&1; then
+    echo "==> gh is not signed in. Claiming work needs it: run 'gh auth login'."
+fi
+
 # ShellCheck, for the 23 `#!/bin/sh` scripts in script/ and scripts/. Worth a dependency because of
 # where this project runs: macOS `/bin/sh` is bash in POSIX mode and Ubuntu CI's is dash, so a
 # bashism works on a dev machine and fails on a runner. ShellCheck knows the difference and says so.
