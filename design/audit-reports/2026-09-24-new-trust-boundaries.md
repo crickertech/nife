@@ -141,7 +141,7 @@ lane. A missing field is refused, so a consumer that stops asking `gh` for it fa
 ### 2. MINTED: the platform does not require a review, and the App's secrets reach a merge group
 
 Finding 1's fix is a script, which is rung two. The rung above is a repository setting, and every
-setting is calef's. The proposal `a-merge-needs-a-review-no-fork-can-supply` prices three:
+setting is calef's. The proposal `a-merge-needs-a-review-no-fork-can-supply`, promoted on 2026-09-24 to milestone 588 (a merge needs a review no fork can supply), prices three:
 requiring one review the App gives to lanes, requiring a click for every outside contributor's
 workflow, and moving the App's secrets into an environment restricted to `main`. It recommends the
 second and third now and offers the first with its cost named. calef adopted the second and third the same day: the
