@@ -286,7 +286,7 @@ impl<'a> Escape<'a> {
     /// unacknowledged send, once a write has failed, and once the firmware has said there is no
     /// loop. False while waiting for the n-th draw, which is what lets the deadline do its job.
     #[must_use]
-    pub fn finished(&self) -> bool {
+    pub fn is_finished(&self) -> bool {
         match &self.report {
             Report::Confirmed | Report::Failed(_) | Report::NothingToStop => true,
             Report::Sent => self
@@ -585,7 +585,7 @@ mod tests {
         let log = String::from_utf8(log).expect("ASCII");
 
         assert!(matches!(escape.report(), Report::Failed(_)));
-        assert!(escape.finished(), "there is nothing left to wait for");
+        assert!(escape.is_finished(), "there is nothing left to wait for");
         assert!(log.contains("sending the soak escape"));
         assert!(log.contains("the write failed and nothing reached the board"));
         assert!(log.contains("the adapter went away"));
@@ -633,7 +633,7 @@ mod tests {
             .expect("the log is a Vec");
         assert_eq!(*escape.report(), Report::Sent);
         assert!(
-            !escape.finished(),
+            !escape.is_finished(),
             "a send just made is still waiting for its answer"
         );
     }

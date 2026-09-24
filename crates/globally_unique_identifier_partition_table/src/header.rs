@@ -17,7 +17,7 @@
 
 use crate::crc::crc32_pieces;
 use crate::guid::Guid;
-use crate::{Error, block_size_ok};
+use crate::{Error, is_block_size_ok};
 
 /// `EFI PART`, the eight bytes at offset 0 of every GPT header.
 pub const SIGNATURE: [u8; 8] = *b"EFI PART";
@@ -104,7 +104,7 @@ impl Header {
     /// - a header CRC that does not match. Computed the way the spec defines it, over `header_size`
     ///   bytes with the CRC field itself taken as zero.
     pub fn decode(block: &[u8]) -> Result<Header, Error> {
-        if !block_size_ok(block.len()) {
+        if !is_block_size_ok(block.len()) {
             return Err(Error::BlockSize(block.len()));
         }
         if block[at::SIGNATURE..at::SIGNATURE + 8] != SIGNATURE {
@@ -165,7 +165,7 @@ impl Header {
     /// hold. The block is zeroed rather than overwritten in place because the reserved tail must be
     /// zero and a caller handing us a buffer with a previous header in it is the normal case.
     pub fn encode_into(&self, block: &mut [u8]) -> Result<(), Error> {
-        if !block_size_ok(block.len()) {
+        if !is_block_size_ok(block.len()) {
             return Err(Error::BlockSize(block.len()));
         }
         self.encode_fields(block);

@@ -118,7 +118,7 @@ pub enum Quote {
 ///     }
 /// }
 /// assert!(!redirects);
-/// assert!(!c.open(), "the quote was closed");
+/// assert!(!c.is_open(), "the quote was closed");
 /// ```
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cursor {
@@ -159,7 +159,7 @@ impl Cursor {
     ///
     /// A whitespace byte never changes this state, so a scanner skipping whitespace can consult
     /// this instead of stepping, which is what [`crate::tokenize`] does.
-    pub fn open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         self.quote != Quote::Bare
     }
 }
@@ -239,7 +239,7 @@ pub fn span(line: &[u8], i: usize, stop: &dyn Fn(u8) -> bool) -> usize {
     let mut c = Cursor::new();
     let mut j = i;
     while j < line.len() {
-        if !c.open() && stop(line[j]) {
+        if !c.is_open() && stop(line[j]) {
             break;
         }
         c.step(line[j]);
@@ -315,7 +315,7 @@ mod tests {
         }
         // `a` and `c` are bare; the quotes and the `b` between them are not.
         assert_eq!(bare, [true, false, false, false, true]);
-        assert!(!c.open());
+        assert!(!c.is_open());
     }
 
     #[test]

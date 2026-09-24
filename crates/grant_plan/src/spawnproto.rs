@@ -198,7 +198,7 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
 /// separate questions of the same word.
 pub fn wiring(w2: u64) -> Wiring {
     Wiring {
-        interruptible: interruptible(w2),
+        interruptible: is_interruptible(w2),
         sink: w2 & SINK_BIT != 0,
         source: w2 & SOURCE_BIT != 0,
         diagnostics: w2 & DIAG_BIT != 0,
@@ -227,7 +227,7 @@ pub fn mem_pages(w2: u64) -> u64 {
 /// Whether this is a supervised foreground job (word 2's high bit). When set, the delegation leads
 /// with two caps: a job untyped (the progenitor builds the child from it; the shell keeps it to `DESTROY`) and
 /// a shared job frame (the cooperative interrupt flag and the child's status).
-pub fn interruptible(w2: u64) -> bool {
+pub fn is_interruptible(w2: u64) -> bool {
     w2 & INTERRUPTIBLE_BIT != 0
 }
 
@@ -317,7 +317,7 @@ mod tests {
             },
         );
         assert_eq!(mem_pages(w2), 0);
-        assert!(interruptible(w2));
+        assert!(is_interruptible(w2));
     }
 
     #[test]

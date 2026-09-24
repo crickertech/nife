@@ -88,9 +88,9 @@ These are four shapes no dump can produce. Three fixtures are new (`many-harts`,
   bindings require the property, so two bytes of it is a malformed tree with no correct reading.
   What there is, is a decoder that must not read the two bytes after it. All three guards were
   alive under `true`.
-- Eighteen cores. `CpuList::truncated` was alive as a constant `false` and under `<` for `>`. No
-  fixture in the tree overflows sixteen slots. So a predicate no caller could rely on was passing
-  a test that asserted it on a seven-core machine.
+- Eighteen cores. `CpuList::truncated` (now `is_truncated`) was alive as a constant `false` and
+  under `<` for `>`. No fixture in the tree overflows sixteen slots. So a predicate no caller could
+  rely on was passing a test that asserted it on a seven-core machine.
 - A `/psci` node stating only `method`. `method.is_none() && cpu_on.is_none() &&
   compatible.is_none()` was alive under `||` at both positions. `can_start_a_core` was alive as a
   constant `true` and under `||`. All four are the gap between "no PSCI node" (which

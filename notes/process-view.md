@@ -254,8 +254,8 @@ tests size it at eight.
 
 A compile-time assertion in the kernel's survey tests keeps `ps::MAX_ROWS` at least as large as
 `sched::MAX_THREADS`, so the shipped program has no truncation case. A caller with a shorter buffer
-does, and it is **not silent**: `Survey::complete` is false, nothing is printed, and diagnostics say
-the domain has more in it. Same rule as the refusal: a monitor never reports less than it saw
+does, and it is **not silent**: `Survey::is_complete` is false, nothing is printed, and diagnostics
+say the domain has more in it. Same rule as the refusal: a monitor never reports less than it saw
 without saying so.
 
 ## Where it comes from at the prompt

@@ -130,7 +130,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     // The summary goes out only when the table does. A summary above a refusal would be a count of
     // rows this program is about to decline to print, which is the "plausible listing of nothing"
     // `ps::Survey::write_report` refuses for the same reason.
-    if found.complete() && !found.rows().is_empty() {
+    if found.is_complete() && !found.rows().is_empty() {
         top::write_summary(found.rows(), monotonic_nanos(), &mut |bytes| {
             write_on(REPORT, bytes);
         });

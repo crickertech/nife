@@ -402,7 +402,7 @@ impl Nav {
     /// so an `Up` past the root and a path deeper than the shell tracks are already refused with
     /// nothing sent; the only failure left is the server's.
     fn walk(&mut self, p: &nav::Path<'_>) -> Result<Walk, Say> {
-        self.walk_steps(p.from_root(), p.steps())
+        self.walk_steps(p.is_from_root(), p.steps())
     }
 
     /// [`Nav::walk`] with the lead of a path rather than the whole of it: the same walk, stopping
@@ -533,7 +533,7 @@ impl Nav {
     /// switch: a shell with nothing bound behaves byte for byte as before this existed.
     fn plan_path<'a>(&self, token: &'a [u8]) -> Result<(nav::Path<'a>, Cwd), Say> {
         let p = nav::path(token).map_err(Say::Refused)?;
-        if p.from_root()
+        if p.is_from_root()
             && let Some(r) = self.binds.resolve_absolute(&p)
         {
             let (_, target) = r.map_err(Say::Refused)?;
@@ -738,7 +738,7 @@ impl Nav {
             // The token ends in `..`, so it designates a directory rather than a name in one.
             return Say::Refused(Refused::NotAName);
         };
-        let w = match self.walk_steps(p.from_root(), lead) {
+        let w = match self.walk_steps(p.is_from_root(), lead) {
             Ok(w) => w,
             Err(s) => return s,
         };
@@ -770,7 +770,7 @@ impl Nav {
         let Some((lead, pattern)) = p.split_last_component() else {
             return Err(Say::Refused(Refused::NotAName));
         };
-        let w = self.walk_steps(p.from_root(), lead)?;
+        let w = self.walk_steps(p.is_from_root(), lead)?;
 
         // **The batched and unbatched expanders decide membership identically**, which is why the
         // sweep is a policy on this one function rather than a second path: `xargs rm *.txt` and
@@ -1549,7 +1549,7 @@ fn xargs(nav: &mut Nav, tail: &[u8]) {
         dispatch(nav, tail);
         let batching = nav.batching;
         nav.batching = Batching::default();
-        if !current().ok() {
+        if !current().is_ok() {
             sweep.stop();
             break;
         }
@@ -3665,7 +3665,7 @@ fn opened(nav: &Nav, name: &[u8]) -> Option<u64> {
 fn opened_token(nav: &mut Nav, token: &[u8]) -> Option<u64> {
     let (p, _) = nav.plan_path(token).ok()?;
     let (lead, name) = p.split_last_component()?;
-    let w = nav.walk_steps(p.from_root(), lead).ok()?;
+    let w = nav.walk_steps(p.is_from_root(), lead).ok()?;
     let r = nav.name_call(fs::OPEN, w.handle, name, 0);
     nav.unwind(&w);
     if r < 0 { None } else { Some(r as u64) }

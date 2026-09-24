@@ -37,7 +37,7 @@
 //! let mut ppm = b"P6\n14 8\n255\n".to_vec();
 //! for y in 0..8 {
 //!     for x in 0..14 {
-//!         let ink = bitmap_font::ink(if x < 7 { 'h' } else { 'i' }, x % 7, y);
+//!         let ink = bitmap_font::is_ink(if x < 7 { 'h' } else { 'i' }, x % 7, y);
 //!         ppm.extend_from_slice(if ink { &[0xc8, 0xc8, 0xc8] } else { &[0, 0, 0] });
 //!     }
 //! }
@@ -148,7 +148,7 @@ fn cell(pixels: &[u8], width: usize, col: usize, row: usize) -> char {
         let matches = seen.iter().enumerate().all(|(y, line)| {
             line.iter()
                 .enumerate()
-                .all(|(x, ink)| *ink == bitmap_font::ink(ch, x as u32, y as u32))
+                .all(|(x, ink)| *ink == bitmap_font::is_ink(ch, x as u32, y as u32))
         });
         if matches {
             return ch;

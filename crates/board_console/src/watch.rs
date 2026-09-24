@@ -348,7 +348,7 @@ where
         // The writing mode's own ending, checked before the settle window and before the quiet
         // timer because it outranks both: a board that has acknowledged the escape has answered
         // the question this session was run to ask.
-        if escape.as_ref().is_some_and(Escape::finished) {
+        if escape.as_ref().is_some_and(Escape::is_finished) {
             outcome = Outcome::Stopped;
             break;
         }
@@ -686,7 +686,7 @@ mod tests {
             session.progress.reached(),
             Stage::Firmware(board::RADON.rung("handoff").expect("radon hands off"))
         );
-        assert!(session.progress.relocated());
+        assert!(session.progress.is_relocated());
     }
 
     /// Sustained watching, which is what `design/fatal-risks.md`'s multicore entry needs: no stage

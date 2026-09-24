@@ -25,7 +25,7 @@
 //! Divergence from Unix is a tax on every user forever, so it has to be forced by the model rather
 //! than chosen. Three are:
 //!
-//! - **`/` is the root of *your* namespace** ([`Path::from_root`]), which is Plan 9's answer and
+//! - **`/` is the root of *your* namespace** ([`Path::is_from_root`]), which is Plan 9's answer and
 //!   not DOS's. There is no global namespace to root a path in, so an absolute path names the one
 //!   root you have: the directory capability you were granted. Two shells both type `/report.txt`
 //!   and open different files, or one of them opens nothing, because the syntax is rooted in what
@@ -131,7 +131,7 @@ impl<'a> Path<'a> {
     /// This is the whole of what an absolute path is here, and it is a fact about the *token*
     /// rather than about any capability: the caller supplies the root, so a holder can only ever
     /// root a path in the one it has. There is no second namespace for this bit to select.
-    pub fn from_root(&self) -> bool {
+    pub fn is_from_root(&self) -> bool {
         self.from_root
     }
 
@@ -151,7 +151,7 @@ impl<'a> Path<'a> {
 /// Parse a token into a [`Path`], with no IO and no capability consulted.
 ///
 /// Empty components are skipped, so `a//b` and `deeper/` mean what they do everywhere else; that is
-/// Unix's behaviour and there is no divergence to earn. A leading `/` sets [`Path::from_root`],
+/// Unix's behaviour and there is no divergence to earn. A leading `/` sets [`Path::is_from_root`],
 /// which is the biggest fact about the token and the only one the steps themselves cannot carry:
 /// `/a` and `a` parse to the same single step and mean different places.
 pub fn path(token: &[u8]) -> Result<Path<'_>, Refused> {
@@ -371,7 +371,7 @@ impl Cwd {
     /// name resolves *without moving*: a grant is planned against the position a token names, and
     /// the shell stays where it is.
     pub fn resolve(&self, p: &Path<'_>) -> Result<Cwd, Refused> {
-        let mut next = if p.from_root() { Cwd::root() } else { *self };
+        let mut next = if p.is_from_root() { Cwd::root() } else { *self };
         next.apply(p.steps())?;
         Ok(next)
     }
@@ -435,7 +435,7 @@ impl<'a> TwoRoots<'a> {
     /// with no label to have selected.
     pub fn resolve(&self, token: &[u8]) -> Result<(Which, Cwd), Refused> {
         let p = path(token)?;
-        if !p.from_root() {
+        if !p.is_from_root() {
             return Err(Refused::NotAName);
         }
         self.resolve_absolute(&p)
@@ -496,7 +496,7 @@ impl<'a> TwoRoots<'a> {
         token: &[u8],
     ) -> Result<(Which, Cwd), Refused> {
         let p = path(token)?;
-        if p.from_root() {
+        if p.is_from_root() {
             self.resolve_absolute(&p)
         } else {
             Ok((which, pos.resolve(&p)?))
@@ -830,17 +830,17 @@ mod tests {
     #[test]
     fn an_absolute_path_is_rooted_in_your_own_namespace() {
         let p = path(b"/etc/passwd").unwrap();
-        assert!(p.from_root());
+        assert!(p.is_from_root());
         assert_eq!(p.steps(), &[Step::Down(b"etc"), Step::Down(b"passwd")]);
 
         // `/` alone is your root: a place, not a name, so it has no final component to act on.
         let root = path(b"/").unwrap();
-        assert!(root.from_root());
+        assert!(root.is_from_root());
         assert!(root.steps().is_empty());
         assert_eq!(root.split_last_component(), None);
 
         // A relative token that merely contains a slash is unchanged, and is *not* from the root.
-        assert!(!path(b"a/b").unwrap().from_root());
+        assert!(!path(b"a/b").unwrap().is_from_root());
     }
 
     /// **An absolute path means the same place wherever you stand**, which is the whole of what

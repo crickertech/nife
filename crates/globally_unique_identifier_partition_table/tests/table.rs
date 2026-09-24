@@ -8,7 +8,7 @@
 use globally_unique_identifier_partition_table::guid::{Guid, types};
 use globally_unique_identifier_partition_table::{
     DEFAULT_ENTRY_COUNT, ENTRY_ARRAY_BYTES, Entry, Error, GloballyUniqueIdentifierPartitionTable,
-    Header, MbrProblem, block_size_ok, entry, mbr, testing,
+    Header, MbrProblem, entry, is_block_size_ok, mbr, testing,
 };
 
 const BLOCK: usize = 512;
@@ -528,11 +528,11 @@ fn an_entry_is_exactly_its_bytes() {
 
 #[test]
 fn block_sizes_are_powers_of_two_between_512_and_4096() {
-    assert!([512, 1024, 2048, 4096].into_iter().all(block_size_ok));
+    assert!([512, 1024, 2048, 4096].into_iter().all(is_block_size_ok));
     assert!(
         ![0usize, 1, 256, 511, 513, 768, 8192]
             .into_iter()
-            .any(block_size_ok)
+            .any(is_block_size_ok)
     );
 }
 

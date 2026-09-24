@@ -91,7 +91,7 @@ pub(super) const TEST_ROWS: usize = 8;
 fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
     let s = ps::collect(rows, &mut |cursor| survey(slot, cursor));
     assert!(
-        s.complete() || s.refused(),
+        s.is_complete() || s.is_refused(),
         "the survey outgrew this test's row buffer, so what it reported is not the domain",
     );
     s
@@ -199,7 +199,7 @@ fn a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted() {
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(cap, &mut buf);
     assert!(
-        !seen.refused(),
+        !seen.is_refused(),
         "a supervisor could not read its own domain"
     );
 
@@ -285,7 +285,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
     );
     let mut rbuf = [ps::Row::default(); TEST_ROWS];
     let refused = walk(peer, &mut rbuf);
-    assert!(refused.refused());
+    assert!(refused.is_refused());
     assert_eq!(refused.rows().len(), 0);
 
     // Nothing at all in the slot: a different refusal, and a louder one.
@@ -312,7 +312,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(held, &mut buf);
     assert!(
-        !seen.refused(),
+        !seen.is_refused(),
         "an empty domain was reported as a refusal, which is the confusion this method exists to \
          prevent",
     );
@@ -414,7 +414,7 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
     );
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(cap, &mut buf);
-    assert!(!seen.refused());
+    assert!(!seen.is_refused());
     assert_eq!(
         seen.rows().len(),
         0,
@@ -677,7 +677,7 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
     let peer = hold_write(ep);
     let mut pbuf = [ps::Row::default(); TEST_ROWS];
     let denied = walk(peer, &mut pbuf);
-    assert!(denied.refused());
+    assert!(denied.is_refused());
     let refused = pgrep::select(&denied, pgrep::Selector::EVERY);
     let mut refused_diag = [0u8; 128];
     let refused_n = render(&mut refused_diag, |o| refused.write_diagnostics(o));

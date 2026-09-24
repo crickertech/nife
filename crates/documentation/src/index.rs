@@ -476,8 +476,8 @@ pub fn page_record(h: &Header, i: u16, src: &mut impl Pages) -> Option<Page> {
 ///
 /// Ninety-six rather than [`PATH_MAX`] plus slack, because a location is not a path in the index:
 /// it is three short components, and the widest real one today (`doc/swish/line-discipline.md`) is
-/// twenty-eight bytes. A location longer than this is truncated and [`Found::truncated`] says so,
-/// for the reason the renderer gives about losing text silently.
+/// twenty-eight bytes. A location longer than this is truncated and [`Found::is_truncated`] says
+/// so, for the reason the renderer gives about losing text silently.
 pub const LOCATION_MAX: usize = 96;
 
 /// **How many results one search keeps.**
@@ -550,7 +550,7 @@ impl Found {
     }
 
     /// Whether the location above lost its tail to [`LOCATION_MAX`].
-    pub fn truncated(&self) -> bool {
+    pub fn is_truncated(&self) -> bool {
         self.truncated
     }
 
@@ -1414,7 +1414,7 @@ mod tests {
     #[cfg(feature = "builder")]
     #[test]
     fn a_location_too_long_for_the_field_is_truncated_and_says_so() {
-        // `Found::truncated` had no test at all, in either direction, so both of its mutants
+        // `Found::is_truncated` had no test at all, in either direction, so both of its mutants
         // survived. It is the same promise the renderer makes about a long line: losing text is
         // allowed, losing it silently is not.
         let long_name = "a".repeat(60);
@@ -1434,12 +1434,15 @@ mod tests {
             LOCATION_MAX,
             "a truncated location fills the field"
         );
-        assert!(f.truncated(), "a location that lost its tail must say so");
+        assert!(
+            f.is_truncated(),
+            "a location that lost its tail must say so"
+        );
 
         // And the other side, which is every real store: `doc/<bundle>/<page>` fits.
         let mut fits = Ranked::new();
         search(b"swish", b"capability", &mut Slice(&bytes), &mut fits).unwrap();
-        assert!(!fits.results()[0].truncated());
+        assert!(!fits.results()[0].is_truncated());
         assert!(fits.results()[0].location().starts_with(b"doc/swish/"));
     }
 
@@ -1488,7 +1491,7 @@ mod tests {
         let f = &r.results()[0];
         assert_eq!(f.location().len(), LOCATION_MAX);
         assert!(
-            !f.truncated(),
+            !f.is_truncated(),
             "a location that exactly fills the field lost nothing"
         );
 
@@ -1504,7 +1507,7 @@ mod tests {
         let g = &over.results()[0];
         assert_eq!(g.location().len(), LOCATION_MAX);
         assert!(
-            g.truncated(),
+            g.is_truncated(),
             "a location one byte over the field lost its tail"
         );
     }

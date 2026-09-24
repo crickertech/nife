@@ -116,8 +116,8 @@ impl Joint {
     pub fn runs_after(self, prev: Status) -> bool {
         match self {
             Joint::First | Joint::Always => true,
-            Joint::OnSuccess => prev.ok(),
-            Joint::OnFailure => !prev.ok(),
+            Joint::OnSuccess => prev.is_ok(),
+            Joint::OnFailure => !prev.is_ok(),
         }
     }
 }
@@ -173,7 +173,7 @@ pub fn split(line: &[u8]) -> Result<Sequence<'_>, Refusal> {
     while i < line.len() {
         // A single `|` is the pipe operator and belongs to `line::split`; only the doubled form is
         // a connector. A single `&` is left alone for milestone 48's job control.
-        let (found, width) = match (c.open(), line[i]) {
+        let (found, width) = match (c.is_open(), line[i]) {
             (false, b';') => (Joint::Always, 1),
             (false, b'&') if line.get(i + 1) == Some(&b'&') => (Joint::OnSuccess, 2),
             (false, b'|') if line.get(i + 1) == Some(&b'|') => (Joint::OnFailure, 2),
@@ -196,7 +196,7 @@ pub fn split(line: &[u8]) -> Result<Sequence<'_>, Refusal> {
         start = i;
         joint = found;
     }
-    if c.open() {
+    if c.is_open() {
         return Err(Refusal::UnclosedQuote);
     }
 

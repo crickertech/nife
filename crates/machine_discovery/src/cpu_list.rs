@@ -172,7 +172,7 @@ impl CpuList {
     }
 
     /// Did the tree describe more cores than this record holds?
-    pub fn truncated(&self) -> bool {
+    pub fn is_truncated(&self) -> bool {
         self.described > self.len
     }
 
