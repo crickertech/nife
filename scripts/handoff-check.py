@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# A Claude Code Stop hook: before an agent's turn ends, read what it is about to hand calef, and if
-# that reads like fixable work being reported rather than done, send it back once to sort the items.
+# A Claude Code Stop hook: before an agent's turn ends, read what it is about to hand the person it
+# is working with, and if that reads like fixable work being reported rather than done, send it back
+# once to sort the items.
 #
 # Why this exists, and why at this rung. AGENTS.md's "We are all owners" section says owning is not
 # recording: a cheap, reversible fix reported instead of made is an evasion. That paragraph was
@@ -14,12 +15,17 @@
 #
 # It fires at most once per turn: `stop_hook_active` is set when the agent is already continuing
 # because of a Stop hook, and blocking again would loop. So a false positive costs one extra look,
-# and the agent may answer it by saying every item really is calef's call.
+# and the agent may answer it by saying every item really is the architect's call.
 #
 # BUGS. The phrase list is a heuristic over prose, so it misses a handoff worded some other way and
-# will occasionally fire on a message that correctly hands calef a decision. It cannot tell a
-# reversible fix from a naming or syscall-surface question; the agent does that sorting when prompted,
-# which is the point. It reads only the final turn's text, not what the agent did with tools.
+# will occasionally fire on a message that correctly hands the architect a decision. It cannot tell
+# a reversible fix from a naming or syscall-surface question; the agent does that sorting when
+# prompted, which is the point. It reads only the final turn's text, not what the agent did with
+# tools.
+#
+# The text names the role, not the person: .claude/settings.json is checked in, so every
+# contributor's sessions run this hook, and the needs-architect label's rule applies (calef,
+# 2026-09-24, on #1216).
 #
 # Name: provisional. Minted 2026-09-24 by a maintainer session; calef has not ratified it.
 import json
@@ -40,12 +46,13 @@ HANDOFF = re.compile(
 )
 
 REASON = (
-    "Before ending: your message hands calef work. AGENTS.md, 'We are all owners': owning is not "
-    "recording. Sort every item you are reporting into (a) reversible and within your authority "
-    "(doc fixes, enqueueing green pull requests, sequencing, rebases, dispatching a lane): do it or "
-    "dispatch it now, then report it as done; or (b) calef's call (a name, a wire format, the syscall "
-    "surface, a dependency, a design fork): present it as a decision with a recommendation. If "
-    "everything is already (b), say so in one line and stop."
+    "Before ending: your message hands the person you are working with work that is yours. "
+    "AGENTS.md, 'We are all owners': owning is not recording. Sort every item you are reporting "
+    "into (a) reversible and within your authority (doc fixes, enqueueing green pull requests, "
+    "sequencing, rebases, dispatching a lane): do it or dispatch it now, then report it as done; or "
+    "(b) the architect's call (a name, a wire format, the syscall surface, a dependency, a design "
+    "fork): present it as a decision with a recommendation. If everything is already (b), say so "
+    "in one line and stop."
 )
 
 
