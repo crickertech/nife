@@ -599,7 +599,7 @@ done
 # whatever worktree ran it last. A stranger's gate takes it like any other lane, and unlike a lane
 # its worktree is about to be deleted, which breaks the toolchain for every other build on the
 # machine. Record where it pointed; put it back at the end.
-LINK="$HOME/.rustup/toolchains/nife-dev"
+LINK="${RUSTUP_HOME:-$HOME/.rustup}/toolchains/nife-dev"
 nife_dev_before=""
 if [ -L "$LINK" ]; then
     nife_dev_before="$(readlink "$LINK")"

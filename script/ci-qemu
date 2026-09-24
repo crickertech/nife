@@ -33,6 +33,10 @@
 # of what that rule was describing. calef has not ratified it.
 
 set -e
+
+# `sudo` only when not already root: a container often runs as root with no `sudo` binary at all,
+# which is the cloud-session case (notes/working-from-a-cloud-session.md).
+if [ "$(id -u)" -eq 0 ]; then SUDO=; else SUDO=sudo; fi
 cd "$(dirname "$0")/.."
 
 # This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
@@ -61,7 +65,7 @@ fi
 # regardless of whether the binary itself was cached. One `apt-get install` of the runtime package
 # (not `-dev`, and cheap: it is already on the image's package list) fixes the version check without
 # touching the slow path at all.
-sudo apt-get install -y libslirp0 >/dev/null
+$SUDO apt-get install -y libslirp0 >/dev/null
 
 # The warm-cache path. `--version` prints "QEMU emulator version X.Y.Z"; match the whole token so
 # 11.0.2 never satisfies a request for 11.0.20.
@@ -80,8 +84,8 @@ echo "==> Building QEMU $want (cold cache; this is the slow path)"
 
 # Build dependencies. libslirp is not optional for us: the network tests use QEMU's user-mode
 # networking (-netdev user), including the guestfwd echo peer and the TFTP fixture the UDP gate reads.
-sudo apt-get update
-sudo apt-get install -y \
+$SUDO apt-get update
+$SUDO apt-get install -y \
     build-essential ninja-build meson pkg-config python3 python3-venv \
     libglib2.0-dev libslirp-dev libpixman-1-dev flex bison zlib1g-dev
 

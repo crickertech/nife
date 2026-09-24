@@ -122,6 +122,12 @@ branches=$(git ls-remote --heads origin 2>/dev/null |
 # Every pull request that has ever named one of these branches as its head, in any state. `--state
 # all` is what separates a missing claim from a merged lane's leftover branch, and getting that
 # wrong is the failure mode this whole report is designed around.
+# A `gh` that is missing or signed out would make every branch read UNCLAIMED, which is a false
+# report rather than an empty one, so refuse instead.
+if ! gh auth status >/dev/null 2>&1; then
+	echo "lane-claim-check: gh is not signed in; cannot tell a claimed branch from an unclaimed one" >&2
+	exit 2
+fi
 prs=$(gh pr list --repo "$REPO" --state all --limit 200 \
 	--json number,headRefName,state,isDraft 2>/dev/null || echo '[]')
 

@@ -10,6 +10,10 @@
 # command is the same in every repository that follows the pattern (design/naming.md).
 
 set -e
+
+# `sudo` only when not already root: a container often runs as root with no `sudo` binary at all,
+# which is the cloud-session case (notes/working-from-a-cloud-session.md).
+if [ "$(id -u)" -eq 0 ]; then SUDO=; else SUDO=sudo; fi
 cd "$(dirname "$0")/.."
 
 # The project's own QEMU, if a previous run built one. This has to happen BEFORE the `command -v`
@@ -77,8 +81,8 @@ else
         # the firmware separately, so on Linux it does. The package is architecture-independent
         # firmware, so it installs on the arm64 runners this project's CI uses even though the
         # firmware it carries is x86_64's.
-        sudo apt-get update
-        sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf
+        $SUDO apt-get update
+        $SUDO apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf
         ;;
     *)
         echo "bootstrap: unknown OS '$os'; install qemu-system-aarch64 by hand." >&2
@@ -112,8 +116,8 @@ for tool in python3 gh; do
         if [ "$tool" = python3 ]; then brew install python; else brew install gh; fi
         ;;
     Linux)
-        sudo apt-get update
-        sudo apt-get install -y "$tool"
+        $SUDO apt-get update
+        $SUDO apt-get install -y "$tool"
         ;;
     *)
         echo "bootstrap: unknown OS '$os'; install $tool by hand." >&2
@@ -142,8 +146,8 @@ else
         brew install shellcheck
         ;;
     Linux)
-        sudo apt-get update
-        sudo apt-get install -y shellcheck
+        $SUDO apt-get update
+        $SUDO apt-get install -y shellcheck
         ;;
     *)
         echo "bootstrap: unknown OS '$os'; install shellcheck by hand." >&2
@@ -288,8 +292,8 @@ else
         ;;
     Linux)
         # Debian/Ubuntu build every LLVM backend into their clang packages.
-        sudo apt-get update
-        sudo apt-get install -y clang
+        $SUDO apt-get update
+        $SUDO apt-get install -y clang
         ;;
     *)
         echo "bootstrap: unknown OS '$os'; install a clang whose \`clang -print-targets\` lists" >&2

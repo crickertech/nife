@@ -106,6 +106,7 @@ if [ ! -f "$VARS" ]; then
         /opt/homebrew/share/qemu/edk2-i386-vars.fd \
         /usr/local/share/qemu/edk2-i386-vars.fd \
         /usr/share/OVMF/OVMF_VARS.fd \
+        /usr/share/OVMF/OVMF_VARS_4M.fd \
         /usr/share/edk2/x64/OVMF_VARS.fd
     do
         [ -n "$candidate" ] && [ -f "$candidate" ] && cp "$candidate" "$VARS" && break
