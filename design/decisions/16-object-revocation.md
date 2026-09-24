@@ -1,6 +1,11 @@
+---
+status: AMENDED
+ratified_by: calef
+---
+
 # 16. Object revocation: reclaim the objects a process built (extends §13)
 
-**Status: AMENDED.** (two amendment blocks below, from milestones 31 and 22.)
+(two amendment blocks below, from milestones 31 and 22.)
 
 §13 revoked **frames**. This extends the same idea to **kernel objects** (TCBs, address spaces,
 endpoints), so a process can be torn back down and its memory returned, the reclamation a

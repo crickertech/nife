@@ -1,6 +1,10 @@
-# 93. The filesystem wire protocol is ours, and 9P is an adapter at the edge
+---
+status: DECIDED
+decided: 2026-08-17
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 93. The filesystem wire protocol is ours, and 9P is an adapter at the edge
 
 **Decided 2026-08-17 (calef), from a question rather than from a proposal.** Milestone 54 added
 `fs_proto::fs::STATFS` as op 18, and he asked the question nobody in this tree had asked: *"are

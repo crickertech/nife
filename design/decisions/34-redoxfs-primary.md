@@ -1,6 +1,12 @@
+---
+status: AMENDED
+decided: 2026-07-29
+ratified_by: calef
+---
+
 # 34. RedoxFS is the primary filesystem, on three conditions
 
-**Status: AMENDED.** (four amendment blocks below, including the one that closes condition 1.)
+(four amendment blocks below, including the one that closes condition 1.)
 
 **Decided 2026-07-29 (calef), with the conditions attached deliberately so the label and its caveats
 land together.** RedoxFS is the primary on-disk filesystem. It is not yet the *root* filesystem, and

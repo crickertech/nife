@@ -1,6 +1,9 @@
-# 4. Kernel shape: monolithic, deferred, with two cheap rules
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 4. Kernel shape: monolithic, deferred, with two cheap rules
 
 We are NOT speculatively trait-ifying every subsystem to "keep the microkernel door
 open." That builds the wrong abstraction before the requirements are known, and taxes

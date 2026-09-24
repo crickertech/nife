@@ -1,6 +1,11 @@
+---
+status: DECIDED
+ratified_by: calef
+---
+
 # 141. Application is grant: what a command line means in a capability system
 
-**Status: DECIDED.** Ratified 2026-09-03 by calef, who asked what the phrase meant and then asked for
+Ratified 2026-09-03 by calef, who asked what the phrase meant and then asked for
 it written down. The sentence had lived since 2026-07-30 in one paragraph of milestone 47's block,
 under a heading about shell syntax, which is the last place a reader looks for the system's
 mental model. *(Number provisional until the merge queue lands it.)*

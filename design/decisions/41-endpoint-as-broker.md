@@ -1,6 +1,9 @@
-# 41. The endpoint is the broker, and a device is revoked by taking it back (milestone 23)
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 41. The endpoint is the broker, and a device is revoked by taking it back (milestone 23)
 
 **Built 2026-07-30.** Milestone 23 is the flagship the roadmap points at: every userspace component
 is a swappable unit behind a stable contract, and an operator replaces one live, with a client that

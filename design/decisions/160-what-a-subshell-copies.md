@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 160. What a subshell copies, given that a capability set cannot always be copied
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found that milestone 52 has
+Raised 2026-09-19 by milestone 435's lane, which found that milestone 52 has
 carried a `DECISION` gate since it was recorded and names no decision anywhere a reader can open.
 The fork itself is calef's and older: the block's own status line says *"calef asked for this to be
 captured as a milestone and explicitly asked to design it together."* This file is that ask moved

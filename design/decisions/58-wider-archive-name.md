@@ -1,6 +1,9 @@
-# 58. A wider archive name, and the one format change that had to bump the magic
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 58. A wider archive name, and the one format change that had to bump the magic
 
 2026-08-01, ahead of milestone 63's rename sweep. `crates/nifefs`. See `notes/nifefs.md`.
 

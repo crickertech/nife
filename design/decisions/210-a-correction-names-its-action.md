@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-23
+ratified_by: calef
+---
+
 # 210. A correction of error, and its action items are decisions, proposals or milestones
 
-**Status: DECIDED.** calef, 2026-09-23: this tree runs corrections of error, and **an action item
+calef, 2026-09-23: this tree runs corrections of error, and **an action item
 is a decision, a proposal, or a milestone. Nothing else counts.** *(Section number provisional until
 the merge queue lands it: two other decision files, numbered 208 and 209, are open on
 unmerged branches tonight, so 210 is the first free number as seen from `main` and may not be the

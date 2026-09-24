@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 76. What catches a milestone status that is wrong in both places?
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
+calef, 2026-08-25, in conversation, ratifying the recommendation below as
 written: *"Ratify it."* (raised 2026-08-04 after nine milestones were found misrecorded in one
 sweep.)
 

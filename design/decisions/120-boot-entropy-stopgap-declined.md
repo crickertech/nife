@@ -1,6 +1,12 @@
+---
+status: AMENDED
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 120. A QEMU-only virtio-rng stopgap for the interactive boot
 
-**Status: AMENDED.** 2026-08-26. Originally declined, calef, 2026-08-23: *"Mint the TRNG milestone,
+2026-08-26. Originally declined, calef, 2026-08-23: *"Mint the TRNG milestone,
 defer the stopgap for now."* Reversed, calef, 2026-08-26, on being asked directly whether he was
 the customer this decision was waiting on: *"I want to be able to login on the QEMU implementation,
 so it seems like we have a customer."* Sharpened when the milestone-159 alternative was raised and

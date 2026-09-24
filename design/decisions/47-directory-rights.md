@@ -1,6 +1,9 @@
-# 47. A directory capability carries six rights, and a child can never exceed its parent
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 47. A directory capability carries six rights, and a child can never exceed its parent
 
 **Extended to seven rights 2026-08-24** (DECISIONS §112, `SETTIME`, `touch -t`'s arbitrary-mtime
 authority): everything below describes the original six and is still accurate about them: §112

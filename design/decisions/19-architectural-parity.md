@@ -1,6 +1,10 @@
-# 19. Architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64
+---
+status: DECIDED
+decided: 2026-07-27
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 19. Architectural parity is a tenet; the targets are aarch64, riscv64, and x86_64
 
 **Decided 2026-07-27** (calef), promoting what practice had already become. The RISC-V work
 began as a portability proof and ended at full parity (notes/riscv-parity-scope.md: SMP, the

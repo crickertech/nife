@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-20
+ratified_by: calef
+---
+
 # 104. The rich-text font is DejaVu Sans Mono, and the palette is Solarized
 
-**Status: DECIDED.** calef, 2026-08-20, answering the two questions milestone 142 said blocked it:
+calef, 2026-08-20, answering the two questions milestone 142 said blocked it:
 *"DejaVu Sans Mono and Solarized."*
 
 **What it unblocks.** Milestone 142's increment three (the glyph atlas) and increment six (the

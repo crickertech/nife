@@ -1,6 +1,9 @@
-# 64. A per-file coverage number counts where tests are written, not what they reach
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 64. A per-file coverage number counts where tests are written, not what they reach
 
 `components/src/swish.rs` had **zero** `#[cfg(test)]` blocks, and that was first reported here as "the
 shell is untested". It was not. The shell was covered by ~28 QEMU integration cases driving the real

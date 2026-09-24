@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 187. One crate per kernel-test pair, or one crate for all of them?
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 407's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 407's
 `DECISION` gate naming no section. Measured by milestone 293's lane, which reduced one instance of
 this and then counted the rest. *(Section number provisional until the merge queue lands it.)*
 

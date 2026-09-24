@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 183. What `script/ci-build` with no arguments means, and what the two tiers are called
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 440's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 440's
 `DECISION` gate naming no section. The mechanism is built and shipped under the recommendation
 below; only the spelling and the default are open. *(Section number provisional until the merge
 queue lands it.)*

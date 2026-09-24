@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 167. What a profiling session's grant names
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 147 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 147 gated on
 `MILESTONE 75, DECISION` naming no decision, when the prior question its gate defers to has been
 answered since 2026-09-02. [§139](139-cycle-counter-authority.md) (who may read the cycle counter,
 and by what authority) took it; 147's gate never said so, and §139's own text says it does **not**

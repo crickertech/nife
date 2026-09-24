@@ -1,6 +1,10 @@
-# 18. The PCIe transport: one driver, two buses, the seam in the kernel
+---
+status: DECIDED
+decided: 2026-07-27
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 18. The PCIe transport: one driver, two buses, the seam in the kernel
 
 **Decided 2026-07-27, built the same night** (notes/pcie.md, notes/pcie-transport-scope.md). A PCI
 root complex (ECAM enumeration, BAR placement, virtio-pci capability parsing, INTx through the

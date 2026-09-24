@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-15
+ratified_by: calef
+---
+
 # 70. BUILT measures the end-state, and a false premise is rewritten in as the finding
 
-**Status: DECIDED.** calef, 2026-08-15, and the precedent is the point: **a milestone is BUILT
+calef, 2026-08-15, and the precedent is the point: **a milestone is BUILT
 when its block's end-state holds in the tree, however it came to hold.** The status column exists
 so a reader can ask "does the tree have this property?", not "how much work did it take?": a
 benchmark milestone is BUILT when the numbers exist however easy the run was, and an audit that

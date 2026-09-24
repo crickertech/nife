@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-18
+decided: 2026-08-25
+ratified_by: calef
+---
+
 # 97. Six gates run on every pull request and none of them can stop one
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation: *"Ratify as written."* Raised 2026-08-18 by
+calef, 2026-08-25, in conversation: *"Ratify as written."* Raised 2026-08-18 by
 the maintainer, from a red trunk rather than from a worry: `main` failed `script/fastpath-footprint`
 for several hours and the mechanism that should have prevented it had been disabled by configuration
 since before anyone looked.

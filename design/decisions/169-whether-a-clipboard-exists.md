@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 169. Whether a clipboard exists here, and what it is scoped to
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 180 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 180 gated on
 `DECISION` with no decision anywhere a reader can open. calef minted the block on 2026-08-26 after
 checking the roadmap for a gap and finding that **nothing in `design/` or `notes/` mentions a
 clipboard at all**, not even as a named limitation. *(Section number provisional until the merge

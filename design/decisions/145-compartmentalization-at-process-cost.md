@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-05
+---
+
 # 145. Compartmentalization at process cost: is Qubes' mission the reason the world needs this OS?
 
-**Status: PROPOSED.** Raised by calef, 2026-09-05, in one sentence: *"Qubes seems useful as an OS.
+Raised by calef, 2026-09-05, in one sentence: *"Qubes seems useful as an OS.
 It seems like we could do their mission well."* *(Section number provisional until the merge queue
 lands it.)*
 

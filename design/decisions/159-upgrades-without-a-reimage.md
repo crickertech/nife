@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 159. Lab machines upgrade like user machines, and only a new kernel needs a reboot
 
-**Status: DECIDED.** calef, 2026-09-19, in conversation with the maintainer, shortly before
+calef, 2026-09-19, in conversation with the maintainer, shortly before
 17:41 UTC:
 
 > I would like to get to the point where the lab machines are like user machines. New package

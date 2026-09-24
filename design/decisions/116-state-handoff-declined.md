@@ -1,6 +1,11 @@
+---
+status: SUPERSEDED
+superseded_by: 209
+---
+
 # 116. Live component state handoff is declined, for want of a customer
 
-**Status: SUPERSEDED BY 209.** (2026-09-23: reopened and decided. A customer existed one day after
+(2026-09-23: reopened and decided. A customer existed one day after
 this was written, and §209 (state handoff is an opaque blob over a granted frame, and it is optional) rules the transport this
 section sketched. The residual this closes is milestone 23 (a capability-routed component OS with live replacement)'s. Kept as written, because the framing check below outlives the decline.)
 

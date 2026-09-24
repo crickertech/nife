@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-21
+ratified_by: calef
+---
+
 # 204. How userspace asks where a thread runs
 
-**Status: DECIDED.** calef, 2026-09-21. *(Number provisional until the merge queue lands it.)*
+calef, 2026-09-21. *(Number provisional until the merge queue lands it.)*
 Raised while unblocking the job-mix supervisor's move to userspace, which needs a placement census
 from a userspace supervisor. (That milestone's block is not yet on `main`, so it is named here
 rather than cited; the citation lands when it does.) The question grew past that: it is how **any** per-thread fact reaches userspace, and it

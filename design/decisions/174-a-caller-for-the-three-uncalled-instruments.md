@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 174. Which caller each of the three uncalled instruments gets
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 341's
+Raised 2026-09-19 by milestone 435's slice B, which read milestone 341's
 `DECISION` gate and found it naming no section. The finding is milestone 232's audit, and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue
 lands it.)*

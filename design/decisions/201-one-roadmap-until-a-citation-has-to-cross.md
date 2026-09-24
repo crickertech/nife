@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 201. One roadmap until a citation has to cross, and the blocked side declares the dependency
 
-**Status: DECIDED.** calef, 2026-09-20, on the three asks of the proposal
+calef, 2026-09-20, on the three asks of the proposal
 `the-roadmap-after-the-split`. *(Section number provisional until the merge queue lands it; §200 is
 in flight on another branch.)*
 

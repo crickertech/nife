@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 89. `provisional` becomes the fourth provenance state
 
-**Status: DECIDED.** calef, 2026-08-16: **option 1**, a fourth state. `script/names` accepts
+calef, 2026-08-16: **option 1**, a fourth state. `script/names` accepts
 `provisional`, `script/names --provisional` lists them, and they sort first in `--unratified`
 because a name its own author has called wrong is the shortest conversation available.
 

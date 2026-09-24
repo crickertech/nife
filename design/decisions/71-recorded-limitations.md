@@ -1,6 +1,13 @@
+---
+status: DECIDED
+raised: 2026-08-04
+decided: 2026-08-15
+ratified_by: calef
+---
+
 # 71. A limitation is promoted when it stops being a fact and becomes a plan
 
-**Status: DECIDED.** calef, 2026-08-15. Raised 2026-08-04 by milestone 94's sweep, which blessed
+calef, 2026-08-15. Raised 2026-08-04 by milestone 94's sweep, which blessed
 nine recorded limitations and correctly declined to invent this convention as a drive-by.
 
 ## The two artifacts assert different things

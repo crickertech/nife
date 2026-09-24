@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 193. What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does
 
-**Status: PROPOSED.** Raised 2026-09-19 by the maintainer, at calef's instruction, after he asked
+Raised 2026-09-19 by the maintainer, at calef's instruction, after he asked
 whether milestone 421's `DECISION` gate had a decision behind it. It did not: the ask lived only in
 that block's own *What is needed from calef* section, which is one rung above a chat message and
 below where AGENTS.md says an open decision belongs. *(Section number provisional until the merge

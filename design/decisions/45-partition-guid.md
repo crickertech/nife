@@ -1,6 +1,9 @@
-# 45. A nife partition is `EC5CC08B-D749-4434-AC38-A274C50385BA`, and that never changes
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 45. A nife partition is `EC5CC08B-D749-4434-AC38-A274C50385BA`, and that never changes
 
 *Exercised by milestone 120 (2026-08-15): the OS renamed from cricker-os to nife, and this GUID did not move, exactly as this decision's title promised. Images written before the rename remain nife partitions by the only identity that counts.*
 

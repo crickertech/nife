@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-20
+ratified_by: calef
+---
+
 # 197. A package is one archive file, named and vouched for by its recipe
 
-**Status: DECIDED.** calef, 2026-09-20 (05:14 UTC), after comparing the container against what apt,
+calef, 2026-09-20 (05:14 UTC), after comparing the container against what apt,
 Homebrew, Alpine, Haiku and Nix actually ship: *"C2 seems like the right shape given the
 comparisons."* *(Section number provisional until the merge queue lands it.)*
 

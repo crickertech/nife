@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-19
+ratified_by: calef
+---
+
 # 195. A reviewed recipe vouches for a package, and the machine's owner may overrule it
 
-**Status: DECIDED.** calef, 2026-09-19 (21:51 UTC), after reading the prior art with the maintainer:
+calef, 2026-09-19 (21:51 UTC), after reading the prior art with the maintainer:
 **Homebrew's shape, with the owner-vouches escape hatch.** *(Section number provisional until the
 merge queue lands it.)*
 

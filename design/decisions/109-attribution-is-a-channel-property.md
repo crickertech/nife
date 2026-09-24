@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-22
+ratified_by: calef
+---
+
 # 109. Attribution is a property of a channel, not of a capability
 
-**Status: DECIDED.** calef, 2026-08-22, on milestone 49's own named fork (worked out in
+calef, 2026-08-22, on milestone 49's own named fork (worked out in
 conversation, not yet built): channel.
 
 ## The question

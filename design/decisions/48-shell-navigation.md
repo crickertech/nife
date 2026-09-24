@@ -1,6 +1,9 @@
-# 48. Navigation is the shell rebinding what it holds, and every shell has its own root
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 48. Navigation is the shell rebinding what it holds, and every shell has its own root
 
 **Built 2026-07-31** (milestone 47). Concept note: notes/shell-navigation.md. Rests on §47's
 directory-capability keystone.

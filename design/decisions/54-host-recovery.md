@@ -1,6 +1,9 @@
-# 54. Recovering a backup includes its metadata, and formatting a disk needs entropy
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 54. Recovering a backup includes its metadata, and formatting a disk needs entropy
 
 Milestone 57. `tools/redoxfs_host`, `fs_proto::xattr::store`. See `notes/host-recovery.md`.
 

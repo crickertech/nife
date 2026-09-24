@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 164. Whether the kernel resolves a tid it already sent to the supervisor that received it
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 105 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 105 gated on
 `DECISION` with no decision anywhere a reader can open. The block named two forks; **one of them
 was already decided before the block was written**, which is recorded below rather than quietly
 fixed. This decision is the other one. *(Section number provisional until the merge queue lands

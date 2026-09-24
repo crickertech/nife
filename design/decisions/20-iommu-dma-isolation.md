@@ -1,6 +1,9 @@
-# 20. IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b)
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 20. IOMMU-backed DMA isolation: one seam, two arch drivers (milestone 16b)
 
 **Built 2026-07-28**, on both ISAs in QEMU emulation. Milestone 9's shadow ring (notes/dma.md)
 confined DMA in software: the kernel validates every descriptor and the device reads a copy the

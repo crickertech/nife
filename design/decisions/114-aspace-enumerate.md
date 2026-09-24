@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 114. `pmap` gets its listing: `ENUMERATE` extends to the address-space object
 
-**Status: DECIDED.** calef, 2026-08-23, approving milestone 126's `pmap` fork on the recommendation
+calef, 2026-08-23, approving milestone 126's `pmap` fork on the recommendation
 below: *"Yes, pmap first."*
 
 ## The question

@@ -1,6 +1,9 @@
-# 43. Reading the clock is a page, setting it is a page you may write, proposing is an endpoint
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 43. Reading the clock is a page, setting it is a page you may write, proposing is an endpoint
 
 **Built 2026-07-30** (milestone 51 lane A: the two RTC drivers and the clock service). Concept note:
 notes/clock.md. The contract is `crates/clock_proto`.

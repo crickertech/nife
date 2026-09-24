@@ -1,6 +1,10 @@
-# 67. A program's second stream is a declaration, not a number
+---
+status: DECIDED
+decided: 2026-08-03
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 67. A program's second stream is a declaration, not a number
 
 **Decided 2026-08-03 (calef), from notes/pipes.md's open fork.** `2>` gets built on option (c):
 a program that has diagnostics **declares a second output in its manifest** (`OutputSpec` grows

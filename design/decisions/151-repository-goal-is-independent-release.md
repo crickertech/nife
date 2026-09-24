@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-09-15
+ratified_by: calef
+---
+
 # 151. The goal of the repository split is independent release and third-party programs
 
-**Status: DECIDED.** calef, 2026-09-15, in conversation, thinking through the eventual multi-repository
+calef, 2026-09-15, in conversation, thinking through the eventual multi-repository
 structure: *"Independent releases is the goal and third party programs is the goal."*
 
 ## What this settles

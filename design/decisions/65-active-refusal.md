@@ -1,6 +1,9 @@
-# 65. A refusal that is not passive cannot be used as a question
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 65. A refusal that is not passive cannot be used as a question
 
 Milestone 72 spent a day on an intermittent hang whose whole content is one line of test code:
 

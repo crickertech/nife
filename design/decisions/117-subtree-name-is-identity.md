@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-23
+ratified_by: calef
+---
+
 # 117. A principal's subtree is named by its identity string, created at provisioning time
 
-**Status: DECIDED.** calef, 2026-08-23, on milestone 49's subtree-scoping fork: *"Agree, go with
+calef, 2026-08-23, on milestone 49's subtree-scoping fork: *"Agree, go with
 provision-time creation."*
 
 ## The question

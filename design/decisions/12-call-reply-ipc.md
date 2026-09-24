@@ -1,6 +1,9 @@
-# 12. Call/Reply IPC: a one-shot reply capability
+---
+status: DECIDED
+ratified_by: calef
+---
 
-**Status: DECIDED.**
+# 12. Call/Reply IPC: a one-shot reply capability
 
 Decided and built 2026-07-22 (milestone 12). The design was worked out ahead of time in
 notes/ipc-naming.md and parked in "Open design ideas" against two triggers. This is where it lands,

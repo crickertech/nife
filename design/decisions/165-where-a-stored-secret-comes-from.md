@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 165. Where a stored secret comes from on a boot that is not a test
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 131 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 131 gated on
 `DECISION` with no decision anywhere a reader can open. The block has carried the fork with four
 options and no recommendation since it was filed, and says outright that *"the choice is calef's,
 it is a fact that leaves the machine."* *(Section number provisional until the merge queue lands

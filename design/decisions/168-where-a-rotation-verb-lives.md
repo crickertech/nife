@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 168. Where a proof-gated credential rotation verb lives
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's lane, which found milestone 178 gated on
+Raised 2026-09-19 by milestone 435's lane, which found milestone 178 gated on
 `DECISION` with no decision anywhere a reader can open. The fork is the block's own and calef minted
 the block for it on 2026-08-26, while deciding how a real interactive boot's demo credential is
 provisioned. *(Section number provisional until the merge queue lands it.)*

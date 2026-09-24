@@ -1,6 +1,11 @@
+---
+status: PROPOSED
+raised: 2026-09-19
+---
+
 # 188. What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 408's
+Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 408's
 `DECISION` gate naming no section. Filed 2026-09-14 by milestone 291's lane, which added seven of
 the nine copies and said so rather than leaving the count to be re-derived. *(Section number
 provisional until the merge queue lands it.)*

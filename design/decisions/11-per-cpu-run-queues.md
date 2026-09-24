@@ -1,8 +1,14 @@
+---
+status: AMENDED
+decided: 2026-07-22
+ratified_by: calef
+---
+
 # 11. SMP: per-CPU run queues, message-based migration. §6, reopened.
 
-**Status: AMENDED.** (§28 supersedes the deferred step-3c placement policy; the rest of the design holds.)
+(§28 supersedes the deferred step-3c placement policy; the rest of the design holds.)
 
-Decided 2026-07-22. This reopens §6, which chose single-core and named the cost: "a scheduler
+This reopens §6, which chose single-core and named the cost: "a scheduler
 rewrite later, accepted knowingly." This is that rewrite.
 
 §6's caution was against building per-CPU structures *while still single-core*, when the need was

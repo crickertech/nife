@@ -1,6 +1,12 @@
+---
+status: DECIDED
+decided: 2026-08-16
+ratified_by: calef
+---
+
 # 74. Audits run on change, not on the calendar: events first, then a count
 
-**Status: DECIDED.** calef, 2026-08-16: **event triggers first, a count-based trigger second, and
+calef, 2026-08-16: **event triggers first, a count-based trigger second, and
 the calendar only as a backstop.** This adopts the recommendation below over the block's original
 quarterly proposal, and it unblocks milestones 92 and 93.
 
