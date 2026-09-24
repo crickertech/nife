@@ -2680,6 +2680,23 @@ if bad or missing:
 print(f'markdown: {len(md)} files, every relative link resolves, every note indexed')
 PY
 
+echo "==> the prose ratchet (§212 words, §213 sentences and bold)"
+# Milestone 586 (a prose ratchet in lint). §212 (a prose budget) and §213 (writing standards) were
+# ratified on 2026-09-23 with a ratchet as their enforcement and no gate built, and on 2026-09-24 the
+# word cap slipped twice in one day because nothing checked it: one lane moved facts into eight
+# notes already over the cap and every one of them grew. The measuring, the baseline and the orphan
+# check live in helpers/prose_ratchet.py, whose header is the manual; the document scope there is
+# shared with script/metrics' prose-budget graph, so the gate and the graph count the same files.
+#
+# A document over a limit passes only while it is no worse than design/prose-baseline.tsv and no
+# worse than it was at the merge base, or while it carries a marked exception with a date and a
+# reason. A document missing from the baseline meets the limits outright. The baseline itself may
+# only shrink. When a document improves, `python3 helpers/prose_ratchet.py --bank` lowers its row;
+# nothing forces that, on purpose, because the block names baseline churn as the thing that would
+# make this ratchet cost more than it saves.
+python3 helpers/prose_ratchet.py --selftest
+python3 helpers/prose_ratchet.py --check
+
 echo "==> em-dashes"
 # calef's standing style rule (CLAUDE.md): no em-dashes, use commas, periods, semicolons or
 # parentheses. It is a house style rather than a correctness property, and it is gated for the same
