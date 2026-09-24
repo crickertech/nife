@@ -4,7 +4,7 @@
 carries the ruling in calef's words, why it earns a heading of its own, the case that produced it,
 the counterweight, how it sits beside its neighbours, and the saying's missing author. Written
 2026-09-24 (UTC) as its own tenet on calef's ruling (#1182), and folded into the rule-and-appendix
-shape after #1189 split `AGENTS.md`. The filename is provisional.*
+shape after #1189 split `AGENTS.md`. Name: ratified 2026-09-24 (calef, approving #1182).*
 
 calef, 2026-09-24: *"I think a more general standard is that we want to measure first and then
 decide. When we decide it might be a different remediation depending upon context and sometimes we

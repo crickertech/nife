@@ -12,7 +12,8 @@ which is what `design/` holds), and refused the reason first offered for `design
 rows would crowd the glossary index: `script/lint` reads `notes/*.md` without recursing, so a
 `notes/tenets/` subdirectory would have cost that index nothing and the argument was never real.
 `project-history.md` arrived after that ruling and was named on its own: Name: ratified 2026-09-24
-(calef, approving #1189).*
+(calef, approving #1189). `measure-first.md` was named the same way: Name: ratified
+2026-09-24 (calef, approving #1182).*
 
 | appendix | what it explains |
 |---|---|
