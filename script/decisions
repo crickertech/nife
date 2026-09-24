@@ -9,11 +9,11 @@
 # concurrent milestones both claimed §30 on 2026-07-30 and it was caught only because a person
 # noticed.
 #
-# Why a directory instead of the old single DECISIONS.md (milestone 114): the same case milestone 76
+# Why a directory instead of the old single DECISIONS.md (milestone 114 (split `DECISIONS.md`, and give a decision a status)): the same case milestone 76
 # made for the roadmap, with nearly the same numbers. The file reached 5,320 lines and 67 sections,
 # it took three section-number collisions in one day, and it took a structural defect this script
-# could not see. That defect is worth naming, because §61 predicted it and the prediction is what
-# got damaged: commit 255879e appended §67 twice, once correctly and once into the MIDDLE of §61's
+# could not see. That defect is worth naming, because §61 (a lint is adopted on evidence from this tree, not on its description) predicted it and the prediction is what
+# got damaged: commit 255879e appended §67 (a program's second stream is a declaration, not a number) twice, once correctly and once into the MIDDLE of §61's
 # BUGS sentence, because the insertion anchored on the string `## Reading` and the first occurrence
 # of that string in the file was a wrapped prose line inside §61 saying that this script "cannot see
 # a section in the WRONG PLACE, only a missing number". Every gate reported clean for a day.
@@ -29,7 +29,7 @@
 # Until 2026-09-23 a decision's status was `**Status: DECIDED.**`, a data field written as a
 # sentence, and this script read it with `re.match(r"\*\*Status: (.+?)\.\*\*", first)`. Two failures
 # on record come from exactly that shape. A file said `**Status: NOT YET`, the regex captured `NOT`,
-# dropped `YET`, and the report printed a word nobody had written; that is §211's finding.
+# dropped `YET`, and the report printed a word nobody had written; that is §211 (what a fatal-risk verdict says, and what the chart can plot as a result)'s finding.
 # `design/fatal-risks.md`'s risk 7 carried two status lines eighteen lines apart, and the first
 # match per section won, so `AUDITED` was invisible to every consumer for weeks.
 #
@@ -50,7 +50,7 @@
 # what makes the forward pointer checkable: it resolves to a section or the gate fails.
 #
 # **The index table is generated from the files**, which removes the tree's last additive-index
-# conflict of the shape milestone 294 removed from the roadmap. Every lane minting a section had to
+# conflict of the shape milestone 294 (`design/roadmap/README.md`'s index is generated, not hand-maintained) removed from the roadmap. Every lane minting a section had to
 # add a row to one sorted file, so every lane in flight collided with every other one, there,
 # always. `briefs/rebase-onto-main.md` names it as case 4's worked example, and that example is now
 # stale. The prose around the table is NOT generated and must not be: the preamble argues, and only
@@ -72,7 +72,7 @@
 #     matches the filename (the §67-inside-§61 class, and the appended-past-the-closer class);
 #   - two files claiming one number is fatal, which is the collision the old single file made visible
 #     by accident and this makes visible on purpose;
-#   - a gap in the numbering is REPORTED and does not fail (milestone 443): the defect is a
+#   - a gap in the numbering is REPORTED and does not fail (milestone 443 (lanes wait on each other for three reasons, and none of them is the work)): the defect is a
 #     duplicate, which stays fatal, and failing on a gap is what forced the renumber that moves
 #     every citation. The reasoning is at the check.
 #   - the committed index matches the one generated from the files;
@@ -111,7 +111,7 @@
 #
 #   A citation that RESOLVES but points where its author did not mean is still invisible, and the
 #   tree has already produced two of them; after any renumber, check by content and not by running
-#   this. **Milestone 97 is the milestone that closes it** (a citation names what it cites, and the
+#   this. **Milestone 97 (citations that name what they cite) is the milestone that closes it** (a citation names what it cites, and the
 #   name is compared against the target). Milestone 114 exists partly to make 97 cheap: now that a
 #   decision is a file with a title on its own line, `§43 (reading the clock is a page)` can be
 #   checked against `43-clock-authority.md`'s own H1 without parsing a 5,000-line document.
@@ -233,7 +233,7 @@ def check_frontmatter(fname, fm, known_gaps, gaps):
 # **Each is anchored at the start of the line on purpose.** `**Status:` where a line begins is the
 # field this migration removed; the same token mid-sentence or inside backticks is prose ABOUT a
 # status line, which five files legitimately are: §211 quotes `design/fatal-risks.md`'s two
-# conflicting lines, §140 compares a proposal's spelling to a decision's, and §90 names where a
+# conflicting lines, §140 (the words a finished milestone may use to say what happened to the work it named) compares a proposal's spelling to a decision's, and §90 (the claim is a draft pull request; the status flip is a gate) names where a
 # proposal lives. A check that refused those would be refusing the record of the defect it exists
 # to prevent.
 RESTATED = [
@@ -296,8 +296,8 @@ for fname in sorted(os.listdir(d)):
     bodies[num] = body
 
 # Pass two, which needs every title first: a heading that repeats ANOTHER decision's title is that
-# decision arriving somewhere it does not live. A number alone does not prove it, because §41
-# legitimately runs "## 1." to "## 4." over the four things building milestone 23 settled.
+# decision arriving somewhere it does not live. A number alone does not prove it, because §41 (the endpoint is the broker, and a device is revoked by taking it back)
+# legitimately runs "## 1." to "## 4." over the four things building milestone 23 (a capability-routed component OS with live replacement) settled.
 by_title = {t: n for n, t in titles.items()}
 for num, fname in sorted(ids.items()):
     if num not in bodies:
@@ -343,13 +343,13 @@ if not ids:
 # that a gap is almost always a renumber on merge that left a hole nobody meant to leave, and that
 # reasoning had the cost backwards.
 #
-# **A duplicate is the defect; a gap is the cure's side effect.** Two files claiming §156 makes
-# every citation to it ambiguous, which is why that stays fatal. A hole at §157 misleads nobody:
+# **A duplicate is the defect; a gap is the cure's side effect.** Two files claiming §156 (what the package manager waits on: a decision, not milestone 23 and not the board) makes
+# every citation to it ambiguous, which is why that stays fatal. A hole at §157 (a trivial install is a web page, a USB drive, and packages over the internet) misleads nobody:
 # `§157` appears nowhere, every citation that exists still resolves, and the number line is not a
 # promise that it is dense.
 #
 # **Failing on the gap is what forced the renumber, and the renumber is the expensive thing.** On
-# 2026-09-19 two sessions collided on §156 and §158 in one day. Whoever lands second has to change
+# 2026-09-19 two sessions collided on §156 and §158 (a program is declared once: the archives read `Cargo.toml`) in one day. Whoever lands second has to change
 # the file, its index row, its H1, its own status and every `§N` in the tree that points at it, and
 # a renumber is exactly the operation this script's own header says it cannot check the meaning of.
 # So the gate was spending the tree's most citation-dangerous edit to keep a property no reader uses.
