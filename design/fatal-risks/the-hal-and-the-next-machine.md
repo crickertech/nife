@@ -63,15 +63,15 @@ and it is the cost this entry calls healthy rather than fatal. And finding no di
 result, recorded rather than shrugged at: it would be the first evidence anyone here has that the
 port is a port and not one machine's configuration.
 
-The status is asymmetric, and that is the useful part. riscv64 already disproves the strong form:
-the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
-piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board
-(the Jetson TX1, milestone 127 (the seL4 machine, so identical silicon referees the comparison)) is
-well documented. x86_64 is where the risk actually lives, not because x86 is hard but because it is
-newest. Milestone 161 (the x86_64 kernel port: bring up the HAL's third architecture) was unfinished
-when this was written, and is `BUILT` since 2026-09-19; see the dated paragraph below. 
-Milestone 177 (wire the graphical terminal stack into the real interactive boot)'s text says x86_64 has no real
-interactive boot entry point at all. And 166 and 167 are each a piece of the same unfinished edge.
+The status is asymmetric. riscv64 already disproves the strong form: the VisionFive 2 booted the
+full tour on three harts on 2026-08-14, the strongest evidence in the tree that the HAL is real.
+aarch64 is the development ISA and its board (the Jetson TX1, milestone 127 (the seL4 machine, so
+identical silicon referees the comparison)) is well documented. x86_64 is where the risk lives,
+because it is newest, not because x86 is hard. Milestone 161 (the x86_64 kernel port: bring up the
+HAL's third architecture) was unfinished when this was written and is `BUILT` since 2026-09-19
+(below). Milestone 177 (wire the graphical terminal stack into the real interactive boot)'s text
+says x86_64 has no real interactive boot entry point at all. And 166 and 167 are each a piece of the
+same unfinished edge.
 
 Two of those closed, 2026-09-01 and 2026-09-02, and this entry did not notice for ten days. It used
 to cite milestone 164 (x86_64 userspace can't build `aes`: no SSE, no scalar fallback) as the reason
@@ -116,10 +116,10 @@ the ISA count is not the fatal part: what would be fatal is a failure revealing 
 architecture requires changing the kernel rather than adding a directory under `arch/`. It did not.
 The x86_64 port reached a passing self-test on its own firmware with the boot entry, the mapper and
 the discovery seam living under `kernel/src/arch/x86_64/`, which is what DECISIONS §4 rule 1 and §19
-claim. Two boots were needed rather than one. And the defect between them was machine-specific, and
-fixed inside `arch/x86_64/mmu.rs`: `AlreadyMapped`, a fill that mapped device ranges cacheably
+claim. Two boots were needed, not one. The defect between them was machine-specific and fixed
+inside `arch/x86_64/mmu.rs`: `AlreadyMapped`, a fill that mapped device ranges cacheably
 because the firmware's map does not describe the MMIO hole. That is the shape this entry predicts
-for a healthy HAL rather than the shape it fears.
+for a healthy HAL, not the one it fears.
 
 The port has a measured cost, not just a passing result, and it is the number this risk asked for.
 `notes/x86-port.md`'s "What had to change above `arch/`" section counted it directly. Making the
