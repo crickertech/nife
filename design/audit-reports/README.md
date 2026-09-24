@@ -1,6 +1,7 @@
 # Audit reports
 
-*Name: ratified (calef, 2026-08-04; §75 covers this directory). `audit-trail` was refused because
+*Name: ratified 2026-08-04 (calef; §75 (directories under `design/` and `notes/` carry provenance in
+their own README) covers this directory). `audit-trail` was refused because
 [35-scanner-findings.md](../decisions/35-scanner-findings.md) already uses that phrase in its
 established sense, a chronological record of who did what, which is also what an operating system
 means by it (Linux's `auditd`, BSD's audit subsystem); a kernel whose thesis is confinement is a

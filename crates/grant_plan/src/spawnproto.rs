@@ -252,9 +252,6 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// and the prompt never came back (measured 2026-09-02: `least_authority_demo` patched to trap, and
 /// `script/swish-check` reporting "the prompt never came back to take `least_authority_demo 7`").
 ///
-/// **Provisional name**, like everything a lane mints: a word in a protocol is exactly the kind of
-/// name calef decides.
-///
 /// # Why the supervisor says it rather than the shell asking or the endpoint carrying it
 ///
 /// DECISIONS §26 (the fault endpoint: thread death becomes a message a supervisor holds) delivers
@@ -281,6 +278,9 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// Distinct from [`SPAWN_FAILED`] because the two are different facts a person needs told apart:
 /// nothing ran, versus something ran and died. It sits one below `u64::MAX` for the same reason
 /// that one sits at it, and the same caveat applies: no program in this tree answers with either.
+///
+/// Name: provisional, like everything a lane mints: a word in a protocol is exactly the kind of
+/// name calef decides.
 pub const JOB_FAULTED: u64 = u64::MAX - 1;
 
 /// The ack the progenitor sends on the result endpoint when a **supervised** (interruptible) child started

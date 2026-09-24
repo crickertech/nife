@@ -58,7 +58,17 @@ into a schema that does not fit it.
   `xtask`, `redoxfs_server` and `tools/redoxfs_host` now carry blocks in their manifests. The weekly
   series of milestone 276 (the dashboard counts milestones and decisions by status) shows the hole
   closing in 2026W34.
-- Types are still uncovered.
+- Types are still uncovered. (Corrected 2026-09-24: `script/names` now reads four more kinds by
+  marker. An `item` is any function, constant, type, module, macro, field or variant whose `///` doc
+  holds a `Name:` paragraph. A `module` is a `//!` block outside a crate root or program. A
+  `directory` is the README block §75 asked for, now gated, and each `.md` stem inside is a
+  `document`. Only marked items are tracked, so an unmarked type is still invisible; that is the
+  price of not failing thousands of names nobody recorded. The conversion that day turned 27 bold
+  `**Provisional name**` doc lines into blocks, created nine directory READMEs, and grew the
+  worklist from 88 to 215.)
+- `script/metrics` still counts the original four kinds only, so the dashboard's provenance series
+  does not see the kinds above. Its enumeration reads `git ls-tree` at past revisions, and teaching
+  it the item parse is its own piece of work.
 - `scripts/` is uncovered on purpose, priced and refused on 2026-09-20 by milestone 446 (the naming
   worklist says what it covers, and stops saying what it used to). Its own entry is below, because
   it is a decision rather than a gap.

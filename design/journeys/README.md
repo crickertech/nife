@@ -1,7 +1,7 @@
 # nife: user journeys
 
-*Name: calef's own word, 2026-08-26 ("I'd like to start tracking user journeys"), not a lane's
-choice to make provisional.*
+*Name: ratified 2026-08-26 (calef's own word: "I'd like to start tracking user journeys"), not a
+lane's choice to make provisional.*
 
 A journey is an end-to-end, user-facing story, told as an ordered bundle of the milestones (and,
 where a step is blocked by one, the decisions) that have to be true at once for someone to actually

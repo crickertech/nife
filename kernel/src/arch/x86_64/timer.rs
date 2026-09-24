@@ -446,7 +446,7 @@ pub fn init_frequency(boot_info_pointer: usize) {
 /// the MADT's override names. This is the device half, and it is here because `timer.rs` is where
 /// the PIT lives.
 ///
-/// **Provisional name** (milestone 161).
+/// Name: provisional (milestone 161 (the kernel port)).
 pub fn start_pit_ticking(hz: u64) -> u64 {
     let divisor = (PIT_HZ / hz).clamp(1, u16::MAX as u64) as u16;
 
@@ -509,7 +509,7 @@ pub fn frequency_source() -> &'static str {
 /// [`init_frequency`], so that is defensive rather than load-bearing, and it costs one stack
 /// array).
 ///
-/// **Provisional name** (the `calib` lane, 2026-09-21).
+/// Name: provisional (the `calib` lane, 2026-09-21).
 pub struct Calibration {
     samples: [u64; CALIBRATION_WINDOW_CAP],
     taken: usize,
@@ -638,7 +638,7 @@ pub fn ticks() -> u64 {
 /// test that assumes a tick is pending after a fixed masked spin can be measuring the host. See
 /// notes/load-sensitive-assertions.md.
 ///
-/// **Provisional name** (a lane's, 2026-09-24).
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn tick_pending() -> bool {
     irq::timer_pending()

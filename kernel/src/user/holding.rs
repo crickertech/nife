@@ -49,7 +49,7 @@
 //!   retypes objects out of its own budget is covered (they are in the region); one that reaches
 //!   memory some other way is not, and nothing here can see the difference.
 //!
-//! Name: **provisional** (this lane, 2026-08-16). `Holding` is a noun and says what the thing is:
+//! Name: provisional (this lane, 2026-08-16). `Holding` is a noun and says what the thing is:
 //! what a service holds. It is deliberately *not* `Lease`, which reads better in the abstract and
 //! would collide head-on with the DHCP lease this file's biggest caller talks about on every other
 //! line (`notes/net.md`). Crate, module and type names are

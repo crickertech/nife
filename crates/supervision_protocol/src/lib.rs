@@ -400,7 +400,7 @@ pub fn build_child_space(
         cap_delete(stack_frame);
     }
 
-    // The timebase page, from milestone 161 (the x86_64 kernel port) and its `cntfrq` follow-up;
+    // The timebase page, from milestone 161 (the kernel port) and its `cntfrq` follow-up;
     // riscv64 joined on 2026-09-21. This is
     // the tree's only
     // userspace ELF loader, so it is the one place that reaches every child any program here

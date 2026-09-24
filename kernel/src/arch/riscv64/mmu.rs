@@ -982,7 +982,7 @@ pub fn is_mapped_in_current_space(va: u64) -> bool {
 /// Walks the root installed on this hart, which carries the kernel half
 /// ([`share_kernel_half`]), so a high-half address resolves whichever process is current.
 ///
-/// **Provisional name** (2026-08-17): calef has not ruled on it.
+/// Name: provisional (2026-08-17): calef has not ruled on it.
 pub fn is_mapped(va: u64) -> bool {
     let root = current_root_pa();
     // SAFETY: `root` is the live installed root; the direct map makes `phys_to_ptr` valid; a

@@ -212,9 +212,9 @@ static LOCAL_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
 
 /// Where this machine's local APIC is, physically, or `None` if ACPI has not said yet.
 ///
-/// **Provisional name** (milestone 161): `mmu::LOCAL_APIC_PHYS` is the architectural *default*
-/// constant and this is what the machine actually reported, which is a distinction worth a better
-/// pair of names than these two.
+/// Name: provisional (milestone 161 (the kernel port)): `mmu::LOCAL_APIC_PHYS` is the
+/// architectural *default* constant and this is what the machine actually reported, which is a
+/// distinction worth a better pair of names than these two.
 pub fn local_apic_phys() -> Option<u64> {
     match LOCAL_APIC_PHYS.load(Ordering::Relaxed) {
         0 => None,
@@ -402,7 +402,7 @@ const REDIR_ACTIVE_LOW: u32 = 1 << 13;
 /// flat map gives 0x30..0x47 two priority classes and no say in which line is in which). Nothing
 /// here has a priority policy to express yet.
 ///
-/// **Provisional name** (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
+/// Name: provisional (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
 /// below.
 pub const GSI_VECTOR_BASE: u8 = 0x30;
 
@@ -419,7 +419,8 @@ pub const GSI_VECTOR_BASE: u8 = 0x30;
 /// no controller input and nothing to unmask), so an MSI intid **is** its vector, and the whole
 /// vector-to-intid inversion the trap handler used to owe for a device line never arises.
 ///
-/// **Provisional name** (milestone 215): calef names public items.
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing)): calef
+/// names public items.
 pub const MSI_VECTOR_BASE: u8 = 0xc0;
 
 /// The most redirection entries this kernel will use. Real parts have 24 (the 82093AA, QEMU's q35,
@@ -482,7 +483,7 @@ const MSI_VECTORS: u32 = SPURIOUS_VECTOR as u32 - MSI_VECTOR_BASE as u32;
 /// every machine whose firmware leaves remapping off, which is the default. Turning it on is its
 /// own piece of work and is recorded as one; see this module's BUGS.
 ///
-/// **Provisional name** (milestone 215).
+/// Name: provisional (milestone 215).
 pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
     let offset = MSI_NEXT.fetch_add(1, Ordering::Relaxed);
     if offset >= MSI_VECTORS {
@@ -633,7 +634,7 @@ pub fn io_apic_entries() -> u32 {
 /// **This is the same partiality [`redirection_index`] has**, and it is the point rather than a
 /// side effect: a GSI with no entry has no vector, and the old total signature had to invent one.
 ///
-/// **Provisional name, and this change makes it worse rather than better** (milestone 161 marked it
+/// Name: provisional, and this change makes it worse rather than better (milestone 161 marked it
 /// provisional; milestone 308 is the lane that noticed): the function now maps an *index* into the
 /// vector space and the GSI is what it takes, not what it adds. `gsi_vector` still describes the
 /// question a caller asks, so it is not wrong, but a name naming the index would be more honest.

@@ -1,6 +1,6 @@
 # nife: Architecture Decisions
 
-*Name: ratified (§75 covers this directory). `decisions` names what the files are, one each, and the tree cites them as `§N` regardless of the directory's name; the plural is deliberate, since a singular would read as one decision about design rather than a place where decisions live.*
+*Name: ratified 2026-08-04 (calef, §75 (directories under `design/` and `notes/` carry provenance in their own README) covers this directory). `decisions` names what the files are, one each, and the tree cites them as `§N` regardless of the directory's name; the plural is deliberate, since a singular would read as one decision about design rather than a place where decisions live.*
 
 Decisions made 2026-07-12, before any code was written. Each entry records what we
 chose, what we rejected, and why. Revisit these deliberately, not accidentally.
