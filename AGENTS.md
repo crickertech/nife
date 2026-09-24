@@ -1,10 +1,21 @@
 # Working on nife
 
+<!-- prose-budget: exception. 5,916 words (wc -w, this marker included) against a 3,000-word
+     cap. Ratified by calef on 2026-09-24 (UTC) at 5,873 words, before the cuts he ruled the
+     same day brought it here. Reason: this file is nothing but rules, every reason having moved
+     to design/tenets/, and the imperatives alone do not fit the cap; rules were not cut to make
+     them fit. Marker syntax is PROVISIONAL until the
+     prose-budget gate exists. -->
+
 *This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude Code
 keeps finding it, and the in-tree citations of "CLAUDE.md" resolve through that symlink. It
 addresses any competent agent. The architect is calef. Two renames and one pivot sit behind the old
 names a reader will meet in older records:
-[design/tenets/project-history.md](design/tenets/project-history.md).*
+[design/tenets/project-history.md](design/tenets/project-history.md). Every reason, measurement and
+anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from the rule it
+explains; a reader who only needs to act never has to open one. This file is a **ratified exception
+to the 3,000-word prose budget** (calef, 2026-09-24, UTC), because what is left after that move is
+rules, and rules were not cut to fit a cap.*
 
 ## What this project is
 
