@@ -291,8 +291,13 @@ pub(crate) fn invoke(
             // once when the thread started and never again, against a counter that moves
             // continuously and can therefore be differenced into a timing channel. A viewer that
             // can already see a thread's tid and run state learns which of a handful of cores it
-            // was put on, and it learns nothing at all about a thread outside the domain it was
-            // handed. The right to look is still the capability, and nothing here widens it.
+            // was put on. **It can never name a thread outside the domain it was handed**; what
+            // it can learn about them is one noisy bit per spawn (2026-09-24 security audit):
+            // `pick_spawn_target` samples two cores and takes the one with the shorter run queue,
+            // and that queue counts every domain's threads, so a placement says which of two
+            // random cores was lighter at that instant. That is the counting channel the
+            // 2026-08-17 audit recorded, at lower bandwidth, and it is accepted on the same
+            // reasoning. The right to look is still the capability, and nothing here widens it.
             abi::rendezvous::SURVEY => {
                 // `ENUMERATE`, not `READ`, and the distinction is the method's whole safety
                 // argument: `READ` here also unlocks `RECV` and `REAP`, so a viewer granted it
