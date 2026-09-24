@@ -13,3 +13,4 @@ name in this tree.*
 | [mechanisms-not-memory.md](mechanisms-not-memory.md) | the ladder's rungs, the evening that produced it, and what rung zero cost |
 | [elegance-over-convenience.md](elegance-over-convenience.md) | why an argument from implementation cost is the weakest one available here |
 | [reversibility.md](reversibility.md) | why each category is irreversible, and the two failures that shaped the rule |
+| [documentation-standard.md](documentation-standard.md) | why FreeBSD's Handbook and man pages are the standard, and what each part buys |

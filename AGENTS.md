@@ -52,7 +52,7 @@ the tree from the merged tree at merge, never from a branch.
 
 **3. A newcomer must be able to succeed without asking anyone.** Documentation is task-oriented and
 in-tree, with real `EXAMPLES` and an honest `BUGS` section beside the feature rather than in a
-tracker.
+tracker (see [design/tenets/documentation-standard.md](design/tenets/documentation-standard.md)).
 Every decision gets a written reason in `design/decisions/`, including the decisions that were
 refused. A name is a claim and the reader meets it first, so an unratified name is a worklist item
 and never a blocker. **Anything that only works because someone knows it is a defect.**
@@ -400,25 +400,13 @@ machine contradicting the plan. Otherwise proceed and report what you did.
 Every design decision goes in `design/decisions/`; every concept and finding gets a note in `notes/`,
 indexed in `notes/README.md`. Record the *why* and the honest caveats.
 
-**The standard to aim at is FreeBSD's** (calef, 2026-07-30): the Handbook and the man pages, which
-are the best documentation in the field and are the reason a FreeBSD admin can answer a question
-without leaving the system. Four things make them that, and all four are things we can do:
-
-- **Task-oriented.** "How do I do X", in order, with the actual commands, rather than a reference
-  dump the reader has to reassemble.
-- **In-tree and versioned with the code**, so the docs cannot describe a system that no longer
-  exists. Already true here; keep it true.
-- **Real `EXAMPLES`.** A page without a worked example has not finished explaining itself.
-- **An honest `BUGS` section.** FreeBSD man pages document known limitations *in the manual*, next to
-  the feature, rather than only in a tracker. This is the one worth copying hardest, because it is
-  the convention this project already reaches for by instinct: the map "tie", the spawn caveat, the
-  scope notes on parity gaps. **Name the limitation where the reader meets the feature.**
-  When a limitation graduates from record to plan, and what forces the graduation, is §71's
-  convention: a `BUGS` entry is a fact, a roadmap row is intent, and the promotion triggers are
-  listed there.
-
-The point is not the format, which is theirs. It is the posture: documentation written for someone
-who has to *use* the thing, and honest enough that they trust it when it says something works.
+**The standard to aim at is FreeBSD's** (calef, 2026-07-30), and it is four things: task-oriented, so
+"how do I do X" in order with the actual commands; in-tree and versioned with the code; real
+`EXAMPLES`, because a page without a worked example has not finished explaining itself; and an honest
+`BUGS` section. **Name the limitation where the reader meets the feature**, not only in a tracker.
+When a limitation graduates from record to plan is §71's convention: a `BUGS` entry is a fact, a
+roadmap row is intent. See
+[design/tenets/documentation-standard.md](design/tenets/documentation-standard.md).
 
 **Anything global to the tree is assigned by the integrator at merge, never claimed by a lane.**
 Concurrent lanes cannot see each other, so a lane that reaches for a shared resource is guessing.
