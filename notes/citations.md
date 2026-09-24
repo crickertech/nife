@@ -437,6 +437,20 @@ in a citation, because that is what a wrapped one looks like to a line-based `gi
 widens the file list from 649 to 853 and costs about a second. Tightening it for speed is how the
 gate goes blind again, and the selftest is what would notice.
 
+**A possessive gloss is not recognised, although the tree is full of them.** The gate accepts
+`milestone 128 (the automation gets its own identity, and the agents get their own voice)` and
+rejects `milestone 128's (the automation gets its own identity, ...)`, reporting the glossed line
+itself as "cited with no gloss anywhere in this file". The possessive form is ordinary English and
+already appears in the tree: milestone 218 (every boot of the VisionFive 2 needs a human typing four
+commands into U-Boot) is cited in exactly that possessive shape in `design/roadmap/`, among others,
+and those files pass only because they predate the ratchet. **This very entry tripped the gate while
+being written**, on the line above, which is as good a demonstration as the entry could ask for. Found 2026-09-23 by the `maintainer/what-the-machinery-did` lane, which spent three commits
+on it: the failure names the right line and gives no hint that the apostrophe is what broke it, so
+the obvious response is to reword the gloss rather than to move it. **The workaround is to rewrite
+the sentence so the number is followed directly by its parenthesis**, which is what that lane did.
+Either the matcher should allow `'s` before the gloss, or the message should say which form it
+wants.
+
 **`--moved` cannot tell staleness from correctness, and it never will.** A note saying that
 milestone 30 (the network stack as a confined component) built the net stack is right forever, and
 it is listed every time 30's block is touched. The output is a prompt to look. If looking is
