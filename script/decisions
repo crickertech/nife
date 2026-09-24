@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# Validate and report the architecture decisions in design/decisions/ (index: README.md, one file
-# per decision).
+# Validate and report the architecture decisions in design/decisions/ (one file per decision, with
+# README.md as the index, whose table this script generates).
 #
 # Why this exists: 2,000-odd `§N` citations across the kernel, the crates, the notes and the roadmap
 # point into this record, ~400 of them from code comments, and a citation of a section that does not
@@ -24,38 +24,104 @@
 # checkable, and it is checked below. Recorded rather than deleted, because the reasoning is the
 # record.
 #
+# ---- why the status is a field and the index is generated (milestone 581) -----------------------
+#
+# Until 2026-09-23 a decision's status was `**Status: DECIDED.**`, a data field written as a
+# sentence, and this script read it with `re.match(r"\*\*Status: (.+?)\.\*\*", first)`. Two failures
+# on record come from exactly that shape. A file said `**Status: NOT YET`, the regex captured `NOT`,
+# dropped `YET`, and the report printed a word nobody had written; that is §211's finding.
+# `design/fatal-risks.md`'s risk 7 carried two status lines eighteen lines apart, and the first
+# match per section won, so `AUDITED` was invisible to every consumer for weeks.
+#
+# A schema removes that class of defect. A tighter regex removes the two instances. That is rung one
+# of AGENTS.md's ladder against rung two, and the ladder says take the higher rung where it fits.
+#
+# The schema is calef's, ratified 2026-09-23, and nothing here extends it:
+#
+#     ---
+#     status: DECIDED          PROPOSED | DECIDED | AMENDED | SUPERSEDED, always
+#     raised: 2026-09-23       UTC, always
+#     decided: 2026-09-23      UTC, required by DECIDED and AMENDED
+#     ratified_by: calef       a GitHub username, required by DECIDED and AMENDED
+#     superseded_by: 42        a section number, required by SUPERSEDED
+#     ---
+#
+# `superseded_by` is its own key rather than half of a compound `SUPERSEDED BY 42` token, which is
+# what makes the forward pointer checkable: it resolves to a section or the gate fails.
+#
+# **The index table is generated from the files**, which removes the tree's last additive-index
+# conflict of the shape milestone 294 removed from the roadmap. Every lane minting a section had to
+# add a row to one sorted file, so every lane in flight collided with every other one, there,
+# always. `briefs/rebase-onto-main.md` names it as case 4's worked example, and that example is now
+# stale. The prose around the table is NOT generated and must not be: the preamble argues, and only
+# the rows are data.
+#
+# **The files are the authority.** The index-versus-file comparison this script used to run is gone,
+# because it can no longer fail: there is one record and the table is a rendering of it. That is
+# rung one where the check was rung two, the same move `script/roadmap` recorded when its own table
+# became derived.
+#
 # What is checked, and which defect each check answers:
-#   - every index row links to a decision file that exists, and every decision file has an index row;
-#   - the status vocabulary, in the index AND in each file's own Status line, and the two must agree
-#     (a decision that was overtaken and says so nowhere is the failure milestone 114 was raised for:
-#     §26 opened "not yet built" for a week after milestone 22 built it);
-#   - `SUPERSEDED BY N` names a decision that exists, so the pointer out of a retired decision is as
+#   - every file carries frontmatter whose keys are in the schema and whose dates are ISO and UTC;
+#   - the required-when rules, against a ratchet (see PROVENANCE GAPS below);
+#   - `superseded_by` names a decision that exists, so the pointer out of a retired decision is as
 #     checked as a pointer into one;
-#   - each file holds exactly one decision: one H1, on line 1, whose number matches the filename
-#     (the §67-inside-§61 class, and the appended-past-the-closer class);
+#   - the prose does not restate a field, because two copies of one fact in one file is the defect
+#     the schema was ratified to remove;
+#   - each file holds exactly one decision: one H1, first thing after the frontmatter, whose number
+#     matches the filename (the §67-inside-§61 class, and the appended-past-the-closer class);
 #   - two files claiming one number is fatal, which is the collision the old single file made visible
 #     by accident and this makes visible on purpose;
 #   - a gap in the numbering is REPORTED and does not fail (milestone 443): the defect is a
 #     duplicate, which stays fatal, and failing on a gap is what forced the renumber that moves
 #     every citation. The reasoning is at the check.
-#   - every `§N` citation TREE-WIDE resolves to an index row (vendor/, patches/ and lockfiles
+#   - the committed index matches the one generated from the files;
+#   - every `§N` citation TREE-WIDE resolves to a decision (vendor/, patches/ and lockfiles
 #     excluded: other people's text and generated files).
 #
-# Deliberately NOT checked, and this is the gap that matters: whether a citation that resolves points
-# where its author MEANT. A well-formed citation to the wrong section is invisible here, and the tree
-# has already produced two of them; after any renumber, check by content and not by running this.
-# **Milestone 97 is the milestone that closes it** (a citation names what it cites, and the name is
-# compared against the target). Milestone 114 exists partly to make 97 cheap: now that a decision is
-# a file with a title on line 1, `§43 (reading the clock is a page)` can be checked against
-# `43-clock-authority.md`'s own H1 without parsing a 5,000-line document to find where §43 begins.
+# ---- PROVENANCE GAPS ----------------------------------------------------------------------------
 #
-# Also not checked: row title == file title. A row may abbreviate, the same allowance script/roadmap
-# makes.
+# `raised` is required always and `decided` is required by DECIDED, and the corpus predating the
+# schema does not record either for most of its files. Migrating the 211 files on `main` at
+# bfc91c8d2 recovered `raised` for 59 of them and `decided` for 148 of the 168 that owe one.
 #
-#   script/decisions           print the index, grouped by status
-#   script/decisions --check   validate; non-zero on a problem (wired into script/lint)
-#   script/decisions --index   print README.md with the table regenerated from the files
-#   script/decisions --write-index   write that back
+# **Nothing was invented to close that.** A date was taken only where a keyword in the prose
+# anchored it to a role, never from a bare date whose role was ambiguous and never from git history,
+# because the date a decision was committed is not the date it was raised. `script/names` already
+# treats a missing ratification date as a defect rather than as a blank to fill, and this is the
+# same posture one directory over.
+#
+# So the gaps are written down, in `design/decisions/PROVENANCE-GAPS.md`, and this script enforces
+# them as a **ratchet**: a gap on that list is a worklist item and passes, a gap that is not on it
+# fails. Every decision filed from now on carries the full schema, and the backlog can only shrink.
+# It is the shape of `script/names --unratified`, a worklist rather than a wall, and the reason that
+# shape is right here is AGENTS.md's: a mechanism that blocks a newcomer's build over somebody
+# else's undone archaeology produces an empty repository.
+#
+# BUGS
+#   The restatement check cannot refuse an attributed sentence that happens to repeat a date the
+#   frontmatter holds. `calef, 2026-09-18: <ruling>` is the shape, 130 files use it, and it is voice
+#   rather than a duplicated field. What is refused is the field-shaped forms: a `**Status: ...**`
+#   token anywhere outside a code fence, and an opening sentence of `Ratified by <user> on <date>`
+#   or `Decided <date>`. A gate that also stripped the attributed form would make 130 files worse to
+#   read and would remove no ambiguity, since the frontmatter is the field either way.
+#
+#   Nothing checks that a `raised` date precedes its `decided` date, or that either is a date this
+#   project existed on. Both are cheap to add and neither has yet been wrong.
+#
+#   A citation that RESOLVES but points where its author did not mean is still invisible, and the
+#   tree has already produced two of them; after any renumber, check by content and not by running
+#   this. **Milestone 97 is the milestone that closes it** (a citation names what it cites, and the
+#   name is compared against the target). Milestone 114 exists partly to make 97 cheap: now that a
+#   decision is a file with a title on its own line, `§43 (reading the clock is a page)` can be
+#   checked against `43-clock-authority.md`'s own H1 without parsing a 5,000-line document.
+#
+#   Row title == file title is not checked and does not need to be: the row IS the file title now.
+#
+#   script/decisions               print the index, grouped by status
+#   script/decisions --check       validate; non-zero on a problem (wired into script/lint)
+#   script/decisions --index       print README.md with the table regenerated from the files
+#   script/decisions --write-index write that back, and rewrite PROVENANCE-GAPS.md
 #
 # Name: recorded (DECISIONS §134, which writes the `script/` family's split down). Introduced
 # 2026-07-30 with the decision index. §134 states the rule nobody had recorded until then: what
@@ -77,108 +143,128 @@ import sys
 root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "decisions")
 index_path = os.path.join(d, "README.md")
+gaps_path = os.path.join(d, "PROVENANCE-GAPS.md")
 
 # The lifecycle, in the order a decision travels it. See design/decisions/README.md.
-VOCAB = ["PROPOSED", "DECIDED", "AMENDED", "SUPERSEDED BY"]
+VOCAB = ["PROPOSED", "DECIDED", "AMENDED", "SUPERSEDED"]
+KEYS = ["status", "raised", "decided", "ratified_by", "superseded_by"]
+DATE_KEYS = ["raised", "decided"]
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+FNAME = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
 
 problems = []
 
 
-def parse_status(text):
-    """Return the status token, or None. `SUPERSEDED BY N` keeps its number."""
-    m = re.match(r"(SUPERSEDED BY \d+|PROPOSED|DECIDED|AMENDED)\b", text)
-    return m.group(1) if m else None
+def parse_frontmatter(fname, lines):
+    """({key: value}, index of the first line after the closing fence), or (None, 0)."""
+    if not lines or lines[0] != "---":
+        problems.append(f"{fname}: no frontmatter. A decision opens with '---', the schema's keys "
+                        f"one per line, and '---' (milestone 581; the schema is in this script's "
+                        f"header and in design/decisions/README.md)")
+        return None, 0
+    try:
+        end = lines.index("---", 1)
+    except ValueError:
+        problems.append(f"{fname}: the frontmatter is never closed by a second '---'")
+        return None, 0
+    fm = {}
+    for n, line in enumerate(lines[1:end], start=2):
+        m = re.fullmatch(r"([a-z_]+): (.+)", line)
+        if not m:
+            problems.append(f"{fname}:{n}: {line[:40]!r} is not '<key>: <value>'. The frontmatter "
+                            f"is flat key-value pairs and nothing else: no lists, no nesting")
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if key not in KEYS:
+            problems.append(f"{fname}:{n}: {key!r} is not in the schema "
+                            f"({', '.join(KEYS)}). The schema is calef's and is not extended "
+                            f"by a lane")
+        elif key in fm:
+            problems.append(f"{fname}:{n}: {key!r} twice. One fact, one field")
+        else:
+            fm[key] = value
+    return fm, end + 1
 
 
-# ---- the index ---------------------------------------------------------------
-rows = {}
-try:
-    index = open(index_path).read()
-except FileNotFoundError:
-    print(f"decisions: {index_path} not found", file=sys.stderr)
-    sys.exit(1)
+def check_frontmatter(fname, fm, known_gaps, gaps):
+    status = fm.get("status")
+    if status is None:
+        problems.append(f"{fname}: no 'status' key, which is the one field every decision carries")
+    elif status not in VOCAB:
+        problems.append(f"{fname}: status {status!r} is not in the vocabulary "
+                        f"({', '.join(VOCAB)})")
+        status = None
+    for key in DATE_KEYS:
+        if key in fm and not DATE.fullmatch(fm[key]):
+            problems.append(f"{fname}: {key} is {fm[key]!r}, not a YYYY-MM-DD date. Every date in "
+                            f"this tree is UTC")
+    # Required-when, against the ratchet. A gap already recorded is a worklist item; a new one is a
+    # failure, which is what makes the backlog able only to shrink.
+    required = ["raised"]
+    if status in ("DECIDED", "AMENDED"):
+        required += ["decided", "ratified_by"]
+    if status == "SUPERSEDED":
+        required += ["superseded_by"]
+    for key in required:
+        if fm.get(key):
+            continue
+        gaps.append((fname, key))
+        if (fname, key) not in known_gaps:
+            problems.append(f"{fname}: status is {status} and there is no {key!r}. It is required, "
+                            f"and the prose it would be recovered from is the lane's to read. If "
+                            f"the record genuinely does not say, add the line to "
+                            f"design/decisions/PROVENANCE-GAPS.md and say so in the pull request: "
+                            f"an invented date is worse than a recorded gap")
+    for key in ("decided", "ratified_by"):
+        if key in fm and status in ("PROPOSED", "SUPERSEDED"):
+            problems.append(f"{fname}: status is {status} and it carries {key!r}, which belongs to "
+                            f"DECIDED and AMENDED")
+    if "superseded_by" in fm:
+        if status != "SUPERSEDED":
+            problems.append(f"{fname}: status is {status} and it carries 'superseded_by'")
+        elif not fm["superseded_by"].isdigit():
+            problems.append(f"{fname}: superseded_by is {fm['superseded_by']!r}, not a section "
+                            f"number")
+    return status
 
-ROW = re.compile(r"^\| (\d+) \| ([A-Z][A-Z0-9 ]*[A-Z0-9]) \| \[((?:\\\||[^\]])+)\]\(([^)]+)\) \|")
-for i, line in enumerate(index.split("\n"), start=1):
-    if not re.match(r"^\| \d+ \| ", line):
-        continue
-    m = ROW.match(line)
-    if not m:
-        problems.append(f"index line {i} looks like a decision row but does not parse "
-                        f"(number | STATUS | [title](file)): {line[:60]}...")
-        continue
-    num, status, title, target = int(m.group(1)), m.group(2), m.group(3), m.group(4)
-    if num in rows:
-        problems.append(f"§{num} has two index rows (line {i})")
-    if parse_status(status) != status:
-        problems.append(f"§{num}: status {status!r} is not in the vocabulary "
-                        f"({', '.join(VOCAB)}) (line {i})")
-    # Single-digit decisions zero-pad their filenames (01-target-architecture.md) so the
-    # directory sorts the way the record reads.
-    if not re.fullmatch(rf"0?{num}-[a-z0-9][a-z0-9-]*\.md", target):
-        problems.append(f"§{num}: row links to {target!r}, not to its own file")
-    elif not os.path.exists(os.path.join(d, target)):
-        problems.append(f"§{num}: row links to {target!r}, which does not exist")
-    rows[num] = (status, title, target)
 
-if not rows:
-    problems.append("no decision rows found in the index: has the table format changed?")
-
-# A gap is REPORTED and does not fail (milestone 443). It used to be a problem, on the reasoning
-# that a gap is almost always a renumber on merge that left a hole nobody meant to leave, and that
-# reasoning had the cost backwards.
+# The field-shaped forms, matched against a line's stripped text.
 #
-# **A duplicate is the defect; a gap is the cure's side effect.** Two files claiming §156 makes
-# every citation to it ambiguous, which is why that stays fatal in both directions (two index rows,
-# two files). A hole at §157 misleads nobody: `§157` appears nowhere, every citation that exists
-# still resolves, and the number line is not a promise that it is dense.
-#
-# **Failing on the gap is what forced the renumber, and the renumber is the expensive thing.** On
-# 2026-09-19 two sessions collided on §156 and §158 in one day. Whoever lands second has to change
-# the file, its index row, its H1, its own Status line and every `§N` in the tree that points at it,
-# and a renumber is exactly the operation this script's own header says it cannot check the meaning
-# of: "after any renumber, check by content and not by running this." So the gate was spending the
-# tree's most citation-dangerous edit to keep a property no reader uses.
-#
-# **What this can no longer catch**, stated plainly because it is a real loss: a decision file
-# deleted outright, where its index row is deleted in the same commit and nothing in the tree cites
-# it. Every other shape still fires. A file with no row, a row with no file, a row pointing at a
-# missing file and a citation to a number that has no row are all still problems, and they are the
-# shapes a half-finished deletion actually takes. The residue is a decision nobody ever referred to,
-# removed completely and on purpose, which is not the accident this check was written for.
-#
-# A withdrawn proposal still does not make a gap: it stays, as the record of what was declined.
-gaps = sorted(set(range(1, max(rows) + 1)) - set(rows)) if rows else []
+# **Each is anchored at the start of the line on purpose.** `**Status:` where a line begins is the
+# field this migration removed; the same token mid-sentence or inside backticks is prose ABOUT a
+# status line, which five files legitimately are: §211 quotes `design/fatal-risks.md`'s two
+# conflicting lines, §140 compares a proposal's spelling to a decision's, and §90 names where a
+# proposal lives. A check that refused those would be refusing the record of the defect it exists
+# to prevent.
+RESTATED = [
+    (re.compile(r"^\*\*Status:"),
+     "a '**Status:' line. The status is the frontmatter's 'status' key, and a second copy is the "
+     "defect the schema removed"),
+    (re.compile(r"^[Rr]atified by \w+,? on \d{4}-\d{2}-\d{2}"),
+     "an opening that restates 'decided' and 'ratified_by'. Both are frontmatter keys; the "
+     "sentence should say what was decided"),
+    (re.compile(r"^[Dd]ecided,? (?:on )?\d{4}-\d{2}-\d{2}"),
+     "an opening that restates 'decided', which is a frontmatter key"),
+]
 
-# `SUPERSEDED BY N` must point somewhere. The retired decision is kept, never deleted, so its
-# forward pointer is the only way a reader gets from it to what replaced it.
-for num, (status, _, _) in rows.items():
-    m = re.fullmatch(r"SUPERSEDED BY (\d+)", status)
-    if m and int(m.group(1)) not in rows:
-        problems.append(f"§{num} says it is superseded by §{m.group(1)}, which has no index row")
 
-# ---- the files ---------------------------------------------------------------
-FNAME = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
-
-# Pass one: every decision's own title, taken from its H1 rather than from the index, because the
-# index is allowed to abbreviate and this has to be exact. Used below to tell a PASTED decision from
-# an ordinary numbered subheading: §41 legitimately runs "## 1." to "## 4." over the four things
-# building milestone 23 settled, so the number alone proves nothing and the title does.
-titles = {}
-for fname in sorted(os.listdir(d)):
-    m = FNAME.fullmatch(fname)
-    if not m:
-        continue
-    first = open(os.path.join(d, fname)).readline().rstrip("\n")
-    h = re.match(r"# (\d+)\. (.+)$", first)
-    if h:
-        titles[h.group(2).strip()] = int(h.group(1))
+# ---- the files, which are the whole record -----------------------------------
+known_gaps = set()
+if os.path.exists(gaps_path):
+    for line in open(gaps_path):
+        m = re.match(r"- `([^`]+)`: no `([a-z_]+)`", line)
+        if m:
+            known_gaps.add((m.group(1), m.group(2)))
 
 ids = {}
-file_status = {}
-file_title = {}
+statuses = {}
+frontmatter = {}
+titles = {}
+bodies = {}
+gaps = []
+
 for fname in sorted(os.listdir(d)):
-    if fname == "README.md":
+    if fname in ("README.md", "PROVENANCE-GAPS.md"):
         continue
     m = FNAME.fullmatch(fname)
     if not m:
@@ -192,16 +278,35 @@ for fname in sorted(os.listdir(d)):
         continue
     ids[num] = fname
 
-    if num not in rows:
-        problems.append(f"{fname}: no index row for §{num}")
-    elif rows[num][2] != fname:
-        problems.append(f"{fname}: the index row for §{num} links to {rows[num][2]}")
-
     lines = open(os.path.join(d, fname)).read().split("\n")
-    if not re.match(rf"# {num}\. \S", lines[0] if lines else ""):
-        problems.append(f"{fname}: line 1 must be '# {num}. <title>' (found {lines[0][:40]!r})")
+    fm, body = parse_frontmatter(fname, lines)
+    if fm is None:
+        continue
+    frontmatter[num] = fm
+    statuses[num] = check_frontmatter(fname, fm, known_gaps, gaps)
+
+    while body < len(lines) and not lines[body].strip():
+        body += 1
+    h1 = re.match(rf"# {num}\. (\S.*)$", lines[body] if body < len(lines) else "")
+    if not h1:
+        problems.append(f"{fname}: the first line after the frontmatter must be '# {num}. <title>' "
+                        f"(found {(lines[body] if body < len(lines) else '')[:40]!r})")
+        continue
+    titles[num] = h1.group(1).strip()
+    bodies[num] = body
+
+# Pass two, which needs every title first: a heading that repeats ANOTHER decision's title is that
+# decision arriving somewhere it does not live. A number alone does not prove it, because §41
+# legitimately runs "## 1." to "## 4." over the four things building milestone 23 settled.
+by_title = {t: n for n, t in titles.items()}
+for num, fname in sorted(ids.items()):
+    if num not in bodies:
+        continue
+    lines = open(os.path.join(d, fname)).read().split("\n")
+    body = bodies[num]
     fence = False
-    for n, line in enumerate(lines[1:], start=2):
+    first_prose = True
+    for n, line in enumerate(lines[body + 1:], start=body + 2):
         if line.lstrip().startswith("```"):
             fence = not fence
             continue
@@ -210,49 +315,67 @@ for fname in sorted(os.listdir(d)):
         if line.startswith("# "):
             problems.append(f"{fname}:{n}: a second H1: one file is one decision, and appended "
                             f"text belongs under it, not beside it")
-        # The shape of the 2026-08-03 defect: a whole decision pasted into a file that already held
-        # one. A number alone does not prove it (§41 numbers its own four subsections), so the test
-        # is the TITLE: a heading that repeats another decision's title is that decision arriving
-        # somewhere it does not live.
         h = re.match(r"#{1,6} (\d+)\. (.+)$", line)
-        if h and titles.get(h.group(2).strip()) not in (None, num):
+        if h and by_title.get(h.group(2).strip()) not in (None, num):
             problems.append(f"{fname}:{n}: §{h.group(1)}'s heading ({h.group(2)[:40]!r}) inside "
                             f"§{num}'s file: one file is one decision")
+        for pattern, why in RESTATED:
+            # The two date forms are refused only where the prose opens, because that is where a
+            # field restatement sits; a date in the argument below is argument.
+            if pattern.pattern != r"^\*\*Status:" and not first_prose:
+                continue
+            if pattern.match(line.strip()):
+                problems.append(f"{fname}:{n}: the prose carries {why}")
+        if line.strip():
+            first_prose = False
 
-    h1 = re.match(rf"# {num}\. (.+)$", lines[0] if lines else "")
-    if h1:
-        file_title[num] = h1.group(1).strip()
-    first = next((line for line in lines[1:] if line.strip()), "")
-    fsm = re.match(r"\*\*Status: (.+?)\.\*\*", first)
-    if fsm and parse_status(fsm.group(1)) == fsm.group(1):
-        file_status[num] = fsm.group(1)
+# `superseded_by` must point somewhere. The retired decision is kept, never deleted, so its forward
+# pointer is the only way a reader gets from it to what replaced it.
+for num, fm in frontmatter.items():
+    target = fm.get("superseded_by", "")
+    if target.isdigit() and int(target) not in ids:
+        problems.append(f"§{num} says it is superseded by §{target}, which does not exist")
 
-    if num in rows:
-        sm = re.match(r"\*\*Status: (.+?)\.\*\*", first)
-        if not sm:
-            problems.append(f"{fname}: the first line after the title must be "
-                            f"'**Status: <token>.**' (found {first[:40]!r})")
-        elif parse_status(sm.group(1)) != sm.group(1):
-            problems.append(f"§{num}: file status {sm.group(1)!r} is not in the vocabulary")
-        elif sm.group(1) != rows[num][0]:
-            problems.append(f"§{num}: file says {sm.group(1)}, index says {rows[num][0]} "
-                            f"(a decision whose status is contradicted by its own index row)")
+if not ids:
+    problems.append("no decision files found: has the directory moved?")
 
-# ---- the index, rendered from the files --------------------------------------
-# **The table under `## The decisions` is generated**, and this is what generates it. It was
-# hand-maintained until milestone 581, which made it the worst additive-index conflict left in the
-# tree for the same reason `design/roadmap/README.md`'s table was before milestone 294 retired it:
-# every lane minting a section had to add a row to one sorted file, so every lane in flight
-# collided with every other one, always, in that one place. `briefs/rebase-onto-main.md` names it
-# as case 4's worked example.
+# A gap is REPORTED and does not fail (milestone 443). It used to be a problem, on the reasoning
+# that a gap is almost always a renumber on merge that left a hole nobody meant to leave, and that
+# reasoning had the cost backwards.
 #
-# **The prose around the table is not generated and must not be**, which is why this replaces a
-# region rather than writing the whole file. The preamble argues; only the rows are data.
+# **A duplicate is the defect; a gap is the cure's side effect.** Two files claiming §156 makes
+# every citation to it ambiguous, which is why that stays fatal. A hole at §157 misleads nobody:
+# `§157` appears nowhere, every citation that exists still resolves, and the number line is not a
+# promise that it is dense.
 #
-# The region is anchored on the `## The decisions` heading and ends at the first blank line after
-# the rows, rather than on HTML comment markers. A marker is a second thing to keep correct, and
-# the heading is already load-bearing: a reader navigates by it and GitHub renders it.
+# **Failing on the gap is what forced the renumber, and the renumber is the expensive thing.** On
+# 2026-09-19 two sessions collided on §156 and §158 in one day. Whoever lands second has to change
+# the file, its index row, its H1, its own status and every `§N` in the tree that points at it, and
+# a renumber is exactly the operation this script's own header says it cannot check the meaning of.
+# So the gate was spending the tree's most citation-dangerous edit to keep a property no reader uses.
+#
+# **What this can no longer catch**, stated plainly because it is a real loss: a decision file
+# deleted outright, where nothing in the tree cites it. Every other shape still fires, including a
+# citation to a number that has no file, which is the shape a half-finished deletion actually takes.
+#
+# A withdrawn proposal still does not make a gap: it stays, as the record of what was declined.
+numbers = sorted(ids)
+gap_numbers = sorted(set(range(1, numbers[-1] + 1)) - set(numbers)) if numbers else []
+
+# ---- the index, rendered from the files ---------------------------------------
+# The region is anchored on the `## The decisions` heading and ends after the rows, rather than on
+# HTML comment markers. A marker is a second thing to keep correct, and the heading is already
+# load-bearing: a reader navigates by it and GitHub renders it.
 TABLE_HEADING = "## The decisions"
+
+
+def row_status(num):
+    """What the table shows. `SUPERSEDED BY N` is reassembled from the two keys that replaced it,
+    because a row that said only SUPERSEDED would drop the pointer a reader follows."""
+    status = statuses.get(num)
+    if status == "SUPERSEDED":
+        return f"SUPERSEDED BY {frontmatter[num].get('superseded_by', '?')}"
+    return status or ""
 
 
 def render_index(text):
@@ -270,13 +393,68 @@ def render_index(text):
         end += 1
     body = ["| # | Status | Decision |", "|---|---|---|"]
     for num in sorted(ids):
-        status = file_status.get(num, "")
-        if status == "SUPERSEDED BY" or not status:
+        if num not in statuses or num not in titles:
             continue
-        title = file_title.get(num, "").replace("|", "\\|")
-        body.append(f"| {num} | {status} | [{title}]({ids[num]}) |")
+        title = titles[num].replace("|", "\\|")
+        body.append(f"| {num} | {row_status(num)} | [{title}]({ids[num]}) |")
     return "\n".join(lines[:n] + body + lines[end:])
 
+
+def render_gaps():
+    header = [
+        "# Provenance the record never carried",
+        "",
+        "**Generated. Run `script/decisions --write-index` after closing one.** Every line here is",
+        "a decision file that does not state a date the schema requires, and `script/decisions",
+        "--check` treats the list as a ratchet: a gap named here passes, and a gap that is not",
+        "named here fails. So every decision filed from now on carries the whole schema, and this",
+        "file can only get shorter.",
+        "",
+        "Milestone 581 (a decision's status becomes a field, and the index becomes generated) made",
+        "the list when it moved the status into frontmatter. It recovered a date only where a",
+        "keyword in the prose anchored it to a role, never from a bare date whose role was",
+        "ambiguous and never from git history, because the date a decision was committed is not the",
+        "date it was raised. `script/names` refuses a ratification that carries no date rather than",
+        "filling one in, and this is the same posture one directory over: an invented date is worse",
+        "than a recorded gap, because the field whose whole job is not lying would be lying.",
+        "",
+        "**Closing one is archaeology, and it is real work.** The answer is usually in the commit",
+        "that introduced the decision, in the pull request that carried it, or in a note that cites",
+        "it. It is not in the file, or the line below would not be here.",
+        "",
+    ]
+    return "\n".join(header + [f"- `{f}`: no `{k}`" for f, k in sorted(set(gaps))] + [""])
+
+
+try:
+    index = open(index_path).read()
+except FileNotFoundError:
+    print(f"decisions: {index_path} not found", file=sys.stderr)
+    sys.exit(1)
+
+generated_index = render_index(index)
+if generated_index is None:
+    problems.append(f"the index has no '{TABLE_HEADING}' heading, so the table cannot be generated")
+
+if mode == "--index":
+    if generated_index is None:
+        sys.exit(1)
+    print(generated_index, end="")
+    sys.exit(0)
+
+if mode == "--write-index":
+    if generated_index is None:
+        sys.exit(1)
+    open(index_path, "w").write(generated_index)
+    open(gaps_path, "w").write(render_gaps())
+    sys.exit(0)
+
+if generated_index is not None and generated_index != index:
+    problems.append("the index table does not match the files it is generated from; run "
+                    "`script/decisions --write-index`")
+if os.path.exists(gaps_path) and open(gaps_path).read() != render_gaps():
+    problems.append("PROVENANCE-GAPS.md does not match the files; run "
+                    "`script/decisions --write-index`")
 
 # ---- citations, tree-wide ----------------------------------------------------
 # **`git grep` output is not only matches.** For a binary file it prints the SENTENCE
@@ -308,59 +486,50 @@ if unparsed:
           file=sys.stderr)
     print("decisions: this usually means a binary file is tracked (git grep prints a sentence, "
           "not a match). Check `git ls-files` for build artifacts.", file=sys.stderr)
-for n in sorted(cited - set(rows)):
+for n in sorted(cited - set(ids)):
     problems.append(f"§{n} is cited in the tree but no decision has that number")
 
 # ---- report ------------------------------------------------------------------
-generated_index = render_index(index)
-if generated_index is None:
-    problems.append(f"the index has no '{TABLE_HEADING}' heading, so the table cannot be generated")
-
-if mode == "--index":
-    if generated_index is None:
-        sys.exit(1)
-    print(generated_index, end="")
-    sys.exit(0)
-
-if mode == "--write-index":
-    if generated_index is None:
-        sys.exit(1)
-    open(index_path, "w").write(generated_index)
-    sys.exit(0)
-
-if generated_index is not None and generated_index != index:
-    problems.append("the index table does not match the files it is generated from; run "
-                    "`script/decisions --write-index`")
-
 if mode == "--check":
     for p in sorted(set(problems)):
         print(f"decisions: {p}", file=sys.stderr)
     if problems:
         sys.exit(1)
-    print(f"decisions: {len(rows)} decisions, {len(ids)} files, status vocabulary clean, "
-          f"index and files agree, every tree-wide citation resolves")
+    print(f"decisions: {len(ids)} decisions, frontmatter valid, index and gap ledger generated "
+          f"from the files, every tree-wide citation resolves")
     if gaps:
-        print(f"decisions: {len(gaps)} unused number{'s' if len(gaps) != 1 else ''} "
-              f"({', '.join('§' + str(n) for n in gaps)}). Reported, not a failure: a duplicate is "
-              f"the defect, a gap is not, and renumbering to close one moves citations")
+        print(f"decisions: {len(set(gaps))} provenance gap(s) recorded in PROVENANCE-GAPS.md. "
+              f"Reported, not a failure: the list is a ratchet, and a date nobody wrote is not a "
+              f"date to invent")
+    if gap_numbers:
+        print(f"decisions: {len(gap_numbers)} unused number"
+              f"{'s' if len(gap_numbers) != 1 else ''} "
+              f"({', '.join('§' + str(n) for n in gap_numbers)}). Reported, not a failure: a "
+              f"duplicate is the defect, a gap is not, and renumbering to close one moves "
+              f"citations")
     sys.exit(0)
 
 by_status = {}
-for n, (status, title, _) in rows.items():
-    by_status.setdefault(status.split(" BY ")[0], []).append((n, status, title))
+for num in sorted(ids):
+    if num in statuses and num in titles:
+        by_status.setdefault(statuses[num], []).append(num)
 
-for status in ["PROPOSED", "DECIDED", "AMENDED", "SUPERSEDED"]:
-    items = sorted(by_status.get(status, []))
+for status in VOCAB:
+    items = by_status.get(status, [])
     if not items:
         continue
     print(f"\n{status} ({len(items)})")
-    for n, full, title in items:
-        tag = f" -> §{full.split()[-1]}" if full.startswith("SUPERSEDED") else ""
-        print(f"  §{n:<3} {title[:72]}{tag}")
+    for n in items:
+        tag = ""
+        if status == "SUPERSEDED":
+            tag = f" -> §{frontmatter[n].get('superseded_by', '?')}"
+        print(f"  §{n:<3} {titles[n][:72]}{tag}")
 
-print(f"\ntotal: {len(rows)} decisions")
+print(f"\ntotal: {len(ids)} decisions")
 if gaps:
-    print(f"unused numbers: {', '.join('§' + str(n) for n in gaps)}")
+    print(f"provenance gaps: {len(set(gaps))} (design/decisions/PROVENANCE-GAPS.md)")
+if gap_numbers:
+    print(f"unused numbers: {', '.join('§' + str(n) for n in gap_numbers)}")
 for p in sorted(set(problems)):
     print(f"PROBLEM: {p}")
 PY
