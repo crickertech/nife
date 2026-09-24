@@ -149,7 +149,7 @@ pub(crate) fn bench() -> bool {
             // The full machine, for the aggregate-throughput bench. The per-core primitive magnitudes
             // in this same run are then NOT per-core clean (the reap-heavy ones, spawn_el0 and
             // spawn_reap, inflate and go noisy under cross-core reap lag); read those from the default
-            // single-hart run instead. See notes/benchmarks.md, the multi-hart section.
+            // single-hart run instead. See notes/benchmarks/per-core-and-multi-hart.md.
             // "4" matches the runner's default; the throughput bench reads
             // the actual online count at runtime, so this only needs to be more than one.
             cmd.env("NIFE_SMP", "4");
@@ -179,7 +179,8 @@ pub(crate) fn bench() -> bool {
         // measured window counts three other harts' idle jumps and load-balanced spawns, not the
         // path under test. That contamination (not any code change) is what made the counts swing
         // wildly and non-physically across today's merges: coremark, pure compute, moved 63%. See
-        // notes/benchmarks.md, the 2026-07-28 attribution. The aarch64 default is 4 (SMP tests);
+        // notes/benchmarks/icount-drift-and-provenance.md, the 2026-07-28 attribution. The aarch64
+        // default is 4 (SMP tests);
         // the icount bench pins 1 to match riscv and measure the primitive, not the machine.
         cmd.env("NIFE_SMP", "1");
         eprintln!(
@@ -266,7 +267,8 @@ fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
 /// **Two instruments, the same split `bench()` makes for aarch64**: default is TCG + `-icount
 /// shift=0,sleep=off`, gated against `bench/baseline-x86_64.txt`; `--real` is plain TCG (no
 /// KVM/HVF on this ARM host to accelerate `x86_64`), statistical, never gating, the shape
-/// notes/benchmarks.md's 2026-08-24 section already used for the `tss_iomap_switch` measurement
+/// notes/benchmarks/x86-tss-iomap.md's 2026-08-24 section already used for the `tss_iomap_switch`
+/// measurement
 /// before this leg existed.
 ///
 /// **This is not `icount()`'s instrument** (see the `--x86` branch in `bench()` above): that one
@@ -311,7 +313,8 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     // It was inherited and not pinned until 2026-09-23, when milestone 315 (a port revoke that
     // reaches every core) moved `scripts/qemu-runner-x86_64.sh`'s default to 2 and five counters
     // went outside the tripwire without a line of benchmarked code changing. Measured rather than
-    // argued (notes/benchmarks.md, the 2026-09-23 section): at `NIFE_SMP=1` this branch is within
+    // argued (notes/benchmarks/x86-instruments.md, the 2026-09-23 section): at `NIFE_SMP=1` this
+    // branch is within
     // 2.3% of the baseline on every row, and at `NIFE_SMP=2` `spawn_reap` is 7.4x it, because
     // `bench::spawn_reap`'s parent busy-yields until the reaper runs and the child is now on the
     // other core: 4,205 spin-yields over 64 iterations against 22.
