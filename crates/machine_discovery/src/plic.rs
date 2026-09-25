@@ -22,13 +22,14 @@
 //!    `interrupt-controller` node (`riscv,cpu-intc`) gives the phandle those entries use. The two
 //!    lists align by tree order: each intc is nested inside its `cpu@` node, so the *i*-th
 //!    `riscv,cpu-intc` in the tree belongs to the *i*-th `cpu@` node.
-//! 2. The PLIC node, found by its binding (`sifive,plic-1.0.0` or `riscv,plic0`, tried in that
-//!    order) rather than its label, because the label differs between the machines this has to
-//!    work on: QEMU spells it `plic@c000000`, the JH7110 `interrupt-controller@c000000`. The two
-//!    binding strings matter too: QEMU virt's PLIC node lists both, but the VisionFive 2's actual
-//!    U-Boot-supplied control DTB lists only `riscv,plic0` (bench, 2026-08-21), the older, generic
-//!    RISC-V PLIC binding that predates `sifive,plic-1.0.0` in the Linux kernel's own binding
-//!    history. A tree naming only one of the two is not malformed; it is the older spelling.
+//! 2. The PLIC node, found by its binding ([`COMPATIBLES`], tried in order) rather than its label,
+//!    because the label differs between the machines this has to work on: QEMU spells it
+//!    `plic@c000000`, the JH7110 `interrupt-controller@c000000`. The binding strings differ too:
+//!    QEMU virt's PLIC node lists `sifive,plic-1.0.0` and `riscv,plic0`, but the VisionFive 2's
+//!    actual U-Boot-supplied control DTB lists only `riscv,plic0` (bench, 2026-08-21), the older,
+//!    generic binding. The T-Head TH1520 lists neither: its node says `thead,th1520-plic`,
+//!    `thead,c900-plic` (Linux `th1520.dtsi`, read 2026-09-25 for milestone 89 (Scaleway EM-RV1:
+//!    a second RISC-V implementation, rented)).
 //!
 //! # BUGS
 //!
@@ -51,6 +52,20 @@
 use device_tree_blob::{DeviceTreeBlob, Error};
 
 use crate::cpu_list::CpuList;
+
+/// **Every `compatible` string this tree accepts as a PLIC**, in the order they are tried. One list,
+/// because two lookups read it: [`PlicContexts::from_device_tree`] here, and the kernel's
+/// `memory::init`, which finds the register block. Until 2026-09-25 each carried its own list and
+/// they disagreed (the kernel's lacked `riscv,plic0`), which is the drift one list removes.
+///
+/// - `sifive,plic-1.0.0`: QEMU `virt` and the mainline JH7110 dtsi.
+/// - `riscv,plic0`: the older generic binding, and the only one radon's U-Boot control DTB states.
+/// - `thead,c900-plic`: T-Head's C9xx PLIC, the TH1520's (milestone 89), with the standard
+///   register layout. Two T-Head differences are firmware's or a driver's, not this parser's:
+///   M-mode must set bit 0 of the control word at `0x1f_fffc` before S-mode may touch the PLIC (OpenSBI does,
+///   `PLIC_FLAG_THEAD_DELEGATION`), and an edge source must be completed before it is handled or
+///   the next edge is lost (Linux `PLIC_QUIRK_EDGE_INTERRUPT`).
+pub const COMPATIBLES: [&[u8]; 3] = [b"sifive,plic-1.0.0", b"riscv,plic0", b"thead,c900-plic"];
 
 /// The most harts a context map records; matches [`crate::riscv64::MAX_HARTS`].
 pub const MAX_CONTEXT_HARTS: usize = crate::riscv64::MAX_HARTS;
@@ -98,19 +113,18 @@ impl PlicContexts {
     pub fn from_device_tree(dt: &DeviceTreeBlob<'_>) -> Result<PlicContexts, Error> {
         let mut out = PlicContexts::default();
 
-        // Two strings, because real trees do not agree on which one they carry. QEMU virt's PLIC
-        // lists both, in this order, so matching the first alone happened to work there; the
-        // VisionFive 2's actual U-Boot-supplied control DTB lists only "riscv,plic0" (bench,
-        // 2026-08-21: PlicContexts::from_device_tree found no node at all against the board's
-        // real tree, and dumping it showed why). "riscv,plic0" is the older, generic RISC-V PLIC
-        // binding and predates "sifive,plic-1.0.0" in the Linux kernel's own binding history; a
-        // tree naming only one of the two is not malformed, it is just the older spelling.
-        let entries = match dt.node_prop_compatible(b"sifive,plic-1.0.0", b"interrupts-extended")? {
-            Some(entries) => entries,
-            None => match dt.node_prop_compatible(b"riscv,plic0", b"interrupts-extended")? {
-                Some(entries) => entries,
-                None => return Ok(out),
-            },
+        // Real trees do not agree on which binding string they carry; [`COMPATIBLES`] says which
+        // machine taught us each one. The VisionFive 2's control DTB found no node at all here
+        // until "riscv,plic0" was added (bench, 2026-08-21).
+        let mut entries = None;
+        for compat in COMPATIBLES {
+            if let Some(found) = dt.node_prop_compatible(compat, b"interrupts-extended")? {
+                entries = Some(found);
+                break;
+            }
+        }
+        let Some(entries) = entries else {
+            return Ok(out);
         };
 
         // Walk 1: hart ids, and the phandle of each hart's own interrupt controller. The
