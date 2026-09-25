@@ -12,8 +12,7 @@ adding a decision; the prose around it is written by hand and is not touched.
 
 One decision, one file, named `NN-slug.md`. The number is the identity: `§14` is
 `14-project-direction.md` and nothing else, and the 2,000-odd `§N` citations spread across the
-kernel, the crates, the notes and the roadmap all resolve here. GitHub renders this README as the
-directory index, so browsing to `design/decisions/` shows the table below.
+kernel, the crates, the notes and the roadmap resolve here.
 
 This was one 5,320-line file until milestone 114 (split `DECISIONS.md`, and give a decision a status). Splitting it does the same three things the
 roadmap split (milestone 76) did one directory over:
@@ -325,6 +324,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 212 | DECIDED | [A prose budget: 3,000 words of main body, with appendices under the same cap](212-a-prose-budget-for-every-document.md) |
 | 213 | DECIDED | [Writing standards: three countable rules, one review rule, and a ratchet](213-writing-standards.md) |
 | 214 | DECIDED | [The Team plan buys runner concurrency, and merge throughput is no longer third](214-the-team-plan-buys-runner-concurrency.md) |
+| 215 | DECIDED | [The second RISC-V machine is a rented Scaleway Elastic Metal RV1](215-the-second-risc-v-machine-is-a-scaleway-rv1.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

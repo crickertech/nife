@@ -116,3 +116,7 @@ here.
 
 Which provider, and the spend split between inference, runners and bare metal. calef has said any of
 the three architectures is acceptable, which settles the constraint this section needed.
+
+The riscv64 provider was decided on 2026-09-25: [§215 (the second RISC-V machine is a rented
+Scaleway Elastic Metal RV1)](215-the-second-risc-v-machine-is-a-scaleway-rv1.md). aarch64, x86_64
+and the spend split remain open.
