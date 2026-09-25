@@ -136,11 +136,11 @@ Measuring that churn over the first week is part of the milestone.
   make this not worth doing, so that number decides whether it stays.
 - **Outstanding.** Promote the two exception markers from provisional. The syntax is honoured as
   found; calef names it. Where the splitter departs from §213's, and why, is in the module's header.
-- **Outstanding.** The marker-count check from the design note above. Its mechanism is small: read
-  the first number before `words` in a `prose-budget` marker as a whole-file `wc -w` ceiling. It was
-  not switched on, because `AGENTS.md` is past its marker on the day it would land (6,291 words
-  against 6,279; `design/fatal-risks.md` was cut back to its 4,235). It would fail `main` until
-  calef re-grants or the file is cut, and this lane may not edit it.
+- **Done.** Built 2026-09-25: the marker-count check from the design note above. `granted_words()`
+  reads the first number before `words` in a `prose-budget` marker as a whole-file `wc -w` ceiling.
+  It waited on `AGENTS.md`, which #1285 brought to its 6,097. `design/fatal-risks.md` had grown to
+  4,250 against its 4,235 through milestone 89 (Scaleway EM-RV1)'s table cell (#1278). Per calef's
+  ruling of 2026-09-24 it was cut back rather than re-granted, and `main` then passed.
 - **Outstanding.** Every new decision fails this gate. `design/decisions/README.md` is over the
   word cap and its index table is generated and counted, so one new row, about 17 words, breaks the
   "may not get worse" rule. Found 2026-09-25, when the queue removed #1278, which adds §215 (the
