@@ -46,7 +46,9 @@ The evidence today, counted rather than characterised, and it points one way.
   this entry is worth nothing if it is read as "probably fine, nobody has complained."
 - Nothing installs, so there is nothing to count. Milestone 576 (how many systems are out there, and
   what do they run) is `NOT-STARTED`. It is gated on milestone 198 (a package manager, and the
-  trivial install that makes a second customer possible), which is itself behind a `DECISION` gate.
+  trivial install that makes a second customer possible). Its gate read `DECISION` until
+  2026-09-24; the three forks were ruled by 2026-09-23: §195 (a reviewed recipe vouches for a
+  package), §197 (a package is one archive file) and §208, and what remains is work.
   The project has no instrument that could observe a user if one appeared.
 - The one published argument that addresses this says it goes badly, and it is cited below.
 - What the green results buy is narrower than it reads. Risk 1 is green on three architectures
@@ -56,8 +58,9 @@ The evidence today, counted rather than characterised, and it points one way.
 
 Why no verdict can be rendered, stated as the loop it is. Nobody can be asked to run nife until it
 installs (calef's precondition: no third parties until a package manager and a trivial install
-exist). It will not install until milestone 198 lands, and 198 waits on decisions only calef can
-make. Milestone 530 ruled on 2026-09-21 that the customer path stays vacant, and is blocked rather
+exist). It will not install until milestone 198 lands, and since §208 (installing is granting) ruled
+the last of its forks on 2026-09-23, 198 waits on work rather than on calef: rung 3a's consumer
+half, which fetches, verifies, installs and removes a package on a running system. Milestone 530 ruled on 2026-09-21 that the customer path stays vacant, and is blocked rather
 than empty. It refused the closest candidate, a measurement appliance for this project's own
 benchmarking, because that would be the architect in a different hat, letting the ranking resume
 without resolving what made the path vacant. That ruling is correct and it is also what seals this

@@ -261,13 +261,13 @@ real deadline, nife could not meet it, and he solved the problem with Linux. Tha
 working as designed. What it changed: a first customer should be something nife can plausibly be
 adequate at within a milestone or two.
 
-Why no verdict can be rendered, as the loop it is. Nobody can be asked to run nife until it installs.
-It will not install until milestone 198 lands, and 198 is `PARTIAL` behind a `DECISION` gate only
-calef can answer. Milestone 530 (name a customer, or admit the ranking function has nothing to rank)
-ruled on 2026-09-21 that the path stays vacant, and is blocked rather than empty. So while it is
-blocked, 198 inherits the ranking function's top slot. What would falsify it: somebody who is not
-calef installs nife on purpose and is still running it two months later. The install is the weak
-half, and retention is the claim.
+Why no verdict can be rendered. Nobody can be asked to run nife until it installs, which waits on
+milestone 198. That is no longer a decision: calef ruled its three forks (trust, format and
+activation) by 2026-09-23, so what remains is work, rung 3a's consumer half. Milestone 530 (name a customer, or
+admit the ranking function has nothing to rank) ruled on 2026-09-21 that the path stays vacant
+(blocked, not empty), so 198 holds the ranking function's top slot. What would falsify it: somebody
+who is not calef installs nife on purpose and is still running it two months later. The install is
+the weak half, and retention is the claim.
 
 Two caveats. What the green results buy is narrower than it
 reads: risks 1 and 9 answer *could somebody run this*, and this entry asks *does somebody want to*.
