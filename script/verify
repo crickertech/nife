@@ -20,8 +20,11 @@ cd "$(dirname "$0")/.."
 # --affected-since <base>: decide whether a change can reach the proofs at all, without proving.
 #
 # The proofs are a function of the harness crates and their transitive dependencies, and nothing
-# else: `cargo kani -p <crate>` never compiles the kernel, the user programs, or xtask. So a change
-# confined to crates outside every harness crate's dependency closure provably cannot change a proof
+# else: `cargo kani -p <crate>` compiles only the crate it names and what that crate depends on.
+# (This line said "never compiles the kernel" until 2026-09-24, which stopped being true when
+# milestone 193 (put `kernel/src` within reach of the prover) made `kernel` a harness crate on
+# 2026-08-30; the closure argument below never depended on it.) So a change confined to crates
+# outside every harness crate's dependency closure provably cannot change a proof
 # outcome, and the 42 minutes are spent on nothing. This mode computes that from `cargo metadata`
 # rather than from a hand-kept path list, so it cannot drift as the graph changes.
 #
