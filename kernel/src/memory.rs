@@ -112,21 +112,7 @@ pub fn init() {
     // only it: their own discovery also falls back to constants, so it cannot be the evidence that
     // this machine is a JH7110. They are read here, while the tree is in hand, because the one
     // caller (the rebooting soak, just before its SBI reset) runs long after boot.
-    {
-        let crg = jh7110_clock_and_reset::discover(&dtb).ok();
-        let has_trng = matches!(jh7110_entropy::discover(&dtb), Ok(Some(_)));
-        if let Some(found) = crg
-            && (found.from_tree || has_trng)
-        {
-            *JH7110_CRG.lock() = Some(found);
-            if let (Ok(sys), Ok(bus)) = (
-                jh7110_clock_and_reset::discover_sys(&dtb),
-                jh7110_clock_and_reset::pmic_bus(&dtb),
-            ) {
-                *JH7110_PMIC_BUS.lock() = Some((sys, bus));
-            }
-        }
-    }
+    record_jh7110(&dtb);
 
     // The SMMUv3 (milestone 16b), present only when the machine was started with
     // `iommu=smmuv3`. Absent, the kernel runs exactly as before; present, iommu::init drives it.
@@ -241,6 +227,30 @@ pub fn init() {
     let forbidden = &forbidden[..n];
 
     bring_up_page_frames(ram, forbidden);
+}
+
+/// **Record the JH7110's clock-and-reset windows and the PMIC bus's plan** (milestones 220 and
+/// 592), under the guard `init`'s comment above the call describes.
+///
+/// Its own frame, and `inline(never)` so it stays one: `init` is already close to the 4,096-byte
+/// guard page in an unoptimised build, and the two `Found`s and the `PmicBus` here pushed it over
+/// (`script/stack-frame-check`, 4,352 bytes on aarch64, 2026-09-25). A call keeps these locals off
+/// `init`'s frame instead of raising any ceiling.
+#[inline(never)]
+fn record_jh7110(dtb: &device_tree_blob::DeviceTreeBlob<'_>) {
+    let crg = jh7110_clock_and_reset::discover(dtb).ok();
+    let has_trng = matches!(jh7110_entropy::discover(dtb), Ok(Some(_)));
+    if let Some(found) = crg
+        && (found.from_tree || has_trng)
+    {
+        *JH7110_CRG.lock() = Some(found);
+        if let (Ok(sys), Ok(bus)) = (
+            jh7110_clock_and_reset::discover_sys(dtb),
+            jh7110_clock_and_reset::pmic_bus(dtb),
+        ) {
+            *JH7110_PMIC_BUS.lock() = Some((sys, bus));
+        }
+    }
 }
 
 /// **Bring the frame allocator up over a described machine**, given RAM and everything already
