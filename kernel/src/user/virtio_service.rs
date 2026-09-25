@@ -300,6 +300,10 @@ const NET_CLIENT_BUDGET_PAGES: u64 = 16;
 /// `socket_test_client`, not a guess.
 const NET_CLIENT_STACK_PAGES: u64 = 6;
 
+/// The most pages of read-only blob a stack client can be handed (see
+/// `NET_CLIENT_CATALOGUE_VA`). One catalogue line is 86 bytes, so one page is some forty packages.
+const NET_CLIENT_BLOB_PAGES: u64 = 1;
+
 /// **Spawn the net server and a client of its socket contract** (milestone 30, piece 3 phase B).
 /// Both are the `net_stack` binary (`image`): the server is entry role 0, the client is a nonzero
 /// role (the client rides in the same binary to keep the initrd under its 15-file directory
@@ -320,6 +324,44 @@ pub fn start_net_stack(
     pci: bool,
     listen_grant: u64,
 ) -> Option<(RendezvousId, Holding)> {
+    start_net_stack_with(image, cli_arg, 0, None, pci, listen_grant)
+}
+
+/// Where a stack client finds a read-only blob its spawner handed it, when there is one. Must match
+/// `components/src/socket_test_client.rs`'s `CATALOGUE_VA`: the one blob today is the image's
+/// package catalogue (`package_archive::CATALOGUE`), and this is the kernel test harness playing
+/// the part the progenitor's `ChildEndowment::blobs` plays for `login` (milestone 233 (`login` dies on every boot)).
+const NET_CLIENT_CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
+
+/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): the net server and a client that fetches a
+/// package over plain HTTP from the runners' package peer and checks it against `catalogue`, the
+/// image's own package source, mapped into the client read-only, then fetches the peer's tampered
+/// copy and must refuse it. `cli_arg` is the client's selector and `arg1` the catalogue's length,
+/// in `socket_test_client`'s words; the two verdicts come back as the report's first two words.
+pub fn start_package_fetch(
+    image: &'static [u8],
+    cli_arg: u64,
+    arg1: u64,
+    catalogue: &'static [u8],
+) -> Option<(RendezvousId, Holding)> {
+    start_net_stack_with(
+        image,
+        cli_arg,
+        arg1,
+        Some(catalogue),
+        false,
+        socket_protocol::NO_LISTEN_GRANT,
+    )
+}
+
+fn start_net_stack_with(
+    image: &'static [u8],
+    cli_arg: u64,
+    cli_arg1: u64,
+    blob: Option<&'static [u8]>,
+    pci: bool,
+    listen_grant: u64,
+) -> Option<(RendezvousId, Holding)> {
     let (transport, intid, rid) = if pci {
         let d = crate::pci::find_net_device()?;
         (crate::virtio::Transport::pci(&d), d.intid, Some(d.rid))
@@ -336,7 +378,7 @@ pub fn start_net_stack(
 
     let (net_stack_report, stack, mut held) =
         wire_net_server(image, transport, intid, rid, listen_grant);
-    let cli_report = spawn_stack_client(image, cli_arg, 0, stack, &mut held);
+    let cli_report = spawn_stack_client(image, cli_arg, cli_arg1, blob, stack, &mut held);
 
     // net_stack reports its DHCP lease with a blocking `send`; drain it here so net_stack unblocks and
     // enters its serve loop (the client's first request blocks until it does). This also
@@ -365,6 +407,7 @@ fn spawn_stack_client(
     image: &'static [u8],
     arg0: u64,
     arg1: u64,
+    blob: Option<&'static [u8]>,
     stack: RendezvousId,
     held: &mut Holding,
 ) -> RendezvousId {
@@ -379,7 +422,15 @@ fn spawn_stack_client(
         crate::sched::create_rendezvous_from(cli_eps).expect("no client report endpoint");
     let cli_budget = crate::memory_region::create(NET_CLIENT_BUDGET_PAGES)
         .expect("no untyped for the net client");
-    let cli_stack_region = crate::memory_region::create(NET_CLIENT_STACK_PAGES)
+    // The blob's pages ride in the stack region: the same lifetime (they may not go while the
+    // client exists) and one fewer region to account for.
+    let blob_pages = blob.map_or(0, |b| (b.len() as u64).div_ceil(FRAME_SIZE));
+    assert!(
+        blob_pages <= NET_CLIENT_BLOB_PAGES,
+        "a {}-byte blob is more than a stack client's {NET_CLIENT_BLOB_PAGES} blob pages",
+        blob.map_or(0, <[u8]>::len)
+    );
+    let cli_stack_region = crate::memory_region::create(NET_CLIENT_STACK_PAGES + blob_pages)
         .expect("no stack region for the net client");
     // One slot per stack page. This array carried extra tail slots for the SMB adapter's shared
     // regions until 2026-08-30 (notes/smb.md); no remaining client of this spawn maps anything but
@@ -388,7 +439,7 @@ fn spawn_stack_client(
         va: 0,
         phys: 0,
         flags: Flags::user_data(),
-    }; NET_CLIENT_STACK_PAGES as usize];
+    }; (NET_CLIENT_STACK_PAGES + NET_CLIENT_BLOB_PAGES) as usize];
     for (k, m) in maps
         .iter_mut()
         .take(NET_CLIENT_STACK_PAGES as usize)
@@ -400,7 +451,28 @@ fn spawn_stack_client(
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }
-    let n_maps = NET_CLIENT_STACK_PAGES as usize;
+    let mut n_maps = NET_CLIENT_STACK_PAGES as usize;
+    if let Some(bytes) = blob {
+        for (k, chunk) in bytes.chunks(FRAME_SIZE as usize).enumerate() {
+            let phys = crate::memory_region::retype_page(cli_stack_region)
+                .expect("no frame for the net client's blob");
+            // SAFETY: the page was just retyped (exclusively ours, zeroed, direct-mapped), and
+            // `chunk` is at most one page.
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    chunk.as_ptr(),
+                    crate::arch::mmu::phys_to_virt(phys) as *mut u8,
+                    chunk.len(),
+                );
+            }
+            maps[n_maps] = Mapping {
+                va: NET_CLIENT_CATALOGUE_VA + k as u64 * FRAME_SIZE,
+                phys,
+                flags: Flags::user_rodata(),
+            };
+            n_maps += 1;
+        }
+    }
 
     let tid = crate::sched::spawn(move || {
         let grants = [

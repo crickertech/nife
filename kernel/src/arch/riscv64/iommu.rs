@@ -327,6 +327,11 @@ pub fn scope_of(_rid: u32) -> crate::iommu::Scope {
     }
 }
 
+/// **Firmware-reserved DMA regions for requester `rid`: none on this architecture as this tree
+/// brings it up** (milestone 594 (every VT-d unit translates its own devices)). The VT-d driver reports its RMRRs here so
+/// [`crate::iommu::confine`] can map them into every domain. The RISC-V IOMMU has no firmware table for this; a device tree `reserved-memory` region with `iommu-addresses` would be the place, and this tree reads none.
+pub fn for_each_reserved_region(_rid: u32, _each: &mut dyn FnMut(paging::domain::DmaRegion)) {}
+
 /// Push one 16-byte command and wait for the IOMMU to consume it (QEMU processes the queue on
 /// the tail write; polling the head is the architectural contract).
 fn cmd_push(s: &mut Iommu, dword0: u64, dword1: u64) {

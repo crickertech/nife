@@ -99,6 +99,11 @@ Decrypter = "Decrypter"
 encrypter = "encrypter"
 decrypter = "decrypter"
 
+# VT-d's Capability Register field `ND` (Number of Domains supported, Intel VT-d 4.1 section
+# 11.4.2), which the driver reads to size its domain ids (milestone 594 (every VT-d unit
+# translates its own devices)).
+ND = "ND"
+
 [default.extend-identifiers]
 # Deliberate capitalisation inside prose, where the case is the emphasis: "Address Space
 # IDentifier". Same list as clippy.toml's doc-valid-idents, for the same reason.

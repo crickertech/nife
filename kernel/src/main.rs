@@ -327,8 +327,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // kernel already knows about out of the hole it picks a BAR window from, and VT-d's
         // register file is one of them. Recorded afterwards, it would be a window the choice below
         // could not see.
-        if let Some(base) = acpi.vtd_base {
-            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
+        for d in acpi.dmar.units() {
+            memory::record_vtd_region(d.register_base, d.register_size);
         }
 
         // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
@@ -622,26 +622,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // NIFE_NVME on this leg) still proves the driver stands up against real hardware: root
         // table installed, translation enabled, read back from the register the hardware itself
         // reports status through.
-        if let Some(base) = acpi.vtd_base {
-            // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
-            // either write never takes, so reaching this line already is the confirmation: the
-            // hardware's own status register, not an assumption that the write succeeded.
-            arch::iommu::record_dmar(acpi.dmar);
-            arch::iommu::init(base);
-            println!(
-                "  vt-d        : drhd {base:#x} up ({} of {} unit(s), {}), translation enabled (gsts.tes confirmed)",
-                acpi.dmar
-                    .units()
-                    .iter()
-                    .position(|d| d.register_base == base)
-                    .map_or(0, |i| i + 1),
-                acpi.dmar.units().len(),
-                if acpi.dmar.translating().is_some_and(|d| d.include_pci_all) {
-                    "the catch-all"
-                } else {
-                    "named devices only"
-                },
-            );
+        if !acpi.dmar.units().is_empty() {
+            // **Every unit the DMAR names, each translating the devices it owns** (milestone 594 (every VT-d unit translates its own devices),
+            // provisional number). `init` polls GSTS.RTPS then GSTS.TES itself on each unit and
+            // panics rather than returning if either write never takes, so a unit reported up
+            // below is the hardware's own status register, not an assumption that the write
+            // succeeded. It prints one `vt-d` line per unit, including any it refused and why.
+            arch::iommu::init(&acpi.dmar);
         } else {
             println!("  vt-d        : skipped, no DMAR");
         }
@@ -1771,7 +1758,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // kernel runs exactly as before. Bringing it up here installs an all-invalid stream table and
     // sets default-deny, so every PCIe stream aborts until virtio::register confines its device.
     // The CPU's own ECAM and BAR reads are not DMA, so PCI enumeration below is unaffected. See
-    // kernel/src/iommu.rs, notes/iommu.md.
+    // kernel/src/iommu.rs, notes/iommu.md. Not compiled on x86_64, whose VT-d `init` takes the
+    // DMAR's units rather than one base (milestone 594) and runs in the x86 arm above; the region
+    // is never recorded there anyway.
+    #[cfg(not(target_arch = "x86_64"))]
     if let Some((smmu_base, _)) = memory::smmu_region() {
         arch::iommu::init(smmu_base);
     }

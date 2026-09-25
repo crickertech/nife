@@ -60,8 +60,10 @@ pub enum Scope {
         unit: u64,
         how: machine_discovery::acpi::Ownership,
     },
-    /// VT-d: the unit at `translating` is up and **does not own** this requester; `owner` is the
-    /// unit that does, if any. The device's DMA is not translated by anything this kernel set up.
+    /// VT-d: **nothing this kernel brought up owns** this requester. `owner` is the unit that
+    /// does, which this kernel refused to bring up, or `None` when no unit owns it at all;
+    /// `translating` is some unit that is up. The device's DMA is not translated by anything this
+    /// kernel set up.
     Elsewhere {
         translating: u64,
         owner: Option<u64>,
@@ -103,7 +105,7 @@ impl core::fmt::Display for Scope {
                 owner: Some(owner),
             } => write!(
                 f,
-                "drhd {owner:#x} owns it, but this kernel translates {translating:#x}"
+                "drhd {owner:#x} owns it, but it did not come up; this kernel translates {translating:#x}"
             ),
             Scope::Elsewhere {
                 translating,
@@ -125,6 +127,10 @@ pub fn scope_of(rid: u32) -> Scope {
     crate::arch::iommu::scope_of(rid)
 }
 
+/// How many regions one domain carries: a caller's grant (two today, virtio's) plus every RMRR
+/// the DMAR decoder can record. Name: provisional (milestone 594 (every VT-d unit translates its own devices)).
+const MAX_CONFINED_REGIONS: usize = 4 + machine_discovery::acpi::MAX_RMRRS;
+
 /// Allocate one zeroed frame and return its physical address. The domain's root table and every
 /// intermediate table come from here. These frames are owned by the IOMMU from now on; a re-attach
 /// of the same device leaks the previous domain's tables, which is acceptable because `confine`
@@ -144,6 +150,33 @@ fn zeroed_page_frame() -> u64 {
 /// board's device tree gives an identity `iommu-map`). The caller must have checked [`is_active`];
 /// attaching before the driver's `init` panics.
 pub fn confine(rid: u32, regions: &[DmaRegion]) {
+    // **The grant, plus every region the firmware reserved for this device** (milestone 594). On
+    // VT-d an RMRR is memory the firmware keeps DMA-ing into (USB legacy emulation, a UMA GPU's
+    // stolen memory), and VT-d 4.1 section 3.16 asks for it identity-mapped in whatever domain
+    // the device uses; a domain built without it would fault the firmware the moment it was
+    // attached. The other two architectures report none. A region that overlaps the grant is
+    // left out rather than mapped twice, which would fail the whole build: the grant already
+    // covers those pages, and a firmware region overlapping kernel-allocated memory is a firmware
+    // bug the boot print names.
+    let mut all = [DmaRegion { base: 0, size: 0 }; MAX_CONFINED_REGIONS];
+    assert!(
+        regions.len() <= all.len(),
+        "a DMA grant of {} regions is more than confine carries",
+        regions.len()
+    );
+    all[..regions.len()].copy_from_slice(regions);
+    let mut n = regions.len();
+    crate::arch::iommu::for_each_reserved_region(rid, &mut |r| {
+        let overlaps = all[..n].iter().any(|g| {
+            r.base < g.base.saturating_add(g.size) && g.base < r.base.saturating_add(r.size)
+        });
+        if !overlaps && n < all.len() {
+            all[n] = r;
+            n += 1;
+        }
+    });
+    let regions = &all[..n];
+
     let root = zeroed_page_frame();
     // Build the identity domain over `regions`. The frame allocator and the pointer projection are
     // the same the kernel's own `Mapper` uses; `DmaFormat` selects the format for this ISA.

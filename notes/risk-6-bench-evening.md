@@ -49,9 +49,10 @@ What changed:
   unit owns a function by VT-d 3.x section 8.3's rule (an explicit scope, then a bridge's
   sub-hierarchy, then the catch-all). A table it could not fully record answers "unknown", never
   "the catch-all".
-- The kernel now brings up the catch-all unit when there is one. On QEMU's `q35` there is one unit
-  and nothing changes.
-- `iommu::scope_of(rid)` asks the DMAR whether the unit that is up owns the requester.
+- Since milestone 594 (every VT-d unit translates its own devices), the kernel brings up every unit
+  and routes each device to its owner. The RMRRs are identity-mapped first. On QEMU's `q35` there
+  is one unit and no RMRR, and nothing changes.
+- `iommu::scope_of(rid)` asks the DMAR whether a unit that is up owns the requester.
   `confined_by_iommu` is that answer, so the ordinary NVMe boot test now fails on such a machine
   instead of passing.
 
@@ -150,6 +151,18 @@ Power on with the stick in, F12 if the firmware does not pick it. The tour scrol
 just the verdict: the `vt-d` lines above the block are the other half of preflight 1. The
 measurement takes seconds on silicon; `done, halting.` is the end.
 
+Watch the screen as the `vt-d        : drhd ... up` lines print. That is when the graphics unit
+starts translating, and the display engine keeps working only if the graphics RMRR covers the
+memory it scans. Three things can happen:
+
+- The tour carries on as before. The RMRR covers the scanout, and the graphics unit is proven.
+- The screen goes black, freezes or tears at that line. The graphics unit is faulting the display.
+  Photograph the last readable screen, which should show the `vt-d rmrr` lines. Then rebuild
+  from the tree as it was before milestone 594, which translates only the catch-all, and run the
+  evening on that: `git checkout "$(git log --merges --grep=milestone/594 --format=%h -1)^1"`.
+- The machine resets or hangs with the screen intact. A unit's register writes did not take, and
+  the kernel panicked on the screen it cannot redraw. Photograph it; it names the unit.
+
 ### 3. Read the two preflight lines before the numbers
 
 Both must read `PASS` for the verdict to be `CONFINED-AT-RATE`. The kernel enforces this; the
@@ -189,7 +202,7 @@ attached.
 | What the photograph shows | What it means | Where it routes |
 |---|---|---|
 | `verdict CONFINED-AT-RATE` | a confined EL0 driver moved verified blocks on real silicon at the stated rate | risk 6's decisive experiment ran. Record it. Whether the rate is "real speed" is the Linux ratio's question (step 5), not this line's |
-| preflight 1 `FAIL ... drhd X owns it, but this kernel translates Y` | the DMAR gives the NVMe to a unit this kernel did not bring up | the numbers below it are labelled `UNCONFINED` and are not risk 6's answer. Photograph the tour's `vt-d drhd at` lines, which list every unit. The fix is bringing up the owning unit (or every unit), a kernel change and a lane, not a bench step |
+| preflight 1 `FAIL ... drhd X owns it, but it did not come up` | the unit that owns the NVMe was refused | the numbers below it are labelled `UNCONFINED` and are not risk 6's answer. The `vt-d ... NOT up` line gives the reason. The fix is a kernel change and a lane, not a bench step |
 | preflight 1 `FAIL ... no drhd owns it` | no unit's scope names the NVMe and there is no catch-all | same routing. It would also mean firmware leaves the NVMe untranslated under any OS, which is itself worth writing down |
 | preflight 1 `FAIL ... the dmar did not fit` | the DMAR held more DRHDs or scopes than `DmarUnits` records | raise `MAX_DRHDS`/`MAX_SCOPES` in `crates/machine_discovery`; the photograph of the tour's `vt-d` lines says by how much |
 | preflight 2 `FAIL  N-byte lbas` and `verdict SKIPPED` | the Micron is formatted with an LBA size this driver cannot serve | a skip, not a pass. Reformatting the namespace (`nvme format` from a Linux live stick, LBA format 0) is calef's call; so is teaching the driver PRP lists for larger LBAs |
@@ -218,17 +231,11 @@ remapping (off in this kernel, offered by xenon's unit) is not on this experimen
 
 ## BUGS
 
-- Only the unit that owns the NVMe is translated; the graphics unit is left off. If xenon's DMAR
-  matches the 7040's, that is correct for this experiment and leaves the integrated GPU's DMA
-  untranslated, which nothing in this kernel drives. Bringing up every unit is future work, named
-  in `kernel/src/arch/x86_64/iommu.rs`'s `BUGS`.
-- RMRRs are not mapped. The catch-all unit covers the USB controller, and firmware often
-  declares an RMRR for USB legacy emulation. With translation on and default-deny, any DMA the
-  firmware's SMM still does into that region faults. Nothing in this kernel needs USB, and no QEMU
-  run can show whether xenon's SMM keeps DMA-ing after `ExitBootServices`; the outcome table's
-  last row is where it would appear.
-- The catch-all path has never run against a real two-unit DMAR. Host tests cover the decode;
-  QEMU presents one unit. The first xenon boot is its first real input.
+- The two-unit route and the RMRR maps have never run against a real DMAR. Host tests over the
+  7040's table cover them; QEMU presents one unit and no RMRR. The first xenon boot is their
+  first real input, and the screen is what shows whether the graphics RMRR is enough.
+- The domain-id width, the `GCMD` read-modify-write and the protected-memory switch-off are code
+  paths QEMU does not reach. Milestone 594's block says why each matters on xenon.
 - One pass per boot, no warm-up. A second boot is the repeat, and three is this page's floor.
 - The client is in the kernel. A client process would add its own context switches; the server,
   which is what risk 6 is about, is the same process either way.
