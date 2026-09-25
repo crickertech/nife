@@ -27,6 +27,12 @@
 //! `CNTFRQ_EL0` Hz (printed first), so ns/iter = ticks * 1e9 / freq / iters; xtask does the
 //! division. Warmup iterations run untimed before each measurement so thread spawn and first
 //! rendezvous costs land outside the window.
+//!
+//! **Every program it enters is measured first** (milestone 563 (a seal check that reads bytes
+//! cannot see a check that was dropped)), through `trust::require_program`, the chain the
+//! progenitor would have run: this boot replaces the hand-over, so without it a bench card would
+//! enter unchecked bytes and its kernel would carry no trust root for the seal to find. The hashing
+//! happens at set-up, outside every timed window.
 
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -801,7 +807,7 @@ const MAP_EL0_OVERHEAD: u64 = 32;
 /// Spawn the `os_primitives_benchmarker` EL0 program in a given role, granting it `report` (slot 0) to answer on.
 /// `false` if there is no `os_primitives_benchmarker` in the initrd (the bench boot then skips that line).
 fn spawn_os_primitives_benchmarker(role: u64, report: sched::RendezvousId) -> bool {
-    let Some(image) = crate::user::program("os_primitives_benchmarker") else {
+    let Some(image) = crate::trust::require_program("os_primitives_benchmarker") else {
         return false;
     };
     sched::spawn(move || {
@@ -863,7 +869,7 @@ fn ctx_switch_el0() {
 /// a loop of SEND-then-RECV and reports. The server is spawned first so a request always meets a
 /// waiting receiver. Grants differ per role, so the spawns are inline rather than via `spawn_os_primitives_benchmarker`.
 fn ipc_rtt_el0() {
-    let Some(image) = crate::user::program("os_primitives_benchmarker") else {
+    let Some(image) = crate::trust::require_program("os_primitives_benchmarker") else {
         println!("bench: ipc_rtt skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
@@ -1288,7 +1294,7 @@ fn app_displacement() {
 /// and once with the 64 KiB writes a real Unix program would use, which is what Unix actually gets.
 /// Only the first pair is apples to apples.
 fn sink_throughput() {
-    let Some(image) = crate::user::program("os_primitives_benchmarker") else {
+    let Some(image) = crate::trust::require_program("os_primitives_benchmarker") else {
         println!("bench: sink_throughput skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
@@ -1345,7 +1351,7 @@ fn sink_throughput() {
 /// is not in the registry `MAP_INTO` resolves), which is immaterial: the map path's cost is the same
 /// whoever owns the space. See `fixtures/src/os_primitives_benchmarker.rs`.
 fn map_el0() {
-    let Some(image) = crate::user::program("os_primitives_benchmarker") else {
+    let Some(image) = crate::trust::require_program("os_primitives_benchmarker") else {
         println!("bench: map_el0 skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
@@ -1403,7 +1409,7 @@ fn map_el0() {
 /// and a child-done endpoint (slot 2, READ|WRITE|GRANT) it delegates a WRITE view of to each child.
 /// See `fixtures/src/os_primitives_benchmarker.rs`.
 fn spawn_el0() {
-    let Some(image) = crate::user::program("os_primitives_benchmarker") else {
+    let Some(image) = crate::trust::require_program("os_primitives_benchmarker") else {
         println!("bench: spawn_el0 skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
@@ -1493,9 +1499,9 @@ fn fs_read() {
     // The three binaries the service needs. The block server is `block_driver` on every
     // architecture since milestone 291. Absent any of them, or the RedoxFS disk, skip.
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program("block_driver"),
-        crate::user::program("redoxfs_server"),
-        crate::user::program("fs_test_client"),
+        crate::trust::require_program("block_driver"),
+        crate::trust::require_program("redoxfs_server"),
+        crate::trust::require_program("fs_test_client"),
     ) else {
         return;
     };
@@ -1549,9 +1555,9 @@ fn fs_throughput() {
         return;
     }
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program("block_driver"),
-        crate::user::program("redoxfs_server"),
-        crate::user::program("fs_test_client"),
+        crate::trust::require_program("block_driver"),
+        crate::trust::require_program("redoxfs_server"),
+        crate::trust::require_program("fs_test_client"),
     ) else {
         return;
     };

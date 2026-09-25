@@ -112,34 +112,19 @@ impl core::fmt::Display for Verdict {
 }
 
 /// **The driver whose number is published is the measured one.** An ordinary boot measures the
-/// progenitor and the progenitor measures everything it loads; this boot replaces the hand-over,
-/// so it does the same check itself: the archive's measurement table must be the one this kernel
-/// image vouches for (`trust::require_program_measurements`, which halts loudly on a mismatch), and
-/// the NVMe server's bytes must hash to that table's entry for it. It is also what keeps
-/// `TRUST_ROOT` in the image at all: with the hand-over gone nothing else reads it, a release build
-/// drops it, and `uefi_loader`'s seal check then refuses the pair.
+/// progenitor and the progenitor measures everything it loads; this boot replaces the hand-over, so
+/// it runs the same chain itself through `trust::require_program` (milestone 563 (a seal check that
+/// reads bytes cannot see a check that was dropped) moved it there from this file, so the soak,
+/// job-mix and bench boots share it): the archive's measurement table must be the one this kernel
+/// image vouches for, and the NVMe server's bytes must hash to that table's entry for it. Either
+/// refusal halts with `MEASURED BOOT REFUSED`. It is also what keeps `TRUST_ROOT` in the image at
+/// all: with the hand-over gone nothing else reads it, a release build drops it, and
+/// `uefi_loader`'s seal check then refuses the pair.
 fn measured_server() -> Result<&'static [u8], &'static str> {
     const NAME: &str = "non_volatile_memory_express";
-    let archive = crate::user::initrd().ok_or("this boot has no initrd archive")?;
-    let fs = nifefs::Fs::parse(archive).map_err(|_| "the initrd archive does not parse")?;
-    crate::trust::require_program_measurements(&fs);
-    let image = fs
-        .read(NAME)
-        .ok_or("no non_volatile_memory_express program in the archive")?;
-    let table = fs
-        .read(measured_boot::PROGRAM_MEASUREMENTS)
-        .and_then(|t| core::str::from_utf8(t).ok())
-        .ok_or("the archive's measurement table is unreadable")?;
-    let want = measured_boot::manifest_entries(table)
-        .filter_map(Result::ok)
-        .find(|(name, _)| *name == NAME)
-        .map(|(_, digest)| digest)
-        .ok_or("the measurement table has no entry for the NVMe server")?;
-    let got = measured_boot::sha256(image);
-    if got != want {
-        return Err("the NVMe server's bytes do not match its measurement");
-    }
-    let hex = measured_boot::hex(&got);
+    let image = crate::trust::require_program(NAME)
+        .ok_or("no non_volatile_memory_express program in the initrd archive")?;
+    let hex = measured_boot::hex(&measured_boot::sha256(image));
     println!(
         "disk-throughput: measured    {NAME} sha256 {}.. matches the table this kernel vouches for",
         core::str::from_utf8(&hex[..16]).unwrap_or("?"),

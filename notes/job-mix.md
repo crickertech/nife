@@ -290,14 +290,11 @@ script/board-image --job-mix --card /Volumes/NIFE
 boot on 2026-09-01; `--card` copies all three files as a set for that reason (milestone 217).
 `--job-mix` and `--soak` are refused together: both replace the end of the boot tour.
 
-**Ignore `NOT SEALED` on a job-mix card, and do not rebuild it.** See this page's `BUGS`: a job-mix
-kernel does not verify the archive at all, so `sealed_pair` reports a refusal about a check that is
-not compiled in. That sentence cost an hour an hour before a bench evening on 2026-09-21.
-`cargo xtask card-check` calls the same `sealed_pair::inspect` (`xtask/src/card_check.rs:68`) and is
-fooled the same way, so there is **no tool that will pass a job-mix card today**. What is true is
-that `script/board-image` packs the archive before the kernel in one command, which is the thing the
-order exists to guarantee; a card built by that command in one run is a matched pair whatever the
-seal says.
+**A job-mix card is sealed like any other.** Since milestone 563 (a seal check that reads bytes
+cannot see a check that was dropped), the kernel measures `job_mix_task` against the archive's
+table before the sweep. So `NOT SEALED` from `script/board-image` or `script/card-check` means what
+it says: the two files are from different builds. A card built before 2026-09-25 still reads `NOT
+SEALED` falsely.
 
 ### 2. Attach the console, then power on
 
@@ -378,7 +375,7 @@ spread per point, and the census summary.
 
 | What the log shows | What it means | Where it routes |
 |---|---|---|
-| `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --job-mix ...`, which packs the archive before the kernel for exactly this reason |
+| `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | an archive built before this milestone (a mismatched pair halts earlier, at `MEASURED BOOT REFUSED`) | rebuild with `script/board-image --job-mix ...`, which packs the archive before the kernel for exactly this reason |
 | `job-mix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
 | `job-mix: FAILED: could not create task N's 25-page budget` | the kernel could not carve a task's untyped region | memory again, before any subrun; the same routing as the line above |
 | `job-mix: FAILED: task N could not finish a map job` (or `spawn`) | the kernel refused a verb inside the job; the error is printed | a budget constant is too small for this machine (`job_mix::MAP_REGION_PAGES`, `CHILD_PAGES`), since QEMU passes on all three architectures. Record the error and raise the constant |
@@ -473,27 +470,8 @@ path rather than the whole kernel.
   (`job_mix::REPEATS`).
 - **The HVF cross-check has no machine** until milestone 227 gives the kernel a GICv3 driver; see
   the section above. `script/job-mix --hvf` exits 3 with QEMU's own refusal until then.
-- **A job-mix kernel verifies no archive, and the seal check misreports that as a refusal**
-  (measured 2026-09-21, the lane of milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need)). Since
-  milestone 268 (every architecture boots the same way: describe the machine, test yourself, hand over) the
-  measured-boot refusal lives in `user::boot_progenitor`, and `kernel/src/main.rs` reaches it only
-  under `#[cfg(not(any(feature = "soak_test", feature = "job_mix")))]`. A job-mix build replaces
-  the end of the tour and never calls it, so the trust root is unreferenced and the linker drops it
-  with its message: a riscv64 release kernel built `board` carries `MEASURED BOOT REFUSED` three
-  times, and one built `board,job_mix` carries it zero times, deterministically across alternating
-  builds. `sealed_pair` scans the image for the digest, finds nothing, and prints `NOT SEALED:
-  <kernel> does not vouch for <archive>. They are from different builds, and this pair halts at
-  MEASURED BOOT REFUSED after the power cycle` -- which is false twice over, and which cost an hour
-  of rebuilding and `cargo clean` an hour before a bench evening. **Two consequences for a bench
-  operator.** A `NOT SEALED` verdict on a job-mix card says nothing about the card, and no tool in
-  the tree will pass one (`cargo xtask card-check` calls the same `inspect`). And the card itself
-  genuinely has no measured boot, so a mismatched pair will *not* halt: it will run the sweep
-  against whatever archive is beside it, and the `job-mix: FAILED: no 'job_mix_task' program`
-  row in the table above becomes the only thing that catches it. `--soak` and `--bench` cards
-  divert the tour at the same three sites and inherit both. Options are priced in
-  `design/roadmap/563-a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped.md`.
 - **The supervisor is in the kernel, and that is what makes the build special** (milestone 523 (moving the job-mix supervisor into userspace, and the five permissions it turns out to need)). A userspace supervisor would delete the whole
-  class of problem the entry above is one member of, and would measure the more honest thing: its
+  class of problem a diverted boot has, and would measure the more honest thing: its
   own releases and drains would be real `svc` round trips inside the timed window, and it would be
   one more process the scheduler has to place, which is precisely what DECISIONS §96 (process
   kernel or event kernel) asks the cost of. It is blocked on five decisions that are calef's, and

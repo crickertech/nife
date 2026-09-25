@@ -58,7 +58,6 @@ pub fn verify(name: &str, bytes: &[u8]) -> Result<(), measured_boot::VerifyError
 /// back to, and running the wrong one is precisely the thing being prevented. So this prints what it
 /// expected, what it measured, and halts. Loudly, because a silent halt at boot is indistinguishable
 /// from a hardware problem, and whoever hits this needs to know it was a *refusal*.
-#[cfg_attr(feature = "bench", allow(dead_code))]
 pub fn require(name: &str, bytes: &[u8]) {
     let measured = measured_boot::sha256(bytes);
     match measured_boot::verify_digest(TRUST_ROOT, name, &measured) {
@@ -111,7 +110,6 @@ pub fn require(name: &str, bytes: &[u8]) {
 ///
 /// A **missing** table halts, for [`require`]'s reason one level down: a progenitor that cannot vouch for
 /// what it loads must not be handed the archive at all.
-#[cfg_attr(feature = "bench", allow(dead_code))]
 pub fn require_program_measurements(fs: &nifefs::Fs<'_>) {
     let name = measured_boot::PROGRAM_MEASUREMENTS;
     match fs.read(name) {
@@ -123,6 +121,70 @@ pub fn require_program_measurements(fs: &nifefs::Fs<'_>) {
                 "    the progenitor could not vouch for anything it loads, so it is not started."
             );
             crate::println!("  halting rather than entering a progenitor that measures nothing.");
+            crate::arch::halt();
+        }
+    }
+}
+
+/// **Load one archive program the way the progenitor would have: only if the chain vouches for it**
+/// (milestone 563 (a seal check that reads bytes cannot see a check that was dropped)).
+///
+/// A soak, job-mix, bench or disk-throughput boot replaces the hand-over with its own workload, so
+/// nothing ever calls [`require`] and the progenitor never measures anything. Until this existed
+/// such a boot entered archive programs nobody had checked, and a release build dropped
+/// [`TRUST_ROOT`] as dead code, so `uefi_loader`'s build refused every soak kernel for xenon's stick
+/// as `NOT SEALED` and `script/board-image --soak` printed the same false alarm for radon. This is
+/// the chain an ordinary boot runs, two links long: [`require_program_measurements`] vouches for the
+/// archive's measurement table against this kernel image, and the table vouches for `name`'s bytes
+/// (`measured_boot::verify_in_manifest`, the check the progenitor runs on every load). Keeping the
+/// trust root alive is a consequence of using it, not a `#[used]` that would seal a check nobody
+/// makes, which is the inverse case `crates/sealed_pair`'s `BUGS` warns about.
+///
+/// **`None` means the archive does not have `name`**, or this boot has no archive at all (`x86_64`'s
+/// QEMU bench leg attaches none). That is `measured_boot::verdict`'s split: an absent program is a
+/// packaging fact the caller reports in its own words, while bytes the table will not vouch for are
+/// a substitution, and those halt here with `MEASURED BOOT REFUSED` like [`require`]'s do.
+///
+/// Name: provisional, minted 2026-09-25 by milestone 563's lane, to sit beside [`require`] and
+/// [`require_program_measurements`] as the third member of the family. calef names public functions.
+// Called only by the boots that replace the hand-over; an ordinary boot measures through
+// `user::boot_progenitor` and never reaches it.
+#[cfg_attr(
+    not(any(
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    )),
+    allow(dead_code)
+)]
+pub fn require_program(name: &str) -> Option<&'static [u8]> {
+    let fs = nifefs::Fs::parse(crate::user::initrd()?).ok()?;
+    // Halts unless the table is the one this kernel image was built against, so past this line the
+    // table's word on `name` is the kernel's word.
+    require_program_measurements(&fs);
+    let bytes = fs.read(name)?;
+    let table = fs
+        .read(measured_boot::PROGRAM_MEASUREMENTS)
+        .and_then(|t| core::str::from_utf8(t).ok())
+        .unwrap_or("");
+    match measured_boot::verify_in_manifest(table, name, bytes) {
+        Ok(()) => Some(bytes),
+        Err(measured_boot::VerifyError::Unmeasured) => {
+            crate::println!();
+            crate::println!(
+                "  MEASURED BOOT REFUSED: the archive's measurement table has no entry for '{name}'"
+            );
+            crate::println!("  halting rather than entering a program nothing vouches for.");
+            crate::arch::halt();
+        }
+        Err(measured_boot::VerifyError::Mismatch) => {
+            crate::println!();
+            crate::println!(
+                "  MEASURED BOOT REFUSED: '{name}' is not what the archive's measurement table says"
+            );
+            crate::println!("    measured sha256 {}", Hex(&measured_boot::sha256(bytes)));
+            crate::println!("  halting rather than entering a program nothing vouches for.");
             crate::arch::halt();
         }
     }

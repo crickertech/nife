@@ -102,7 +102,10 @@ use crate::{arch, println, sched, smp};
 pub fn run() -> ! {
     let cores = smp::online_count();
 
-    let Some(image) = user::program("job_mix_task") else {
+    // Measured through the progenitor's chain, which this boot replaces; see `soak::run` and
+    // `trust::require_program` (milestone 563 (a seal check that reads bytes cannot see a check
+    // that was dropped)).
+    let Some(image) = crate::trust::require_program("job_mix_task") else {
         println!("{FAILED}no 'job_mix_task' program in the initrd archive; nothing to run");
         arch::halt();
     };
