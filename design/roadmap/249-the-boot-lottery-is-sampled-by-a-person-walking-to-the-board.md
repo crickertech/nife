@@ -212,8 +212,8 @@ notes/board-reboot.md.
 
 - **Milestone 592.** Milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write), awaiting
   one bench reset.
-- **Proposed.** A watchdog for a wedged kernel:
-  `design/roadmap/proposals/a-wedged-kernel-resets-itself.md`.
+- **Milestone 593.** A watchdog for a wedged kernel, milestone 593 (a wedged kernel resets itself):
+  `design/roadmap/593-a-wedged-kernel-resets-itself.md`.
 - **Proposed.** xenon's possible AMT: `design/roadmap/proposals/xenon-may-carry-amt.md`.
 
 - **Milestone 324.** *The watcher reads a board and never speaks to it, so stopping a reboot loop needs a
