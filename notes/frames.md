@@ -662,10 +662,10 @@ claim that a stack frame is a physical page.*
   claims sit in the same paragraph. This exact `FAR` came back twice more, byte for byte, after
   #157 shrank `reap_region_objects` and after milestone 124 rebuilt the spawn path, which no
   depth-driven overflow could do; and `script/stack-depth-check` now says the deepest chain a thread
-  stack can carry is 13792 bytes against the 20480 this address would need. See notes/stack.md, "The
-  guard-page faults of 2026-08-16, which were not overflows". **The rest of this entry stands**: the
-  fault is real, it is not this milestone's, and the binary really was byte-identical between a red
-  run and a green one.
+  stack can carry is 13792 bytes against the 20480 this address would need. See
+  notes/stack/guard-page-faults-2026-08-16.md. **The rest of this entry stands**: the fault is real,
+  it is not this milestone's, and the binary really was byte-identical between a red run and a green
+  one.
 
   **And the answer arrived on 2026-08-17, which vindicates the register and not the reasoning
   beside it.** The recurring address proved nothing: a fault that reaches the exception vector's own
@@ -674,8 +674,9 @@ claim that a stack frame is a physical page.*
   right, though, and it is the whole diagnosis in one register: **the thread really was shallow on
   slot 87's stack, because the stack had been unmapped under it.** A supervised corpse is published
   `Dead` while still executing on its own kernel stack, and an out-of-band region reap frees that
-  stack before the corpse reaches `switch_to`. See notes/stack.md, "a kernel stack freed under its
-  owner", and milestone 124's block.
+  stack before the corpse reaches `switch_to`. See
+  notes/stack/kernel-stack-freed-under-its-owner.md, and the block of milestone 124 (a thread is born
+  where it lives).
 
   **A correction worth keeping, because the wrong reading was reasonable and cost an hour.** The
   first pass at this decoded `FAR` through `phys_to_virt` (which is `pa | KERNEL_VA_BASE`), read the
