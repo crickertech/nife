@@ -68,8 +68,7 @@ will actually meet it.
    `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one
    architecture's `arch/` and no line of the other two (item 8 is the one exception). Unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
    report an unsupported construct, and a `cfg`-excluded file produces no diagnostic of any kind.
-   `script/verify` now proves the `kernel` row on two hosts for this reason; see the table below
-   for which architecture each one reaches and for the one that nothing reaches.
+   The `kernel` row runs on two hosts and, via script/verify-riscv64, a third target; see below.
 4. **The panic handler is absent.** Nothing proved here says anything about what the kernel does
    after a panic.
 5. **The link sections are absent.** Under `cfg(kani)` the host target is not `target_os = "none"`,
@@ -190,13 +189,14 @@ is the thing most often read as more coverage than it is.
 |---|---|---|
 | aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/`, and `arch/riscv64/iommu.rs` | 7: two in `syscall.rs`, two in each `iommu.rs`, one in `fp.rs` |
 | x86_64 (cordoba; the `ubuntu-24.04` runner) | `arch/x86_64/` | 5: the same two in `syscall.rs`, two in `irq.rs`, one in `fp.rs` |
-| riscv64 | **nothing** | **nothing** natively |
+| either, via script/verify-riscv64 | `arch/riscv64/`, natively | 7: two in `syscall.rs`, two in `iommu.rs`, three in `mmu.rs` |
 
 Ten distinct harnesses, not twelve: `syscall.rs`'s two are portable, and pass identically on both
 hosts.
 
-**riscv64 cannot be proved natively here.** GitHub offers no riscv64 image; Kani has no
-cross-target flag; `radon` is a lab board. Its asm-free files can be proved from aarch64 (item 8).
+**riscv64 needed a target, not a host**: milestone 589 (Kani can prove riscv64 from the hosts we
+already have) patches Kani, since CBMC runs anywhere. See
+[kernel-proofs/riscv64-with-a-patched-kani.md](kernel-proofs/riscv64-with-a-patched-kani.md).
 
 **One thing had to change before an x86_64 host could compile the kernel at all**, and it was not
 about the code. `core::arch::x86_64::__cpuid` is a *safe* function on the toolchain this tree pins
@@ -275,7 +275,7 @@ place rather than an assertion that they are.
    nothing, and Kani will say so rather than lie. **`crate::arch` itself is no longer the boundary**
    (milestones 255 and 304 put harnesses inside two of its three subtrees), but ask which
    architecture you are in: a harness under `arch/<isa>/` runs only on an `<isa>` host, and a
-   `riscv64` one runs nowhere. That failure is silent, unlike the `asm!` one.
+   `riscv64` one only under script/verify-riscv64. That failure is silent, unlike the `asm!` one.
 3. Falsify it. Break the code under it and watch the harness fail, then put the code back.
 4. `kernel` is already in `script/verify`'s crate table, so nothing needs adding there. If you add a
    harness to a crate that is *not* in that table, `script/lint`'s "every crate with proof harnesses
@@ -291,11 +291,10 @@ place rather than an assertion that they are.
   with "the VisionFive 2 undelivered wake." That reading is **retracted**,
   `notes/visionfive2.md`'s fifth bench stop, 2026-08-15: it was a completed tour's terminal state,
   not a stranded receiver, and never happened. Found still repeating it here 2026-09-23.)
-- **Only one architecture's `arch/` is compiled per run, and riscv64's is compiled by nothing.**
-  Narrowed by milestone 304 rather than closed: the `kernel` row is now proved on an x86_64 runner
-  as well as an aarch64 one (since milestone 587 (most CI jobs do not need an arm64 host) the `prove` shards are the x86_64 half and
-  `prove the kernel on aarch64` is the other), so two of the three subtrees are reachable on some machine. The third
-  is not, and the section above says why nobody here can change that. **`x86_64/machine.rs` is the
+- **Only one architecture's `arch/` is compiled per run.** Milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) added an x86_64 runner to
+  the aarch64 one (since milestone 587 (most CI jobs do not need an arm64 host) the `prove` shards are the x86_64 half and
+  `prove the kernel on aarch64` is the other), and milestone 589 a riscv64 job, so every subtree is
+  compiled by some job. No single run sees more than one. **`x86_64/machine.rs` is the
   work this unblocked and did not do**: 836 lines of ACPI parsing over lengths, checksums and counts
   that firmware supplied, now reachable for the first time and still carrying no harness. Its
   parsing half already lives in `crates/machine_discovery`, which has no harnesses and no verify

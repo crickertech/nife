@@ -22,6 +22,7 @@ Full rows, with every flag and the history behind each: [build-test-and-gate.md]
 | `script/claim <branch-name>` | Cut a lane's branch and worktree, and make the draft pull request claim. |
 | `script/test` | The suite: host-logic crates, then the kernel under QEMU. The gate. `--arch`, `--cpu`, `--hvf`, `--test` narrow it. |
 | `script/verify` | The Kani proofs over the pure-logic crates. |
+| `script/verify-riscv64` | The `kernel` row for riscv64, under Kani patched from `patches/`. Provisional name. |
 | `script/bench` | icount microbenchmarks; `--check` fails on drift from the baseline. |
 | `script/icount` | Boot a `--features icount` kernel and assert the two timing claims a wall clock cannot make. |
 | `script/fmt` | Format with the pinned rustfmt; `--check` is the CI gate. |

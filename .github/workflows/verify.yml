@@ -228,10 +228,10 @@ jobs:
   # still waits for an arm64 runner, and that is the price of the proof: one short job in that queue
   # rather than four long ones.
   #
-  # **riscv64 is not here and cannot be.** GitHub offers no riscv64 image, Kani has no cross-target
-  # flag (checked: `cargo kani --help` has `--target-dir` and nothing else), and CBMC needs a
-  # goto-binary for the host it runs on. `radon` is a lab board, not a runner. `arch/riscv64/` stays
-  # outside the prover's reach, and notes/kernel-proofs.md says so where a reader meets the claim.
+  # **riscv64 is the next job down, not this one.** This paragraph said riscv64 could not be proved
+  # here at all, on the grounds that Kani had no cross-target flag. That was true of stock Kani and
+  # is not a fact about CBMC, which is host-independent; milestone 589 (Kani can prove riscv64 from the hosts we already have) carries a patch that gives
+  # Kani the target instead (DECISIONS §218 (carry a Kani patch so riscv64 is proved)).
   prove-kernel-aarch64:
     name: prove the kernel on aarch64
     needs: [gate, scope]
@@ -252,6 +252,52 @@ jobs:
           cargo kani setup
       - name: script/verify --only kernel
         run: script/verify --only kernel
+
+  # **The same `kernel` row for riscv64**, which no hosted runner is (milestone 589, DECISIONS §218).
+  # CBMC checks a goto program and does not care what it runs on; stock Kani compiles for its own host
+  # in four places, and `patches/kani-0.67.0-riscv64-target.patch` unpins them. script/verify-riscv64
+  # builds Kani from the release tag plus that patch, then runs `script/verify --only kernel` for
+  # `riscv64gc-unknown-linux-gnu`, and refuses to report green unless Kani's output landed under that
+  # triple (a stock Kani would silently prove the host's `arch/` instead).
+  #
+  # **The cache is the whole cost story.** The key is the runner's architecture, the patch's file
+  # name (which is the Kani version) and the hash of the patch and of the script that builds it, so a
+  # version bump, a rebase or a change to the build all miss, and nothing else does. The path is
+  # fixed because Kani bakes its build tree's absolute path into `kani-driver`; script/verify-riscv64
+  # says more. Measured 2026-09-25: cold 2 min 57 s for the job (145 s of it building Kani), warm
+  # 45 s (20 s of it installing Kani's toolchain, 3 s proving).
+  #
+  # Folded into `verify (Kani proofs)` like its aarch64 sibling rather than made a required check of
+  # its own, for the reason that job's report step gives: the ruleset requires that one string, and a
+  # new name there is a change no lane makes.
+  prove-kernel-riscv64:
+    name: prove the kernel on riscv64
+    needs: [gate, scope]
+    if: >-
+      always() &&
+      needs.scope.outputs.needed == 'true' &&
+      needs.gate.outputs.run != 'false'
+    runs-on: ubuntu-24.04-arm
+    # Cold about 3 minutes, warm under 1 (above). Generous for growth and a slow cold path, tight
+    # enough that a hung solver fails loudly.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      # The patch's file name carries the Kani version, and hashFiles reads bytes, not names, so the
+      # name goes into the key on its own.
+      - name: Name the carried Kani patch
+        id: kani
+        run: echo "patch=$(basename patches/kani-*-riscv64-target.patch .patch)" >> "$GITHUB_OUTPUT"
+      - name: Cache the patched Kani
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/nife-kani-riscv64
+          key: kani-riscv64-${{ runner.os }}-${{ runner.arch }}-${{ steps.kani.outputs.patch }}-${{ hashFiles('patches/kani-*-riscv64-target.patch', 'script/verify-riscv64') }}
+      - name: Build the patched Kani if the cache missed
+        run: script/verify-riscv64 --build-only
+      - name: script/verify-riscv64
+        run: script/verify-riscv64
 
   # The per-pull-request half of DECISIONS §134, and the half `script/mutation` has no equivalent
   # for. A lane that touches a harness or the code it covers re-falsifies **that harness only**,
@@ -307,7 +353,7 @@ jobs:
 
   verify:
     name: verify (Kani proofs)
-    needs: [gate, scope, prove, prove-kernel-aarch64]
+    needs: [gate, scope, prove, prove-kernel-aarch64, prove-kernel-riscv64]
     # **`!cancelled()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
     # scope job says the proofs are not needed, and a required check that never reports blocks the
     # merge forever, which notes/repo-hardening.md names as the single most likely way to get this
@@ -334,9 +380,11 @@ jobs:
           scope="${{ needs.scope.result }}"
           prove="${{ needs.prove.result }}"
           kernel_aarch64="${{ needs['prove-kernel-aarch64'].result }}"
+          kernel_riscv64="${{ needs['prove-kernel-riscv64'].result }}"
           echo "scope: $scope"
           echo "prove: $prove"
           echo "prove-kernel-aarch64: $kernel_aarch64"
+          echo "prove-kernel-riscv64: $kernel_riscv64"
           if [ "$scope" != "success" ]; then
             echo "==> the scope job did not finish; refusing to report the proofs as green" >&2
             exit 1
@@ -359,4 +407,11 @@ jobs:
             success) echo "==> the kernel proved on aarch64 too" ;;
             skipped) echo "==> nothing in this change can reach a proof" ;;
             *)       echo "==> the aarch64 kernel row reported '$kernel_aarch64'" >&2; exit 1 ;;
+          esac
+          # The riscv64 kernel row (milestone 589), judged by the same vocabulary for the same
+          # reasons, and folded in here for the same reason as the aarch64 row above.
+          case "$kernel_riscv64" in
+            success) echo "==> the kernel proved on riscv64 too" ;;
+            skipped) echo "==> nothing in this change can reach a proof" ;;
+            *)       echo "==> the riscv64 kernel row reported '$kernel_riscv64'" >&2; exit 1 ;;
           esac

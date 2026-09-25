@@ -327,6 +327,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 215 | DECIDED | [The second RISC-V machine is a rented Scaleway Elastic Metal RV1](215-the-second-risc-v-machine-is-a-scaleway-rv1.md) |
 | 216 | DECIDED | [Fatal-risk facts are correctable, and verdicts are the architect's](216-fatal-risk-facts-are-correctable-verdicts-are-the-architects.md) |
 | 217 | DECIDED | [Every architect holds the whole role](217-every-architect-holds-the-whole-role.md) |
+| 218 | DECIDED | [Carry a Kani patch so riscv64 is proved, and send it upstream](218-carry-a-kani-patch-so-riscv64-is-proved.md) |
 | 219 | PROPOSED | [How the shell names an installed program to the spawner](219-naming-an-installed-program-to-the-spawner.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same

@@ -7,3 +7,6 @@ its word budget.
 *Name: provisional, minted 2026-09-25 by milestone 432 (the RISC-V IOMMU driver has no
 counterpart to the SMMU's proofs) as §212's parent-named sibling directory of
 `notes/kernel-proofs.md`, whose own name is provisional too. Naming is calef's.*
+
+`riscv64-with-a-patched-kani` Name: provisional, minted 2026-09-25 by milestone 589 (Kani can prove
+riscv64 from the hosts we already have). The native riscv64 route, beside the aarch64-host one.

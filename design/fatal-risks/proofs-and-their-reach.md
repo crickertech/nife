@@ -142,7 +142,8 @@ that `arch/riscv64/iommu.rs`, which has no `asm!`, compiles unchanged under Kani
 as a proof-only module. It also read from Kani 0.67's source that Kani supports only the x86_64
 and aarch64 machine models, so a riscv64 runner would not have helped either. The files that do call
 `asm!` fail in rustc before Kani runs. Milestone 432 (the RISC-V IOMMU driver has no counterpart to
-the SMMU's proofs) then proved that file from an aarch64 host on 2026-09-25.)* The
+the SMMU's proofs) then proved that file from an aarch64 host on 2026-09-25 Corrected again 2026-09-25 under §216: CI run 36088566670 proved riscv64 with a
+patched Kani.)* The
 fix was deliberately not made in that lane, because it changes a public signature and a documented
 policy. It was raised as a proposal with gate `DECISION`, calef chose to route by redirection index
 on 2026-09-16. It was built the same day as milestone 308 (a GSI reaches its vector by redirection
