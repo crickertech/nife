@@ -131,7 +131,7 @@ one program, and `UART_RX_INTID`'s value is what other code agrees on, not its s
 | `enable_tx_interrupt` | `kernel/src/drivers/ns16550.rs` | pub, `#[cfg(test)]` | 5 | `enable_transmit_interrupt` | the transmit twin of the row above |
 | `tx_bytes` | `kernel/src/console.rs` | pub | 1 | `bytes_written` | it counts what the kernel wrote to the console; the private static `TX_BYTES` becomes `BYTES_WRITTEN` with it |
 | `UART_RX_INTID` | `kernel/src/user.rs` (three architectures) | pub | 12 | `UART_RECEIVE_INTID` | `INTID` is the GIC's own term and stays |
-| `VnetRxToken` | `components/src/net_transport.rs` | pub | 6 | keep | it implements smoltcp's `phy::RxToken`, and the upstream word is what a reader of smoltcp looks for |
+| `VnetRxToken`, `VnetTxToken` | `components/src/net_transport.rs` | pub | 13 | keep | they implement smoltcp's `phy::RxToken` and `phy::TxToken`, and the upstream word is what a reader of smoltcp looks for |
 
 Sites are `git grep -w` hits on 2026-09-25 outside `design/roadmap/` and this directory, code and
 notes together; roadmap blocks keep the old names under the rename procedure.
