@@ -1456,7 +1456,8 @@ fn dispatch(nav: &mut Nav, cmd: &[u8]) {
 fn time_command(nav: &mut Nav, tail: &[u8]) {
     // Collapse a nested prefix rather than recursing through [`dispatch`]. `time time date` is a line
     // a person can type, and each level of recursion here costs a `dispatch` frame on a stack that
-    // has run out four times already (notes/pipes.md). Timing something twice measures nothing twice.
+    // has run out four times already (notes/pipes/the-boot.md). Timing something twice measures
+    // nothing twice.
     let mut tail = grant_plan::trim(tail);
     while let Command::Time(inner) = grant_plan::parse(tail) {
         tail = grant_plan::trim(inner);

@@ -1049,7 +1049,7 @@ fn net_demo(sock: UdpSocket) {
     // The UDP socket is held (by ref) across the TCP exchange so the two use distinct socket ids,
     // and thus distinct net_stack local ports: net_stack derives a socket's local port from its id, so a TCP
     // connect that reused a just-closed UDP socket's id would reuse its port against slirp and can
-    // stall (notes/std.md, the reuse finding). Keeping both open sidesteps it cleanly.
+    // stall (notes/std/net.md, the reuse finding). Keeping both open sidesteps it cleanly.
     assert!(
         tcp_echo_ok(),
         "the TCP echo round trip through std::net failed"

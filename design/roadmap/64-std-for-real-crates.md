@@ -320,7 +320,7 @@ the granted directory itself) plus a `NotFound` for an empty set on a missing na
   so it reads as early 1970, orders wrongly against files the host tool stamped, and restarts each
   boot. And because the engine only moves an mtime forward, a nife write to a host-made file does
   not change its time at all. Proposed as `design/roadmap/497-a-filesystem-server-that-knows-the-time.md`; the
-  details are in notes/std.md's file-times `BUGS`.
+  details are in notes/std/file-times.md's `BUGS`.
 - **The open-`File` time forms refuse** (`File::metadata().modified()`, `File::set_times`), because
   the verbs take a name. `set_times` truncates to whole seconds and refuses an access time whole.
   None of this is exercised through a grant narrower than the mount root from `std`.
@@ -352,8 +352,8 @@ build them, and report what breaks.
   because the verbs take a name; a handle-taking form is a wire change and is
   milestone 504 (an mtime for an open file), `design/roadmap/504-an-mtime-for-an-open-file.md`.
 - **Milestone 497.** A file written on nife reads as early 1970, because the FS server stamps its own
-  per-mount counter rather than a wall-clock second (notes/touch.md's `BUGS`, and notes/std.md's
-  file-times `BUGS` where a std reader meets it). Giving the server the clock page is
+  per-mount counter rather than a wall-clock second (notes/touch.md's `BUGS`, and notes/std/file-times.md's
+  `BUGS` where a std reader meets it). Giving the server the clock page is
   milestone 497 (a filesystem server that knows what time), `design/roadmap/497-a-filesystem-server-that-knows-the-time.md`.
 - **Recorded.** The exit event still carries no exit code, so a supervisor can tell exit from crash
   and cannot tell `exit(0)` from `exit(1)`. The reasoning lives in `notes/std.md`.

@@ -164,7 +164,7 @@ pub const CHILD_STACK_VA: u64 = 0x0050_0000;
 /// and the difference is deliberate rather than drift: the prompt's children run the shell's
 /// redirection path, whose frames grew twice under measurement. The number is a field on [`ChildEndowment`]
 /// so a caller states it, because a builder that silently inherits somebody else's stack size finds
-/// faults that builder does not have (notes/pipes.md).
+/// faults that builder does not have (notes/pipes/the-boot.md).
 pub const CHILD_STACK_PAGES: u64 = 4;
 
 /// An ever-advancing scratch window: where we temporarily map each child frame to fill it. Never

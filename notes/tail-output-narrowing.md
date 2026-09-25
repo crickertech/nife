@@ -16,7 +16,8 @@ why no line renders a page at the prompt."
 **True, and it is a structural fact rather than a missing feature.** `doc page.md` (a bare
 positional, no `<`, no `|`, no `>`) plans as a one-stage pipeline whose input is a file the shell
 itself feeds (`grant_plan::plan_against_with` turns a trailing positional into `Source::File`,
-exactly as it does for `wc report.txt`; see notes/pipes.md's "the file behind a `<` is this shell").
+exactly as it does for `wc report.txt`; see notes/pipes/the-file-end.md, "the file behind a `>` is
+this shell").
 `doc` also writes while it reads (`InputSpec::Required { writes_while_reading: true }`, the only
 declarer today), so the shell would have to be both the feeder of its input and the reader of its
 output, and this kernel gives a process exactly one blocking wait point (`SEND`/`RECV`, no select,

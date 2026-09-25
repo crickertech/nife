@@ -529,7 +529,7 @@ went wrong and the server's reason died with the process. A negative reply is no
 carries the raw reply word and `w1` carries `0xBADD_0000 | stage << 12 | errno` with a stage tag for
 which request was refused, and the kernel test prints the word it compared against `SUCCESS`. The raw
 word rides alongside the decoded errno on purpose, because the wire's negated errnos overlap the
-kernel's own `invoke` errors at -1..-8 (the reply-space wart in notes/std.md), so a small value is
+kernel's own `invoke` errors at -1..-8 (the reply-space wart in notes/std/fs.md), so a small value is
 ambiguous between "the server returned this errno" and "the IPC itself failed". Carrying both makes the
 ambiguity visible instead of quietly resolving it the wrong way.
 
@@ -841,7 +841,7 @@ loop rather than a signature change. The block server's DMA region was already w
   directory becomes the thing `File::open`'s path resolves under, so a path that would leave it is
   refused rather than served. The std program holds the endpoint at slot 4 of the std slot convention
   and nothing else that names a filesystem. A program handed a *narrowed* endpoint instead needs no
-  std change at all: the one granted name opens and every other is `NotFound`. See notes/std.md and
+  std change at all: the one granted name opens and every other is `NotFound`. See notes/std/fs.md and
   notes/abi.md §4.
 - **23 (live replacement)** gets its hardest state-handoff case here: an FS server with open handles
   and in-flight writes is the "serialise-old / absorb-new" problem the console swap never had. It
