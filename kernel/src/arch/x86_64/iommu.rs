@@ -48,13 +48,15 @@
 //!
 //! # BUGS
 //!
-//! - **Exactly one DRHD is brought up.** A machine with more than one VT-d unit (real multi-socket
-//!   hardware, or a `q35` machine with more than one `-device intel-iommu`) has devices this driver
-//!   never sees, because `machine_discovery::acpi::first_drhd` takes the first entry in the DMAR's
-//!   remapping-structure list and stops. Milestone 87's `OptiPlex` 7050 is expected to report one,
-//!   which is what makes this the honest first cut rather than a workaround; bringing up more than
-//!   one is real future work (walking every DRHD, and routing a device to its owning unit by the
-//!   device-scope lists `machine_discovery::acpi::DmarStructures` currently skips).
+//! - **Exactly one DRHD is brought up**, and since milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal it is the
+//!   segment's `INCLUDE_PCI_ALL` unit rather than the first one listed
+//!   (`machine_discovery::acpi::DmarUnits::translating`). The old rule assumed the `OptiPlex` 7050
+//!   reports one unit; its 204-byte DMAR almost certainly holds two, and on the 7040 (same family,
+//!   same addresses) the first is the integrated graphics' unit. Devices owned by any other unit
+//!   are not translated at all, which [`scope_of`] now reports per requester instead of letting
+//!   `is_active()` stand in for it. Bringing every unit up, and routing each `attach` to its owner,
+//!   is the real fix and is future work; the graphics unit is the one this leaves off, and nothing
+//!   in this kernel drives the GPU by DMA.
 //! - **No interrupt remapping.** `ECAP.IR` is read and *reported* since milestone 317
 //!   (the interrupt-remapping flags, and where MSI confinement actually lives) by
 //!   [`interrupt_remapping_available`] and the bring-up line `print_summary` writes, and that
@@ -194,6 +196,17 @@ struct Iommu {
 
 static IOMMU: IrqSafeMutex<Option<Iommu>> = IrqSafeMutex::new(rank::IOMMU, None);
 
+/// Every unit and device scope the DMAR described, so [`scope_of`] can say whether the unit that
+/// is up is the one a requester id's DMA actually passes through. Recorded by [`record_dmar`]
+/// before [`init`]; never held at the same time as [`IOMMU`].
+static DMAR: IrqSafeMutex<Option<machine_discovery::acpi::DmarUnits>> =
+    IrqSafeMutex::new(rank::IOMMU, None);
+
+/// Keep the DMAR's decoded units for [`scope_of`]. Called once, from the boot, beside [`init`].
+pub fn record_dmar(units: machine_discovery::acpi::DmarUnits) {
+    *DMAR.lock() = Some(units);
+}
+
 fn r32(base: u64, off: u64) -> u32 {
     // SAFETY: the DRHD's register file lies inside the direct map (it is ordinary MMIO below the
     // 4 GiB line on every machine this driver has run against), mapped device-typed by
@@ -244,7 +257,8 @@ fn wait_gsts(base: u64, what: &str, cond: impl Fn(u32) -> bool) {
 }
 
 /// **Bring the IOMMU up: an all-absent root table installed, translation enabled.** From here
-/// every device on every bus faults until `attach` writes its context entry.
+/// every device *this unit owns* faults until `attach` writes its context entry. Which devices
+/// those are is the DMAR's answer, not this unit's: [`scope_of`] asks it.
 pub fn init(base: u64) {
     let mut g = IOMMU.lock();
     assert!(g.is_none(), "IOMMU initialized twice");
@@ -276,6 +290,40 @@ pub fn init(base: u64) {
         frcd,
         interrupt_remapping,
     });
+}
+
+/// **Does the unit this kernel translates through own requester id `rid`?** (milestone 261's
+/// bench rehearsal; VT-d 3.x section 8.3.) Asked after the bus is up, because a scope path is
+/// resolved through the live bridges' bus-number registers.
+///
+/// This is fatal risk 6's first night-of condition as code. A VT-d unit translates only the
+/// requesters its DMAR scope gives it; `attach` writes a context entry for any `rid` it is handed,
+/// and a unit that does not own that `rid` never consults it. So "translation is on" and "this
+/// device is confined" are different claims, and until this existed the kernel made the second
+/// by checking the first.
+pub fn scope_of(rid: u32) -> crate::iommu::Scope {
+    use crate::iommu::Scope;
+    // Copied out rather than held, so the config-space reads that resolve a path run with no
+    // lock taken.
+    let Some(base) = IOMMU.lock().as_ref().map(|s| s.base) else {
+        return Scope::NoIommu;
+    };
+    let Some(units) = *DMAR.lock() else {
+        return Scope::Unknown { translating: base };
+    };
+    let (bus, dev, func) = ((rid >> 8) as u8, ((rid >> 3) & 0x1f) as u8, (rid & 7) as u8);
+    match units.owner(0, bus, dev, func, &mut crate::pci::bridge_bus_range) {
+        Ok(Some((unit, how))) if unit.register_base == base => Scope::Owned { unit: base, how },
+        Ok(Some((unit, _))) => Scope::Elsewhere {
+            translating: base,
+            owner: Some(unit.register_base),
+        },
+        Ok(None) => Scope::Elsewhere {
+            translating: base,
+            owner: None,
+        },
+        Err(()) => Scope::Unknown { translating: base },
+    }
 }
 
 /// **Does this machine's VT-d unit offer interrupt remapping (`ECAP.IR`)?** `None` when there is

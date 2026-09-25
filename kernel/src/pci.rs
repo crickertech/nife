@@ -351,6 +351,27 @@ fn cfg_read32(bdf: Bdf, off: u64) -> u32 {
     unsafe { core::ptr::read_volatile(va as *const u32) }
 }
 
+/// **A bridge's `(secondary, subordinate)` bus numbers**, or `None` when `bus:dev.func` is absent
+/// or is not a bridge. The live-bus half of resolving a DMAR device-scope path, which is firmware
+/// naming a device by the route to it rather than by its number (milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal;
+/// `machine_discovery::acpi::DmarUnits::owner`).
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn bridge_bus_range(bus: u8, dev: u8, func: u8) -> Option<(u8, u8)> {
+    if !is_host_bridge_present() || dev > 31 || func > 7 {
+        return None;
+    }
+    let bdf = Bdf { bus, dev, func };
+    if cfg_read32(bdf, pci::VENDOR_ID) & 0xffff == 0xffff {
+        return None;
+    }
+    let header = (cfg_read32(bdf, pci::HEADER_TYPE & !3) >> ((pci::HEADER_TYPE & 3) * 8)) as u8;
+    if header & 0x7f != pci::HEADER_TYPE_BRIDGE {
+        return None;
+    }
+    let b = pci::bridge_buses(bdf, &mut |b, o| cfg_read32(b, o));
+    Some((b.secondary, b.subordinate))
+}
+
 fn cfg_write32(bdf: Bdf, off: u64, v: u32) {
     let va = mmu::phys_to_virt(ECAM_BASE.load(Ordering::Relaxed) + bdf.ecam_offset() + (off & !3));
     // SAFETY: as above; config writes go to the one function this bdf names.
