@@ -252,7 +252,7 @@ impl PerCpu {
     /// explicitly in `schedule()`.
     pub fn with_runq<R>(&self, f: impl FnOnce(&mut Fifo<Thread>) -> R) -> R {
         debug_assert!(
-            !crate::arch::interrupts::enabled(),
+            !crate::arch::interrupts::is_enabled(),
             "run queue touched with interrupts enabled: single-owner safety needs them masked",
         );
         // SAFETY: interrupts masked (asserted) and single-owner, so this `&mut` is exclusive.

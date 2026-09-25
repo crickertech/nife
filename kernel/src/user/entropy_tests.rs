@@ -286,21 +286,22 @@ fn a_fill_gathers_across_round_trips() {
 /// because ring 3 does not exist yet on that port at all (see
 /// `design/roadmap/162-cpu-instruction-entropy.md`), so there is no service to test end to end
 /// there yet, only the kernel-side probe the boot tour already proves. This test also compiles and
-/// runs (and skips) on riscv64, which has neither instruction: `instruction_backend_available`
+/// runs (and skips) on riscv64, which has neither instruction: `is_instruction_backend_available`
 /// there is unconditionally `false`, the JH7110's real hardware source (milestone 159) being a
 /// separate driver entirely, so the skip is correct there too, just for a different reason. **That
 /// exclusion is checked, not pending**: milestone 162 refused a riscv64 arm outright, having read
 /// the ISA rather than assumed it, and recorded the refusal under "Follow-on" in
 /// `design/roadmap/162-cpu-instruction-entropy.md`.
 ///
-/// **`x86_64`'s `instruction_backend_available` arm now checks `arch::isa::get().rdseed()`** (ring 3
-/// landed, milestone 161 item 3), so this test's logic is complete on that architecture too. It does
-/// not yet run there in this suite: this whole module is `#[cfg(all(test, initrd))]`, and
-/// `kernel/build.rs::declare_initrd_cfg` has no `x86_64` arm until milestone 161 item 4's
-/// userspace-compilation hand-off lands, so `x86_64` has no `entropy` binary in its initrd to spawn
-/// yet. Confirmed working ahead of that landing (2026-08-25): cherry-picking milestone 162's
-/// `x86_64` fix onto that hand-off's branch makes this exact test pass under `-cpu max`,
-/// `x86_64`'s suite default, no `--cpu` override needed the way aarch64's does.
+/// **`x86_64`'s `is_instruction_backend_available` arm now checks `arch::isa::get().rdseed()`**
+/// (ring 3 landed, milestone 161 (the `x86_64` kernel port) item 3), so this test's logic is
+/// complete on that architecture too. It does not yet run there in this suite: this whole module is
+/// `#[cfg(all(test, initrd))]`, and `kernel/build.rs::declare_initrd_cfg` has no `x86_64` arm until
+/// milestone 161 item 4's userspace-compilation hand-off lands, so `x86_64` has no `entropy` binary
+/// in its initrd to spawn yet. Confirmed working ahead of that landing (2026-08-25): cherry-picking
+/// the `x86_64` fix of milestone 162 (real hardware entropy on `x86_64` and aarch64) onto that
+/// hand-off's branch makes this exact test pass under `-cpu max`, `x86_64`'s suite default, no
+/// `--cpu` override needed the way aarch64's does.
 #[test_case]
 fn a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all() {
     let Some(w) = start(Bus::Instruction) else {

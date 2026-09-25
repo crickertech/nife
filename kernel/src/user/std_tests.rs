@@ -102,9 +102,9 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
     client_image: &'static [u8],
 ) {
     use filesystem_protocol::fixture::{READY, SUCCESS, crash};
-    // The caller has already established the disk is there (`fs_service::crash_disk_present`) and
-    // skipped its own `#[test_case]` if it is not. This `expect` is that guard restated where it
-    // can fail loudly: a `None` here means the disk went away between the two calls, which is a
+    // The caller has already established the disk is there (`fs_service::is_crash_disk_present`)
+    // and skipped its own `#[test_case]` if it is not. This `expect` is that guard restated where
+    // it can fail loudly: a `None` here means the disk went away between the two calls, which is a
     // machine fault rather than an absent fixture, and it must not be reported as a skip.
     let run = fs_service::start_crash(blk_image, redoxfs_server_image, client_image)
         .expect("the crash disk was present a moment ago and the block server still refused it");
@@ -387,7 +387,7 @@ fn a_whole_std_program_runs_on_the_native_abi() {
     // unsupervised thread, so the departure is the synchronisation and the fault counter is the
     // verdict.
     assert!(
-        super::wait_for(|| !crate::sched::thread_present(tid)),
+        super::wait_for(|| !crate::sched::is_thread_present(tid)),
         "the std program never left: it is neither exited nor faulted",
     );
     assert_eq!(

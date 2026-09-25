@@ -28,7 +28,7 @@ days ago here has usually been overtaken. All three had been:
 
 | the block's three | site | state on 2026-08-16 |
 |---|---|---|
-| reaper count, `left: 5, right: 6` | `sched.rs`, `a_finished_thread_is_reaped_and_its_memory_returned` | rescoped; per-`Tid` `thread_present` waits and `used() <= before` |
+| reaper count, `left: 5, right: 6` | `sched.rs`, `a_finished_thread_is_reaped_and_its_memory_returned` | rescoped; per-`Tid` `is_thread_present` waits and `used() <= before` |
 | address-space frames, "-52" and "-19" | `user/tests.rs`, `a_dead_user_thread_frees_its_whole_address_space` | rescoped, the same two changes |
 | frame hygiene, margin of two frames | `user/live_swap_tests.rs` | removed 2026-08-03 in PR #46, with the analysis |
 
@@ -85,10 +85,10 @@ global baseline, a claim about one object: it is the milestone's signature. It w
 against this site only because nothing had happened to fall on it yet.
 
 The rescope is also the stronger claim. `create_tcb` returns a generational `Tid`, so
-`thread_present(tid)` asks the narrow question the test is responsible for ("is this embryo in the
-table"), and it is immune to neighbours by construction. The old second assertion could pass with
-the embryo still in the table, as long as somebody else's thread left in the same window. The new
-one cannot. `thread_present`'s own doc comment has argued this since it was written.
+`is_thread_present(tid)` asks the narrow question the test is responsible for ("is this embryo in
+the table"), and it is immune to neighbours by construction. The old second assertion could pass
+with the embryo still in the table, as long as somebody else's thread left in the same window. The
+new one cannot. `is_thread_present`'s own doc comment has argued this since it was written.
 
 The frame half of the same test (`assert_eq!(free_frames(), frames_before)`) was checked against the
 same question and left alone deliberately. Its window is a region create and a reclaim with no wait
@@ -121,11 +121,11 @@ assert_eq!(memory::stats().unwrap().free(), free_before, "...");
    on the argument that a neighbour's late teardown can only free frames.
 
 All three take fixes already argued elsewhere in this register. Each spawn is followed to its own
-reap by `thread_present` on the `Tid` it returned, bounded by the module's `wait_for`. The final
-assertion becomes `free() >= free_before`, waited on, which is `used() <= before` in the other units.
-The defect this test guards spends allocator frames on kernel stacks, driving `free` down and keeping
-it there. So a real regression times the wait out and fails with the frame count in the message. A
-dead `REAPED` static, stored to and never read, went with it.
+reap by `is_thread_present` on the `Tid` it returned, bounded by the module's `wait_for`. The final
+assertion becomes `free() >= free_before`, waited on, which is `used() <= before` in the other
+units. The defect this test guards spends allocator frames on kernel stacks, driving `free` down and
+keeping it there. So a real regression times the wait out and fails with the frame count in the
+message. A dead `REAPED` static, stored to and never read, went with it.
 
 ### The instrument, and the loop this round ran
 

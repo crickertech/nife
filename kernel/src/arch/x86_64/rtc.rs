@@ -98,7 +98,7 @@ fn read(reg: u8) -> u8 {
     }
 }
 
-fn update_in_progress() -> bool {
+fn is_update_in_progress() -> bool {
     read(REG_STATUS_A) & STATUS_A_UPDATE_IN_PROGRESS != 0
 }
 
@@ -141,11 +141,11 @@ fn bcd_to_binary(v: u8) -> u8 {
 /// same as every other RTC binding.
 pub fn read_unix_nanos() -> Option<u64> {
     let raw = loop {
-        while update_in_progress() {
+        while is_update_in_progress() {
             core::hint::spin_loop();
         }
         let first = snapshot();
-        while update_in_progress() {
+        while is_update_in_progress() {
             core::hint::spin_loop();
         }
         let second = snapshot();

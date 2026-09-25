@@ -856,7 +856,7 @@ fn current_test_name() -> Option<&'static str> {
 /// // on a busy one.
 /// let mut budget = TickBudget::new(2 * crate::arch::timer::TICK_HZ);
 /// while !done() {
-///     assert!(!budget.expired(), "the workers never drained");
+///     assert!(!budget.is_expired(), "the workers never drained");
 ///     crate::sched::yield_now();
 /// }
 /// ```
@@ -876,7 +876,7 @@ impl TickBudget {
     }
 
     /// Has the budget run out? Re-anchors and returns `false` if this thread changed core.
-    pub fn expired(&mut self) -> bool {
+    pub fn is_expired(&mut self) -> bool {
         let (core, now) = Self::sample();
         if core != self.core {
             self.core = core;
@@ -976,7 +976,7 @@ impl<T: Fn()> Testable for T {
                 print!("[{elapsed} s] ");
             }
             assert!(
-                crate::stack::intact(),
+                crate::stack::is_intact(),
                 "this test smashed the stack (headroom: {})",
                 crate::stack::headroom()
             );
@@ -1016,7 +1016,7 @@ impl<T: Fn()> Testable for T {
         //
         // This is not hypothetical. It is how milestone 3 went. See notes/stack.md.
         assert!(
-            crate::stack::intact(),
+            crate::stack::is_intact(),
             "this test smashed the stack (headroom: {})",
             crate::stack::headroom()
         );

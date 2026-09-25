@@ -117,7 +117,7 @@ fn reap_bare(tid: crate::thread::ThreadId) -> bool {
         // Already gone. Nothing to wait for, and not a failure.
         return true;
     }
-    wait_for(|| !sched::thread_present(tid))
+    wait_for(|| !sched::is_thread_present(tid))
 }
 
 /// The `least_authority_demo` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
@@ -789,7 +789,7 @@ fn an_asid_flush_reaches_the_other_cores() {
     );
 
     assert!(
-        wait_for(|| !sched::thread_present(probe)),
+        wait_for(|| !sched::is_thread_present(probe)),
         "the probe thread was never reaped",
     );
     drop(space);
@@ -1406,7 +1406,7 @@ fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
-    if !fs_service::crash_disk_present() {
+    if !fs_service::is_crash_disk_present() {
         crate::testing::skip!("no crash disk attached");
     }
     assert_a_kill_mid_transaction_recovers(
@@ -2302,7 +2302,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
         })
     };
 
-    // Each outlaw's reap is proven by `thread_present` on ITS ThreadId, not by `thread_count()`
+    // Each outlaw's reap is proven by `is_thread_present` on ITS ThreadId, not by `thread_count()`
     // returning to a baseline sampled at the top of the test. The count is the whole table, so a
     // baseline taken while an earlier test's teardown is still in flight is a number the system
     // moves on its own; the per-ThreadId wait is immune to neighbours by construction. Same fix as the
@@ -2311,7 +2311,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     let f0 = USER_FAULTS.load(Ordering::Relaxed);
     let warmup = outlaw_here().expect("spawn failed");
     assert!(wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > f0));
-    assert!(wait_for(|| !sched::thread_present(warmup)));
+    assert!(wait_for(|| !sched::is_thread_present(warmup)));
 
     // Sample the baseline only once `used()` has STOPPED MOVING, for the same reason the
     // assertion below waits rather than reading instantly, applied to the other end. The warm-up
@@ -2340,7 +2340,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
         let f = USER_FAULTS.load(Ordering::Relaxed);
         let outlaw = outlaw_here().expect("spawn failed");
         assert!(wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > f));
-        assert!(wait_for(|| !sched::thread_present(outlaw)));
+        assert!(wait_for(|| !sched::is_thread_present(outlaw)));
     }
 
     // Exact in the leak direction, but allow the asynchronous reap to settle. Pinning the outlaws
@@ -2634,7 +2634,7 @@ fn init_builds_the_demo_and_passes_it_an_argument() {
 /// None of this is a measurement: under QEMU the delta is emulator time.
 #[test_case]
 fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
-    if !crate::arch::timer::cycle_counter_grantable() {
+    if !crate::arch::timer::is_cycle_counter_grantable() {
         crate::testing::skip!("this core has no user-readable cycle counter to grant");
     }
 
@@ -2976,12 +2976,12 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     // thread table: the previous test's processes are still tearing down at that instant, so the
     // baseline was a number the system would move on its own, and the wait was really waiting
     // for everything else to hold still. It failed exactly that way once on RISC-V, where the
-    // slower machine leaves more teardown in flight. `thread_present` asks the question the test
+    // slower machine leaves more teardown in flight. `is_thread_present` asks the question the test
     // means. The whole history here is a wait that keeps being written against something wider
     // than the property: it was a yield count until §28's scattering broke it, then a
     // clock-bounded headcount until this. A sibling wait below had the same defect.
     assert!(
-        wait_for(|| !crate::sched::thread_present(tid)),
+        wait_for(|| !crate::sched::is_thread_present(tid)),
         "the exited child was never reaped",
     );
 
@@ -3075,7 +3075,7 @@ fn spawn_to_reap_repeats_without_leaking() {
         // so waiting for it to return to a baseline is waiting for the rest of the system.
         // A lagging reap here would surface as the reclaim below refusing a live thread.
         assert!(
-            wait_for(|| !crate::sched::thread_present(tid)),
+            wait_for(|| !crate::sched::is_thread_present(tid)),
             "round {round}: the child was never reaped",
         );
         crate::sched::reclaim_region(thread_control_block_region).expect("reclaim tcb region");

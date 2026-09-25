@@ -353,7 +353,7 @@ mod tests {
         interrupts::enable();
         enable(PROBE, ctx);
         assert!(
-            interrupts::enabled(),
+            interrupts::is_enabled(),
             "the enable path left interrupts masked: the guard did not restore them"
         );
 
@@ -362,7 +362,7 @@ mod tests {
         let outer = interrupts::disable();
         disable(PROBE, ctx);
         assert!(
-            !interrupts::enabled(),
+            !interrupts::is_enabled(),
             "the disable path unmasked interrupts inside an IRQ-disabled context, which is what it \
              would do to the external-interrupt handler"
         );

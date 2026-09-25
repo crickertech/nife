@@ -35,8 +35,8 @@ use crate::arch::mmu::{DmaFormat, phys_to_virt};
 /// runs exactly as it did before this milestone. The confinement path checks this before
 /// attaching a device, so a machine with no IOMMU keeps working (with only the software shadow
 /// ring for DMA defence, now demoted to defence in depth; see notes/dma.md).
-pub fn active() -> bool {
-    crate::arch::iommu::active()
+pub fn is_active() -> bool {
+    crate::arch::iommu::is_active()
 }
 
 /// Allocate one zeroed frame and return its physical address. The domain's root table and every
@@ -55,7 +55,7 @@ fn zeroed_page_frame() -> u64 {
 /// address outside `regions`.
 ///
 /// `rid` is the PCIe requester id (bus/dev/fn), which both IOMMUs key their tables on (each `virt`
-/// board's device tree gives an identity `iommu-map`). The caller must have checked [`active`];
+/// board's device tree gives an identity `iommu-map`). The caller must have checked [`is_active`];
 /// attaching before the driver's `init` panics.
 pub fn confine(rid: u32, regions: &[DmaRegion]) {
     let root = zeroed_page_frame();

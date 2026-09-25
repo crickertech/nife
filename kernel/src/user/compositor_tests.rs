@@ -657,7 +657,7 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
         );
     };
     assert!(
-        crate::iommu::active(),
+        crate::iommu::is_active(),
         "a virtio-gpu is present but the IOMMU is not active: the GPU's pixel reads are \
          unconfined (notes/framebuffer-contract.md)",
     );

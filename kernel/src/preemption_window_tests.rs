@@ -60,7 +60,7 @@ const RAISE_BOUND_PERIODS: u64 = 100;
 fn until_the_tick_is_raised() -> bool {
     let bound = RAISE_BOUND_PERIODS * crate::arch::timer::frequency() / crate::arch::timer::TICK_HZ;
     let start = crate::arch::timer::now();
-    while !crate::arch::timer::tick_pending() {
+    while !crate::arch::timer::is_tick_pending() {
         if crate::arch::timer::now().wrapping_sub(start) >= bound {
             return false;
         }

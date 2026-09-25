@@ -53,7 +53,7 @@ pub fn init() {
 }
 
 /// Has anything scribbled below the stack?
-pub fn intact() -> bool {
+pub fn is_intact() -> bool {
     // SAFETY: reading our own image.
     unsafe { core::ptr::read_volatile(bottom() as *const [u64; 4]) == CANARY }
 }
@@ -379,7 +379,7 @@ fn print_text_words(bottom: u64, top: u64) {
 /// Shout if the canary is dead. Called from the panic handler and the fault handler,
 /// because a corrupted stack makes every *other* diagnostic a potential lie.
 pub fn warn_if_smashed() {
-    if !intact() {
+    if !is_intact() {
         crate::println!();
         crate::println!("  *** STACK OVERFLOW ***");
         crate::println!("  The canary below __stack_bottom is dead, so we have written");
@@ -660,7 +660,7 @@ mod tests {
     /// hanging somewhere unrelated. That is exactly how milestone 3 went wrong.
     #[test_case]
     fn stack_canary_is_intact_and_we_have_headroom() {
-        assert!(crate::stack::intact(), "stack canary is already dead");
+        assert!(crate::stack::is_intact(), "stack canary is already dead");
         assert!(
             crate::stack::headroom() > 4096,
             "less than 4 KiB of stack left: {}",

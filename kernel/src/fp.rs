@@ -86,9 +86,9 @@ pub static ENABLES: AtomicUsize = AtomicUsize::new(0);
 #[inline(always)]
 pub unsafe fn hand_over(prev: *mut FpState, next: *const FpState) {
     // SAFETY: the caller's, forwarded. Both reads are of one `u64` in a pinned allocation.
-    let prev_live = unsafe { (*prev).live() };
+    let prev_live = unsafe { (*prev).is_live() };
     // SAFETY: the caller's, forwarded; one `u64` read in a pinned allocation, as above.
-    let next_live = unsafe { (*next).live() };
+    let next_live = unsafe { (*next).is_live() };
 
     if !prev_live && !next_live {
         // The common case, and the only one on a machine where nothing uses floating point. Out
@@ -470,7 +470,7 @@ mod tests {
             crate::arch::fp::disable();
             let mut one = FpState::INITIAL;
             let two = FpState::INITIAL;
-            assert!(!one.live() && !two.live());
+            assert!(!one.is_live() && !two.is_live());
             // SAFETY: two distinct locals, interrupts masked.
             unsafe { hand_over(&mut one, &two) };
             assert!(

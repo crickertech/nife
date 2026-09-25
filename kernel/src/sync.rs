@@ -398,19 +398,19 @@ mod tests {
         static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 7);
 
         interrupts::enable();
-        assert!(interrupts::enabled(), "test setup: IRQs should be on");
+        assert!(interrupts::is_enabled(), "test setup: IRQs should be on");
 
         {
             let guard = M.lock();
             assert_eq!(*guard, 7);
             assert!(
-                !interrupts::enabled(),
+                !interrupts::is_enabled(),
                 "IRQs are still live while the lock is held: this is the deadlock"
             );
         }
 
         assert!(
-            interrupts::enabled(),
+            interrupts::is_enabled(),
             "IRQs were not restored after the guard dropped"
         );
     }
@@ -433,15 +433,15 @@ mod tests {
 
         // Pretend we are inside an interrupt handler: IRQs already masked.
         let outer = interrupts::disable();
-        assert!(!interrupts::enabled());
+        assert!(!interrupts::is_enabled());
 
         {
             let _guard = M.lock();
-            assert!(!interrupts::enabled());
+            assert!(!interrupts::is_enabled());
         }
 
         assert!(
-            !interrupts::enabled(),
+            !interrupts::is_enabled(),
             "dropping the guard ENABLED interrupts inside an IRQ-disabled context"
         );
 
@@ -464,21 +464,24 @@ mod tests {
 
         {
             let a = A.lock();
-            assert!(!interrupts::enabled());
+            assert!(!interrupts::is_enabled());
             {
                 let b = B.lock();
-                assert!(!interrupts::enabled());
+                assert!(!interrupts::is_enabled());
                 assert_eq!(*a + *b, 3);
             }
             // The INNER guard dropped. It must not have re-enabled interrupts, because the
             // outer one is still held.
             assert!(
-                !interrupts::enabled(),
+                !interrupts::is_enabled(),
                 "the inner guard re-enabled IRQs while the outer lock is still held"
             );
         }
 
-        assert!(interrupts::enabled(), "the outer guard failed to restore");
+        assert!(
+            interrupts::is_enabled(),
+            "the outer guard failed to restore"
+        );
     }
 
     // --- lock ranking (DECISIONS §9) ---

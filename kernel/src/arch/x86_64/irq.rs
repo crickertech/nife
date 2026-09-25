@@ -307,7 +307,7 @@ pub fn local_apic_version() -> u8 {
 
 /// Is the local APIC up? False until [`init_local_apic`] has run, which is what the timer checks
 /// before trying to arm anything.
-pub fn local_apic_ready() -> bool {
+pub fn is_local_apic_ready() -> bool {
     LOCAL_APIC.load(Ordering::Relaxed) != 0
 }
 
@@ -335,9 +335,12 @@ pub fn arm_periodic_timer(count: u32) {
 
 /// **Is the timer's vector raised and waiting in this local APIC** (its bit in the IRR)? True from
 /// the moment the countdown expires until the core accepts the interrupt, which with `IF` clear is
-/// not until interrupts are unmasked. See `timer::tick_pending`, the caller.
+/// not until interrupts are unmasked. See `timer::is_tick_pending`, the caller.
+///
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `timer_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn timer_pending() -> bool {
+pub fn is_timer_pending() -> bool {
     let v = TIMER_VECTOR as u64;
     read(reg::IRR + (v / 32) * 0x10) & (1 << (v % 32)) != 0
 }
@@ -958,7 +961,7 @@ pub fn raise_self_interrupt(vector: u8) {
 /// online core (`smp::online_cpus`), and an online core is by construction a seated one.
 pub fn send_reschedule(target_cpu: usize) {
     debug_assert!(
-        local_apic_ready(),
+        is_local_apic_ready(),
         "a reschedule IPI before the local APIC is up has nothing to send it with"
     );
     let apic_id = crate::smp::hwid(target_cpu).unwrap_or_else(|| {

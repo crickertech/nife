@@ -369,7 +369,7 @@ fn entered_user_with_no_entry_point(user_sp: u64) -> ! {
 /// exists would let a caller believe interrupts are unmasked when nothing can deliver one.
 pub fn enable_external() {
     assert!(
-        super::irq::local_apic_ready(),
+        super::irq::is_local_apic_ready(),
         "external interrupts are the local APIC's to deliver, and it is not up yet",
     );
 }

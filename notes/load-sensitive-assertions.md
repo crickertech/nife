@@ -86,9 +86,9 @@ is saturated, so all three red at once is a load gauge, not three regressions.
 1. Wait on the property, not on a proxy for it. Bound the wait with `smp.rs`'s `wait_for` (a
    clock) or with `testing::TickBudget` (delivered ticks). Assert that the wait succeeded.
 2. Ask about the object, not the machine. A thread is asked about by its generational `Tid`
-   (`thread_present`). A region is asked about by `memory_region::usage`, or by its own frames
+   (`is_thread_present`). A region is asked about by `memory_region::usage`, or by its own frames
    through `testing::RegionRun`. A single frame is asked about through `memory::is_page_frame_used`.
-   A held tick is asked about through `timer::tick_pending`
+   A held tick is asked about through `timer::is_tick_pending`
    ([preemption window](load-sensitive-assertions/preemption-window-tick.md)).
 3. Denominate a budget in what the guest actually received. A descheduled emulator delivers fewer
    ticks per second, so a tick budget stretches under exactly the load that broke a counter
@@ -138,14 +138,14 @@ remains) or fixed. A fixed site can still carry a residual in BUGS below.
 | `the_handler_keeps_up_when_no_lock_is_held` | both `timer.rs` | fixed | deleted 2026-08-18; `script/icount` makes the claim | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md), [timer disposition](load-sensitive-assertions/timer-assertion-disposition.md) |
 | `holding_a_lock_masks_the_timer`, the masking window | both `timer.rs` | fixed | both reads moved inside the critical section; `ticks_on(core)` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `holding_a_lock_masks_the_timer`, liveness and release; `the_timer_is_ticking` | both `timer.rs` | fixed | wait for the pending bit, or the property (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
-| `unmasking_delivers_the_tick_that_was_held`, `a_masked_window_takes_no_preemption` | `preemption_window_tests.rs` | fixed | waits for `timer::tick_pending`; QEMU raised ticks 86 ms late (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
+| `unmasking_delivers_the_tick_that_was_held`, `a_masked_window_takes_no_preemption` | `preemption_window_tests.rs` | fixed | waits for `timer::is_tick_pending`; QEMU raised ticks 86 ms late (09-24) | [preemption window](load-sensitive-assertions/preemption-window-tick.md) |
 | `inbound check` (host prober) | `xtask/src/inbound.rs` | fixed | an `EINTR` read dropped a held connection, losing its round (09-24) | [inbound EINTR](load-sensitive-assertions/inbound-eintr.md) |
 | `work_can_be_placed_on_every_core` | `smp.rs` | fixed | asserts arrival at the named core (`PerCpu::adopted`), not execution (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_thread_that_never_yields_is_preempted_anyway` | `sched.rs` | fixed | the spinner is waited on, not sampled; the budget is 200 delivered ticks (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `a_sender_blocks_until_a_receiver_arrives`, `other_threads_run_while_one_is_blocked` | `sched.rs` | fixed | five yield-count waits became `wait_for` (08-04) | [second round](load-sensitive-assertions/measurement-windows-and-the-load-recipe.md) |
 | `threads_round_robin` | `sched.rs` | fixed | waits for every counter above zero, then for its own reaps (08-03) | [first verdicts](load-sensitive-assertions/global-baselines-and-the-drift-law.md) |
 | five sites found on the physical core, milestone 81 (an HVF leg) | `sched.rs` (3), `user/reap_tests.rs`, `user/supervision_tests.rs` | fixed | yield counts became waits on the property (08-04) | [notes/hvf-leg.md](hvf-leg.md) |
-| `reclaim_frees_an_embryo_tcbs_region` | `sched.rs` | fixed | `thread_present(tid)` in place of a global headcount (08-16) | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) |
+| `reclaim_frees_an_embryo_tcbs_region` | `sched.rs` | fixed | `is_thread_present(tid)` in place of a global headcount (08-16) | [miss taxonomy](load-sensitive-assertions/miss-taxonomy-and-clockless-loops.md) |
 | `a_migrated_kernel_thread_keeps_its_hart_pointer` | `smp.rs` | fixed | the drain budget is 200 delivered ticks through `testing::TickBudget` (08-18) | [migration drain](load-sensitive-assertions/migration-drain-tick-budget.md) |
 | `a_userspace_driver_reads_a_file_over_the_pcie_transport`, and three siblings | `user/tests.rs`, `user/riscv_virtio_tests.rs` | fixed | the baseline moved before `start_pci`; x86_64's `ROUTED_IRQS` stopped counting timer ticks (09-04) | [PCIe interrupt counter](load-sensitive-assertions/x86-pcie-interrupt-counter.md) |
 | `run_swap`, "returned 277 of 224 pages" | `user/live_swap_tests.rs` | fixed | the region's absence after reclaim is the measurement (09-22, #1101) | [unowned reds](load-sensitive-assertions/unowned-reds.md) |

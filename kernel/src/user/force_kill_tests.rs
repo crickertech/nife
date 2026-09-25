@@ -341,7 +341,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
          the life of the boot",
     );
     assert!(
-        super::wait_for(|| !sched::thread_present(tid)),
+        super::wait_for(|| !sched::is_thread_present(tid)),
         "the region reclaimed but its blocked resident was never reaped",
     );
     run.assert_returned("reclaiming a blocked resident's region did not return its frames");
@@ -405,7 +405,7 @@ fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_o
          send follows that link into a freed page",
     );
     assert!(
-        super::wait_for(|| !sched::thread_present(tid)),
+        super::wait_for(|| !sched::is_thread_present(tid)),
         "the region reclaimed but its blocked resident was never reaped",
     );
     run.assert_returned(
@@ -485,7 +485,7 @@ fn tearing_down_a_reply_parked_caller_sweeps_the_reply_capability() {
     );
 
     assert!(
-        super::wait_for(|| !sched::thread_present(tid)),
+        super::wait_for(|| !sched::is_thread_present(tid)),
         "the region reclaimed but its reply-parked resident was never reaped",
     );
     run.assert_returned("reclaiming a reply-parked resident's region did not return its frames");

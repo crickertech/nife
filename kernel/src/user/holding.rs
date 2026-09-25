@@ -206,7 +206,7 @@ impl Holding {
         for tid in self.threads.iter().flatten() {
             let mut gone = false;
             while crate::arch::timer::now() < deadline {
-                if !sched::thread_present(*tid) {
+                if !sched::is_thread_present(*tid) {
                     gone = true;
                     break;
                 }

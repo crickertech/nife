@@ -66,7 +66,8 @@ scheduling and a load average cannot see that.
 
 ## The fix
 
-Each architecture now answers `arch::timer::tick_pending()`, a provisional name. It reads `sip.STIP`
+Each architecture now answers `arch::timer::is_tick_pending()`, provisionally `tick_pending` when
+this fix landed and ratified under the predicate rule on 2026-09-24. It reads `sip.STIP`
 on riscv64, `CNTV_CTL_EL0.ISTATUS` on aarch64, and the timer vector's IRR bit on x86_64. Both tests
 in `kernel/src/preemption_window_tests.rs` spin three masked periods. They then keep spinning, still
 masked, until the tick is pending. The bound is a second (`RAISE_BOUND_PERIODS`), a leak trap

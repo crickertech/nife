@@ -367,7 +367,7 @@ pub(super) fn calibration_has_converged(samples: &[u64]) -> bool {
 pub fn init_frequency(boot_info_pointer: usize) {
     let _ = boot_info_pointer;
     assert!(
-        irq::local_apic_ready(),
+        irq::is_local_apic_ready(),
         "the timer calibrates the local APIC's counter, so the APIC must be up first",
     );
 
@@ -587,7 +587,7 @@ pub fn init() {
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-pub fn cycle_counter_grantable() -> bool {
+pub fn is_cycle_counter_grantable() -> bool {
     true
 }
 
@@ -633,15 +633,16 @@ pub fn ticks() -> u64 {
 
 /// **Is this CPU's tick raised and waiting?** The local APIC timer's bit in the IRR.
 ///
-/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
-/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds late, so a
-/// test that assumes a tick is pending after a fixed masked spin can be measuring the host. See
-/// notes/load-sensitive-assertions.md.
+/// The twin of the riscv64 `is_tick_pending`, whose comment has the measurement: the emulator
+/// raises the timer from its own main loop, milliseconds and occasionally tens of milliseconds
+/// late, so a test that assumes a tick is pending after a fixed masked spin can be measuring the
+/// host. See notes/load-sensitive-assertions.md.
 ///
-/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `tick_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn tick_pending() -> bool {
-    irq::timer_pending()
+pub fn is_tick_pending() -> bool {
+    irq::is_timer_pending()
 }
 
 /// Spin for `counter_ticks` of the TSC.

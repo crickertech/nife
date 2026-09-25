@@ -183,7 +183,7 @@ static FIRMWARE_FILTER: [AtomicU64; MAX_CPUS] = [const { AtomicU64::new(0) }; MA
 /// `ID_AA64DFR0_EL1.PMUVer`: 0 is no PMU, 0xf is an IMPLEMENTATION DEFINED PMU that does not follow
 /// `PMUv3` and so carries none of these registers either. Per core, because `PMUVer` is a per-PE ID
 /// register and this kernel does not assume a homogeneous machine anywhere else.
-pub(super) fn pmuv3_present() -> bool {
+pub(super) fn is_pmuv3_present() -> bool {
     let pmuver = ID_AA64DFR0_EL1.read(ID_AA64DFR0_EL1::PMUVer);
     pmuver != 0 && pmuver != 0xf
 }
@@ -195,7 +195,7 @@ pub(super) fn pmuv3_present() -> bool {
 /// the context-switch path, which milestone 237 measured and keeps clean.
 pub fn init_this_core() {
     let core = cpu::id();
-    if !pmuv3_present() {
+    if !is_pmuv3_present() {
         OUTCOME[core].store(CycleCounter::NoPmuV3 as u8, Ordering::Release);
         return;
     }
@@ -208,11 +208,11 @@ pub fn init_this_core() {
     }
     FIRMWARE_FILTER[core].store(inherited, Ordering::Relaxed);
 
-    // SAFETY: `pmuv3_present` read this core's own `ID_AA64DFR0_EL1.PMUVer` and found PMUv3, so all
-    // three registers exist and an EL1 access is not UNDEFINED. `MDCR_EL2.TPM` is clear (boot.s,
-    // when this kernel was entered at EL2) so the accesses do not trap to EL2. The values change
-    // what the PMU counts and nothing else: no memory, no translation, no exception routing. The
-    // `isb` makes the enable take effect before the check below reads the counter.
+    // SAFETY: `is_pmuv3_present` read this core's own `ID_AA64DFR0_EL1.PMUVer` and found PMUv3, so
+    // all three registers exist and an EL1 access is not UNDEFINED. `MDCR_EL2.TPM` is clear
+    // (boot.s, when this kernel was entered at EL2) so the accesses do not trap to EL2. The values
+    // change what the PMU counts and nothing else: no memory, no translation, no exception routing.
+    // The `isb` makes the enable take effect before the check below reads the counter.
     unsafe {
         core::arch::asm!(
             "msr pmccfiltr_el0, {filter}",
@@ -386,7 +386,7 @@ mod tests {
         );
         assert_eq!(
             here == CycleCounter::NoPmuV3,
-            !pmuv3_present(),
+            !is_pmuv3_present(),
             "the outcome ({here:?}) and ID_AA64DFR0_EL1.PMUVer disagree about whether there is a PMU"
         );
         assert_eq!(cycles().is_some(), here == CycleCounter::Running);
@@ -407,7 +407,7 @@ mod tests {
     /// `D` bit that survived and makes every count 64 times too small.
     #[test_case]
     fn the_counter_is_enabled_undivided_and_filtered_as_written() {
-        if !pmuv3_present() {
+        if !is_pmuv3_present() {
             crate::testing::skip!("this core has no PMUv3, so there are no registers to read back");
         }
         let pmcr = read_pmcr();

@@ -4548,7 +4548,7 @@ pub fn corpse_fault_msg(tid: ThreadId) -> Option<[u64; 5]> {
 /// The name is generational, so a reaped thread's `ThreadId` never resolves again even if its slot is
 /// reused: `false` here means gone, not "gone or replaced".
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn thread_present(tid: ThreadId) -> bool {
+pub fn is_thread_present(tid: ThreadId) -> bool {
     IPC_TABLES
         .lock()
         .as_ref()
@@ -4577,7 +4577,7 @@ pub fn thread_present(tid: ThreadId) -> bool {
 /// which for a generational name means the thread is already gone rather than that the kill failed.
 ///
 /// The kill is **armed, not immediate**: the thread dies at its next preemption, so a caller that
-/// needs it actually gone waits for [`thread_present`] to go false rather than assuming.
+/// needs it actually gone waits for [`is_thread_present`] to go false rather than assuming.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn kill_thread(tid: ThreadId) -> bool {
     let mut guard = IPC_TABLES.lock();
@@ -5022,7 +5022,7 @@ mod tests {
             if cond() {
                 return true;
             }
-            if budget.expired() {
+            if budget.is_expired() {
                 return cond();
             }
             core::hint::spin_loop();
@@ -5228,13 +5228,13 @@ mod tests {
         // baseline taken above (`threads_before + 1`, then `threads_before`), which is the reaper
         // count's defect in a different test: the headcount is the size of the whole table, so a
         // neighbouring thread exiting between the two reads lands the count BELOW what the
-        // assertion demands and blames this embryo for it. `thread_present` on the ThreadId this test
-        // created is immune by construction, and it is strictly the stronger claim: the old
+        // assertion demands and blames this embryo for it. `is_thread_present` on the ThreadId this
+        // test created is immune by construction, and it is strictly the stronger claim: the old
         // "the TCB's table slot must be freed" could pass with the embryo still in the table, as
         // long as somebody else's thread left in the same window. Fourth appearance of this fix;
-        // see notes/load-sensitive-assertions.md and `thread_present`'s own doc comment.
+        // see notes/load-sensitive-assertions.md and `is_thread_present`'s own doc comment.
         assert!(
-            crate::sched::thread_present(tid),
+            crate::sched::is_thread_present(tid),
             "the embryo should be in the table before reclaim"
         );
         run.assert_held("the live region's pages should still be spent");
@@ -5243,7 +5243,7 @@ mod tests {
             .expect("reclaim a region whose only object is an unstarted TCB");
 
         assert!(
-            !crate::sched::thread_present(tid),
+            !crate::sched::is_thread_present(tid),
             "the TCB's table slot must be freed by reclaim"
         );
         run.assert_returned("reclaim must return every one of the region's own frames");
@@ -5827,7 +5827,7 @@ mod tests {
         // Wait for the exits, so three threads mid-teardown are not what a later test's frame or
         // thread accounting finds in flight.
         assert!(
-            wait_for(|| tids.iter().all(|&t| !crate::sched::thread_present(t))),
+            wait_for(|| tids.iter().all(|&t| !crate::sched::is_thread_present(t))),
             "the round-robin threads were never reaped"
         );
     }
@@ -5950,9 +5950,9 @@ mod tests {
     /// kernel has something called a reaper, and this is why.
     #[test_case]
     fn a_finished_thread_is_reaped_and_its_memory_returned() {
-        // Reaping is proven per thread, by `thread_present` on the Tids THIS test spawned, not by
-        // the global table headcount returning to a baseline. `thread_count()` is the size of the
-        // whole table, so a neighbour's teardown finishing late moves it: it failed on CI as
+        // Reaping is proven per thread, by `is_thread_present` on the Tids THIS test spawned, not
+        // by the global table headcount returning to a baseline. `thread_count()` is the size of
+        // the whole table, so a neighbour's teardown finishing late moves it: it failed on CI as
         // "left: 5, right: 6", a count BELOW its baseline, which eight reaped threads cannot
         // produce but one baseline-counted thread exiting mid-test does. Same shape as the
         // `reclaim_frees_a_started_then_exited_childs_regions` fix; see
@@ -5973,7 +5973,7 @@ mod tests {
             // §28 can place these on other cores, and a Finished thread is only removed when its own
             // core switches away from it, so no number of yields *here* can make that happen.
             assert!(
-                wait_for(|| tids.iter().all(|&t| !crate::sched::thread_present(t))),
+                wait_for(|| tids.iter().all(|&t| !crate::sched::is_thread_present(t))),
                 "finished threads were never reaped"
             );
         }
@@ -6010,7 +6010,7 @@ mod tests {
         // committed while fixing it. Recorded in notes/load-sensitive-assertions.md rather than
         // quietly corrected, because reproducing the family from the inside is the useful part.
         //
-        // One thread cannot exceed a high-water mark that eight just set. `thread_present` going
+        // One thread cannot exceed a high-water mark that eight just set. `is_thread_present` going
         // false already implies the push happened (`Threads::remove` runs `KernelStack::drop` before
         // it removes the table entry), so the free list holds up to eight of the first batch's slots
         // when this spawns, and a single pop cannot drain it. A neighbour spawning here can only
@@ -6027,7 +6027,7 @@ mod tests {
         })
         .expect("spawn failed");
         assert!(
-            wait_for(|| !crate::sched::thread_present(probe)),
+            wait_for(|| !crate::sched::is_thread_present(probe)),
             "the stack-reuse probe was never reaped"
         );
         let probe_sp = PROBE_SP.load(Ordering::SeqCst);
@@ -6472,15 +6472,15 @@ mod tests {
     fn kernel_stacks_do_not_touch_the_frame_allocator_in_steady_state() {
         // Each spawn is followed to its own reap by name. This used to take `thread_count()` as a
         // baseline and spin `while thread_count() > baseline { yield_now() }`, which is the whole
-        // family in three lines: the headcount is moved by every other test's teardown, so the
-        // loop could exit at once (a neighbour reaping first) and leave this batch's stacks in
-        // flight, or never exit at all (a neighbour's thread outliving the batch) with no clock to
-        // stop it, spinning until the harness's 90 s ceiling with a message about kernel stacks.
-        // `thread_present` on the ThreadId each spawn returned asks the narrow question, and `wait_for`
-        // supplies the bound the yield loop never had.
+        // family in three lines: the headcount is moved by every other test's teardown, so the loop
+        // could exit at once (a neighbour reaping first) and leave this batch's stacks in flight,
+        // or never exit at all (a neighbour's thread outliving the batch) with no clock to stop it,
+        // spinning until the harness's 90 s ceiling with a message about kernel stacks.
+        // `is_thread_present` on the ThreadId each spawn returned asks the narrow question, and
+        // `wait_for` supplies the bound the yield loop never had.
         let settle = |tid| {
             assert!(
-                wait_for(|| !crate::sched::thread_present(tid)),
+                wait_for(|| !crate::sched::is_thread_present(tid)),
                 "a spawned thread was never reaped, so the frame count below would be read \
                  mid-teardown"
             );
@@ -6696,9 +6696,8 @@ mod tests {
         // (notes/load-sensitive-assertions.md).
         super::ipc_send(ep, [0, 0, 0]);
         assert!(
-            wait_for(
-                || !crate::sched::thread_present(blocked) && !crate::sched::thread_present(worker)
-            ),
+            wait_for(|| !crate::sched::is_thread_present(blocked)
+                && !crate::sched::is_thread_present(worker)),
             "this test's own threads had not finished when it returned",
         );
     }

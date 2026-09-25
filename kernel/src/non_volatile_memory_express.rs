@@ -395,7 +395,7 @@ pub fn bring_up() -> Option<Found> {
     let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGES as usize)
         .expect("no DMA region for the NVMe driver")
         .addr();
-    if crate::iommu::active() {
+    if crate::iommu::is_active() {
         crate::iommu::confine(
             dev.rid,
             &[paging::domain::DmaRegion {

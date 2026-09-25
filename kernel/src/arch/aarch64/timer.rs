@@ -218,7 +218,7 @@ fn close_cycle_counter_to_el0() {
     // `ID_AA64DFR0_EL1.PMUVer` reports it: 0 means no PMU, 0xf means an IMPLEMENTATION DEFINED PMU
     // that does not follow PMUv3 and so does not carry this register either. Both are boards where
     // there is no EL0 cycle-counter door to close.
-    if !super::pmu::pmuv3_present() {
+    if !super::pmu::is_pmuv3_present() {
         return;
     }
     // Milestone 229 reads this back on the context-switch path, where re-reading an ID register
@@ -256,7 +256,7 @@ fn close_cycle_counter_to_el0() {
 // and deliberately did not fold the two: a counter can be grantable and stuck.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-pub fn cycle_counter_grantable() -> bool {
+pub fn is_cycle_counter_grantable() -> bool {
     PMU_PRESENT[cpu::id()].load(Ordering::Relaxed)
 }
 
@@ -647,15 +647,16 @@ pub fn uptime_ms() -> u64 {
 /// passed and the timer has signalled it, until the handler moves `CNTV_CVAL_EL0` forward, whether
 /// or not interrupts are masked.
 ///
-/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
-/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds after the
-/// deadline, so a test that assumes a tick is pending after a fixed masked spin can be measuring
-/// the host. The tests that hold a tick across a mask wait for this bit instead. See
+/// The twin of the riscv64 `is_tick_pending`, whose comment has the measurement: the emulator
+/// raises the timer from its own main loop, milliseconds and occasionally tens of milliseconds
+/// after the deadline, so a test that assumes a tick is pending after a fixed masked spin can be
+/// measuring the host. The tests that hold a tick across a mask wait for this bit instead. See
 /// notes/load-sensitive-assertions.md.
 ///
-/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+/// Name: ratified 2026-09-24 (calef, the Rust predicate-naming rule in design/naming.md). Refused
+/// `tick_pending` (a bare participle reads as a getter, and Rust asks the question with `is_`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn tick_pending() -> bool {
+pub fn is_tick_pending() -> bool {
     CNTV_CTL_EL0.is_set(CNTV_CTL_EL0::ISTATUS)
 }
 
@@ -698,7 +699,7 @@ mod tests {
     /// zero, which is where `init` left it and where every other test expects it.
     #[test_case]
     fn the_cycle_counter_grant_moves_cr_and_nothing_else() {
-        if !super::cycle_counter_grantable() {
+        if !super::is_cycle_counter_grantable() {
             crate::testing::skip!("this core has no PMUv3, so there is no register to grant");
         }
         super::set_cycle_counter_grant(true);
@@ -719,13 +720,13 @@ mod tests {
     }
 
     /// `PMUSERENR_EL0`, read back out of the core. Only call this where
-    /// [`cycle_counter_grantable`](super::cycle_counter_grantable) is true: without `FEAT_PMUv3` the
-    /// read is as UNDEFINED as the write.
+    /// [`is_cycle_counter_grantable`](super::is_cycle_counter_grantable) is true: without
+    /// `FEAT_PMUv3` the read is as UNDEFINED as the write.
     fn read_pmuserenr() -> u64 {
         let value: u64;
-        // SAFETY: the caller has checked `cycle_counter_grantable`, so the register exists and an
-        // `mrs` from it is a legal EL1 operation. It touches no memory and clobbers no flags, which
-        // the options state.
+        // SAFETY: the caller has checked `is_cycle_counter_grantable`, so the register exists and
+        // an `mrs` from it is a legal EL1 operation. It touches no memory and clobbers no flags,
+        // which the options state.
         unsafe {
             core::arch::asm!("mrs {}, pmuserenr_el0", out(reg) value, options(nomem, nostack, preserves_flags));
         }
@@ -742,8 +743,8 @@ mod tests {
         let before = timer::ticks_on(core);
         // **Waited for, not spun for.** A fixed three periods asked the emulator to have raised the
         // timer within 30 ms of wall clock, and it raises it from its own main loop: measured on
-        // 2026-09-24 at up to 86 ms after the deadline (`tick_pending`'s comment has the numbers).
-        // A timer that is genuinely dead still fails, a second later.
+        // 2026-09-24 at up to 86 ms after the deadline (`is_tick_pending`'s comment has the
+        // numbers). A timer that is genuinely dead still fails, a second later.
         let ticked = within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(core) > before);
 
         assert!(
@@ -1000,7 +1001,10 @@ mod tests {
 
         static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
-        assert!(interrupts::enabled(), "test setup: interrupts should be on");
+        assert!(
+            interrupts::is_enabled(),
+            "test setup: interrupts should be on"
+        );
 
         // The timer is alive. Core-scoped, for `ticks_on`'s reason.
         let alive_on = crate::cpu::id();
@@ -1044,12 +1048,12 @@ mod tests {
             // **And a tick is now raised and waiting**, which is what makes the release below a
             // test of `restore` rather than of the host. The spin above is thirty milliseconds of
             // wall clock, and the emulator raises the timer from its own main loop, as much as 86
-            // ms after the deadline (measured 2026-09-24; `tick_pending`'s comment). This twin
+            // ms after the deadline (measured 2026-09-24; `is_tick_pending`'s comment). This twin
             // failed CI once exactly that way, on `sifive-u54`, "interrupts did not resume" after
             // twenty periods of waiting for a tick nobody had raised. Still masked, so still this
             // core, and the assertion above is repeated because the wait is part of the window.
             assert!(
-                within_raise_bound(timer::tick_pending),
+                within_raise_bound(timer::is_tick_pending),
                 "the timer was never raised in a second with the lock held, so the release below \
                  would test nothing: the timer is not being armed, or the emulator stopped \
                  delivering it"
@@ -1082,8 +1086,9 @@ mod tests {
     /// pass rather than a wrong answer. The fixed spins these replaced turned a late delivery into
     /// a failure. See notes/load-sensitive-assertions.md.
     /// How long a wait on the timer being raised may take, in tick periods: one second, against a
-    /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
-    /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    /// worst case measured at under nine periods (86 ms, `is_tick_pending`'s comment). **A leak
+    /// trap, not a timing claim**: nothing the kernel does is inside it once the deadline has
+    /// passed.
     ///
     /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
     const RAISE_BOUND_PERIODS: u32 = 100;

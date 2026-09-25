@@ -25,7 +25,7 @@ register_bitfields! {
         BUSY OFFSET(3) NUMBITS(1) [],
         /// Receive FIFO empty. Clear while at least one byte is waiting to be read out of DR, and
         /// set again only when DR has been read: a level, not a latch, which is what lets a poll
-        /// every few milliseconds serve as a mailbox. See `rx_waiting`.
+        /// every few milliseconds serve as a mailbox. See `is_rx_waiting`.
         RXFE OFFSET(4) NUMBITS(1) [],
     ],
 
@@ -127,18 +127,18 @@ impl Pl011 {
     /// until [`discard_rx`](Self::discard_rx) takes the byte.
     ///
     /// The PL011 half of `console::hold_screen_for_host` (milestone 445 (the screen check stops sampling and starts asking)), and the twin of
-    /// `Ns16550::rx_waiting`, whose comment on the equivalent NS16550 bit has the reasoning.
+    /// `Ns16550::is_rx_waiting`, whose comment on the equivalent NS16550 bit has the reasoning.
     /// aarch64's console is otherwise transmit-only: the *byte* on a booted machine belongs to the
     /// userspace input driver, which holds this device as a capability, and this path runs before
     /// any of that exists.
     ///
     /// Name provisional (milestone 445): calef names public items.
-    pub fn rx_waiting(&self) -> bool {
+    pub fn is_rx_waiting(&self) -> bool {
         !self.regs().FR.is_set(FR::RXFE)
     }
 
-    /// **Throw away whatever is already in the receive FIFO**, so that [`rx_waiting`](Self::rx_waiting)
-    /// answers about what arrives from now on.
+    /// **Throw away whatever is already in the receive FIFO**, so that
+    /// [`is_rx_waiting`](Self::is_rx_waiting) answers about what arrives from now on.
     ///
     /// Bounded, because an unbounded drain on a wire somebody is typing into would never return.
     /// Sixteen is the PL011's FIFO depth; four times that is slack for a part with a deeper one and
