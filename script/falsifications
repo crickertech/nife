@@ -80,7 +80,8 @@
 #
 #   script/falsifications                   the table, by package, and the ratio
 #   script/falsifications --unfalsified     the worklist: harnesses with no evidence, biggest first
-#   script/falsifications --check           form only, non-zero on a problem (script/lint runs this)
+#   script/falsifications --check           form, plus "does each patch still apply"; non-zero on a
+#                                           problem (script/lint runs this)
 #   script/falsifications --count           two integers, harnesses and how many are falsified,
 #                                           for the drift check in script/lint (milestone 236)
 #   script/falsifications --sweep [package] apply every recorded patch, require red, revert
@@ -132,7 +133,12 @@
 # - **A patch rots against refactors**, and §134 argues that is correct rather than harmless: a patch
 #   that no longer applies means the covered code moved, which is exactly when a falsification should
 #   be redone rather than trusted. It is still churn, and a heavily refactored crate re-falsifies
-#   often. `--sweep` reports a patch that will not apply as a failure, not as a skip.
+#   often. `--sweep` reports a patch that will not apply as a failure, not as a skip, and since
+#   2026-09-25 `--check` does too, so the pull request that moves the code is the one that fails.
+#   Before that, only the weekly sweep looked, and its job reports success whatever it finds
+#   (`continue-on-error`, by design): three x86 port records sat stale from the merge of
+#   milestone 315 (a port revoke that reaches every core) until a rename lane tripped over them.
+#   Applying is not red; a re-cut patch still wants a replay.
 # - **The limit is a wall clock on a shared machine, so load can turn a slow record into a false
 #   `no verdict`.** 15 minutes is 1.8 times the slowest record measured (497 s, hosted runner,
 #   build included), which is headroom rather than a margin anyone proved. A record that times out
@@ -734,6 +740,16 @@ def check(hs, pkgs, kts=()):
     """
     problems = []
     claimed = {}
+    # One `git apply --check` per replayable patch, run in parallel up front: serially they doubled
+    # this check's wall time (3.1 s to 5.6 s on patagonia, 2026-09-25, 144 patches).
+    import concurrent.futures
+    wanted = sorted({x.patch for x in list(hs) + list(kts)
+                     if x.state == "replayable" and x.patch
+                     and os.path.exists(os.path.join(root, x.patch))})
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        apply_checks = dict(zip(wanted, pool.map(
+            lambda q: subprocess.run(["git", "-C", root, "apply", "--check", os.path.join(root, q)],
+                                     capture_output=True, text=True), wanted)))
     for t in kts:
         if t.state == "replayable" and t.patch and t.architecture not in ARCHES:
             problems.append("%s:%d: `%s` declares `Architecture: %s`; the three are %s"
@@ -790,6 +806,23 @@ def check(hs, pkgs, kts=()):
                         "for the wrong reason proves nothing, so the patch must say which property "
                         "it expects to break, above the first `diff --git` line (git apply ignores it)."
                         % (where, path))
+                else:
+                    # Does it still apply? The one question about a record's truth this check asks,
+                    # because it costs a `git apply --check` (milliseconds) rather than a boot, and
+                    # because the pull request that moved the covered code is the one place the
+                    # patch is cheap to re-cut. Without it a kernel-test record went stale on
+                    # 2026-09-23 (milestone 315 moved `set_port_range_grant`) and only the weekly
+                    # sweep saw it, as a line in a summary under a job that reported success.
+                    applies = apply_checks[path]
+                    if applies.returncode != 0:
+                        problems.append(
+                            "%s: `%s` no longer applies to this tree, so the covered code moved and "
+                            "`%s` is `replayable` in name only. Re-cut the patch against the new code "
+                            "and replay it (`cargo xtask test --arch <its Architecture:> --test %s` for a "
+                            "kernel test, `cargo kani --harness` for a proof), or record the harness "
+                            "`attested`/`unfalsified` until someone does. git said: %s"
+                            % (where, path, h.name, h.name,
+                               applies.stderr.strip().splitlines()[0] if applies.stderr.strip() else "?"))
         elif state == "attested":
             rest = h.record.split(None, 1)
             date = rest[1].split(".")[0].strip() if len(rest) > 1 else ""
