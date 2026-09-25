@@ -405,10 +405,15 @@ fi
 # stub whose boundary is written down. **Read `notes/kernel-proofs.md` before adding a harness to
 # `kernel/src`**: it enumerates every stub, and the whole hazard of proving a crate like this one is
 # that a stub reads as coverage.
+#
+# `-Z stubbing` (2026-09-25) lets a harness replace a one-instruction wrapper under `arch/` with a
+# model (`#[kani::stub]`), which is how logic around an `asm!` site becomes reachable at all. Each
+# such model is an assumption about the hardware; notes/kernel-proofs/stubbing-an-instruction.md
+# is the pattern and the caveat, and every harness using one lists what it assumes.
 for c in $crates; do
     desc="$(printf '%s\n' "$CRATES" | awk -F'\t' -v c="$c" '$1 == c { print $3 }')"
     case "$c" in
-        kernel) extra="-Z unstable-options --ignore-global-asm" ;;
+        kernel) extra="-Z unstable-options --ignore-global-asm -Z stubbing" ;;
         # `components` is 49 `[[bin]]` targets and one package, so a bare `cargo kani -p components`
         # compiles all 49. Kani refuses every `#![no_std]` crate root that does not mention it
         # ("Failed to detect Kani functions"), so that run fails on the first binary carrying no
