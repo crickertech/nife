@@ -360,4 +360,59 @@ mod tests {
             parse(fixture).unwrap();
         }
     }
+
+    // Milestone 326 (turn a mutation score upward), 2026-09-24; see
+    // notes/mutation-testing/stick-maker.md for the mutants each of these was seen to kill.
+
+    /// **Every element `diskutil` can write reads**, including the two shapes no captured fixture
+    /// happened to hold: an empty `<dict/>` and the `<data>`, `<date>` and `<real>` this reader
+    /// keeps as text rather than refusing the whole document over.
+    #[test]
+    fn empty_dicts_and_opaque_elements_read() {
+        assert_eq!(
+            parse("<plist><dict/></plist>").unwrap(),
+            Value::Dict(BTreeMap::new())
+        );
+        for (tag, text) in [
+            ("data", "AAEC"),
+            ("date", "2026-09-24T00:00:00Z"),
+            ("real", "1.5"),
+        ] {
+            let doc = format!("<plist><{tag}> {text} </{tag}></plist>");
+            assert_eq!(parse(&doc).unwrap(), Value::Other(text.to_owned()), "{tag}");
+        }
+    }
+
+    /// **A closing tag must name the element it closes**, whatever else surrounds it; and a
+    /// closing tag that ends the document, with only `</plist>` after it, still reads.
+    #[test]
+    fn a_closing_tag_names_its_element() {
+        assert_eq!(
+            parse("<plist><string>NIFE</string></plist>").unwrap(),
+            Value::String("NIFE".into())
+        );
+        assert!(
+            parse("<plist><string>a</strung></plist>").is_err(),
+            "same length"
+        );
+        assert!(
+            parse("<plist><string>a<!string></plist>").is_err(),
+            "not a closing tag"
+        );
+    }
+
+    /// **A refusal says where and what**, because it is shown to the person whose `diskutil`
+    /// wrote something this cannot read: a key with no value fails at the `</dict>` standing
+    /// where the value should be, and says an opening tag was expected there.
+    #[test]
+    fn a_refusal_names_the_byte_and_the_reason() {
+        let doc = "<plist><dict><key>a</key></dict></plist>";
+        let err = parse(doc).unwrap_err();
+        assert_eq!(err.at, doc.find("</dict>").unwrap());
+        assert_eq!(err.what, "expected an opening tag");
+        assert_eq!(
+            err.to_string(),
+            "property list unreadable at byte 25: expected an opening tag"
+        );
+    }
 }

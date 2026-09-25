@@ -264,4 +264,47 @@ mod tests {
             Some(Refusal::Internal)
         );
     }
+
+    // Milestone 326 (turn a mutation score upward), 2026-09-24.
+
+    /// **An unmounted superfloppy still has its volume.** A FAT filesystem on the whole disk,
+    /// listed with its `VolumeName` and no `MountPoint`, is a volume that is not mounted, so the
+    /// plan says so; dropping it would say "it has no volumes" and send the person to erase.
+    #[test]
+    fn an_unmounted_whole_disk_filesystem_is_still_a_volume() {
+        let list = plist::parse(
+            "<plist><dict><key>AllDisksAndPartitions</key><array><dict>\
+             <key>DeviceIdentifier</key><string>disk8</string>\
+             <key>Content</key><string>DOS_FAT_32</string>\
+             <key>VolumeName</key><string>NIFE</string>\
+             </dict></array></dict></plist>",
+        )
+        .unwrap();
+        let whole = fixture("disk8");
+        let disks = assemble(&list, &|_| Some(whole.clone()));
+        assert_eq!(disks[0].volumes.len(), 1);
+        assert_eq!(disks[0].volumes[0].mount, None);
+        let Plan::Erase { because } = plan(&disks[0], 1, |_| 0) else {
+            panic!("an unmounted volume is not a copy target");
+        };
+        assert!(because.contains("not mounted"), "{because}");
+    }
+
+    /// **Of two names of the same length, the model name is kept**: `IORegistryEntryName` is used
+    /// only when it says more, which is when it carries the vendor.
+    #[test]
+    fn the_registry_name_wins_only_when_it_is_longer() {
+        let list = plist::parse(
+            "<plist><dict><key>AllDisksAndPartitions</key><array><dict>\
+             <key>DeviceIdentifier</key><string>disk9</string></dict></array></dict></plist>",
+        )
+        .unwrap();
+        let whole = plist::parse(
+            "<plist><dict><key>MediaName</key><string>Ultra</string>\
+             <key>IORegistryEntryName</key><string>Flash Media</string></dict></plist>",
+        )
+        .unwrap();
+        let disks = assemble(&list, &|_| Some(whole.clone()));
+        assert_eq!(disks[0].description, "Ultra");
+    }
 }

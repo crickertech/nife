@@ -693,4 +693,33 @@ mod tests {
             "{line}"
         );
     }
+
+    /// **Each boot file on the stick gets its own way to boot it.** The closing instructions are
+    /// the last thing a person reads before walking to the board; milestone 326 (turn a mutation score upward)
+    /// found that the aarch64 and riscv64 lines could each be deleted with every test green,
+    /// because the only assertion was on the x86 one.
+    #[test]
+    fn each_architecture_on_the_stick_gets_its_boot_instructions() {
+        let (host, dir) = machine("per-arch");
+        let files = [
+            File {
+                path: "EFI/BOOT/BOOTAA64.EFI",
+                bytes: b"arm",
+            },
+            File {
+                path: "EFI/BOOT/BOOTRISCV64.EFI",
+                bytes: b"riscv",
+            },
+        ];
+        let mut person = Script::with(&[]);
+        let opts = Options {
+            yes: true,
+            ..options(Some("stick"))
+        };
+        run(&opts, &files, "test", &host, &mut person).unwrap();
+        assert!(person.saw("an aarch64 board"));
+        assert!(person.saw("a riscv64 board"));
+        assert!(!person.saw("Secure Boot"), "no x86 file, no x86 advice");
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

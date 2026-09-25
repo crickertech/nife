@@ -138,4 +138,14 @@ mod tests {
         assert!(steps.contains("64.0 GB"));
         assert!(steps.contains("format fs=fat32 quick label=NIFE"));
     }
+
+    /// **The bus a person is shown says which kind of drive Windows reported.** Milestone 326 (turn a mutation score upward),
+    /// 2026-09-24: both arms could be deleted with every test green.
+    #[test]
+    fn the_drive_type_is_named() {
+        let bus = |kind| disk_from('E', kind, "", "FAT32", 1, None).bus;
+        assert_eq!(bus(DRIVE_REMOVABLE), "Removable");
+        assert_eq!(bus(DRIVE_FIXED), "Fixed");
+        assert_eq!(bus(0), "Other");
+    }
 }
