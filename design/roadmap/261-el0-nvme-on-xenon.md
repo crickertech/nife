@@ -207,8 +207,8 @@ weaker, the fourth is partly answered, and two are new.*
   answers fatal risk 6, including whether xenon's DMAR scope covers the NVMe: three boots of the
   bench image, photographed, read by
   [notes/risk-6-bench-evening.md](../../notes/risk-6-bench-evening.md). Checked 2026-09-24.
-- **Proposed.** `design/roadmap/proposals/every-vt-d-unit-translates-its-own-devices.md`: bring up
-  every VT-d unit and route each device to its owner, with RMRR identity maps.
+- **Milestone 594.** Milestone 594 (every VT-d unit translates its own devices): every unit up,
+  each device routed to its owner, RMRRs identity-mapped (number provisional, promoted 2026-09-25).
 - **Proposed.** `design/roadmap/proposals/the-nvme-test-on-a-machine-whose-iommu-does-not-own-it.md`:
   the NVMe boot test on a machine whose IOMMU does not own the controller, as the replayable
   falsification of `confined_by_iommu`.
