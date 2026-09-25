@@ -1943,7 +1943,13 @@ pub fn riscv_uart_driver_demo(
 // them: a `soak` or `job_mix` build replaces the hand-off with its own workload, and `test`/`bench`
 // park before it.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId, LoadError> {

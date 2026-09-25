@@ -235,6 +235,14 @@ soak_test = []
 # the path a board takes is script/board-image plus script/board-console. See kernel/src/job_mix.rs
 # and script/job-mix. Name provisional.
 job_mix = []
+# **Fatal risk 6's bench boot** (milestone 261 (the NVMe driver leaves the kernel)): after the tour, print two preflight verdicts (does
+# the VT-d unit this kernel programs own the NVMe's requester id; does the namespace's LBA size give
+# `blocks_per` in 1..=8), then time the confined EL0 NVMe server's reads and writes and halt with
+# one verdict line. **It writes**: a window of blocks from 1 MiB into the namespace is overwritten
+# and read back. Off by default and in no gate; `cargo xtask disk-throughput` rehearses it under
+# OVMF and stages the stick image. See kernel/src/disk_throughput.rs and
+# notes/risk-6-bench-evening.md. Name provisional.
+disk_throughput = []
 # The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
 # reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
 # times unattended rather than nine times by a person walking to the board. riscv64 only, and

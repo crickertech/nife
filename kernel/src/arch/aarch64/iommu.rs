@@ -243,6 +243,18 @@ pub fn is_active() -> bool {
     SMMU.lock().is_some()
 }
 
+/// **Whether requester `rid` is behind this IOMMU** (milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal): always, when
+/// it is up. This tree brings the unit up against a device tree whose `iommu-map` is an identity
+/// over the whole bus, so there is no second unit for a device to belong to. VT-d is the
+/// architecture where that stops being true; see `arch::x86_64::iommu::scope_of`.
+pub fn scope_of(_rid: u32) -> crate::iommu::Scope {
+    if is_active() {
+        crate::iommu::Scope::WholeBus
+    } else {
+        crate::iommu::Scope::NoIommu
+    }
+}
+
 /// Push one 16-byte command and (for our uses) wait for the SMMU to consume it. The queue is far
 /// larger than any burst we issue, so treating every push as synchronous keeps the driver simple;
 /// QEMU consumes on the PROD write.
