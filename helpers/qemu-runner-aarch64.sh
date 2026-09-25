@@ -358,6 +358,14 @@ fi
 # with zero host setup and nothing outlives QEMU. Verified against QEMU 11.0.2. Each slirp instance
 # is its own network, so both NICs can use the same virtual address without conflict.
 GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
+# **The package source** (milestone 198 rung 3a), on the echo peer's terms: 10.0.2.9:8080 is a
+# fresh `scripts/package-http-peer` per connection, speaking HTTP/1.0 on the connection and serving
+# `target/packages/`, which the archive build fills. A real HTTP exchange with a host process, and
+# still nothing that binds a host port or outlives QEMU. The path is absolute because slirp runs the
+# command from QEMU's working directory, and it must contain no space or comma, because `$NET` is
+# word-split below and a comma ends a `-netdev` option.
+PACKAGE_PEER="$(cd "$(dirname "$0")" && pwd)/package-http-peer"
+GUESTFWD="$GUESTFWD,guestfwd=tcp:10.0.2.9:8080-cmd:$PACKAGE_PEER"
 
 # `tftp=` turns on slirp's OWN TFTP server, at the gateway (10.0.2.2:69), and that is what makes the
 # gating UDP test deterministic and offline. The UDP test used to query 10.0.2.3:53, which is NOT a

@@ -27,6 +27,10 @@ const NET_TEST_TCP_ECHO: u64 = 2;
 const NET_TEST_TCP_REOPEN: u64 = 3;
 const NET_TEST_UDP_TFTP: u64 = 4;
 const NET_TEST_TCP_ACCEPT: u64 = 5;
+const NET_TEST_HTTP_PACKAGE: u64 = 6;
+/// `TEST_HTTP_PACKAGE`'s "ask for the tampered copy" bit, and its refusal word.
+const HTTP_PACKAGE_TAMPERED: u64 = 1 << 63;
+const NET_CLIENT_DIGEST_REFUSED: u64 = 3;
 /// The one port the inbound gate is granted (milestone 107); the runners forward a host port to
 /// it. Both ISA legs use the same number and the same host port, because they run one after the
 /// other and never hold it at once. From `socket_protocol::fixture` since milestone 64: see the
@@ -505,6 +509,51 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         "the TCP echo round trip through the socket contract failed (client code {verdict:#x})",
     );
     net.release_or_fail("a net test's net_stack");
+}
+
+/// The riscv twin of `tests::a_package_fetched_over_http_is_accepted_by_the_image_digest`
+/// (milestone 198 rung 3a): `uptime 0.1.0 riscv64` over plain HTTP, accepted by the image's digest.
+#[test_case]
+fn a_package_fetched_over_http_is_accepted_by_the_image_digest() {
+    let catalogue = program(package_archive::CATALOGUE)
+        .expect("no package catalogue in the initrd archive: the archive build packs one");
+    let Some((report, net)) = virtio_service::start_package_fetch(
+        net_stack_image(),
+        NET_TEST_HTTP_PACKAGE,
+        catalogue.len() as u64,
+        catalogue,
+    ) else {
+        crate::testing::skip!("no virtio-net device attached");
+    };
+    let verdict = sched::ipc_recv(report)[0];
+    assert_eq!(
+        verdict, NET_CLIENT_OK,
+        "the package fetched over HTTP was not accepted (client code {verdict:#x}; \
+         {NET_CLIENT_DIGEST_REFUSED} means its digest disagreed with the image's catalogue)",
+    );
+    net.release_or_fail("the package fetch's net_stack");
+}
+
+/// The riscv twin of `tests::a_tampered_package_is_refused_by_digest`.
+#[test_case]
+fn a_tampered_package_is_refused_by_digest() {
+    let catalogue = program(package_archive::CATALOGUE)
+        .expect("no package catalogue in the initrd archive: the archive build packs one");
+    let Some((report, net)) = virtio_service::start_package_fetch(
+        net_stack_image(),
+        NET_TEST_HTTP_PACKAGE,
+        catalogue.len() as u64 | HTTP_PACKAGE_TAMPERED,
+        catalogue,
+    ) else {
+        crate::testing::skip!("no virtio-net device attached");
+    };
+    let verdict = sched::ipc_recv(report)[0];
+    assert_eq!(
+        verdict, NET_CLIENT_DIGEST_REFUSED,
+        "a package with one byte flipped was not refused by digest (client code {verdict:#x}; \
+         {NET_CLIENT_OK} would mean it was accepted)",
+    );
+    net.release_or_fail("the package fetch's net_stack");
 }
 
 /// The riscv TCP echo round trip over PCIe, behind the RISC-V IOMMU.

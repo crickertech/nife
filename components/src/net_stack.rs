@@ -161,7 +161,9 @@ pub extern "C" fn _start(role: u64, direct_memory_access_phys: u64, a2: u64) -> 
     if role == 0 {
         server(direct_memory_access_phys, a2)
     } else {
-        socket_test_client::run(role)
+        // The client's second word is its own (only the package exchange reads it); the DMA page is
+        // the server's.
+        socket_test_client::run(role, direct_memory_access_phys)
     }
 }
 

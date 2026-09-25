@@ -147,6 +147,16 @@
 
 pub use measured_boot::{DIGEST_LEN, Digest, sha256};
 
+/// **The archive entry an image carries its own package source's catalogue under** (milestone 198
+/// rung 3a). One `<name>-<version>-<architecture> <64 hex>` line per package, which is
+/// [`measured_boot`]'s manifest shape, so [`measured_boot::expected_in_manifest`] reads it. It is
+/// packed *before* the measurement table, so the kernel's trust root vouches for it and a package
+/// fetched over plain HTTP is checked against a digest that never crossed the network: DECISIONS
+/// §195 (a reviewed recipe vouches for a package)'s "the image's measured table becomes the first
+/// source". The host writer is `cargo xtask`'s archive build; the readers are the kernel's package
+/// tests. Name: provisional 2026-09-24.
+pub const CATALOGUE: &str = "package_catalogue";
+
 /// The magic, with the format version in the last byte, so a reader meeting a later package says
 /// [`Error::BadMagic`] rather than striding a table whose entries have moved. `nifefs` records the
 /// rule this follows: bump when a reader can tell.

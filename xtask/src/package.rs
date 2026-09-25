@@ -54,12 +54,12 @@
 //!   not a cargo invocation. Packaging and building are separate acts here for the reason milestone
 //!   150 gives about hand-maintained lists: a tool that quietly rebuilt would hide which binary it
 //!   had packed.
-//! - **Nothing installs the result.** The activation fork
-//!   (milestone 507 (installing a package: mutate, compose, or widen what can be spawned)) is
-//!   unruled, so a package
-//!   is a file the target cannot yet do anything with. Rung 3a's consumer half waits on that.
-//! - **The catalogue is one line printed and one file written**, not a repository index. §195's
-//!   per-source trust needs a catalogue per source and a client that reads one; neither exists.
+//! - **Nothing installs the result.** A target can fetch a package and check it against the image's
+//!   catalogue (`image_catalogue` below, and the kernel's package tests), and nothing after that:
+//!   installing it waits on how an installed program reaches the spawner, which is calef's
+//!   (notes/packages.md, "Where this stops").
+//! - **The catalogue is a file in `target/` and an archive entry**, not a repository index. §195's
+//!   per-source trust needs a catalogue per source; the image's own is the only source there is.
 //! - **A recipe cannot say where its source came from.** Homebrew's formula carries a URL and a
 //!   digest of the upstream tarball; this carries neither, because the only packages that exist are
 //!   built from this repository.
@@ -110,34 +110,76 @@ pub(crate) fn package(recipe_path: Option<String>) -> bool {
             return false;
         }
     };
-    let recipe = match parse_recipe(&text) {
-        Ok(recipe) => recipe,
+    let built = match build(&root, &text) {
+        Ok(built) => built,
         Err(complaint) => {
             eprintln!("package: {recipe_path}: {complaint}");
             return false;
         }
     };
+    let parsed = Package::parse(&built.file).expect("build() read it back already");
+    println!(
+        "{} {} {}, {} members, {} bytes",
+        parsed.name(),
+        parsed.version(),
+        parsed.architecture(),
+        parsed.len(),
+        built.file.len()
+    );
+    for index in 0..parsed.len() {
+        let name = parsed.member_name(index).unwrap_or("");
+        let len = parsed.member(index).map(<[u8]>::len).unwrap_or(0);
+        let digest = parsed.member_digest(index).unwrap_or_default();
+        println!("  {name:<24} {len:>9} bytes  {}", hex(&digest));
+    }
+    if built.recorded {
+        println!(
+            "digest {}  (recorded in the recipe, and it matches)",
+            built.digest
+        );
+    } else {
+        println!(
+            "digest {}  (the recipe records none; review it and add it)",
+            built.digest
+        );
+    }
+    match write_out(&root, &built) {
+        Ok(written) => {
+            println!("wrote {}", relative(&root, &written));
+            println!("package: PASS");
+            true
+        }
+        Err(complaint) => {
+            eprintln!("package: {complaint}");
+            false
+        }
+    }
+}
+
+/// A package built from a recipe and checked, not yet written anywhere.
+pub(crate) struct Built {
+    /// `name-version-architecture`, the file's stem and its catalogue name.
+    pub(crate) stem: String,
+    pub(crate) file: Vec<u8>,
+    /// SHA-256 over the whole file, as 64 lowercase hex characters.
+    pub(crate) digest: String,
+    /// Whether the recipe recorded a digest (which, if this returned at all, matched).
+    recorded: bool,
+}
+
+/// Build the package a recipe describes, read it back with the target's parser, and check it
+/// against the recipe's recorded digest. Writes nothing: a refusal here leaves the disk as it was.
+pub(crate) fn build(root: &std::path::Path, text: &str) -> Result<Built, String> {
+    let recipe = parse_recipe(text)?;
 
     // Read every member first, so a missing file is reported before anything is written.
     let mut bytes = Vec::new();
     for (name, source) in &recipe.members {
-        let path = match resolve(&root, recipe.architecture, source) {
-            Ok(path) => path,
-            Err(complaint) => {
-                eprintln!("package: {name}: {complaint}");
-                return false;
-            }
-        };
-        match std::fs::read(&path) {
-            Ok(content) => bytes.push(content),
-            Err(error) => {
-                eprintln!(
-                    "package: {name}: could not read {}: {error}",
-                    path.display()
-                );
-                return false;
-            }
-        }
+        let path =
+            resolve(root, recipe.architecture, source).map_err(|c| format!("{name}: {c}"))?;
+        let content = std::fs::read(&path)
+            .map_err(|e| format!("{name}: could not read {}: {e}", path.display()))?;
+        bytes.push(content);
     }
     let members: Vec<(&str, &[u8])> = recipe
         .members
@@ -152,86 +194,89 @@ pub(crate) fn package(recipe_path: Option<String>) -> bool {
         architecture: recipe.architecture,
     };
     let mut file = vec![0u8; package_size(&members)];
-    if let Err(error) = write_package(&attributes, &members, &mut file) {
-        eprintln!("package: refused: {error:?}");
-        return false;
-    }
+    write_package(&attributes, &members, &mut file).map_err(|e| format!("refused: {e:?}"))?;
 
-    // Read the package back with the target's own parser before writing it out. The producer and
-    // the consumer share one definition of the format, and this is where that stops being a claim:
-    // a writer that could emit a file its reader refuses would ship one.
-    let parsed = match Package::parse(&file) {
-        Ok(parsed) => parsed,
-        Err(error) => {
-            eprintln!("package: wrote a file its own reader refuses: {error:?}");
-            return false;
-        }
-    };
+    // Read the package back with the target's own parser before anything is written. The producer
+    // and the consumer share one definition of the format, and this is where that stops being a
+    // claim: a writer that could emit a file its reader refuses would ship one.
+    let parsed =
+        Package::parse(&file).map_err(|e| format!("wrote a file its own reader refuses: {e:?}"))?;
     if let Err(error) = parsed.verify() {
-        eprintln!("package: member {} does not match its digest", error.index);
-        return false;
-    }
-
-    println!(
-        "{} {} {}, {} members, {} bytes",
-        recipe.name,
-        recipe.version,
-        recipe.architecture,
-        parsed.len(),
-        file.len()
-    );
-    for index in 0..parsed.len() {
-        let name = parsed.member_name(index).unwrap_or("");
-        let len = parsed.member(index).map(<[u8]>::len).unwrap_or(0);
-        let digest = parsed.member_digest(index).unwrap_or_default();
-        println!("  {name:<24} {len:>9} bytes  {}", hex(&digest));
+        return Err(format!("member {} does not match its digest", error.index));
     }
 
     let digest = hex(&sha256(&file));
-    let stem = format!("{}-{}-{}", recipe.name, recipe.version, recipe.architecture);
-
     // **The recorded digest is checked before anything is written**, which is the order §195 asks
     // for even though it costs a rebuild to find out. A package whose bytes do not reproduce the
     // reviewed line is one nothing accepts, so leaving it on disk beside a catalogue entry
     // vouching for it would be the tool disagreeing with itself.
-    match recipe.digest {
-        Some(recorded) if recorded == digest => {
-            println!("digest {digest}  (recorded in the recipe, and it matches)");
-        }
-        Some(recorded) => {
-            eprintln!("package: the recipe records {recorded}");
-            eprintln!("package: these bytes are  {digest}");
-            eprintln!(
-                "package: a rebuild that does not reproduce the reviewed digest is the failure \
-                 DECISIONS §195 exists to make visible; nothing was written."
-            );
-            return false;
-        }
-        None => println!("digest {digest}  (the recipe records none; review it and add it)"),
+    if let Some(recorded) = recipe.digest
+        && recorded != digest
+    {
+        return Err(format!(
+            "the recipe records {recorded}, these bytes are {digest}: a rebuild that does not \
+             reproduce the reviewed digest is the failure DECISIONS §195 exists to make visible; \
+             nothing was written"
+        ));
     }
+    Ok(Built {
+        stem: format!("{}-{}-{}", recipe.name, recipe.version, recipe.architecture),
+        file,
+        digest,
+        recorded: recipe.digest.is_some(),
+    })
+}
 
+/// Write a built package under `target/packages/` and its line into the host's catalogue there.
+fn write_out(root: &std::path::Path, built: &Built) -> Result<PathBuf, String> {
     let output = root.join(OUTPUT);
-    if let Err(error) = std::fs::create_dir_all(&output) {
-        eprintln!("package: could not create {}: {error}", output.display());
-        return false;
-    }
-    let written = output.join(format!("{stem}.nifepkg"));
-    if let Err(error) = std::fs::write(&written, &file) {
-        eprintln!("package: could not write {}: {error}", written.display());
-        return false;
-    }
+    std::fs::create_dir_all(&output)
+        .map_err(|e| format!("could not create {}: {e}", output.display()))?;
+    let written = output.join(format!("{}.nifepkg", built.stem));
+    std::fs::write(&written, &built.file)
+        .map_err(|e| format!("could not write {}: {e}", written.display()))?;
     // The catalogue line is `measured_boot`'s manifest shape (a name, a space, 64 hex characters),
     // which is the format the progenitor already reads to decide whether a program may run. §195
     // makes the image's measurement table the first source of trust, so a package's entry looking
     // like an entry in that table is the point rather than a coincidence.
     let catalogue = output.join("catalogue");
-    if let Err(error) = append(&catalogue, &format!("{stem} {digest}\n")) {
-        eprintln!("package: could not write {}: {error}", catalogue.display());
-        return false;
+    append(&catalogue, &format!("{} {}\n", built.stem, built.digest))
+        .map_err(|e| format!("could not write {}: {e}", catalogue.display()))?;
+    Ok(written)
+}
+
+/// **The image's own package source** (rung 3a of milestone 198): build every recipe under
+/// `packages/` whose architecture is `architecture`, write each package where the test's HTTP peer
+/// serves it from, and return the catalogue lines for the image to carry.
+///
+/// This is DECISIONS §195's "the image's measured table becomes the first source" made literal: the
+/// catalogue goes into the initrd archive *before* the measurement table is computed, so the kernel's
+/// trust root vouches for the catalogue and the catalogue vouches for the package. A package fetched
+/// over plain HTTP is then checked against a digest that never crossed the network.
+///
+/// It also means every archive build runs the producer end to end, which is the gate
+/// notes/packages.md's BUGS said nothing ran.
+pub(crate) fn image_catalogue(architecture: &str) -> Result<String, String> {
+    let root = workspace_root();
+    let dir = root.join("packages");
+    let mut recipes: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .map_err(|e| format!("could not read {}: {e}", dir.display()))?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.extension().is_some_and(|x| x == "recipe"))
+        .collect();
+    recipes.sort();
+    let mut catalogue = String::new();
+    for path in recipes {
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| format!("could not read {}: {e}", path.display()))?;
+        if parse_recipe(&text)?.architecture != architecture {
+            continue;
+        }
+        let built = build(&root, &text).map_err(|c| format!("{}: {c}", relative(&root, &path)))?;
+        write_out(&root, &built)?;
+        catalogue.push_str(&format!("{} {}\n", built.stem, built.digest));
     }
-    println!("wrote {}", relative(&root, &written));
-    println!("package: PASS");
-    true
+    Ok(catalogue)
 }
 
 /// Append a catalogue line, replacing any earlier line for the same name so a rebuild does not

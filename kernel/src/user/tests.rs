@@ -147,6 +147,13 @@ const NET_TEST_TCP_REOPEN: u64 = 3;
 const NET_TEST_UDP_TFTP: u64 = 4;
 #[cfg(target_arch = "aarch64")]
 const NET_TEST_TCP_ACCEPT: u64 = 5;
+#[cfg(target_arch = "aarch64")]
+const NET_TEST_HTTP_PACKAGE: u64 = 6;
+/// `TEST_HTTP_PACKAGE`'s "ask for the tampered copy" bit, and its refusal word.
+#[cfg(target_arch = "aarch64")]
+const HTTP_PACKAGE_TAMPERED: u64 = 1 << 63;
+#[cfg(target_arch = "aarch64")]
+const NET_CLIENT_DIGEST_REFUSED: u64 = 3;
 /// The one port the inbound gate is granted (milestone 107). The runners forward a host port to
 /// exactly this one, and the client asks for `fixture::DENIED_PORT` as well to prove the grant
 /// refuses. Named here because the *spawn service* is what grants it, which is the point.
@@ -1687,6 +1694,62 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         "the TCP echo round trip through the socket contract failed (client code {verdict:#x})",
     );
     net.release_or_fail("a net test's net_stack");
+}
+
+/// **A package fetched over plain HTTP is accepted only by the digest the image vouches for**
+/// (milestone 198 rung 3a). The client `GET`s `uptime 0.1.0` from a host process on the same
+/// network (`scripts/package-http-peer`, a `guestfwd` peer), hashes it as it arrives through
+/// `http_response` and the net stack, and compares against the image's package catalogue, which
+/// the archive build packed above the measurement table. Nothing else in the tree fetches a file
+/// over TCP, and nothing else checks a package's digest on a target.
+// RISC-V twin: `riscv_virtio_tests::a_package_fetched_over_http_is_accepted_by_the_image_digest`.
+#[cfg(target_arch = "aarch64")]
+#[test_case]
+fn a_package_fetched_over_http_is_accepted_by_the_image_digest() {
+    let catalogue = program(package_archive::CATALOGUE)
+        .expect("no package catalogue in the initrd archive: the archive build packs one");
+    let Some((report, net)) = virtio_service::start_package_fetch(
+        net_stack_image(),
+        NET_TEST_HTTP_PACKAGE,
+        catalogue.len() as u64,
+        catalogue,
+    ) else {
+        crate::testing::skip!("no virtio-net device attached");
+    };
+    let verdict = sched::ipc_recv(report)[0];
+    assert_eq!(
+        verdict, NET_CLIENT_OK,
+        "the package fetched over HTTP was not accepted (client code {verdict:#x}; \
+         {NET_CLIENT_DIGEST_REFUSED} means its digest disagreed with the image's catalogue)",
+    );
+    net.release_or_fail("the package fetch's net_stack");
+}
+
+/// **The tampered copy is refused**, which is the half that makes the test above mean something: a
+/// client that accepted whatever arrived would pass it too. The peer flips one byte halfway through
+/// an otherwise identical response, the HTTP exchange completes normally, and the only thing that
+/// can tell is the digest.
+// RISC-V twin: `riscv_virtio_tests::a_tampered_package_is_refused_by_digest`.
+#[cfg(target_arch = "aarch64")]
+#[test_case]
+fn a_tampered_package_is_refused_by_digest() {
+    let catalogue = program(package_archive::CATALOGUE)
+        .expect("no package catalogue in the initrd archive: the archive build packs one");
+    let Some((report, net)) = virtio_service::start_package_fetch(
+        net_stack_image(),
+        NET_TEST_HTTP_PACKAGE,
+        catalogue.len() as u64 | HTTP_PACKAGE_TAMPERED,
+        catalogue,
+    ) else {
+        crate::testing::skip!("no virtio-net device attached");
+    };
+    let verdict = sched::ipc_recv(report)[0];
+    assert_eq!(
+        verdict, NET_CLIENT_DIGEST_REFUSED,
+        "a package with one byte flipped was not refused by digest (client code {verdict:#x}; \
+         {NET_CLIENT_OK} would mean it was accepted)",
+    );
+    net.release_or_fail("the package fetch's net_stack");
 }
 
 /// The same TCP echo round trip over the PCIe transport, behind the IOMMU.
