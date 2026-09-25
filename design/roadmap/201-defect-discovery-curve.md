@@ -1,7 +1,9 @@
 # 201. Is multicore reliability converging? A defect-discovery curve, not a stress run
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 5, which
-its own `BUGS` recorded as unowned. *(Number provisional until the merge queue lands it.)*
+**Status: PARTIAL.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 5, which
+its own `BUGS` recorded as unowned. The part that needs no hardware is done (2026-09-24): the seeds
+are re-derived below and the curve has a home and a data format,
+[`notes/multicore-defect-curve.md`](../../notes/multicore-defect-curve.md). The run is what remains.
 
 **Gate: HARDWARE.** Three boards, and the sense of the gate that means somebody has to sit at them.
 
@@ -42,10 +44,10 @@ claim**, not one.
 **The two `ap_boot` bugs are real defects, but "unresolved" is stale.** Both were open when this
 milestone was minted; both are now closed: the boot-core-identity bug (`arch::x86_64::ap_boot`'s
 `BUGS` #3) was fixed by milestone 316 (which core booted: making `NIFE_SMP=2` mean something on
-x86_64) on 2026-09-17, and the third-or-later-secondary race (`BUGS` #1) was fixed by milestone 161's
+x86_64) on 2026-09-18 UTC, and the third-or-later-secondary race (`BUGS` #1) was fixed by milestone 161's
 own closing work (2026-09-19). A third x86_64 SMP bug from the same
 bring-up, a missing cross-core TLB shootdown (`BUGS` #2), was found and fixed the same day,
-2026-08-25, before this milestone existed, and this section never counted it.
+2026-08-26 UTC, before this milestone existed, and this section never counted it.
 
 **None of the three was found on silicon.** All three were found and reproduced under QEMU TCG, never
 on real x86_64 hardware (xenon). They are genuine concurrency defects and belong in a defect history,
@@ -57,12 +59,13 @@ cannot show, and QEMU showed all three of these.
 1. **x86_64: a missing cross-core TLB shootdown** (`ap_boot`'s `BUGS` #2). A dead thread's kernel
    stack, unmapped and remapped onto a different frame for reuse, was still translated by another
    core through a stale TLB entry, so a recycled thread's context read back as stack paint.
-   Reproduced 10 of 10 runs at `NIFE_SMP=2`; found and fixed 2026-08-25.
+   Reproduced 10 of 10 runs at `NIFE_SMP=2`; found and fixed 2026-08-26 (UTC; the commits are dated
+   the evening of 2026-08-25 Pacific).
 2. **x86_64: a boot-core-identity mixup** (`ap_boot`'s `BUGS` #3). `boot_cpu_id` answered "which core
    am I" instead of "which core booted," so a test body DECISIONS §28 (SMP placement: two random
    choices at spawn, message-shaped stealing, local wakes)'s placement migrated onto a secondary
-   mistook that secondary for the boot core. Found 2026-08-25 (while verifying #2 above); fixed by
-   milestone 316, 2026-09-17.
+   mistook that secondary for the boot core. Found 2026-08-26 UTC (while verifying #2 above); fixed
+   by milestone 316, 2026-09-18 UTC.
 3. **x86_64: a lost-checkin race in secondary bring-up** (`ap_boot`'s `BUGS` #1). `cpu_start`
    re-read the online count after issuing `STARTUP` IPIs and waited for it to move again, so a core
    that checked in during the settle delay was counted absent. 26 of 40 plain boots failed at
@@ -74,13 +77,47 @@ catch.** The curve therefore has three real data points for ordinary multicore c
 that would be exactly the overclaim this milestone's own first `BUGS` entry warns against ("a
 flattening curve is a confidence, not a verdict").
 
+## The seeds, re-derived from primary sources (2026-09-24)
+
+The correction above (2026-09-23) was right about what happened and still left three things wrong,
+found by re-reading each seed against the commit that recorded it rather than against the notes that
+cite it. Its dates were Pacific rather than UTC (fixed in place above), and two more:
+
+| Seed as minted (2026-08-31) | Verdict | What it is now |
+|---|---|---|
+| The VisionFive 2's receiver woken with nothing delivered, on radon | **Falls** | A retracted reading, row D6 of the curve's history, class `retracted`. `notes/visionfive2.md`'s fifth bench stop (2026-08-15) stands on re-reading: five identifications, each checkable from the tree. It is kept as a row so nobody who read the old version counts it again |
+| x86_64 `ap_boot` bug, "a third or later secondary" | **Stands, changed** | Row D10, a `race`, fixed 2026-09-19 UTC by milestone 161. **Its minted description was wrong as well as stale**: no core was ever failing to start, and "third or later" was never the boundary (the first secondary took turns failing too). `cpu_start` re-read the online count after the `STARTUP` IPIs, so a core that checked in during the settle delay was counted absent. It is a race between two cores, in this port's code, shown by QEMU |
+| x86_64 `ap_boot` bug, which core booted | **Stands, changed** | Row D9, class **`multicore` rather than `race`**. `boot_cpu_id` answered "which core am I"; given where §28's placement put a test body, the wrong answer was deterministic. It needs two cores and does not need an interleaving, and 201's own "every defect classified" rule is where the difference counts. Fixed 2026-09-18 UTC, milestone 316 |
+
+**None of the three can be a point on this curve, and that was true on the day it was minted.** A
+point needs a denominator: hours, crossings or boots of measured stress on a board. D9 and D10 were
+found by `script/test` under QEMU TCG, and D6 by a boot tour, not a soak. So they belong to the
+curve's history, beside ten other rows the sweep for this section found (six QEMU finds, one loom
+find, one audit later reproduced under QEMU, one with no recorded instrument, and one HVF hang still
+unclassified), and the curve starts empty of defects.
+
+**Its first real points already exist, and nobody had entered them.** radon ran `soak-test` three
+times on 2026-09-03 and 2026-09-04 (UTC), one of them for 2 h 59 m and 5,507 crossings, all with
+`refused=0 mismatch=0 stalled=0` (`notes/soak.md`). Those are exposure rows E1 to E3: roughly three
+and a half hours of riscv64 silicon with zero defects. That is one architecture, one workload and
+thin records (no build, no committed log), and it is still more than the three seeds ever were.
+
+**What this does to risk 5.** Of thirteen history rows, every real defect whose instrument is
+recorded was shown by QEMU, loom or an audit. The one silicon reading is retracted. The only row seen
+on physical cores and not under TCG is the HVF listener hang, and its evidence points at the test
+harness; it stays `unclassified` because an unexplained row is a candidate for exactly the class
+this risk names.
+
 ## What the run needs
 
 - **The load-sensitive assertions live** (`notes/load-sensitive-assertions.md`), plus
   `script/repeat-under-load` and `script/interleaving-check`, since a defect nothing asserts on is a
   defect nobody counts.
 - **Hours logged per board**, because the denominator is the whole measurement and is the thing most
-  likely to be recorded badly.
+  likely to be recorded badly. The format is fixed now: one exposure row per boot, read off the last
+  `soak-test:` beat, in `notes/multicore-defect-curve.md`. Crossings and boots are recorded beside
+  hours, because `notes/soak.md` argues clock time is the wrong axis; which one the curve is judged on
+  is calef's call, and recording all three means it can be made after the run.
 - **Every defect classified** as concurrency or not. A curve polluted with unrelated failures answers
   a different question.
 
@@ -104,6 +141,19 @@ flattening curve is a confidence, not a verdict").
 - **This is expensive and slow**, and its own answer arrives over weeks. It is on the fatal-risk list
   because it could be fatal, not because it is efficient.
 
+## Follow-on
+
+- **Outstanding.** The run: milestone 225 (run the soak on radon, argon and xenon) appends one
+  exposure row per boot to `notes/multicore-defect-curve.md`, and this milestone reads the slope per
+  architecture. Checked 2026-09-24: the note has three radon rows, all riscv64, and none for argon or
+  xenon.
+- **Outstanding.** Which denominator the curve is judged on (hours, crossings or boots), and the
+  stated duration `design/fatal-risks/multicore-reliability.md` asks for. Both are calef's; checked
+  2026-09-24 that neither is decided anywhere in the tree.
+- **Recorded.** The history table is one lane's sweep rather than a census, D5's instrument is
+  unrecorded, and nothing computes the curve; all three are in
+  `notes/multicore-defect-curve.md`'s `BUGS`.
+
 ## Index row
 
 Scopes `design/fatal-risks.md`'s risk 5, which its own BUGS recorded as unowned. "Sustained
@@ -111,6 +161,9 @@ stress" is a plan, not a test: it can never come back green. Measuring defects f
 a flattening curve is evidence, **a linear one is the red result**. **Its original three seeds were
 wrong** (found 2026-09-23): the VisionFive 2 reading was retracted 2026-08-15, before this milestone
 was even minted, and it never happened; the two "unresolved" x86_64 `ap_boot` bugs are now both fixed
-(milestones 316 and 161). The corrected seed set is three closed, QEMU-only x86_64 concurrency
-defects; risk 5's own defining claim, a defect QEMU cannot show, **has no confirmed instance**.
+(milestones 316 and 161). Re-derived 2026-09-24: **none of the seeds can be a point on the curve**,
+since none has a stress denominator; they are history rows in `notes/multicore-defect-curve.md`,
+which also holds the curve's data format and its first real points (radon, about three and a half
+hours of soak, zero defects). Risk 5's own defining claim, a defect QEMU cannot show, **has no
+confirmed instance**.
 Gate: HARDWARE, in the sense that somebody must sit at three boards.

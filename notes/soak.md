@@ -1058,8 +1058,8 @@ available to most people asking this question.** `script/soak-test` already prin
 those support, none of which is "how many hours":
 
 1. **What is the run buying per hour, in the units that matter?** Not round trips, which saturate the
-   machine by construction, but `crossings`, since the recorded defect was on the cross-core wake path
-   and the crossing rate is one to two orders of magnitude below the round-trip rate. A radon run's
+   machine by construction, but `crossings`, since the cross-core wake path is what the tick route exercises (the defect
+   once recorded there was retracted; see `multicore-defect-curve.md`, row D6) and the crossing rate is one to two orders of magnitude below the round-trip rate. A radon run's
    crossing rate is the honest denominator: at the QEMU aarch64 figures (about 3,779 crossings in 25
    seconds on the better of two runs) an hour is a few hundred thousand crossings, and a second hour is
    another few hundred thousand of the same kind. Decide the duration against a target crossing count,
@@ -1081,7 +1081,7 @@ those support, none of which is "how many hours":
 `script/interleaving-check` is the complementary instrument and this section sharpens why: loom over
 the extracted protocols searches the state space directly, which is the thing a soak samples badly and
 saturates at. The two are not competitors and the soak is not the weaker one; the soak is the only one
-that runs on the silicon where the defect appeared.
+that runs on silicon at all, which is where risk 5 says the defects are.
 
 **What none of this decides is the number**, deliberately. It says the number is calef's and gives him
 the axis to pick it on: a crossing target on real silicon, chosen and written down, rather than an
