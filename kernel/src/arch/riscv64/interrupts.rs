@@ -6,29 +6,21 @@
 //! rest of the RISC-V trap path is not yet built. They are correct standard rv64, but unexercised
 //! until the kernel boots on RISC-V.
 
-use core::arch::asm;
+use super::instructions;
 
 /// `sstatus.SIE`, bit 1. Small enough for the CSR immediate-form instructions.
 const SIE: usize = 1 << 1;
 
 /// Are S-mode interrupts currently enabled?
 pub fn is_enabled() -> bool {
-    let sstatus: usize;
-    // SAFETY: reads a CSR. No side effects.
-    unsafe { asm!("csrr {}, sstatus", out(reg) sstatus, options(nomem, nostack, preserves_flags)) };
-    sstatus & SIE != 0
+    instructions::read_sstatus() as usize & SIE != 0
 }
 
 /// Mask S-mode interrupts, returning whether they were enabled before (for [`restore`]). Atomic:
 /// `csrrci` reads the old `sstatus` and clears `SIE` in one instruction, so no interrupt can land
 /// between the read and the clear.
 pub fn disable() -> bool {
-    let prev: usize;
-    // SAFETY: clears the interrupt-enable bit and reports the prior value. No memory effect.
-    unsafe {
-        asm!("csrrci {}, sstatus, 2", out(reg) prev, options(nomem, nostack, preserves_flags));
-    };
-    prev & SIE != 0
+    instructions::read_and_clear_sstatus_sie() as usize & SIE != 0
 }
 
 /// Restore the interrupt-enable state [`disable`] reported. The paired half of `disable`; nesting
@@ -37,13 +29,11 @@ pub fn restore(was_enabled: bool) {
     if was_enabled {
         enable();
     } else {
-        // SAFETY: clears SIE. No memory effect.
-        unsafe { asm!("csrci sstatus, 2", options(nomem, nostack, preserves_flags)) };
+        instructions::clear_sstatus_sie();
     }
 }
 
 /// Unmask S-mode interrupts.
 pub fn enable() {
-    // SAFETY: sets SIE. No memory effect.
-    unsafe { asm!("csrsi sstatus, 2", options(nomem, nostack, preserves_flags)) };
+    instructions::set_sstatus_sie();
 }

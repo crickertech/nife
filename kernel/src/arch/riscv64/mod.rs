@@ -9,19 +9,21 @@
 //! working port. What is proved *today* is that the boundary is complete: a second architecture
 //! compiles and links against the whole kernel with no change above `arch/`.
 
-use core::arch::{asm, global_asm};
+use core::arch::global_asm;
 
 pub mod context;
 pub mod exceptions;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
 pub mod fp;
+mod instructions;
 pub mod interrupts;
 pub mod iommu;
 pub mod irq;
 pub mod isa;
 pub mod mmu;
 pub mod pmu;
+mod sbi;
 pub mod semihosting;
 pub mod timer;
 
@@ -125,23 +127,18 @@ pub fn boot_cpu_id() -> usize {
 /// the kernel `tp` after a U-mode round trip. See `crate::percpu` and trap.s.
 pub fn set_percpu(ptr: usize) {
     // Set `tp` first so `cpu::id()` (which reads `tp`) resolves this hart's index into TRAP_STASH.
-    // SAFETY: writes a general register the kernel reserves for per-CPU data. No memory effect.
-    unsafe { asm!("mv tp, {}", in(reg) ptr, options(nomem, nostack, preserves_flags)) };
+    // SAFETY: `ptr` is this hart's `PerCpu`, which is what `tp` must name.
+    unsafe { instructions::write_tp(ptr) };
     let stash = &TRAP_STASH[crate::cpu::id()];
     stash.percpu.store(ptr, Ordering::Relaxed);
     let stash_ptr = stash as *const TrapStash as usize;
     // SAFETY: `sscratch` now names this hart's stash; trap.s reads it as `&TrapStash` on every trap.
-    unsafe {
-        asm!("csrw sscratch, {}", in(reg) stash_ptr, options(nomem, nostack, preserves_flags));
-    };
+    unsafe { instructions::write_sscratch(stash_ptr) };
 }
 
 /// Read this hart's per-CPU pointer (the value last handed to [`set_percpu`]).
 pub fn percpu() -> usize {
-    let tp: usize;
-    // SAFETY: reads a general register. No side effects.
-    unsafe { asm!("mv {}, tp", out(reg) tp, options(nomem, nostack, preserves_flags)) };
-    tp
+    instructions::read_tp()
 }
 
 /// **Test-only: does `tp` name the hart we are physically running on?** RISC-V keeps the kernel
@@ -156,9 +153,8 @@ pub fn percpu() -> usize {
 #[cfg(test)]
 pub fn percpu_matches_hart() -> bool {
     let was_enabled = crate::arch::interrupts::disable();
-    let sscratch: usize;
-    // SAFETY: reads a CSR; `sscratch` holds `&TRAP_STASH[hart]` in S-mode (trap.s keeps it so).
-    unsafe { asm!("csrr {}, sscratch", out(reg) sscratch, options(nomem, nostack)) };
+    // `sscratch` holds `&TRAP_STASH[hart]` in S-mode (trap.s keeps it so).
+    let sscratch = instructions::read_sscratch();
     // `cpu::id()` reads `tp`; taken here, under the same mask, so both name one instant on one hart.
     let hart_from_tp = crate::cpu::id();
     crate::arch::interrupts::restore(was_enabled);
@@ -176,21 +172,18 @@ pub fn percpu_matches_hart() -> bool {
 pub fn cpu_start(target_hart: u64, entry: u64, context: u64) -> i64 {
     const SBI_HSM_EID: usize = 0x0048_534D; // "HSM"
     const SBI_HART_START_FID: usize = 0;
-    let error: i64;
-    // SAFETY: an SBI call. a7 = extension, a6 = function, a0..a2 = (hartid, start_addr, opaque). The
-    // firmware returns the error in a0 and clobbers a1; nothing else.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_HSM_EID,
-            in("a6") SBI_HART_START_FID,
-            inout("a0") target_hart => error,
-            inout("a1") entry => _,
-            in("a2") context,
-            options(nostack),
-        );
-    }
-    error
+    let args = [
+        target_hart as usize,
+        entry as usize,
+        context as usize,
+        0,
+        0,
+        0,
+    ];
+    // SAFETY: HSM hart_start with (hartid, start_addr, opaque). It starts another hart at `entry`,
+    // which this function's callers (the SMP bring-up) point at boot.s `secondary_boot`; it touches
+    // none of this hart's memory.
+    unsafe { sbi::call(SBI_HSM_EID, SBI_HART_START_FID, args) }.error as i64
 }
 
 /// Can this machine start a secondary hart at all? Asked once by `smp::bring_up_secondaries`.
@@ -220,18 +213,9 @@ pub fn sbi_send_ipi(target_hart: usize) {
     const SBI_IPI_EID: usize = 0x0073_5049; // "sPI"
     const SBI_SEND_IPI_FID: usize = 0;
     let mask = 1usize << target_hart; // hart_mask, relative to base 0
-    // SAFETY: an SBI call. a7 = extension, a6 = function, a0 = hart bitmap, a1 = mask base. The
-    // firmware returns in a0/a1 (ignored); nothing else is touched.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_IPI_EID,
-            in("a6") SBI_SEND_IPI_FID,
-            inout("a0") mask => _,
-            inout("a1") 0usize => _,
-            options(nostack),
-        );
-    }
+    // SAFETY: send_ipi with (hart bitmap, mask base 0). It sets another hart's `sip.SSIP` and
+    // touches no memory of ours. The result is ignored, as it always was.
+    unsafe { sbi::call(SBI_IPI_EID, SBI_SEND_IPI_FID, [mask, 0, 0, 0, 0, 0]) };
 }
 
 /// The SBI RFENCE extension id, "RFNC" in ASCII. Both remote-fence calls below live in it.
@@ -285,20 +269,15 @@ pub fn sbi_remote_sfence_vma(hart_mask: usize, start: usize, size: usize) {
     const SBI_REMOTE_SFENCE_VMA_FID: usize = 1;
     #[cfg(feature = "bench")]
     note_remote_fence();
-    // SAFETY: an SBI call. a7/a6 = extension/function, a0 = hart bitmap, a1 = mask base (0), a2/a3 =
-    // the address range. The firmware returns in a0/a1 (ignored); nothing else is touched.
+    // SAFETY: remote_sfence_vma with (hart bitmap, mask base 0, start, size). TLB maintenance on
+    // other harts, which is always sound. The result is ignored, as it always was.
     unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_RFENCE_EID,
-            in("a6") SBI_REMOTE_SFENCE_VMA_FID,
-            inout("a0") hart_mask => _,
-            inout("a1") 0usize => _,
-            in("a2") start,
-            in("a3") size,
-            options(nostack),
-        );
-    }
+        sbi::call(
+            SBI_RFENCE_EID,
+            SBI_REMOTE_SFENCE_VMA_FID,
+            [hart_mask, 0, start, size, 0, 0],
+        )
+    };
 }
 
 /// **Discharge every translation tagged with `asid` on the harts in `hart_mask`**: the remote half
@@ -339,21 +318,10 @@ pub fn sbi_remote_sfence_vma_asid(hart_mask: usize, asid: u16) {
     const SBI_REMOTE_SFENCE_VMA_ASID_FID: usize = 2;
     #[cfg(feature = "bench")]
     note_remote_fence();
-    // SAFETY: an SBI call. a7/a6 = extension/function, a0 = hart bitmap, a1 = mask base (0), a2/a3 =
-    // the address range (all of it), a4 = the ASID. The firmware returns in a0/a1 (ignored).
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_RFENCE_EID,
-            in("a6") SBI_REMOTE_SFENCE_VMA_ASID_FID,
-            inout("a0") hart_mask => _,
-            inout("a1") 0usize => _,
-            in("a2") 0usize,
-            in("a3") SBI_RFENCE_ALL,
-            in("a4") asid as usize,
-            options(nostack),
-        );
-    }
+    let args = [hart_mask, 0, 0, SBI_RFENCE_ALL, asid as usize, 0];
+    // SAFETY: remote_sfence_vma_asid with (hart bitmap, mask base 0, start 0, size all, asid). TLB
+    // maintenance on other harts, which is always sound. The result is ignored, as it always was.
+    unsafe { sbi::call(SBI_RFENCE_EID, SBI_REMOTE_SFENCE_VMA_ASID_FID, args) };
 }
 
 /// Bring this hart's architecture state up. On RISC-V that is the trap vector (`stvec`): unlike
@@ -369,31 +337,25 @@ pub fn init() {
 /// a spin. See CLAUDE.md, "Never leave QEMU running".
 pub fn halt() -> ! {
     loop {
-        // SAFETY: wait-for-interrupt is always safe; it only affects when the next instruction runs.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
+        instructions::wfi();
     }
 }
 
 /// Park until the next interrupt (the scheduler's idle primitive).
 pub fn wait_for_interrupt() {
-    // SAFETY: as `halt`, but returns when an interrupt arrives.
-    unsafe { asm!("wfi", options(nomem, nostack)) };
+    instructions::wfi();
 }
 
 /// This core's current stack pointer, for the stack-overflow canary check (stack.rs).
 pub fn current_sp() -> u64 {
-    let sp: u64;
-    // SAFETY: reads a register. No side effects.
-    unsafe { asm!("mv {}, sp", out(reg) sp, options(nomem, nostack, preserves_flags)) };
-    sp
+    instructions::read_sp()
 }
 
 /// A DMA write memory barrier: order all prior stores before any device sees a later one. RISC-V's
 /// `fence ow, ow` orders outer (device/IO) writes; the plain `fence` here is the conservative full
 /// barrier, matching aarch64's `dsb sy`. Tightened when a real DMA driver lands.
 pub fn direct_memory_access_write_barrier() {
-    // SAFETY: a fence has no memory effect of its own; it only constrains ordering.
-    unsafe { asm!("fence", options(nostack, preserves_flags)) };
+    instructions::full_fence();
 }
 
 /// Make the instruction fetcher aware of code just written as data. Where aarch64 needs a
@@ -403,8 +365,7 @@ pub fn direct_memory_access_write_barrier() {
 /// notes/riscv-port.md, leak #3.
 pub fn sync_icache(va: u64, len: usize) {
     let _ = (va, len);
-    // SAFETY: `fence.i` only orders instruction fetch against prior stores on this hart.
-    unsafe { asm!("fence.i", options(nostack, preserves_flags)) };
+    instructions::fence_i();
     // The other harts' instruction fetch is not ordered by anything above, and RISC-V has no
     // broadcast form: a thread scheduled onto another hart can fetch stale bytes for code this
     // hart just wrote. TCG never shows this (its icache is perfectly coherent), and the U74 did,
@@ -422,16 +383,13 @@ pub fn sync_icache(va: u64, len: usize) {
 /// hart is not otherwise ordered against another hart's fetch.
 pub fn sbi_remote_fence_i(hart_mask: usize) {
     const SBI_REMOTE_FENCE_I_FID: usize = 0;
-    // SAFETY: an SBI call. a7/a6 = extension/function, a0 = hart bitmap, a1 = mask base (0). The
-    // firmware returns in a0/a1 (ignored); nothing else is touched.
+    // SAFETY: remote_fence_i with (hart bitmap, mask base 0). Instruction-fetch ordering on other
+    // harts, which is always sound. The result is ignored, as it always was.
     unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_RFENCE_EID,
-            in("a6") SBI_REMOTE_FENCE_I_FID,
-            inout("a0") hart_mask => _,
-            inout("a1") 0usize => _,
-            options(nostack),
-        );
-    }
+        sbi::call(
+            SBI_RFENCE_EID,
+            SBI_REMOTE_FENCE_I_FID,
+            [hart_mask, 0, 0, 0, 0, 0],
+        )
+    };
 }

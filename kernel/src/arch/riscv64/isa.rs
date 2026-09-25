@@ -21,8 +21,6 @@
 //! calls [`record_asid_bits`] after its probe, and the boot prints [`print_summary`] once paging is
 //! on, before any of the test, shell or bench branches, so every boot mode reports the machine.
 
-use core::arch::asm;
-
 use machine_discovery::riscv64::{EID_BASE, Isa, SBI_TABLE, Sbi, SbiExtensions};
 
 use crate::sync::{IrqSafeMutex, rank};
@@ -212,21 +210,9 @@ fn probe_sbi() -> Sbi {
 /// returns an error and leaves `a1` alone, which is why [`probe_sbi`] treats a zero spec version as
 /// "did not answer" rather than trusting anything after it.
 fn sbi_call(eid: usize, fid: usize, arg0: usize) -> usize {
-    let value: usize;
-    // SAFETY: an SBI call into M-mode firmware. a7 = extension, a6 = function, a0 = the one
-    // argument any of these takes. The firmware writes a0 (error) and a1 (value) and touches
-    // nothing else.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") eid,
-            in("a6") fid,
-            inout("a0") arg0 => _,
-            lateout("a1") value,
-            options(nostack),
-        );
-    }
-    value
+    // SAFETY: the base extension's getters and `probe_extension` only report; they change no state
+    // in the firmware or in this hart.
+    unsafe { super::sbi::call(eid, fid, [arg0, 0, 0, 0, 0, 0]) }.value
 }
 
 #[cfg(test)]

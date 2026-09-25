@@ -19,9 +19,9 @@
 //! `interval + latency`, the lateness compounds, and the configured rate is not the delivered rate.
 //! Nothing caught it because this ISA had no timer tests. See notes/riscv-arch-tests.md.
 
-use core::arch::asm;
 use core::sync::atomic::{AtomicU64, Ordering};
 
+use super::instructions;
 use crate::cpu::{self, MAX_CPUS};
 
 /// The S-mode timer interrupt cause (`scause` = 5, the Supervisor timer interrupt). The RISC-V
@@ -121,27 +121,21 @@ static DEADLINE: [AtomicU64; MAX_CPUS] = [const { AtomicU64::new(0) }; MAX_CPUS]
 fn sbi_set_timer(next: u64) {
     const SBI_TIME_EID: usize = 0x5449_4D45; // "TIME"
     const SBI_SET_TIMER_FID: usize = 0;
-    // SAFETY: an SBI call. a7 = extension id, a6 = function id, a0 = the absolute deadline. The
-    // firmware clobbers a0/a1 (the return); nothing else.
+    // SAFETY: TIME set_timer with the absolute deadline. It programs this hart's timer interrupt
+    // and touches no memory of ours. The result is ignored, as it always was.
     unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_TIME_EID,
-            in("a6") SBI_SET_TIMER_FID,
-            inout("a0") next => _,
-            lateout("a1") _,
-            options(nostack),
-        );
-    }
+        super::sbi::call(
+            SBI_TIME_EID,
+            SBI_SET_TIMER_FID,
+            [next as usize, 0, 0, 0, 0, 0],
+        )
+    };
 }
 
 /// The free-running counter (`rdtime`). Real: a leaf read with no dependency on the timer being set
 /// up, the RISC-V counterpart of reading `CNTVCT`.
 pub fn now() -> u64 {
-    let t: u64;
-    // SAFETY: reads the time CSR. No side effects.
-    unsafe { asm!("rdtime {}", out(reg) t, options(nomem, nostack, preserves_flags)) };
-    t
+    instructions::read_time()
 }
 
 /// The counter's frequency in Hz, as the machine stated it.
@@ -180,8 +174,8 @@ pub fn init() {
     let first = now() + interval();
     DEADLINE[cpu::id()].store(first, Ordering::Relaxed);
     sbi_set_timer(first);
-    // SAFETY: setting sie.STIE only unmasks the timer source; it takes effect once SIE is on.
-    unsafe { asm!("csrs sie, {}", in(reg) STIE, options(nomem, nostack, preserves_flags)) };
+    // Setting sie.STIE only unmasks the timer source; it takes effect once SIE is on.
+    instructions::set_sie(STIE);
 
     // Let U-mode read the `time` CSR (`rdtime`), the RISC-V twin of aarch64 opening
     // `CNTKCTL_EL1.EL0VCTEN` in the arch/aarch64 timer. `crates/user_mode_runtime`'s `now()` needs it, and
@@ -224,9 +218,9 @@ pub fn init() {
     // read permission away: CY (cycle) and IR (instret) are now closed by this instruction rather
     // than by assumption.
     const TM: u64 = 1 << 1;
-    // SAFETY: `csrw` writes a supervisor CSR and touches no memory, which the options state. The CSR
-    // governs U-mode counter reads only, so no S-mode access this kernel makes depends on its value.
-    unsafe { asm!("csrw scounteren, {}", in(reg) TM, options(nomem, nostack, preserves_flags)) };
+    // The CSR governs U-mode counter reads only, so no S-mode access this kernel makes depends on
+    // its value.
+    instructions::write_scounteren(TM);
 }
 
 /// **`scounteren.CY`**: the bit that lets U-mode read the `cycle` CSR. Bit 0, the counter's own
@@ -285,23 +279,16 @@ pub fn is_cycle_counter_grantable() -> bool {
 /// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 #[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn set_cycle_counter_grant(granted: bool) {
-    let current: u64;
-    // SAFETY: reading a supervisor CSR touches no memory and changes no state, which the options
-    // state; `scounteren` is mandatory in S-mode, so the read cannot be illegal here.
-    unsafe {
-        asm!("csrr {}, scounteren", out(reg) current, options(nomem, nostack, preserves_flags));
-    }
+    let current = instructions::read_scounteren();
 
     let want = if granted { current | CY } else { current & !CY };
     if want == current {
         return;
     }
 
-    // SAFETY: `csrw` to `scounteren` touches no memory, which the options state. The CSR governs
-    // U-mode counter reads only, so no S-mode access this kernel makes depends on its value, and
     // `want` differs from the live value in `CY` alone: every other bit is written back exactly as
     // it was read, so `TM` survives whatever this does.
-    unsafe { asm!("csrw scounteren, {}", in(reg) want, options(nomem, nostack, preserves_flags)) };
+    instructions::write_scounteren(want);
 }
 
 /// Handle a timer interrupt: count the tick and arm the next deadline (which also clears the pending
@@ -415,7 +402,7 @@ pub fn calibration_loop(iters: u64) -> u64 {
     // memory, makes no call, and leaves the register dead, which is what the operand spec and
     // `nomem`/`nostack` state.
     unsafe {
-        asm!(
+        core::arch::asm!(
             "2:",
             "addi {n}, {n}, -1",
             "bnez {n}, 2b",
@@ -462,9 +449,7 @@ pub fn ticks_on(hart: usize) -> u64 {
 /// The three architectures' copies are named alike on purpose.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn is_tick_pending() -> bool {
-    let sip: u64;
-    // SAFETY: reads a CSR. No side effects.
-    unsafe { asm!("csrr {}, sip", out(reg) sip, options(nomem, nostack, preserves_flags)) };
+    let sip = instructions::read_sip();
     // `sip.STIP` is bit 5, the same bit position `sie.STIE` enables.
     sip & STIE != 0
 }
@@ -620,13 +605,7 @@ mod tests {
 
     /// `scounteren`, read back out of the hart rather than out of our record of it.
     fn read_scounteren() -> u64 {
-        let value: u64;
-        // SAFETY: reading a supervisor CSR touches no memory and changes no state, which the
-        // options state; `scounteren` is mandatory in S-mode, so the read cannot be illegal.
-        unsafe {
-            core::arch::asm!("csrr {}, scounteren", out(reg) value, options(nomem, nostack, preserves_flags));
-        }
-        value
+        crate::arch::riscv64::instructions::read_scounteren()
     }
     /// **The counter rate came out of the device tree, not out of this file** (milestone 100).
     ///
