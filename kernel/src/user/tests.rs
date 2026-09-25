@@ -1697,7 +1697,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
 }
 
 /// **A package fetched over plain HTTP is accepted only by the digest the image vouches for**
-/// (milestone 198 rung 3a). The client `GET`s `uptime 0.1.0` from a host process on the same
+/// (milestone 198 (a package manager) rung 3a). The client `GET`s `uptime 0.1.0` from a host process on the same
 /// network (`scripts/package-http-peer`, a `guestfwd` peer), hashes it as it arrives through
 /// `http_response` and the net stack, and compares against the image's package catalogue, which
 /// the archive build packed above the measurement table. Nothing else in the tree fetches a file

@@ -171,9 +171,9 @@ spawner)**: when a person types the name of an installed program, what travels t
 builds it. The shell names programs by an id from a closed enum, and an installed program has none.
 Every answer is a change the shell and the progenitor agree on, so it is calef's.
 
-**Milestone 507's finding was half stale, and the half that moved matters.** It said nothing that
+**Milestone 507 (installing a package: mutate, compose, or widen)'s finding was half stale, and the half that moved matters.** It said nothing that
 builds processes can read an installed program because the progenitor gives the file service away.
-The progenitor has kept the file service since milestone 31 phase 3 (2026-08-17), so it can read
+The progenitor has kept the file service since milestone 31 (a capability shell) phase 3 (2026-08-17), so it can read
 one. What it cannot do is be asked for one.
 
 **And a second gap stands behind that one**: the booted system has no network. The progenitor
@@ -205,7 +205,7 @@ builds no `net_stack`, so the fetch above runs only in the kernel's test harness
   network card or a host elsewhere on a network (rung 3b).
 - **Plain HTTP carries the package, and that is safe only because of the image's catalogue.** A
   source whose digests arrive over the same connection would be worth nothing against a machine in
-  the middle; that is what §196's TLS is for on rung 3c.
+  the middle; that is what §196 (nife carries TLS)'s TLS is for on rung 3c.
 - **A recipe cannot say where its source came from.** Homebrew's formula carries an upstream URL and
   a digest of the tarball; this carries neither, because every package that exists is built from
   this repository. The first out-of-tree package is what forces it.

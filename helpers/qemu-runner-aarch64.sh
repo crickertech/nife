@@ -358,7 +358,7 @@ fi
 # with zero host setup and nothing outlives QEMU. Verified against QEMU 11.0.2. Each slirp instance
 # is its own network, so both NICs can use the same virtual address without conflict.
 GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
-# **The package source** (milestone 198 rung 3a), on the echo peer's terms: 10.0.2.9:8080 is a
+# **The package source** (milestone 198 (a package manager) rung 3a), on the echo peer's terms: 10.0.2.9:8080 is a
 # fresh `scripts/package-http-peer` per connection, speaking HTTP/1.0 on the connection and serving
 # `target/packages/`, which the archive build fills. A real HTTP exchange with a host process, and
 # still nothing that binds a host port or outlives QEMU. The path is absolute because slirp runs the

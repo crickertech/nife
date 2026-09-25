@@ -59,7 +59,7 @@
 //!   here makes that write atomic. On RedoxFS it is a one-line overwrite; whether a torn write of it
 //!   is possible was not checked.
 //!
-//! Name: provisional 2026-09-24 (milestone 198's rung 3a consumer lane). §208's own phrase is
+//! Name: provisional 2026-09-24 (milestone 198 (a package manager)'s rung 3a consumer lane). §208's own phrase is
 //! "activation set", which is why; `design/naming.md` is the rule and calef's the call.
 
 #![no_std]

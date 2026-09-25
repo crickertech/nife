@@ -586,7 +586,7 @@ const PACKAGE_PORT: u16 = 8080;
 /// a refusal cannot be satisfied by a broken fetch.
 pub const DIGEST_REFUSED: u64 = 3;
 
-/// **Rung 3a's fetch and verify** (milestone 198): `GET` a package from a host over plain HTTP,
+/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): `GET` a package from a host over plain HTTP,
 /// hash it as it arrives, and accept it only if the digest is the one the image's own catalogue
 /// names.
 ///

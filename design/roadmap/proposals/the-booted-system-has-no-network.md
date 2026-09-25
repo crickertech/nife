@@ -31,7 +31,7 @@ a lane's call:
 - **The NIC is a device.** Which process holds it, and behind which IOMMU, is the confined-driver
   question fatal risk 6 is about, applied to the booted system rather than to a test.
 - **Listen grants.** `net_stack` takes its inbound port authority from whoever spawns it
-  (milestone 107). A booted system has to say what that is, and the answer for a package client is
+  (milestone 107 (the socket contract learns to accept)). A booted system has to say what that is, and the answer for a package client is
   "none", but the answer for the system is not obvious.
 
 ## Exit criterion

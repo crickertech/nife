@@ -512,7 +512,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
 }
 
 /// The riscv twin of `tests::a_package_fetched_over_http_is_accepted_by_the_image_digest`
-/// (milestone 198 rung 3a): `uptime 0.1.0 riscv64` over plain HTTP, accepted by the image's digest.
+/// (milestone 198 (a package manager) rung 3a): `uptime 0.1.0 riscv64` over plain HTTP, accepted by the image's digest.
 #[test_case]
 fn a_package_fetched_over_http_is_accepted_by_the_image_digest() {
     let catalogue = program(package_archive::CATALOGUE)

@@ -555,7 +555,7 @@ pub(crate) fn initrd_aarch64() -> bool {
     if let Some(bytes) = &cryptography {
         files.push(("cryptography_exerciser", bytes.as_slice()));
     }
-    // **The image's package source** (milestone 198 rung 3a): every recipe under `packages/` for
+    // **The image's package source** (milestone 198 (a package manager) rung 3a): every recipe under `packages/` for
     // this architecture is built, written where the package tests' HTTP peer serves it, and its
     // catalogue line packed here, *above* the measurement table so the kernel's trust root vouches
     // for it. `package_archive::CATALOGUE`'s doc has why. It also runs the producer end to end on

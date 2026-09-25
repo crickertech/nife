@@ -330,10 +330,10 @@ pub fn start_net_stack(
 /// Where a stack client finds a read-only blob its spawner handed it, when there is one. Must match
 /// `components/src/socket_test_client.rs`'s `CATALOGUE_VA`: the one blob today is the image's
 /// package catalogue (`package_archive::CATALOGUE`), and this is the kernel test harness playing
-/// the part the progenitor's `ChildEndowment::blobs` plays for `login` (milestone 233).
+/// the part the progenitor's `ChildEndowment::blobs` plays for `login` (milestone 233 (`login` dies on every boot)).
 const NET_CLIENT_CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
 
-/// **Rung 3a's fetch and verify** (milestone 198): the net server and a client that fetches a
+/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): the net server and a client that fetches a
 /// package over plain HTTP from the runners' package peer and checks it against `catalogue`, the
 /// image's own package source, mapped into the client read-only. `cli_arg` and `arg1` are the
 /// client's selector and its argument (the catalogue's length, and whether to ask for the tampered

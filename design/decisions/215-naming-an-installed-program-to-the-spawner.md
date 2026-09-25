@@ -29,7 +29,7 @@ id, and no row.
 - **The progenitor keeps the file service for the life of the boot.** §208 and milestone 507
   (installing a package: mutate, compose, or widen what can be spawned) both say "the spawner gives
   the file service away", and `system_initializer`'s module documentation says so too. The code
-  stopped doing that in milestone 31 phase 3 (2026-08-17), which kept `WRITE | GRANT` on the RedoxFS
+  stopped doing that in milestone 31 (a capability shell) phase 3 (2026-08-17), which kept `WRITE | GRANT` on the RedoxFS
   service so the progenitor could build `fs_subtree_caretaker`s (`Channels.fs`, and the comment
   "**The filesystem stays**"). So the spawner *can* read an installed program today. What it cannot
   do is be asked for one. That makes 507's "hard part" half a fact and half stale, and it is why the
@@ -41,7 +41,7 @@ id, and no row.
 | | What travels | Who builds the process | Wire change | Measured cost |
 |---|---|---|---|---|
 | **A. A name on the spawn request** | A new `spawnproto` flag (`NAME_BIT`, provisional) saying "two more `SEND`s carry a name of at most 32 bytes" | The progenitor: it looks the name up in the activation table on RedoxFS, reads the package with the file service it already holds, re-checks the member digest, and builds with `build_child` as for any program | Yes: the shell and the progenitor | No new capability slot at rest or at peak (the file service is already one of the fifteen). Reading `uptime` costs 22 pages (89,168 bytes stripped) while it builds, against `INIT_OWN_PAGES` = 128 and a job region of 40 |
-| **B. A launcher in the sealed namespace** | Nothing new: `package` (provisional) is one more `Prog` row, declared the way milestone 150 declares every row | The launcher, from bytes it read, with a `--mem` grant, as `login` builds sessions (milestone 233) | No | No argument vector exists (milestone 205), so the shell cannot tell the launcher which package: the integer argument would have to be an index. The child gets at most what the launcher holds, so an installed program's authority is capped by one manifest, not its own. Its death goes to the launcher, not to `job_undertaker`, and `^C` and pipelines would need re-plumbing through it |
+| **B. A launcher in the sealed namespace** | Nothing new: `package` (provisional) is one more `Prog` row, declared the way milestone 150 (adding a program should not need eight hand-maintained lists) declares every row | The launcher, from bytes it read, with a `--mem` grant, as `login` builds sessions (milestone 233 (`login` dies on every boot)) | No | No argument vector exists (milestone 205 (how a foreign program is told what to do)), so the shell cannot tell the launcher which package: the integer argument would have to be an index. The child gets at most what the launcher holds, so an installed program's authority is capped by one manifest, not its own. Its death goes to the launcher, not to `job_undertaker`, and `^C` and pipelines would need re-plumbing through it |
 | **C. Ids assigned at install** | The same integer word, now `>= PROG_COUNT` for an installed program | The progenitor, indexing the activation table | Shape unchanged, meaning changed | The shell must read the activation table to resolve a name, which it does not hold today. An id means a different program after a rollback, so a spawn in flight across a rollback runs whatever the new set put there. Milestone 150 pinned the shipped wire ids, and this reuses their space |
 
 ## The seven questions
@@ -67,7 +67,7 @@ id, and no row.
 6. **How reversible, and who has acted on it?** Nobody outside this repository has a shell or a
    progenitor, and both ship in one image, so any of the three can be changed by one image. That is
    less expensive than an external wire format. It is still one: every future shell and every
-   future spawner is written against it, and a third-party shell is what milestone 39's split
+   future spawner is written against it, and a third-party shell is what milestone 39 (repository structure for a loosely-coupled OS)'s split
    exists to allow.
 7. **Would we still choose it if all three cost the same?** Not asked of a winner, because none is
    named. If calef picks A, the non-effort case is §208's own: one authority builds processes and

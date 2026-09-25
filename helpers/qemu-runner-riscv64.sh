@@ -140,7 +140,7 @@ fi
 # (iommu_platform=on). guestfwd adds a deterministic TCP echo peer at 10.0.2.9:7777 (piped to
 # /bin/cat) for the TCP round-trip gate; nothing outlives QEMU. See the aarch64 runner for detail.
 GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
-# The package source (milestone 198 rung 3a) at 10.0.2.9:8080, the parity twin of the aarch64
+# The package source (milestone 198 (a package manager) rung 3a) at 10.0.2.9:8080, the parity twin of the aarch64
 # runner's line. See the aarch64 runner for why the path is absolute and must hold no space.
 PACKAGE_PEER="$(cd "$(dirname "$0")" && pwd)/package-http-peer"
 GUESTFWD="$GUESTFWD,guestfwd=tcp:10.0.2.9:8080-cmd:$PACKAGE_PEER"
