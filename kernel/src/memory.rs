@@ -86,10 +86,12 @@ pub fn init() {
     // register block, unlike the GIC's distributor/CPU-interface pair.
     {
         let mut plic = [Region { start: 0, size: 0 }; 1];
-        let found = match dtb.node_reg_compatible(b"sifive,plic-1.0.0", &mut plic) {
-            Ok(n) if n >= 1 => true,
-            _ => matches!(dtb.node_reg(b"plic@", &mut plic), Ok(n) if n >= 1),
-        };
+        // One compatible list, shared with the context map, so the two lookups cannot disagree
+        // about what a PLIC is (`machine_discovery::plic::COMPATIBLES` names each string's machine).
+        let found = machine_discovery::plic::COMPATIBLES
+            .iter()
+            .any(|compat| matches!(dtb.node_reg_compatible(compat, &mut plic), Ok(n) if n >= 1))
+            || matches!(dtb.node_reg(b"plic@", &mut plic), Ok(n) if n >= 1);
         if found {
             *PLIC_REGION.lock() = Some((plic[0].start, plic[0].size));
         }
