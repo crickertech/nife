@@ -1506,7 +1506,7 @@ def week_label(week):
     return week
 
 
-def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
+def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None, trend=None):
     """One stacked bar per week, one colour per series, a legend on the right.
 
     `series` is [(label, [value per week])]. A single-element series is an ordinary bar chart,
@@ -1520,12 +1520,18 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
     figure. A flagged week gets a muted marker in the plot and a `<title>` saying so. Coverage's
     2026W29 is the same shape and settled for a sentence in its subtitle; this makes it visible on
     the chart, where the reader is.
+
+    `trend` is a line over the bars, (label, short label, [(value, full) per week]), from
+    `trailing_mean`. It is drawn in the page's text colour rather than a palette slot, because the
+    palette is for series and this is arithmetic over one of them; a full window is a solid line and
+    a short one is dashed, each with its own legend entry, so the two are never read as the same.
     """
     line_word = 'ceiling'
     if isinstance(ceiling, tuple):
         ceiling, line_word = ceiling
     totals = [sum(s[1][i] for s in series) for i in range(len(weeks))]
-    top = max(totals + ([ceiling] if ceiling else []) + [1])
+    top = max(totals + ([ceiling] if ceiling else []) + [1]
+              + ([v for v, _full in trend[2]] if trend else []))
     # An axis a person reads: gridlines at 1, 2, 2.5 or 5 times a power of ten, and whichever of
     # four, five or six intervals wastes the least height. Four alone rounds 231 up to 400.
     axis_top, ticks = None, 4
@@ -1551,7 +1557,8 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
            % (CHART_W, CHART_H, CHART_W, CHART_H, esc(title)),
            '<style>',
            '  .bg{fill:#ffffff} .fg{fill:#1f2328} .mut{fill:#59636e} .grid{stroke:#d1d9e0}',
-           '  .seg{stroke:#ffffff;stroke-width:1}',
+           '  .seg{stroke:#ffffff;stroke-width:1}'
+           + (' .tr{stroke:#1f2328;fill:none} .trd{fill:#1f2328}' if trend else ''),
            # A halo in the surface colour behind each value label, so a total that lands on the
            # dashed ceiling (the unsafe chart's 77s against its 88) stays legible.
            '  .val{paint-order:stroke;stroke:#ffffff;stroke-width:3px;stroke-linejoin:round}',
@@ -1559,6 +1566,7 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
            '  @media (prefers-color-scheme: dark){',
            '    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}',
            '    .seg{stroke:#0d1117} .val{stroke:#0d1117}'
+           + (' .tr{stroke:#e6edf3} .trd{fill:#e6edf3}' if trend else '')
            + ''.join(' .s%d{fill:%s}' % (j, c) for j, c in enumerate(PALETTE_DARK)) + '}',
            '  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,'
            'sans-serif}',
@@ -1631,9 +1639,35 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None, absent=None):
                        % (x + bar_w / 2, PAD_T + plot_h - 16, x + bar_w / 2,
                           esc(week_label(week))))
 
+    if trend:
+        label, short, points = trend
+        centre = [PAD_L + slot * i + slot / 2 for i in range(len(weeks))]
+        for i in range(1, len(points)):
+            dash = '' if points[i][1] else ' stroke-dasharray="4 3"'
+            out.append('<line class="tr" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" '
+                       'stroke-width="2"%s/>' % (centre[i - 1], y_of(points[i - 1][0]),
+                                                 centre[i], y_of(points[i][0]), dash))
+        for i, (value, full) in enumerate(points):
+            out.append('<circle class="trd" cx="%.1f" cy="%.1f" r="3"><title>%s, %s: %.1f'
+                       '</title></circle>' % (centre[i], y_of(value), esc(week_label(weeks[i])),
+                                             esc(label if full else short), value))
 
     legend_x = CHART_W - PAD_R + 22
     y = PAD_T + 6
+    if trend:
+        kinds = [(label, True)] if any(f for _v, f in trend[2]) else []
+        if not all(f for _v, f in trend[2]):
+            kinds.append((trend[1], False))
+        for text, full in kinds:
+            out.append('<line class="tr" x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="2"%s/>'
+                       % (legend_x, y + 5, legend_x + 11, y + 5,
+                          '' if full else ' stroke-dasharray="4 3"'))
+            lines = _wrap(text, LEGEND_WRAP)
+            spans = ''.join('<tspan x="%d" dy="%s">%s</tspan>'
+                            % (legend_x + 17, '0' if k == 0 else '13', esc(line))
+                            for k, line in enumerate(lines))
+            out.append('<text class="fg" y="%d" font-size="11">%s</text>' % (y + 10, spans))
+            y += 19 + 13 * (len(lines) - 1)
     for j, (label, _values) in enumerate(series):
         out.append('<rect class="s%d" x="%d" y="%d" width="11" height="11" rx="2"/>'
                    % (j, legend_x, y))
@@ -1960,6 +1994,29 @@ def write_page_toc():
         path.write_text(new)
 
 
+# Trend lines, keyed by chart. calef asked on 2026-09-24 for a trailing ten-week mean on the
+# velocity chart and then the pull-request chart, one helper for both, because a flow that swings
+# from 8 to 49 to 13 in three weeks cannot be read for direction by eye. It is drawn and never stored, like the fatal-risks chart's unclassified band:
+# it is arithmetic over a column already in the CSV, and a stored copy could disagree with it.
+TRENDS = {'velocity.svg': ('milestones_built_this_week', 10),
+          'pull-requests.svg': ('merged_pull_requests', 10)}
+
+
+def trailing_mean(rows, weeks, field, span):
+    """(mean, full) per charted week, over the `span` weeks ending there, reaching back past the
+    chart's left edge into the CSV. Where the series is younger than `span` the mean is over the
+    weeks that exist and `full` is False, which the chart draws dashed rather than hiding: the line
+    would otherwise start two bars from the right edge until 2026W47."""
+    every = sorted(rows)
+    out = []
+    for week in weeks:
+        k = every.index(week)
+        window = every[max(0, k - span + 1):k + 1]
+        out.append((sum(_cell(rows[w], field) for w in window) / len(window),
+                    len(window) == span))
+    return out
+
+
 def draw_charts(rows):
     write_page_toc()
     weeks = sorted(rows)[-CHART_WEEKS:]
@@ -1971,7 +2028,13 @@ def draw_charts(rows):
         absent = None
         if absent_field:
             absent = [rows[week].get(absent_field, '') in ('', None) for week in weeks]
-        svg_chart(title, subtitle, weeks, series, DATA_DIR / name, ceiling, absent)
+        trend = None
+        if name in TRENDS:
+            field, span = TRENDS[name]
+            trend = ('trailing %d-week mean' % span,
+                     'trailing mean, fewer than %d weeks' % span,
+                     trailing_mean(rows, weeks, field, span))
+        svg_chart(title, subtitle, weeks, series, DATA_DIR / name, ceiling, absent, trend)
 
 
 # ---------------------------------------------------------------------------------------------
