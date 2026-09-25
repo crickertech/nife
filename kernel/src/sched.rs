@@ -3645,7 +3645,7 @@ enum RegionReap {
 /// **`state` says whether a thread can run again, and `on_cpu` says whether a core is standing on
 /// its stack, and freeing a `Thread` unmaps that stack.** Those are different questions; this path
 /// asked only the first for months, and the answer to the second is what four CI panics were.
-/// See notes/stack.md, "a kernel stack freed under its owner".
+/// See notes/stack/kernel-stack-freed-under-its-owner.md.
 fn region_reap_verdict(state: State, on_cpu: bool) -> RegionReap {
     if matches!(state, State::Ready | State::Running) {
         RegionReap::RefuseAndArm
@@ -3889,8 +3889,8 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // `schedule()`. A supervisor that reaps inside those few hundred instructions unmapped the
     // stack under the corpse, whose next store then walked the exception vector down to this
     // slot's base. Four CI runs over five days, always the same test, always the same slot, and
-    // read as a stack overflow for three of them. See notes/stack.md, "a kernel stack freed under
-    // its owner".
+    // read as a stack overflow for three of them. See
+    // notes/stack/kernel-stack-freed-under-its-owner.md.
     //
     // No kill is armed for this one, deliberately: the thread is already dead, so there is nothing
     // to doom, and the refusal clears on its own one context switch from now. The caller retries,
@@ -6149,7 +6149,7 @@ mod tests {
     /// exception vector's own frame store walks `sp` down a frame at a time and stores upward in
     /// aligned steps, so the terminal store lands on the guard base exactly, whatever `sp` was
     /// doing. The address carried no information; the *slot number* did, and it survived a change
-    /// to the slot span. See notes/stack.md, "a kernel stack freed under its owner".
+    /// to the slot span. See notes/stack/kernel-stack-freed-under-its-owner.md.
     ///
     /// The three kinds are allocated three different ways (a linker symbol, a `.bss` array, a slot
     /// in the virtual area 64 GiB up), so this checks one of each rather than trusting one to stand
@@ -6214,7 +6214,7 @@ mod tests {
     /// The rule is stated over `(state, on_cpu)` rather than over a live thread table because the
     /// window is a few hundred instructions wide on two cores, which is not a thing a test can
     /// stage. It reproduced on a desk only with a deliberate spin loop inserted in `depart`; see
-    /// notes/stack.md, "a kernel stack freed under its owner". What this pins is the claim, so the
+    /// notes/stack/kernel-stack-freed-under-its-owner.md. What this pins is the claim, so the
     /// next person to edit that loop meets `on_cpu` as a requirement rather than as a detail.
     #[test_case]
     fn a_dead_thread_still_standing_on_its_stack_is_not_reapable() {

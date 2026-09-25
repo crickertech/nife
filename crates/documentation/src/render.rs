@@ -506,9 +506,10 @@ impl Renderer {
         let mut col = 0;
         let mut i = body.start + 1;
         while i <= body.end && col < TABLE_COLS {
-            // A `\|` is a pipe in the cell's text, not a column boundary. `notes/scripts.md` has
-            // one (`--arch aarch64\| riscv64`), and reading it as a separator gave that table a
-            // third column nobody wrote and squeezed the other two to pay for it.
+            // A `\|` is a pipe in the cell's text, not a column boundary.
+            // `notes/scripts/build-test-and-gate.md` has one (`--arch aarch64\| riscv64`), and
+            // reading it as a separator gave that table a third column nobody wrote and squeezed
+            // the other two to pay for it.
             let mut j = i;
             if col + 1 == TABLE_COLS {
                 // The last slot swallows the rest of the row rather than splitting it, which is

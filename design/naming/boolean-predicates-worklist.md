@@ -41,7 +41,7 @@ names they were written with, per the rename procedure.
 | `active` | `kernel/src/iommu.rs, kernel/src/arch/*/iommu.rs` | pub | 15 | `is_active` | kernel follow-up |  |
 | `live` | `kernel/src/arch/*/fp.rs` | pub | 7 | `is_live` | kernel follow-up | the `live` flag it reads keeps its name |
 | `cycle_counter_grantable` | `kernel/src/arch/*/timer.rs` | pub | 9 | `is_cycle_counter_grantable` | kernel follow-up |  |
-| `from_lower_el` | `kernel/src/arch/aarch64/exceptions.rs` | private | 7 | `is_from_lower_el` | kernel follow-up | notes/stack.md's measurement keeps the old name, with the new one beside it |
+| `from_lower_el` | `kernel/src/arch/aarch64/exceptions.rs` | private | 7 | `is_from_lower_el` | kernel follow-up | notes/stack/interrupt-stack.md's measurement keeps the old name, with the new one beside it |
 | `v3` | `kernel/src/arch/aarch64/irq.rs` | private | 7 | `is_v3` | kernel follow-up |  |
 | `pmuv3_present` | `kernel/src/arch/aarch64/pmu.rs` | pub(super) | 6 | `is_pmuv3_present` | kernel follow-up |  |
 | `local_apic_ready` | `kernel/src/arch/x86_64/irq.rs` | pub | 10 | `is_local_apic_ready` | kernel follow-up |  |

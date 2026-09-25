@@ -186,8 +186,9 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
     // stack must not be unmapped under a core standing on it. This test is the only place in the
     // suite that reaps a corpse the instant it is told about one, which is why it is the only
     // place that ever hit the window, and why it panicked with a guard-page fault in CI four times
-    // over five days instead of failing here. See notes/stack.md, "a kernel stack freed under its
-    // owner", and the `on_cpu` refusal in `reap_region_objects`.
+    // over five days instead of failing here. See
+    // notes/stack/kernel-stack-freed-under-its-owner.md, and the `on_cpu` refusal in
+    // `reap_region_objects`.
     assert!(
         super::wait_for(|| sched::reclaim_region(region).is_ok()),
         "reaping the corpse's region failed",
