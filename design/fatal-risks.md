@@ -102,24 +102,20 @@ that does not matter.
 history, plus a reverse pass asking which harnesses prove a property that could plausibly be false.
 
 **Experiment status: RUN, 2026-08-30.** AMBER, and the red half is structural. No Kani harness in
-this tree has ever caught a defect after the day it was written. The cause is one line of
-`script/verify`'s own header: *"`cargo kani -p <crate>` never compiles the kernel, the user programs,
-or xtask."* So 64,818 lines of `kernel/src` were out of reach by construction, which is where every
-concurrency, hardware-contract and resource-accounting defect lived
-([`notes/proof-retrospective.md`](../notes/proof-retrospective.md); PR #589).
+this tree has ever caught a defect after the day it was written. Then the cause was a crate
+boundary: `cargo kani` never compiled `kernel/src`, where every concurrency, hardware-contract and
+resource-accounting defect lived ([`notes/proof-retrospective.md`](../notes/proof-retrospective.md);
+PR #589).
 
-Two follow-ons have since aimed the prover into `kernel/src` and at x86_64. The first x86_64 proof
-went red on a latent defect: the class this risk exists to ask about, and the first instance of it.
+Corrected 2026-09-25: that wall fell the same day; eight harnesses now prove kernel code, on all
+three architectures. One stops at `asm!`, fixed-address MMIO, or an `arch/` subtree its host skips.
+Files with `asm!` hold 15,966 of `kernel/src`'s 86,528 lines, all in `arch/`
+([`notes/kernel-proofs.md`](../notes/kernel-proofs.md)). The first x86_64 proof went red on a latent
+defect, the first of the class this risk asks about.
 
-The caveat. Every defect a proof has caught here was
-caught *while the harness was being written*. That is weaker evidence than a standing proof catching
-a regression, the survivorship asymmetry rule 1 warned about. **Corrected 2026-09-24:** this said
-`arch/`, `user/` and `xtask` were still out of reach. Milestone 197 (`user/` and `xtask` are out of
-reach of the prover) brought `user/` within reach on 2026-08-31 and refused `xtask` on value;
-milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) proves `arch/x86_64/`
-beside `arch/aarch64/`. Only riscv64 is unreachable, and nobody here can change that. So the claim is
-proofs over the pure crates and slices of the kernel, most of which is unverified.
-[Appendix](fatal-risks/proofs-and-their-reach.md).
+The caveat. Every catch here came *while the harness was being written*: weaker than a standing
+proof catching a regression, the survivorship asymmetry rule 1 warned about. So the claim is proofs
+over the pure crates and slices of a mostly unverified kernel. [Appendix](fatal-risks/proofs-and-their-reach.md).
 
 ## 3. The tests do not test anything, and the quality is illusory
 
@@ -324,7 +320,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's ve
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
-| ~~1~~ | 2, the proofs | **RUN, 2026-08-30: amber**, because `cargo kani` never compiled the kernel | milestone 191 | done |
+| ~~1~~ | 2, the proofs | **RUN, 2026-08-30: amber**, because `cargo kani` then never compiled the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able | milestone 16 (real hardware and IOMMU-backed driver isolation) | bench time, board proven since 2026-08-14 |
 | ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN, 2026-09-17: GREEN**, five of five on xenon, everything it needed inside `arch/x86_64/` | milestone 87 (the x86_64 bare-metal machine) | done |
 | 4 | 9, the HAL, at the implementation grain, widened 2026-09-23 | a second machine of an architecture nife already boots | milestone 225 (run the soak on radon, argon and xenon) | riscv64 priced 2026-09-25 at about 30 rented hours, €1.51 with VAT, in milestone 89 (Scaleway EM-RV1: a second RISC-V implementation, rented); the machine is not rented yet |

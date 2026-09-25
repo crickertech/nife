@@ -24,12 +24,13 @@ in debug builds. Both were found by trying to state totality and discovering it 
 were hardened rather than merely proved. That is the survivorship asymmetry milestone 191's block
 predicted, and it is the reason the answer is amber rather than red.
 
-**The reason for the red half is one sentence, and `script/verify` writes it in its own header:**
-`cargo kani -p <crate>` never compiles the kernel, the user programs, or xtask. So **64,818 lines of
-`kernel/src` are outside the proofs' reach by construction**, and that is where the scheduler, the
-IPC path, the trap frames, the timer, the two hand-written arch trees and every resource-accounting
-path live. It is also, without exception, where the expensive defects were. The harnesses are not
-weak; they are not pointed at the code that broke.
+**The reason for the red half was one sentence, in `script/verify`'s own header:** `cargo kani -p
+<crate>` never compiles the kernel, the user programs, or xtask. So 64,818 lines of `kernel/src`,
+holding the scheduler, IPC, trap frames, timer, arch trees and resource accounting, were out of
+reach by construction. That is, without exception, where the expensive defects were. The harnesses
+were not weak; they were not pointed at the code that broke. *(Corrected 2026-09-25: false since
+that day, when `kernel` became a harness crate; [`kernel-proofs.md`](kernel-proofs.md) has the
+reach now.)*
 
 **And the corpus is not evenly distributed over kinds of defect.** Of the eighteen entries below,
 five are concurrency, four are a hardware or firmware contract, three are resource accounting across
@@ -63,7 +64,7 @@ The shim directory was `scripts/kani-lint-shim/` when these were measured; it is
 | **Harnesses `script/verify` actually runs** | **140** | sum the shard table in `script/verify` |
 | Source lines in harness-carrying crates | 31,725 | see EXAMPLES |
 | Source lines of Rust outside `vendor/` and `target/` | 206,728 | `find . -name "*.rs" ... \| xargs wc -l` |
-| Source lines of `kernel/src`, which no harness compiles | 64,818 | `find kernel/src -name "*.rs" \| xargs wc -l` |
+| Source lines of `kernel/src`, which no harness then compiled | 64,818 | `find kernel/src -name "*.rs" \| xargs wc -l` |
 | `kani::cover!` vacuity guards, and the four crates holding them | 19 (calendar 7, paging 5, dma_validator 5, glob 2) | `grep -rn "kani::cover" --include="*.rs" crates/` |
 
 Two of those rows are findings rather than facts, and they are picked up below: the gap between 145
