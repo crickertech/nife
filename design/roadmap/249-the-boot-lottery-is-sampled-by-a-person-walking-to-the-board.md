@@ -211,8 +211,8 @@ notes/board-reboot.md.
 
 ## Follow-on
 
-- **Proposed.** radon's PMIC hang:
-  `design/roadmap/proposals/radons-reboot-dies-in-opensbis-pmic-write.md`.
+- **Milestone 592.** Milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write), awaiting
+  one bench reset.
 - **Proposed.** A watchdog for a wedged kernel:
   `design/roadmap/proposals/a-wedged-kernel-resets-itself.md`.
 - **Proposed.** xenon's possible AMT: `design/roadmap/proposals/xenon-may-carry-amt.md`.
