@@ -226,7 +226,7 @@ design/decisions/96-process-kernel-or-event-kernel.md	3038	-	54	36	35
 design/decisions/97-advisory-checks.md	-	-	51	20	14
 design/decisions/98-opendir-cannot-attenuate.md	-	-	41	9	2
 design/decisions/99-apple-metadata-at-rest.md	4138	-	48	53	15
-design/decisions/README.md	5242	-	70	-	-
+design/decisions/README.md	-	-	70	-	-
 design/display-ladder.md	-	23	56	9	8
 design/driver-domains.md	-	-	46	13	5
 design/fat-binaries.md	-	-	-	18	11

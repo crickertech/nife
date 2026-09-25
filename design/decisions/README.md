@@ -73,7 +73,7 @@ nobody had written, which is §211 (what a fatal-risk verdict says, and what the
 lines eighteen lines apart, and the first one won, so `AUDITED` was invisible to every consumer for
 weeks.
 
-**Where the dates came from.** Most of this corpus predates the schema and states neither date, so
+Where the dates came from: most of this corpus predates the schema and states neither date, so
 milestone 582 filled them from the file's own prose where it says, and from git where it does not:
 `raised` is the first commit that wrote the decision down, followed back through milestone 114's
 split into the single `DECISIONS.md` it came from, and `decided` the first commit whose text reads
@@ -335,9 +335,9 @@ anything was built.
 
 ## Reading
 
-- **The seL4 manual**, and Klein et al., *seL4: Formal Verification of an OS Kernel* (SOSP'09)
-- **Liedtke**, *On µ-Kernel Construction* (SOSP'95): why Mach was slow and why that was not a law
-- **xv6 book** (MIT, ~100pp) for how a real Unix-shaped kernel is structured. Read it as the
+- The seL4 manual, and Klein et al., *seL4: Formal Verification of an OS Kernel* (SOSP'09)
+- Liedtke, *On µ-Kernel Construction* (SOSP'95): why Mach was slow and why that was not a law
+- The xv6 book (MIT, ~100pp) for how a real Unix-shaped kernel is structured. Read it as the
   road not taken (§10), not as a template.
 - `rust-raspberrypi-OS-tutorials` for the aarch64-specific mechanics
 - OSDev wiki as a reference, not a tutorial
