@@ -19,7 +19,7 @@ Whoever finishes an entry moves it off this list in the same pull request.
 
 | rank | board | milestone | procedure | calef's hands |
 |---|---|---|---|---|
-| 1 | radon | milestone 168 (multitasking benchmark), fatal risk 4 | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots**, until the reset fix below lands |
+| 1 | radon | milestone 168 (a multi-tasking workload benchmark), fatal risk 4 | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots**, until the reset fix below lands |
 | 2 | xenon | 261, the NVMe driver leaves the kernel, and then the soak on xenon (fatal risks 6, then 5) | `design/roadmap/261-el0-nvme-on-xenon.md`; the bench procedure is being written by another lane, so read that block's current text first | the one-time firmware **Data Wipe** of the internal NVMe (261's "What calef has to do"), which cannot be undone; power; a keypress at POST |
 | 3 | argon | 127, first light, then 225's soak on argon | `design/roadmap/127-the-sel4-machine.md` and `notes/bench-runbook.md`, "argon, and why it is last" | everything: argon has never booted nife, so cabling, media and power are all his |
 
