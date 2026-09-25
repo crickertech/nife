@@ -413,14 +413,14 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 584 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 573 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately (it read 1009 until 2026-09-19, when §155
 moved the naming conventions to `design/naming.md` and the file fell to 922; milestone 262 had asked
 for 988 against its own smaller diff, which §155 (naming conventions) superseded):
-**Lowered from 935 to 584 on 2026-09-24, and made a ratchet the same day.** #1189 (approved by
-calef 2026-09-24) split the file into imperatives plus `design/tenets/` appendices, and a ceiling left
-at 935 above a 584-line file would have let it regrow 351 lines unchallenged. So `agents-md-lines` is
-now in `script/lint`'s `RATCHET_CEILINGS`: the gate also fails when the file falls below this number,
+Lowered to 573 on 2026-09-25 by calef's seven cuts. Lowered from 935 to 584 on 2026-09-24, and
+made a ratchet the same day: #1189 (calef, 2026-09-24) split the file into imperatives plus
+`design/tenets/` appendices, and a ceiling left at 935 would let it regrow 351 lines. So
+`agents-md-lines` is in `script/lint`'s `RATCHET_CEILINGS`: the gate also fails when the file falls below this number,
 and the fix is to lower it, so every shrink is banked. A raise is still an edit here with its reason
 beside it, as every raise below was.
 Before that, **lowered from 949 to 935 on 2026-09-23**, the first time this ceiling has ever moved down, and the

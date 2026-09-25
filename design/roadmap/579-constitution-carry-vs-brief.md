@@ -267,8 +267,9 @@ calef asked whether the roles should become Claude Code skills, loaded on demand
 `.claude/skills/`. The answer is no, for three reasons that were given in conversation and belong in
 the tree rather than only in a chat log:
 
-1. **`AGENTS.md` is deliberately the cross-tool convention.** Its own opening lines say `CLAUDE.md` is
-   a symlink to it for exactly this reason: the file addresses any competent agent, not one vendor's
+1. **`AGENTS.md` is deliberately the cross-tool convention.**
+   [`design/tenets/project-history.md`](../tenets/project-history.md) records that `CLAUDE.md` is a
+   symlink to it for exactly this reason: the file addresses any competent agent, not one vendor's
    CLI. `.claude/skills/` is Claude Code's own format, invisible to any other tool that might read
    this tree.
 2. **Principle 3 fails outright.** The test this file sets for itself is "could a competent stranger,
