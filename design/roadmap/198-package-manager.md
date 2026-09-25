@@ -13,7 +13,7 @@ accepts it only by the image's digest, on aarch64 and riscv64. The table §208 (
 granting) versions is built as host-tested logic in `crates/activation_set`. Installing and everything after it
 wait on §216 (how the shell names an installed program to the spawner).
 
-**Gate: DECISION.** Rung 3a's remaining half waits on
+**Gate: DECISION §216.** Rung 3a's remaining half waits on
 [§216](../decisions/216-naming-an-installed-program-to-the-spawner.md) (how the shell names an
 installed program to the spawner), because every answer is a change the shell and the progenitor
 agree on. The three forks this gate named before it are all ruled: trust by [§195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md) (a reviewed
