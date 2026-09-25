@@ -136,7 +136,7 @@ one program, and `UART_RX_INTID`'s value is what other code agrees on, not its s
 Sites are `git grep -w` hits on 2026-09-25 outside `design/roadmap/` and this directory, code and
 notes together; roadmap blocks keep the old names under the rename procedure.
 
-**Private names this table leaves out**, because the review question was about public ones: the
+Private names this table leaves out, because the review question was about public ones: the
 virtio-net queue constants (`NET_RX_*`, `NET_TX_*` in `crates/virtio`, `RX_*`, `TX_*` in
 `components/src/net_transport.rs`) and the helpers beside them (`post_rx`, `wait_rx`, `rx_take`,
 `tx_send`, `rx_buf`, `tx_buf`). They follow the virtio specification's own `receiveq`/`transmitq`
