@@ -942,6 +942,7 @@ dependencies = [
  "login_protocol",
  "measured_boot",
  "nifefs",
+ "socket_protocol",
  "supervision_protocol",
  "user_mode_runtime",
 ]

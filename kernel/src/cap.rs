@@ -228,6 +228,12 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// of releasing it after the login block. The insurance is being spent as intended and the ceiling
 /// is unchanged; see [`CAPABILITY_TABLE_PEAK_MEASURED`] for what moved and why the answer was not
 /// to raise this.
+///
+/// **One is left** (2026-09-24, milestone 590 (the booted system starts its network stack)): on a
+/// boot with a NIC the progenitor
+/// also holds the network stack's client endpoint for life, so the peak is 23. The next capability
+/// held across the login block meets the wall; this constant's first paragraph names the two
+/// honest candidates for buying one back first, and milestone 590's block proposes that as work.
 pub const CAPABILITY_TABLE_SLOTS: usize = 24;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
@@ -267,7 +273,17 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// minus twenty-two is two, and two is still headroom rather than a wall. The next addition that
 /// holds a capability across the progenitor's login block should expect to spend one of them and should read
 /// [`CAPABILITY_TABLE_SLOTS`]'s arithmetic before assuming there is a third.
-pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 22;
+///
+/// **Twenty-three since 2026-09-24, milestone 590 (provisional)**, and it is that prediction
+/// coming true rather than a surprise. On a boot with a NIC attached (every `script/swish-check`
+/// leg that can attach one) the progenitor builds `net_stack` and keeps its client endpoint for
+/// the life of the boot, for the entropy endpoint's reason exactly: a child declaring
+/// `grant_plan::Manifest::network` is endowed a `WRITE` view of it at spawn. The NIC's own three
+/// kernel grants are spent before the terminal plumbing is built, so they never reach the peak;
+/// the endpoint does. Found the same way, by `script/swish-check` failing on this sentence on the
+/// first run after the wiring. **Still not raised**: twenty-four minus twenty-three is one, and
+/// the next permanent capability should buy a slot back rather than spend the last one.
+pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 23;
 
 // The headroom milestone 230 left is what this pair means, so the two cannot silently invert.
 const _: () = assert!(CAPABILITY_TABLE_PEAK_MEASURED < CAPABILITY_TABLE_SLOTS);

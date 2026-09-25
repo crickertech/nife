@@ -75,6 +75,13 @@ const GRANTS: BootEndowment = BootEndowment {
     disp_term_ep: 10,
     disp_term_page: 11,
     kbd_ep: 12,
+    // The network card (milestone 590 (the booted system starts its network stack)), past the
+    // graphical stack's floor (slot 12)
+    // for the same reason again: a boot with no virtio-net device leaves all three empty, and
+    // `system_initializer::boot` probes for it.
+    virtio_net: 13,
+    virtio_net_irq: 14,
+    virtio_net_dma: 15,
     // Nothing. Since milestone 166 the boot loader is not shared with milestone 19d's test roles on
     // any architecture, so the kernel grants exactly what the interactive system uses. aarch64 once
     // carried a report endpoint (slot 1) and the 19d.2b test interrupt (slot 3) here.

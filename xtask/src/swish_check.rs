@@ -124,7 +124,7 @@ pub(crate) fn swish_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 72] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -527,6 +527,38 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 68] = [
         "memory_grant_depleter --mem 4",
         &["-page budget you granted"],
     ),
+    // **The network, from the booted system** (milestone 590 (the booted system starts its network
+    // stack)). Every network test
+    // before these four started `net_stack` from the kernel's harness; here the progenitor built it
+    // at boot from the NIC the kernel granted it, and a program a person typed reaches the runners'
+    // echo peer through it. The preview first, because the row it prints is the whole of who may
+    // reach the network from this prompt.
+    (
+        "caps network_echo_client --mem 4",
+        &[
+            "cap 10 endpoint  network  WRITE",
+            "a program without this row reaches no network at all",
+        ],
+    ),
+    (
+        "network_echo_client --mem 4",
+        &["echo peer 10.0.2.9:7777 answered: nife-net!"],
+    ),
+    // **Twice, and the second is the one that says the stack outlives its clients.** The first job
+    // handed `net_stack` a page and exited; its region was reclaimed, which revokes that page out
+    // of the stack's address space too. A stack that kept a stale window, or a socket number that
+    // could not be opened again, answers the first run and fails this one.
+    (
+        "network_echo_client --mem 4",
+        &["echo peer 10.0.2.9:7777 answered: nife-net!"],
+    ),
+    // **The negative control.** A program that declares no network `CALL`s the network's slot
+    // anyway; the kernel must refuse it for want of a capability. A spawn service that endowed the
+    // stack to every child prints `REACHED` here instead.
+    (
+        "unreachable_network_witness",
+        &["network: refused (no capability at slot 10)"],
+    ),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
@@ -548,6 +580,15 @@ fn swish_check_x86_omits(line: &str) -> Option<&'static str> {
         "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
             "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
              found on virtio-mmio only, and q35 has none)",
+        ),
+        // The same shape one device over (milestone 590 (provisional)): the kernel grants the
+        // progenitor a NIC only from a virtio-mmio slot, and the x86_64 runner attaches no
+        // `-netdev` at all until milestone 494 (a driver for the network card a PC actually has).
+        // The preview and the witness stay: neither needs a device, and the witness's refusal is
+        // the same on a boot with no stack as on one that has a stack and did not endow it.
+        "network_echo_client --mem 4" => Some(
+            "x86_64 has no NIC the progenitor can build a network stack from (virtio-net is found \
+             on virtio-mmio only, and the x86_64 runner attaches none)",
         ),
         _ => None,
     }
@@ -982,6 +1023,13 @@ fn swish_check_leg(arch: &str) -> bool {
     // `Command` directly (see `NIFE_INITRD`/`NIFE_DISK` just above) rather than spawning through
     // the global-env-inheriting path `test()` uses.
     cmd.env("NIFE_RNG", "1");
+    // **And a NIC** (milestone 590 (provisional)), on the two legs whose runner can attach one:
+    // the progenitor builds `net_stack` from it, and `network_echo_client` reaches the runners'
+    // echo peer through that. The runner attaches two (an mmio NIC and a PCIe one behind the
+    // IOMMU); the kernel grants the progenitor the mmio one and the other sits unclaimed.
+    if !x86 {
+        cmd.env("NIFE_NET", "1");
+    }
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
 
@@ -1348,9 +1396,11 @@ fn swish_check_leg(arch: &str) -> bool {
     let _ = reader.join();
 
     if failed.is_empty() {
-        // The four lines x86_64 omits are four jobs (two `uuid`s and the two `wc`s reading
-        // what they wrote); see [`swish_check_x86_omits`].
-        let jobs = if x86 { "seventeen" } else { "twenty-one" };
+        // The six lines x86_64 omits are six jobs (two `uuid`s, the two `wc`s reading what they
+        // wrote, and milestone 590's two `network_echo_client` runs); see
+        // [`swish_check_x86_omits`]. Milestone 590 added three jobs on the other two legs (the two
+        // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness).
+        let jobs = if x86 { "eighteen" } else { "twenty-four" };
         if x86 {
             let omitted: Vec<&str> = SWISH_CHECK_SCRIPT
                 .iter()
@@ -1366,6 +1416,12 @@ fn swish_check_leg(arch: &str) -> bool {
                 omitted,
             );
         }
+        let network = if x86 {
+            "refused the network to a program that did not declare it, "
+        } else {
+            "reached the network twice through the stack the progenitor built and refused it to a \
+             program that did not declare it, "
+        };
         eprintln!(
             "swish-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
@@ -1376,7 +1432,7 @@ fn swish_check_leg(arch: &str) -> bool {
              designated, named a file whose name has a space in it, searched an installed \
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
-             a && past a command that succeeded and not past one it refused, and ran \
+             a && past a command that succeeded and not past one it refused, {network}and ran \
              {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );

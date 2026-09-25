@@ -61,6 +61,13 @@
 //!         disp_term_ep: 12,
 //!         disp_term_page: 13,
 //!         kbd_ep: 14,
+//!         // The network card (milestone 590 (the booted system starts its network stack)): empty
+//! on a boot with no virtio-net
+//!         // device, which is every real board today. Numbered here past this example's own
+//!         // graphical trio; the real table is `components/src/progenitor.rs`'s.
+//!         virtio_net: 15,
+//!         virtio_net_irq: 16,
+//!         virtio_net_dma: 17,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; the progenitor deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -80,7 +87,8 @@
 //!
 //! Reading that struct literal is meant to tell you the complete authority of the system about to
 //! exist, which is why the fields are named for what they *are* rather than numbered. Note what is
-//! not in it: no network and no second budget.
+//! not in it: no second budget. (It said "no network" too until milestone 590 (provisional) granted
+//! the network card; see [`BootEndowment::virtio_net`].)
 //!
 //! # What the kernel hands over, and what this builds from it
 //!
@@ -253,6 +261,21 @@
 //! Printing the negative control costs one more of those: the shell's output frame stays mapped here
 //! for life, because there is no unmap and `PageFrame::REVOKE` would take it from the shell too.
 //!
+//! **A boot with a NIC waits for DHCP before it has a prompt** (milestone 590 (provisional)).
+//! `net_stack` reports its lease with a blocking send and serves nobody until that send is taken, so
+//! the network block receives it before building anything else. On QEMU's user-mode network the
+//! answer is immediate; on a network with a virtio NIC and no DHCP server the boot would sit there
+//! with no console to say why. Nothing grants a NIC on real hardware today, so the case is
+//! unreached rather than closed. Taking the lease later, when the first declaring child is spawned,
+//! would unblock the boot and cost the report endpoint a permanent slot, and the table has one left
+//! (23 of 24, `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED`); milestone 590's block records it.
+//!
+//! **And it keeps a writable view of the NIC's DMA page**, at `NET_DMA_PEEK_VA`, for the rng's
+//! reason (reading the physical base the kernel wrote there) and with its cost: there is no unmap.
+//! This process can therefore write `net_stack`'s rings for the life of the boot. It could already
+//! write every child's memory (the paragraph above), so this is one more page of an exposure it
+//! already has, not a new kind.
+//!
 //! **The progenitor's capability table is finite, and running out of it prints nothing at all.** Every
 //! capability held across a `build_child` is one the child's address space, frames and TCB cannot
 //! have, and `build_child` answering `Err(())` is a silent halt. Three of the four evenings this
@@ -287,6 +310,12 @@
 //! one back are still the readiness endpoint (it could be retyped after the caretaker's build
 //! rather than before, if the caretaker learned to take it another way) and the file page (nothing
 //! but a second frame per grant retires it, which is `notes/shared-page-audit.md`'s proposed lane).
+//!
+//! **That twenty-second capability arrived, and so did a twenty-third.** Milestone 111 (a shell
+//! that can endow a child with entropy)'s entropy endpoint took the peak to twenty-two, and
+//! milestone 590's network-stack endpoint took it to **twenty-three of twenty-four** on a boot with a NIC (`kernel::cap::
+//! CAPABILITY_TABLE_PEAK_MEASURED` carries both). One slot is left, so the next permanent
+//! capability here should buy one back through the two candidates above before it is added.
 //!
 //! Name: ratified 2026-08-04 (calef, milestone 96), and it is the ratification that raised
 //! milestone 115. Refused `system_builder` (milestone 63 had already refused it, for a reason still
@@ -382,7 +411,7 @@ pub struct BootEndowment {
     /// with (`role`, `initrd_len`, `fs_rights` already spend all three).
     pub virtio_rng: u64,
     /// The device's completion interrupt; see [`virtio_rng`](BootEndowment::virtio_rng). `READ |
-    /// GRANT`, routed by the kernel but left unenabled on riscv64 (`kernel::user::VirtioRngGrant`'s
+    /// GRANT`, routed by the kernel but left unenabled on riscv64 (`kernel::user::VirtioBootGrant`'s
     /// own doc: the board's hart-lottery hazard means only the kernel, which knows the true boot
     /// hart, may enable it, and it already did before granting this).
     pub virtio_rng_irq: u64,
@@ -425,6 +454,20 @@ pub struct BootEndowment {
     /// a screen beside the serial console (see that field): **this slot is what tells a graphical
     /// boot from that one.**
     pub kbd_ep: u64,
+    /// **A virtio-net device, when this boot has one** (milestone 590 (provisional), the booted
+    /// system starts its network stack; promoted from the proposal
+    /// `the-booted-system-has-no-network`). The confined transport, `WRITE | GRANT`, the
+    /// [`virtio_rng`](BootEndowment::virtio_rng) trio's shape exactly: this process delegates it
+    /// into the `net_stack` it builds and keeps nothing. **Absent** on every real board today and
+    /// on any QEMU run with `NIFE_NET` unset, and [`boot`] probes for it the way it probes for the
+    /// rng.
+    pub virtio_net: u64,
+    /// The network card's interrupt, `READ | GRANT`; see [`virtio_net`](BootEndowment::virtio_net)
+    /// and, for why it arrives unenabled on riscv64, [`virtio_rng_irq`](BootEndowment::virtio_rng_irq).
+    pub virtio_net_irq: u64,
+    /// The network card's DMA page, with its own physical base written at its last eight bytes;
+    /// [`virtio_rng_dma`](BootEndowment::virtio_rng_dma)'s shape and reason. `READ | WRITE | GRANT`.
+    pub virtio_net_dma: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
     ///
@@ -574,18 +617,18 @@ pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
 const INIT_OUT_VA: u64 = 0x0f00_0000;
 
 /// Where the progenitor briefly maps the virtio-rng DMA page, in **its own** address space, to read
-/// [`RNG_DMA_PHYS_OFFSET`] back out before handing the same frame on to entropy. Distinct from
+/// [`VIRTIO_DMA_PHYS_OFFSET`] back out before handing the same frame on to entropy. Distinct from
 /// [`INIT_OUT_VA`] and never unmapped (this file's own BUGS: there is no unmap in the ABI), the
 /// same permanent-scratch cost that address already carries.
 const RNG_DMA_PEEK_VA: u64 = 0x0f10_0000;
 
 /// The DMA region's own physical base, written inside the page itself at its last eight bytes
-/// (`kernel::user::VIRTIO_RNG_DMA_PHYS_OFFSET`; the two constants must agree, and the kernel-side
+/// (`kernel::user::VIRTIO_DMA_PHYS_OFFSET`; the two constants must agree, and the kernel-side
 /// one carries the reasoning for exactly this offset). Named separately here because reading it
 /// happens in this crate and writing it happens in the kernel; there is no crate the two could
 /// share it through (rule 7's own carve-out: this is a kernel/progenitor boot convention, one program's
 /// bytes handed to another it spawned, not a contract between two peer user programs).
-const RNG_DMA_PHYS_OFFSET: u64 = 4096 - 8;
+const VIRTIO_DMA_PHYS_OFFSET: u64 = 4096 - 8;
 
 /// Where entropy maps its own DMA page. Must match `components/src/entropy.rs`'s `DMA_VA`.
 const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -594,6 +637,40 @@ const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
 /// kernel's (and now this crate's) shared understanding with the one program it spawns, not a wire
 /// contract between two user programs, so rule 7 does not apply the way it does to `RNG_DMA_VA`.
 const RNG_MODE_VIRTIO: u64 = 0;
+
+// -------------------------------------------------------------------------------------------
+// The network stack (milestone 590 (provisional), the booted system starts its network stack).
+// -------------------------------------------------------------------------------------------
+
+/// Where this process briefly maps the network card's DMA page to read [`VIRTIO_DMA_PHYS_OFFSET`]
+/// back out, [`RNG_DMA_PEEK_VA`]'s twin and with its cost: never unmapped, because there is no
+/// unmap in the ABI, so this process keeps a writable view of the NIC's rings for the life of the
+/// boot. It already keeps one of every page it laid down for a child (this module's BUGS), so the
+/// exposure is one more page of a kind it already has, not a new kind.
+const NET_DMA_PEEK_VA: u64 = 0x0f30_0000;
+
+/// Where `net_stack` maps its DMA page. Must match `components/src/net_transport.rs`'s `DMA_VA`, the
+/// same kernel-and-spawner convention [`RNG_DMA_VA`] is.
+const NET_DMA_VA: u64 = 0x0000_0000_0090_0000;
+
+/// `net_stack`'s heap budget, in pages: matches
+/// `kernel::user::virtio_service::NET_SERVER_BUDGET_PAGES`,
+/// which carries the measurement (the heap is capped at 96 pages by `net_stack`'s own `HEAP_MAX`,
+/// and the rest is page tables for the heap and for clients' shared frames). Stated on this side for
+/// [`CRED_BUDGET_PAGES`]'s reason: a spawner states the budget it hands, and there is no crate a
+/// kernel constant and a user-mode spawner could share it through that would not be one number
+/// with two readers who both need the comment.
+const NET_STACK_BUDGET_PAGES: u64 = 128;
+
+/// `net_stack`'s stack, in pages: the kernel harness maps eight extra pages under the one every
+/// process gets (`kernel::user::virtio_service::NET_SERVER_STACK_PAGES`, "smoltcp builds packets
+/// on the stack"), and nine is those together, since `build_child` counts the whole stack.
+const NET_STACK_STACK_PAGES: u64 = 9;
+
+/// `net_stack`'s own spawn-argument convention: entry role 0 is the server
+/// (`components/src/net_stack.rs`'s
+/// `_start`). [`RNG_MODE_VIRTIO`]'s reasoning.
+const NET_STACK_ROLE_SERVER: u64 = 0;
 
 /// `line_editor.rs`'s own spawn-argument convention (`components/src/line_editor.rs`'s `MODE_CONSOLE`):
 /// [`RNG_MODE_VIRTIO`]'s own reasoning, one program over. The pre-milestone-177 wiring: prints
@@ -802,6 +879,10 @@ pub fn boot(
     // with `NIFE_RNG` unset). Neither case is a broken boot, so neither belongs with the required
     // three below.
     let ent_elf = measured(&fs, table, "entropy").elf;
+    // **The network stack** (milestone 590 (provisional)), optional in the entropy service's sense
+    // and for its reasons: a boot with no NIC, or an archive whose table refuses `net_stack`, comes
+    // up without a network rather than without a prompt.
+    let net_elf = measured(&fs, table, "net_stack").elf;
     // **Milestone 49's login stack** (`credentialer`, `identity_provisioner`, `login`,
     // `login_audit_receiver`): optional in exactly the entropy service's own sense, and gated on
     // it too -- there is no salt, no password and no credential store without real entropy, so a
@@ -1002,12 +1083,12 @@ pub fn boot(
             } == 0
             {
                 // SAFETY: just mapped read/write, one page, ours alone until entropy is built and
-                // holds its own copy of the same frame; `RNG_DMA_PHYS_OFFSET` is inside it and
+                // holds its own copy of the same frame; `VIRTIO_DMA_PHYS_OFFSET` is inside it and
                 // outside entropy's own ring-and-buffer layout (that constant's own doc).
                 let direct_memory_access_phys = unsafe {
                     core::ptr::read_unaligned(
                         (RNG_DMA_PEEK_VA as *const u8)
-                            .add(RNG_DMA_PHYS_OFFSET as usize)
+                            .add(VIRTIO_DMA_PHYS_OFFSET as usize)
                             .cast::<u64>(),
                     )
                 };
@@ -1062,6 +1143,36 @@ pub fn boot(
                 cap_delete(g.virtio_rng_dma);
             }
         }
+    }
+
+    // **The network stack** (milestone 590 (provisional), the booted system starts its network
+    // stack), when the kernel granted a virtio-net device (slots 13-15) and the archive carries
+    // `net_stack`. Built here, straight after entropy and before any of the terminal plumbing, for
+    // the entropy block's own reason: the NIC trio is a kernel grant, alive from spawn, so it
+    // inflates this function's baseline until the moment it is deleted, and the terminal plumbing
+    // is where the early peak is. After this block the trio is gone on every path, built or not,
+    // and what is left is one endpoint.
+    //
+    // **What it is given is what the kernel harness gives it, and no more** (`kernel::user::
+    // virtio_service::wire_net_server`, which every network test uses): the confined transport,
+    // the interrupt, the DMA page, a heap budget, a report endpoint for its DHCP lease, and `READ`
+    // on the endpoint its clients `CALL`. Its inbound authority is `NO_LISTEN_GRANT`: nothing at
+    // this prompt may listen, because nothing here has asked to and a listen grant is a policy
+    // somebody has to choose (milestone 107 (the socket contract learns to accept)). The proposal this block answers named that as an
+    // open question; "none" is the answer for every program the prompt can spawn today.
+    //
+    // **It blocks the boot until DHCP answers**, which is this block's one real cost, recorded in
+    // milestone 590's BUGS: on QEMU's user-mode network the answer is immediate, and on a network
+    // with a NIC and no DHCP server the prompt would never appear. The lease is what
+    // `net_stack`'s first message says, and it cannot serve a client before it has sent it.
+    let mut network: Option<(u64, u64)> = None;
+    if is_granted(g.virtio_net) {
+        if let Some(net_program) = net_elf.as_ref() {
+            network = Some(build_net_stack(ut, net_program, g));
+        }
+        cap_delete(g.virtio_net_irq);
+        cap_delete(g.virtio_net);
+        cap_delete(g.virtio_net_dma);
     }
 
     // **The two components that have to exist before the progenitor can say anything.** The console writes
@@ -1943,6 +2054,19 @@ pub fn boot(
             b"progenitor: entropy service up; drew real bytes from a virtio-rng device\n",
         );
     }
+    // **The network stack's outcome** (milestone 590 (provisional)), said here for
+    // `entropy_ready`'s
+    // reason. The address is the lease `net_stack` reported, so the line is evidence rather than
+    // an intention: DHCP completed through the confined NIC before the prompt existed.
+    if let Some((_, lease)) = network {
+        let mut line = [0u8; 80];
+        let head = b"progenitor: network stack up; DHCP leased ";
+        line[..head.len()].copy_from_slice(head);
+        let mut n = head.len();
+        n += render_ipv4(lease as u32, &mut line[n..]);
+        line[n] = b'\n';
+        announce(term_ep, &line[..n + 1]);
+    }
     // **The generated login credential** (milestone 49's boot-wiring update), said here for
     // [`entropy_ready`]'s own reason: `login_ready` was decided long before this process had a
     // terminal. Printed exactly once, before the prompt, the shape a cloud image's generated
@@ -2038,6 +2162,9 @@ pub fn boot(
             // endowed a clock. `None` here is not a boot failure: it is a `uuid` that says on its
             // second stream that it holds no entropy capability, which is the true sentence.
             entropy: entropy_client,
+            // **The stack's client endpoint, if this boot built one** (milestone 590
+            // (provisional)), `entropy`'s shape one service over.
+            network: network.map(|(stack, _)| stack),
         },
         &progs,
         care_elf,
@@ -2115,6 +2242,14 @@ struct Channels {
     /// which is the same call `config_page` and `deaths` already make and the opposite of
     /// `clock_page`, which the shell holds because `time` measures with it.
     entropy: Option<u64>,
+    /// **The network stack's client endpoint** (milestone 590 (provisional)), endowed to a child
+    /// whose manifest declares [`grant_plan::Manifest::network`]. [`entropy`](Channels::entropy)'s
+    /// shape exactly: the progenitor keeps the full-rights capability it retyped and never receives
+    /// on it, and places `WRITE` for a declaring child. `None` on a boot with no NIC or no
+    /// `net_stack`, and then a declaring child holds an empty [`grant_plan::NETWORK_SLOT`] and says
+    /// so. The shell holds none, for `entropy`'s reason: nothing it does as a builtin reaches the
+    /// network.
+    network: Option<u64>,
 }
 
 /// The file service, as the progenitor holds it for the life of the boot.
@@ -2163,6 +2298,7 @@ fn spawn_service(
         term_sink,
         fs,
         entropy,
+        network,
     } = c;
     loop {
         let (w0, w1, w2) = recv(spawn_ep);
@@ -2236,6 +2372,9 @@ fn spawn_service(
         // holds. A boot with no entropy service answers `None` here and a declaring child is born
         // with an empty slot, which is the state its second stream exists to report.
         let wants_entropy = prog.is_some_and(|p| p.manifest().entropy);
+        // And a fifth (milestone 590 (provisional)): a network is not something a command line
+        // designates either.
+        let wants_network = prog.is_some_and(|p| p.manifest().network);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
@@ -2409,7 +2548,7 @@ fn spawn_service(
             // collect a corpse, and only the viewer's own source code said it did not. A domain names
             // its members and does not act on them (calef, 2026-08-17); `capability::Rights::ENUMERATE`
             // is what makes that a property of the grant. notes/process-view.md carries the argument.
-            let mut placed_buf = [(0u64, 0u64, 0u64); 3];
+            let mut placed_buf = [(0u64, 0u64, 0u64); 4];
             let mut placed_n = 0usize;
             if let (Some(ep), Some(slot)) = (diagnostics.or(default_diag), diag_slot) {
                 placed_buf[placed_n] = (slot, ep, abi::rights::WRITE);
@@ -2434,6 +2573,15 @@ fn spawn_service(
             // authorizes is the one thing the manifest declared.
             if let (true, Some(ep)) = (wants_entropy, entropy) {
                 placed_buf[placed_n] = (grant_plan::ENTROPY_SLOT, ep, abi::rights::WRITE);
+                placed_n += 1;
+            }
+            // **The fourth named slot** (milestone 590 (provisional)), `entropy`'s narrowing for
+            // `entropy`'s reasons: `WRITE` is the right to `CALL` the socket contract, and neither
+            // `READ` (taking another client's request off the stack's endpoint) nor `GRANT`
+            // (handing the network to a grandchild) rides with it. `unreachable_network_witness`
+            // at the prompt is the check that this line runs only for a declaring child.
+            if let (true, Some(ep)) = (wants_network, network) {
+                placed_buf[placed_n] = (grant_plan::NETWORK_SLOT, ep, abi::rights::WRITE);
                 placed_n += 1;
             }
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
@@ -2714,6 +2862,96 @@ const RECLAIM_ATTEMPTS: usize = 64;
 /// full rights on the child, including GRANT, so a memory budget can be handed on. The error code
 /// `supervision_protocol` returns is for the dropped-authority proof, which this crate takes from the
 /// raw `invoke` instead, so it is dropped here.
+/// **Build `net_stack` from the NIC trio and wait for its DHCP lease** (milestone 590
+/// (provisional)). Returns `(stack, lease)`: the full-rights endpoint its clients `CALL`, which
+/// this process keeps, and the IPv4 address `net_stack` reported, big-endian in the low 32 bits.
+///
+/// The endowment is `kernel::user::virtio_service::wire_net_server`'s, slot for slot, because that
+/// is the one every network test proves: report `WRITE` (0), interrupt `READ` (1), transport
+/// `WRITE` (2), heap budget `WRITE` (3), client endpoint `READ` (4), the DMA page at
+/// [`NET_DMA_VA`], and `socket_protocol::NO_LISTEN_GRANT` as its third argument. The caller
+/// deletes the trio; this deletes everything else it made except the endpoint it returns.
+///
+/// Failures trap, as the entropy build's do: every step here is a retype or a build out of this
+/// process's own budget, and one failing means the boot's arithmetic is wrong, which is a defect to
+/// see rather than a feature to go without.
+fn build_net_stack(ut: u64, program: &elf::Elf, g: &BootEndowment) -> (u64, u64) {
+    // SAFETY: `invoke` traps to the kernel, which validates the capability and the method.
+    let mapped = unsafe {
+        invoke(
+            g.virtio_net_dma,
+            abi::page_frame::MAP,
+            NET_DMA_PEEK_VA,
+            1,
+            ut,
+        )
+    } == 0;
+    must_ok(mapped);
+    // SAFETY: just mapped read/write, one page; the offset is inside it and outside
+    // `net_transport`'s rings and buffers (`kernel::user::VIRTIO_DMA_PHYS_OFFSET`'s own doc).
+    let direct_memory_access_phys = unsafe {
+        core::ptr::read_unaligned(
+            (NET_DMA_PEEK_VA as *const u8)
+                .add(VIRTIO_DMA_PHYS_OFFSET as usize)
+                .cast::<u64>(),
+        )
+    };
+    let stack = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+    let report = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+    let budget = must(memory_region_split(ut, NET_STACK_BUDGET_PAGES));
+    let child = must(build_child(
+        ut,
+        ut,
+        program,
+        &ChildEndowment {
+            caps: &[
+                (report, abi::rights::WRITE),
+                (g.virtio_net_irq, abi::rights::READ),
+                (g.virtio_net, abi::rights::WRITE),
+                (budget, abi::rights::WRITE),
+                (stack, abi::rights::READ),
+            ],
+            maps: &[(NET_DMA_VA, g.virtio_net_dma, abi::address_space::MAP_RW)],
+            stack_pages: NET_STACK_STACK_PAGES,
+            ..ChildEndowment::new(Retention::Nothing)
+        },
+    ));
+    must_ok(start_child(
+        child,
+        NET_STACK_ROLE_SERVER,
+        direct_memory_access_phys,
+        socket_protocol::NO_LISTEN_GRANT,
+    ));
+    cap_delete(budget);
+    // `net_stack`'s first and only message on this endpoint: the lease, sent with a blocking
+    // `send`, so it enters its serve loop only once this receive has taken it.
+    let (lease, _, _) = recv(report);
+    cap_delete(report);
+    (stack, lease)
+}
+
+/// Write `addr` (big-endian octets in the low 32 bits) as dotted decimal at the front of `out`;
+/// the length. `out` must hold fifteen bytes.
+fn render_ipv4(addr: u32, out: &mut [u8]) -> usize {
+    let mut n = 0;
+    for (i, octet) in addr.to_be_bytes().into_iter().enumerate() {
+        if i > 0 {
+            out[n] = b'.';
+            n += 1;
+        }
+        let mut started = false;
+        for div in [100u8, 10, 1] {
+            let d = octet / div % 10;
+            if d != 0 || started || div == 1 {
+                out[n] = b'0' + d;
+                n += 1;
+                started = true;
+            }
+        }
+    }
+    n
+}
+
 fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
     supervision_protocol::memory_region_split(ut, pages).map_err(|_| ())
 }
