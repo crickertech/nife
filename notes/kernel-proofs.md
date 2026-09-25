@@ -64,7 +64,7 @@ will actually meet it.
 3. **Two thirds of `kernel/src/arch/` is not compiled at all, and this is a `cfg` rather than a
    construct** (milestone 304, 2026-09-16). `arch/mod.rs` selects its subtree with
    `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one
-   architecture's `arch/` and no line of the other two. Unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
+   architecture's `arch/` and no line of the other two (item 8 is the one exception). Unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
    report an unsupported construct, and a `cfg`-excluded file produces no diagnostic of any kind.
    `script/verify` now proves the `kernel` row on two hosts for this reason; see the table below
    for which architecture each one reaches and for the one that nothing reaches.
@@ -87,6 +87,8 @@ will actually meet it.
 7. **`script/lint`'s harness-clippy pass excludes `kernel`**, so clippy lints do not fire inside
    these harnesses. That pass's own comment carries the two tooling reasons and what still covers
    them. Practical consequence: **keep kernel harnesses free of `unsafe`.**
+8. Where an aarch64 host proves `arch/riscv64/iommu.rs`, `crate::arch` is aarch64's:
+   [kernel-proofs/riscv64-from-an-aarch64-host.md](kernel-proofs/riscv64-from-an-aarch64-host.md).
 
 ## What is proved today
 
@@ -184,19 +186,16 @@ is the thing most often read as more coverage than it is.
 
 | host | `arch/` subtree compiled | harnesses that run |
 |---|---|---|
-| aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/` | 4: two in `syscall.rs`, two in `arch/aarch64/iommu.rs` |
+| aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/`, and `arch/riscv64/iommu.rs` | 6: two in `syscall.rs`, two in each `iommu.rs` |
 | x86_64 (cordoba; the `ubuntu-24.04` runner) | `arch/x86_64/` | 4: the same two in `syscall.rs`, two in `arch/x86_64/irq.rs` |
-| riscv64 | **nothing** | **nothing** |
+| riscv64 | **nothing** | **nothing** natively |
 
-Six distinct harnesses, not eight: `syscall.rs`'s two are portable and run on both. They pass
+Eight distinct harnesses, not ten: `syscall.rs`'s two are portable and run on both. They pass
 identically on both hosts, which is the parity question milestone 304 was sent to answer and is a
 clean answer rather than an interesting one.
 
-**riscv64 is unreachable and no one here can fix it.** GitHub offers no riscv64 image; Kani has no
-cross-target flag (`cargo kani --help` carries `--target-dir` and nothing else); CBMC needs a
-goto-binary for the host it runs on; `radon` is a lab board rather than a runner. So
-`arch/riscv64/iommu.rs`'s own property, which the SMMUv3 harnesses explicitly do not cover, can be
-written and cannot be run.
+**riscv64 cannot be proved natively here.** GitHub offers no riscv64 image; Kani has no
+cross-target flag; `radon` is a lab board. Its asm-free files can be proved from aarch64 (item 8).
 
 **One thing had to change before an x86_64 host could compile the kernel at all**, and it was not
 about the code. `core::arch::x86_64::__cpuid` is a *safe* function on the toolchain this tree pins
@@ -228,7 +227,7 @@ Prove just the kernel's harnesses, with a counterexample trace on failure:
 ```console
 $ cargo kani -p kernel -Z unstable-options --ignore-global-asm
 ...
-Complete - 4 successfully verified harnesses, 0 failures, 4 total.
+Complete - 6 successfully verified harnesses, 0 failures, 6 total.
 ```
 
 One harness on its own:

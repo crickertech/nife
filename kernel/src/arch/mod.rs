@@ -24,6 +24,31 @@ mod riscv64;
 #[cfg(target_arch = "riscv64")]
 pub use riscv64::*;
 
+// **riscv64's IOMMU driver, compiled for the prover on an aarch64 host.** This is milestone 432
+// (the RISC-V IOMMU driver has no counterpart to the SMMU's proofs), built as option 1 of
+// design/roadmap/proposals/riscv64-code-the-prover-can-already-compile.md. Kani compiles for
+// the host, so the `cfg` above hides every riscv64 file from it; this reaches one of them by path.
+// The inline module is named `riscv64` and holds `iommu`, so the harnesses keep the module path
+// they would have natively (`arch::riscv64::iommu::proofs::...`) and `script/falsifications` finds
+// their patches under the name it derives from the file. No `#[path]` is needed: an inline module
+// in `arch/mod.rs` resolves `mod iommu;` to `arch/riscv64/iommu.rs` on its own.
+//
+// **A foot gun, deliberately taken, and read notes/kernel-proofs.md before extending it.** Inside
+// this module `crate::arch` is the HOST's architecture, not riscv64's: `iommu.rs`'s
+// `crate::arch::mmu::phys_to_virt` resolves to aarch64's here. Only code that never calls through
+// `crate::arch` is proved by a harness in this module, and `script/lint` fails if a file listed
+// below gains a `crate::arch` reference it has not recorded. Why only aarch64: exactly one verify
+// host should run it, and whether x86_64 resolves the same names is unmeasured. Not riscv64
+// either, where the real `mod riscv64` above already exists and nothing proves it.
+//
+// `dead_code` is allowed because nothing on the host calls `init` or `attach`; only the pure
+// functions the harnesses reach are live here.
+#[cfg(all(kani, target_arch = "aarch64"))]
+#[allow(dead_code)]
+mod riscv64 {
+    mod iommu;
+}
+
 // The third architecture (milestone 161, notes/x86-port.md), and the one that tests whether the
 // split above is real or an accident of two similar RISC machines. Same `cfg`, same flat
 // re-export, no change anywhere else in this file: a new ISA is a new directory.
