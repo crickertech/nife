@@ -114,8 +114,8 @@ columns and coverage are blank anywhere, on purpose, as [project cost](project-c
 calef asked for it on 2026-09-24, first here and then on the pull-request chart, because a flow that
 reads 8, 49, 13, 64 in consecutive weeks cannot be read for direction by eye. Both charts use one
 helper, `trailing_mean` in `script/metrics`, so the two lines cannot be computed differently. It is
-the mean of the week and the nine before it, reaching back past the chart's left edge into the CSV,
-and it is drawn rather than stored: a stored copy of arithmetic over a stored column is a second
+the mean of the week and the nine before it, reaching back past the chart's left edge into the CSV.
+It is drawn rather than stored: a stored copy of arithmetic over a stored column is a second
 place to be wrong.
 
 The series starts at 2026W29, so the first full window is 2026W38. The weeks before it are drawn
