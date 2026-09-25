@@ -578,13 +578,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
         // Milestone 162: RDSEED needs no ring 3, no capability, and nothing this port has not
         // already built, so it is provable here even though the entropy service itself cannot run
-        // yet (no userspace to spawn it into). `draw_rdseed` already checked CPUID leaf 7 EBX.18
-        // before ever executing the instruction.
-        match arch::isa::draw_rdseed() {
+        // yet (no userspace to spawn it into). `draw_random_seed` already checked CPUID leaf 7
+        // EBX.18 before ever executing the instruction.
+        match arch::isa::draw_random_seed() {
             Some(v) => {
                 println!("  entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew {v:#018x}");
             }
-            None if arch::isa::get().has_rdseed() => {
+            None if arch::isa::get().has_random_seed_instruction() => {
                 println!("  entropy     : rdseed supported but stayed dry across every retry");
             }
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),

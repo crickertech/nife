@@ -213,10 +213,10 @@ pub fn get() -> Isa {
 
 /// **Draw eight bytes with `RDSEED`, retrying a transient "no data this cycle" result.**
 ///
-/// `None` if [`get`]`().has_rdseed()` is false (never execute the instruction without checking
-/// first: on a part that lacks it, `RDSEED` is `#UD`, and this kernel has no exception recovery
-/// path for a probe that was told the answer already) or if the source stayed dry across every
-/// attempt.
+/// `None` if [`get`]`().has_random_seed_instruction()` is false (never execute the instruction
+/// without checking first: on a part that lacks it, `RDSEED` is `#UD`, and this kernel has no
+/// exception recovery path for a probe that was told the answer already) or if the source stayed
+/// dry across every attempt.
 ///
 /// The retry count and the `pause` between attempts are Intel's own guidance for `RDSEED`
 /// specifically (DRNG Software Implementation Guide rev. 2.2, §5.3.1.2): an "asynchronous
@@ -225,16 +225,20 @@ pub fn get() -> Isa {
 /// `components/src/entropy.rs::instr` for the identical constant and reasoning on the userspace side,
 /// which this kernel-side copy exists only because ring 3 does not exist yet
 /// (milestone 161 (the `x86_64` kernel port)).
-pub fn draw_rdseed() -> Option<u64> {
-    if !get().has_rdseed() {
+///
+/// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review asked
+/// what `rdseed` is. Refused `draw_rdseed` (the mnemonic is a decoder, not a word).
+pub fn draw_random_seed() -> Option<u64> {
+    if !get().has_random_seed_instruction() {
         return None;
     }
     const RETRIES: u32 = 100;
     for _ in 0..RETRIES {
         let v: u64;
         let ok: u8;
-        // SAFETY: `rdseed` is unprivileged at any ring and touches no memory; `get().has_rdseed()`
-        // above confirmed CPUID leaf 7 EBX bit 18, so the instruction is not `#UD` here.
+        // SAFETY: `RDSEED` (Intel's "read random seed" instruction) is unprivileged at any ring and
+        // touches no memory; `get().has_random_seed_instruction()` above confirmed CPUID leaf 7 EBX
+        // bit 18, so the instruction is not `#UD` here.
         unsafe {
             core::arch::asm!(
                 "rdseed {v}",
@@ -378,18 +382,18 @@ mod tests {
         }
     }
 
-    /// **The record agrees with the instruction that was actually executed.** `draw_rdseed`
+    /// **The record agrees with the instruction that was actually executed.** `draw_random_seed`
     /// branches on the same bit, so a decode that read the wrong leaf would show up here as a
     /// `None` from a part that has `RDSEED`, or as a `#UD` on one that does not.
     #[test_case]
     fn the_rdseed_bit_agrees_with_rdseed() {
-        if get().has_rdseed() {
+        if get().has_random_seed_instruction() {
             assert!(
-                draw_rdseed().is_some(),
+                draw_random_seed().is_some(),
                 "a part reporting RDSEED gave no seed in 100 tries"
             );
         } else {
-            assert!(draw_rdseed().is_none());
+            assert!(draw_random_seed().is_none());
         }
     }
 }

@@ -111,7 +111,10 @@ mod uart {
         unsafe { &*(UART_VA as *const RegisterBlock) }
     }
 
-    pub fn is_rx_pending() -> bool {
+    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
+    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
+    /// "receive").
+    pub fn is_byte_waiting() -> bool {
         !regs().FR.is_set(FR::RXFE)
     }
     pub fn rx_get() -> u8 {
@@ -143,7 +146,10 @@ mod uart {
         unsafe { core::ptr::write_volatile((UART_VA + off) as *mut u8, v) }
     }
 
-    pub fn is_rx_pending() -> bool {
+    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
+    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
+    /// "receive").
+    pub fn is_byte_waiting() -> bool {
         rd(LSR) & LSR_DR != 0
     }
     pub fn rx_get() -> u8 {
@@ -177,7 +183,10 @@ mod uart {
     const LSR: u16 = 0x3FD; // line status register (base + 5)
     const LSR_DR: u8 = 1 << 0; // data ready
 
-    pub fn is_rx_pending() -> bool {
+    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
+    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
+    /// "receive").
+    pub fn is_byte_waiting() -> bool {
         inb(LSR) & LSR_DR != 0
     }
     pub fn rx_get() -> u8 {
@@ -244,7 +253,7 @@ fn drain() {
     loop {
         let mut word: u64 = 0;
         let mut n: u64 = 0;
-        while n < 8 && uart::is_rx_pending() {
+        while n < 8 && uart::is_byte_waiting() {
             word |= (uart::rx_get() as u64) << (8 * n);
             n += 1;
         }

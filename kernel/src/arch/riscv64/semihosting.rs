@@ -135,7 +135,7 @@ fn sbi_system_reset(reset_type: usize) -> isize {
 /// This is one constant away from the shutdown the board exit already performs, and the whole of
 /// what makes a soak able to draw the boot lottery more than once an evening. The caller is
 /// `soak::watch`, behind `--features reboot_soak_test`, and it is reached only after the escape in
-/// `console::is_rx_waiting` has been checked twice.
+/// `console::is_byte_waiting` has been checked twice.
 ///
 /// The return value is the firmware's `sbiret.error`. Nothing here interprets it or prints it: the
 /// marker vocabulary a console log is read with lives in `kernel/src/soak.rs` beside every other

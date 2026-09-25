@@ -71,7 +71,7 @@ fn the_machine_this_project_boots_on_can_run_this_kernel() {
     assert_eq!(cpu.max_leaf, 0xd);
     assert!(cpu.features.contains(REQUIRED));
     assert!(
-        cpu.has_rdseed(),
+        cpu.has_random_seed_instruction(),
         "the entropy service's instruction backend"
     );
     assert!(!cpu.missing_requirements().any());
@@ -167,7 +167,7 @@ fn a_part_below_leaf_seven_does_not_report_rdseed() {
     w.leaf0[0] = 1;
     let cpu = Isa::decode(&w);
 
-    assert!(!cpu.has_rdseed());
+    assert!(!cpu.has_random_seed_instruction());
     assert!(
         !cpu.missing_requirements().any(),
         "RDSEED is optional; its absence is not a refusal"

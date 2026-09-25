@@ -53,10 +53,10 @@
 //!
 //! `rdmsr` on an MSR the part does not implement is a `#GP`, and this kernel has no recovery path
 //! for a probe that could have asked. The leaf is therefore checked before any of the three MSRs is
-//! touched, which is the same discipline `isa::draw_rdseed` keeps for `RDSEED` one file over. It is
-//! also what makes this safe under an emulator that models no PMU at all: QEMU zeroes leaf `0x0A`
-//! unless its `pmu` property is on, so [`init`] reads a version of 0, stops, and never issues an
-//! `rdmsr` that would fault.
+//! touched, which is the same discipline `isa::draw_random_seed` keeps for `RDSEED` one file over.
+//! It is also what makes this safe under an emulator that models no PMU at all: QEMU zeroes leaf
+//! `0x0A` unless its `pmu` property is on, so [`init`] reads a version of 0, stops, and never
+//! issues an `rdmsr` that would fault.
 //!
 //! # Why a counter is checked before it is believed
 //!

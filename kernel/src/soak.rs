@@ -118,7 +118,7 @@
 //!   watcher's to end.
 //! - **The escape is a poll of one bit and nothing verifies that the bit can ever be set**
 //!   (milestone 249 (the boot lottery is sampled by a person walking to the board)).
-//!   `console::is_rx_waiting` reads LSR's data-ready flag, and a console whose receive path is
+//!   `console::is_byte_waiting` reads LSR's data-ready flag, and a console whose receive path is
 //!   miswired, unpowered at the adapter, or held by something else reads zero forever, which is
 //!   indistinguishable from nobody typing. Nothing in this kernel can prove otherwise, because a
 //!   UART cannot receive a byte it sends. What closes it is a procedure rather than a mechanism:
@@ -578,7 +578,7 @@ fn draw_again(elapsed: u64) {
     let hz = arch::timer::frequency();
     let deadline = arch::timer::now().wrapping_add(hz.wrapping_mul(REBOOT_GRACE_SECONDS));
     while arch::timer::now().wrapping_sub(deadline) > u64::MAX / 2 {
-        if crate::console::is_rx_waiting() {
+        if crate::console::is_byte_waiting() {
             println!(
                 "{REBOOT_MARKER} DISARMED in the grace window: a byte arrived on this console. \
                  This board will not reboot itself again. The soak keeps running and keeps \
@@ -927,7 +927,7 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
         // right now".
         #[cfg(feature = "reboot_soak_test")]
         if armed {
-            if crate::console::is_rx_waiting() {
+            if crate::console::is_byte_waiting() {
                 armed = false;
                 println!(
                     "{REBOOT_MARKER} DISARMED at t={elapsed}s: a byte arrived on this console. \
