@@ -337,7 +337,7 @@ const NET_CLIENT_CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
 /// package over plain HTTP from the runners' package peer and checks it against `catalogue`, the
 /// image's own package source, mapped into the client read-only. `cli_arg` and `arg1` are the
 /// client's selector and its argument (the catalogue's length, and whether to ask for the tampered
-/// copy), in socket_test_client's words.
+/// copy), in `socket_test_client`'s words.
 pub fn start_package_fetch(
     image: &'static [u8],
     cli_arg: u64,

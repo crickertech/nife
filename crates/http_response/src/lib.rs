@@ -320,14 +320,14 @@ mod tests {
         Ok((response, body))
     }
 
-    const OK: &[u8] = b"HTTP/1.0 200 OK\r\nServer: host\r\nContent-Length: 11\r\n\r\nhello world";
+    const OK: &[u8] = b"HTTP/1.0 200 OK\r\nServer: host\r\nContent-Length: 11\r\n\r\nabcdefghijk";
 
     #[test]
     fn a_response_reads_the_same_however_the_reads_fall() {
         for step in 1..=OK.len() {
             let (response, body) = read_in(OK, step).unwrap();
             assert_eq!(response.status(), Some(200), "step {step}");
-            assert_eq!(body, b"hello world", "step {step}");
+            assert_eq!(body, b"abcdefghijk", "step {step}");
             assert!(response.is_complete(), "step {step}");
         }
     }
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn a_truncated_body_is_not_complete() {
         let (response, body) = read_in(&OK[..OK.len() - 1], 7).unwrap();
-        assert_eq!(body, b"hello worl");
+        assert_eq!(body, b"abcdefghij");
         assert!(!response.is_complete());
     }
 

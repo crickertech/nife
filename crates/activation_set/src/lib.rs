@@ -70,8 +70,11 @@ pub use measured_boot::Digest;
 /// digest as it was verified at install.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entry<'a> {
+    /// The name a person types, and the name the spawner is asked for.
     pub program: &'a str,
+    /// The package it came from, as its `name-version-architecture` stem.
     pub package: &'a str,
+    /// The package file's SHA-256, as verified when it was installed.
     pub digest: Digest,
 }
 
