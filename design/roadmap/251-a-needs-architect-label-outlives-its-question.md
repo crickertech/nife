@@ -6,7 +6,7 @@ request he had already answered. *(Number provisional until the merge queue land
 **Gate: NONE.** It needs `gh` and a delivery point that already runs.
 
 **In brief.** AGENTS.md puts the `needs-architect` label at rung two on purpose, so that what is
-waiting on the architect is `gh pr list --label needs-architect` rather than a paragraph somebody has
+waiting on an architect is `gh pr list --label needs-architect` rather than a paragraph somebody has
 to have read:
 
 > **The `needs-architect` label**, so the queue is `gh pr list --label needs-architect` rather than a
@@ -66,5 +66,5 @@ reported, so the signal stays worth reading.
 
 ## Index row
 
-nothing takes the label off, so the one query that says what is waiting on the architect can be
+nothing takes the label off, so the one query that says what is waiting on an architect can be
 false

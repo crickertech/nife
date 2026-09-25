@@ -125,7 +125,7 @@
 //! today hand over a binary and have its needs read out of it; what this crate removes is the
 //! endowment from the *operator*, not from the tree. Reading a manifest out of an ELF section or an
 //! archive member is a format two programs agree on, which is the expensive, irreversible category
-//! (AGENTS.md), so it is deliberately left for the architect rather than decided by a lane. See
+//! (AGENTS.md), so it is deliberately left for an architect rather than decided by a lane. See
 //! notes/component-manifest.md for what that decision would cost and buy.
 //!
 //! **[`Requirements::pages`] is a property of the build, not of the contract**, and it is the only

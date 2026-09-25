@@ -88,8 +88,8 @@ x86_64 alone is not an answer.
    deadline structure costs **one comparison per tick** (1.000 comparisons and 0.000 writes over
    100,000 idle ticks, for a scan and for a sorted list), so what is unpriced is the object, its
    methods and the signalling, not the bookkeeping.
-3. **Say plainly whether the userspace-service answer survives parity.** If it does not, calef's
-   decision changes, and it is better to know that in a day than three days into a lane.
+3. **Say plainly whether the userspace-service answer survives parity.** If it does not, an
+   architect's decision changes, and it is better to know that in a day than three days into a lane.
 
 ## The fourth shape, which neither milestone 51 nor 106 lists
 

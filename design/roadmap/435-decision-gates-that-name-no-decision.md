@@ -54,8 +54,8 @@ Some of the 45 will be tokens to correct rather than decisions to write, and a l
 otherwise will mint decisions nobody needs.
 
 **It is not an attempt to answer any of them.** Writing up a fork is not deciding it. Every decision
-this milestone creates lands `**Status: PROPOSED.**` and waits, which is the state that makes calef's
-queue readable instead of scattered.
+this milestone creates lands `**Status: PROPOSED.**` and waits, which is the state that makes the
+architects' queue readable instead of scattered.
 
 **And it is not a claim that the blocks are wrong to be gated.** `script/roadmap --ready` correctly
 excludes all 58. What is wrong is that for 45 of them a reader cannot find out *why* without reading
@@ -192,7 +192,7 @@ the promoted quarter rather than as a prediction for the other 21.
 
 ## BUGS
 
-- **A written-up fork is still a fork, and this milestone makes the architect queue longer to read
+- **A written-up fork is still a fork, and this milestone makes the architects' queue longer to read
   before it makes it shorter.** Forty-five paragraphs scattered across blocks become some number of
   files in one directory; that is an improvement in findability and not in volume. The honest claim
   is that a queue you can list is cheaper than one you cannot, not that this reduces what is owed.

@@ -325,10 +325,10 @@ capability-table-full path, the corpse reaping in `finish_switch` that milestone
 special-case as cold in the closure walk rather than in the code. Measure first, extract second,
 and report the number even if it is small, because a small number here is what decides phase 4.
 
-**Phase 4: the hand-written fastpath. Do not start this without phase 3's number and calef's
-decision.** Build option 1 first (a fast path that still calls the proved `Rendezvous` methods and
-skips only the scheduler and the error plumbing), measure it, and only then consider option 2 and
-the equivalence proof it requires.
+**Phase 4: the hand-written fastpath. Do not start this without phase 3's number and an
+architect's decision.** Build option 1 first (a fast path that still calls the proved `Rendezvous`
+methods and skips only the scheduler and the error plumbing), measure it, and only then consider
+option 2 and the equivalence proof it requires.
 
 ## The recommendation, with the numbers behind it
 

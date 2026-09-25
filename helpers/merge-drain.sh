@@ -320,7 +320,8 @@ stale_drafts() {
 # green alone; a merge-queue group containing both fails the decisions gate, because two sections
 # cannot share a number. #329 was evicted as UNMERGEABLE while reporting CLEAN on its own page, and
 # the only lever available to keep the drain from re-arming it was `needs-architect`, which says a
-# person must rule on something. Using it here would have put a false entry on the architect queue,
+# person must rule on something. Using it here would have put a false entry on the architects'
+# queue,
 # which
 # is the one queue in this project that must not accumulate noise.
 #

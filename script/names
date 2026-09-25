@@ -341,7 +341,8 @@ def stray_problems(kind, name, path, prefix, text):
 #
 # Only a name that CARRIES a marker is tracked, for `item` and `module`. Thousands of `pub fn`s have
 # no record of why they are named so, and failing them would build the wall this script refuses to
-# build. A lane minting a name writes the marker, which is how the name reaches the architect queue.
+# build. A lane minting a name writes the marker, which is how the name reaches the architects'
+# queue.
 # `directory` is the exception: §75 already required the README, so a directory without one fails.
 #
 # Two stem families are not names anybody ratifies, and are skipped: a stem that opens with a digit

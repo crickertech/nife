@@ -137,7 +137,7 @@ primitives rather than inventing a signal:
    ends. The terminal handles case 1 (`FLAG_INTERRUPTED` on a parked read) itself and routes case
    2 to the shell.
 
-The open decisions for the architect, which is why this is not built:
+The open decisions for an architect, which is why this is not built:
 
 - Whether case 2 is worth solving now at all, or whether "the shell relaunches a fresh job per
   command and a runaway job is reaped by preemption plus a forcible destroy" is enough for the

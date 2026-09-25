@@ -239,8 +239,9 @@ if [ -n "$NIFE_DISK" ]; then
 fi
 
 # **NIFE_PCIE_ROOT_PORT puts the NVMe controller behind a PCIe root port** instead of directly on
-# the root complex (milestone 320; the name is PROVISIONAL, a lane's to propose and calef's to
-# ratify). Unset, nothing changes and every existing boot gets the flat `q35` it always had.
+# the root complex (milestone 320; the name is PROVISIONAL, a lane's to propose and an
+# architect's to ratify). Unset, nothing changes and every existing boot gets the flat `q35` it
+# always had.
 #
 # It exists because `q35` has no bridge in its default configuration and xenon does. The kernel
 # mapped one megabyte of configuration space and enumerated bus 0 for a year, which is exactly

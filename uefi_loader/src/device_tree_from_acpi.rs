@@ -9,7 +9,7 @@
 //! device tree today, **and a change to what the loader and the kernel agree on across the
 //! handoff**: `x0` is the physical address of a device tree blob (Linux's arm64 boot protocol, which
 //! `boot.s` cites and U-Boot's `booti` meets). That is a wire format, and wire formats are decided
-//! by the architect rather than by a lane.
+//! by an architect rather than by a lane.
 //!
 //! So this takes the other road, which costs one module and changes nothing anybody agreed on: the
 //! loader reads the tables while the firmware is still alive and **writes the tree the kernel would

@@ -172,7 +172,7 @@ reported, and that the later lander takes the next free numbers instead of displ
   177, which turned BUILT on 2026-09-19. `script/fatal-risks --check` reports it now, and the
   pre-443 check produces the same finding byte for byte on a freshly regenerated index, so it was
   latent rather than new. Its home is the gate, which is red until it is answered, and the answer is
-  the architect's: what 177's completion does to the risk is a judgement about the risk, not about
+  an architect's: what 177's completion does to the risk is a judgement about the risk, not about
   the record. The standing rule it falls under is
   `design/decisions/194-sessions-interleave-rather-than-serialize.md`, that anything global stays
   provisional until the queue lands it; this one is held under the `needs-architect` label with the

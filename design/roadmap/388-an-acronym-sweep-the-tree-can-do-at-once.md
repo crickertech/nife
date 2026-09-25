@@ -118,8 +118,8 @@ rather than an afternoon.
   these names the **hardware block**, whose device-tree spelling is the vendor's
   (`starfive,jh7110-trng`) and whose boot-log wording throughout the tree is "JH7110 TRNG", so the
   "abbreviation we receive rather than author" clause in design/naming.md may cover them where it did
-  not cover the crate. A lane should not guess: AGENTS.md puts public function names in calef's
-  hands, and this list is where a name waits for him.
+  not cover the crate. A lane should not guess: AGENTS.md puts public function names in an
+  architect's hands, and this list is where a name waits for one.
 
 ## Index row
 

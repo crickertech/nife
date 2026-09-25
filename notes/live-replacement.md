@@ -238,7 +238,7 @@ which is the control this whole milestone rests on and which the test asserts on
   wires every component from a declaration, and the slot agreement that used to be a comment in two
   files is now a compile-time derivation. See notes/component-manifest.md, including the honest limit:
   a manifest is compiled in rather than shipped beside a binary, which is a wire format and so a
-  decision left to the architect.
+  decision left to an architect.
 - ~~**Dependency-aware orchestration.**~~ **Built 2026-08-23**: `component_plan::depends_on` names
   which contracts a component cannot silently tolerate the absence of, and `dependents` answers who
   must be warned before a given contract is swapped. `queued()`'s `BOP_DOWN`/`BOP_UP` are driven by
