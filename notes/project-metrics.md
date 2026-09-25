@@ -216,11 +216,12 @@ restated from history when it does.
 
 `script/metrics --update` recomputes the current week's row and redraws the charts, and
 `.github/workflows/metrics.yml` runs it daily and opens or refreshes a pull request if anything
-changed. Coverage is taken on Monday only, because it is the one column that needs a build. The cost
+changed. Coverage is taken on Mondays (UTC) only, because it is the one column that needs a build. The cost
 columns cannot be produced by any workflow, because they are read from session records that live on
 one laptop and never in git; `script/effort --snapshot` and `script/cadence-check` stand behind
-them, and neither invents a number for a week nobody captured. The register has the rest: the
-snapshot's `launchd` shape, why the file is idempotent, and which commit represents a week.
+them, and neither invents a number for a week nobody captured. [How the series stays
+current](register-of-measures/reading-the-weekly-series.md#how-the-series-stays-current) has the
+rest: the snapshot's `launchd` shape, why the file is idempotent, and which commit represents a week.
 
 ## BUGS
 
@@ -245,8 +246,8 @@ snapshot's `launchd` shape, why the file is idempotent, and which commit represe
   either column.
 - **A milestone dated in a week the series has no row for is dropped**, which is milestone 1 (boot
   to Rust on QEMU `virt`, and print to the PL011 UART) and 2026W28. `script/metrics` prints a stderr
-  line naming it since 2026-09-23; before that it was silent. A reader summing the chart gets 248
-  where the tree holds 249 dated blocks.
+  line naming it since 2026-09-23; before that it was silent. A reader summing the chart gets one
+  fewer than the tree's dated blocks.
 - **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
   2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
   is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so
@@ -281,28 +282,6 @@ snapshot's `launchd` shape, why the file is idempotent, and which commit represe
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
   draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,
   which `script/roadmap --check` prints on every lint run and this column does not carry.
-- **The cost columns can stop updating and the charts will not say so.** They will simply stop
-  gaining weeks, and an absent week is drawn as absent, which is correct and is also exactly what a
-  dead capture looks like. `script/cadence-check` is the thing that speaks, and it speaks on
-  patagonia through `scripts/trunk-health.sh`, which inherits that watcher's own recorded gap: a
-  machine asleep is a watcher not watching.
-- **`lane_tokens` counts this project's whole session, not its lanes.** Every response in a record
-  stream filed under the nife project directory is counted, including a maintainer answering a
-  question, a review, and this page being written. It is the cost of the project, not the cost of
-  the code, and the name is narrower than the thing.
-- **Machine effort cannot be attributed to a milestone**, so the chart's ratio is a weekly average
-  over everything that happened rather than a per-milestone cost. The raw material for the join is on
-  disk (every record carries a `gitBranch`, and a lane's branch is named for its milestone) and the
-  join is deliberately not built: a branch is not a milestone, and a wrong attribution is worse than
-  none.
-- **`price_per_mtok_at_date` restates old weeks at the newest rate in the ledger.** The ledger is
-  appended to, and nothing reads a rate as of a week; the last row for a model wins. A rate change
-  would therefore re-price history, which is the same restatement hazard this page opens with and is
-  worse here because a dollar figure reads as a measurement.
-- **$200 of the subscription is outside `cash_spend` and stays outside it.** It was paid in 2026W28
-  and the series has no row for that week, because no commit fell in it. `script/metrics` prints the
-  amount on every run; nothing folds it into a neighbour, because that would put money in a week it
-  was not spent in to make a column sum tidily.
 - **`merged_pull_requests` can only see GitHub's default merge subject.** A merge made any other way
   is not counted and cannot be distinguished from an ordinary merge commit afterwards. The total
   matches what a maintainer counted by hand on 2026-09-21, which is evidence and not proof.
@@ -313,13 +292,15 @@ snapshot's `launchd` shape, why the file is idempotent, and which commit represe
   mislabelled; a reader comparing two screenshots taken a week apart will still see a colour move.
   It is pre-existing behaviour of every chart here and it is recorded because the by-model panel is
   the first one certain to hit it.
-- **`lane_context_per_turn_peak` is pinned to the model's context window and therefore says less
-  than it looks like it says.** Every captured week is within 7% of 1M. It answers whether a session
-  reached the wall, not how wide the spread is, and the mean beside it is the column with a trend in
-  it. The distribution between the two is not recorded anywhere and cannot be recovered once the
-  transcripts are gone.
-- **The four `lane_*` context columns see one machine, the same one the cost columns see.** They are
-  a fair figure for this project today because there is one workstation. Nothing detects the day that
-  stops being true; it would show up as a drop that reads like an improvement.
+- **The cost and context columns carry seven limitations of their own**, from a capture that can
+  stop silently to a price ledger that re-prices history. They are listed where those columns are
+  argued: [what this project costs, *Known limitations*](register-of-measures/project-cost.md#known-limitations).
+- **Four series were restated on 2026-09-24, and an older screenshot will disagree with each.**
+  Opus 5.5 got its own column (`opus_5_5`), so this week's commits left *other models*, and Opus 4.8
+  now draws inside that band because the palette has eight hues. The fatal-risks chart gained
+  `fatal_risks_total` and an *unclassified* band, so 2026W36 to 2026W38 read nine rather than five,
+  four and five. The coverage floor and the prose budget were backfilled from each week's own tree.
+- **The prose budget will be restated again** when milestone 586 (a prose ratchet in lint) lands,
+  because it shares one document scope with `script/lint` and may count documents this one does not.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.

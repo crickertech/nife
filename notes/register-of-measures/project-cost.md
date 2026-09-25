@@ -178,3 +178,40 @@ This is stated here as well as in the proposal, because a reader meets the numbe
 - `--snapshot` is what makes forgetting survivable. It is rung two of `AGENTS.md`'s ladder, not rung
   four. The plist is in
   [How the series stays current](reading-the-weekly-series.md#how-the-series-stays-current).
+
+## Known limitations
+
+These moved here from `notes/project-metrics.md`'s `BUGS` on 2026-09-24, when that page passed its
+3,000-word budget; they describe the columns this appendix argues, so this is where a reader of them
+arrives.
+
+- **The cost columns can stop updating and the charts will not say so.** They will simply stop
+  gaining weeks, and an absent week is drawn as absent, which is correct and is also exactly what a
+  dead capture looks like. `script/cadence-check` is the thing that speaks, and it speaks on
+  patagonia through `scripts/trunk-health.sh`, which inherits that watcher's own recorded gap: a
+  machine asleep is a watcher not watching.
+- **`lane_tokens` counts this project's whole session, not its lanes.** Every response in a record
+  stream filed under the nife project directory is counted, including a maintainer answering a
+  question, a review, and this page being written. It is the cost of the project, not the cost of
+  the code, and the name is narrower than the thing.
+- **Machine effort cannot be attributed to a milestone**, so the chart's ratio is a weekly average
+  over everything that happened rather than a per-milestone cost. The raw material for the join is on
+  disk (every record carries a `gitBranch`, and a lane's branch is named for its milestone) and the
+  join is deliberately not built: a branch is not a milestone, and a wrong attribution is worse than
+  none.
+- **`price_per_mtok_at_date` restates old weeks at the newest rate in the ledger.** The ledger is
+  appended to, and nothing reads a rate as of a week; the last row for a model wins. A rate change
+  would therefore re-price history, which is the same restatement hazard this page opens with and is
+  worse here because a dollar figure reads as a measurement.
+- **$200 of the subscription is outside `cash_spend` and stays outside it.** It was paid in 2026W28
+  and the series has no row for that week, because no commit fell in it. `script/metrics` prints the
+  amount on every run; nothing folds it into a neighbour, because that would put money in a week it
+  was not spent in to make a column sum tidily.
+- **`lane_context_per_turn_peak` is pinned to the model's context window and therefore says less
+  than it looks like it says.** Every captured week is within 7% of 1M. It answers whether a session
+  reached the wall, not how wide the spread is, and the mean beside it is the column with a trend in
+  it. The distribution between the two is not recorded anywhere and cannot be recovered once the
+  transcripts are gone.
+- **The four `lane_*` context columns see one machine, the same one the cost columns see.** They are
+  a fair figure for this project today because there is one workstation. Nothing detects the day that
+  stops being true; it would show up as a drop that reads like an improvement.
