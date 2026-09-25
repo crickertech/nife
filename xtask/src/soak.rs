@@ -234,6 +234,14 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
         profile_dir()
     ));
     cmd.env("NIFE_INITRD", &initrd);
+    // **No disk on `x86_64`**, `boot_check`'s fix applied here (found 2026-09-25 by milestone 593,
+    // provisional number, in a fresh worktree). `host::cargo` exports a `NIFE_DISK` naming a file
+    // only `mkdisk` writes, only the aarch64 leg above calls `mkdisk`, and the `x86_64` runner treats
+    // a named but missing disk as fatal. So `--arch x86_64` passed only in a checkout where some
+    // earlier command had left the image behind. The soak reads no disk.
+    if arch == "x86_64" {
+        cmd.env_remove("NIFE_DISK");
+    }
     if let Some(n) = &smp {
         cmd.env("NIFE_SMP", n);
     }
@@ -345,6 +353,11 @@ pub(crate) fn soak_test() -> ExitCode {
     // Milestone 249 (the boot lottery is sampled by a person walking to the board)'s QEMU proof: build the rebooting soak and pass only when a second boot starts
     // soaking after the first asked for a reset. See [`second_boot`].
     let mut reboot = false;
+    // Milestone 593 (a wedged kernel resets itself)'s two QEMU proofs (number provisional), x86_64
+    // only: a healthy watchdog soak is never reset over a bounded window, and a wedged one is. See
+    // [`watchdog_verdict`].
+    let mut watchdog = false;
+    let mut wedge = false;
     let mut duration_given = false;
     // A minute by default: long enough that the beat, the rate and the cross-core counters are all
     // real numbers rather than a first sample, and short enough that nobody is tempted to skip it.
@@ -384,6 +397,16 @@ pub(crate) fn soak_test() -> ExitCode {
                 i += 1;
                 continue;
             }
+            "--watchdog" => {
+                watchdog = true;
+                i += 1;
+                continue;
+            }
+            "--wedge" => {
+                wedge = true;
+                i += 1;
+                continue;
+            }
             "--for" | "--timeout" => match value(i).map(parse_duration) {
                 Ok(Some(d)) => {
                     policy.total = d;
@@ -407,12 +430,24 @@ pub(crate) fn soak_test() -> ExitCode {
                 eprintln!("soak-test: unknown argument {other}");
                 eprintln!(
                     "usage: cargo xtask soak-test [--arch aarch64|riscv64|x86_64] [--for <duration>] \
-                     [--smp <n>] [--quiet-after <duration>] [--log <file>] [--reboot]"
+                     [--smp <n>] [--quiet-after <duration>] [--log <file>] [--reboot | --watchdog | --wedge]"
                 );
                 return ExitCode::from(4);
             }
         }
         i += 2;
+    }
+
+    if u8::from(reboot) + u8::from(watchdog) + u8::from(wedge) > 1 {
+        eprintln!("soak-test: --reboot, --watchdog and --wedge are three different runs; pick one");
+        return ExitCode::from(4);
+    }
+    if (watchdog || wedge) && arch != "x86_64" {
+        eprintln!(
+            "soak-test: --watchdog and --wedge are x86_64-only: the watchdog is the Intel TCO, which \
+             QEMU's q35 emulates and neither virt board has (milestone 593's block)"
+        );
+        return ExitCode::from(4);
     }
 
     let (target, runner, initrd) = match arch.as_str() {
@@ -457,6 +492,16 @@ pub(crate) fn soak_test() -> ExitCode {
     if reboot && !duration_given {
         policy.total = Duration::from_secs(360);
     }
+    // The wedge comes 30s into the soak and the reset 60s after the last pet; two boots and that
+    // fit in six minutes for the same reason as above. The healthy run's window is counted from the
+    // moment the watchdog is armed, and three minutes is three full resets' worth of time.
+    if !duration_given {
+        if wedge {
+            policy.total = Duration::from_secs(360);
+        } else if watchdog {
+            policy.total = Duration::from_secs(180);
+        }
+    }
     if !cargo_profiled(&[
         "build",
         "-p",
@@ -464,6 +509,10 @@ pub(crate) fn soak_test() -> ExitCode {
         "--features",
         if reboot {
             "reboot_soak_test"
+        } else if wedge {
+            "wedge_soak_test"
+        } else if watchdog {
+            "watchdog_soak_test"
         } else {
             "soak_test"
         },
@@ -515,7 +564,7 @@ pub(crate) fn soak_test() -> ExitCode {
     if let Some(n) = &smp {
         cmd.env("NIFE_SMP", n);
     }
-    if reboot {
+    if reboot || watchdog || wedge {
         // The x86 runner passes `-no-reboot` so a triple fault exits instead of looping; this run
         // is the one where a reset must reset. The other two runners never pass it.
         cmd.env("NIFE_ALLOW_REBOOT", "1");
@@ -551,6 +600,17 @@ pub(crate) fn soak_test() -> ExitCode {
 
     if reboot {
         let verdict = second_boot(stdout, &mut sink, policy.total);
+        let _ = Command::new("pkill")
+            .args(["-9", "-P", &runner_pid.to_string()])
+            .status();
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = sink.flush();
+        eprintln!("soak-test: log at {}", log_path.display());
+        return verdict;
+    }
+    if watchdog || wedge {
+        let verdict = watchdog_verdict(stdout, &mut sink, policy.total, wedge);
         let _ = Command::new("pkill")
             .args(["-9", "-P", &runner_pid.to_string()])
             .status();
@@ -689,7 +749,6 @@ fn second_boot(
     sink: &mut impl std::io::Write,
     deadline: std::time::Duration,
 ) -> ExitCode {
-    use std::io::BufRead;
     use std::sync::mpsc;
     use std::time::Instant;
 
@@ -697,18 +756,7 @@ fn second_boot(
     const STARTED: &str = "soak-test: started";
     const REBOOT: &str = "soak-test-reboot:";
 
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        for line in std::io::BufReader::new(stdout).split(b'\n') {
-            let Ok(line) = line else { break };
-            if tx
-                .send(String::from_utf8_lossy(&line).into_owned())
-                .is_err()
-            {
-                break;
-            }
-        }
-    });
+    let rx = console_lines(stdout);
 
     let begun = Instant::now();
     let mut starts = 0u32;
@@ -763,6 +811,178 @@ fn second_boot(
                 }
                 return ExitCode::SUCCESS;
             }
+        }
+    }
+}
+
+/// The guest's console as a channel of lines, read on a thread of its own so the caller can wait on
+/// it with a deadline. Shared by [`second_boot`] and [`watchdog_verdict`].
+fn console_lines(stdout: std::process::ChildStdout) -> std::sync::mpsc::Receiver<String> {
+    use std::io::BufRead;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in std::io::BufReader::new(stdout).split(b'\n') {
+            let Ok(line) = line else { break };
+            if tx
+                .send(String::from_utf8_lossy(&line).into_owned())
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+    rx
+}
+
+/// **Milestone 593's two proofs under QEMU q35**: the watchdog resets a wedged kernel, and it never
+/// resets a healthy one. Provisional number.
+///
+/// **`--wedge`** passes on three facts in order. The watchdog armed. The kernel announced its
+/// deliberate wedge. Then the soak's start line appeared a second time, milestone 249's "it came
+/// back" criterion, and that second boot reported `SECOND_TO_STS` set. The last fact is what makes
+/// it this watchdog's reset rather than any reset: the chipset sets that bit only on a second
+/// timeout, and nothing else in QEMU's reset path touches it.
+///
+/// **`--watchdog`** passes when `window` has elapsed since the watchdog armed with one boot and no
+/// failure, and at least one pet reported a count below its reload value. That last condition is
+/// the difference between a watchdog that was petted and one that was never counting: a halted TCO
+/// reads its reload value forever, and a run that passed on it would prove nothing.
+///
+/// Exit statuses follow `soak-test`'s: 0 proven, 1 the kernel said something that disproves it, 2
+/// the deadline passed first, 3 QEMU's output ended.
+fn watchdog_verdict(
+    stdout: std::process::ChildStdout,
+    sink: &mut impl std::io::Write,
+    window: std::time::Duration,
+    wedge: bool,
+) -> ExitCode {
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    // As `kernel/src/soak.rs` spells them.
+    const STARTED: &str = "soak-test: started";
+    const FAILED: &str = "soak-test: FAILED";
+    const WATCHDOG: &str = "soak-test-watchdog:";
+
+    // A healthy run's deadline is the window after arming plus the boot before it; two minutes
+    // covers a TCG boot to the soak with a wide margin. A wedge run's window is already the whole
+    // run.
+    let deadline = if wedge {
+        window
+    } else {
+        window + Duration::from_secs(120)
+    };
+    let rx = console_lines(stdout);
+    let begun = Instant::now();
+    let mut starts = 0u32;
+    let mut armed_at: Option<Instant> = None;
+    let mut counting = false;
+    let mut wedged_at: Option<Instant> = None;
+    loop {
+        // The healthy run's pass condition is a quiet one: the window ran out and nothing bad
+        // happened. So it is checked before waiting, not only when a line arrives.
+        if !wedge
+            && let Some(at) = armed_at
+            && at.elapsed() >= window
+        {
+            if !counting {
+                eprintln!(
+                    "soak-test: FAIL, the watchdog armed but no pet ever found its count below the \
+                     reload value: it was never counting, so surviving the window proves nothing"
+                );
+                return ExitCode::from(1);
+            }
+            eprintln!();
+            eprintln!(
+                "soak-test: PASS, the watchdog was armed and counting for {}s and never reset this \
+                 healthy soak ({} boot)",
+                window.as_secs(),
+                starts
+            );
+            return ExitCode::SUCCESS;
+        }
+        let wait_until = match (wedge, armed_at) {
+            (false, Some(at)) => (at + window).min(begun + deadline),
+            _ => begun + deadline,
+        };
+        let Some(left) = wait_until.checked_duration_since(Instant::now()) else {
+            eprintln!(
+                "soak-test: FAIL, {}s passed first (starts={starts}, armed: {}, wedged: {})",
+                deadline.as_secs(),
+                armed_at.is_some(),
+                wedged_at.is_some()
+            );
+            return ExitCode::from(2);
+        };
+        let line = match rx.recv_timeout(left) {
+            Ok(line) => line,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                eprintln!(
+                    "soak-test: FAIL, QEMU's output ended (starts={starts}, wedged: {}); a QEMU \
+                     that exits on a reset has not rebooted anything",
+                    wedged_at.is_some()
+                );
+                return ExitCode::from(3);
+            }
+        };
+        let _ = writeln!(sink, "{line}");
+        if line.contains("[PANIC]") || line.contains(FAILED) {
+            eprintln!("soak-test: FAIL, the soak itself failed: {line}");
+            return ExitCode::from(1);
+        }
+        if line.contains(STARTED) {
+            starts += 1;
+            if starts >= 2 && wedged_at.is_none() {
+                eprintln!(
+                    "soak-test: FAIL, the machine reset and booted again without being wedged: a \
+                     healthy soak was reset"
+                );
+                return ExitCode::from(1);
+            }
+        }
+        let Some(rest) = line.split_once(WATCHDOG).map(|(_, rest)| rest.trim()) else {
+            continue;
+        };
+        if rest.starts_with("NOT ARMED") {
+            eprintln!("soak-test: FAIL, the watchdog did not arm: {rest}");
+            return ExitCode::from(1);
+        }
+        if rest.starts_with("ARMED.") && armed_at.is_none() {
+            armed_at = Some(Instant::now());
+        }
+        if let Some(counts) = rest
+            .split_once("the count had ")
+            .and_then(|(_, tail)| tail.split_once(" ticks"))
+            .map(|(counts, _)| counts)
+            && let Some((left, reload)) = counts.split_once(" of ")
+            && let (Ok(left), Ok(reload)) = (left.parse::<u32>(), reload.parse::<u32>())
+            && left < reload
+        {
+            counting = true;
+        }
+        if rest.starts_with("WEDGING NOW") {
+            wedged_at = Some(Instant::now());
+        }
+        if !wedge || starts < 2 {
+            continue;
+        }
+        if rest.starts_with("the previous boot was ended by this watchdog") {
+            eprintln!();
+            eprintln!(
+                "soak-test: PASS, the wedged kernel was reset by the TCO watchdog and booted \
+                 again, {}s after the wedge; the second boot read SECOND_TO_STS set",
+                wedged_at.map_or(0, |at| at.elapsed().as_secs())
+            );
+            return ExitCode::SUCCESS;
+        }
+        if rest.starts_with("the previous boot was not ended by this watchdog") {
+            eprintln!(
+                "soak-test: FAIL, the machine came back but SECOND_TO_STS was clear: something \
+                 other than the watchdog reset it"
+            );
+            return ExitCode::from(1);
         }
     }
 }

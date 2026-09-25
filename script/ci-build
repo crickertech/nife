@@ -122,6 +122,7 @@ coverage|ci|script/coverage
 fuzz|ci|script/fuzz --time 60
 bench|ci|script/bench --check && script/bench --riscv --check && script/bench --x86 --check
 cpu-matrix|ci|script/cpu-matrix
+watchdog-check|ci|script/soak-test --wedge --arch x86_64 && script/soak-test --watchdog --arch x86_64
 TABLE
 }
 
@@ -140,6 +141,9 @@ TABLE
 #   bench               three full icount baselines; `script/icount` above is the seven-second
 #                       instrument that carries the timing claims, and it IS local.
 #   cpu-matrix          five QEMU boots of the riscv64 suite, one per CPU model.
+#   watchdog-check      two x86_64 soaks against the wall clock, about six minutes, and most of it
+#                       waiting: a watchdog is proven by letting time pass (milestone 593 (a wedged
+#                       kernel resets itself)).
 #
 # `script/verify` (Kani, ~47 minutes) and the re-falsification sweep are deliberately absent: they
 # are `verify.yml`, a different workflow with its own sharding, and this table's claim is about the

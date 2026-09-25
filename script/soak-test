@@ -15,6 +15,17 @@
 # minutes unless `--for` says otherwise) passed; 3 QEMU's output ended, which is what a QEMU that
 # exits on reset looks like and is not a reboot.
 #
+#   script/soak-test --wedge --arch x86_64       # milestone 593 (a wedged kernel resets itself): the TCO resets a wedge
+#   script/soak-test --watchdog --arch x86_64    # milestone 593: a healthy one never is, over 180s
+#
+# Both are x86_64 only, because the watchdog is the Intel TCO that q35's ICH9 emulates. `--wedge`
+# builds `--features wedge_soak_test`, which stops beating 30s in, and passes when the start line
+# appears again AND the second boot reports SECOND_TO_STS set, the chipset's record that its own
+# second timeout reset the machine. `--watchdog` builds `--features watchdog_soak_test` and passes
+# when the watchdog armed, was seen counting, and nothing reset the machine for `--for` (default
+# 180s) after it armed. Exit statuses as `--reboot`'s. See kernel/src/arch/x86_64/tco.rs and
+# design/roadmap/593-a-wedged-kernel-resets-itself.md (number provisional).
+#
 # `design/fatal-risks.md`'s fifth entry ("it cannot be made reliable on multicore, and the bugs
 # appear only on silicon") names its decisive experiment as sustained multi-core stress with the
 # load-sensitive assertions live. This is that experiment's rehearsal: the same kernel feature, the
