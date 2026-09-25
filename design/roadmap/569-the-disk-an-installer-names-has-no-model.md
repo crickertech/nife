@@ -63,8 +63,8 @@ that is space-padded rather than NUL-terminated.
 naming *which*, and a machine with two NVMe controllers needs an identity a person can match against
 the thing in their hand. A serial number is that; a model number on its own is not.
 
-**B. A program names the disk. This is the wire question and it is an architect's.** `disk_surveyor` is
-what would list the machine's drives for a person to choose between, and it cannot see an NVMe
+**B. A program names the disk. This is the wire question and it is an architect's.** `disk_surveyor`
+is what would list the machine's drives for a person to choose between, and it cannot see an NVMe
 controller at all: `crates/block_roster` encodes two transport kinds and neither is NVMe. That is
 milestone 421 (the block roster cannot name an NVMe disk) exactly, held since 2026-09-19 on
 DECISIONS §193 (NVMe in the block roster), whose open question is the transport kind's spelling

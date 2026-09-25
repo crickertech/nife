@@ -71,8 +71,8 @@ say so in those words.
 **It is not a renaming sweep.** The deliverable is the record, and a rename is an outcome the record
 may recommend. Milestone 63 did the renaming; this writes down why the survivors survived.
 
-**And it does not touch the 31 provisional ones.** Those are an architect's to ratify and are already
-prepared; adding to their argument is not this lane's business.
+**And it does not touch the 31 provisional ones.** Those are an architect's to ratify and are
+already prepared; adding to their argument is not this lane's business.
 
 ## The proof that this milestone worked
 

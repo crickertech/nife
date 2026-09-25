@@ -145,10 +145,10 @@ unratified" about a crate the worklist lists. A `BUGS` section claiming a limita
 not have spends a newcomer's trust exactly as fast as hiding one, and costs more, because it sends
 somebody to build a thing that exists. The genuinely uncovered surface, `helpers/`, was priced
 rather than assumed: 17 files, 9 already carrying a voluntary `Name:` paragraph, zero refusals
-recorded in any of them, and about 15 new rows on a worklist 76 deep whose only consumer is an architect's
-attention. It is refused on the worklist's own ordering rule, since that list is sorted by exposure
-and `design/naming.md` defines `helpers/` as the drawer people do not type. What the refusal still
-owed was cheap: `script/names merge-drain` no longer answers "neither a name in the tree nor a
-recorded refusal" about a file that argues its name at length. No gate is proposed, because every
-stale phrase was ordinary English inside comments that legitimately discuss coverage, and a grep
-keyed on it would reject every honest description of the limitation.
+recorded in any of them, and about 15 new rows on a worklist 76 deep whose only consumer is an
+architect's attention. It is refused on the worklist's own ordering rule, since that list is sorted
+by exposure and `design/naming.md` defines `helpers/` as the drawer people do not type. What the
+refusal still owed was cheap: `script/names merge-drain` no longer answers "neither a name in the
+tree nor a recorded refusal" about a file that argues its name at length. No gate is proposed,
+because every stale phrase was ordinary English inside comments that legitimately discuss coverage,
+and a grep keyed on it would reject every honest description of the limitation.

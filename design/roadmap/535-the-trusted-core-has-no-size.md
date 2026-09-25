@@ -5,9 +5,9 @@ Tock-founding-paper reading (`notes/redleaf.md`, `notes/trusted-base.md`). *(Num
 provisional until the merge queue lands it.)*
 
 **Gate: NONE.** One note, one `script/metrics` column, and a cross-reference. No hardware, no
-decision, no syscall surface. **One sentence inside it is an architect's**: any published claim about how
-small this kernel's trusted base is, relative to anyone else's, is a fact that leaves the machine.
-Produce the number and the method; leave the comparison for ratification.
+decision, no syscall surface. **One sentence inside it is an architect's**: any published claim
+about how small this kernel's trusted base is, relative to anyone else's, is a fact that leaves the
+machine. Produce the number and the method; leave the comparison for ratification.
 
 **What the lane already did, so this proposal is smaller than it looks.** `notes/trusted-base.md`
 now states the three definitions, re-derives the numbers, and gives the split that matters (577

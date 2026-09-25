@@ -3457,7 +3457,8 @@ mod tests {
     /// numeric-shaped) before `input`'s bare-name fallback ever looks at what is left; see the
     /// `positionals_fill_the_manifest_slots_in_the_order_typed` and
     /// `an_argument_and_an_input_compose_by_the_same_fixed_order` tests below. Kept here rather than
-    /// promoted to a shipped manifest: whether the combination is *wanted* is an architect's call, not
+    /// promoted to a shipped manifest: whether the combination is *wanted* is an architect's call,
+    /// not
     /// this test's (design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
     const TAKES_ARG_AND_READS: Manifest = Manifest {
         arg: ArgSpec::Required,

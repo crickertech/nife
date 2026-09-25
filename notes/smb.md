@@ -682,7 +682,7 @@ last attempt knew it had not solved, written while the code was in front of some
   `link`/`unlink`; it is not a description of a from-scratch, single-request-at-a-time server
   transacting against its own B-tree. This is a wire-format change on a verb two programs already
   agree on (`fs_proto::fs::RENAME`), so it needs a decision that amends or narrows §42, which is
-  calef's call and not a lane's; see design/roadmap/55-time-machine.md for the writeup.
+  an architect's call and not a lane's; see design/roadmap/55-time-machine.md for the writeup.
 
 - **The demo boot still admits guests, so the thing a person actually runs is still open to
   everyone who can reach the port.** `--features smb_serve` wires `SHARE_FS_READ_WRITE`, not

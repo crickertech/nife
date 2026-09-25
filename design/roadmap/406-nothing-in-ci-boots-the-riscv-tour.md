@@ -91,7 +91,8 @@ The open questions are an architect's and are the reason this is not just done:
 - **What it asserts.** Reaching `Stage::Tour` with `userspace_ran()` is the floor. The device-IRQ and
   preemption lines are the other two claims a reader would expect a tour check to make, and asserting
   them means recognising them, which is two more `Progress` fields.
-- **Its name**, since it is a new `script/` entry point or a new xtask verb, and names are an architect's.
+- **Its name**, since it is a new `script/` entry point or a new xtask verb, and names are an
+  architect's.
 
 ## The aarch64 and x86_64 halves, named so they are not discovered later
 

@@ -213,8 +213,9 @@ not an error. That skip is DECISIONS 139 part 3 showing up in a test rather than
   `#[cfg(test)]` back door that breaks the embryo rule and cannot exist in a shipped kernel, so the
   embryo-only path a real ABI would take is proven by a unit test rather than end to end.
 - **Recorded.** `design/roadmap/229-the-counter-grant.md`: every name here is provisional and names
-  are an architect's, including `Thread::cycle_counter_grant`, `arch::timer::set_cycle_counter_grant`,
-  `cycle_counter_grantable` and `sched::grant_cycle_counter`.
+  are an architect's, including `Thread::cycle_counter_grant`,
+  `arch::timer::set_cycle_counter_grant`, `cycle_counter_grantable` and
+  `sched::grant_cycle_counter`.
 
 ## Index row
 

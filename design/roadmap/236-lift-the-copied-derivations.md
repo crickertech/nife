@@ -143,8 +143,8 @@ diff.
   adds no dependency and no build step, and the third tooling language was accepted rather than
   argued for, because the alternative was a `cargo build` in front of three `script/` commands.
 - **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md` carries the provisional name.
-  `helpers/rust_source.py` was minted by the lane, names are an architect's, and what was refused and why
-  is written down beside it.
+  `helpers/rust_source.py` was minted by the lane, names are an architect's, and what was refused
+  and why is written down beside it.
 
 ## Index row
 

@@ -165,8 +165,8 @@ now done: it exists, it is green, and it is what makes the bench session worth a
 set to `Prompt on Warnings and Errors`, `Enable Keyboard Error Detection` ticked, and **eight
 `Alert! Keyboard not found` entries in the machine's own event log** across a year. A netboot rig
 whose point is an unattended power cycle runs straight into that, and the two settings that would
-change it are an architect's for the same reason as the two above. **Network boot without that is a faster
-bench session, not an unattended one.**
+change it are an architect's for the same reason as the two above. **Network boot without that is a
+faster bench session, not an unattended one.**
 
 ## BUGS
 

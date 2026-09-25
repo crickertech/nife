@@ -131,8 +131,8 @@ directory outside the workspace is outside all of them at once.
 The one gate that did see it is `script/names`, because it walks `crates/*/src/lib.rs` on disk
 rather than the package graph. So the defect surfaced as a worklist entry: `jh7110_crg` went on
 `script/names --unratified`. That queued a name nobody could compile into the one queue whose entire
-purpose is to spend an architect's attention well. Nothing red happened anywhere. The cost was paid in the
-scarcest thing in the project rather than in a build.
+purpose is to spend an architect's attention well. Nothing red happened anywhere. The cost was paid
+in the scarcest thing in the project rather than in a build.
 
 The general fact is worth more than the incident: an on-disk walker and a package-graph walker
 disagree, and the disagreement is information. `script/verify` and `script/falsifications` both

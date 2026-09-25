@@ -23,7 +23,8 @@ maps and the mapped windows.
 Milestone 139's whole argument is that an `unsafe` block is a proof obligation, and that six copies
 of one obligation is six chances to get it wrong while the ratchet counts it as six facts. The six
 sites here are the largest remaining cluster in the kernel outside `arch/` and `sched.rs`, and
-`sched.rs` is blocked on a typestate decision that is an architect's. This one is not blocked on anything.
+`sched.rs` is blocked on a typestate decision that is an architect's. This one is not blocked on
+anything.
 
 ## What it needs
 

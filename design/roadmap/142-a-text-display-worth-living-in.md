@@ -52,8 +52,8 @@ rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
-milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by this
-pass.
+milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by
+this pass.
 
 §102 ("A Frame names a run of pages") is built and consumed, `Object::PageFrame` now carrying the
 page count: the scanout was first grown to 1280x720 (900 page frames, one capability instead of
@@ -83,8 +83,8 @@ rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
-milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by this
-pass.
+milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by
+this pass.
 
 **In brief.** The terminal is 18 columns by 8 rows of a hand-drawn 7x8 bitmap on a 128x64 screen.
 The ask is a display somebody would choose over a window manager. That is four independent axes,
@@ -680,8 +680,8 @@ live**, rather than folded in here.
   and `crates/graphics_protocol` sizes the scanout at 924x344 over 311 frames.
 - **Done.** The screendump cost this block flagged as worth attacking was measured and settled: the
   referee poll in `xtask/src/main.rs` records the 39x growth, that both suites still finish in
-  normal time, and an architect's call to leave the 100 ms cadence alone until something is measurably
-  slow.
+  normal time, and an architect's call to leave the 100 ms cadence alone until something is
+  measurably slow.
 - **Outstanding.** Scrollback is still not reachable from a keyboard. The scroll methods have no
   callers outside `crates/video_terminal`, and `notes/glyphs.md`'s honest-limits section says the
   same thing independently. Checked 2026-09-03.

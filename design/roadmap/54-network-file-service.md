@@ -3,8 +3,8 @@
 **Status: REMOVED 2026-08-30.** Built 2026-08-17, and the implementation was deleted from the tree on 2026-08-30, on
 calef's decision, after the customer it served moved to borg over SSH on cordoba; journey 2 is
 retired and milestone 55's premise went with it. The status word says BUILT because it was built,
-and the roadmap vocabulary has no word for "built, then removed"; minting one is an architect's call and
-this block says so rather than inventing it.
+and the roadmap vocabulary has no word for "built, then removed"; minting one is an architect's call
+and this block says so rather than inventing it.
 
 **Everything below is history, and is deliberately kept.** This milestone was the project's only
 realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share served by nife's

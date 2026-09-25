@@ -4,8 +4,8 @@
 (notes/smb.md): this block is entirely about what a Mac's Finder wants from an SMB share, and there
 is no SMB server. Nothing in it is buildable, and unlike milestone 131 no part of it generalizes:
 named streams, resource forks and Apple's directory-enumeration extensions are SMB surface and
-nothing else here wants them. **Retiring this block is an architect's call**; the status word is unchanged
-because the vocabulary has no word for it.
+nothing else here wants them. **Retiring this block is an architect's call**; the status word is
+unchanged because the vocabulary has no word for it.
 
 **Gate: DECISION.** The first thing this milestone needs is the choice §99 deferred rather than
 refused: where Apple metadata lands, given that this is the workload that actually wants it.

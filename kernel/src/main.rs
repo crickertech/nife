@@ -2116,8 +2116,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 /// Truncating division, deliberately: this is an instrument, and a figure that rounded up would
 /// report a nonzero duration for work that took no measurable time at all.
 ///
-/// Provisional name (an architect's call): `micros`, with `micros_between` and `bytes_per_second` beside
-/// it.
+/// Provisional name (an architect's call): `micros`, with `micros_between` and `bytes_per_second`
+/// beside it.
 #[cfg(target_arch = "riscv64")]
 #[allow(dead_code)]
 fn micros(ticks: u64) -> u64 {

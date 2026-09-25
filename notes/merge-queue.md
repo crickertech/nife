@@ -750,8 +750,8 @@ reported loudly rather than silently released, because it means the thing this w
 is not coming.
 
 **Use it for a mechanical constraint and nothing else.** If a person must decide, the label is still
-the right answer, and the two must not be conflated: one is a queue for an architect's attention, the other
-is a fact about two branches.
+the right answer, and the two must not be conflated: one is a queue for an architect's attention,
+the other is a fact about two branches.
 
 ## BUGS
 

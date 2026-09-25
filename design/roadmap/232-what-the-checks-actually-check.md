@@ -27,11 +27,11 @@ wrong answer costs:
 5. **`image permissions` and `architect hold` are already-recorded open asks**, both waiting on the
    same repository setting, both saying so in their own files.
 
-**The recommendation, which is an architect's to take:** require `re-falsify the harnesses this change can
-reach`, `image permissions`, and `architect hold`. Refuse `verify scope`, the `prove` shards and
-`draft gate`, which are either aggregated by a required check already or are not verdicts. The note
-argues the `architect hold` case against this block's own sentence, since the workflow was built to
-be required and says so three times.
+**The recommendation, which is an architect's to take:** require `re-falsify the harnesses this
+change can reach`, `image permissions`, and `architect hold`. Refuse `verify scope`, the `prove`
+shards and `draft gate`, which are either aggregated by a required check already or are not
+verdicts. The note argues the `architect hold` case against this block's own sentence, since the
+workflow was built to be required and says so three times.
 
 **Risk 3's status was not touched**, per this block. The two facts it needs are in the note: the
 number is a month old, and the sentence that made a stale number acceptable is false.
@@ -92,8 +92,8 @@ fifth and sixth. The deliverable is an inventory and the decisions it forces, no
 gates.
 
 **Not a rewrite of risk 3's status on one day's evidence.** Whether the mutation number should be
-re-read is `design/fatal-risks.md`'s question and it is an architect's. This milestone gives them the
-inventory to answer it with.
+re-read is `design/fatal-risks.md`'s question and it is an architect's. This milestone gives them
+the inventory to answer it with.
 
 ## BUGS
 

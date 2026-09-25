@@ -136,8 +136,8 @@ tens of cycles instead of a trip to DRAM, rather than not costing anything.
 - **Recorded.** `script/fastpath-footprint`. The script's name is provisional and unratified, and
   the script's own header says so where a reader meets it. This directory's suffix for a
   build-failing gate is `-check`, so the consistent spelling is `fastpath-footprint-check`; it was
-  not taken because the name reads badly at nine syllables. Nothing depends on it and it is an architect's
-  call.
+  not taken because the name reads badly at nine syllables. Nothing depends on it and it is an
+  architect's call.
 
 ## Index row
 

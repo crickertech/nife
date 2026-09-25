@@ -4,8 +4,8 @@
 all of the action without my prompting"* after a day in which he had to ask twice what had not been
 written down, and got four items both times.
 
-**Gate: DECISION.** The substance is an amendment to `AGENTS.md`, which is calef's file and which no
-agent may edit. Everything else here is either already built or a few lines.
+**Gate: DECISION.** The substance is an amendment to `AGENTS.md`, which is an architect's file and
+which no agent may edit. Everything else here is either already built or a few lines.
 
 ## The hole, stated precisely
 

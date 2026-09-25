@@ -1,6 +1,7 @@
 # The multi-tasking workload benchmark, and how to take its number
 
-*(Milestone 168. Names in this page are **provisional**, per the naming tenet; an architect names things.)*
+*(Milestone 168. Names in this page are **provisional**, per the naming tenet; an architect names
+things.)*
 
 **This page was written before any boot and has since been used for five.** It was written on
 2026-09-04 with the board powered off; five radon boots on 2026-09-16 followed its procedure and
@@ -496,8 +497,8 @@ path rather than the whole kernel.
   class of problem the entry above is one member of, and would measure the more honest thing: its
   own releases and drains would be real `svc` round trips inside the timed window, and it would be
   one more process the scheduler has to place, which is precisely what DECISIONS §96 (process
-  kernel or event kernel) asks the cost of. It is blocked on five decisions that are an architect's, and
-  milestone 523's block prices each one. **If it is ever built, the Results table below needs a
+  kernel or event kernel) asks the cost of. It is blocked on five decisions that are an architect's,
+  and milestone 523's block prices each one. **If it is ever built, the Results table below needs a
   column saying which supervisor produced a row**: same mix, same statistic, same field names,
   different timed window, so nothing in a transcript would look different.
 - **This page has not been followed end to end by its author**, the same caveat

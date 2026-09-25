@@ -139,7 +139,8 @@ record here makes that rewrite safer by giving it something to be checked agains
   because `.cargo/mutants-baseline.txt` still spells it `cred`. Recorded in
   `notes/mutation-census.md`'s `BUGS`; the fix is milestone 326's part 4, held on purpose.
 - **Milestone 512.** The correction this lane's finding owes `design/fatal-risks.md` belongs with
-  the correction already proposed there, and both are calef's to make; this lane edits neither.
+  the correction already proposed there, and both are an architect's to make; this lane edits
+  neither.
 
 ## What wants a lane
 

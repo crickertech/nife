@@ -144,9 +144,9 @@ now records that it asserted the opposite for a month.
   check out of it; `CONTRIBUTING.md`, `.github/pull_request_template.md`, `notes/scripts.md`,
   `notes/check-inventory.md`, `notes/hvf-leg.md`, `notes/instruction-clock.md` and the six sibling
   scripts that referred to the old name are current.
-- **Milestone 440.** What "no arguments" means and what the two tiers are called is an architect's, and
-  the mechanism shipped under the recommendation. Numbered on 2026-09-19 by milestone 433's drain
-  of the pile.
+- **Milestone 440.** What "no arguments" means and what the two tiers are called is an architect's,
+  and the mechanism shipped under the recommendation. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile.
 - **Recorded.** A CI job can still bypass the table, and the gate that would catch it is refused for
   now; in this block's `BUGS`, with the reason.
 - **Recorded.** Live references to the retired name in blocks a lane may not edit, handed to

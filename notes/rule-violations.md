@@ -1,7 +1,8 @@
 # The violation ledger: a rule that gets broken three times moves up the ladder
 
 *The name `rule-violations.md`, the ledger's column shape, and `script/rule-violations`'s name are
-all **provisional**. A lane ships a provisional name and says so; naming is an architect's (AGENTS.md).*
+all **provisional**. A lane ships a provisional name and says so; naming is an architect's
+(AGENTS.md).*
 
 Milestone 118 found that `AGENTS.md` warns against two things by name, each exactly once: `pkill`-ing
 another lane's QEMU, and `git reset --hard` to "take a measurement". Both had already been violated
@@ -57,8 +58,8 @@ Columns:
 **Three strikes on an `open` rule, and it must move up the ladder or be deleted as unenforceable.**
 `AGENTS.md`'s own ladder (Nobody remembers...) names four rungs; a rule stuck at rung four (prose)
 after three strikes has demonstrated that prose is not the rung it needs. Moving it is an edit to
-`AGENTS.md`, which is an architect's or the integrator's, never a developer lane's: this ledger's job ends
-at naming which rule has crossed the line, not at deciding what replaces it.
+`AGENTS.md`, which is an architect's or the integrator's, never a developer lane's: this ledger's
+job ends at naming which rule has crossed the line, not at deciding what replaces it.
 
 ## What it found on its first run, 2026-08-22
 
@@ -120,10 +121,10 @@ $ echo $?
 - **Not wired into `script/lint` or CI.** `--check` passes clean today (the git-clobber row that
   once sat past threshold is `resolved`, see "What changed, 2026-08-25" above), but the reason not
   to wire it in stays live for the next rule that crosses three strikes: doing so automatically
-  would fail every lane's pull request over a decision that belongs to an architect or the integrator, the
-  same failure mode DECISIONS §61 warns about for an ordinary lint ("adding a lint is a commitment
-  to fix every existing violation first"). Whether and when to wire this in for a *future* crossing
-  is itself an open decision, named here rather than made.
+  would fail every lane's pull request over a decision that belongs to an architect or the
+  integrator, the same failure mode DECISIONS §61 warns about for an ordinary lint ("adding a lint
+  is a commitment to fix every existing violation first"). Whether and when to wire this in for a
+  *future* crossing is itself an open decision, named here rather than made.
 
 - **"The rule" is matched by exact text, not by meaning.** Two rows describing the same rule in
   different words are counted as two different rules. A human curating the table has to normalize

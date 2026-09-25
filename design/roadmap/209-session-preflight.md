@@ -67,8 +67,8 @@ what it is.
   week.
 - **It cannot check the thing that actually costs most**, which is whether a lane is committing as it
   goes. Twice today uncommitted work survived only because a worktree did.
-- **The name is provisional.** an architect names things, and this one is awkward: it both reports and acts,
-  so it sits between `script/`'s noun-shaped reporters and its verb-shaped doers.
+- **The name is provisional.** An architect names things, and this one is awkward: it both reports
+  and acts, so it sits between `script/`'s noun-shaped reporters and its verb-shaped doers.
 
 ## Index row
 

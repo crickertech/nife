@@ -10,8 +10,8 @@
 //! **This program's name lags its job**, and knowingly. Milestone 65 says the credentialer becomes
 //! one operation in a secrets service rather than a service beside it, because a second process
 //! holding secrets is exactly what the design exists to avoid. So the generalisation happened here
-//! rather than in a new program. A rename is a naming decision and belongs to an architect (CLAUDE.md);
-//! this header is the note that it is owed.
+//! rather than in a new program. A rename is a naming decision and belongs to an architect
+//! (CLAUDE.md); this header is the note that it is owed.
 //!
 //! # Two kinds of secret, two operations, one store
 //!

@@ -125,7 +125,8 @@ argon the ratio should be near the core clock over 19.2 MHz and **not** a clean 
 ### BUGS
 
 - **Nothing here has run on silicon.** argon's bench procedure is milestone 127's.
-- **`PMCCFILTR_EL0` is provisional**, and no aarch64 cycle figure is a result until an architect rules.
+- **`PMCCFILTR_EL0` is provisional**, and no aarch64 cycle figure is a result until an architect
+  rules.
 - **The `Stuck` refusal has never fired.** Every QEMU `-cpu` this tree boots models PMUv3 and moves
   the counter, and `-cpu cortex-a72,pmu=off` takes the no-PMU path instead. The first machine that
   can exercise it is one whose secure firmware prohibits Non-secure counting.

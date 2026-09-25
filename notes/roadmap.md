@@ -143,10 +143,11 @@ own. Merging a lane deletes its branch, which is exactly the moment the token be
 nothing was watching. Naming the branch is what makes the claim falsifiable at all, which is why it is
 required rather than suggested.
 
-**The stronger fix is to retire the token, and that is calef's call rather than a lane's.** §90 (the claim is a draft pull request; the status flip is a gate) made a
-lane's first act a draft pull request, so `gh pr list --draft` already answers "who is on this right
-now" and cannot go stale, because merging removes the row. A status token duplicating that fact is the
-lower rung by construction. Until that is decided, the check above is the tripwire.
+**The stronger fix is to retire the token, and that is an architect's call rather than a lane's.**
+§90 (the claim is a draft pull request; the status flip is a gate) made a lane's first act a draft
+pull request, so `gh pr list --draft` already answers "who is on this right now" and cannot go
+stale, because merging removes the row. A status token duplicating that fact is the lower rung by
+construction. Until that is decided, the check above is the tripwire.
 
 **The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status but `REMOVED`, which keeps it: the milestone did turn `BUILT` on that date and nothing later makes that untrue. **Dates in this tree are UTC** (calef, 2026-08-04), because they arrive from three
 sources that disagree: a git author date is local to whoever committed, a lane deriving a date reads
@@ -265,8 +266,8 @@ constraint went the same day, and the disposition now resolves to a file somebod
 commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
 this gate exists to stop, arriving through the gate itself.
 
-**The whole vocabulary is provisional until an architect ratifies it.** `REMOVED` was minted by calef and
-these six words are a lane's, offered with the sweep that produced them.
+**The whole vocabulary is provisional until an architect ratifies it.** `REMOVED` was minted by
+calef and these six words are a lane's, offered with the sweep that produced them.
 
 ## Anybody may add to the roadmap: `design/roadmap/proposals/`
 

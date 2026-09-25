@@ -94,9 +94,9 @@ promoted the moment one of its three triggers fires. The blessing asserts only w
 sweep: no trigger had fired, and the limitation is a decision rather than an oversight.
 
 **One of the nine touches that convention directly.** §71 names the signature variant as the shape
-of its second trigger, a design fork an architect must rule on before any lane could start, which is the
-one case that lands as a `RECORDED` row. No such row exists. Promotion is the integrator's act and
-not a lane's, so the blessing stands and this paragraph is the flag.
+of its second trigger, a design fork an architect must rule on before any lane could start, which is
+the one case that lands as a `RECORDED` row. No such row exists. Promotion is the integrator's act
+and not a lane's, so the blessing stands and this paragraph is the flag.
 
 ## The candidates that were looked at and not blessed
 

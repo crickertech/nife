@@ -7,8 +7,8 @@ device tree can boot nife.* The file name and every name this block invents are 
 
 **Gate: NONE.** A lane can start today, on this laptop, with no account and no board. The failure
 this milestone fixes reproduces under QEMU by changing one flag, and the first two items below are
-host-tested table parsing. One item inside this block does reach a fork that is an architect's, and it is
-named as such where it sits rather than gating the whole thing.
+host-tested table parsing. One item inside this block does reach a fork that is an architect's, and
+it is named as such where it sits rather than gating the whole thing.
 
 ## What this is, and why it is not a purchasing problem
 

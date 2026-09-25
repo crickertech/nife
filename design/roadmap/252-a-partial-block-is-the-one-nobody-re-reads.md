@@ -133,8 +133,8 @@ That call is an architect's, so the block says so rather than moving.
 - **Done.** `script/roadmap`'s header described a `--unswept` mode that never shipped, left as half
   a sentence spliced onto the next when milestone 247 removed its exemption list an hour after
   writing it. Corrected here, by the lane that was reading the header in order to add to it.
-- **Decision.** Whether milestone 207 should be `BUILT` rather than `PARTIAL` is an architect's, since a
-  status word is a claim about the tree and this lane does not move another milestone's. The
+- **Decision.** Whether milestone 207 should be `BUILT` rather than `PARTIAL` is an architect's,
+  since a status word is a claim about the tree and this lane does not move another milestone's. The
   evidence is in 207's own `## Follow-on` and in `design/decisions/` nowhere: it is one line in a
   review, not a decision file.
 - **Recorded.** `Outstanding.` is a provisional name, like the seven words it joins. It is recorded

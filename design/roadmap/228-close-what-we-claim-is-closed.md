@@ -153,9 +153,9 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   reading. OVMF already showed five `CR4` bits set that this kernel never wrote, and a real Dell
   firmware is a stronger version of the same case.
 - **Decision.** `design/decisions/139-cycle-counter-authority.md` holds it: whether EL0 may read the
-  cycle counter at all, and by what authority, is an architect's call. This milestone deliberately changed
-  no policy. It made the default a fact rather than a firmware assumption, so that a grant means
-  something when the decision lands.
+  cycle counter at all, and by what authority, is an architect's call. This milestone deliberately
+  changed no policy. It made the default a fact rather than a firmware assumption, so that a grant
+  means something when the decision lands.
 - **Recorded.** In `notes/x86-port.md`, and in a BUGS section on `now()` itself: x86_64's `rdtsc`
   stays ambient. `CR4.TSD` was left clear because `crates/user_mode_runtime`'s `now()` on that architecture is
   `rdtsc` and there is no coarse alternative, so closing it today would break `Instant`,

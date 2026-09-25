@@ -161,10 +161,10 @@ this milestone's own failure mode arriving through this milestone's own mechanis
   them, two of them stale for a month, and only a lane going to look found that out. A `Proposed.`
   or `Recorded.` bullet ages exactly as badly as the prose it replaced; what changed is that it now
   has a shape somebody could sweep.
-- **Decision.** The seven disposition words are a lane's and an architect names things. calef minted `REMOVED`
-  in the status vocabulary himself, so this one is the same shape one level down; the ratification
-  ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points at the
-  sweep's five proposed milestones.
+- **Decision.** The seven disposition words are a lane's and an architect names things. calef minted
+  `REMOVED` in the status vocabulary himself, so this one is the same shape one level down; the
+  ratification ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points
+  at the sweep's five proposed milestones.
 
 ## Index row
 

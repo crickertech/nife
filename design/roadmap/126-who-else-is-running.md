@@ -540,8 +540,8 @@ the first. The two are genuinely different asks with different confinement stori
 **No recommendation**, for the same reason as the name fork above: this is a confinement-model
 question (does "how much memory is free" carry the same region-scoped authority everything else
 in this system carries, or is it the one machine-wide ambient fact besides monotonic time), not
-an implementation-cost one, and it is an architect's to make. **What is blocked on this:** `free` and
-`vmstat` entirely. Nothing else in the milestone depends on either.
+an implementation-cost one, and it is an architect's to make. **What is blocked on this:** `free`
+and `vmstat` entirely. Nothing else in the milestone depends on either.
 
 ## The other fork: where the process view comes from
 

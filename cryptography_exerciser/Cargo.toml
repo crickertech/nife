@@ -11,7 +11,8 @@
 #   * it needs `--cfg getrandom_backend="custom"` and the four soft-implementation cfgs below,
 #     which nothing else in this tree wants; and
 #   * **its dependencies are not this repository's to take.** DECISIONS §46 (thin primitives or
-#     whole subsystems; we write everything in between) makes adding one a decision an architect owns, and
+#     whole subsystems; we write everything in between) makes adding one a decision an architect
+#     owns, and
 #     §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we make work)
 #     ruled on `rustls` and explicitly not on a provider. Keeping this package out of the
 #     workspace keeps every crate below out of the shipping graph, out of `Cargo.lock`, and out of

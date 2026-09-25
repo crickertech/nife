@@ -21,8 +21,8 @@ the file itself is at commit `0652c981`). The
 running system a secret, and the only provisioner is a test program carrying a published fixture.
 That is a real gap in the credential service regardless of who its clients are. The other two
 deliverables (per-resource credential endpoints for the SMB adapter, and the boot that stops
-admitting guests to the share) have no subject left. **Re-aiming or retiring this block is an architect's
-call.**
+admitting guests to the share) have no subject left. **Re-aiming or retiring this block is an
+architect's call.**
 
 
 ## What "configured" means today, measured rather than characterised
@@ -105,9 +105,9 @@ the path **into** it on a boot that is not a test. Four answers, with what each 
   the largest: it needs a sealing story this tree does not have, and it fails closed in ways that are
   hard to recover from at 2am.
 
-**No recommendation is recorded here on purpose.** The choice is an architect's, it is a fact that leaves
-the machine (a secret's resting place is not un-decidable later), and this block exists so the
-options are written down rather than settled by whoever implements first.
+**No recommendation is recorded here on purpose.** The choice is an architect's, it is a fact that
+leaves the machine (a secret's resting place is not un-decidable later), and this block exists so
+the options are written down rather than settled by whoever implements first.
 
 ## Why it matters
 

@@ -358,8 +358,8 @@ more leak by being a `script/` entry point; it does not schedule itself, which i
 and calef's; and the withheld note is still one `git show HEAD~1:<path>` away, which is measured
 rather than closed, since the summary reports whether the transcript ever mentions it.
 
-**The name `stranger-test` is provisional**, as `script/` names are an architect's. It takes its noun from
-the note that named the instrument first, so the command and the record share a word.
+**The name `stranger-test` is provisional**, as `script/` names are an architect's. It takes its
+noun from the note that named the instrument first, so the command and the record share a word.
 
 ## What run 5 found and hands off, 2026-08-18
 
@@ -529,8 +529,9 @@ fully handed off: five of seven items were still open four days later, which is 
    stale again by 2026-08-22 is the same finding this tree keeps making about duplicated facts, not a
    new one.
 5. **Where `script/apropos` should be named: unchanged, correctly.** Its own `BUGS` section already
-   records that five runs have missed it and says why it is an architect's call rather than a lane's: naming
-   a place in the reading order is a claim about what matters. Nothing here decides that.
+   records that five runs have missed it and says why it is an architect's call rather than a
+   lane's: naming a place in the reading order is a claim about what matters. Nothing here decides
+   that.
 6. **Handoff 4/6, nominated by three successive strangers, now has a tracked home: minted as
    milestone 150**, "Adding a program should not need eight hand-maintained lists"
    (`design/roadmap/150-program-declaration-data.md`, provisional number; 147, 148 and 149 were
@@ -687,7 +688,8 @@ the milestone should say so wherever it reports a number.
   remembered now: `README.md`'s counts carry count-at-least markers and `script/lint` fires when a
   floor goes down.
 - **Recorded.** `CONTRIBUTING.md` and `README.md`'s reading order are both still provisional, as
-  this block says, because a reading order is a claim about what matters and those are an architect's.
+  this block says, because a reading order is a claim about what matters and those are an
+  architect's.
 - **Recorded.** The farm-contamination assertion in `xtask/src/main.rs` has still not met a real
   contaminated farm. It is verified by host coverage and a clean `script/test`, not by reproducing
   run 5's race.

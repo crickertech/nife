@@ -158,9 +158,10 @@ name is the mechanism working rather than failing, and the note that the band wo
   had, and `script/metrics --update` on trunk or `.github/workflows/metrics.yml` on Monday writes
   2026W37. Nothing is owed; this is recorded so the next reader does not file the missing row as a
   bug.
-- **Recorded.** `helpers/name_provenance.py` is a provisional name and an architect names modules. It
-  carries no `Name:` block because `script/names` puts `helpers/` out of its own scope, which is the
-  same hole the `package` kind closed one surface over; its header paragraph is the record instead.
+- **Recorded.** `helpers/name_provenance.py` is a provisional name and an architect names modules.
+  It carries no `Name:` block because `script/names` puts `helpers/` out of its own scope, which is
+  the same hole the `package` kind closed one surface over; its header paragraph is the record
+  instead.
 - **Recorded.** design/naming.md's `BUGS` said `kernel`, `xtask`, `redoxfs_server` and
   `tools/redoxfs_host` were uncovered surfaces. They have carried blocks since the `package` kind
   landed on 2026-08-18, and this milestone's own series is what showed the sentence was stale. The

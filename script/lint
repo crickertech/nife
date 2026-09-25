@@ -2415,7 +2415,8 @@ if [ -n "$doc_name_bad" ]; then
 fi
 
 # 7. **Every crate, program and script/ entry point carries a provenance block** (milestone 115).
-#    A name in this tree is an architect's call, and until now nothing recorded that a call had been made.
+#    A name in this tree is an architect's call, and until now nothing recorded that a call had been
+#    made.
 #    The failure was concrete: a lane proposed `system_builder`, the maintainer endorsed it, and
 #    calef overruled it, and only afterwards did anyone find that milestone 63 had ALREADY refused
 #    that exact name for a reason still true. The refusal sat in one table cell inside one milestone

@@ -93,10 +93,10 @@ two populations. **If a ceiling is held against the split, kernel density (142 p
 number it belongs on**, because it is the population a mixed number's blind spot actually lives in:
 unsafe code nothing confines. Userspace density (120) matters less for the same reason a bug there
 is a bug in one confined program rather than in the base. **This is a recommendation. Changing
-`script/lint`'s 88, or setting any ceiling on the new columns, is an architect's, not this milestone's**;
-a ceiling started cold, with no history of it moving deliberately the way 88 was cinched down six
-times (milestone 134 (the register of measures: every number this kernel owes itself)), and that
-history is worth having before a number is chosen.
+`script/lint`'s 88, or setting any ceiling on the new columns, is an architect's, not this
+milestone's**; a ceiling started cold, with no history of it moving deliberately the way 88 was
+cinched down six times (milestone 134 (the register of measures: every number this kernel owes
+itself)), and that history is worth having before a number is chosen.
 
 ## What this means for the published RedLeaf/Tock comparison
 

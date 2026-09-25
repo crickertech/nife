@@ -121,8 +121,8 @@ citations, and milestone 97 is the neighbouring case.
 - **Refused.** Draining `script/names --unratified`, which stood at 74 of 148 when this landed. The
   gate deliberately checks that a name carries provenance and never that its state is ratified,
   because a gate keyed on ratification would hold every unrelated merge behind a review nobody can
-  hurry. Working back through the list is an architect's, on their own clock, and was explicitly out of
-  scope.
+  hurry. Working back through the list is an architect's, on their own clock, and was explicitly out
+  of scope.
 - **Refused.** A rename pass. Nothing in the tree changes name because of this milestone; the
   backfill records what is already true, and a name whose history says nothing is entered as
   unrecorded rather than given an invented ratification.

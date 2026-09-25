@@ -77,8 +77,8 @@ prefixes, and each says so in its own header.
 exactly what they meant, and `script/lint`'s ceiling still gates the same number it always has. This
 split simply does not count those three crates' 6 blocks toward either side. The question it
 answers, kernel privilege or userspace confinement, has no answer for code that runs on neither.
-Whether `unsafe_census`'s own `HOST_ONLY` should widen to match is an architect's call, recorded rather than
-made here.
+Whether `unsafe_census`'s own `HOST_ONLY` should widen to match is an architect's call, recorded
+rather than made here.
 
 ### What each bucket is
 

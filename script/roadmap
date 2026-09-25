@@ -36,7 +36,8 @@
 #     `**Built:** <ISO date>` line and exactly one summary paragraph, which are the two facts
 #     nothing else in the block states. BUILT must carry a date, REMOVED may, every other status
 #     must not. The heading keeps the name milestone 294 gave it although the index it was named
-#     for is retired: renaming it would touch every block in this directory, and a name is an architect's;
+#     for is retired: renaming it would touch every block in this directory, and a name is an
+#     architect's;
 #   - each file holds exactly one milestone: one H1, on line 1, whose number matches the filename
 #     (the filed-under-an-essay class, and the appended-past-the-closer class);
 #   - two files claiming one milestone number is fatal, for the reason script/decisions records: as
@@ -788,7 +789,7 @@ for slug, by in sorted(promoted.items()):
 #   - **Recorded.**          it is a limitation and it stays one; names the file it lives beside,
 #                            in backticks, and that file must exist.
 #   - **Refused.**           it was considered and deliberately not taken; carries the reason.
-#   - **Decision.**          it is an architect's call and is written up as one; names the file under
+#   - **Decision.** it is an architect's call and is written up as one; names the file under
 #                            design/decisions/ that holds it.
 #   - **Proposed.**          the block named work nobody has taken, so it is now a proposal in
 #                            design/roadmap/proposals/, named here.
@@ -992,8 +993,9 @@ for mid, fname in sorted(ids.items()):
                     and os.path.exists(os.path.join(root, p.split("#")[0]))]
             if not real:
                 problems.append(
-                    f"{fname}:{n}: '**Decision.**' means calef's call is written up as one, so it "
-                    f"names the file under design/decisions/ that holds it, in backticks, and that "
+                    f"{fname}:{n}: '**Decision.**' means an architect's call is written up as "
+                    f"one, so it names the file under design/decisions/ that holds it, in "
+                    f"backticks, and that "
                     f"file has to exist (found {paths if paths else 'no path'}). A decision that "
                     f"lives only in a conversation is the medium AGENTS.md abolished")
         elif kind == "Outstanding":

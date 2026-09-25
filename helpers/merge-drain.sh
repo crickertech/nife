@@ -139,7 +139,8 @@ fi
 #
 # The shape is AGENTS.md's ladder: the label was rung two (a gate that fires without being
 # remembered) for everything *except* the queue, where it was rung zero. This closes that, on the
-# side that can see both facts. A lane discovering late that it needs an architect is the normal case
+# side that can see both facts. A lane discovering late that it needs an architect is the normal
+# case
 # rather than the exceptional one, because finding the thing that needs deciding is usually the
 # work.
 dequeue_held() {
@@ -319,7 +320,8 @@ stale_drafts() {
 # green alone; a merge-queue group containing both fails the decisions gate, because two sections
 # cannot share a number. #329 was evicted as UNMERGEABLE while reporting CLEAN on its own page, and
 # the only lever available to keep the drain from re-arming it was `needs-architect`, which says a
-# person must rule on something. Using it here would have put a false entry on the architect queue, which
+# person must rule on something. Using it here would have put a false entry on the architect queue,
+# which
 # is the one queue in this project that must not accumulate noise.
 #
 # That is the same shape as #274, which was enqueued and evicted **29 times, 26 of them in a

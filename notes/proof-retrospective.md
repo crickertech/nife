@@ -5,7 +5,7 @@ the harnesses work, and until this note nothing in the tree had asked whether th
 anything. This is that question, asked against the only evidence that cannot be arranged after the
 fact: the project's own written record of real defects.
 
-*Note name provisional, per the naming tenet. an architect names things.*
+*Note name provisional, per the naming tenet. An architect names things.*
 
 ## The finding
 
@@ -430,8 +430,8 @@ next lane on.
 | 8 | A convention that marks a harness's falsification record | the reverse pass could not enumerate them | naming or an attribute; **an architect's call**, since it is a convention | a decision, not a lane |
 | 9 | `cover!` guards on the assuming harnesses that have none | twenty of twenty-four harness crates carry no vacuity guard | mechanical, one per harness that assumes | modest |
 
-Item 8 is a proposal rather than a task, and it is the only thing here that is an architect's rather than a
-lane's: it is a tree-wide convention, and this note has no authority to mint one.
+Item 8 is a proposal rather than a task, and it is the only thing here that is an architect's rather
+than a lane's: it is a tree-wide convention, and this note has no authority to mint one.
 
 ## EXAMPLES
 

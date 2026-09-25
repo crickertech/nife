@@ -195,11 +195,11 @@ The boot leg is CI's.
   real: sixteen of the forty-nine components were tools a person invokes rather than services, ten
   of them already typeable at the prompt through `grant_plan::Prog`; on 2026-09-19 that is fifteen
   and nine, because milestone 281 cut `watch` and `doc` was ratified as `mdr`. It was not taken
-  because a top-level package directory is a name and names are an architect's, and because the two-way
-  split is coarse rather than wrong: 39's own definition of a component is the shippable unit,
-  which `wc` is. 395 carries the list, the cost (about an hour, measured by doing the same work at
-  four times the scale) and the three things a decision has to settle. Numbered on 2026-09-19 by
-  milestone 433's drain of the pile.
+  because a top-level package directory is a name and names are an architect's, and because the
+  two-way split is coarse rather than wrong: 39's own definition of a component is the shippable
+  unit, which `wc` is. 395 carries the list, the cost (about an hour, measured by doing the same
+  work at four times the scale) and the three things a decision has to settle. Numbered on
+  2026-09-19 by milestone 433's drain of the pile.
 - **Recorded.** `notes/user-proofs.md`'s BUGS: `fixtures` is not a row in `script/verify`'s crate
   table, because it carries no Kani harness and a row with none fails the way that file's own
   comment describes. So a harness added to a fixture would run nowhere and nothing would say so,

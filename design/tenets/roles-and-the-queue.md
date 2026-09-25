@@ -28,9 +28,9 @@ See `notes/what-a-session-carries.md`.
   what they merged. Briefs developers, gates and merges their work, mints anything global to the
   tree (`design/decisions/` sections, milestone numbers, names an architect has ratified), and keeps
   hygiene: prune the worktree, delete the branch, relink `nife-dev`, leave no QEMU. Holds merge
-  authority when an architect grants it. **Maintainer, not project manager**, because the name has to
-  predict the authority: this role writes code, resolves conflicts and merges, and a coordinate-only
-  reading of it would leave the tree unowned.
+  authority when an architect grants it. **Maintainer, not project manager**, because the name has
+  to predict the authority: this role writes code, resolves conflicts and merges, and a
+  coordinate-only reading of it would leave the tree unowned.
 - **Developer.** A subagent executing exactly one milestone. Reports; never merges, never mints,
   never edits `design/decisions/`, `design/` or this file, **except its own milestone's roadmap
   block, which `script/lint` 4b requires it to edit** (calef, 2026-08-23, reaffirmed 2026-09-01
@@ -43,10 +43,10 @@ See `notes/what-a-session-carries.md`.
   or it is done** (calef, 2026-08-26), the standing default for every brief rather than a per-brief
   instruction: finishing one item on a milestone's own list is not a stopping condition when the
   list has more on it, and "ran out of easy things" is not the same as "ran out of things a lane can
-  make progress on." The one genuine stop is hitting something that is an architect's own call (a design
-  fork, a wire format, a naming decision) -- write that up as a proposal, the same shape this file
-  already asks for elsewhere, and stop there, rather than either inventing an answer or ending the
-  turn early because the next item looked harder than the last one.
+  make progress on." The one genuine stop is hitting something that is an architect's own call (a
+  design fork, a wire format, a naming decision) -- write that up as a proposal, the same shape this
+  file already asks for elsewhere, and stop there, rather than either inventing an answer or ending
+  the turn early because the next item looked harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing in
   the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the author
   GitHub shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App exists and
@@ -88,11 +88,12 @@ See `notes/what-a-session-carries.md`.
   were unavailable as names: this tree already spends both on capability-narrowing programs.
 
 **The top-up rule, which is the whole point.** When a developer finishes, the maintainer **launches
-the next work before writing the report**. Not after, and not when an architect next asks. A conversation
-with an architect never blocks the queue; answering a question and keeping lanes full are concurrent, and
-the failure mode is always the same, which is that the answer feels like progress and the idle
-machine is invisible. Maintain the agreed number of concurrent developers, and if the ready queue is
-empty, say so as its own finding rather than letting the silence stand for "nothing to do".
+the next work before writing the report**. Not after, and not when an architect next asks. A
+conversation with an architect never blocks the queue; answering a question and keeping lanes full
+are concurrent, and the failure mode is always the same, which is that the answer feels like
+progress and the idle machine is invisible. Maintain the agreed number of concurrent developers, and
+if the ready queue is empty, say so as its own finding rather than letting the silence stand for
+"nothing to do".
 
 **A developer's final report ends by handing off**: what its work unblocked, and what it found that
 wants a lane of its own. That is the same discipline as that of milestone 94 (the untracked-work

@@ -37,10 +37,10 @@ is the cheapest this job will ever be.
 
 ## The clause that is an architect's, if it fires
 
-Divergence 3 is kept rather than reverted only because reverting it is an architect's call. A bump is where
-the five get re-litigated. If a divergence will not re-apply, the honest outcome is a decision
-(rewrite it, stay on the pin and record why, or fork permanently) rather than a forced patch, and
-that is where a lane stops and writes it up.
+Divergence 3 is kept rather than reverted only because reverting it is an architect's call. A bump
+is where the five get re-litigated. If a divergence will not re-apply, the honest outcome is a
+decision (rewrite it, stay on the pin and record why, or fork permanently) rather than a forced
+patch, and that is where a lane stops and writes it up.
 
 ## Where it came from
 

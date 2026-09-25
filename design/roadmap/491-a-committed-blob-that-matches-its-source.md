@@ -37,8 +37,8 @@ check in `script/lint` already takes, and it fires without anybody remembering.
 **Rung one, refused here rather than ignored:** drop the blobs and compile at build time. That makes
 the wrong state unrepresentable, which is the ladder's top rung, and it buys a **build dependency on
 `dtc`** for every contributor and every CI leg. DECISIONS §46 makes taking a dependency a decision
-rather than a convenience, so proposing it here would be claiming a ruling that is an architect's. If they
-want the stronger answer, this proposal is where the weaker one's cost is written down.
+rather than a convenience, so proposing it here would be claiming a ruling that is an architect's.
+If they want the stronger answer, this proposal is where the weaker one's cost is written down.
 
 ## BUGS
 

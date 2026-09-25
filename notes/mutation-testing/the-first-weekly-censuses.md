@@ -107,10 +107,10 @@ proposes to restructure code for testability.
 
 ### What the sample does not say
 
-It does not re-read `design/fatal-risks.md`'s third risk, which is an architect's. It is a sample, not a
-census: the memory failure above killed seven of eight shards, so 8,700 of the 9,857 mutants were
-still unrun since 2026-08-03. What it removes is the reason the stale number was acceptable, the
-clause saying a refresh arrives on its own. A refresh had arrived, once, and it was lower.
+It does not re-read `design/fatal-risks.md`'s third risk, which is an architect's. It is a sample,
+not a census: the memory failure above killed seven of eight shards, so 8,700 of the 9,857 mutants
+were still unrun since 2026-08-03. What it removes is the reason the stale number was acceptable,
+the clause saying a refresh arrives on its own. A refresh had arrived, once, and it was lower.
 
 ## 2026-09-14: the first census since the baseline, and the fall was an artifact
 

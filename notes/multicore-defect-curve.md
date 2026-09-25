@@ -35,8 +35,8 @@ Three are recorded, so the choice can be made later without re-running anything:
 - **boots**, since each boot is a fresh draw of the placement lottery and PCT's model says
   independent starts multiply the chance of finding a shallow bug where a long run does not.
 
-Which one the curve is judged on is an architect's call, and 201's block says so. Recording all three costs
-three columns.
+Which one the curve is judged on is an architect's call, and 201's block says so. Recording all
+three costs three columns.
 
 ## Exposure rows
 

@@ -34,7 +34,7 @@ between. `AGENTS.md` says 40%, which was accurate when written and is now three 
 rest of the tree is moving the same way more slowly, from 31.5% to 41.4%. This instrument cannot say
 whether the kernel is better documented or its comment ratio is drifting past what a reader wants.
 It can only say the number moved. The figure in `AGENTS.md` is flagged rather than corrected,
-because that is calef's file.
+because that is an architect's file.
 
 ### Total Rust fell for the first time
 

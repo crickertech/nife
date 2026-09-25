@@ -94,12 +94,12 @@ program printing to that terminal holds, which is also why this is not S2 wearin
 (nothing reaches into a kernel global; the geometry arrives in its argument registers and the pages
 are mapped before `_start`). A capability was not available: `DeviceFrame` names one page and a
 screen is a thousand, `PageFrame` names RAM the allocator owns and would free, and a `DeviceFrame`
-run would be new syscall surface, which is an architect's. Milestone 261's NVMe server and milestone 159's
-TRNG made the same choice for the same reason, and it has a least-authority upside: the driver holds
-no name for the screen, so it cannot map it twice, delegate it, or hand it on. **Only the rows the
-surface can reach are mapped** (`Aperture::span`), not the whole screen. `user::DeviceRun` exists
-because the kernel has no heap to build a thousand-entry `Mapping` slice in; it is a kernel-internal
-struct, not ABI.
+run would be new syscall surface, which is an architect's. Milestone 261's NVMe server and milestone
+159's TRNG made the same choice for the same reason, and it has a least-authority upside: the driver
+holds no name for the screen, so it cannot map it twice, delegate it, or hand it on. **Only the rows
+the surface can reach are mapped** (`Aperture::span`), not the whole screen. `user::DeviceRun`
+exists because the kernel has no heap to build a thousand-entry `Mapping` slice in; it is a
+kernel-internal struct, not ABI.
 
 **The handover between the kernel's tee and the userspace terminal.** Two painters on one aperture is
 the defect milestone 230 found on the UART, with pixels in place of bytes. So:

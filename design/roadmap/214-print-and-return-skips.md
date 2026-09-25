@@ -186,8 +186,8 @@ by hand and why nothing here claims to have found the last one.
   a counted claim that would have caught the drift.
 - **Recorded.** `design/roadmap/214-print-and-return-skips.md` records
   `fs_service::crash_disk_present` as a **provisional** name.
-  Public function names are an architect's under milestone 160, and the block says so where the helper is
-  introduced.
+  Public function names are an architect's under milestone 160, and the block says so where the
+  helper is introduced.
 
 ## Index row
 

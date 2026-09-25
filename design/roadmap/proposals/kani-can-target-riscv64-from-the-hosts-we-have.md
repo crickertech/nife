@@ -275,7 +275,7 @@ first riscv64 `kani::stub` harnesses need. aarch64 and x86_64 follow the same pa
 ## What it does not change
 
 It does not turn fatal risk 2 (the proofs prove trivia) green. The survivorship half of that amber
-is untouched, and `design/fatal-risks.md` is calef's file. What changes is the sentence
+is untouched, and `design/fatal-risks.md` is an architect's file. What changes is the sentence
 `notes/kernel-proofs.md` and milestone 304's block carry, that riscv64 is unreachable and no one here
 can fix it. Once option 1 or 2 lands, that sentence is false, and milestone 536 (two records still say the prover cannot see
 `kernel/src`) should correct it.

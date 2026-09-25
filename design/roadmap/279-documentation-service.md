@@ -42,7 +42,8 @@ capability lives in exactly one place, and what crosses the endpoint is a term i
 names out. `doc`'s two slots do not change, and neither does the property that finding a page grants
 nothing.
 
-The wire contract is a crate, per §7, and its name is an architect's. A lane ships a provisional one.
+The wire contract is a crate, per §7, and its name is an architect's. A lane ships a provisional
+one.
 
 ## The refusals
 

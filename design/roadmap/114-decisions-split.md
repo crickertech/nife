@@ -28,10 +28,11 @@ said. A lifecycle (`PROPOSED`, `DECIDED`, `SUPERSEDED BY N`, `AMENDED`) makes su
 fact. The vocabulary is provisional and calef's.
 
 **It absorbs `design/open-decisions.md`.** That file was created hours before this milestone, and it
-holds decisions in an early lifecycle state: waiting on an architect, with options and a recommendation. A
-`PROPOSED` decision is the same object one step earlier, so keeping two systems for one concept is
-the duplication milestone 96 spent a day removing from the inits. One directory, one index, one
-lifecycle, and an answered decision changes status in place rather than moving between files.
+holds decisions in an early lifecycle state: waiting on an architect, with options and a
+recommendation. A `PROPOSED` decision is the same object one step earlier, so keeping two systems
+for one concept is the duplication milestone 96 spent a day removing from the inits. One directory,
+one index, one lifecycle, and an answered decision changes status in place rather than moving
+between files.
 
 **What must survive, and it is the whole risk.** 2,017 `§N` citations must keep resolving, exactly
 as the roadmap split preserved `milestone N`. **Do not renumber**, move content verbatim, and make

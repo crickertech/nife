@@ -65,8 +65,8 @@ under `design/` and so is not a lane's either.
   `kernel/src/user/disk_service.rs` with one already), and the serial line `init : measured, built,
   started` in `kernel/src/sched.rs`.
 - **A file a developer may not edit does not change.** Counted above, not touched.
-- **An identifier does not change, because a name is an architect's.** New here, and it is the line that
-  decides most of what was left. Every `INIT_*` constant, `fn init` in a doctest, `init_bytes`,
+- **An identifier does not change, because a name is an architect's.** New here, and it is the line
+  that decides most of what was left. Every `INIT_*` constant, `fn init` in a doctest, `init_bytes`,
   `INIT_STACK_PAGES` and the five `hello` roles stayed exactly as they are. Where the prose around
   one had to stop lying, it says what the thing is and leaves the identifier alone.
 - **A string a gate or a log parser matches does not change on its own.** New here, and it cost a
@@ -150,9 +150,9 @@ Refusals, because they are the valuable half:
   266's title is not true of this file, and a newcomer reading `INIT => init(dma_phys)` beside
   `PROGENITOR_ENTRY` has two words for one idea and no way to tell they are different ideas.
 
-**Not performed.** A role constant is a name; names are an architect's; and `AGENTS.md`'s latitude for
-recommending on reversible forks does not reach a name. The prose around them was left matching them,
-deliberately, so that a rename moves one set of words and not two.
+**Not performed.** A role constant is a name; names are an architect's; and `AGENTS.md`'s latitude
+for recommending on reversible forks does not reach a name. The prose around them was left matching
+them, deliberately, so that a rename moves one set of words and not two.
 
 ## BUGS
 
@@ -197,8 +197,8 @@ deliberately, so that a rename moves one set of words and not two.
   and the old name in its own filename, cited from nine places.
 - **Milestone 399.** The six role constants above, their functions, and the
   `kernel/src/user/tests.rs` duplicates, with `PARENT_*` recommended and three alternatives refused.
-  Held out of this milestone because a name is an architect's. Numbered on 2026-09-19 by milestone 433's
-  drain of the pile and `SUPERSEDED` in the same act by milestone 405, which turns these six
+  Held out of this milestone because a name is an architect's. Numbered on 2026-09-19 by milestone
+  433's drain of the pile and `SUPERSEDED` in the same act by milestone 405, which turns these six
   parents into programs with their own names; 399 keeps the refusals and 405 carries them forward.
 
 ## Index row

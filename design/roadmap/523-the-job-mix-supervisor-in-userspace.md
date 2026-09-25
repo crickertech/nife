@@ -3,9 +3,10 @@
 **Status: NOT-STARTED.** Minted 2026-09-21 by the maintainer, an hour before a bench evening on
 radon, after `script/board-image --job-mix --tftp` reported `NOT SEALED` on every attempt. This lane
 investigated the move end to end and **built none of it**, because every route to it runs through a
-decision that is an architect's. What is below is the investigation, the one premise in the brief that is
-false, the five things a shell-spawned program would have to be allowed to do, and what each would
-cost. Nothing about the instrument changed; `--features job_mix` is still how the number is taken.
+decision that is an architect's. What is below is the investigation, the one premise in the brief
+that is false, the five things a shell-spawned program would have to be allowed to do, and what each
+would cost. Nothing about the instrument changed; `--features job_mix` is still how the number is
+taken.
 
 **Gate: DECISION.** Five of them, and they are not one question wearing five hats. Two are the
 syscall surface (a thread's placement, a `START` return value), one is the spawn manifest, one is

@@ -56,7 +56,8 @@
 # 202's patch filename obeys the section's spelling exactly with no special case:
 # `<package>/falsifications/<module.path>.<harness_fn_name>.patch` names
 # `kernel/falsifications/user.c_seam_tests.a_c_...patch`. The only word that strains is `harness`,
-# and it strains in prose rather than in the convention. If an architect wants the wording widened, that is
+# and it strains in prose rather than in the convention. If an architect wants the wording widened,
+# that is
 # a decisions edit and not this script's.
 #
 # **Kernel tests are opt-in where Kani harnesses are mandatory**, which is the one deliberate

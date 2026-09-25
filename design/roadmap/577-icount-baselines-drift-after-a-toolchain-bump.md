@@ -115,8 +115,8 @@ result and preserves nothing else. A row that cannot carry a reason cannot carry
    415's item 2 is the same work stated once more. Correcting that status is 302's own lane's to do.
 2. **Do not open a fourth block for the attribution ledger.**
 3. **Do not re-save any floor to settle the `rfence_self` question.** A save is a committed floor and
-   is an architect's, and the two readings above disagree about cause, which is the one condition under
-   which blessing a number is worst.
+   is an architect's, and the two readings above disagree about cause, which is the one condition
+   under which blessing a number is worst.
 
 ## BUGS
 

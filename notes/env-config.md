@@ -1,7 +1,8 @@
 # The inert-configuration page: `TZ`, `LANG`, `TERM`, and what still waits
 
 Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `environment_protocol` (a
-provisional name; naming crates is an architect's call, per AGENTS.md); the decision is DECISIONS §111.
+provisional name; naming crates is an architect's call, per AGENTS.md); the decision is DECISIONS
+§111.
 
 ## What this is
 

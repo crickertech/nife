@@ -280,10 +280,10 @@ number every time. That was built on 2026-09-19 and `bench::cycles_per_tick` now
 all, so the measurement half of milestone 74 exists on all three architectures. **The three are not
 yet the same quantity**, and closing that gap is a ruling rather than code: riscv64 counts every
 mode including M-mode firmware, x86_64 counts ring 0 and 3, and aarch64 counts EL0 and EL1 under a
-provisional `PMCCFILTR_EL0`. Two things here are calef's and both are facts that leave the machine:
-what `PMCCFILTR_EL0` counts, because a count excluding the kernel is not comparable to seL4's and
-one including it is not comparable to a userspace-only profile, and what a program calls the
-cycle-counter read and what it promises. §19 makes the first a parity gap in the one subsystem whose
-entire purpose is cross-machine comparison, and milestone 25's `sel4bench` needs it. Nothing can be
-settled on Apple silicon: the PMU is not architected state a hypervisor must present, so the machine
-that decides it is argon, with a person at it.
+provisional `PMCCFILTR_EL0`. Two things here are an architect's and both are facts that leave the
+machine: what `PMCCFILTR_EL0` counts, because a count excluding the kernel is not comparable to
+seL4's and one including it is not comparable to a userspace-only profile, and what a program calls
+the cycle-counter read and what it promises. §19 makes the first a parity gap in the one subsystem
+whose entire purpose is cross-machine comparison, and milestone 25's `sel4bench` needs it. Nothing
+can be settled on Apple silicon: the PMU is not architected state a hypervisor must present, so the
+machine that decides it is argon, with a person at it.

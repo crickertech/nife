@@ -692,9 +692,9 @@ fn cycles_per_tick() {
 const CYCLE_PROBE_MEANING: &str = "core cycles (SBI PMU CPU_CYCLES) per tick of the `time` CSR, a fixed-rate timebase the device \
      tree states";
 
-/// The aarch64 twin. **The filter clause is the one a reader must not drop**: until an architect rules on
-/// `PMCCFILTR_EL0`, what this counts is a provisional choice, and the line that leaves the machine
-/// carries that rather than a note that does not.
+/// The aarch64 twin. **The filter clause is the one a reader must not drop**: until an architect
+/// rules on `PMCCFILTR_EL0`, what this counts is a provisional choice, and the line that leaves the
+/// machine carries that rather than a note that does not.
 #[cfg(target_arch = "aarch64")]
 const CYCLE_PROBE_MEANING: &str = "cycles (PMCCNTR_EL0, PMCCFILTR_EL0 PROVISIONAL: EL0+EL1 counted, EL2 not) per tick of \
      CNTVCT_EL0, the generic timer at CNTFRQ_EL0";

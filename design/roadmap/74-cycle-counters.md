@@ -17,11 +17,11 @@ Milestone 75's index row reads `NOT-STARTED` and that is false: its mechanism is
 at every context switch behind the `cycle_counter_grant` feature, and
 `kernel::user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` passes
 on all three architectures, negative case included. Whether 75's row is flipped, and what that
-unblocks, is an architect's rather than a lane's; the mechanism cited here is what a reader can check
-today. **The aarch64 half of 74 was out of the riscv64 lane's scope, not blocked by an unanswered
-question.** Until 2026-09-19 `PMCR_EL0.E` and `PMCNTENSET_EL0.C` were never written by this kernel,
-so `PMCCNTR_EL0` was a stopped counter that a granted thread read the same value from every time.
-That is built now; see "What the aarch64 half built" below.
+unblocks, is an architect's rather than a lane's; the mechanism cited here is what a reader can
+check today. **The aarch64 half of 74 was out of the riscv64 lane's scope, not blocked by an
+unanswered question.** Until 2026-09-19 `PMCR_EL0.E` and `PMCNTENSET_EL0.C` were never written by
+this kernel, so `PMCCNTR_EL0` was a stopped counter that a granted thread read the same value from
+every time. That is built now; see "What the aarch64 half built" below.
 
 The `HARDWARE` half is now the **second** sense of that gate rather than the first: the riscv64 code
 is written and gated, and what remains is a person at radon following
