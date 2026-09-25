@@ -190,9 +190,12 @@ overflow out of sight, and it is a review question.
 reproducing what another document already says. This only works because links here are cheap and
 `script/citations` already watches them, so a split does not silently produce dangling references.
 
-## The gate, described and not built
+## The gate, built
 
 It is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), minted 2026-09-24 and shared with §213's gate.
+#1230 built it on 2026-09-24: `helpers/prose_ratchet.py`, run by `script/lint`, with its baseline in
+`design/prose-baseline.tsv`. The milestone is PARTIAL. One week of baseline-churn measurement
+remains, and that number decides whether the ratchet stays.
 
 - **A word count per file in `script/lint`**, main body only.
 - **A ratchet on growth**, per (d) above, so the 174 do not all go red on day one.
