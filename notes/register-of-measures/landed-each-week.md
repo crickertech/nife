@@ -109,6 +109,21 @@ columns and coverage are blank anywhere, on purpose, as [project cost](project-c
 `milestones_built_this_week` cannot take that damage. It is written for every week in the file on both
 `--update` and `--backfill`, never only for the week being added.
 
+### The trailing ten-week mean
+
+calef asked for it on 2026-09-24, first here and then on the pull-request chart, because a flow that
+reads 8, 49, 13, 64 in consecutive weeks cannot be read for direction by eye. Both charts use one
+helper, `trailing_mean` in `script/metrics`, so the two lines cannot be computed differently. It is
+the mean of the week and the nine before it, reaching back past the chart's left edge into the CSV,
+and it is drawn rather than stored: a stored copy of arithmetic over a stored column is a second
+place to be wrong.
+
+The series starts at 2026W29, so the first full window is 2026W38. The weeks before it are drawn
+**dashed, with their own legend entry**, rather than left off. Starting the line at the first full
+window would have given two points on a ten-bar chart, and the dashed part is honest about what it
+is: a mean over fewer weeks, which swings harder. It leaves the chart on its own as the window
+slides, and from 2026W47 every point shown is a full ten weeks.
+
 ## Pull requests merged each week
 
 This is the deck's second flow, and it exists because the first one undercounts. Milestones count

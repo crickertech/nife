@@ -96,6 +96,8 @@ changed, so read the kernel and userspace bars in those weeks as undercounts of 
 A flow: milestones whose `Built:` date falls in that week, read from today's tree for every week.
 **It does not reconcile with the `Built` stock below, and that is the design**; the gap is the lag
 between finishing a milestone and flipping its row.
+The line is the trailing ten-week mean, drawn rather than stored; it is dashed where fewer than ten
+weeks exist behind it, which until 2026W47 is the left of the chart.
 
 ## Pull requests merged each week
 
@@ -104,6 +106,7 @@ between finishing a milestone and flipping its row.
 The second flow, counted from `main`'s merge subjects rather than the GitHub API so that it
 backfills to the first commit. 2026W29 and 2026W30 are genuine zeros: the practice starts in
 2026W31.
+The line is the same trailing ten-week mean as the chart above, dashed where the window is short.
 
 ## Which model wrote it
 
