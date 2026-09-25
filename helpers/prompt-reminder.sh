@@ -4,8 +4,8 @@
 # and the reply comes first. Claude Code adds a UserPromptSubmit hook's plain stdout to the context.
 #
 # Why this exists, and why at this rung. AGENTS.md's top-up rule already says it: "A conversation
-# with calef never blocks the queue." On 2026-09-24 a maintainer session broke it repeatedly on a
-# freshly cleared context, doing edits, gates and pull request plumbing in the foreground while
+# with an architect never blocks the queue." On 2026-09-24 a maintainer session broke it repeatedly
+# on a freshly cleared context, doing edits, gates and pull request plumbing in the foreground while
 # calef waited for an answer. The rule was in context and lost on salience in an 11,000-word
 # constitution. Prose is rung four; this is still rung four (a reminder, not a gate), but it is
 # placed where the model decides how to act, on every prompt, instead of somewhere it read once.

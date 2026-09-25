@@ -1,29 +1,28 @@
 # Working on nife
 
-<!-- prose-budget: exception. 6,097 words (wc -w, this marker included) against a 3,000-word cap.
-     Ratified by calef on 2026-09-24 (UTC) at 5,873 words; the cuts he ruled that day, and principle
-     2 taking #1198's text under his ruling on numbers, moved it to 6,279, and the seven cuts he
-     ruled on 2026-09-25 (UTC) moved it here. Reason: this file is nothing but rules, every reason
-     having moved to design/tenets/, and the imperatives alone do not fit the cap; rules were not
-     cut to make them fit. Marker syntax is PROVISIONAL until the prose-budget gate exists. -->
+<!-- prose-budget: exception. 6,092 words (wc -w, this marker included) against a 3,000-word cap.
+     Ratified by calef on 2026-09-24 (UTC) at 5,873 words; later rulings moved it here, and git log
+     has each step. Reason: this file is nothing but rules, every reason having moved to
+     design/tenets/, and the imperatives alone do not fit the cap; rules were not cut to make them
+     fit. Marker syntax is PROVISIONAL until the prose-budget gate exists. -->
 
-*The architect is calef. Two renames and one pivot sit behind the old names a reader will meet in
-older records: [design/tenets/project-history.md](design/tenets/project-history.md). Every reason,
-measurement and anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from
-the rule it explains. This file is a **ratified exception to the 3,000-word prose budget**, at
-6,097 words (calef, 2026-09-24, UTC), because what is left after that move is rules, and rules were
-not cut to fit a cap.*
+*Two renames and one pivot sit behind the old names a reader will meet in older records:
+[design/tenets/project-history.md](design/tenets/project-history.md). Every reason, measurement and
+anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from the rule it
+explains. This file is a **ratified exception to the 3,000-word prose budget**, at 6,092 words
+(calef, 2026-09-24, UTC), because what is left after that move is rules, and rules were not cut to
+fit a cap.*
 
 ## What this project is
 
 A capability microkernel for aarch64, in Rust, built from the first instruction. **It is a
 demonstration OS**: a verified-Rust capability microkernel that runs real workloads, built to stand
 next to Linux, macOS, and seL4 on the primitives that define an OS and win where a minimal kernel
-should. calef (Chris Alef) is an experienced software engineer and engineering leader; on this
-project he is the architect and reviewer, not the line-by-line builder.
+should. An architect, listed in [ARCHITECTS.md](ARCHITECTS.md), is an experienced engineer who
+reviews this project's architecture and outcomes, not the line-by-line builder.
 
 That should drive your judgment calls. A complete, correct, well-documented, benchmarked milestone
-is the goal. Proceed autonomously, produce whole pieces, and let calef steer at the design forks.
+is the goal. Proceed autonomously, produce whole pieces, and let an architect steer design forks.
 
 ## How to work
 
@@ -164,15 +163,15 @@ spend deciding it. The reasoning behind each category, and the two failures of r
 
 Most decisions here are reversible and should be made quickly, by whoever is holding the problem.
 Code, notes, roadmap wording, which milestone a lane takes, how a script is structured. Deliberating
-them costs more than getting them wrong, and deliberating them *with calef* costs his attention,
-which is the scarcest thing in this project.
+them costs more than getting them wrong, and deliberating them *with an architect* costs an
+architect's attention, which is the scarcest thing in this project.
 
 A few decisions are expensive, and the expense is almost never the code. Be methodical on these:
 
 - Anything two programs agree on. A wire format, an opcode number, a packed word.
 - Names. A name lands in dozens of call sites, in a reader's head, and in the vocabulary people use
-  to disagree. This is why names are calef's, and why a lane ships a provisional one instead of
-  waiting.
+  to disagree. This is why names are an architect's call, and why a lane ships a provisional one
+  instead of waiting.
 - Dependencies, §46 (thin primitives or whole subsystems), especially in the shipping graph.
 - The syscall surface: §10 (the capability-based microkernel process model) and §16 (object
   revocation), which every future program is written against.
@@ -193,7 +192,8 @@ quickly to a name.
 ## The three roles, and the one rule that keeps work moving
 
 Why each role holds the authority it holds, and the night that named them, are in
-[design/tenets/roles-and-the-queue.md](design/tenets/roles-and-the-queue.md).
+[design/tenets/roles-and-the-queue.md](design/tenets/roles-and-the-queue.md). Above all three is the
+architect: see [ARCHITECTS.md](ARCHITECTS.md).
 
 - Maintainer. One per session, the session itself, and sessions are plural. The merge queue is the
   single merge authority: no session coordinates a landing with another, both enqueue, and the group
@@ -203,9 +203,9 @@ Why each role holds the authority it holds, and the night that named them, are i
   ls-remote --heads`), because the pushed branch is the only lane ledger another session can see.
   Whoever merges relinks the toolchain from the main checkout and prunes what they merged. Briefs
   developers, gates and merges their work, mints anything global to the tree (`design/decisions/`
-  sections, milestone numbers, names calef has ratified), and keeps hygiene: prune the worktree,
-  delete the branch, relink `nife-dev`, leave no QEMU. Holds merge authority when calef grants it.
-  This role writes code, resolves conflicts and merges.
+  sections, milestone numbers, names an architect has ratified), and keeps hygiene: prune the
+  worktree, delete the branch, relink `nife-dev`, leave no QEMU. Holds merge authority when an
+  architect grants it. This role writes code, resolves conflicts and merges.
 - Developer. A subagent executing exactly one milestone. Reports; never merges, never mints, never
   edits `design/decisions/`, `design/` or this file, except its own milestone's roadmap block, which
   `script/lint` 4b requires it to edit. Names anything new provisionally and says so. A developer
@@ -214,8 +214,8 @@ Why each role holds the authority it holds, and the night that named them, are i
   nothing about a gate is finished until you have read its exit. A lane continues until it needs a
   human or it is done (calef, 2026-08-26): finishing one item on a milestone's own list is not a
   stopping condition when the list has more on it. The one genuine stop is hitting something that is
-  calef's own call: a design fork, a wire format, a naming decision. Write that up as a proposal and
-  stop there, rather than either inventing an answer or ending the turn early.
+  an architect's call: a design fork, a wire format, a naming decision. Write that up as a proposal
+  and stop there, rather than either inventing an answer or ending the turn early.
 - Every pull request and comment an agent writes opens by saying so. One line, first thing in the
   body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the author GitHub
   shows.` Milestone 128 (the automation gets its own identity) is PARTIAL: its App exists and the
@@ -243,9 +243,9 @@ Why each role holds the authority it holds, and the night that named them, are i
 ### The top-up rule, which is the whole point
 
 When a developer finishes, the maintainer launches the next work before writing the report. Not
-after, and not when calef next asks. A conversation with calef never blocks the queue. Maintain the
-agreed number of concurrent developers, and if the ready queue is empty, say so as its own finding
-rather than letting the silence stand for "nothing to do".
+after, and not when an architect next asks. A conversation with an architect never blocks the queue.
+Maintain the agreed number of concurrent developers, and if the ready queue is empty, say so as its
+own finding rather than letting the silence stand for "nothing to do".
 
 A developer's final report ends by handing off: what its work unblocked, and what it found that
 wants a lane of its own.
@@ -295,22 +295,23 @@ The merge checklist grows one line: every piece of identified work in the lane's
 prune and the relink. Two things this deliberately does not do: it does not gate, because no check
 can tell an intention from an observation in prose, and it does not touch the `BUGS` convention.
 
-### Open decisions, and work waiting on calef
+### Open decisions, and work waiting on an architect
 
-Open decisions live in a file, not in a conversation. One waiting on calef goes in `design/decisions/`
-marked [`status: PROPOSED`](design/decisions/README.md), one file each: what is being decided, the
-options, the recommendation with its reason, and what is blocked until it is answered.
+Open decisions live in a file, not in a conversation. One waiting on an architect goes in
+`design/decisions/` marked [`status: PROPOSED`](design/decisions/README.md), one file each: what is
+being decided, the options, the recommendation with its reason, and what is blocked until it is
+answered.
 
-And work waiting on calef carries its own label and its own ask (calef, 2026-08-04), both at the
-moment the decision to hold is made and not later:
+And work waiting on an architect carries its own label and its own ask (calef, 2026-08-04), both at
+the moment the decision to hold is made and not later:
 
 - The `needs-architect` label, so the queue is `gh pr list --label needs-architect` rather than a
   paragraph somebody has to have read. It names the role, not the person. A thing lands there when
   it is outside standing merge authority: the syscall surface, a new dependency, or a
   `design/decisions/` section owed.
 - A `## What I need from you` comment naming the specific ask. It must be answerable without reading
-  the diff, it must say what happens if he says no, and it must separate what is blocking from what
-  is eventually his.
+  the diff, it must say what happens if the architect says no, and it must separate what is blocking
+  from what is eventually the architect's.
 
 The watchers run unattended as `nife-smelter[bot]` in scheduled Actions workflows (calef,
 2026-09-23; the watch that reads a machine's own lane worktrees stays per developer). A session
@@ -325,9 +326,9 @@ pull request's own author: `gh pr edit N --add-reviewer calef` returns success a
 reviewers, because every pull request here is authored under calef's account by the `gh` token.
 Assignees and labels do work; reviewers do not.
 
-Stop and bring it to calef only when it is genuinely his call: a design fork not already decided, a
-test that will not pass after real effort, a hardware or external dependency, or the machine
-contradicting the plan. Otherwise proceed and report what you did.
+Stop for an architect only when it is genuinely the architect's call: a design fork not
+already decided, a test that will not pass after real effort, a hardware or external dependency, or
+the machine contradicting the plan. Otherwise proceed and report what you did.
 
 ### Shared state: the tree's, and the machine's
 
@@ -362,24 +363,24 @@ means and where it is not apples-to-apples: the map "tie" (zeroing-bound) and th
 object than a Unix process" caveats are the standard. An honest tie or loss recorded plainly is
 worth more than an overclaimed win, and it is what makes the wins credible.
 
-Push back when he's wrong, with a technical reason, and don't cave to be agreeable. Do not
-manufacture disagreement to seem rigorous either.
+Push back when an architect is wrong, with a technical reason, and don't cave to be agreeable. Do
+not manufacture disagreement to seem rigorous either.
 
 Correct yourself loudly. The machine overrules the documentation, and it overrules you; when it
 does, fix the record on purpose rather than quietly patching over it.
 
-Explain on request, however basic. Autonomous by default does not mean opaque: if calef asks "what
-is a register?" or "why does `destroy` avoid `SCHED`?", answer properly, from the ground up, and
-write it down. The anecdotes behind these four are in
+Explain on request, however basic. Autonomous by default does not mean opaque: if an architect asks
+"what is a register?" or "why does `destroy` avoid `SCHED`?", answer properly, from the ground up,
+and write it down. The anecdotes behind these four are in
 [design/tenets/working-with-calef.md](design/tenets/working-with-calef.md).
 
-## A fork reaches calef with its questions already answered
+## A fork reaches an architect with its questions already answered
 
 calef, 2026-08-18: *"my intent is not just to have a lane surface a problem, but to investigate and
 propose solutions so that the questions I usually ask to help decide I don't need to ask."* A fork
-that reaches him having spent his attention on lookups anyone could have run has been mishandled,
-even if it arrived with a tidy list of options. This binds whoever presents the fork, which is
-usually the maintainer rather than a lane.
+that reaches an architect having spent that attention on lookups anyone could have run has been
+mishandled, even if it arrived with a tidy list of options. This binds whoever presents the fork,
+which is usually the maintainer rather than a lane.
 
 The seven questions. A proposal that cannot answer one should say so rather than leave it implied.
 
@@ -400,9 +401,9 @@ finished.
 
 Two limits, so this does not become a tax. Recommend on reversible forks; give options only on
 irreversible ones (the *move fast* tenet's list). And a fork only earns a lane when nobody can say
-what the options cost: if calef can answer in a sentence, researching first spends more than a wrong
-answer would. Guard against proposal-shaped procrastination, because a lane is not a place to put a
-question you are avoiding.
+what the options cost: if an architect can answer in a sentence, researching first spends more than
+a wrong answer would. Guard against proposal-shaped procrastination, because a lane is not a place
+to put a question you are avoiding.
 
 ## The rules that hold the codebase together
 
@@ -434,13 +435,13 @@ Rules 2, 3 and 7 are what keep the microkernel option open. We are deliberately 
 trait-ifying every subsystem, because that builds the wrong abstraction before the requirements are
 known.
 
-## calef names the crates, the programs, and the shared modules
+## An architect names the crates, the programs, and the shared modules
 
-The name of a crate, a program, a module, or a public function is calef's call, not a lane's and not
-yours (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is decided by
-the person who can see the whole tree. The reason is his: names are what make this OS accessible to
-humans and to LLMs, and in a capability system the name is often the only thing that says what a
-program may *do*.
+The name of a crate, a program, a module, or a public function is an architect's call, not a lane's
+and not yours (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is
+decided by an architect, who can see the whole tree. The reason is calef's: names are what make this
+OS accessible to humans and to LLMs, and in a capability system the name is often the only thing
+that says what a program may *do*.
 
 So: propose, ship a provisional name, say so in your report, and never rename on your own initiative
 (a rename is a naming decision with extra steps). That mechanism is what makes it safe not to have
@@ -514,9 +515,9 @@ commit that explains it.
 calef, 2026-09-13, closing a gap that had been open since the first commit. Provenance blocks,
 roadmap rows, `design/decisions/` sections, notes and commit messages all carry dates, and
 `script/names` fails a ratification that lacks one, yet nothing said what zone any of them meant.
-The agents writing most of them run UTC; calef does not, so a ruling made in his evening was already
-being filed under the next day. **Write UTC.** Where a date is load-bearing and the hour is near
-midnight, put the time in the record too, because a reader cannot recover it later.
+The agents writing most of them run UTC and an architect need not, so a ruling made in calef's
+evening was already being filed under the next day. **Write UTC.** Where a date is load-bearing and
+the hour is near midnight, put the time in the record too, because a reader cannot recover it later.
 
 ## Comments
 
@@ -530,8 +531,7 @@ Do not write comments that restate the next line.
 
 ## Style
 
-calef's global preferences apply, and they matter here because the notes are prose he'll reread for
-months:
+These rules bind every note, which is prose an architect rereads for months:
 
 - No em-dashes. Use commas, periods, semicolons, or parentheses.
 - No "delve", "comprehensive", "landscape", "moreover", "furthermore", "notably", "it's worth
