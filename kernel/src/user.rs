@@ -969,8 +969,17 @@ pub const INIT_TEST_SGI: u32 = crate::arch::irq::SELF_TEST_VECTOR as u32;
 /// armed this constant there enabled an unrelated source, proven on silicon when a key press at
 /// boot 13's completed tour reached nothing (notes/visionfive2.md, BUGS). This number is what a
 /// tree that does not say falls back to, which on QEMU is also the right answer.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "aarch64")]
 pub const UART_RX_INTID: u32 = 33;
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "riscv64")]
 pub const UART_RX_INTID: u32 = 10;
 /// `x86_64`: COM1 is ISA IRQ 4, which has been true since the PC/AT and is what QEMU's `q35`
@@ -978,6 +987,11 @@ pub const UART_RX_INTID: u32 = 10;
 /// two questions rather than one: which IO APIC input the legacy IRQ was remapped to (the ACPI
 /// MADT's interrupt source overrides say, and this port does not read them), and which IDT vector
 /// that input is programmed to raise. 4 is the legacy line, not either of those.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "x86_64")]
 pub const UART_RX_INTID: u32 = 4;
 

@@ -538,6 +538,11 @@ pub fn configure_from_dtb() {
 /// in *any* configuration, `--features shell` included.
 ///
 /// riscv-only: the aarch64 console stays polling, and its `ConsoleUart` (a PL011) has no such method.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `enable_receive_interrupt`, because it enables an
+/// interrupt, which `rx_enable` does not say, and matches the driver method it calls.
 #[cfg(target_arch = "riscv64")]
 pub fn rx_enable() {
     CONSOLE.lock().uart.enable_rx_interrupt();
@@ -568,6 +573,11 @@ pub fn is_byte_waiting() -> bool {
 /// Throw away whatever is already in the console UART's receive buffer, so that [`is_byte_waiting`]
 /// answers about what arrives from now on. Called once, when a rebooting soak arms itself; see
 /// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `discard_waiting_bytes`, because it drops the bytes
+/// `is_byte_waiting` would have reported.
 #[cfg(feature = "reboot_soak_test")]
 pub fn discard_rx() {
     CONSOLE.lock().uart.discard_rx();
@@ -685,6 +695,11 @@ static TX_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::
 /// `kernel::user::riscv_initrd_demo`'s hang watcher, which went with the program it loaded. The
 /// counter is still incremented on every print, so it is still true and still free to read; what is
 /// gone is the thing that read it. Kept for the same reason `sched::canary` is, written there.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `bytes_written`, because it counts what the kernel wrote to
+/// the console, and its static `TX_BYTES` becomes `BYTES_WRITTEN` with it.
 #[allow(dead_code)]
 pub fn tx_bytes() -> u64 {
     TX_BYTES.load(core::sync::atomic::Ordering::Relaxed)

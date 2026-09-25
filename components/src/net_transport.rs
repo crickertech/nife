@@ -336,6 +336,11 @@ impl Device for VirtioNet {
 }
 
 /// Holds the received frame by value, so it never borrows the device.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended keeping `VnetRxToken`, because it implements smoltcp's
+/// `phy::RxToken` trait, and the upstream word is what a reader of smoltcp looks for.
 pub struct VnetRxToken {
     frame: Vec<u8>,
 }

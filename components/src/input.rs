@@ -116,9 +116,17 @@ mod uart {
     pub fn is_byte_waiting() -> bool {
         !regs().FR.is_set(FR::RXFE)
     }
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `read_byte`, because it reads the byte
+    /// `is_byte_waiting` reports.
     pub fn rx_get() -> u8 {
         regs().DR.get() as u8
     }
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `arm_receive_interrupt`, the word the
+    /// NS16550 and PL011 manuals spell out.
     pub fn arm_rx_interrupt() {
         regs().IMSC.modify(IMSC::RXIM::SET);
     }
@@ -150,9 +158,17 @@ mod uart {
     pub fn is_byte_waiting() -> bool {
         rd(LSR) & LSR_DR != 0
     }
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `read_byte`, because it reads the byte
+    /// `is_byte_waiting` reports.
     pub fn rx_get() -> u8 {
         rd(RBR) // reading clears the receive interrupt; that is why clear_interrupt is a no-op
     }
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `arm_receive_interrupt`, the word the
+    /// NS16550 and PL011 manuals spell out.
     pub fn arm_rx_interrupt() {
         wr(IER, IER_ERBFI);
     }
@@ -186,6 +202,10 @@ mod uart {
     pub fn is_byte_waiting() -> bool {
         inb(LSR) & LSR_DR != 0
     }
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `read_byte`, because it reads the byte
+    /// `is_byte_waiting` reports.
     pub fn rx_get() -> u8 {
         inb(RBR) // reading clears the receive condition, as on the NS16550
     }
