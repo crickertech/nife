@@ -13,8 +13,8 @@ and `fixtures/Cargo.toml` 40. Two entries in the table below are stale as writte
 written, because a reader needs to see what was counted; this paragraph is the correction.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§180](../decisions/180-a-third-program-directory.md) *(number provisional)*, written up 2026-09-19
+**Gate: DECISION §180.** The decision is
+§180 (whether `components/` splits again), written up 2026-09-19
 by milestone 435's slice-c lane because this gate named no section.
 A top-level directory holding a Cargo package is named exactly as the package,
 so this is a name, and names are calef's. It is also the most expensive kind of name in this tree:
