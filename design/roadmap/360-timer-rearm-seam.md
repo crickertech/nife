@@ -10,9 +10,10 @@ One correction to the body's "every ISA restates the arithmetic": two do, not th
 local APIC in periodic mode and the hardware reloads, so there is no software re-arm there to lift.
 
 **Gate: DECISION.** Where the seam goes is an architect's call, and it is the whole of the work
-rather than a detail of it. Too high and the arch layer keeps the milestone 6 drift bug it has
-today; too low and every ISA restates the same arithmetic, which is the thing the crate exists to
-stop. A lane can prepare the options and measure them, but it cannot pick the line.
+rather than a detail of it. Too high and the arch layer keeps the milestone 6 (threads, the context
+switch, and preemption) drift bug it has today; too low and every ISA restates the same arithmetic,
+which is the thing the crate exists to stop. A lane can prepare the options and measure them, but it
+cannot pick the line.
 
 **In brief.** The timer re-arm arithmetic is currently written inside the register access, per
 architecture. `crates/timetable::next_after` computes the same thing, is proved, and nothing on the

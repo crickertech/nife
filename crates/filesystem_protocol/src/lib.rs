@@ -724,7 +724,8 @@ pub mod fs {
     /// Works on a directory exactly as on a file, [`GETXATTR`]'s reason: mtime is part of what a
     /// node *is*, not a property files alone carry.
     ///
-    /// Name provisional (milestone 47's mtime lane, 2026-08-24); an architect's to ratify.
+    /// Name provisional (the mtime lane of milestone 47 (navigation and naming), 2026-08-24); an
+    /// architect's to ratify.
     pub const GETMTIME: u64 = 20;
 
     /// **Set `name`'s modification time to now** (milestone 47's bare `touch`; DECISIONS §112).

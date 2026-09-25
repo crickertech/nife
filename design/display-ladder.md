@@ -83,5 +83,5 @@ when rung two is real. **Rung two is now real, and the call is made**: hold at r
 and four stay unstarted; milestone 33 (a compositor) deliberately stopped at its edge (no iced, no
 cosmic-text, no application work), and that edge holds until something useful is built and proven on
 text mode. Text-mode work that is not GUI-toolkit work (a kick-ass shell and editor experience, the
-169-174 self-hosting line, milestone 142's typography) is exactly the direction §131 asks for
-instead.
+169-174 self-hosting line, the typography of milestone 142 (a text display good enough that people
+use it instead of a GUI)) is exactly the direction §131 asks for instead.

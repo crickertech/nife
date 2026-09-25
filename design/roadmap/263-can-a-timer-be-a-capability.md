@@ -183,8 +183,9 @@ tick still costs one comparison. Applied to the real consumer, `soak.rs`'s six-l
 becomes one call and the kernel builds clean with `--features soak`.
 
 **Whether that consumer should be served is an architect's**, under the carve-out in §101
-(notification objects) and milestone 106's own "this stays owed against a kernel-side consumer
-appearing". This block only says what it costs.
+(notification objects), and under the "this stays owed against a kernel-side consumer appearing" of
+milestone 106 (a wait that ends on either the interrupt or the deadline). This block only says what
+it costs.
 
 ## Follow-on
 
