@@ -131,6 +131,16 @@ proposal asks for. And that boot predates finding 3's change, so it carries no `
 xenon's Kaby Lake offers SMEP and the next boot there is the first that will say whether the bit
 was set, which is the one machine this audit could not check.
 
+*Corrected 2026-09-25 (UTC), from pull request #1275, the rehearsal for milestone 261 (the NVMe
+driver leaves the kernel): "the unit is located" should read "the first of the DMAR's units is
+located". The kernel carried only the first DRHD. On the OptiPlex 7040, which shares xenon's
+register addresses, that unit (`0xfed90000`) covers only the integrated graphics and a second,
+catch-all unit covers everything else. So the `IR` bit xenon later reported
+(`bench/xenon-2026-09-17/tour-display-225100.log`) is that unit's, and says nothing about the unit
+in front of the NVMe. This is inferred from the sibling machine and is unverified until milestone
+261's bench evening reads xenon's DMAR. This audit's conclusion stands: it rested on no component
+holding a DMA-capable device on xenon, and none did.*
+
 ## What milestone 307's six rows actually guarantee
 
 The brief asked, for the six rows whose quotable assertion cannot run, what is actually guaranteed.

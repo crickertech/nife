@@ -34,6 +34,18 @@ nobody knew because no code read the bit.
 3. **Only the first DRHD is carried.** A machine can have more than one, which `Drhd`'s
    documentation already names as future work.
 
+*Corrected 2026-09-25 (UTC), from pull request #1275, the rehearsal for milestone 261 (the NVMe
+driver leaves the kernel), on two of the three items.* The first is answered and does not mean what
+it was expected to. xenon reported `interrupt remapping offered (unused)` on 2026-09-17 at 22:51 UTC
+(`bench/xenon-2026-09-17/tour-display-225100.log`), but from the first unit, `0xfed90000`. The third
+is the most urgent of the three, not the least. On the OptiPlex 7040, which shares xenon's register
+addresses, that first unit covers only the integrated graphics and the catch-all is `0xfed91000`. So
+"nothing this tree boots has a second unit", said twice below, is probably false of xenon, and the
+one unit this tree brought up there was likely not the one in front of the NVMe. #1275 decodes every
+DRHD and brings up the catch-all. All of this is inferred from the sibling machine, and stays
+unverified until milestone 261's bench evening reads xenon's DMAR (`notes/risk-6-bench-evening.md`,
+added by #1275).
+
 **The body below is left as it was filed on 2026-09-04**, so the argument that moved this work from
 a bench trip to a parser is readable as it was made. Read it against the three outstanding items
 above rather than as a description of the tree today.
