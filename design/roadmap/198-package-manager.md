@@ -9,7 +9,8 @@ harnesses §197 accepted as the container's price. The first package this projec
 `uptime 0.1.0 aarch64`, 90,491 bytes since programs are packed stripped, and notes/packages.md has
 the run. Rung 3a's consumer half is built through "verified by digest" (2026-09-24): the image
 carries a package catalogue, a host serves the package over plain HTTP, and `net_stack`'s client
-accepts it only by the image's digest, on aarch64 and riscv64. Installing and everything after it
+accepts it only by the image's digest, on aarch64 and riscv64. The table §208 (installing is
+granting) versions is built as host-tested logic in `crates/activation_set`. Installing and everything after it
 wait on §216 (how the shell names an installed program to the spawner).
 
 **Gate: DECISION.** Rung 3a's remaining half waits on
