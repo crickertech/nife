@@ -5,7 +5,7 @@ calls that compiled and then killed the process, and the `cargo xtask std-aborts
 EXAMPLES and BUGS. It was moved here verbatim from the main page on 2026-09-25 (UTC), under [§212 (a
 prose budget)](../../design/decisions/212-a-prose-budget-for-every-document.md). The directory
 `notes/std/` and this file's stem are provisional names, minted that day by the lane that split the
-file; naming is calef's.*
+file. Naming is calef's.*
 
 The records this file cites by number:
 
@@ -18,8 +18,8 @@ The records this file cites by number:
 
 *(Milestone 64, fourth pass, 2026-08-18.)*
 
-**The dangerous std call is not the one that returns `Unsupported`. It is the one that compiles and
-then kills you.** Five have been found so far, each by a different accident:
+The dangerous std call is not the one that returns `Unsupported`. It is the one that compiles and
+then kills you. Five have been found so far, each by a different accident:
 
 | call | what it was | found by |
 |---|---|---|
@@ -29,7 +29,7 @@ then kills you.** Five have been found so far, each by a different accident:
 | `std::process::id()` | `panic!("no pids on this platform")` | the same reading |
 | `std::process::exit()` | `crate::intrinsics::abort()` | `cargo xtask std-aborts` |
 
-**None of them could appear on a gap list**, because notes/crates-io-on-nife.md's list is built from
+None of them could appear on a gap list, because notes/crates-io-on-nife.md's list is built from
 PAL functions that answer `Unsupported`, and a function that ends the process never answers. And the
 fifth could not be found by the method that found the middle three either: `sys/exit.rs` is not a
 `sys/<module>/mod.rs` backend, it is one file with a `cfg_select!` inside a function, so "read every
@@ -44,22 +44,22 @@ script/test                  # runs it too: `std-exerciser` ends with it
 
 ### What it does
 
-It asks the compiler which `library/std/src/sys/**` sources it **actually compiled** for the nife
-targets, by unioning every `library/std/src/sys/` path out of cargo's own dep-info under
-`std_exerciser/target/`, and greps exactly those for bodies that end a process: `panic!`,
+It asks the compiler which `library/std/src/sys/` sources it actually compiled for the nife targets,
+by unioning every `library/std/src/sys/` path out of cargo's own dep-info under
+`std_exerciser/target/`. It greps exactly those for bodies that end a process: `panic!`,
 `unimplemented!`, `todo!`, `rtabort!`, `intrinsics::abort()`, `panic_nounwind`. Comment lines are
 skipped, because this tree's PAL files discuss the panics they replaced at length.
 
-What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, **which carries the
-reason for every entry**. A new one fails the build with the file, the line, and the two things it
+What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, which carries the
+reason for every entry. A new one fails the build with the file, the line, and the two things it
 can be. Today there are 26 across 79 compiled sources, in three groups:
 
-- **unreachable on nife** (nine): a body behind a `cfg` this target does not satisfy. `cfg_select!`
+- unreachable on nife (nine): a body behind a `cfg` this target does not satisfy. `cfg_select!`
   keeps every arm's source in the file, so they are read but not compiled into anything reachable.
-- **no answer exists** (nine): single-threaded, so the call can only deadlock or end, and upstream
+- no answer exists (nine): single-threaded, so the call can only deadlock or end, and upstream
   chose to end. `Condvar::wait` and `Once::wait` are the two that matter, and they stay open until
   milestone 64's `thread::spawn` fork is decided rather than being fixable by a PAL arm.
-- **ours, and deliberate** (three files' worth): the clock and entropy refusals, where ending the
+- ours, and deliberate (three files' worth): the clock and entropy refusals, where ending the
   process is the honest report because the call has no error channel and inventing a value would be
   the lie §42 forbids.
 
@@ -102,53 +102,53 @@ $ llvm-objdump -d --demangle std_exerciser/target/aarch64-unknown-nife/release/s
 
 ### BUGS
 
-- **It covers `sys/` and nothing else, on purpose, and that is a real gap.** `sys` *is* std's
+- It covers `sys/` and nothing else, on purpose, and that is a real gap. `sys` *is* std's
   platform layer: a panic under it says "this platform has nothing to offer", while a panic in
   `path.rs` or `thread/scoped.rs` says "you called this wrong" and says it identically on Linux. The
   first version swept all of std, found about forty of the second kind and none of the first, and
-  would have been abandoned within a week. The cost of the narrowing is that **portable std code
-  which is only reachable on a platform this thin is invisible here** (a `LazyLock` poisoned by an
+  would have been abandoned within a week. The cost of the narrowing is that portable std code
+  which is only reachable on a platform this thin is invisible here (a `LazyLock` poisoned by an
   earlier panic, say), and finding those still needs somebody reading.
-- **An accepted entry matches a substring of a line, not a line number.** That is what stops a
+- An accepted entry matches a substring of a line, not a line number. That is what stops a
   nightly's blank line from rewriting the list, and it means one entry can bless two sites when the
   same text appears twice in a file. `sys/exit.rs`'s `crate::intrinsics::abort()` is exactly that
   case: the UEFI arm's last resort and the `_ =>` arm nife used to take are the same string, so
   after this milestone one accepted entry covers a line nobody reaches and a line nobody takes.
-  **Three entries are deliberately blanket**, matching bare `panic!(` in `sys/random/nife.rs`,
-  `sys/time/nife.rs` and `sys/pal/nife/clockproto.rs`: those are the PAL's own files, where every
+  Three entries are deliberately blanket, matching bare `panic!(` in `sys/random/nife.rs`,
+  `sys/time/nife.rs` and `sys/pal/nife/clockproto.rs`. Those are the PAL's own files, where every
   panic is one this project wrote on purpose and a new one arrives through review rather than
   through a nightly. A blanket entry over a file we do not own would be the wrong trade.
-- **It proves reachability of a *body*, never of a *call*.** A body compiled into the reachable set
+- It proves reachability of a *body*, never of a *call*. A body compiled into the reachable set
   might still be dead. The check deliberately does not try to decide that, because deciding it is
   reading the call sites, which is the work it exists to prompt rather than to replace.
-- **It needs a build.** The dep-info only exists after `cargo xtask std-exerciser`, which is why the
+- It needs a build. The dep-info only exists after `cargo xtask std-exerciser`, which is why the
   check runs at the end of that step rather than in `script/lint`. Run against a stale farm it
   reports the stale farm, honestly and uselessly.
-- **It never checks that the paths it scans are under `farm_dir()`, and a contaminated build is
-  therefore reported as a source defect with file and line numbers.** Found 2026-08-18 by milestone
-  117's fifth stranger, on its first `script/test` from a fresh clone. `nife-dev` is an
-  account-wide `rustup` link, so a clone whose farm has not been built yet compiles `std` out of
-  **whichever worktree built the farm last**, the `-Zbuild-std` dep-info under
-  `std_exerciser/target/` caches those absolute paths, and cargo then considers the unit fresh, so
-  re-running reproduces the same failure in about thirty seconds and looks like a stable defect
-  rather than a stale one. What the stranger saw was two files, two line numbers and two suggested
-  fixes, all of them naming source inside another checkout on the machine; it wrote in its journal
-  that **both suggested fixes would have committed a false statement to `ABORTS_ACCEPTED`**, and
-  the only reason it did not was that it went looking for why the path was foreign. **The recovery
-  is `rm -rf std_exerciser/target`, which nothing in the tree says**, and the assertion that would
-  have made the message true is one comparison against `farm_dir()`. The bullet above says a stale
-  farm is reported "honestly and uselessly"; run 5 is the case where it is reported dishonestly,
-  because the paths belong to a farm this checkout never built.
-- **The same stale cache has a third face, and it never reaches the foreign-path check.** Found
-  2026-09-19 by milestone 168's lane, twice in a row on one worktree: `script/test` failed at
+- It never checks that the paths it scans are under `farm_dir()`, and a contaminated build is
+  therefore reported as a source defect with file and line numbers. Found 2026-08-18 by milestone
+  117's fifth stranger, on its first `script/test` from a fresh clone. `nife-dev` is an account-wide
+  `rustup` link, so a clone whose farm has not been built yet compiles `std` out of whichever
+  worktree built the farm last. The `-Zbuild-std` dep-info under `std_exerciser/target/` caches
+  those absolute paths, and cargo then considers the unit fresh. So re-running reproduces the same
+  failure in about thirty seconds and looks like a stable defect rather than a stale one. What the
+  stranger saw was two files, two line numbers and two suggested fixes, all of them naming source
+  inside another checkout on the machine. It wrote in its journal that both suggested fixes would
+  have committed a false statement to `ABORTS_ACCEPTED`, and the only reason it did not was that it
+  went looking for why the path was foreign. The recovery is `rm -rf std_exerciser/target`, which
+  nothing in the tree says, and the assertion that would have made the message true is one
+  comparison against `farm_dir()`. The bullet above says a stale farm is reported "honestly and
+  uselessly"; run 5 is the case where it is reported dishonestly, because the paths belong to a farm
+  this checkout never built.
+- The same stale cache has a third face, and it never reaches the foreign-path check. Found
+  2026-09-19 by milestone 168's lane, twice in a row on one worktree. `script/test` failed at
   `std-exerciser: building std_exerciser for aarch64-unknown-nife failed`, with ten errors inside
-  the **rustup toolchain's own, unpatched** std (`none of the predicates in this cfg_select
+  the rustup toolchain's own, unpatched std (`none of the predicates in this cfg_select
   evaluated to true` in `sys/alloc/mod.rs`, `sys/io/error/mod.rs`, `sys/thread_local`), while
   `nife-dev` pointed correctly at this worktree's farm and `rustc --print sysroot` answered the
   farm. `rm -rf std_exerciser/target` and a rebuild compiled std from the farm and passed at once.
   So a build under `std_exerciser/target` can pin the plain nightly's `library/` as well as another
   worktree's, and because the build fails before any dep-info is written, `std-aborts`' foreign
   check never runs and nothing prints the recovery. The cause of the pinning was not diagnosed.
-  **Recovery is the same line**: `rm -rf std_exerciser/target`.
-- **`std-aborts` is a provisional name** (milestone 64, 2026-08-18). Names are calef's; this one is
+  Recovery is the same line: `rm -rf std_exerciser/target`.
+- `std-aborts` is a provisional name (milestone 64, 2026-08-18). Names are calef's; this one is
   not ratified.
