@@ -108,7 +108,10 @@ context's address fields round-trip, and no device id reaches another's entry. M
 five lines in `arch/mod.rs` and one harness. The probe run's wall time was not taken separately;
 the row it joins is 7.25 seconds.
 Extending to `irq.rs` costs its 8 resolve errors, most likely by compiling the PLIC driver under
-the same `cfg` (unmeasured). The ceiling is 736 lines, 6% of `arch/riscv64/`'s 11,746.
+the same `cfg` (unmeasured). The ceiling was 736 lines, 12.5% of `arch/riscv64/`'s 5,879 Rust
+lines by `wc -l`. This said 6% of 11,746, a total that counted every file twice. Both predate
+milestone 432 (the RISC-V IOMMU driver has no counterpart to the SMMU's proofs), which grew
+`iommu.rs`.
 It carries **a new stub-list item**, and it is the one that matters: inside the probe module,
 `crate::arch::...` resolves to the *host's* architecture. `iommu.rs` calls
 `crate::arch::mmu::phys_to_virt` and gets aarch64's. For word arithmetic that is irrelevant; for
@@ -167,5 +170,5 @@ model is the version of this that does not leave a fork behind; #2402's age says
 **This does not turn risk 2 green, and nothing buildable does.** Reach was the half of the amber a
 lane could build; the survivorship half closes only when a standing harness goes red on a regression
 somebody else introduced. Option 1 adds a riscv64 proof, which is reach. The honest outcome is a
-narrower sentence in risk 2: riscv64's asm-free files are provable from an aarch64 host, and 94% of
-`arch/riscv64/` still is not. That sentence is calef's to write, through milestone 536.
+narrower sentence in risk 2: riscv64's asm-free files are provable from an aarch64 host, and 87.5%
+of `arch/riscv64/` still is not. That sentence is calef's to write, through milestone 536.
