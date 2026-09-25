@@ -96,7 +96,6 @@ which is all of rung 3a after "verified by digest". The fetch and the check are 
 milestone 507's "no to all three" outcome one step later: rung 3 stops, and with it fatal risk 8's
 only route to a verdict.
 
-**Blocked independently, and not this section's**: the booted system has no network. The progenitor
-never builds `net_stack`, so nothing at the prompt holds a `Stack` capability, and every network test
-today runs in the kernel's test harness. That is filed as the proposal
-`design/roadmap/proposals/the-booted-system-has-no-network.md`.
+**Blocked independently, and not this section's**: the booted system had no network when this was
+written, because the progenitor never built `net_stack`. Milestone 590 (the booted system starts
+its network stack) closed that, in `design/roadmap/590-the-booted-system-starts-its-network-stack.md`.

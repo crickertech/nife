@@ -179,9 +179,9 @@ builds processes can read an installed program because the progenitor gives the 
 The progenitor has kept the file service since milestone 31 (a capability shell) phase 3 (2026-08-17), so it can read
 one. What it cannot do is be asked for one.
 
-And a second gap stands behind that one: the booted system has no network. The progenitor
-builds no `net_stack`, so the fetch above runs only in the kernel's test harness. That is filed as
-`design/roadmap/proposals/the-booted-system-has-no-network.md`.
+A second gap stood behind that one: the booted system had no network, so the fetch above runs only
+in the kernel's test harness. Milestone 590 (the booted system starts its network stack) now starts
+`net_stack` at boot; moving the fetch out of the harness is still to do.
 
 ## BUGS
 

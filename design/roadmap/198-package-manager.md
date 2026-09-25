@@ -232,8 +232,8 @@ calef's acts are named there rather than here.
   507 (installing a package: mutate, compose, or widen)'s blocker was half stale: the progenitor has
   kept the file service since milestone 31 (a capability shell), but nothing can ask it for a program.
 - **Proposed.** The virtio device table never reuses a slot
-  (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`), and the booted
-  system has no network (`design/roadmap/proposals/the-booted-system-has-no-network.md`).
+  (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`). The booted system
+  had no network either; milestone 590 (the booted system starts its network stack) built it.
 - **Done.** Every archive build runs `cargo xtask package` end to end since 2026-09-24.
 - **Decision.** Where a program's manifest travels, and whether the digest is a Merkle root, are
   both still calef's and both left open rather than answered by the built format:
