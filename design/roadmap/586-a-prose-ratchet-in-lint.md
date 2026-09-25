@@ -141,6 +141,14 @@ Measuring that churn over the first week is part of the milestone.
   not switched on, because `AGENTS.md` is past its marker on the day it would land (6,291 words
   against 6,279; `design/fatal-risks.md` was cut back to its 4,235). It would fail `main` until
   calef re-grants or the file is cut, and this lane may not edit it.
+- **Outstanding.** Every new decision fails this gate. `design/decisions/README.md` is over the
+  word cap and its index table is generated and counted, so one new row, about 17 words, breaks the
+  "may not get worse" rule. Found 2026-09-25, when the queue removed #1278, which adds §215 (the
+  second RISC-V machine is a rented Scaleway Elastic Metal RV1). Checked with
+  `python3 helpers/prose_ratchet.py --report design/decisions/README.md`. That lane cut 18 words of
+  hand prose to pass, which works once. The fix is to count only what a person wrote,
+  skipping the table under `## The decisions`, or to split the index out of the README. Both change
+  what this gate measures, so they are the maintainer's to choose.
 - **Refused.** A list of parsed markup exempt from the bold count. The maintainer asked for one on
   2026-09-24, citing the `Status:` and `Gate:` lines roadmap blocks and proposals must carry. It
   would overturn a ruling, so it is calef's call and was not built. §213 records calef's ruling of the same day:
