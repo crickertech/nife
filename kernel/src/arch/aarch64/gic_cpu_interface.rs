@@ -56,12 +56,12 @@
 
 use core::arch::asm;
 
+use super::instructions;
+
 /// This core's affinity, packed the way `GICR_TYPER[63:32]` states a redistributor's owner:
 /// Aff3.Aff2.Aff1.Aff0, one byte each.
 pub fn redistributor_affinity() -> u32 {
-    let mpidr: u64;
-    // SAFETY: MPIDR_EL1 is readable at EL1 on every aarch64 core. No memory, no flags.
-    unsafe { asm!("mrs {}, mpidr_el1", out(reg) mpidr, options(nomem, nostack, preserves_flags)) };
+    let mpidr = instructions::read_mpidr();
     ((((mpidr >> 32) & 0xff) << 24) | (mpidr & 0xff_ffff)) as u32
 }
 
@@ -78,17 +78,10 @@ pub fn init_this_cpu() {
     // the exception handler, which panics: loud either way. `ID_AA64PFR0_EL1.GIC` is deliberately
     // not the guard, because under HVF it reads zero while the registers work (see
     // `machine_discovery::gic`). Setting SRE only changes how the ICC registers below are reached;
-    // `isb` so the read-back sees the write.
+    // `isb` (inside the write) so the read-back sees the write.
     unsafe {
-        asm!(
-            "mrs {v}, icc_sre_el1",
-            "orr {v}, {v}, #1",
-            "msr icc_sre_el1, {v}",
-            "isb",
-            "mrs {v}, icc_sre_el1",
-            v = out(reg) sre,
-            options(nostack, preserves_flags),
-        );
+        instructions::write_icc_sre_synchronized(instructions::read_icc_sre() | 1);
+        sre = instructions::read_icc_sre();
     }
     assert!(
         sre & 1 != 0,

@@ -35,7 +35,7 @@
 //!   emits SVE. No test can see this on the emulator's default CPU; it is a one-instruction closure
 //!   of a window the emulator cannot open.
 
-use core::arch::asm;
+use super::instructions;
 
 /// **How many vector registers this architecture saves**: `q0`-`q31`.
 ///
@@ -135,18 +135,7 @@ const ZEN_AND_SMEN: u64 = (0b11 << 16) | (0b11 << 24);
 /// the exact failure this milestone exists to prevent, on hardware, silently, with the emulator
 /// green.
 pub fn init() {
-    // SAFETY: as `enable`; writes one control register on this core.
-    unsafe {
-        asm!(
-            "mrs {t}, cpacr_el1",
-            "bic {t}, {t}, {mask}",
-            "msr cpacr_el1, {t}",
-            "isb",
-            t = out(reg) _,
-            mask = in(reg) FPEN | ZEN_AND_SMEN,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
+    instructions::write_cpacr_synchronized(instructions::read_cpacr() & !(FPEN | ZEN_AND_SMEN));
 }
 
 /// Let the current core execute FP and SIMD instructions.
@@ -155,20 +144,7 @@ pub fn init() {
 /// it, an FP instruction already in the pipeline may be resolved against the old value, and the
 /// caller here is about to execute thirty-two `ldp q` in [`restore`].
 pub fn enable() {
-    // SAFETY: sets two bits in a control register that names no memory. The widest thing getting it
-    // wrong can do is let a thread execute an FP instruction, or trap one it should not have; it
-    // cannot hand anybody a page.
-    unsafe {
-        asm!(
-            "mrs {t}, cpacr_el1",
-            "orr {t}, {t}, {mask}",
-            "msr cpacr_el1, {t}",
-            "isb",
-            t = out(reg) _,
-            mask = in(reg) FPEN,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
+    instructions::write_cpacr_synchronized(instructions::read_cpacr() | FPEN);
 }
 
 /// Is the FP unit open on this core right now?
@@ -180,12 +156,7 @@ pub fn enable() {
 /// about a thread rather than about a core, and reading `CPACR_EL1` to learn it would be a
 /// system-register read per switch for something already in memory.
 pub fn is_enabled() -> bool {
-    let cpacr: u64;
-    // SAFETY: reads one control register into a local.
-    unsafe {
-        asm!("mrs {}, cpacr_el1", out(reg) cpacr, options(nomem, nostack, preserves_flags));
-    }
-    cpacr & FPEN != 0
+    instructions::read_cpacr() & FPEN != 0
 }
 
 /// Trap FP and SIMD again, at both exception levels.
@@ -196,18 +167,7 @@ pub fn is_enabled() -> bool {
 /// [`crate::fp`] keeps is that the file holds the running thread's data or the initial state, and
 /// it installs the latter before calling this.
 pub fn disable() {
-    // SAFETY: as `enable`.
-    unsafe {
-        asm!(
-            "mrs {t}, cpacr_el1",
-            "bic {t}, {t}, {mask}",
-            "msr cpacr_el1, {t}",
-            "isb",
-            t = out(reg) _,
-            mask = in(reg) FPEN,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
+    instructions::write_cpacr_synchronized(instructions::read_cpacr() & !FPEN);
 }
 
 /// Copy the live register file into `state`.
@@ -247,7 +207,7 @@ pub fn touch() {
     // SAFETY: writes one vector register. Under a trapping `CPACR_EL1.FPEN` this takes the enable
     // trap and is re-executed after it, which is the entire point of calling it.
     unsafe {
-        asm!(
+        core::arch::asm!(
             ".arch_extension fp",
             "fmov d0, xzr",
             ".arch_extension nofp",
@@ -285,5 +245,95 @@ impl FpState {
     /// Do the registers hold [`Self::INITIAL`]'s values, i.e. has the file been scrubbed?
     pub fn is_scrubbed(&self) -> bool {
         self.q.iter().all(|&lane| lane == 0) && self.fpcr == 0 && self.fpsr == 0
+    }
+}
+
+/// Proofs of the `CPACR_EL1` edits, reachable since 2026-09-25 because the `mrs` and `msr` they make
+/// are functions in [`instructions`] that a harness can stub. Until then each edit was its arithmetic
+/// and its two instructions in one `asm!` block, and the arithmetic was unprovable.
+///
+/// # What the stub assumes
+///
+/// `CPACR_EL1` is modelled as a plain 64-bit register: a write is visible to the next read, exactly,
+/// every bit. On real parts some fields are RES0 (`ZEN` without SVE, `SMEN` without SME) and read as
+/// zero whatever was written; the model does not do that, so these proofs say nothing about which
+/// fields exist, only that the code never writes one it did not mean to. The `isb` inside
+/// [`instructions::write_cpacr_synchronized`] is assumed to do its job; the model has no pipeline.
+/// See notes/kernel-proofs/stubbing-an-instruction.md.
+#[cfg(kani)]
+mod proofs {
+    use core::sync::atomic::AtomicU64;
+    use core::sync::atomic::Ordering::Relaxed;
+
+    use super::*;
+
+    /// The modelled `CPACR_EL1`.
+    static CPACR: AtomicU64 = AtomicU64::new(0);
+
+    #[allow(dead_code)] // named only by `#[kani::stub]`, which rustc cannot see
+    fn read_cpacr_model() -> u64 {
+        CPACR.load(Relaxed)
+    }
+
+    #[allow(dead_code)] // named only by `#[kani::stub]`
+    fn write_cpacr_model(cpacr: u64) {
+        CPACR.store(cpacr, Relaxed);
+    }
+
+    /// **Every `CPACR_EL1` edit changes exactly the field it names, and [`is_enabled`] reads back
+    /// what the last one did.**
+    ///
+    /// The register holds three independent enables (FP/SIMD, SVE, SME) and a trace bit, and the
+    /// module's whole guarantee rests on them moving separately: [`init`] closes all three, while
+    /// [`enable`] and [`disable`] run on every first-use trap and hand-over and must touch `FPEN`
+    /// alone. A mask with one bit wrong would either leave SVE open (a thread keeps vector state
+    /// nobody saves) or trap FP in a thread that owns the unit, and QEMU resets the register to zero,
+    /// where most wrong masks are invisible. Checked for every starting value of the register.
+    ///
+    /// Falsification: attested 2026-09-25. On patagonia (aarch64 host), three times and one edit at
+    /// a time: `init`'s mask without `ZEN_AND_SMEN`, `enable` writing `FPEN >> 1` (half the field),
+    /// and `disable` clearing `FPEN | ZEN_AND_SMEN`. Each turns this red. `attested` rather than
+    /// `replayable` for the reason `script/falsifications` gives for every architecture-specific
+    /// harness.
+    #[kani::proof]
+    #[kani::stub(super::super::instructions::read_cpacr, read_cpacr_model)]
+    #[kani::stub(
+        super::super::instructions::write_cpacr_synchronized,
+        write_cpacr_model
+    )]
+    fn every_cpacr_edit_changes_exactly_the_field_it_names() {
+        let before: u64 = kani::any();
+        CPACR.store(before, Relaxed);
+
+        let which: u8 = kani::any();
+        kani::assume(which < 3);
+        let (touched, want) = match which {
+            0 => {
+                init();
+                (FPEN | ZEN_AND_SMEN, 0)
+            }
+            1 => {
+                enable();
+                (FPEN, FPEN)
+            }
+            _ => {
+                disable();
+                (FPEN, 0)
+            }
+        };
+
+        let after = CPACR.load(Relaxed);
+        assert!(
+            after & touched == want,
+            "the named field did not reach its value"
+        );
+        assert!(
+            after & !touched == before & !touched,
+            "an edit moved a field it does not name"
+        );
+        assert!(
+            is_enabled() == (which == 1),
+            "is_enabled disagrees with the last edit"
+        );
     }
 }

@@ -18,17 +18,14 @@
 //!
 //! We only touch `I`. FIQ and SError stay as the boot protocol left them.
 
-use core::arch::asm;
+use super::instructions;
 
 /// Bit 7 of DAIF, as read back by `mrs`.
 const I_BIT: u64 = 1 << 7;
 
 /// Are IRQs currently *unmasked*, i.e. can one fire right now?
 pub fn is_enabled() -> bool {
-    let daif: u64;
-    // SAFETY: reads a system register. No side effects.
-    unsafe { asm!("mrs {}, daif", out(reg) daif, options(nomem, nostack)) };
-    daif & I_BIT == 0
+    instructions::read_daif() & I_BIT == 0
 }
 
 /// Mask IRQs, and report whether they had been enabled.
@@ -40,10 +37,9 @@ pub fn is_enabled() -> bool {
 pub fn disable() -> bool {
     let was_enabled = is_enabled();
 
-    // SAFETY: masking IRQs is always sound. If an IRQ fires between the read above and
-    // this instruction, it simply runs, and the state we read is still the truth about
-    // what to restore.
-    unsafe { asm!("msr daifset, #2", options(nomem, nostack)) };
+    // If an IRQ fires between the read above and this instruction, it simply runs, and the state
+    // we read is still the truth about what to restore.
+    instructions::mask_irqs();
 
     was_enabled
 }
@@ -51,8 +47,8 @@ pub fn disable() -> bool {
 /// Put IRQs back the way [`disable`] found them.
 pub fn restore(was_enabled: bool) {
     if was_enabled {
-        // SAFETY: unmasking only when they were unmasked before.
-        unsafe { asm!("msr daifclr, #2", options(nomem, nostack)) };
+        // Unmasking only when they were unmasked before.
+        instructions::unmask_irqs();
     }
 }
 
@@ -62,6 +58,5 @@ pub fn restore(was_enabled: bool) {
 /// secondary coming online, a thread's trampoline) and for tests. Everywhere else wants [`disable`]
 /// + [`restore`].
 pub fn enable() {
-    // SAFETY: unmasking IRQs is sound; whether it is *wise* is the caller's problem.
-    unsafe { asm!("msr daifclr, #2", options(nomem, nostack)) };
+    instructions::unmask_irqs();
 }

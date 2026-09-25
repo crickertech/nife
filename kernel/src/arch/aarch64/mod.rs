@@ -17,6 +17,7 @@ pub mod exceptions;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
 pub mod fp;
+mod instructions;
 // The GICv3 CPU interface, `ICC_*` system registers (milestone 227). Private: `irq` is its only
 // caller, and the one place that knows which GIC version this machine has.
 mod gic_cpu_interface;
@@ -341,12 +342,7 @@ pub fn wait_for_interrupt() {
 /// This core's current stack pointer. Reading `sp` is arch-specific (rule 1), so the stack-overflow
 /// canary check (stack.rs) goes through here rather than embedding an `asm!` in portable code.
 pub fn current_sp() -> u64 {
-    let sp: u64;
-    // SAFETY: reads a register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, sp", out(reg) sp, options(nomem, nostack, preserves_flags));
-    };
-    sp
+    instructions::read_sp()
 }
 
 /// `SPSel`, the register that says which stack pointer the name `sp` currently means at EL1:
@@ -357,10 +353,7 @@ pub fn current_sp() -> u64 {
 /// by privilege level, so there is no analogous register to read (notes/riscv-parity-scope.md).
 #[cfg(test)]
 pub fn spsel() -> u64 {
-    let spsel: u64;
-    // SAFETY: reading SPSel has no side effects.
-    unsafe { core::arch::asm!("mrs {}, spsel", out(reg) spsel, options(nostack, nomem)) };
-    spsel
+    instructions::read_spsel()
 }
 
 /// Order all prior normal-memory writes before the next device (MMIO) write.
