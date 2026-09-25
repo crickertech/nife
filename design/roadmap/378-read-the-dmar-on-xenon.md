@@ -31,8 +31,8 @@ nobody knew because no code read the bit.
    well-formed and keeps only `first_drhd`; `crates/machine_discovery/src/acpi.rs`'s own `BUGS`
    records the bit as read and never used. That is the platform's claim about itself, beside the
    unit's claim about itself, and this file asks for both.
-3. **Only the first DRHD is carried.** A machine can have more than one, which `Drhd`'s
-   documentation already names as future work.
+3. **Only the first DRHD is carried.** A machine can have more than one. Done by milestone 594
+   (every VT-d unit translates its own devices) on 2026-09-25.
 
 *Corrected 2026-09-25 (UTC), from pull request #1275, the rehearsal for milestone 261 (the NVMe
 driver leaves the kernel), on two of the three items.* The first is answered and does not mean what
@@ -115,9 +115,9 @@ when it finds a DMAR it did not expect, and the answer for this proposal is noth
   only the DRHD base, with the comment saying nothing reads either field yet, and
   `crates/machine_discovery/src/acpi.rs`'s `BUGS` says the same from the other side. The two flags
   are different claims, one by the platform and one by the unit, and this block wants both.
-- **Outstanding.** Carrying more than one DRHD. Checked 2026-09-19: `first_drhd` takes the first
-  entry and `Drhd`'s own documentation names the rest as future work. Nothing this tree boots has a
-  second unit, so this is the least urgent of the three and is listed so it is not rediscovered.
+- **Milestone 594.** Carrying more than one DRHD, which #1297 showed was the most urgent of the
+  three, since xenon very likely has a second unit. Every unit is now brought up and each device
+  routed to its owner (number provisional, 2026-09-25).
 - **Recorded.** This block reads and reports and never enables interrupt remapping, programs a
   remapping unit, or changes a driver. Turning a unit on is a much larger piece of work and should
   not start until somebody knows whether the hardware supports it, which is what the first bullet

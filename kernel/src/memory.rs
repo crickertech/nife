@@ -572,23 +572,30 @@ pub fn smmu_region() -> Option<(u64, u64)> {
     *SMMU_REGION.lock()
 }
 
-/// VT-d's register block (start, size), both **physical**, from the DMAR's first DRHD. `None` on
-/// a machine with no VT-d unit, or before [`record_vtd_region`] has run. Presence here is what
-/// gates `mmu::map_everything` mapping the window, the same role [`smmu_region`] plays for the
-/// SMMU.
+/// **Every VT-d unit's register block** (start, size), both **physical**, one per DRHD the DMAR
+/// named, in table order; `None` past the last. All `None` on a machine with no VT-d unit, or
+/// before [`record_vtd_region`] has run. Presence here is what gates `mmu::map_everything` mapping
+/// each window, the same role [`smmu_region`] plays for the SMMU. Every unit and not only one
+/// since milestone 594 (every VT-d unit translates its own devices), which brings every unit up. Name: provisional.
 #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
-pub fn vtd_region() -> Option<(u64, u64)> {
-    *VTD_REGION.lock()
+pub fn vtd_regions() -> [Option<(u64, u64)>; machine_discovery::acpi::MAX_DRHDS] {
+    *VTD_REGIONS.lock()
 }
 
-/// **Record VT-d's register block directly**, for a machine with no device tree to read it from.
-/// `x86_64`'s counterpart of [`record_pci_regions`]: ACPI's DMAR names the DRHD, and `main.rs`
-/// calls this before `arch::mmu::init()` runs, so the window is recorded before
+/// **Record one VT-d unit's register block**, for a machine with no device tree to read it from.
+/// `x86_64`'s counterpart of [`record_pci_regions`]: ACPI's DMAR names the DRHDs, and `main.rs`
+/// calls this once per unit before `arch::mmu::init()` runs, so every window is recorded before
 /// `mmu::map_everything` decides what to map. Must run before `mmu::init`; calling it after would
-/// record a fact the fine map can no longer act on.
+/// record a fact the fine map can no longer act on. A unit past the array is a panic, not a
+/// silent drop: the DMAR decoder holds no more units than this array does.
 #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub fn record_vtd_region(base: u64, size: u64) {
-    *VTD_REGION.lock() = Some((base, size));
+    let mut g = VTD_REGIONS.lock();
+    let slot = g
+        .iter_mut()
+        .find(|r| r.is_none())
+        .expect("more VT-d units than the DMAR decoder records");
+    *slot = Some((base, size));
 }
 
 /// **The screen's aperture** (start, size), both **physical**, as the boot handoff described it.
@@ -596,7 +603,7 @@ pub fn record_vtd_region(base: u64, size: u64) {
 /// anything but `uefi_loader` today.
 ///
 /// Presence here is what gates `mmu::map_everything` mapping the window device-typed, the same role
-/// [`vtd_region`] plays for VT-d. The console does not read this: it holds the address it was armed
+/// [`vtd_regions`] plays for VT-d. The console does not read this: it holds the address it was armed
 /// with. This exists so that the *mapping* survives the fine map replacing the boot map, which is
 /// the moment a console armed on the boot tables would otherwise start faulting.
 #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
@@ -828,14 +835,17 @@ static PCI_REGIONS: IrqSafeMutex<Option<PciWindows>> = IrqSafeMutex::new(rank::R
 /// found by enumeration, not a platform device with a node).
 static SMMU_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
 
-/// VT-d's register block (base, size), from the DMAR's first DRHD (milestone 161, roadmap item
-/// 6). `None` on a machine with no `-device intel-iommu`, or before it is recorded. `x86_64`'s
+/// VT-d's register blocks (base, size), one per DRHD in table order (milestone 161 (the
+/// `x86_64` kernel port), roadmap item 6; every unit since milestone 594 (every VT-d unit
+/// translates its own devices)). All `None` on a machine with no `-device intel-iommu`, or
+/// before they are recorded. `x86_64`'s
 /// counterpart of `SMMU_REGION`: filled by `main.rs`'s boot tour rather than by `init`, for the
 /// same reason [`record_pci_regions`] is, and read by `mmu::map_everything` so the register file
 /// is a mapped device window before `arch::iommu::init` ever reads it (`arch::x86_64::iommu`'s
 /// own accessors go through `phys_to_virt`, which is arithmetic, not a promise the address is
 /// mapped).
-static VTD_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
+static VTD_REGIONS: IrqSafeMutex<[Option<(u64, u64)>; machine_discovery::acpi::MAX_DRHDS]> =
+    IrqSafeMutex::new(rank::RAM, [None; machine_discovery::acpi::MAX_DRHDS]);
 
 /// The screen the boot handoff described (milestone 243). See [`framebuffer`].
 static FRAMEBUFFER: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);

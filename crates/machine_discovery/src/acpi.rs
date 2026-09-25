@@ -44,13 +44,13 @@
 //! - **The MADT's `flags` bit 0 (`PCAT_COMPAT`) is reported and not acted on.** It means the machine
 //!   also has 8259 PICs that must be masked before the APICs are used. Whoever brings the APIC up
 //!   has to mask them; this only says whether they are there.
-//! - **A DRHD's PCI device scopes are decoded into fixed arrays** ([`DmarUnits`], milestone 261 (the NVMe driver leaves the kernel)'s
-//!   bench rehearsal) and anything past them sets [`DmarUnits::truncated`], which turns an
-//!   ownership question into "unknown" rather than a guess. IOAPIC, HPET and ACPI-namespace scopes
-//!   are skipped, and RMRR, ATSR and the rest are not decoded at all: nothing here maps an RMRR,
-//!   so a device firmware expects to keep DMA-ing into one (USB legacy emulation, the integrated
-//!   GPU's stolen memory) faults once its unit translates. [`first_drhd`] is kept for its callers
-//!   and is no longer the unit the kernel brings up.
+//! - **A DMAR's PCI device scopes and RMRRs are decoded into fixed arrays** ([`DmarUnits`],
+//!   milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal, RMRRs since milestone 594 (every VT-d unit translates its own devices)) and anything past them sets
+//!   [`DmarUnits::truncated`], which turns an ownership question into "unknown" rather than a
+//!   guess. IOAPIC, HPET and ACPI-namespace scopes are skipped, and ATSR, RHSA, ANDD, SATC and
+//!   SIDP are not decoded at all. An ANDD names an ACPI-namespace device (an I2C or serial
+//!   controller with no PCI identity) that can issue DMA; this kernel drives none, so none is
+//!   confined, and a machine where one matters needs ANDD and the type-5 scope decoded.
 //! - **`Dmar::flags`' `INTR_REMAP` bit is read and never used.** Interrupt remapping is a real VT-d
 //!   feature this parser can report the presence of and this kernel does not build.
 //! - **An MCFG window whose `end_bus` precedes its `start_bus` is reported as written.** Nothing in
@@ -623,15 +623,13 @@ pub fn parse_dmar(body: &[u8]) -> Result<Dmar, AcpiError> {
 }
 
 /// **One DRHD: one VT-d hardware unit's register file.** A machine can have more than one (one
-/// per PCI segment, sometimes one per root port group); this driver brings up exactly one, which
-/// is what QEMU's `-device intel-iommu` on `q35` presents. Carrying more than one over is future
-/// work and is named where the kernel side decides which to use.
+/// per PCI segment, sometimes one per root port group, and on a client Intel part one for the
+/// integrated graphics beside the catch-all). The kernel brings up every one [`DmarUnits`]
+/// records (milestone 594, provisional number).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Drhd {
-    /// Remapping-structure flags bit 0: this unit is the catch-all for every PCI device no other
-    /// DRHD's device-scope list names. **Not read by anything here today**: with a single DRHD,
-    /// every device on the segment is this unit's, whether the bit is set or the device is named
-    /// explicitly in a scope list this parser does not decode (see this module's BUGS).
+    /// Remapping-structure flags bit 0: this unit is the catch-all for every PCI device on its
+    /// segment that no other DRHD's device-scope list names. [`DmarUnits::owner`] reads it.
     pub include_pci_all: bool,
     /// The PCI segment group this unit covers. Always 0 on a single-segment machine, which QEMU's
     /// `q35` is.
@@ -640,6 +638,17 @@ pub struct Drhd {
     /// reads it as the SMMUv3 driver reads its device-tree base and the RISC-V driver reads its
     /// BAR).
     pub register_base: u64,
+    /// **How many bytes the register file spans**, from the DRHD's `Size` byte (VT-d 4.1 section
+    /// 8.3: bits 3:0 are N, and the set is 2^N 4 KiB pages). Firmware written before that field
+    /// existed left the byte reserved and zero, which decodes to one page, the size every unit
+    /// had then. Name: provisional (milestone 594).
+    pub register_size: u64,
+}
+
+/// The register-file size a DRHD's `Size` byte (offset 5) names: 4 KiB shifted by its low four
+/// bits. At most 128 MiB, so the shift cannot overflow.
+const fn drhd_register_size(size_byte: u8) -> u64 {
+    4096u64 << (size_byte & 0xf)
 }
 
 /// How many bytes a DRHD's fixed part occupies before its (unparsed) device-scope list: the
@@ -694,14 +703,16 @@ impl Iterator for DmarStructures<'_> {
                 include_pci_all: e[4] & 1 != 0,
                 segment: u16(e, 6),
                 register_base: u64(e, 8),
+                register_size: drhd_register_size(e[5]),
             }),
             other => DmarEntry::Other(other),
         })
     }
 }
 
-/// The first DRHD in the list, if any. The one this driver brings up: see [`Drhd`]'s own doc for
-/// why a single unit is today's whole claim.
+/// The first DRHD in the list, if any. **No longer the unit the kernel brings up**: since milestone
+/// 594 (every VT-d unit translates its own devices) it brings up every unit [`DmarUnits`] records. Kept because in-tree
+/// records cite it and its tests pin the table order a client Intel machine uses.
 pub fn first_drhd(body: &[u8]) -> Option<Drhd> {
     dmar_structures(body).find_map(|e| match e {
         DmarEntry::Drhd(d) => Some(d),
@@ -710,7 +721,8 @@ pub fn first_drhd(body: &[u8]) -> Option<Drhd> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Which unit owns which device: the device-scope lists, decoded (milestone 261's bench rehearsal).
+// Which unit owns which device, and which firmware memory each device still needs: the
+// device-scope lists and the RMRRs, decoded (milestone 261's bench rehearsal, milestone 594).
 // ---------------------------------------------------------------------------------------------
 
 /// How many DRHDs [`DmarUnits`] records. A client Intel part has two (one for the integrated
@@ -724,6 +736,12 @@ pub const MAX_SCOPES: usize = 32;
 /// The longest path a recorded scope can carry: the device itself plus three bridges above it.
 /// Deeper than any machine this tree has met, and a deeper one sets [`DmarUnits::truncated`].
 pub const MAX_SCOPE_PATH: usize = 4;
+/// How many RMRRs [`DmarUnits`] records. The `OptiPlex` 7040 publishes two (USB, graphics). A
+/// ninth sets [`DmarUnits::truncated`]. Name: provisional (milestone 594).
+pub const MAX_RMRRS: usize = 8;
+/// How many PCI device-scope entries [`DmarUnits`] records across every RMRR. Name: provisional
+/// (milestone 594).
+pub const MAX_RMRR_SCOPES: usize = 16;
 
 /// Device-scope type 1: a PCI endpoint, named by its path from the start bus.
 pub const SCOPE_PCI_ENDPOINT: u8 = 1;
@@ -734,6 +752,10 @@ pub const SCOPE_PCI_SUBHIERARCHY: u8 = 2;
 /// enumeration id, start bus. VT-d 3.x section 8.3.1; QEMU's `insert_scope` writes the same six.
 const SCOPE_FIXED_LEN: usize = 6;
 
+/// An RMRR's fixed part before its scope list: the 4-byte header, two reserved bytes, the segment,
+/// then the region's base and its last byte (VT-d 4.1 section 8.4).
+const RMRR_FIXED_LEN: usize = 24;
+
 /// **One PCI device-scope entry, as the firmware wrote it**: a start bus and a path of
 /// (device, function) pairs, each hop but the last a bridge whose secondary bus is where the next
 /// hop lives. Resolving the path therefore needs the bus's live bridge registers, which is why
@@ -742,7 +764,8 @@ const SCOPE_FIXED_LEN: usize = 6;
 /// Name: provisional (milestone 261's bench rehearsal). calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct DeviceScope {
-    /// Index into [`DmarUnits::drhds`] of the unit this entry belongs to.
+    /// Index of the structure this entry belongs to: into [`DmarUnits::drhds`] for an entry in
+    /// [`DmarUnits::scopes`], into [`DmarUnits::rmrrs`] for one in [`DmarUnits::rmrr_scopes`].
     pub unit: u8,
     /// [`SCOPE_PCI_ENDPOINT`] or [`SCOPE_PCI_SUBHIERARCHY`].
     pub kind: u8,
@@ -750,6 +773,54 @@ pub struct DeviceScope {
     /// `(device, function)` per hop, the first on `start_bus`. Only `path[..path_len]` is real.
     pub path: [(u8, u8); MAX_SCOPE_PATH],
     pub path_len: u8,
+}
+
+impl DeviceScope {
+    /// **The function this entry's path ends at, as `(bus, device, function)` on this machine**,
+    /// or `None` when a hop that should be a bridge is not one here (the path describes hardware
+    /// that is not present). Every hop but the last is a bridge, and its secondary bus is where the
+    /// next hop sits. Name: provisional (milestone 594).
+    pub fn resolve(
+        &self,
+        bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
+    ) -> Option<(u8, u8, u8)> {
+        let n = self.path_len as usize;
+        // `parse` never records an empty or over-long path; the fields are public, so say so
+        // here rather than let a hand-built scope underflow `n - 1`.
+        if n == 0 || n > MAX_SCOPE_PATH {
+            return None;
+        }
+        let mut at_bus = self.start_bus;
+        for &(d, f) in &self.path[..n - 1] {
+            at_bus = bridge(at_bus, d, f)?.0;
+        }
+        let (d, f) = self.path[n - 1];
+        Some((at_bus, d, f))
+    }
+
+    /// **Does this entry cover `bus:dev.func`, and how?** An endpoint covers the function it
+    /// resolves to; a sub-hierarchy covers its bridge and every bus in the bridge's
+    /// secondary..=subordinate range (VT-d 4.1 section 8.3.1: "the specified bridge device and all
+    /// its downstream devices").
+    fn covers(
+        &self,
+        bus: u8,
+        dev: u8,
+        func: u8,
+        bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
+    ) -> Option<Ownership> {
+        let (at_bus, d, f) = self.resolve(bridge)?;
+        if (at_bus, d, f) == (bus, dev, func) {
+            return Some(Ownership::Named);
+        }
+        if self.kind == SCOPE_PCI_SUBHIERARCHY
+            && let Some((secondary, subordinate)) = bridge(at_bus, d, f)
+            && (secondary..=subordinate).contains(&bus)
+        {
+            return Some(Ownership::UnderBridge(at_bus, d, f));
+        }
+        None
+    }
 }
 
 /// **How a unit came to own a device**, which is the half of the answer a bench reader needs to
@@ -767,17 +838,51 @@ pub enum Ownership {
     CatchAll,
 }
 
-/// **Every DRHD and every PCI device scope in one DMAR**, decoded into fixed arrays so the kernel
-/// can keep it after the firmware's bytes are out of reach (it is read at boot, before the fine
-/// map, and asked after it). `Copy` and free of lifetimes for exactly that reason.
+/// **One RMRR: memory the firmware keeps DMA-ing into after it hands over** (VT-d 4.1 sections
+/// 3.16 and 8.4). USB legacy keyboard emulation under SMM and a UMA graphics controller's stolen
+/// memory are the two the specification names, and the two the `OptiPlex` 7040 publishes. The
+/// specification's instruction is that system software identity-map `base..=limit`, read and
+/// write, for every device the region's scope names, before it turns translation on.
+///
+/// Its devices are the entries of [`DmarUnits::rmrr_scopes`] whose `unit` is this region's index.
+///
+/// Name: provisional (milestone 594). calef names public items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ReservedRegion {
+    pub segment: u16,
+    /// First byte, 4 KiB aligned.
+    pub base: u64,
+    /// Last byte (inclusive, as the table writes it), so `limit + 1` is 4 KiB aligned.
+    pub limit: u64,
+}
+
+impl ReservedRegion {
+    /// The region's length in bytes. Total: [`DmarUnits::parse`] records only regions whose
+    /// `limit` exceeds `base`.
+    pub const fn size(&self) -> u64 {
+        self.limit - self.base + 1
+    }
+
+    /// The VT-d specification's well-formedness rule for an RMRR (section 8.4: a 4 KiB-aligned
+    /// base, a size that is a whole number of 4 KiB pages, a limit above the base), which is also
+    /// the check Linux's `rmrr_sanity_check` makes before it trusts one.
+    const fn is_well_formed(&self) -> bool {
+        self.base.is_multiple_of(4096)
+            && self.limit > self.base
+            && self.limit != u64::MAX
+            && (self.limit + 1).is_multiple_of(4096)
+    }
+}
+
+/// **Every DRHD, every PCI device scope and every RMRR in one DMAR**, decoded into fixed arrays so
+/// the kernel can keep it after the firmware's bytes are out of reach (it is read at boot, before
+/// the fine map, and asked after it). `Copy` and free of lifetimes for exactly that reason.
 ///
 /// This exists because [`first_drhd`] answered a question nobody on real hardware asks. xenon's
 /// DMAR is 204 bytes and its first DRHD is `0xfed90000`; on the Skylake `OptiPlex` 7040, the same
 /// family and the same register addresses, Linux reports that unit with flags `0x0` and a second
 /// at `0xfed91000` with flags `0x1` (`INCLUDE_PCI_ALL`), which is the integrated-graphics unit
-/// followed by the catch-all. If xenon is laid out the same way, the unit this kernel brought up
-/// on 2026-09-17 never saw the NVMe's requester id at all. See
-/// notes/risk-6-bench-evening.md for the source and what the bench does about it.
+/// followed by the catch-all. See notes/risk-6-bench-evening.md for the source.
 ///
 /// Name: provisional (milestone 261's bench rehearsal).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -786,8 +891,16 @@ pub struct DmarUnits {
     pub drhd_count: usize,
     pub scopes: [DeviceScope; MAX_SCOPES],
     pub scope_count: usize,
-    /// Something in the table did not fit the arrays above: a ninth DRHD, a thirty-third PCI
-    /// scope, a path deeper than [`MAX_SCOPE_PATH`], or a scope whose length disagrees with its
+    pub rmrrs: [ReservedRegion; MAX_RMRRS],
+    pub rmrr_count: usize,
+    pub rmrr_scopes: [DeviceScope; MAX_RMRR_SCOPES],
+    pub rmrr_scope_count: usize,
+    /// RMRRs the table held and this decoder refused because they break section 8.4's
+    /// well-formedness rule. Linux skips such a region with a firmware-bug warning; so does this,
+    /// and the count is what lets the boot print say so. Name: provisional (milestone 594).
+    pub rmrrs_refused: usize,
+    /// Something in the table did not fit the arrays above: a ninth DRHD or RMRR, a scope past its
+    /// array, a path deeper than [`MAX_SCOPE_PATH`], or a scope whose length disagrees with its
     /// path. **When set, a device no recorded scope names is answered "unknown" rather than handed
     /// to the catch-all**, because the entry that names it may be the one that was dropped.
     pub truncated: bool,
@@ -800,18 +913,69 @@ impl Default for DmarUnits {
                 include_pci_all: false,
                 segment: 0,
                 register_base: 0,
+                register_size: 0,
             }; MAX_DRHDS],
             drhd_count: 0,
             scopes: [DeviceScope::default(); MAX_SCOPES],
             scope_count: 0,
+            rmrrs: [ReservedRegion::default(); MAX_RMRRS],
+            rmrr_count: 0,
+            rmrr_scopes: [DeviceScope::default(); MAX_RMRR_SCOPES],
+            rmrr_scope_count: 0,
+            rmrrs_refused: 0,
             truncated: false,
         }
     }
 }
 
+/// Decode one scope list into `out`, tagging each entry with `owner`. Total for any input: a
+/// malformed list stops and sets `truncated`, and an entry past `out` sets it too.
+fn read_scope_list(
+    mut list: &[u8],
+    owner: u8,
+    out: &mut [DeviceScope],
+    count: &mut usize,
+    truncated: &mut bool,
+) {
+    while list.len() >= 2 {
+        let kind = list[0];
+        let len = list[1] as usize;
+        if len < SCOPE_FIXED_LEN || len > list.len() || !(len - SCOPE_FIXED_LEN).is_multiple_of(2) {
+            *truncated = true;
+            return;
+        }
+        let entry = &list[..len];
+        list = &list[len..];
+        if kind != SCOPE_PCI_ENDPOINT && kind != SCOPE_PCI_SUBHIERARCHY {
+            continue;
+        }
+        let hops = (len - SCOPE_FIXED_LEN) / 2;
+        if hops == 0 || hops > MAX_SCOPE_PATH || *count == out.len() {
+            *truncated = true;
+            continue;
+        }
+        let mut s = DeviceScope {
+            unit: owner,
+            kind,
+            start_bus: entry[5],
+            path_len: hops as u8,
+            ..DeviceScope::default()
+        };
+        for h in 0..hops {
+            s.path[h] = (
+                entry[SCOPE_FIXED_LEN + 2 * h],
+                entry[SCOPE_FIXED_LEN + 2 * h + 1],
+            );
+        }
+        out[*count] = s;
+        *count += 1;
+    }
+}
+
 impl DmarUnits {
-    /// Decode every DRHD and its PCI scopes. `body` begins after the SDT header. Total for any
-    /// input: a malformed scope list stops that unit's scopes and sets [`DmarUnits::truncated`].
+    /// Decode every DRHD, every RMRR and their PCI scopes. `body` begins after the SDT header.
+    /// Total for any input: a malformed scope list stops that structure's scopes and sets
+    /// [`DmarUnits::truncated`].
     pub fn parse(body: &[u8]) -> DmarUnits {
         let mut u = DmarUnits::default();
         let mut at = DMAR_FIXED_LEN;
@@ -823,62 +987,57 @@ impl DmarUnits {
             }
             let e = &body[at..at + len];
             at += len;
-            if kind != 0 || len < DRHD_FIXED_LEN {
-                continue;
+            match kind {
+                0 if len >= DRHD_FIXED_LEN => {
+                    if u.drhd_count == MAX_DRHDS {
+                        u.truncated = true;
+                        continue;
+                    }
+                    let unit = u.drhd_count;
+                    u.drhds[unit] = Drhd {
+                        include_pci_all: e[4] & 1 != 0,
+                        segment: u16(e, 6),
+                        register_base: u64(e, 8),
+                        register_size: drhd_register_size(e[5]),
+                    };
+                    u.drhd_count += 1;
+                    read_scope_list(
+                        &e[DRHD_FIXED_LEN..],
+                        unit as u8,
+                        &mut u.scopes,
+                        &mut u.scope_count,
+                        &mut u.truncated,
+                    );
+                }
+                1 if len >= RMRR_FIXED_LEN => {
+                    let r = ReservedRegion {
+                        segment: u16(e, 6),
+                        base: u64(e, 8),
+                        limit: u64(e, 16),
+                    };
+                    if !r.is_well_formed() {
+                        u.rmrrs_refused += 1;
+                        continue;
+                    }
+                    if u.rmrr_count == MAX_RMRRS {
+                        u.truncated = true;
+                        continue;
+                    }
+                    let index = u.rmrr_count;
+                    u.rmrrs[index] = r;
+                    u.rmrr_count += 1;
+                    read_scope_list(
+                        &e[RMRR_FIXED_LEN..],
+                        index as u8,
+                        &mut u.rmrr_scopes,
+                        &mut u.rmrr_scope_count,
+                        &mut u.truncated,
+                    );
+                }
+                _ => {}
             }
-            if u.drhd_count == MAX_DRHDS {
-                u.truncated = true;
-                continue;
-            }
-            let unit = u.drhd_count;
-            u.drhds[unit] = Drhd {
-                include_pci_all: e[4] & 1 != 0,
-                segment: u16(e, 6),
-                register_base: u64(e, 8),
-            };
-            u.drhd_count += 1;
-            u.read_scopes(unit as u8, &e[DRHD_FIXED_LEN..]);
         }
         u
-    }
-
-    fn read_scopes(&mut self, unit: u8, mut list: &[u8]) {
-        while list.len() >= 2 {
-            let kind = list[0];
-            let len = list[1] as usize;
-            if len < SCOPE_FIXED_LEN
-                || len > list.len()
-                || !(len - SCOPE_FIXED_LEN).is_multiple_of(2)
-            {
-                self.truncated = true;
-                return;
-            }
-            let entry = &list[..len];
-            list = &list[len..];
-            if kind != SCOPE_PCI_ENDPOINT && kind != SCOPE_PCI_SUBHIERARCHY {
-                continue;
-            }
-            let hops = (len - SCOPE_FIXED_LEN) / 2;
-            if hops == 0 || hops > MAX_SCOPE_PATH || self.scope_count == MAX_SCOPES {
-                self.truncated = true;
-                continue;
-            }
-            let mut s = DeviceScope {
-                unit,
-                kind,
-                start_bus: entry[5],
-                path_len: hops as u8,
-                ..DeviceScope::default()
-            };
-            for h in 0..hops {
-                s.path[h] = (
-                    entry[SCOPE_FIXED_LEN + 2 * h],
-                    entry[SCOPE_FIXED_LEN + 2 * h + 1],
-                );
-            }
-            self.scopes[self.scope_count] = s;
-            self.scope_count += 1;
-        }
     }
 
     /// The recorded DRHDs, in table order.
@@ -886,23 +1045,20 @@ impl DmarUnits {
         &self.drhds[..self.drhd_count]
     }
 
-    /// **The unit this kernel should translate through**, when it brings up exactly one: the
-    /// `INCLUDE_PCI_ALL` unit for segment 0 if there is one, else the first. The catch-all is the
-    /// unit every device this kernel drives by DMA lives behind on a client Intel machine (NVMe,
-    /// NIC, USB); the other is the graphics unit, and translating that one confines only a GPU this
-    /// kernel does not drive. On QEMU's single-unit `q35` the two rules pick the same unit.
-    pub fn translating(&self) -> Option<Drhd> {
-        self.units()
-            .iter()
-            .copied()
-            .find(|d| d.include_pci_all && d.segment == 0)
-            .or_else(|| self.units().first().copied())
+    /// The recorded RMRRs, in table order. Name: provisional (milestone 594).
+    pub fn reserved_regions(&self) -> &[ReservedRegion] {
+        &self.rmrrs[..self.rmrr_count]
     }
 
     /// **Which unit owns PCI function `bus:dev.func` on `segment`**, by the VT-d specification's
     /// rule (section 8.3): an explicit scope anywhere wins, then the segment's `INCLUDE_PCI_ALL`
     /// unit. `Ok(None)` is a machine where nothing translates this device's DMA. `Err(())` is a
     /// table this decoder recorded only part of, where the missing part could be the answer.
+    ///
+    /// Linux's `dmar_find_matched_drhd_unit` walks the units in table order and takes the
+    /// catch-all the moment it reaches it; the specification requires the catch-all to be listed
+    /// last on its segment, so the two agree on every table that obeys it, and this one also
+    /// agrees on a table that does not.
     ///
     /// `bridge` returns a bridge's `(secondary, subordinate)` bus numbers, or `None` when
     /// `bus:dev.func` is not a bridge. It is the live bus, which is the only thing that can turn a
@@ -916,43 +1072,29 @@ impl DmarUnits {
         func: u8,
         bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
     ) -> Result<Option<(Drhd, Ownership)>, ()> {
+        Ok(self
+            .owner_index(segment, bus, dev, func, bridge)?
+            .map(|(i, how)| (self.drhds[i], how)))
+    }
+
+    /// [`DmarUnits::owner`], answered as an index into [`DmarUnits::units`]: the unit whose root
+    /// table a context entry for this function belongs in. Name: provisional (milestone 594).
+    #[allow(clippy::result_unit_err)]
+    pub fn owner_index(
+        &self,
+        segment: u16,
+        bus: u8,
+        dev: u8,
+        func: u8,
+        bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
+    ) -> Result<Option<(usize, Ownership)>, ()> {
         for s in &self.scopes[..self.scope_count] {
-            let unit = self.drhds[s.unit as usize];
-            if unit.segment != segment {
+            let unit = s.unit as usize;
+            if self.drhds[unit].segment != segment {
                 continue;
             }
-            // Walk every hop but the last: each is a bridge, and its secondary bus is where the
-            // next hop sits. A hop that is not a bridge on this machine means the path describes
-            // hardware that is not here, and the scope names nothing.
-            let mut at_bus = s.start_bus;
-            let mut resolved = true;
-            let n = s.path_len as usize;
-            // `parse` never records an empty or over-long path; the fields are public, so say so
-            // here rather than let a hand-built scope underflow `n - 1`.
-            if n == 0 || n > MAX_SCOPE_PATH {
-                continue;
-            }
-            for &(d, f) in &s.path[..n - 1] {
-                match bridge(at_bus, d, f) {
-                    Some((secondary, _)) => at_bus = secondary,
-                    None => {
-                        resolved = false;
-                        break;
-                    }
-                }
-            }
-            if !resolved {
-                continue;
-            }
-            let (d, f) = s.path[n - 1];
-            if (at_bus, d, f) == (bus, dev, func) {
-                return Ok(Some((unit, Ownership::Named)));
-            }
-            if s.kind == SCOPE_PCI_SUBHIERARCHY
-                && let Some((secondary, subordinate)) = bridge(at_bus, d, f)
-                && (secondary..=subordinate).contains(&bus)
-            {
-                return Ok(Some((unit, Ownership::UnderBridge(at_bus, d, f))));
+            if let Some(how) = s.covers(bus, dev, func, bridge) {
+                return Ok(Some((unit, how)));
             }
         }
         if self.truncated {
@@ -961,9 +1103,38 @@ impl DmarUnits {
         Ok(self
             .units()
             .iter()
-            .copied()
-            .find(|d| d.include_pci_all && d.segment == segment)
-            .map(|d| (d, Ownership::CatchAll)))
+            .position(|d| d.include_pci_all && d.segment == segment)
+            .map(|i| (i, Ownership::CatchAll)))
+    }
+
+    /// **Every RMRR the firmware declared for `bus:dev.func` on `segment`**, each passed to `each`
+    /// once. A region names a device by an endpoint scope, or by a sub-hierarchy scope above it,
+    /// which is the same test Linux's `intel_iommu_get_resv_regions` makes
+    /// (`is_downstream_to_pci_bridge`). The kernel adds every one to the device's DMA domain,
+    /// because section 3.16 asks for the identity map in *the* translation the device uses, and a
+    /// domain built without them would fault the firmware's own DMA the moment it was attached.
+    /// Name: provisional (milestone 594).
+    pub fn reserved_for(
+        &self,
+        segment: u16,
+        bus: u8,
+        dev: u8,
+        func: u8,
+        bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
+        each: &mut dyn FnMut(ReservedRegion),
+    ) {
+        for (i, r) in self.reserved_regions().iter().enumerate() {
+            if r.segment != segment {
+                continue;
+            }
+            let named = self.rmrr_scopes[..self.rmrr_scope_count]
+                .iter()
+                .filter(|s| s.unit as usize == i)
+                .any(|s| s.covers(bus, dev, func, bridge).is_some());
+            if named {
+                each(*r);
+            }
+        }
     }
 }
 
@@ -2277,6 +2448,7 @@ mod tests {
                 include_pci_all: false,
                 segment: 0,
                 register_base: 0xfed9_0000,
+                register_size: 4096,
             }))
         );
         assert_eq!(it.next(), None);
@@ -2410,11 +2582,6 @@ mod tests {
         );
         assert_eq!(u.units().len(), 2);
         assert_eq!(first_drhd(&body).unwrap().register_base, 0xfed9_0000);
-        assert_eq!(
-            u.translating().unwrap().register_base,
-            0xfed9_1000,
-            "the unit to translate through is the catch-all"
-        );
         let (unit, how) = u.owner(0, 1, 0, 0, &mut xenon_bus).unwrap().unwrap();
         assert_eq!(
             (unit.register_base, how),
@@ -2496,5 +2663,169 @@ mod tests {
             assert_eq!(u.units().len(), 1);
         }
         assert_eq!(DmarUnits::parse(&[]).units().len(), 0);
+    }
+
+    /// An RMRR with its scope list: base, last byte, then the scopes.
+    fn rmrr(base: u64, limit: u64, scopes: &[&[u8]]) -> std::vec::Vec<u8> {
+        let len = RMRR_FIXED_LEN + scopes.iter().map(|s| s.len()).sum::<usize>();
+        let mut e = std::vec![0u8; RMRR_FIXED_LEN];
+        e[0..2].copy_from_slice(&1u16.to_le_bytes());
+        e[2..4].copy_from_slice(&(len as u16).to_le_bytes());
+        e[8..16].copy_from_slice(&base.to_le_bytes());
+        e[16..24].copy_from_slice(&limit.to_le_bytes());
+        for s in scopes {
+            e.extend_from_slice(s);
+        }
+        e
+    }
+
+    /// **The `OptiPlex` 7040's whole DMAR, rebuilt from what Linux printed about it** (milestone
+    /// 594): the graphics unit naming 00:02.0, the catch-all naming its IOAPIC and HPET, an RMRR at
+    /// `0xdb5d2000..=0xdb5f1fff` and one at `0xdd800000..=0xdfffffff`. Which device each RMRR names
+    /// is not in that log; USB (00:14.0) and graphics (00:02.0) are what section 8.4 says RMRRs are
+    /// for and what the two sizes fit (128 KiB of USB buffers, 40 MiB of stolen memory). The
+    /// reconstruction is checked by length: the 7040's table header says `0xA8` bytes, and this is
+    /// that many, with nothing to spare for a structure the reading left out.
+    fn optiplex_7040_dmar() -> std::vec::Vec<u8> {
+        dmar(&[
+            drhd(0, 0xfed9_0000, &[&scope(SCOPE_PCI_ENDPOINT, 0, &[(2, 0)])]),
+            drhd(
+                1,
+                0xfed9_1000,
+                &[&scope(3, 0xf0, &[(0x1f, 0)]), &scope(4, 0, &[(0x1f, 0)])],
+            ),
+            rmrr(
+                0xdb5d_2000,
+                0xdb5f_1fff,
+                &[&scope(SCOPE_PCI_ENDPOINT, 0, &[(0x14, 0)])],
+            ),
+            rmrr(
+                0xdd80_0000,
+                0xdfff_ffff,
+                &[&scope(SCOPE_PCI_ENDPOINT, 0, &[(2, 0)])],
+            ),
+        ])
+    }
+
+    fn reserved(u: &DmarUnits, bus: u8, dev: u8, func: u8) -> std::vec::Vec<(u64, u64)> {
+        let mut v = std::vec::Vec::new();
+        u.reserved_for(0, bus, dev, func, &mut xenon_bus, &mut |r| {
+            v.push((r.base, r.limit));
+        });
+        v
+    }
+
+    /// **Every device lands in its own unit's root table** (milestone 594, the proposal's
+    /// two-unit host test). `owner_index` is the decision the kernel's `attach` routes on, so this
+    /// is the routing proved without the registers: the GPU to the graphics unit (index 0), and
+    /// the NVMe behind its root port, the USB controller, the root port itself and the Ethernet
+    /// function to the catch-all (index 1). QEMU presents one unit, so this is the only place the
+    /// two-unit route runs before xenon.
+    #[test]
+    fn on_the_7040s_table_each_device_routes_to_the_unit_that_owns_it() {
+        let body = optiplex_7040_dmar();
+        assert_eq!(SDT_HEADER_LEN + body.len(), 0xa8, "the 7040's DMAR length");
+        let u = DmarUnits::parse(&body);
+        assert!(!u.truncated);
+        assert_eq!(u.units().len(), 2);
+        for (bdf, want) in [
+            ((0, 2, 0), (0, Ownership::Named)),
+            ((1, 0, 0), (1, Ownership::CatchAll)),
+            ((0, 0x14, 0), (1, Ownership::CatchAll)),
+            ((0, 0x1d, 0), (1, Ownership::CatchAll)),
+            ((0, 0x1f, 6), (1, Ownership::CatchAll)),
+        ] {
+            let (b, d, f) = bdf;
+            assert_eq!(
+                u.owner_index(0, b, d, f, &mut xenon_bus),
+                Ok(Some(want)),
+                "{bdf:x?}"
+            );
+        }
+    }
+
+    /// **Each RMRR is handed to exactly the device it names**, and to nothing else: the USB
+    /// controller gets its 128 KiB, the GPU its 40 MiB, the NVMe none. The GPU's region is the one
+    /// whose absence would blank xenon's screen the instant its unit translated, which is why the
+    /// kernel maps it before it sets `GCMD.TE`.
+    #[test]
+    fn on_the_7040s_table_each_rmrr_goes_to_the_device_it_names() {
+        let u = DmarUnits::parse(&optiplex_7040_dmar());
+        assert_eq!(u.reserved_regions().len(), 2);
+        assert_eq!(u.rmrrs_refused, 0);
+        assert_eq!(reserved(&u, 0, 0x14, 0), [(0xdb5d_2000, 0xdb5f_1fff)]);
+        assert_eq!(reserved(&u, 0, 2, 0), [(0xdd80_0000, 0xdfff_ffff)]);
+        assert_eq!(u.reserved_regions()[1].size(), 40 << 20);
+        assert!(reserved(&u, 1, 0, 0).is_empty());
+        assert!(reserved(&u, 0, 0x14, 1).is_empty(), "another function");
+    }
+
+    /// An RMRR naming a bridge as a sub-hierarchy covers the functions below it, the case Linux's
+    /// `is_downstream_to_pci_bridge` handles.
+    #[test]
+    fn an_rmrr_naming_a_bridge_covers_what_is_below_it() {
+        let u = DmarUnits::parse(&dmar(&[
+            drhd(1, 0xfed9_1000, &[]),
+            rmrr(
+                0x7000_0000,
+                0x7000_ffff,
+                &[&scope(SCOPE_PCI_SUBHIERARCHY, 0, &[(0x1d, 0)])],
+            ),
+        ]));
+        assert_eq!(reserved(&u, 1, 0, 0), [(0x7000_0000, 0x7000_ffff)]);
+        assert!(reserved(&u, 0, 2, 0).is_empty());
+    }
+
+    /// **An RMRR that breaks section 8.4's shape is counted and dropped**, never mapped: an
+    /// unaligned base, a size that is not whole pages, a limit at or below the base, and a limit
+    /// of the top address (whose `+ 1` would wrap). Mapping any of them would widen a domain by
+    /// memory the firmware never declared.
+    #[test]
+    fn a_malformed_rmrr_is_refused_rather_than_mapped() {
+        let s = scope(SCOPE_PCI_ENDPOINT, 0, &[(2, 0)]);
+        for (base, limit) in [
+            (0x1000_0800, 0x1000_ffff),
+            (0x1000_0000, 0x1000_07ff),
+            (0x1000_0000, 0x1000_0000),
+            (0x2000_0000, 0x1000_0fff),
+            (0xffff_ffff_ffff_f000, u64::MAX),
+        ] {
+            let u = DmarUnits::parse(&dmar(&[
+                drhd(1, 0xfed9_1000, &[]),
+                rmrr(base, limit, &[&s]),
+            ]));
+            assert_eq!(u.rmrrs_refused, 1, "{base:#x}..={limit:#x}");
+            assert!(u.reserved_regions().is_empty());
+            assert!(!u.truncated, "a refused region is not a truncated table");
+        }
+    }
+
+    /// A ninth RMRR marks the table rather than vanishing, the same rule a ninth DRHD follows.
+    #[test]
+    fn a_ninth_rmrr_marks_the_table_truncated() {
+        let s = scope(SCOPE_PCI_ENDPOINT, 0, &[(2, 0)]);
+        let mut parts = std::vec![drhd(1, 0xfed9_1000, &[])];
+        for i in 0..=MAX_RMRRS as u64 {
+            parts.push(rmrr(
+                0x1000_0000 + i * 0x1000,
+                0x1000_0fff + i * 0x1000,
+                &[&s],
+            ));
+        }
+        let u = DmarUnits::parse(&dmar(&parts));
+        assert_eq!(u.reserved_regions().len(), MAX_RMRRS);
+        assert!(u.truncated);
+    }
+
+    /// **The register file is as big as the DRHD's `Size` byte says**: zero is one page (firmware
+    /// that predates the field), three is eight pages. The kernel maps this much, not one page.
+    #[test]
+    fn a_drhds_size_byte_gives_its_register_span() {
+        let mut body = dmar(&[drhd(1, 0xfed9_0000, &[])]);
+        assert_eq!(DmarUnits::parse(&body).units()[0].register_size, 4096);
+        body[DMAR_FIXED_LEN + 5] = 3;
+        assert_eq!(DmarUnits::parse(&body).units()[0].register_size, 8 * 4096);
+        body[DMAR_FIXED_LEN + 5] = 0xf3; // bits 7:4 are reserved and ignored
+        assert_eq!(DmarUnits::parse(&body).units()[0].register_size, 8 * 4096);
     }
 }

@@ -256,11 +256,39 @@ fn run_case(case: &Case) -> bool {
     }
     // The runner wraps QEMU (qemu-bounded.sh), so kill its children first and then it, the order
     // `soak::job_mix_sweep` uses and for its reason.
+    //
+    // **Then wait for those children to be gone**, not only for the runner. A SIGKILLed QEMU
+    // releases the disk image's lock when it has finished exiting, which is after `pkill` returns,
+    // and QEMU is the runner's child rather than ours, so `child.wait()` does not wait for it.
+    // Without this the next case's QEMU can find the image still locked ("Failed to get "write"
+    // lock"), which is how milestone 594 (every VT-d unit translates its own devices)'s rehearsal lost `lba-4096` once on a loaded machine.
+    let children: Vec<String> = Command::new("pgrep")
+        .args(["-P", &pid.to_string()])
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
     let _ = Command::new("pkill")
         .args(["-9", "-P", &pid.to_string()])
         .status();
     let _ = child.kill();
     let _ = child.wait();
+    let gone_by = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < gone_by
+        && children.iter().any(|c| {
+            Command::new("kill")
+                .args(["-0", c])
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+    {
+        std::thread::sleep(Duration::from_millis(100));
+    }
 
     let mut ok = true;
     for want in case.want {
