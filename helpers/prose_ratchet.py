@@ -172,6 +172,20 @@ SENTENCE_END = re.compile(r'[.!?][*_)\]"\'\u201d\u2019]*\s+(?=[A-Za-z0-9`"*\'\u2
 GENERATED_TABLES = {'## The decisions'}
 
 
+def without_generated_tables(text):
+    """`text` minus the rows of every table in GENERATED_TABLES. `script/metrics` counts through it,
+    so the prose-budget graph and this gate agree on what a generated table is."""
+    out, generated = [], False
+    for line in text.split('\n'):
+        if line.strip() in GENERATED_TABLES:
+            generated = True
+        elif generated and (not line.strip() or TABLE_ROW.match(line)):
+            continue
+        else:
+            generated = False
+        out.append(line)
+    return '\n'.join(out)
+
 
 def prose_lines(text):
     """(line, in_code) for the text with frontmatter and comments removed. Code lines are dropped."""

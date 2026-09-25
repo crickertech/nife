@@ -1186,6 +1186,9 @@ def prose_budget(tree):
     this keeps the ratified definition so the series is not restated a second time. An appendix is
     its own document under the same cap, which is what the ruling intends.
 
+    The one thing both skip is a generated table (`prose_ratchet.GENERATED_TABLES`, the decisions
+    index today), since nobody can cut words a script writes. That steps the series down from
+    2026W39, by the index's words.
 
     Read from each week's own revision, unlike the cost columns: a week's prose debt is a property
     of that week's tree and git can answer for it, so `--backfill` restates the whole history.
@@ -1193,7 +1196,7 @@ def prose_budget(tree):
     excess = 0
     over = 0
     for _path, text in _prose_documents(tree):
-        words = len(text.split())
+        words = len(prose_ratchet.without_generated_tables(text).split())
         if words > PROSE_CAP:
             over += 1
             excess += words - PROSE_CAP

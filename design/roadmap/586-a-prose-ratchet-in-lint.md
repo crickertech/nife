@@ -80,8 +80,8 @@ the manual. The baseline is `design/prose-baseline.tsv`, one row per document ov
   gate and the graph share it. Appendices were added to it. The graph's scope had missed every
   appendix, though its docstring said it counted them; that changes the series by one document.
 - Measures. Words of main body, median and longest sentence, and bold as two counts. Fenced code,
-  HTML comments and frontmatter are stripped first. Blocks are split before sentences. A
-  bold span may wrap onto the next line of its paragraph and still counts once.
+  HTML comments, frontmatter and generated tables are stripped first. Blocks are split before
+  sentences. A bold span may wrap onto the next line of its paragraph and still counts once.
 - The ratchet. Over a limit passes only at or under the baseline row. A document with no row meets
   the limits outright. It is also compared with the merge base, so an unbanked shrink leaves no
   room to regrow.
@@ -141,14 +141,11 @@ Measuring that churn over the first week is part of the milestone.
   It waited on `AGENTS.md`, which #1285 brought to its 6,097. `design/fatal-risks.md` had grown to
   4,250 against its 4,235 through milestone 89 (Scaleway EM-RV1)'s table cell (#1278). Per calef's
   ruling of 2026-09-24 it was cut back rather than re-granted, and `main` then passed.
-- **Outstanding.** Every new decision fails this gate. `design/decisions/README.md` is over the
-  word cap and its index table is generated and counted, so one new row, about 17 words, breaks the
-  "may not get worse" rule. Found 2026-09-25, when the queue removed #1278, which adds §215 (the
-  second RISC-V machine is a rented Scaleway Elastic Metal RV1). Checked with
-  `python3 helpers/prose_ratchet.py --report design/decisions/README.md`. That lane cut 18 words of
-  hand prose to pass, which works once. The fix is to count only what a person wrote,
-  skipping the table under `## The decisions`, or to split the index out of the README. Both change
-  what this gate measures, so they are the maintainer's to choose.
+- **Done.** Resolved 2026-09-25: every new decision failed this gate, because the generated index
+  table in `design/decisions/README.md` counted as prose (found when the queue removed #1278). The
+  gate now skips a table under a heading in `GENERATED_TABLES`, the one `script/decisions` anchors
+  on, as it skips fenced code (aae40a98f). `script/metrics` counts through the same set. The
+  README's row went from 5,242 words to within the cap.
 - **Refused.** A list of parsed markup exempt from the bold count. The maintainer asked for one on
   2026-09-24, citing the `Status:` and `Gate:` lines roadmap blocks and proposals must carry. It
   would overturn a ruling, so it is calef's call and was not built. §213 records calef's ruling of the same day:
