@@ -3,8 +3,8 @@
 **Status: PARTIAL.** Minted 2026-09-19 by calef, from the gap his own fatal-risk-3 ruling named
 the same day. *(Number provisional until the merge queue lands it.)* **Parts 1 and 2 are done**, on
 `milestone/326-mutation-survivor-triage`. **Part 3's seven named crates are done** (2026-09-20, on
-`milestone/326-new-crate-backlog`), which is the head of that worklist and not the whole of it: the
-other nineteen crates that did not exist at the baseline have never been looked at. Part 4 is
+`milestone/326-new-crate-backlog`), and the 2026-09-21 census is classified with 89 survivors left
+(`## The 2026-09-21 census` below). Part 4 is
 untouched and must stay last for the reason its own paragraph gives.
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
@@ -144,6 +144,17 @@ five loom crates have to write, so a helper in one of those is mutated where the
 elsewhere is not. `cargo mutants -p calendar --list` returns 395 mutants and none is `tests::*`,
 although that crate's test module has a helper of exactly the shape that was mutated here.
 
+## The 2026-09-21 census, 2026-09-24
+
+`notes/mutation-testing/census-2026-09-21-triage.md` classifies all 771: 193 were files no host
+build runs, 184 were in the four crates taken here (164 killed, 20 equivalent), 305 were already
+triaged, and 89 are not.
+
+One wrong-accept was fixed: `portable_executable` bounded a relocation by `memsz`, not `filesz`.
+Projected, not measured: corpus 92.4% to 95.9%, like-for-like 96.1% to 96.3%. The 89, and
+`device_tree_from_acpi.rs`'s 14 since, are
+`design/roadmap/proposals/triage-the-crates-the-2026-09-21-census-measured-first.md`.
+
 ## What the work is, in priority order, and the order is the argument
 
 1. **The seven regressions, because each is a property that used to hold.** This is the only part
@@ -180,12 +191,8 @@ although that crate's test module has a helper of exactly the shape that was mut
    lanes should be expected to produce. This part is a worklist and should be taken as one; a
    milestone that tried to close all of it would be a milestone that never finishes.
 
-   **Those seven are done, 2026-09-20**, and the accounting is in this block's own
-   `## Part 3's head` section above. The rest of the worklist is the other nineteen new crates,
-   which have never been measured one at a time and whose census rates are now six days old.
-   **Every rate in the table just above should be re-derived before it is acted on**, for the reason
-   two of these seven demonstrated: a crate's census number can be its loom model, or its proof
-   harnesses, or a crate the tree has since deleted.
+   Those seven are done (`## Part 3's head`), and the rest is in `## The 2026-09-21 census`. Re-derive
+   any census rate before acting on it: it can be a loom model, proof harnesses, or a deleted crate.
 
 4. **Rewrite the baseline once the triage lands.** `.cargo/mutants-baseline.txt` is still the
    2026-08-03 run, which is what every weekly report diffs against, so the tree's own comparison
