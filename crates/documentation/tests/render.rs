@@ -315,8 +315,21 @@ fn every_character_survives() {
         let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
             continue;
         };
+        // One level down as well: §212 (a prose budget) moves a long page's depth into appendices
+        // under `notes/<stem>/`, and a corpus that stopped at the parent would stop checking every
+        // word the split moved.
+        let mut paths = Vec::new();
         for e in entries.flatten() {
             let path = e.path();
+            if path.is_dir() {
+                if let Ok(sub) = std::fs::read_dir(&path) {
+                    paths.extend(sub.flatten().map(|e| e.path()));
+                }
+            } else {
+                paths.push(path);
+            }
+        }
+        for path in paths {
             if path.extension().and_then(|s| s.to_str()) != Some("md") {
                 continue;
             }
