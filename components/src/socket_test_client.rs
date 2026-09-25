@@ -575,34 +575,35 @@ fn udp_bind_half() {
 /// [`TEST_HTTP_PACKAGE`], read-only. The kernel test and this file must agree; see
 /// `kernel/src/user/virtio_service.rs`'s `NET_CLIENT_CATALOGUE_VA`.
 const CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
-/// [`TEST_HTTP_PACKAGE`]'s argument: the catalogue's length in the low 32 bits, and this bit set to
-/// ask the peer for the tampered copy.
-pub const HTTP_PACKAGE_TAMPERED: u64 = 1 << 63;
+/// Reported in a word of its own when the fetched bytes did not match the catalogue's digest, which
+/// is the refusal the tampered fetch must produce. Distinct from `OK` and from every stage failure,
+/// so a test asserting a refusal cannot be satisfied by a broken fetch.
+pub const DIGEST_REFUSED: u64 = 3;
 /// The package source the runners put at 10.0.2.9:8080 (`scripts/package-http-peer`).
 const PACKAGE_IP: [u8; 4] = [10, 0, 2, 9];
 const PACKAGE_PORT: u16 = 8080;
-/// Reported when the fetched bytes did not match the catalogue's digest, which is the refusal the
-/// tampered case must produce. Distinct from `OK` and from every stage failure, so a test asserting
-/// a refusal cannot be satisfied by a broken fetch.
-pub const DIGEST_REFUSED: u64 = 3;
 
-/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): `GET` a package from a host over plain HTTP,
-/// hash it as it arrives, and accept it only if the digest is the one the image's own catalogue
-/// names.
+/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): `GET` a package from a host
+/// over plain HTTP, hash it as it arrives, and accept it only if the digest is the one the image's
+/// own catalogue names. **Twice, in one spawn**: the genuine package, which must be accepted, then
+/// the peer's copy with one byte flipped, which must be refused. The two verdicts go back as the
+/// report's first and second words. One spawn rather than two tests because every `net_stack` a
+/// test starts takes a virtio slot for the rest of the boot, and the table was full (see
+/// `MAX_DEVICES` in `kernel/src/virtio.rs`); milestone 107 (the socket contract learns to accept)
+/// made the same trade the same way.
 ///
 /// The catalogue is what makes plain HTTP enough. It is an archive entry packed above the
 /// measurement table, so the kernel's trust root vouches for it, and the digest it carries never
 /// crossed the network (DECISIONS §195 (a reviewed recipe vouches for a package)). The body is never
-/// held: each read goes through `http_response` and into the hash, so a megabyte package costs this
-/// client one page of socket frame and the hash state. **That is also this exchange's limit**: it
-/// proves the bytes, and installing them (which needs somewhere to put them) is the activation
-/// half, `notes/packages.md`'s "Where this stops".
-fn http_package(arg: u64) -> ! {
-    let tampered = arg & HTTP_PACKAGE_TAMPERED != 0;
-    let len = (arg & 0xFFFF_FFFF) as usize;
+/// held: each read goes through `http_response` and into the hash, so a package costs this client
+/// one page of socket frame and the hash state. **That is also this exchange's limit**: it proves
+/// the bytes, and installing them is `notes/packages.md`'s "Where this stops".
+///
+/// `len` is the catalogue's length; the spawner maps it read-only at [`CATALOGUE_VA`].
+fn http_package(len: u64) -> ! {
     // SAFETY: the spawner maps `len` bytes of catalogue at CATALOGUE_VA, read-only, for the life of
     // this client, and nothing writes them.
-    let catalogue = unsafe { core::slice::from_raw_parts(CATALOGUE_VA as *const u8, len) };
+    let catalogue = unsafe { core::slice::from_raw_parts(CATALOGUE_VA as *const u8, len as usize) };
     let Ok(catalogue) = core::str::from_utf8(catalogue) else {
         done(0xE090);
     };
@@ -617,31 +618,45 @@ fn http_package(arg: u64) -> ! {
     };
 
     attach_page_frame(0);
+    let genuine = fetch_and_verify(STEM, false, &expected);
+    let tampered = fetch_and_verify(STEM, true, &expected);
+    send(REPORT, genuine, tampered, 0);
+    exit();
+}
+
+/// One fetch on socket 0: `OK`, [`DIGEST_REFUSED`], or the stage code that stopped it.
+fn fetch_and_verify(stem: &str, tampered: bool, expected: &measured_boot::Digest) -> u64 {
     if call(STACK, req(OP_OPEN_TCP, 0), 0).0 != REP_OK {
-        done(0xE092);
+        return 0xE092;
     }
+    let code = exchange(stem, tampered, expected);
+    let _ = call(STACK, req(OP_CLOSE, 0), 0);
+    code
+}
+
+fn exchange(stem: &str, tampered: bool, expected: &measured_boot::Digest) -> u64 {
     set_dst(PACKAGE_IP, PACKAGE_PORT);
     if call(STACK, req(OP_CONNECT, 0), 0).0 != CONNECT_ESTABLISHED {
-        done(0xE093);
+        return 0xE093;
     }
 
     // `/tampered/` asks the peer for the same file with one byte flipped.
     let mut path = [0u8; 64];
     let mut at = 0;
-    for part in [if tampered { "/tampered/" } else { "/" }, STEM, ".nifepkg"] {
+    for part in [if tampered { "/tampered/" } else { "/" }, stem, ".nifepkg"] {
         path[at..at + part.len()].copy_from_slice(part.as_bytes());
         at += part.len();
     }
     let path = core::str::from_utf8(&path[..at]).unwrap_or("/");
     let mut request = [0u8; 128];
     let Some(n) = http_response::get_request("10.0.2.9", path, &mut request) else {
-        done(0xE094);
+        return 0xE094;
     };
     for (i, &b) in request[..n].iter().enumerate() {
         w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
     }
     if call(STACK, req(OP_SEND, 0), n as u64).0 != n as u64 {
-        done(0xE095);
+        return 0xE095;
     }
 
     let mut response = http_response::Response::new();
@@ -650,17 +665,17 @@ fn http_package(arg: u64) -> ! {
     while !response.is_complete() {
         let (got, _) = call(STACK, req(OP_RECV, 0), 0);
         if got == 0 || got > DATA_MAX as u64 {
-            done(0xE096); // the peer went away (or the stack failed) before the body was whole
+            return 0xE096; // the peer went away (or the stack failed) before the body was whole
         }
         let got = got as usize;
         for (i, b) in chunk[..got].iter_mut().enumerate() {
             *b = r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64);
         }
         let Ok(body) = response.feed(&chunk[..got]) else {
-            done(0xE097); // not an HTTP response this client accepts
+            return 0xE097; // not an HTTP response this client accepts
         };
         if response.status().is_some_and(|s| s != 200) {
-            done(0xE098);
+            return 0xE098;
         }
         // A package is bounded by `u32` (package_archive's BUGS); refuse a larger claim before
         // reading a byte of it.
@@ -668,16 +683,14 @@ fn http_package(arg: u64) -> ! {
             .content_length()
             .is_some_and(|l| l > u64::from(u32::MAX))
         {
-            done(0xE099);
+            return 0xE099;
         }
         hash.update(body);
     }
-    let _ = call(STACK, req(OP_CLOSE, 0), 0);
-
-    if hash.finalize() == expected {
-        done(OK)
+    if hash.finalize() == *expected {
+        OK
     } else {
-        done(DIGEST_REFUSED)
+        DIGEST_REFUSED
     }
 }
 

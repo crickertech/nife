@@ -141,18 +141,21 @@ Built 2026-09-24 by the rung 3a consumer lane. Three pieces, each doing one thin
 
 ```
 $ script/test --arch aarch64 --test package
-running 2 of 360 tests (filter: package)
-test kernel::user::tests::a_package_fetched_over_http_is_accepted_by_the_image_digest ... ok
-test kernel::user::tests::a_tampered_package_is_refused_by_digest ... ok
-test result: ok. 2 passed
+running 1 of 359 tests (filter: package)
+test kernel::user::tests::a_package_fetched_over_http_is_accepted_only_by_the_image_digest ... ok
+test result: ok. 1 passed
 $ cat target/packages/catalogue
 uptime-0.1.0-aarch64 d74f8eb3ecc14b43b9f55b2113c830ee856394eee4398b52da2da1614d426cd9
 ```
 
-The second test is what gives the first its meaning. The tampered response is a complete, correct
-HTTP exchange of the right length; only the digest can tell, and a client that accepted whatever
-arrived would pass the first test too. riscv64 runs the same two as twins in
-`kernel/src/user/riscv_virtio_tests.rs`.
+The test fetches twice through one `net_stack`: the genuine package, which must be accepted, then
+the tampered copy, which must be refused. The second fetch is what gives the first its meaning. The
+tampered response is a complete, correct HTTP exchange of the right length; only the digest can
+tell, and a client that accepted whatever arrived would pass the first half too. They share one
+spawn because every `net_stack` a test starts holds a virtio slot for the rest of the boot; this
+lane took the table's tenth bump (`MAX_DEVICES`, to 34) and filed the unregister it keeps deferring
+as `design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`. riscv64 runs the
+same test as a twin in `kernel/src/user/riscv_virtio_tests.rs`.
 
 ### The versioned table, as logic
 

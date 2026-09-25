@@ -335,9 +335,9 @@ const NET_CLIENT_CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
 
 /// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): the net server and a client that fetches a
 /// package over plain HTTP from the runners' package peer and checks it against `catalogue`, the
-/// image's own package source, mapped into the client read-only. `cli_arg` and `arg1` are the
-/// client's selector and its argument (the catalogue's length, and whether to ask for the tampered
-/// copy), in `socket_test_client`'s words.
+/// image's own package source, mapped into the client read-only, then fetches the peer's tampered
+/// copy and must refuse it. `cli_arg` is the client's selector and `arg1` the catalogue's length,
+/// in `socket_test_client`'s words; the two verdicts come back as the report's first two words.
 pub fn start_package_fetch(
     image: &'static [u8],
     cli_arg: u64,
