@@ -97,6 +97,7 @@ Threads, capabilities, IPC, and how authority ends.
 - [PCIe, and driving a disk over it](pcie.md): the PCIe transport, with the kernel as firmware.
 - [Scoping a PCIe transport](pcie-transport-scope.md): the pre-build scope for PCIe and virtio-pci.
 - [NVMe: the first non-virtio disk](non-volatile-memory-express.md): an NVMe driver confined by the IOMMU alone.
+- [Fatal risk 6's bench evening on xenon](risk-6-bench-evening.md): the confined NVMe driver's preflight, throughput boot and outcomes.
 - [Confining DMA without an IOMMU](dma.md): kernel validation of every descriptor a driver submits.
 - [Confining DMA with an IOMMU](iommu.md): hardware DMA confinement with SMMUv3 and the RISC-V IOMMU.
 - [Block devices: what is attached, and what holding one means](block-devices.md).
