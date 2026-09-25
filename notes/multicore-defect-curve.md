@@ -20,23 +20,22 @@ flat part of the curve, and it is the row most likely to go unrecorded.
 `none` if nothing was measuring stress when it turned up.
 
 The curve for one architecture is then: walk that architecture's exposure rows in date order, keep a
-running total of each denominator, and plot the running count of defects of class `race` or
-`multicore` against it. Never pool architectures (aarch64, riscv64 and x86_64 have different memory
+running total of crossings, and plot the running count of defects of class `race` or `multicore`
+against it. Hours and boots plot the same way when a second view is wanted. Never pool architectures (aarch64, riscv64 and x86_64 have different memory
 models; see 201's `BUGS`). Never plot a defect whose exposure is `none`: it has no x-coordinate.
 
 ### Which denominator
 
-Three are recorded, so the choice can be made later without re-running anything:
+calef ruled on 2026-09-25 (UTC) that the curve is judged on crossings, and 201's block
+records it. Hours and boots are still recorded in every row, so a later question can be answered
+without re-running anything:
 
 - **hours**, which is what milestone 201 names;
-- **crossings**, the soak's `crossings=` counter at the last beat (cross-core migrations, from
+- **crossings**, the judged unit: the soak's `crossings=` counter at the last beat (cross-core migrations, from
   `sched::migrations()`), which [`soak.md`](soak.md) argues is the honest unit because clock time
   on a saturated machine mostly repeats one interleaving;
 - **boots**, since each boot is a fresh draw of the placement lottery and PCT's model says
   independent starts multiply the chance of finding a shallow bug where a long run does not.
-
-Which one the curve is judged on is calef's call, and 201's block says so. Recording all three costs
-three columns.
 
 ## Exposure rows
 

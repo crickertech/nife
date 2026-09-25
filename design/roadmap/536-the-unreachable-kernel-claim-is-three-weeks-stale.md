@@ -1,9 +1,16 @@
 # 536. Two records still say the prover cannot see `kernel/src`, and it has been able to since 2026-08-30
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-unreachable-kernel-claim-is-three-weeks-stale`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane, which was briefed
+**Status: BUILT.** Built 2026-09-25 (UTC) by the maintainer, under calef's ruling of that day
+recorded as §216 (fatal-risk facts are correctable, and verdicts are the architect's). Risk
+2's stale sentence and size are corrected in `design/fatal-risks.md`, its appendix
+`design/fatal-risks/proofs-and-their-reach.md`, and `notes/proof-retrospective.md`, each correction
+dated and citing its source; PR #1276 had already corrected `script/verify`'s header. Risk 2's
+status and colour are unchanged, because §216 leaves them with calef. The line counts below are this
+block's 2026-09-20 measurement; the corrections carry the 2026-09-25 re-measure (86,528 lines,
+15,966 in files calling `asm!`, eight harnesses). *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-unreachable-kernel-claim-is-three-weeks-stale`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph and one bold lead-in the prose ratchet refused: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane, which was briefed
 on the claim and found it expired before it found anything else.
 
-**Gate: DECISION.** `design/fatal-risks.md` is calef's file and risk 2's text is his to amend;
+The gate was DECISION until §216 answered it on 2026-09-25. Its reasoning, as proposed: `design/fatal-risks.md` is calef's file and risk 2's text is his to amend;
 AGENTS.md puts the falsification list outside a lane's reach, and the edit to it by the lane for
 milestone 64 (enough `std` to run somebody else's crate) is recorded as an exception rather than a
 precedent. `notes/proof-retrospective.md` is an ordinary
@@ -67,12 +74,21 @@ the same.
 
 ## What this does not propose
 
-**Not that risk 2 should go green.** It should not, on this evidence: no Kani harness in this tree
+Not that risk 2 should go green. It should not, on this evidence: no Kani harness in this tree
 has still ever caught a defect after the day it was written, which is the finding, and reach was
 only ever half of the explanation for it. See `notes/verus.md`, which asked whether a different
 verifier would extend the reach and found that it stops at the same boundary.
 
+## Follow-on
+
+- **Milestone 432.** Proving `arch/riscv64/iommu.rs` from an aarch64 host, which PR #1276 priced.
+  Milestone 432 (the RISC-V IOMMU driver has no counterpart to the SMMU's proofs) built it 2026-09-25. Whether the corrected facts move risk 2's verdict was put to calef in PR #1282,
+  and he ruled the same day to keep AMBER and reword the red half.
+
 ## Index row
 
-`design/fatal-risks.md` risk 2 (the proofs prove trivia, and the real bugs live where Kani cannot
-reach), verbatim:
+**Built:** 2026-09-25
+
+Risk 2 said `cargo kani` never compiles the kernel for three weeks after milestone 193 made it
+compile. The fatal-risks entry, its appendix and `notes/proof-retrospective.md` now state the reach
+as measured: `asm!`, fixed-address MMIO and an uncompiled `arch/` subtree, not a crate boundary.

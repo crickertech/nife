@@ -300,7 +300,7 @@ place rather than an assertion that they are.
   parsing half already lives in `crates/machine_discovery`, which has no harnesses and no verify
   row; the half in `machine.rs` reads raw pointers into the direct map, which stub-list item 6 says
   to stub rather than pretend. Finding that seam is a lane of its own.
-- **Four harnesses is not coverage of a 64,818-line crate**, and the number to watch is not the count
+- **Eight harnesses is not coverage of an 85,940-line crate**, and the number to watch is not the count
   but whether the properties are ones a defect would violate. The two here were chosen because a
   defect *did* violate them.
 - **`--ignore-global-asm` is a global switch, not a per-item one.** A future `global_asm!` block that
