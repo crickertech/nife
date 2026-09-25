@@ -162,13 +162,32 @@ QUOTED = re.compile(r'[*_]*["“][^"“”]*["”][*_]*')
 SENTENCE_END = re.compile(r'[.!?][*_)\]"\'\u201d\u2019]*\s+(?=[A-Za-z0-9`"*\'\u201c(\[_\u00a7])')
 
 
+# Tables a script writes, keyed by the heading that anchors them, and skipped like fenced code.
+# `script/decisions` regenerates the table under `## The decisions` in design/decisions/README.md
+# from every section's frontmatter, one row per section, and anchors on that heading (its
+# TABLE_HEADING) rather than on markers. Counting it made every new section a prose-budget failure
+# on a document nobody had edited: the row is the only change, and no lane can cut words to pay
+# for it without cutting someone else's prose. Found 2026-09-25 (UTC), the day the ratchet landed,
+# when #1273 and #1278 each minted a section and each failed on README.md by one row's words.
+GENERATED_TABLES = {'## The decisions'}
+
+
 def prose_lines(text):
     """(line, in_code) for the text with frontmatter and comments removed. Code lines are dropped."""
     text = FRONTMATTER.sub('', text)
     # Keep the line count stable across a multi-line comment, so nothing downstream miscounts.
     text = COMMENT.sub(lambda m: '\n' * m.group(0).count('\n'), text)
     fence = None
+    generated = False
     for line in text.split('\n'):
+        if line.strip() in GENERATED_TABLES:
+            generated = True
+            yield line
+            continue
+        if generated:
+            if not line.strip() or TABLE_ROW.match(line):
+                continue
+            generated = False
         m = FENCE.match(line)
         if fence:
             if m and m.group(1) == fence:
@@ -578,6 +597,9 @@ def selftest():
         ('abbreviations do not split', 'Use a tool, e.g. the linter, here.', lambda m: m['sentences'] == 1),
         ('code fences are not prose', f'Short.\n```\n{long} {long}\n```\n', lambda m: m['words'] == 1),
         ('comments are not prose', f'Short.\n<!-- {long} -->\n', lambda m: m['words'] == 1),
+        ('a generated table is not prose',
+         '## The decisions\n\n| # | Status | Decision |\n|---|---|---|\n| 1 | DECIDED | [A](a.md) |\n',
+         lambda m: m['words'] == 3),
         # Decision files open with YAML frontmatter since #1195; their status is a field, not prose.
         ('frontmatter is not prose', '---\nstatus: DECIDED\nraised: 2026-09-23\n---\n\n# T\n\nShort.\n',
          lambda m: m['words'] == 3),
