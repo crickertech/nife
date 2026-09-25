@@ -10,6 +10,8 @@ chosen after the results are seen.
 - [Directory index](model-comparison/README.md).
 - [Protocol](model-comparison/protocol.md): the tasks, the briefs verbatim, the rubric, the blinding
   and the analysis, fixed before the first run.
+- [Pilot results, 2026-09-24](model-comparison/2026-09-24-pilot.md): twelve runs, blind-graded, with
+  what two runs per cell can and cannot carry.
 
 ## BUGS
 
