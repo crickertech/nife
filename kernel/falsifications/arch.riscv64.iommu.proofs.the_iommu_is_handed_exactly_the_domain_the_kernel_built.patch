@@ -1,0 +1,38 @@
+Falsifies `kernel::arch::riscv64::iommu::proofs::the_iommu_is_handed_exactly_the_domain_the_kernel_built`.
+
+The defect is the one this file sets up by example. Every other address this driver hands
+the IOMMU (`ddtp`, and both queue bases through `queue_base`) carries its PPN at bits
+[53:10], so `(pa >> 12) << 10` appears three times within a screen of `device_context`.
+`iosatp` is the odd one out: its PPN sits at [43:0], the way the CPU's `satp` does. Making
+`fsc` "match its neighbours" is the edit a tidy reader would make, and the RISC-V page
+table entry (PPN at bit 10) makes the same confusion familiar.
+
+The result is worse than a wrong root. `root >> 2` puts address bits 62 and 63 on
+`iosatp.MODE`, so for a high enough address the mode stops being Sv39, and MODE 0 is Bare:
+translation switched off rather than pointed somewhere wrong.
+
+Unlike the SMMU's falsifications, **this one is probably not invisible to the tests**: on
+QEMU's `virt` board every root is wrong under it, so the boot-time confinement test in
+`kernel/src/virtio.rs` would most likely fail too. That was reasoned, not run (no riscv64
+QEMU boot was taken for this record). The harness is the one that says why.
+
+Expected to fail: `assert!(dc[3] >> 60 == 8, ...)` (MODE, for an unconstrained root) and
+`assert!((dc[3] & ((1 << 44) - 1)) << 12 == root, ...)` (the PPN). Confirmed red on
+2026-09-25 (UTC), on an aarch64 host through the proof-only module in `arch/mod.rs`.
+
+The sibling harness `no_device_can_reach_another_devices_context` stays green under this
+patch: it never builds a context, only locates one.
+
+diff --git a/kernel/src/arch/riscv64/iommu.rs b/kernel/src/arch/riscv64/iommu.rs
+index 1fa25c3f7..23131223e 100644
+--- a/kernel/src/arch/riscv64/iommu.rs
++++ b/kernel/src/arch/riscv64/iommu.rs
+@@ -201,7 +201,7 @@ fn device_context(root: u64, pscid: u16) -> [u64; 8] {
+         DC_TC_V,                          // tc: valid, faults reported (DTF clear)
+         0,                                // iohgatp: Bare
+         (pscid as u64) << TA_PSCID_SHIFT, // ta
+-        FSC_MODE_SV39 | (root >> 12),     // fsc = iosatp
++        FSC_MODE_SV39 | ((root >> 12) << 10), // fsc = iosatp
+         0,                                // msiptp: MODE Off (see BUGS above)
+         0,                                // msi_addr_mask
+         0,                                // msi_addr_pattern

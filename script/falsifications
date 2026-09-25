@@ -189,9 +189,11 @@
 #   which is a format change and so calef's.
 # - **`kernel/src/arch/` is barely covered here**, and the line above this one used to say it carried
 #   no harnesses at all, which stopped being true when milestone 255 proved
-#   `arch/aarch64/iommu.rs` in place. It is now four harnesses across two architectures and two
-#   files; the timer re-arm drift, the reason this entry exists, is still on the far side of the
-#   `asm!` boundary and outside this record entirely. (This entry used to pair the timer drift with
+#   `arch/aarch64/iommu.rs` in place. It is now six harnesses across three architectures' files
+#   since milestone 432 (the RISC-V IOMMU driver has no counterpart to the SMMU's proofs) added
+#   riscv64's `iommu.rs`, replayable on an aarch64 host like aarch64's own. The timer re-arm
+#   drift, the reason this entry exists, is still on the far side of the `asm!` boundary and
+#   outside this record entirely. (This entry used to pair the timer drift with
 #   "the VisionFive 2's undelivered-wake defect." That reading is retracted, notes/visionfive2.md's
 #   fifth bench stop, 2026-08-15: it was a completed tour's terminal state, not a stranded receiver,
 #   and never happened. Found still repeating it here 2026-09-23.)

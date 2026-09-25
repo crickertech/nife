@@ -137,7 +137,17 @@ stride it protects). notes/kernel-proofs.md has the properties and the stub boun
 Two limits worth naming here rather than only there. **The register offsets and bit constants are
 not proved and cannot be**: nothing in this tree can check `CR0_SMMUEN` or the position of `CONFIG`
 against Arm IHI 0070, so a misreading of the document makes the code and the proof wrong together,
-and the boot-time confinement test is what stands against that. And **the RISC-V IOMMU has no
-counterpart**: it writes its device context in 64-bit stores with no split, so the property above
-does not apply to it, and the driver on the far side of the table at the top of this note is
-unproved. The two drivers rhyme; their proofs do not.
+and the boot-time confinement test is what stands against that. And **the RISC-V IOMMU's proofs are
+not ports of these**: it writes its device context in 64-bit stores with no split, so the property
+above does not apply to it.
+
+The RISC-V side has its own two since milestone 432 (the RISC-V IOMMU driver has no counterpart
+to the SMMU's proofs), proved from an aarch64 host because no host
+here is riscv64 (notes/kernel-proofs.md has how, and the caveat that comes with it).
+`the_iommu_is_handed_exactly_the_domain_the_kernel_built`: `iosatp`'s PPN is the table root entire,
+its MODE is Sv39 for every root (MODE 0 would be Bare, translation off), and `ta.PSCID` is the
+domain's tag and nothing else. `no_device_can_reach_another_devices_context`: the directory bound
+agrees with the stride in both context formats, including the 32-byte one that has never run, and
+the `IODIR.INVAL_DDT` that follows an attach names exactly that device. Both were falsified; the
+patches are in `kernel/falsifications/`. The same limit on constants applies, against the RISC-V
+IOMMU specification instead of Arm's.
