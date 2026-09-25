@@ -38,8 +38,8 @@ landed 2026-08-31 UTC. `fatal_risks_total` now counts the risks in each week's f
 between it and the three columns is drawn as **unclassified**, the shape the naming chart already
 uses for a name with no provenance block. Arithmetic, not a stored column, because it is not a
 value `Experiment status` can hold. In those weeks it is risks 4, 5, 8 and 9, which had no status
-line, and in 2026W37 risk 3 as well, whose line said `STALE`: the old result had expired, which
-says nothing about which of the three the risk was.
+line, and in 2026W37 risk 3 as well, whose line said `STALE`. That meant the old result had expired, which says nothing about which of
+the three the risk was.
 
 2026W35 and earlier are zero, and zero is right. The file was written on 2026-08-30 and its commit
 carries that date, but a week is counted from `main` at the week's end, and `main` did not have it
