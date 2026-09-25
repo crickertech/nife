@@ -118,8 +118,11 @@ are bound before the first waiter; only the signalling is switched on last.
 ## Follow-on
 
 - **Milestone 225.** Running the experiment. This milestone makes it runnable; the run itself needs
-  a bench evening on radon, argon or xenon, which is where fatal risk 5's answer means anything and
-  where the one recorded defect was produced.
+  a bench evening on radon, argon or xenon, which is where fatal risk 5's answer means anything.
+  The radon defect once recorded here was retracted by
+  [`notes/visionfive2.md`](../../notes/visionfive2.md)'s fifth bench stop (2026-08-15), so no board
+  has produced one yet ([`notes/multicore-defect-curve.md`](../../notes/multicore-defect-curve.md),
+  row D6).
 - **Decision.** A rebalancer, the only thing that would make the IPC workload itself migrate rather
   than its waiters, is declined in `design/decisions/138-cross-core-handoff-under-load.md`, which is
   also where option D (the tick-signalled rendezvous this milestone built) was approved.

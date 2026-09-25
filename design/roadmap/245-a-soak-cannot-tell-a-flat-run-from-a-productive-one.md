@@ -62,8 +62,10 @@ endorsed:
 - **Distinct settled arrangements**, which is the coarsest and probably the most honest, given that
   240 found the arrangement is stable on silicon (`drifted=0` held for a whole run) where it churns
   under QEMU.
-- **Distinct (waker core, woken core) pairs**, which is closest to PCT's event pairs and closest to
-  the path the recorded defect lived on.
+- **Distinct (waker core, woken core) pairs**, which is closest to PCT's event pairs and to the
+  wake path radon's defect was once thought to live on. That reading was retracted by
+  [`notes/visionfive2.md`](../../notes/visionfive2.md)'s fifth bench stop (2026-08-15), so this
+  counts for PCT's sake and not for a recorded defect.
 - **Distinct orderings within a group's exchange**, which is the most sensitive and the most
   expensive.
 
