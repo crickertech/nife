@@ -24,7 +24,9 @@ Everything needed to run it now exists, and none of it existed on 2026-09-01:
 - **A workload that lasts** (milestone 219), with a heartbeat on the wall clock so a crawling machine
   still reports on time.
 - **A hook that makes it cross cores** (milestone 221), on the real `irq_notify` to `wake_load_aware`
-  path, which is where the recorded defect lived.
+  path. That path was once read as where a radon defect lived; the reading is retracted (the fifth
+  bench stop in `notes/visionfive2.md`, 2026-08-15), so it is the path worth stressing, not the site
+  of a known defect.
 - **A console that watches and judges** (milestone 216), with a sustained mode and a stage that
   re-arms the quiet check a completed boot tour suppresses.
 - **A boot that needs nobody typing** (milestone 218), unconfirmed on the board itself.
