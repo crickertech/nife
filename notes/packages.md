@@ -2,8 +2,8 @@
 
 Milestone 198 (a package manager, and the trivial install that makes a second customer possible)'s
 rung 3a has two halves. This note is the producer half and the format both halves share, built
-2026-09-23, and the first part of the consumer half, built 2026-09-24: **a target fetches a package
-over plain HTTP and accepts it only by a digest its own image vouches for.** Nothing installs one
+2026-09-23, and the first part of the consumer half, built 2026-09-24: a target fetches a package
+over plain HTTP and accepts it only by a digest its own image vouches for. Nothing installs one
 yet, and the reason is a fork for calef rather than a gap: see "Where this stops" below.
 
 ## The two decisions this is downstream of
@@ -65,7 +65,7 @@ wrote target/packages/uptime-0.1.0-aarch64.nifepkg
 package: PASS
 ```
 
-**A program is packed stripped** since 2026-09-24, the same bytes the image packs. The first run
+A program is packed stripped since 2026-09-24, the same bytes the image packs. The first run
 above read 881,152 bytes for `uptime`, nearly all of it debug sections, against a job region of 40
 pages (160 KiB): an installed program is bytes something on the target must read into memory to
 build a process from, and nothing there reads DWARF. The digests in this note's history changed
@@ -118,20 +118,20 @@ than an absent one. The line goes in when there is a release to pin it to, which
 
 Built 2026-09-24 by the rung 3a consumer lane. Three pieces, each doing one thing:
 
-- **The image carries its own package source.** Every archive build (`cargo xtask initrd-aarch64`
+- The image carries its own package source. Every archive build (`cargo xtask initrd-aarch64`
   and `initrd-riscv`) runs every recipe under `packages/` for its architecture, writes the package
   to `target/packages/`, and packs the catalogue lines as the archive entry
-  `package_archive::CATALOGUE` (provisional name), **above the measurement table**. So the kernel's
+  `package_archive::CATALOGUE` (provisional name), above the measurement table. So the kernel's
   trust root vouches for the catalogue, and the catalogue vouches for the package. That is §195's
   "the image's measured table becomes the first source" taken literally, and it is why plain HTTP
   is enough on this rung: the digest the client checks against never crossed the network. It also
   means the producer runs end to end on every build, which this note's BUGS said nothing did.
-- **A host on the network serves it.** `helpers/package-http-peer` is a `guestfwd` peer at
+- A host on the network serves it. `helpers/package-http-peer` is a `guestfwd` peer at
   10.0.2.9:8080 in both QEMU runners, started by slirp once per connection with the connection on
   its standard input and output, exactly as the TCP echo peer at 10.0.2.9:7777 is a `/bin/cat`. A
   real HTTP/1.0 exchange with a real host process, and nothing binds a port on the machine or
   outlives QEMU. `GET /tampered/<name>` serves the same file with one byte flipped halfway through.
-- **The client hashes as it reads.** `crates/http_response` (provisional name) writes the `GET` and
+- The client hashes as it reads. `crates/http_response` (provisional name) writes the `GET` and
   reads the response a socket read at a time, keeping only the head, so the body goes straight
   into `measured_boot`'s streaming SHA-256 and a package costs the client one page of socket
   frame. The client is a mode of `net_stack`'s socket-contract client (`TEST_HTTP_PACKAGE`), because
@@ -163,23 +163,23 @@ same test as a twin in `kernel/src/user/riscv_virtio_tests.rs`.
 generation is a text file of `<program> <package> <digest>` lines that is never rewritten, a
 one-line `current` names the live one, and install, upgrade and remove each produce the next
 generation. Its test `a_rollback_restores_the_whole_set` is the property calef asked for by name.
-**Nothing on a target reads it yet**, for the reason below.
+Nothing on a target reads it yet, for the reason below.
 
 ## Where this stops, and it is a fork for calef
 
 Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
 rolled back and removed. The first two are built. The rest wait on one question, written up with
-options and measured costs as **DECISIONS §216 (how the shell names an installed program to the
-spawner)**: when a person types the name of an installed program, what travels to the process that
+options and measured costs as DECISIONS §216 (how the shell names an installed program to the
+spawner): when a person types the name of an installed program, what travels to the process that
 builds it. The shell names programs by an id from a closed enum, and an installed program has none.
 Every answer is a change the shell and the progenitor agree on, so it is calef's.
 
-**Milestone 507 (installing a package: mutate, compose, or widen)'s finding was half stale, and the half that moved matters.** It said nothing that
+Milestone 507 (installing a package: mutate, compose, or widen)'s finding was half stale, and the half that moved matters. It said nothing that
 builds processes can read an installed program because the progenitor gives the file service away.
 The progenitor has kept the file service since milestone 31 (a capability shell) phase 3 (2026-08-17), so it can read
 one. What it cannot do is be asked for one.
 
-**And a second gap stands behind that one**: the booted system has no network. The progenitor
+And a second gap stands behind that one: the booted system has no network. The progenitor
 builds no `net_stack`, so the fetch above runs only in the kernel's test harness. That is filed as
 `design/roadmap/proposals/the-booted-system-has-no-network.md`.
 
@@ -190,23 +190,23 @@ builds no `net_stack`, so the fetch above runs only in the kernel's test harness
   and a compressor is a second hostile-input parser on the same path. The size cost is measured
   nowhere.
 - **A package is bounded by `u32`** in both member length and file length.
-- **The catalogue is one file in `target/` and one archive entry**, not a repository index. The
+- The catalogue is one file in `target/` and one archive entry, not a repository index. The
   image's own source is the only source; §195's per-source trust needs a catalogue per source the
   owner opted into, and a way to add one.
-- **The fetch runs only in the kernel's test harness**, which plays the progenitor's part and maps
+- The fetch runs only in the kernel's test harness, which plays the progenitor's part and maps
   the catalogue into the client the way the progenitor hands `login` its blobs. The booted system
   has no network (the proposal above).
-- **x86_64 has no fetch test**: its QEMU runner attaches no `-netdev`, and no x86 network test
+- x86_64 has no fetch test: its QEMU runner attaches no `-netdev`, and no x86 network test
   exists. The archive build does not pack a catalogue for it either, because nothing there could
   read one. Milestone 494 (a driver for the network card a PC actually has) is where x86 networking
   starts.
-- **`uptime` is also in the image**, so the package the tests fetch is not a program the image
+- `uptime` is also in the image, so the package the tests fetch is not a program the image
   lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
   criterion, and they wait on §216.
-- **The package peer is a `guestfwd` process, not a server on a LAN.** It speaks HTTP to the guest
+- The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).
-- **Plain HTTP carries the package, and that is safe only because of the image's catalogue.** A
+- Plain HTTP carries the package, and that is safe only because of the image's catalogue. A
   source whose digests arrive over the same connection would be worth nothing against a machine in
   the middle; that is what §196 (nife carries TLS)'s TLS is for on rung 3c.
 - **A recipe cannot say where its source came from.** Homebrew's formula carries an upstream URL and
@@ -215,5 +215,3 @@ builds no `net_stack`, so the fetch above runs only in the kernel's test harness
 - **`cargo xtask package` builds nothing.** A `program` whose ELF is not in `target/` is an error
   naming the file. Packaging and building are separate acts here for milestone 150 (adding a program should not need eight hand-maintained lists)'s reason: a tool
   that quietly rebuilt would hide which binary it had packed.
-- ~~**Nothing gates the producer in CI.**~~ Every archive build runs it since 2026-09-24 (the
-  image's package source, above), and the package tests fetch what it produced.

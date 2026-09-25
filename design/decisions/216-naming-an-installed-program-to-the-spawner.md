@@ -15,8 +15,8 @@ Written by a lane, on the maintainer's instruction to write this fork up rather 
 §208 (installing a package is granting it, and the activation set is versioned) ruled that
 installing makes a package's digest and manifest *spawnable*. It also named the cost: "naming a
 program that was not there at boot is a change two programs agree on." This section is that change.
-**One question: when a person types the name of an installed program, what travels from the shell to
-the process that builds it?**
+One question: when a person types the name of an installed program, what travels from the shell to
+the process that builds it?
 
 Today a closed enum answers it. The shell resolves a name through `grant_plan::Prog` and sends its
 integer id as word 0 of a `spawnproto` request (`crates/grant_plan/src/spawnproto.rs`). The
@@ -26,7 +26,7 @@ id, and no row.
 
 ## Is the premise true? Two corrections to the record first
 
-- **The progenitor keeps the file service for the life of the boot.** §208 and milestone 507
+- The progenitor keeps the file service for the life of the boot. §208 and milestone 507
   (installing a package: mutate, compose, or widen what can be spawned) both say "the spawner gives
   the file service away", and `system_initializer`'s module documentation says so too. The code
   stopped doing that in milestone 31 (a capability shell) phase 3 (2026-08-17), which kept `WRITE | GRANT` on the RedoxFS
@@ -34,7 +34,7 @@ id, and no row.
   "**The filesystem stays**"). So the spawner *can* read an installed program today. What it cannot
   do is be asked for one. That makes 507's "hard part" half a fact and half stale, and it is why the
   fork below is about naming rather than reach.
-- **`PROG_COUNT` is 14, not 13.** Both earlier records quote 13.
+- `PROG_COUNT` is 14, not 13. Both earlier records quote 13.
 
 ## The options
 
@@ -46,30 +46,30 @@ id, and no row.
 
 ## The seven questions
 
-1. **What else was considered, and why did each lose?** Nothing loses yet, because this is the
+1. What else was considered, and why did each lose? Nothing loses yet, because this is the
    syscall-adjacent kind of fork AGENTS.md says to give options on. What each costs is above. B's
    argument problem is the sharpest: it cannot be built well until milestone 205 lands, and it
    builds a second spawner beside the progenitor, which §208 argued against when it chose one
    authority over two.
-2. **What does the tree already do?** Two analogues point different ways. `DIR_BIT` is A's exact
+2. What does the tree already do? Two analogues point different ways. `DIR_BIT` is A's exact
    shape: data too big for a word, carried by "expect two more `SEND`s". Milestone 47 (navigation
    and naming)'s `PATH` lane priced `NAME_BIT` in those words and stopped because it was a wire
    change. `login` is B's shape: a program that builds processes from a blob it was handed.
-3. **Prior art outside the tree.** Recalled, not re-read this session, and marked so: Fuchsia
-   resolves components by URL string at the resolver (A's shape); Plan 9's `exec` takes a path in
-   the caller's namespace (A, with the namespace as the table); Genode's Sculpt routes a downloaded
+3. Prior art outside the tree. Recalled, not re-read this session, and marked so: Fuchsia
+   resolves components by URL string at the resolver (A's shape). Plan 9's `exec` takes a path in
+   the caller's namespace (A, with the namespace as the table). Genode's Sculpt routes a downloaded
    component through a runtime configuration (B-like, one launcher). Milestone 507's own table read
    the Fuchsia and Sculpt pages and cited them.
-4. **Is the premise true?** Checked above. It moved: reach was the stated blocker and it is not one.
-5. **What does each cost, measured?** The table's last column. The slot count is from the comment
+4. Is the premise true? Checked above. It moved: reach was the stated blocker and it is not one.
+5. What does each cost, measured? The table's last column. The slot count is from the comment
    beside `spawn_dir_grant` (peak fifteen of sixteen). The page counts are
    `system_initializer`'s constants and `cargo xtask package packages/uptime.recipe` on 2026-09-24.
-6. **How reversible, and who has acted on it?** Nobody outside this repository has a shell or a
+6. How reversible, and who has acted on it? Nobody outside this repository has a shell or a
    progenitor, and both ship in one image, so any of the three can be changed by one image. That is
    less expensive than an external wire format. It is still one: every future shell and every
    future spawner is written against it, and a third-party shell is what milestone 39 (repository structure for a loosely-coupled OS)'s split
    exists to allow.
-7. **Would we still choose it if all three cost the same?** Not asked of a winner, because none is
+7. Would we still choose it if all three cost the same? Not asked of a winner, because none is
    named. If calef picks A, the non-effort case is §208's own: one authority builds processes and
    vouches for them, and installing widens what that authority may be asked for.
 
@@ -78,12 +78,12 @@ id, and no row.
 Both are reversible until something outside this repository reads them, so each carries a
 recommendation. They are not blocking on their own; they block only after A.
 
-- **The activation table's shape.** Recommended: text, one `<name> <package stem> <digest>` line per
+- The activation table's shape. Recommended: text, one `<name> <package stem> <digest>` line per
   active program, a file per generation plus a one-line `current` naming the generation. That is
   `measured_boot`'s manifest shape with one column added, which is what the progenitor already
   parses, and it makes rollback rewriting one line. A binary table would be a second parser on the
   progenitor's path for no measured gain.
-- **Where a program's manifest travels.** Still §197 (a package is one archive file)'s open question,
+- Where a program's manifest travels. Still §197 (a package is one archive file)'s open question,
   unanswered here. Rung 3a's `uptime` needs only an output sink, so a first cut can refuse any
   installed program whose manifest asks for more than `Prog::Uptime`'s, and say so in a `BUGS`
   section, rather than answer §197 by accident.
