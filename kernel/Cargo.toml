@@ -235,16 +235,18 @@ soak_test = []
 # the path a board takes is script/board-image plus script/board-console. See kernel/src/job_mix.rs
 # and script/job-mix. Name provisional.
 job_mix = []
-# The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
+# The rebooting soak (milestone 249 (the boot lottery is sampled by a person walking to the board)): after a fixed window the soak asks the firmware for a **cold
 # reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
-# times unattended rather than nine times by a person walking to the board. riscv64 only, and
-# `kernel/src/soak.rs` says so with a `compile_error!` rather than with a comment.
+# times unattended rather than nine times by a person walking to the board. All three
+# architectures since 2026-09-24: SBI SRST on riscv64, PSCI SYSTEM_RESET on aarch64, and the FADT
+# reset register then ports 0xcf9 and 0x64 on x86_64, each behind `arch::reboot`.
 #
-# **It implies `soak_test` and `board`, and both for the same reason: neither is optional here.**
-# Without `soak_test` there is no beat loop to hang the window off and no workload whose rate is the
-# thing being sampled. Without `board` the reset is meaningless: QEMU's `virt` machine is started by a runner
-# that would have to re-launch it, and the SRST call there resets a guest nobody is drawing a
-# lottery from.
+# **It implies `soak_test`, because without it there is no beat loop to hang the window off** and no
+# workload whose rate is the thing being sampled. **It no longer implies `board`** (2026-09-24),
+# which it did on the belief that a reset under QEMU was meaningless. It is not: QEMU resets the
+# machine and loads `-kernel` again, which is exactly the second boot `script/soak-test --reboot`
+# watches for as its proof. A card for radon still gets `board` because `script/board-image`
+# passes it explicitly, as it always has.
 #
 # **The name carries the hazard on purpose.** `boot_lottery` was considered and refused: it names
 # the phenomenon being measured, and the flag is met by an operator about to write a card that will
@@ -259,7 +261,7 @@ job_mix = []
 # `soak_test_reboot` was refused for making `reboot` the head, which would name a reboot test that
 # happens to soak, and that is the wrong thing. The hazard the paragraph above insists the name
 # carry is still carried: `reboot` is still the first word an operator reads.
-reboot_soak_test = ["soak_test", "board"]
+reboot_soak_test = ["soak_test"]
 # Boot straight to the interactive shell, skipping the milestone tour. Used by cargo xtask shell.
 # The userspace progenitor is the boot path here: it brings up the console, the line discipline, the
 # input driver and the shell out of its own budget, and the kernel wires none of it. That was

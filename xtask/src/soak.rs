@@ -342,6 +342,10 @@ pub(crate) fn soak_test() -> ExitCode {
     let mut arch = "aarch64".to_string();
     let mut smp: Option<String> = None;
     let mut log: Option<PathBuf> = None;
+    // Milestone 249 (the boot lottery is sampled by a person walking to the board)'s QEMU proof: build the rebooting soak and pass only when a second boot starts
+    // soaking after the first asked for a reset. See [`second_boot`].
+    let mut reboot = false;
+    let mut duration_given = false;
     // A minute by default: long enough that the beat, the rate and the cross-core counters are all
     // real numbers rather than a first sample, and short enough that nobody is tempted to skip it.
     // The runs that matter are hours long and happen on a board.
@@ -375,8 +379,16 @@ pub(crate) fn soak_test() -> ExitCode {
                 Ok(v) => log = Some(PathBuf::from(v)),
                 Err(code) => return code,
             },
+            "--reboot" => {
+                reboot = true;
+                i += 1;
+                continue;
+            }
             "--for" | "--timeout" => match value(i).map(parse_duration) {
-                Ok(Some(d)) => policy.total = d,
+                Ok(Some(d)) => {
+                    policy.total = d;
+                    duration_given = true;
+                }
                 Ok(None) => {
                     eprintln!("soak-test: --for wants a duration like 90, 90s, 30m or 2h");
                     return ExitCode::from(4);
@@ -395,7 +407,7 @@ pub(crate) fn soak_test() -> ExitCode {
                 eprintln!("soak-test: unknown argument {other}");
                 eprintln!(
                     "usage: cargo xtask soak-test [--arch aarch64|riscv64|x86_64] [--for <duration>] \
-                     [--smp <n>] [--quiet-after <duration>] [--log <file>]"
+                     [--smp <n>] [--quiet-after <duration>] [--log <file>] [--reboot]"
                 );
                 return ExitCode::from(4);
             }
@@ -436,12 +448,21 @@ pub(crate) fn soak_test() -> ExitCode {
         }
     };
 
+    // One window of `REBOOT_AFTER_SECONDS` (120s), the five-second grace, the reset attempts and two
+    // boots fit in six minutes under TCG with room to spare.
+    if reboot && !duration_given {
+        policy.total = Duration::from_secs(360);
+    }
     if !cargo_profiled(&[
         "build",
         "-p",
         "kernel",
         "--features",
-        "soak_test",
+        if reboot {
+            "reboot_soak_test"
+        } else {
+            "soak_test"
+        },
         "--target",
         target,
     ]) {
@@ -482,6 +503,15 @@ pub(crate) fn soak_test() -> ExitCode {
     if let Some(n) = &smp {
         cmd.env("NIFE_SMP", n);
     }
+    if reboot {
+        // The x86 runner passes `-no-reboot` so a triple fault exits instead of looping; this run
+        // is the one where a reset must reset. The other two runners never pass it.
+        cmd.env("NIFE_ALLOW_REBOOT", "1");
+        // Nothing on stdin, so nothing can reach the guest's console and disarm the loop: the
+        // escape is the byte-on-the-console the kernel polls for, and a terminal's stray keypress
+        // would turn this proof into a run that never resets.
+        cmd.stdin(std::process::Stdio::null());
+    }
     cmd.stdout(std::process::Stdio::piped());
     // The runner's own diagnostics stay on this terminal rather than joining the captured stream:
     // the log is meant to be the guest's console and nothing else, so that a replay through
@@ -506,6 +536,18 @@ pub(crate) fn soak_test() -> ExitCode {
         let _ = child.kill();
         return ExitCode::from(4);
     };
+
+    if reboot {
+        let verdict = second_boot(stdout, &mut sink, policy.total);
+        let _ = Command::new("pkill")
+            .args(["-9", "-P", &runner_pid.to_string()])
+            .status();
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = sink.flush();
+        eprintln!("soak-test: log at {}", log_path.display());
+        return verdict;
+    }
 
     // `false`, not `true`: a pipe from a process really does end when that process dies, which a
     // serial port never does. Getting this bit wrong turns a QEMU that died into a board that has
@@ -613,4 +655,102 @@ pub(crate) fn soak_test() -> ExitCode {
         return ExitCode::from(3);
     }
     ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
+}
+
+/// **Did the machine actually come back?** Milestone 249's proof under QEMU, for `soak-test --reboot`.
+///
+/// The rebooting soak's claim is not that `arch::reboot` was called, or even that it did not
+/// return: it is that the machine reset and booted this kernel again. So the only passing outcome is
+/// the soak's own start line appearing **a second time, after** a `rebooting now` line, which QEMU
+/// can only produce by resetting the machine and loading `-kernel` again. A reset that hung in
+/// firmware, a guest that printed its reset line and stopped, and a QEMU that exited on the reset
+/// all fail here, which is the difference this test exists to draw.
+///
+/// It reads the stream itself rather than going through `board_console::watch`, because that
+/// recogniser judges one boot and treats a second banner as the story starting over; teaching it
+/// multi-boot runs is `board_console::lottery`'s job on a real capture, not this proof's.
+///
+/// Exit statuses follow `soak-test`'s: 0 came back, 1 the kernel said the reset failed or panicked,
+/// 2 the deadline passed first, 3 QEMU's output ended.
+fn second_boot(
+    stdout: std::process::ChildStdout,
+    sink: &mut impl std::io::Write,
+    deadline: std::time::Duration,
+) -> ExitCode {
+    use std::io::BufRead;
+    use std::sync::mpsc;
+    use std::time::Instant;
+
+    // The soak's own start line and the reboot loop's prefix, as `kernel/src/soak.rs` spells them.
+    const STARTED: &str = "soak-test: started";
+    const REBOOT: &str = "soak-test-reboot:";
+
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in std::io::BufReader::new(stdout).split(b'\n') {
+            let Ok(line) = line else { break };
+            if tx
+                .send(String::from_utf8_lossy(&line).into_owned())
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    let begun = Instant::now();
+    let mut starts = 0u32;
+    let mut rebooting = false;
+    let mut last_attempt: Option<String> = None;
+    loop {
+        let Some(left) = deadline.checked_sub(begun.elapsed()) else {
+            eprintln!(
+                "soak-test: FAIL, {}s passed without a second boot (starts={starts}, reset asked \
+                 for: {rebooting})",
+                deadline.as_secs()
+            );
+            return ExitCode::from(2);
+        };
+        let line = match rx.recv_timeout(left) {
+            Ok(line) => line,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                eprintln!(
+                    "soak-test: FAIL, QEMU's output ended (starts={starts}, reset asked for: \
+                     {rebooting}); a QEMU that exits on a reset has not rebooted anything"
+                );
+                return ExitCode::from(3);
+            }
+        };
+        let _ = writeln!(sink, "{line}");
+        if line.contains("[PANIC]") {
+            eprintln!("soak-test: FAIL, the kernel panicked: {line}");
+            return ExitCode::from(1);
+        }
+        if let Some(rest) = line.split_once(REBOOT).map(|(_, rest)| rest.trim()) {
+            if rest.starts_with("rebooting now") {
+                rebooting = true;
+            } else if rest.starts_with("attempt") {
+                last_attempt = Some(rest.to_string());
+            } else if rest.starts_with("FAILED") || rest.starts_with("DISARMED") {
+                eprintln!("soak-test: FAIL, the reboot loop stopped: {rest}");
+                return ExitCode::from(1);
+            }
+        }
+        if line.contains(STARTED) {
+            starts += 1;
+            if rebooting && starts >= 2 {
+                eprintln!();
+                eprintln!(
+                    "soak-test: PASS, the machine reset and this kernel booted and began soaking \
+                     again, {}s in",
+                    begun.elapsed().as_secs()
+                );
+                if let Some(attempt) = last_attempt {
+                    eprintln!("soak-test: the route that reset it: {attempt}");
+                }
+                return ExitCode::SUCCESS;
+            }
+        }
+    }
 }
