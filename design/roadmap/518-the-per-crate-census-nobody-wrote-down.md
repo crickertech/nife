@@ -30,7 +30,7 @@ to make had to be made against it whether it was the right comparand or not.
 - **`script/mutation-census`**, a new entry point. `--add-run <id>` captures a finished GitHub
   Actions census in one command, `--add-baseline` ingests `.cargo/mutants-baseline.txt`, `--list`
   and `--show` read the record back, and `--compare A B` answers the question nobody could answer on
-  2026-09-19. **Name provisional**, per AGENTS.md; naming is calef's.
+  2026-09-19. **Name provisional**, per AGENTS.md; naming is an architect's.
 - **`notes/project-metrics/mutation-census.csv`**, one row per crate per census:
   `census,run,crate,tested,caught,missed,timeout,unviable`. `tested` is the other four added up, so
   a truncated row fails its own arithmetic instead of looking plausible. The crate is the name **the
@@ -99,7 +99,7 @@ to 563 in the same window. There is no reading of these artifacts in which the s
 **This does not decide whether risk 3 is green**, and this lane does not touch
 `design/fatal-risks.md`. The entry's own better argument survives the arithmetic intact: milestone 85 (mutation testing over the host crates)'s rule
 is that every survivor is triaged into a test, an exclusion with a reason or a recorded gap, and 563
-of them are not. A verdict on a corrected rate is calef's.
+of them are not. A verdict on a corrected rate is an architect's.
 
 **And the honest caveat on the definition this block prefers.** The hand-check that justifies
 counting a timeout as a kill was performed on the baseline's 96. There are 205 now and nobody has

@@ -32,7 +32,7 @@ So if a lane reports a failure that CI says did not happen, believe the lane and
 ## Know that a watcher will fight you, and check it first
 
 `helpers/merge-drain.sh` runs unattended as the `merge drain` Actions workflow every five minutes, and
-its charter is the first line of its own header: enqueue every pull request that does not need calef.
+its charter is the first line of its own header: enqueue every pull request that does not need an architect.
 **It re-enqueued a held set three times on 2026-09-23 while the operator watched**, because its
 admission policy knew only drafts and `needs-architect`. The failure is invisible in the worst way: a
 dequeue leaves no trace of why an entry came back, so it reads as your own dequeue having failed, and

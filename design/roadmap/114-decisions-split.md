@@ -28,7 +28,7 @@ said. A lifecycle (`PROPOSED`, `DECIDED`, `SUPERSEDED BY N`, `AMENDED`) makes su
 fact. The vocabulary is provisional and calef's.
 
 **It absorbs `design/open-decisions.md`.** That file was created hours before this milestone, and it
-holds decisions in an early lifecycle state: waiting on calef, with options and a recommendation. A
+holds decisions in an early lifecycle state: waiting on an architect, with options and a recommendation. A
 `PROPOSED` decision is the same object one step earlier, so keeping two systems for one concept is
 the duplication milestone 96 spent a day removing from the inits. One directory, one index, one
 lifecycle, and an answered decision changes status in place rather than moving between files.

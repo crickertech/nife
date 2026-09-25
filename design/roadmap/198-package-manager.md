@@ -314,4 +314,4 @@ on 2026-09-23): a stick reaching a prompt on a PC (1a on xenon over serial
 needs nothing new; the screen and the USB keyboard, milestone 242, are the rest), that system
 installed onto the disk (a new installer proposal plus milestone 261's bench step), growing by
 packages over the network (this milestone on a LAN first, then a real network card and the
-internet), and the web page, which is calef's act.
+internet), and the web page, which is an architect's act.

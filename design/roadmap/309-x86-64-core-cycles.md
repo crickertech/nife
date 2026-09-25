@@ -213,7 +213,7 @@ lane's.** What it decides, in order:
 
 ## Names
 
-**Provisional** (AGENTS.md: names are calef's). `arch::x86_64::pmu` takes riscv64's module name and
+**Provisional** (AGENTS.md: names are an architect's). `arch::x86_64::pmu` takes riscv64's module name and
 is the only one of them a reader meets by path. The rest are this lane's: `CycleCounter` and its
 five members (`NoPerfmonLeaf`, `NoFixedCounter`, `Stuck`, `InStepWithTheTsc`, `Running`, the first
 three of which mirror riscv64's vocabulary), `elapsed_cycles`, `cycle_counter_width`, and in

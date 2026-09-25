@@ -30,7 +30,7 @@ it exactly and declines it:
 > it, it is a new decision.
 
 Milestone 23's live replacement needs it. This note is what a lane found out, which of the four
-questions it could answer with the machine and which need calef, and one place where §32's sentence
+questions it could answer with the machine and which need an architect, and one place where §32's sentence
 above turns out to be **half wrong** in a way worth correcting on the record.
 
 ## Three hangs, not one, and they have different answers
@@ -110,7 +110,7 @@ is better than a watchdog that can kill:
 - **It is the same shape as `caretaker` and `dwarden`**, which is what makes it recognisable rather
   than novel: a program whose whole purpose is to hold less than the thing it stands in front of.
 
-**Provisional name, and calef's call: `liveness_watch`.** `caretaker` and `undertaker` are spent on
+**Provisional name, and an architect's call: `liveness_watch`.** `caretaker` and `undertaker` are spent on
 capability-narrowing filesystem programs; `watchdog` alone is a hardware term and would claim a timer
 this system does not have; the noun is `watch` and the thing watched is liveness. Nothing was minted
 in this lane and no such program was built (see below).

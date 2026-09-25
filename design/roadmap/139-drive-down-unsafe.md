@@ -568,7 +568,7 @@ long-tail and program-specific: page-frame and address-space construction verbs 
 handful of programs that build child processes (`hello`, `builder`, `login`, the caretakers), and
 IRQ and virtio methods used only by the drivers that own those devices.
 
-**Why this is calef's call and not a migration to invent.** Building a safe wrapper per method
+**Why this is an architect's call and not a migration to invent.** Building a safe wrapper per method
 the way `send`/`reap` already exist would need a decision this lane has no standing to make:
 whether the per-method obligation is real (as `MAP_INTO`'s is, per milestone 134's own reading) or
 vestigial (as most of `send`/`recv`/`reap`'s turned out to be), for each of at least 18 methods,
@@ -906,7 +906,7 @@ named anti-pattern. The reduction that would be real is rung one of AGENTS.md's 
 wrong state unrepresentable, so a thread pointer can only reach `push_back` by way of a type that
 only a Ready-transition can mint. That is a scheduler-core typestate change, it touches the one
 subsystem where a mistake is an intermittent hang rather than a compile error, and it is exactly the
-kind of thing milestone 193's prover should be pointed at first. **calef's call**, not a lane's to
+kind of thing milestone 193's prover should be pointed at first. **an architect's call**, not a lane's to
 invent.
 
 ## What is still open
@@ -1088,7 +1088,7 @@ proofs and the type system are standing aside and a person's comment is the whol
   blocks, each restating what the helper's own safety comment says. Round 8 named it a proposed
   milestone and no block has been minted for it. Checked 2026-09-03.
 - **Outstanding.** `kernel/src/sched.rs` is unchanged at 47 blocks, eight of them the run-queue and
-  inbox pushes. The typestate that only a ready transition can mint is calef's call and there is no
+  inbox pushes. The typestate that only a ready transition can mint is an architect's call and there is no
   file for it under `design/decisions/`. Checked 2026-09-03.
 - **Outstanding.** `kernel/src/user/tests.rs` still carries 14 unsafe blocks, untouched. Round 8
   skipped it for a scheduling reason, another lane holding the tree's merge hotspot, and said

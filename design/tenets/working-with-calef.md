@@ -90,7 +90,7 @@ the one the *move fast* tenet draws: anything two programs agree on, a name, a d
 syscall surface, a fact that leaves the machine.
 
 **A fork only earns a lane when nobody can say what the options cost.** A lane costs a few hundred
-thousand tokens and up to an hour. If calef can answer in a sentence, researching first spends more
+thousand tokens and up to an hour. If an architect can answer in a sentence, researching first spends more
 than a wrong answer would. Most of the seven questions are minutes of grepping by whoever is holding
 the problem, and that is the common case rather than a lane.
 

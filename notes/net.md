@@ -851,7 +851,7 @@ that logs its peers logs zeros. Two ways to fix it, both changes to what two pro
 therefore neither taken here: a **second reply word** (`reply` already carries two and `OP_ACCEPT`
 sends zero in the second), or the **frame's dead `dst` fields**, which is exactly the move a UDP
 `RECV` already makes with the datagram's source and would cost no format change at all. The second
-is cheaper and has the precedent; both are calef's.
+is cheaper and has the precedent; both are an architect's.
 
 **The host prober now sees two listening windows over one boot, and what it requires changed shape
 because of it.** The guest offers four rounds (two per program) and the prober passes at **three**.

@@ -55,7 +55,7 @@ loop or nothing.
 - **`AGENTS.md`'s disk paragraph is out of date by a factor of four.** It names *"7.2 GB in the main
   checkout's own `target/`"* as part of the budget that took a 252 GB volume to 1.9 GB free.
   Measured 2026-09-21: **30 GB**, and the main checkout is invisible to `git worktree list`, which
-  is why nobody watches it. That file is calef's, so this is a finding rather than an edit.
+  is why nobody watches it. That file is an architect's, so this is a finding rather than an edit.
 - **One mutation survivor found by a lane that could not route it.** A lane measuring
   milestone 517 (what fraction of survivor growth arrives on touched lines) found
   `compositor`'s `replace * with + in Rect::area` regressed on a line nobody edited: caught in

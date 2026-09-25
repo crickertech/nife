@@ -1,7 +1,7 @@
 # What a timed wait costs
 
 *(Written 2026-08-17, for milestone 106's fork. This note prices a design and does not build one:
-nothing here adds a syscall, and the fork between milestone 51's three candidate shapes is calef's
+nothing here adds a syscall, and the fork between milestone 51's three candidate shapes is an architect's
 and stays open.)*
 
 Milestone 106's block says a deadline in the blocked state "means the scheduler carries a timer
@@ -343,7 +343,7 @@ Two caveats that matter for how the number is used:
   that this is a morning's work, and shipping them would have settled the fork by accident, which
   milestone 51's block and milestone 106's both warn against.
 - **Nothing here says which shape to choose.** That is the point: this note exists to make the fork
-  decidable, and the decision is calef's.
+  decidable, and the decision is an architect's.
 
 ## A miscitation found on the way
 

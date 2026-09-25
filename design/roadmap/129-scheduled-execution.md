@@ -11,7 +11,7 @@ the temptation was there. Every ingredient existed as predicted: §43's clock au
 supervision (§40) for what happens when a scheduled child dies. No new syscall surface was needed.
 The `--mem` grant needs nobody (the archive endowment was narrowed to the plan on 2026-08-18); the
 per-entry image turned out to need a design fork rather than a lane's capability wiring, checked
-2026-08-23 below; the **runtime** registration protocol is calef's. A gate reading `DECISION` would
+2026-08-23 below; the **runtime** registration protocol is an architect's. A gate reading `DECISION` would
 say the milestone is blocked when most of it is not.
 
 What the build did find is that the *absence* of a syscall shapes the whole program: see "The
@@ -175,7 +175,7 @@ and is the one taken.
   - **The registration wire format**, if the registrar and the scheduler are separate programs.
     `Registry::register` is an in-process call and needs no opcode; a session registering into a
     running `timetable` does, and whether a call carries one entry or a whole document is the kind of
-    thing two programs agree on, so it is calef's under AGENTS.md rather than a lane's.
+    thing two programs agree on, so it is an architect's under AGENTS.md rather than a lane's.
   - **Removal.** The original ask read "add *or remove*", and 152 answers removal only as a cascade:
     revoking a user's credentials kills the durable session and everything derived from it (§108).
     Deregistering one entry, by the user who registered it, while the session lives, has no answer
@@ -183,7 +183,7 @@ and is the one taken.
 
   One mechanical consequence, not a decision: `DurableSession` is private to
   `user/src/smb_server.rs`, so a registrar in any other binary means lifting it into a crate, whose
-  name is calef's like every other. #387's `--mem` grant (built, and the whole of that pull request)
+  name is an architect's like every other. #387's `--mem` grant (built, and the whole of that pull request)
   was never affected by this hold.
 - **Calendar syntax, wall-clock entries, persistence.** Each its own later decision, per the scope
   note below, and none of them started.
@@ -288,4 +288,4 @@ four answers to a crontab's one and `every 1s date` is refused for want of a clo
 (2026-08-22): `at-boot memory_grant_depleter --mem 4` is planned, fires, and its grant, nested
 inside its own instance's region because the kernel refuses to reclaim a region with a live child,
 is destroyed once its death is the only one that could be outstanding. Remaining: one image per
-entry rather than one archive per timetable, and the runtime-registration fork, which is calef's
+entry rather than one archive per timetable, and the runtime-registration fork, which is an architect's

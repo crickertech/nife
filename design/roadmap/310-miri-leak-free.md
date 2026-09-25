@@ -133,7 +133,7 @@ and the crate's other thirty pass unchanged.
   thing Miri checks in this workspace, aliasing and provenance and uninitialized reads, which have
   been unchecked on `main` since 2026-08-11 because one error message hid all of them.
 - **Milestone 428.** Is a three-hour weekly Miri run worth what it costs? The workflow's header
-  raises it and nobody has answered; the cadence is calef's call, and the measurement, the likely
+  raises it and nobody has answered; the cadence is an architect's call, and the measurement, the likely
   answer and what still has to be measured before it is one are in that block. The short version: the cost is
   concentrated in a few crates whose expensive tests are breadth over in-memory input, which is
   exactly what Miri cannot judge, so the lever is running less of it rather than running it less

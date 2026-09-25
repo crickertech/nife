@@ -47,7 +47,7 @@
 //! reclamation the prompt's memory depends on.
 //!
 //! Closing it needs either a non-blocking send or a receive that can wait on two endpoints, and
-//! both are the syscall surface (DECISIONS §10, §16), which is calef's and not a lane's. Proposed
+//! both are the syscall surface (DECISIONS §10, §16), which is an architect's and not a lane's. Proposed
 //! as its own milestone in this lane's report.
 //!
 //! **A refused reclaim is retried rather than trapped on** (milestone 31 phase 3, 2026-08-17), and

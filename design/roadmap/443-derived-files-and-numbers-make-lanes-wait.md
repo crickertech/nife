@@ -95,7 +95,7 @@ and it is not the load-bearing one.
 integrator's at merge, written in `AGENTS.md` and in `script/roadmap`'s header, which is rung four,
 and on 2026-09-19 `main` carried three stale rows because rung four is what it is. A post-merge
 workflow is **a bot writing to `main`, which this tree has never done**, and it needs milestone 128's
-identity plus a rule about what else such a commit may touch. That is calef's call and is written up
+identity plus a rule about what else such a commit may touch. That is an architect's call and is written up
 rather than built: `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
 
 **The point stands without it.** After this milestone a stale index costs a reader an out-of-date
@@ -159,7 +159,7 @@ reported, and that the later lander takes the next free numbers instead of displ
 
 - **Milestone 510.** Post-merge regeneration of `design/roadmap/README.md`, with the bot-identity
   question it depends on, in milestone 510 (regenerating the index is nobody's job), `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
-  It is calef's call, not a lane's, which is why this milestone stopped at removing the gates'
+  It is an architect's call, not a lane's, which is why this milestone stopped at removing the gates'
   dependence on the file rather than at keeping the file current.
 - **Milestone 513.** `design/decisions/README.md` is hand-maintained and is now the tree's remaining
   index hotspot, in milestone 513 (the decision index is still hand-maintained), `design/roadmap/513-the-decision-index-is-still-hand-maintained.md`.

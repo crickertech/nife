@@ -882,7 +882,7 @@ mod trace {
 /// reachable from userspace: a workload that could read its own tripwire is one step from a
 /// workload that could clear it.
 ///
-/// Names provisional (this lane's, 2026-09-01; public function names are calef's call, DECISIONS
+/// Names provisional (this lane's, 2026-09-01; public function names are an architect's call, DECISIONS
 /// naming tenet as extended on 2026-08-23).
 ///
 /// **The one that is a finding rather than a statistic.** A refused wake means a waker made a
@@ -960,7 +960,7 @@ pub fn steals_served() -> u64 {
 /// this is `spawn` with the answer kept rather than a second placement policy. **It hands the
 /// caller no lever**: there is no argument to steer the choice with, which is deliberate, because
 /// the thing milestone 240 is for is reporting the boot-time placement lottery and not overriding
-/// it. Thread affinity is calef's open question and DECISIONS 138 (how a saturated workload is
+/// it. Thread affinity is an architect's open question and DECISIONS 138 (how a saturated workload is
 /// made to hand threads across cores) declined a rebalancer; neither is reopened by a caller that
 /// can only read.
 ///

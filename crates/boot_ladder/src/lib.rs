@@ -37,7 +37,7 @@
 //!   is printed immediately before the first prompt by the same program, so a reader that finds it
 //!   knows the shell is up; what it does not know is that the *prompt* came out, which is a
 //!   distinction `cargo xtask swish-check` cares about and this crate cannot make.
-//! - **The wordings are provisional** (milestone 268). They are contracts, so they are calef's
+//! - **The wordings are provisional** (milestone 268). They are contracts, so they are an architect's
 //!   under `AGENTS.md`'s *move fast on what can be undone* tenet; a lane ships one and says so
 //!   rather than waiting, which is what the milestone block instructed.
 //!

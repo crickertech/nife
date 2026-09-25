@@ -84,7 +84,7 @@ Not a new counter that rises monotonically, which is what the existing eight alr
 ## BUGS
 
 - **This does not decide a duration**, and should not be read as promising one. It makes the duration
-  decidable from evidence; the number stays calef's, on the axis notes/soak.md gives him.
+  decidable from evidence; the number stays an architect's, on the axis notes/soak.md gives them.
 - **A flat histogram is not proof a run is worthless.** PCT's own finding is that stress covers a
   fraction of the space and stays there; a soak that has gone flat on placement may still be
   accumulating hours of the *same* interleaving, which is exactly what a wearout or leak question

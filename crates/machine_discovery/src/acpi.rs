@@ -873,7 +873,7 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
 /// self-describing entry walks are what bounded model checking can reach, so they are what is
 /// proved.
 ///
-/// Names: provisional (milestone 319). calef names things.
+/// Names: provisional (milestone 319). an architect names things.
 #[cfg(kani)]
 mod verification {
     use super::*;

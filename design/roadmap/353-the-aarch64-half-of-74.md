@@ -18,7 +18,7 @@ Rewritten 2026-09-19 by the `milestone/74-cycle-counters-aarch64` lane, which bu
 file used to describe. The first version was the riscv64 lane's
 handoff: `PMCR_EL0.E` and `PMCNTENSET_EL0.C` were never written, so `PMCCNTR_EL0` was a stopped
 counter. That part is built (milestone 74's block, "What the aarch64 half built"). What is left is the
-two things that lane and this one were both told are calef's, and this file is now those two
+two things that lane and this one were both told are an architect's, and this file is now those two
 decisions, each answered against AGENTS.md's seven questions, with **options and no winner**, because
 both are facts that leave the machine.
 
@@ -75,7 +75,7 @@ qualifier.
 
 ### Question 1: What else was considered, and why each is a live option rather than a loser
 
-None loses on the facts; they answer different questions, which is why this is calef's.
+None loses on the facts; they answer different questions, which is why this is an architect's.
 
 - **A3 cannot referee an IPC comparison, and that is the one thing to know about it.** An IPC round
   trip timed from EL0 spends almost all of its cycles in the kernel, and `P` = 1 stops the counter

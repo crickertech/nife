@@ -49,7 +49,7 @@ script/crate-probes --no-backend     # the same fifty without entropy_backend
 script/crate-probes --keep           # leave the generated probe crates and their build logs
 ```
 
-**PROVISIONAL NAME** (milestone 64, 2026-08-18): script names are calef's and this one is not
+**PROVISIONAL NAME** (milestone 64, 2026-08-18): script names are an architect's and this one is not
 ratified.
 
 It takes the account-wide `nife-dev` link (it calls `cargo xtask std-src`) and it needs the network,

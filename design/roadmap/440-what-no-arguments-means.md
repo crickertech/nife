@@ -129,7 +129,7 @@ and in milestone 286's block. A `**Proposed.**` bullet in that block points here
 
 Milestone 286 collapsed two enumerations of "the checks that gate a pull request" into one table
 inside `script/ci-build`, with a tier column saying which checks a developer waits for before
-pushing and which only a runner waits for. How that column is spelled is calef's, because it is a
+pushing and which only a runner waits for. How that column is spelled is an architect's, because it is a
 name a contributor meets in `CONTRIBUTING.md`, in `--list` output and in every row. It cannot mean
 everything: `script/verify` is about 47 minutes of Kani, and the retired `script/gates` carried the
 sentence that decides it, which has to survive the milestone that deleted the file, that **a gate

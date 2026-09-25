@@ -4,7 +4,7 @@
 lane recorded the cost of not having one. It is a kernel-surface addition, so it is **a design fork
 for calef before it is a task**, and it is the same fork **milestone 51** already records.
 
-**Gate: MILESTONE 263.** The three-shape fork below is **not being decided**, which is calef's
+**Gate: MILESTONE 263.** The three-shape fork below is **not being decided**, which is an architect's
 answer of 2026-09-05 rather than a deferral by neglect. **The timed wait should be served from a
 userspace timer service signalling a notification**, which is [§101](../decisions/101-notification-objects.md)'s
 own anticipated shape and how seL4 does it, so none of the three kernel shapes has to be lived with.
@@ -103,7 +103,7 @@ rather than left to the next person to re-derive.
 was part of why: a program deleted to avoid a workaround is evidence about the gap, not an absence of
 one.
 
-### The last row may be the trigger this block names, and that is calef's to rule
+### The last row may be the trigger this block names, and that is an architect's to rule
 
 This block's own words: *"§101's carve-out for a kernel timed wait names kernel needs (a watchdog, a
 scheduling deadline, an in-kernel retransmit) of which the tree has no instance... **So this block
@@ -124,7 +124,7 @@ spin is priced and accepted in its own `BUGS` as load on the machine under test,
 entirely a cost (it is one more thread contending)"*.
 
 **Recorded rather than decided.** Whether a soak-build watchdog counts as the kernel-side consumer
-that reopens the fork is exactly the kind of question this block says is calef's, and the block would
+that reopens the fork is exactly the kind of question this block says is an architect's, and the block would
 be worth less if a maintainer answered it in passing. What changes today is that the question is
 written where the trigger is written, instead of living in one file's `BUGS` section that nothing
 connects to this one.

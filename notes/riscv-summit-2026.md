@@ -120,7 +120,7 @@ state"* with *"Assume anything could still change, but limited change should be 
 It is a new base ISA family, `RV64LYA` being the 64-bit base plus capability encoding.
 
 **What it means here.** This is the only item at the summit that speaks to the project's thesis
-rather than its port list, and it cuts both ways, which is why it is calef's to weigh rather than a
+rather than its port list, and it cuts both ways, which is why it is an architect's to weigh rather than a
 lane's. DECISIONS §14 (a verified-Rust capability microkernel that runs real workloads) bets on
 capabilities enforced by a microkernel over an MMU. CHERI offers capabilities enforced by the
 hardware on every pointer. They are not the same object (CHERI capabilities are memory-safety

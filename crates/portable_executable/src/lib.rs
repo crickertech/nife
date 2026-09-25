@@ -4,7 +4,7 @@
 //! (`milestone/the-program-that-makes-the-stick`).
 //! The format's own name, spelled out as design/naming.md asks of an acronym people say whole ("PE"
 //! is what nobody expands, but "portable executable" is the phrase the specification's title uses,
-//! which puts it on the spelled-out side of §154's test; calef's call either way). Considered and set
+//! which puts it on the spelled-out side of §154's test; an architect's call either way). Considered and set
 //! aside `elf_to_efi` (a verb phrase, and systemd's tool name) and `pe_image` (the acronym).
 //!
 //! UEFI loads applications in Microsoft's PE/COFF format. rustc builds PE directly for the three

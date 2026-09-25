@@ -229,7 +229,7 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   checked its text, and two of three architectures never saw it. A reader meeting an empty-feeling
   boot should know the trade was made deliberately, twice, in opposite directions, with the reasons
   recorded both times.
-- **`narrator` was never ratified and now never will be.** Names in this tree are calef's, and this
+- **`narrator` was never ratified and now never will be.** Names in this tree are an architect's, and this
   one shipped provisional under the rule that lets a lane ship rather than wait. `tour` had been
   refused because this tree spends the word on the boot path itself (`Stage::Tour`,
   `script/board-console`). The name is gone with the program; the refusal of `tour` stands on its
@@ -265,7 +265,7 @@ nothing, which is the Follow-on question below rather than a step in this proof.
 
 - **Milestone 394.** The boot-time console server now comes up with no client at all: `start` is
   still called on a tour boot and `rustc` reports every field of its `Console` handle as never read.
-  Whether it should keep being started, and what it was infrastructure for, is calef's rather than a
+  Whether it should keep being started, and what it was infrastructure for, is an architect's rather than a
   lane's, and 394 carries the three options with their real costs. Numbered on 2026-09-19 by
   milestone 433's drain of the pile.
 - **Refused.** "A narrative program the shell cannot start" is moot and its proposal file is

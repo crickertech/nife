@@ -11,7 +11,7 @@ lands it.)*
 the worktree, delete the branch, relink `nife-dev`, `git worktree prune`, and every piece of
 identified work has a home. It still does not say stop the lane, so the maintainer still tidies
 everything a lane owns except the lane itself. Note that the line this block proposes lands in
-`AGENTS.md`, which a developer does not edit, so the change is the maintainer's or calef's to make
+`AGENTS.md`, which a developer does not edit, so the change is the maintainer's or an architect's to make
 even though the gate is `NONE`.
 
 ## What happened

@@ -13,7 +13,7 @@ five names the 2026-09-05 rule deratified, three are still live crates carrying 
 recorded refusal apiece (`dtb`, `gpt`, `ipc`); `dma` and `asid` are no longer names
 `script/names` sees. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** calef names things, and this is a list of names. **The rule behind the gate is
+**Gate: DECISION.** an architect names things, and this is a list of names. **The rule behind the gate is
 [§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md)**, cited here from
 2026-09-19; the block argued from it throughout and never named it.
 

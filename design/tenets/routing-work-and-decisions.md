@@ -1,8 +1,8 @@
-# Routing identified work, and routing a decision to calef
+# Routing identified work, and routing a decision to an architect
 
 *Appendix to [`AGENTS.md`](../../AGENTS.md), which carries the rules: a finding leaves the lane as a
 proposed milestone or as a `BUGS` entry, an open decision lives in `design/decisions/`, and work
-held for calef carries the `needs-architect` label and a `## What I need from you` comment. This
+held for an architect carries the `needs-architect` label and a `## What I need from you` comment. This
 file carries why each of those exists and what failed without it. The watcher machinery is in
 [`notes/merge-queue.md`](../../notes/merge-queue.md) and the sweep that found the category is in
 [`notes/untracked-work-sweep.md`](../../notes/untracked-work-sweep.md). Moved here 2026-09-23 (UTC)
@@ -33,7 +33,7 @@ an observation in prose, and a lint that tried would be `git grep -w TODO`'s 82%
 wearing a different hat. And **it does not touch the `BUGS` convention**, which is the FreeBSD
 posture working as designed; the whole point is to route intentions *into* it rather than out of it.
 
-**Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
+**Open decisions live in a file, not in a conversation.** A decision waiting on an architect that exists
 only in chat scrollback is in exactly the medium milestone 94 was written to abolish, and on
 2026-08-04 five of them accumulated there in one day while that milestone was being built. They go
 in `design/decisions/` marked [`status: PROPOSED`](../decisions/README.md), one file each: what is
@@ -42,7 +42,7 @@ briefly in `design/open-decisions.md`; milestone 114 (split `DECISIONS.md`, and 
 status) absorbed that file, and the numbering is the integrator's at merge like every other section
 number.)
 
-**And work waiting on calef carries its own label and its own ask** (calef, 2026-08-04). The same
+**And work waiting on an architect carries its own label and its own ask** (calef, 2026-08-04). The same
 principle one level out: a pull request held for him is a decision, and a queue that exists only in
 a chat message is the medium above. Two things, both at the moment the decision to hold is made and
 not later, because the failure this prevents is the maintainer forgetting it is holding something:
@@ -55,7 +55,7 @@ not later, because the failure this prevents is the maintainer forgetting it is 
   section owed.
 - **A `## What I need from you` comment** naming the specific ask. Three properties make it worth
   writing, and they are what separate it from a link to a diff. It should be **answerable without
-  reading the diff**, because the point is to spend calef's attention on the decision rather than on
+  reading the diff**, because the point is to spend an architect's attention on the decision rather than on
   reconstructing it. It should **say what happens if he says no**, since a recommendation with no
   stated downside is not a recommendation. And it should **separate what is blocking from what is
   eventually his**, so a naming backlog does not get tangled with a merge decision; the gate of
@@ -83,6 +83,6 @@ reviewers**, because every pull request here is authored under calef's account b
 That was tried on 2026-08-04 and the silent no-op looked exactly like a working queue, which is
 worse than an error. Assignees and labels do work; reviewers do not.
 
-**Stop and bring it to calef only when it is genuinely his call:** a design fork not already
+**Stop and bring it to an architect only when it is genuinely an architect's call:** a design fork not already
 decided, a test that will not pass after real effort, a hardware or external dependency, or the
 machine contradicting the plan. Otherwise proceed and report what you did.

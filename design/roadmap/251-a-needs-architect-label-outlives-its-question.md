@@ -28,7 +28,7 @@ check that cannot tell an answer from a question gets disabled in a week.
 scheduled workflows (milestone 238) and `script/roadmap --proposed` took for the proposal pile
 (milestone 247). Two signals are available and neither claims to know the answer:
 
-- **Activity:** a labelled pull request whose newest comment is calef's is *probably* answered and
+- **Activity:** a labelled pull request whose newest comment is an architect's is *probably* answered and
   is worth a maintainer's eye. That is a prompt, not a verdict.
 - **Age:** a labelled pull request nobody has touched in N days is stalled whether or not it was
   answered, and stalled is the thing the label exists to prevent.

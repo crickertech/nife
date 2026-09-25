@@ -49,7 +49,7 @@
 //!
 //! Names in this module are **provisional** (2026-09-23): the module, [`Machine`], [`Cpu`],
 //! [`Uart`], [`build`] and the root node's `compatible` string all name things a reader meets, and
-//! naming is calef's call.
+//! naming is an architect's call.
 
 use machine_discovery::acpi::{GTDT_ACTIVE_LOW, GTDT_EDGE_TRIGGERED, Gtdt};
 use machine_discovery::gic::Gic;

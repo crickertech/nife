@@ -109,7 +109,7 @@ over which no message but *append* is expressible and no grant anybody could mak
 What did not survive the test is one binary wearing that word for three different jobs.
 `byte_sink_proto` is untouched.
 
-**One naming inconsistency this milestone found and did not settle, because it is calef's.** The tree
+**One naming inconsistency this milestone found and did not settle, because it is an architect's.** The tree
 spells one sink adapter `terminal_sink_caretaker` and this one `file_sink`, and `caretaker` is
 defined in two incompatible ways depending on which file you read. The old `sink.rs` header said
 `fs_file_caretaker` is a caretaker *because* it serves the protocol its client speaks, and that this

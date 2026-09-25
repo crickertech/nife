@@ -145,7 +145,7 @@ import line in the way.
 
 ## BUGS
 
-**The module names are provisional** (2026-09-19). A module name is a name, so it is calef's, and a
+**The module names are provisional** (2026-09-19). A module name is a name, so it is an architect's, and a
 lane ships one and says so. Nineteen of them landed in one commit: `archive`, `bench`, `board`,
 `boot_check`, `disk`, `disk_check`, `farm`, `host`, `icount`, `inbound`, `inspect`, `manual`,
 `measure`, `scanout`, `shell_check`, `soak`, `suite`, `uefi`, and the existing `stick`. Two are

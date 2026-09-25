@@ -171,7 +171,7 @@ Still unopened after four runs: every file under `design/decisions/`, `notes/net
 - `script/lint`'s naming worklist under-counted by exactly the provisional names, then named the
   command that prints the other number. The `--check` path printed `len(recorded) +
   len(unrecorded)`. The default listing printed `len(provisional) + len(recorded) +
-  len(unrecorded)`. So the gate said `82 still want calef (script/names --unratified)`, and that
+  len(unrecorded)`. So the gate said `82 still want an architect (script/names --unratified)`, and that
   command said `UNRATIFIED (86 of 162)`. The census line above it dropped them too: `76 ratified, 15
   recorded, 67 unrecorded` sums to 158 of 162. Reproduced on `main`. It bit exactly the state a
   newcomer is told to use, since `AGENTS.md` and `notes/adding-a-program.md` both say to ship a

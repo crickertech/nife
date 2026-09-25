@@ -87,7 +87,7 @@ and should be measured rather than assumed.
 Balance matters and should be measured, not guessed: nineteen crates split four ways by *crate count*
 will be lopsided, because `glob` and `calendar` dominate. Shard by measured time.
 
-## Two structural options, and both are calef's
+## Two structural options, and both are an architect's
 
 **A merge queue.** GitHub's feature tests each pull request against the *projected* trunk and can
 batch, so N pull requests cost one test cycle instead of N. It is the feature designed for exactly

@@ -106,8 +106,8 @@ fifth were blocks whose gate deferred to a decision that had since been taken:
   to contain a `§` (to §10) and so was counted as citing.
 
 **So the failure this milestone names has a second direction**, and it is the worse one: a gate that
-says `DECISION` for a reason that was answered months ago spends calef's attention on a decision he
-has already made, and there is nothing in the tree that would notice.
+says `DECISION` for a reason that was answered months ago spends an architect's attention on a decision
+already made, and there is nothing in the tree that would notice.
 
 **And the three-way judgement was not the hard part; the stale half was.** Every block in this slice
 was legible about what it wanted. What no reading of the block alone could tell was whether somebody
@@ -192,7 +192,7 @@ the promoted quarter rather than as a prediction for the other 21.
 
 ## BUGS
 
-- **A written-up fork is still a fork, and this milestone makes calef's queue longer to read before
+- **A written-up fork is still a fork, and this milestone makes the architect queue longer to read before
   it makes it shorter.** Forty-five paragraphs scattered across blocks become some number of files in
   one directory; that is an improvement in findability and not in volume. The honest claim is that a
   queue you can list is cheaper than one you cannot, not that this reduces what is owed.
@@ -231,11 +231,11 @@ the promoted quarter rather than as a prediction for the other 21.
   cites §139.
 - **Done.** *Thirty-three forks that lived as paragraphs addressed to one person now live as files.*
   That is the whole of this milestone's output and its home is `design/decisions/`, one `PROPOSED`
-  section each, listed by `script/decisions --unanswered`. Answering them is calef's and is not this
+  section each, listed by `script/decisions --unanswered`. Answering them is an architect's and is not this
   block's to hold open; the `BUGS` section above is honest that writing them up makes his queue
   longer to read before it makes it shorter.
 - **Recorded.** *Milestone 406's title is false by its own first sentence*, found by slice c's lane,
-  which judged the gate and correctly left the retitling alone. A title is a name, so it is calef's
+  which judged the gate and correctly left the retitling alone. A title is a name, so it is an architect's
   and it does not become a decision file. Recorded in 406's own status line, where a reader meets
   the claim before they meet anything else in the block.
 - **Recorded.** *Nothing stops the next block gating on an unwritten decision.* A gate that tried

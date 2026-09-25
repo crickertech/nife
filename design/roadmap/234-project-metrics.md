@@ -37,7 +37,7 @@ otherwise read the tree's growing honesty as decay.
   going down.
 - **AGENTS.md's "kernel/src measures 40% comments" is stale.** It was 39.3% eight weeks ago and is
   **45.3%** now, rising every week. Flagged on the page and deliberately not corrected in that file,
-  which is calef's.
+  which is an architect's.
 
 ## The honesty the page carries, which is the point of it
 

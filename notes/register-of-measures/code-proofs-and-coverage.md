@@ -200,7 +200,7 @@ Over the 116 files the floor acts on at `3dd86628a`:
 The minimum is 84.0%, `crates/machine_discovery/src/interrupt_id.rs` (21 of 25 lines). The next one
 up is `crates/globally_unique_identifier_partition_table/src/lib.rs` at 89.7%. So a floor of 85
 newly fails one file, and a floor of 90 newly fails two. Raising the floor is not a backlog; it is
-two files. Acting on that is calef's call.
+two files. Acting on that is an architect's call.
 
 ### The count at 90 is platform-sensitive
 

@@ -137,7 +137,7 @@ DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 # point) is the first PCI device this runner confines behind it.
 #
 # **NIFE_INTREMAP passes `intremap=` through to the unit** (milestone 317; the name is PROVISIONAL,
-# a lane's to propose and calef's to ratify). `on` and `off` are the only values; unset leaves
+# a lane's to propose and an architect's to ratify). `on` and `off` are the only values; unset leaves
 # QEMU's own default, which is what every boot before this milestone got.
 #
 # **The useful value is `off`, and that is the opposite of what this milestone set out to build.**

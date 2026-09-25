@@ -1,6 +1,6 @@
 # 188. The IPC fastpath: the gate measures a shape userspace does not use, and three cheaper cuts come before a hand-written path
 
-**Status: PARTIAL 2026-09-04.** Phases 1 to 3 are built and measured; phase 4 is calef's and is
+**Status: PARTIAL 2026-09-04.** Phases 1 to 3 are built and measured; phase 4 is an architect's and is
 untouched. The results are in "What phases 1 to 3 measured" below, and they change the
 recommendation's arithmetic without changing its conclusion. Minted 2026-08-28, calef, out of the lane that gated the fastpath footprint
 on the third architecture (pull request #574). The provisional framing he gave it was *"a
@@ -362,7 +362,7 @@ extraction applied where it has not been tried. If phase 3 gets the CALL/reply c
 phase 4 is not worth building and this milestone closes having said so, which is a better outcome
 than a heroic one.
 
-## Open questions, and the one that is calef's
+## Open questions, and the one that is an architect's
 
 **`ReplyRecv` fusion is a syscall-surface change and is explicitly not proposed here.** seL4's round
 trip is two syscalls because it fuses reply-and-wait; ours is three because a server issues `REPLY`
@@ -373,7 +373,7 @@ is written against, and AGENTS.md puts anything two programs agree on in the irr
 which the tree has never measured on its own (notes/benchmarks.md says so in its own words: the
 kernel-side `call_reply` bench measures the fused shape, but *"there is no EL0 twin of it, so the
 structurally matched comparison to seL4's published pair is not currently measured at all"*).
-Measuring it is phase 1 work; deciding it is calef's.
+Measuring it is phase 1 work; deciding it is an architect's.
 
 **Left open, for a lane rather than for calef.** Whether the two closures should be two gated
 numbers or one, and if one, which. Whether the fastpath predicate should be a function both paths
@@ -620,4 +620,4 @@ on milestone 127's TX1 can observe the payoff. Gate: DECISION. **PARTIAL 2026-09
 entry instead of sixteen (3,304 to 1,508, accounting, nothing got faster). Phase 3's finding:
 milestone 156's extraction does **not** transfer to a closure, and the gate now reads `#[cold]`
 from the source rather than a list inside itself; 6 to 10% off both closures for +0.2%
-instructions. **The gap is not closed**, so phase 4 stays calef's.
+instructions. **The gap is not closed**, so phase 4 stays an architect's.

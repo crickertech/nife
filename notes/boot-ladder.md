@@ -157,7 +157,7 @@ $ cargo xtask board-console --replay target/boot-check-riscv64.log --until selft
   of it.** Noise rather than a defect, and trimming it is not free: those arms' lines are what a
   `test` or `bench` boot has instead, since the description is compiled out of both. It is milestone
   409 (`design/roadmap/409-one-machine-description-not-two.md`).
-- **The wordings are provisional** (milestone 268). They are contracts, so they are calef's under
+- **The wordings are provisional** (milestone 268). They are contracts, so they are an architect's under
   AGENTS.md's *move fast on what can be undone* tenet; a lane ships one and says so rather than
   waiting.
 

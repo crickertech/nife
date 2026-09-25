@@ -1,7 +1,7 @@
 # Can a userspace process hold a timer?
 
 *(Written 2026-09-05 for milestone 263, a spike. This note prices a design and does not build one:
-nothing here adds a syscall or an object, and the fork it informs is calef's. Name provisional, like
+nothing here adds a syscall or an object, and the fork it informs is an architect's. Name provisional, like
 everything a lane mints: `timer-capability.md` is a sibling of `timed-wait.md` rather than a second
 copy of it, and the two answer different halves of one question.)*
 
@@ -344,7 +344,7 @@ did not ask it.
 
 ## What serving a kernel thread would cost, measured
 
-**This does not decide whether the kernel thread should be served**, which is calef's under §101's
+**This does not decide whether the kernel thread should be served**, which is an architect's under §101's
 carve-out and is milestone 106's to reopen. It says what it would cost, because a spike that noticed
 the question and left it unpriced sends the decision back for a second round.
 
@@ -509,6 +509,6 @@ The fourth shape signals **a notification**, and notification objects are
 - **The scaffold is gone.** The variant, the `abi::timer` module, the retype arm, the dispatch bodies,
   the expiry table and the tick hook were built to obtain the numbers and deleted. Rebuilding them is
   an hour; shipping them would have settled a syscall-surface fork by accident, which is what
-  milestone 106's lane refused to do and what §10 and §16 reserve to calef.
+  milestone 106's lane refused to do and what §10 and §16 reserve to an architect.
 - **`Timer`, `Timer::ARM` and `Timer::CANCEL` are the milestone block's provisional coinages**, minted
-  so the measurement could exist. Names are calef's (§75).
+  so the measurement could exist. Names are an architect's (§75).

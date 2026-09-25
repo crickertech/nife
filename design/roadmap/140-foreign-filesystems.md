@@ -202,7 +202,7 @@ Recorded here so a later lane does not rediscover them per filesystem:
 
 ## BUGS
 
-- **This block names five filesystems and prices none of them.** The ordering is calef's judgement
+- **This block names five filesystems and prices none of them.** The ordering is an architect's judgement
   about need, not an estimate of effort, and the effort is not known: a read-only FAT32 is small, a
   writable ext4 is not, and ZFS is a different category of undertaking that may never be right to
   own rather than vendor.

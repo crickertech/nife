@@ -6,7 +6,7 @@ filed 2026-09-16 by milestone 305, which wrote the honest defect for
 merge queue lands it.)*
 
 **Gate: DECISION.** It needs a non-blocking or timed receive, which is the syscall surface
-(AGENTS.md: anything two programs agree on, and §10/§16's narrow boundary), so it is calef's before
+(AGENTS.md: anything two programs agree on, and §10/§16's narrow boundary), so it is an architect's before
 it is anyone's.
 
 **Premise re-checked 2026-09-19 and still true.** Row 26 of `notes/confinement-claims.md` still

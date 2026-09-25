@@ -141,7 +141,7 @@ half of the same observation and is untouched.
   harness can be evidence the assertion asked nothing.
 - **Milestone 360.** `design/roadmap/360-timer-rearm-seam.md`, lift the timer re-arm arithmetic out
   of the register access so `crates/timetable`'s already proved `next_after` is what the timer
-  actually calls. Where the seam goes is calef's: too high and the arch layer keeps the milestone 6
+  actually calls. Where the seam goes is an architect's: too high and the arch layer keeps the milestone 6
   drift bug, too low and every ISA restates it. Until it moves, the tree's sharpest counterfactual
   is a property proved over code that nothing runs.
 

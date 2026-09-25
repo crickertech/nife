@@ -7,7 +7,7 @@ leaving the count to be re-derived. *(Number provisional until the merge queue l
 **Gate: DECISION.** The decision is
 [§188](../decisions/188-one-home-for-the-trap-on-false-helper.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. The obvious home is
-`crates/user_rt`, and a public function name there is calef's (AGENTS.md, "calef names the crates,
+`crates/user_rt`, and a public function name there is an architect's (AGENTS.md, "calef names the crates,
 the programs, and the shared modules", extended to public function and method names on 2026-08-23).
 
 **Only the name is open, and that is a narrowing this block did not have.**

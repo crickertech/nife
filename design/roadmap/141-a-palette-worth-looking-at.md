@@ -43,7 +43,7 @@ person would recognise.
 
 1. **Write the check.** Three assertions over `PALETTE`, host-tested, in the crate. It fails today,
    which is the point: **watch it fail before making it pass**, per this tree's standard.
-2. **Choose a palette that passes.** calef's call, because it is a thing a reader meets and because
+2. **Choose a palette that passes.** an architect's call, because it is a thing a reader meets and because
    the whole request is aesthetic. The check tells him which candidates are admissible; it does not
    choose.
 3. **Only then consider an "option".** His word was *option*, which may mean a nicer default or may

@@ -62,7 +62,7 @@ maintain a record, derive one.**
    wants, computed rather than maintained, so it cannot drift from the tree. Same family as
    `script/roadmap`, `script/decisions` and `script/catch-up`.
 4. **The maintainer writes the provenance at ratification**, in the same commit that applies the
-   name, when the alternatives are still in mind. A convention, so it is calef's to land in
+   name, when the alternatives are still in mind. A convention, so it is an architect's to land in
    CLAUDE.md.
 
 Refusals of names that were never adopted anywhere (`caretaker` for the steward role, `Project
@@ -121,7 +121,7 @@ citations, and milestone 97 is the neighbouring case.
 - **Refused.** Draining `script/names --unratified`, which stood at 74 of 148 when this landed. The
   gate deliberately checks that a name carries provenance and never that its state is ratified,
   because a gate keyed on ratification would hold every unrelated merge behind a review nobody can
-  hurry. Working back through the list is calef's, on his own clock, and was explicitly out of
+  hurry. Working back through the list is an architect's, on their own clock, and was explicitly out of
   scope.
 - **Refused.** A rename pass. Nothing in the tree changes name because of this milestone; the
   backfill records what is already true, and a name whose history says nothing is entered as

@@ -223,7 +223,7 @@ this block names working as an obstacle.
   person at the keyboard.* `script/board-console` holds the port and cannot send the byte that is
   this milestone's escape, so both the escape and its verification are rung four. A `--stop` mode
   and a `--stop-after <n>` would make each a command. Not done here because it overturns an
-  invariant stated in that script's own header, which makes the shape of it calef's call. See and it is recorded in the
+  invariant stated in that script's own header, which makes the shape of it an architect's call. See and it is recorded in the
   meantime in `notes/board-console.md`'s `BUGS`.
 - **Recorded.** *The escape rests on a procedure and not on a mechanism*, in the `BUGS` of
   `kernel/src/soak.rs` and notes/soak.md, and in *The weakest link* above. A UART cannot receive a

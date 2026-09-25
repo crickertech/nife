@@ -12,7 +12,7 @@ mechanism, and an expensive one is not made safe by adding a gate afterwards.
 **Most decisions here are reversible and should be made quickly, by whoever is holding the
 problem.** Code, notes, roadmap wording, which milestone a lane takes, how a script is structured.
 Getting these wrong costs an hour. Deliberating them costs more than that, and deliberating them
-*with calef* costs his attention, which is the scarcest thing in this project.
+*with an architect* costs their attention, which is the scarcest thing in this project.
 `helpers/merge-drain.sh` was rewritten three times in one evening, each version wrong in a way the
 next one fixed, and that was cheaper than designing it correctly up front would have been.
 
@@ -23,7 +23,7 @@ that cannot be recalled:
   morning's work; the un-shipping is not.
 - **Names.** Trivial to change mechanically and expensive in every other way, because a name lands
   in 61 call sites, in a reader's head, and in the vocabulary people use to disagree. This is why
-  names are calef's, and why a lane ships a **provisional** one instead of waiting.
+  names are an architect's, and why a lane ships a **provisional** one instead of waiting.
 - **Dependencies**, §46 (thin primitives or whole subsystems), especially in the shipping graph.
   Adding one is a morning; removing one after a subsystem is built on it is a project.
 - **The syscall surface**: §10 (the capability-based microkernel process model) and §16 (object

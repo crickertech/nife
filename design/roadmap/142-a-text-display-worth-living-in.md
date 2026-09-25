@@ -52,7 +52,7 @@ rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
-milestone 141). See "What is calef's, separated from what is blocking" below, unchanged by this
+milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by this
 pass.
 
 §102 ("A Frame names a run of pages") is built and consumed, `Object::PageFrame` now carrying the
@@ -83,7 +83,7 @@ rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
-milestone 141). See "What is calef's, separated from what is blocking" below, unchanged by this
+milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by this
 pass.
 
 **In brief.** The terminal is 18 columns by 8 rows of a hand-drawn 7x8 bitmap on a 128x64 screen.
@@ -301,7 +301,7 @@ Two things worth saying beyond the verdict. **Both candidates are strictly bette
 than what ships**, which fails all three properties, and both are better on property 3 in a way 141
 did not anticipate: neither has a single channel at `0xff` anywhere, where the current palette has
 twelve. And **milestone 141's gate does not choose between them.** It says both are admissible. The
-choice is taste and the greyscale-ramp question above, and it is calef's.
+choice is taste and the greyscale-ramp question above, and it is an architect's.
 
 ## Rich text: what `Attr` would have to grow
 
@@ -591,7 +591,7 @@ this milestone needs (the atlas is smaller, faster and verifiable) and everythin
 (arbitrary sizes, proportional faces, fallback). **Proposed as its own milestone when rung three is
 live**, rather than folded in here.
 
-## What is calef's, separated from what is blocking
+## What is an architect's, separated from what is blocking
 
 **Blocking increment three, and only three:**
 
@@ -680,7 +680,7 @@ live**, rather than folded in here.
   and `crates/graphics_protocol` sizes the scanout at 924x344 over 311 frames.
 - **Done.** The screendump cost this block flagged as worth attacking was measured and settled: the
   referee poll in `xtask/src/main.rs` records the 39x growth, that both suites still finish in
-  normal time, and calef's call to leave the 100 ms cadence alone until something is measurably
+  normal time, and an architect's call to leave the 100 ms cadence alone until something is measurably
   slow.
 - **Outstanding.** Scrollback is still not reachable from a keyboard. The scroll methods have no
   callers outside `crates/video_terminal`, and `notes/glyphs.md`'s honest-limits section says the

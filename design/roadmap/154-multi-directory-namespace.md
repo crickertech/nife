@@ -140,7 +140,7 @@ disjoint, individually-labeled trees with one position at a time.
   both boards run (`user/src/system_initializer.rs`, `fixtures/src/hello.rs`'s `init_boot` role), not a
   kernel-side test harness.
 
-  **Both real entry points pass `None`.** What the second subtree should *be* remains calef's
+  **Both real entry points pass `None`.** What the second subtree should *be* remains an architect's
   boot-time policy call (DECISIONS §126), unanswered by this increment on purpose. **Two further
   gaps, recorded rather than hidden.** First, this exact path is unverified against a real boot:
   `script/swish-check` is the only thing that runs a real init, nothing types a second grant
@@ -172,7 +172,7 @@ disjoint, individually-labeled trees with one position at a time.
 - **Outstanding.** Per-command grants are still one-tree: the file and directory grants in
   `crates/grant_plan` carry a bare current directory and no root selector, so designation, staging
   and redirection remain oblivious to a second root. Checked 2026-09-03.
-- **Decision.** What the second subtree should actually be is calef's boot-time policy call,
+- **Decision.** What the second subtree should actually be is an architect's boot-time policy call,
   recorded in `design/decisions/126-two-directory-cwd.md` and deliberately unanswered by the boot
   increment.
 - **Outstanding.** The boot path is unverified against a real boot: `script/swish-check` is the only
@@ -193,7 +193,7 @@ disjoint, individually-labeled trees with one position at a time.
   sources, enumeration, the compile-time-to-runtime lookup gap, and whether `$PATH` survives as a
   string) are untouched here and stay 47's, which its own block confirms.
 - **Recorded.** The two-root type, the second-directory field and its grant all ship as provisional
-  names, said so where they live, and naming is calef's.
+  names, said so where they live, and naming is an architect's.
 
 ## Index row
 

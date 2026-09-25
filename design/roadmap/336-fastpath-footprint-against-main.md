@@ -76,7 +76,7 @@ milestone 237 re-recording it, which is this proposal's own failure mode recurri
 ## Where it came from
 
 Milestone 237's `## Follow-on`: *"Whether the fastpath footprint gate should compare against `main`
-rather than a stored baseline file. It is calef's call and has costs on both sides. Two lanes each
+rather than a stored baseline file. It is an architect's call and has costs on both sides. Two lanes each
 measured 'within bound' against the same stale baseline and neither re-saved it, so aarch64 headroom
 fell from 3.9 points to 1.5 with nothing firing. This milestone fixed the instance, not the
 mechanism."*

@@ -12,7 +12,7 @@ ratchet", which stopped being true when milestone 233 landed it; that stale sent
 class milestone 333 collects.
 
 **Gate: NONE.** A lane could start this today. The reasoning that produced `DECISION` is sound as
-far as it goes (a new program is a new name, and names are calef's) and it does not reach a gate,
+far as it goes (a new program is a new name, and names are an architect's) and it does not reach a gate,
 because a name has never been a blocker in this tree. `design/naming.md`, which DECISIONS §155
 made the rule, says it in one sentence: a new crate, program or module *"ships a **provisional**
 name, says so in its report, and expects it to change"*. AGENTS.md says the same thing from the

@@ -195,7 +195,7 @@ The boot leg is CI's.
   real: sixteen of the forty-nine components were tools a person invokes rather than services, ten
   of them already typeable at the prompt through `grant_plan::Prog`; on 2026-09-19 that is fifteen
   and nine, because milestone 281 cut `watch` and `doc` was ratified as `mdr`. It was not taken
-  because a top-level package directory is a name and names are calef's, and because the two-way
+  because a top-level package directory is a name and names are an architect's, and because the two-way
   split is coarse rather than wrong: 39's own definition of a component is the shippable unit,
   which `wc` is. 395 carries the list, the cost (about an hour, measured by doing the same work at
   four times the scale) and the three things a decision has to settle. Numbered on 2026-09-19 by
@@ -265,4 +265,4 @@ calef's three 2026-09-13 rulings: `heeder`/`spinner` become `interrupt_heeder`/`
 and `worker` becomes `least_authority_demo`, all three read by hand rather than swept because the
 English words outnumber the programs. **Found a real third category and did not take it**: sixteen
 of the forty-nine components are tools a person invokes rather than services, proposed rather than
-named because a top-level package directory is calef's.
+named because a top-level package directory is an architect's.
