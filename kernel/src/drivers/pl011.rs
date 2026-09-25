@@ -132,10 +132,8 @@ impl Pl011 {
     /// userspace input driver, which holds this device as a capability, and this path runs before
     /// any of that exists.
     ///
-    /// Name provisional (milestone 445): calef names public items.
-    ///
-    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting`
-    /// (`rx` is a decoder for "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review), provisional from milestone 445 until then.
+    /// Refused `rx_waiting` and `is_rx_waiting` (`rx` is a decoder for "receive").
     pub fn is_byte_waiting(&self) -> bool {
         !self.regs().FR.is_set(FR::RXFE)
     }

@@ -890,7 +890,7 @@ const FADT_RESET_VALUE_AT: usize = 128 - SDT_HEADER_LEN;
 /// the same: fall back to the legacy ports. Unlike [`parse_arm_boot`], a short body is not an error
 /// here, because on `x86_64` a FADT without the field is a machine the kernel still has to reset.
 ///
-/// Name provisional (milestone 249): calef names public items.
+/// Name: provisional (milestone 249): calef names public items.
 pub fn parse_fadt_reset(body: &[u8]) -> Option<ResetRegister> {
     if body.len() <= FADT_RESET_VALUE_AT {
         return None;

@@ -103,7 +103,7 @@ fn wait_ms(millis: u64) {
 /// The arch contract `soak::draw_again` calls on all three architectures: one line per attempt,
 /// prefixed with `marker`, printed before the attempt. See the module header for the order and why.
 ///
-/// Name provisional (milestone 249): calef names public items.
+/// Name: provisional (milestone 249): calef names public items.
 pub fn reboot(marker: &str) {
     let address = FADT_RESET_ADDRESS.load(Ordering::Relaxed);
     let value = FADT_RESET_VALUE.load(Ordering::Relaxed);

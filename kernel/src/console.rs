@@ -328,7 +328,7 @@ static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
 /// (milestone 445 (the screen check stops sampling and starts asking)), ruled in
 /// §199 (the screen check asks instead of sampling).
 ///
-/// *Name provisional (`AGENTS.md`: calef names public items).*
+/// Name: provisional (`AGENTS.md`: calef names public items).
 ///
 /// **A debugging affordance, and the doc comment says so where a reader meets it.** Nothing in a
 /// boot anybody performs calls this: the one caller is the boot-command-line reader, and the token
@@ -627,7 +627,7 @@ pub fn quiet_uart_interrupt() {
 /// fit in `out` is dropped rather than wrapping. Nothing here is a line editor and nothing should
 /// grow into one: `crates/line_editor` is that, at EL0, where it belongs.
 ///
-/// Name provisional (milestone 198's rung 2a): calef names public items.
+/// Name: provisional (milestone 198's rung 2a): calef names public items.
 #[cfg(target_arch = "x86_64")]
 pub fn read_line(out: &mut [u8], patience: core::time::Duration) -> Option<usize> {
     let hz = crate::arch::timer::frequency_checked()?;

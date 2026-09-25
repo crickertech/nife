@@ -157,8 +157,9 @@ pub const KERNEL_VA_BASE: u64 = 0xffff_ffff_8000_0000;
 /// valid from the first instruction rather than from [`init`]; the module header says why that
 /// matters more than it looks like it should.
 ///
-/// **Name provisional** (milestone 161): calef names the constants, and this one was minted by a
-/// lane. The tree's analogous name is [`KERNEL_VA_BASE`], which is why this is `_BASE` too.
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): calef names the constants, and
+/// this one was minted by a lane. The tree's analogous name is [`KERNEL_VA_BASE`], which is why
+/// this is `_BASE` too.
 pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 
 /// The top-level (PML4) index the direct map occupies, **duplicated in `boot.s`** because a 32-bit
@@ -181,7 +182,7 @@ pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 ///
 /// PML4[402], which is nothing else's: the image is PML4[511] and the direct map PML4[273].
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub const THREAD_STACK_AREA: u64 = 0xffff_c900_0000_0000;
 
 const DIRECT_MAP_PML4_INDEX: u64 = 273;
@@ -730,7 +731,7 @@ const LOW_MEGABYTE: u64 = 0x10_0000;
 /// "what we probably map" can drift from what is mapped, and the first time anyone reads it will be
 /// on a bench with no debugger.
 ///
-/// **Name provisional**: calef names the types, and this one was minted by a lane.
+/// Name: provisional. calef names the types, and this one was minted by a lane.
 struct Claim {
     /// What a reader of [`map_everything`] would call this range, short enough to fit a panic line
     /// on a screen console.
@@ -871,7 +872,7 @@ fn window_in_hole(
 /// the same posture for the analogous case (no MCFG means no PCI, and deliberately no legacy
 /// fallback).
 ///
-/// **Name provisional**: calef names the types, and this one was minted by a lane.
+/// Name: provisional. calef names the types, and this one was minted by a lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryMappedIoWindowError {
     /// The boot structure could not be re-read, so there is no memory map to find a hole in.
@@ -1176,7 +1177,7 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
 /// failure: this kernel got its RAM regions from the same structure, so a machine that reaches here
 /// without one had no ACPI tables to lose access to either.
 ///
-/// **Name provisional** (milestone 161, renamed from `map_firmware_regions` when it stopped mapping
+/// Name: provisional (milestone 161, renamed from `map_firmware_regions` when it stopped mapping
 /// and started describing).
 fn firmware_claims(each: &mut dyn FnMut(Claim)) {
     each(Claim {
@@ -1250,7 +1251,7 @@ fn firmware_claims(each: &mut dyn FnMut(Claim)) {
 /// what makes such a photograph a diagnosis rather than a hypothesis, and it is worth more than any
 /// particular fix, because the next machine nobody can attach a debugger to is the one after this.
 ///
-/// **Name provisional.**
+/// Name: provisional.
 struct MapFailure {
     what: &'static str,
     lo: u64,

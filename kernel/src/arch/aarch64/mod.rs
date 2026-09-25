@@ -222,7 +222,7 @@ const PSCI_SYSTEM_RESET: u64 = 0x8400_0009;
 ///   FADT's Arm boot flags (`machine_discovery::acpi::parse_arm_boot`); this kernel boots aarch64
 ///   from a device tree only, so there is nothing to read that from yet.
 ///
-/// Name provisional (milestone 249): calef names public items.
+/// Name: provisional (milestone 249): calef names public items.
 #[cfg(feature = "reboot_soak_test")]
 pub fn reboot(marker: &str) {
     use ::machine_discovery::aarch64::Conduit;

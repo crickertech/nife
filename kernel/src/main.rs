@@ -2234,8 +2234,9 @@ fn stack_top() -> usize {
 /// exits through semihosting before the tour and a bench boot diverges into `bench::run`, so
 /// neither has a system to hand over.
 ///
-/// Name provisional (milestone 268). This is the x86 caller of the shared `user::boot_progenitor`
-/// loader (milestone 166): it finds the initrd, hands it over, then watches the boot thread bounded
+/// Name: provisional (milestone 268 (every architecture boots the same way)). This is the x86
+/// caller of the shared `user::boot_progenitor` loader (milestone 166 (one boot loader, reached two
+/// inconsistent ways)): it finds the initrd, hands it over, then watches the boot thread bounded
 /// and reports how it left; `riscv_hand_over` is its riscv twin. calef names what a reader meets.
 #[cfg(target_arch = "riscv64")]
 // A `soak` or `job_mix` build replaces the handoff with its own workload and never calls this, and
@@ -2289,7 +2290,8 @@ fn riscv_hand_over() {
 /// a thread that left through a ring-3 fault left a record (`arch::exceptions::last_user_fault`) the
 /// kernel's own fault report above it corroborates.
 ///
-/// Name provisional (milestone 182), matching `riscv_hand_over`.
+/// Name: provisional (milestone 182 (`x86_64`'s own interactive-boot entry point)), matching
+/// `riscv_hand_over`.
 #[cfg(target_arch = "x86_64")]
 // Uncalled in the four configurations `riscv_hand_over` is, for the same reasons.
 #[cfg_attr(

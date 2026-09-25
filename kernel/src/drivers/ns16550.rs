@@ -311,10 +311,9 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// which means nothing has to agree on a magic character: a person mashing a key in `screen`
     /// and a script writing one byte to the port are the same event.
     ///
-    /// Name provisional (milestone 249): calef names public items.
-    ///
-    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting`
-    /// (`rx` is a decoder for "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review), provisional from milestone 249 (the boot
+    /// lottery is sampled by a person walking to the board) until then.
+    /// Refused `rx_waiting` and `is_rx_waiting` (`rx` is a decoder for "receive").
     pub fn is_byte_waiting(&self) -> bool {
         self.read(LSR) & LSR_DR != 0
     }
@@ -330,7 +329,7 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// this must not be called, because two readers of one FIFO lose bytes between them and neither
     /// can tell.
     ///
-    /// Name provisional (milestone 198's rung 2a): calef names public items.
+    /// Name: provisional (milestone 198's rung 2a): calef names public items.
     ///
     /// Dead on riscv64, which shares this driver and has no install offer: `install_service` is
     /// `x86_64` only for the reasons stated at its declaration. Allowed rather than `cfg`-ed, so

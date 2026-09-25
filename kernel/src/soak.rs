@@ -333,8 +333,9 @@ pub fn run() -> ! {
 /// harmless against a recogniser it has nothing to do with. It is also what a reader greps for,
 /// which is the whole point of printing it.
 ///
-/// Name provisional (milestone 240): calef names what a reader meets. Respelled from
-/// `soak-census:` by milestone 297, tracking the command.
+/// Name: provisional (milestone 240 (the soak reports what happened and not where)): calef names
+/// what a reader meets. Respelled from `soak-census:` by milestone 297 (`soak` becomes
+/// `soak-test`), tracking the command.
 const CENSUS_MARKER: &str = "soak-test-census:";
 
 /// Which role the `member`-th thread of a group plays.
@@ -467,7 +468,7 @@ const MEMBERS_PER_GROUP: usize = 1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP + WA
 /// interrupt. A soak boot runs the whole tour first, so every device that is going to claim an
 /// interrupt has already claimed it by the time that check runs.
 ///
-/// Name provisional (milestone 221): calef names public items.
+/// Name: provisional (milestone 221 (the soak never crosses cores)): calef names public items.
 const TICK_INTID_TOP: u32 = 255;
 
 /// **The prefix every line about the reboot loop carries** (milestone 249).
@@ -479,7 +480,7 @@ const TICK_INTID_TOP: u32 = 255;
 /// to know why the series stopped, and a prefix that means exactly "the reboot loop said something"
 /// answers that in one command.
 ///
-/// Name provisional (milestone 249): calef names public items. Respelled from `soak-reboot:` by
+/// Name: provisional (milestone 249): calef names public items. Respelled from `soak-reboot:` by
 /// milestone 297, tracking the command.
 #[cfg(feature = "reboot_soak_test")]
 const REBOOT_MARKER: &str = "soak-test-reboot:";
@@ -664,7 +665,7 @@ static TICK_CURSOR: AtomicUsize = AtomicUsize::new(0);
 /// on a single-core machine, where a scheme keyed on the core would leave the second waiter to
 /// starve for the whole run.
 ///
-/// Name provisional (milestone 221): calef names public items.
+/// Name: provisional (milestone 221): calef names public items.
 pub fn signal_waiters() {
     let groups = TICK_GROUPS.load(Ordering::Acquire);
     if groups == 0 {
