@@ -7,7 +7,7 @@ ratified_by: calef
 
 # 25. Socket identity: a socket id in phase one, minted endpoints as the tracked later step
 
-**Decided 2026-07-28 (calef), resolving the milestone 30 piece-3 fork (notes/net.md).** A process
+**Decided 2026-07-28 (calef), resolving the milestone 30 (the network stack as a confined component) piece-3 fork (notes/net/prior-art-and-the-contract.md).** A process
 holds one `Stack` endpoint capability; opening a connection yields a **socket id**, a small
 integer carried in the message words, with the per-connection **shared frame** as the real granted
 resource. Chosen because milestone 27's `std::net` PAL wants a file-descriptor-like handle, and

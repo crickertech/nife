@@ -15,7 +15,7 @@
 //!     configured nameserver (`get_dns_addr_libresolv`), so this exchange depends on the developer's
 //!     DNS working at that instant. It is therefore **non-gating**: a host resolver that does not
 //!     answer reports `NO_ANSWER` and the kernel test skips loudly. A malformed or mismatched
-//!     response still fails, because that would be our bug. See notes/net.md.
+//!     response still fails, because that would be our bug. See notes/net/the-outbound-gates.md.
 //!   - `TEST_TCP_ECHO`: a full TCP round trip to slirp's guestfwd echo peer (10.0.2.9:7777 -> a
 //!     `/bin/cat`): connect (handshake), send, receive the echo, close (teardown).
 //!   - `TEST_TCP_ACCEPT`: **the inbound half** (milestone 107), and the only exchange here that is
@@ -23,7 +23,7 @@
 //!     authority, the granted one binds and is exclusive, and then a *host* process connects to it
 //!     through QEMU's `hostfwd` twice, which proves the listener re-arms.
 //!     The same spawn then carries **the UDP bind grant's refusals** (milestone 55), because a
-//!     second net server does not fit the aarch64 boot (the memory receipt in notes/net.md; that
+//!     second net server does not fit the aarch64 boot (the memory receipt in notes/net/memory-and-reclamation.md; that
 //!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfPageFrames)` in an unrelated
 //!     later test). A fixed port outside the grant is refused as authority, a granted one binds
 //!     and is exclusive, which incidentally proves the two grant halves compose in one word on the
@@ -411,7 +411,7 @@ fn tcp_echo() -> ! {
 /// close it, then reopen the *same* id and connect again. Before `net_stack` assigned ephemeral local ports
 /// independent of the socket id, the reopen reused the exact local port, and the second connect on a
 /// 4-tuple whose slirp flow had not yet cleared stalled `net_stack`'s bounded poll forever (found by the
-/// `std::net` PAL, notes/net.md). With the rotating allocator the reopen gets a fresh port, so both
+/// `std::net` PAL, notes/net/the-outbound-gates.md). With the rotating allocator the reopen gets a fresh port, so both
 /// connects complete.
 fn tcp_reopen() -> ! {
     attach_page_frame(0);
@@ -495,8 +495,9 @@ fn tcp_accept_inbound() -> ! {
     // The UDP bind half rides in this same spawn (milestone 55's stack half), because a second net
     // server does not fit the aarch64 boot: the spawn is ~154 frames nothing ever reclaims, and
     // this lane measured the eleventh one dying as `Unmappable(OutOfPageFrames)` in an unrelated later
-    // test, the exact failure notes/net.md's memory receipt predicted. Milestone 107 folded its
-    // grant half for the same reason; the stage codes stand in for the separate test's name.
+    // test, the exact failure notes/net/memory-and-reclamation.md's memory receipt predicted.
+    // Milestone 107 (the socket contract learns to accept) folded its grant half for the same
+    // reason; the stage codes stand in for the separate test's name.
     udp_bind_half();
     done(OK);
 }

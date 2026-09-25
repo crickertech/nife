@@ -192,7 +192,7 @@ The aarch64 test boot failed as `Unmappable(OutOfPageFrames)` about **one run in
 2026-08-16). It failed in whatever test happened to spawn last, which was never the test that spent
 the memory. It also failed in disguise: milestone 107 met it as `time_tests` reporting *"no swish
 program in the initrd archive, or no memory to wire one"*, which reads like a packaging bug and is
-not one. `notes/net.md` had recorded it eight separate times as "`virtio::MAX_DEVICES` has asked for
+not one. `notes/net/memory-and-reclamation.md` had recorded it eight separate times as "`virtio::MAX_DEVICES` has asked for
 reclamation again".
 
 **Two numbers, not one, and the second is the one that fails a boot.** Free page frames and the longest

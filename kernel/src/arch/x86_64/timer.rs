@@ -605,7 +605,7 @@ pub fn is_cycle_counter_grantable() -> bool {
 /// timestamps and the benchmark harness at once. DECISIONS 139 measured the two alternatives
 /// (trap-and-emulate at 1,667 ns, 4.1x the syscall it is meant to beat; and there is no second
 /// user-readable clock, which is why Linux's own vDSO cannot work without a userspace TSC read)
-/// and closed both. `notes/x86-port.md` carries the position where a reader meets it.
+/// and closed both. `notes/x86-port/user-mode-runtime.md` carries the position where a reader meets it.
 ///
 /// So on this architecture every thread runs with the counter open, granted or not, and a program
 /// written against the grant works here for a reason it should not rely on.

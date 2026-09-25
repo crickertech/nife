@@ -99,7 +99,7 @@ started until somebody knows whether the hardware here supports it.
 ## The honest cost
 
 The DMAR's structure is a short table with a variable-length list of remapping-structure entries,
-and this tree has parsed several ACPI tables already (`notes/x86-port.md` records the XSDT, MADT
+and this tree has parsed several ACPI tables already (`notes/x86-port/acpi-and-pci.md` records the XSDT, MADT
 and MCFG work). The expensive part is not the parse, it is deciding what the kernel should *do*
 when it finds a DMAR it did not expect, and the answer for this proposal is nothing: print it.
 

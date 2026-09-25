@@ -110,7 +110,7 @@ The net path has the same shape as the FS path: a confined server the client rea
 granted `Stack` capability. Its per-request IPC tax is the same `relay_rtt` topology. But a net_stack
 socket round trip is even less gate-able than `fs_read`. net_stack only reaches its serve loop after
 a DHCP handshake, and its RECV path drives smoltcp's own retransmit and delay-ACK timers
-(notes/net.md). So the path is deterministic under neither `-icount` nor, at the socket level, a warm
+(notes/net/the-outbound-gates.md). So the path is deterministic under neither `-icount` nor, at the socket level, a warm
 HVF loop.
 
 The existing net tests prove and time the socket contract end to end instead

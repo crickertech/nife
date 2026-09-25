@@ -41,4 +41,4 @@ for both, so its ABI is unchanged. An out-of-range queue is `BadQueue`.
 receive buffer validates; the same buffer aimed at kernel memory is refused) and
 `a_second_queue_validates_on_its_own_block` (a good chain on queue 1 lands in queue 1's shadow
 block while a sentinel in queue 0's block is untouched, and a queue-1 escape is refused the same as
-queue 0). See notes/net.md and notes/dma.md.
+queue 0). See notes/net/the-driver-and-dhcp.md and notes/dma.md.

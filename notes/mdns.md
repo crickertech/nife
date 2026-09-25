@@ -188,7 +188,7 @@ The exchange rides **inside milestone 107's accept test**
 (`a_host_process_connects_to_the_guest_and_is_answered`, both ISAs), after its TCP rounds, rather
 than in a spawn of its own: a net server's spawn is ~154 frames nothing ever reclaims, and a
 twelfth one died as `Unmappable(OutOfFrames)` in an unrelated later test, the exact failure
-notes/net.md's memory receipt predicted. So that one spawn now carries three clients on one `Stack`
+notes/net/memory-and-reclamation.md's memory receipt predicted. So that one spawn now carries three clients on one `Stack`
 endpoint: `socket_test_client` (socket ids 0 and 1), `smb_server` (2 and 3), and `multicast_dns_responder`
 (4). Its grant word is `listen_grant(7778, 7779) | udp_bind_grant(5353, 5354)`, so the *composed*
 packing is what the machine exercises, not one half alone.

@@ -85,7 +85,7 @@ the bus and places every BAR before nife exists:
 - **Milestone 161.** The two open `ap_boot` defects this milestone met and deliberately did not
   touch. `every_secondary_runs_scheduled_work` fails about half the time at two cores, which is why
   the suite stays at one core and the tour is where the second one is gated.
-- **Recorded.** `notes/x86-port.md` carries the one thing only xenon can confirm out of milestone
+- **Recorded.** `notes/x86-port/acpi-and-pci.md` carries the one thing only xenon can confirm out of milestone
   215's three: whether the OptiPlex's firmware leaves VT-d interrupt remapping off. The other two
   were answered on patagonia by this milestone.
 - **Recorded.** `design/roadmap/195-uefi-boot-finish.md`'s own `BUGS`: none of this is proved on a

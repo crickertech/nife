@@ -64,7 +64,7 @@ What binds, and how it maps to the contract:
 
   The peer address is `0.0.0.0:0`, and it is a placeholder named as one. `accept` must return a
   `SocketAddr` and the contract's reply carries no peer; reporting the real one is a wire change and
-  therefore a fork rather than a PAL decision (notes/net.md carries the two options).
+  therefore a fork rather than a PAL decision (notes/net/std-tcp-listener.md carries the two options).
 
 The concurrency model is the contract's: single-threaded, one synchronous exchange at a time. A
 program can hold up to `MAX_SOCKETS` (6, raised from 4 by milestone 55) sockets at once and

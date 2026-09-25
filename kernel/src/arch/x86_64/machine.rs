@@ -16,7 +16,7 @@
 //!   from `main.rs`'s boot tour (`memory::record_pci_regions`, `memory::record_uart_irq`;
 //!   milestones 165 and 176). **The only device window with no seam at all is the CMOS RTC**: it
 //!   is not memory-mapped (two fixed I/O ports, not a page), so `memory::RTC_REGION`'s
-//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port.md and
+//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port/acpi-and-pci.md and
 //!   `kernel/src/arch/x86_64/port.rs`'s own doc comment.
 
 use machine_discovery::framebuffer::Framebuffer;
@@ -659,7 +659,7 @@ fn pciexbar_length_bits(bus_count: u32) -> Option<u32> {
 ///
 /// The write stays for the machine that genuinely arrives with the decode off. It is therefore
 /// **unexercised on both paths this kernel boots today**, which is recorded rather than hidden:
-/// see this module's BUGS in notes/x86-port.md.
+/// see notes/x86-port/acpi-and-pci.md.
 ///
 /// Uses the legacy configuration mechanism rather than the ECAM window itself, which is the only
 /// way to bootstrap: nothing can read the ECAM window to turn the ECAM window on.

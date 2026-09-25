@@ -25,7 +25,7 @@
  * promises LLVM that every symbol is in the top 2 GiB of the address space so it may use the
  * sign-extended 32-bit relocations that make kernel code compact. 0xffffffff80000000 is that model's
  * base, exactly as it is for Linux. Moving it breaks every relocation in the image, silently, in a
- * way that looks like random corruption. See notes/x86-port.md.
+ * way that looks like random corruption. See notes/x86-port/boot.md.
  *
  * PHYS_START WAS 1 MiB AND IS NOW 32 MiB, and the reason is firmware rather than specification
  * (milestone 195). 1 MiB is the LOWEST address a multiboot image may be loaded at, because the

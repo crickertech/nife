@@ -246,7 +246,7 @@ pub fn init() {
 /// device *windows* [`init`] also discovers (the interrupt controller, the RTC, the UART's interrupt
 /// line, the PCIe ECAM range) are still read from the tree by the front end and stored in this
 /// module's statics, which simply stay `None` on a machine with no tree. Widening it is its own
-/// milestone; see notes/x86-port.md.
+/// milestone; see notes/x86-port/acpi-and-pci.md.
 ///
 /// `ram` is every region that is real, allocatable memory. `forbidden` is every region inside it
 /// that something else already owns, and **it must include the kernel image**, or the allocator
@@ -555,7 +555,7 @@ pub fn pci_regions() -> Option<((u64, u64), (u64, u64))> {
 /// them from. `x86_64`'s counterpart of `init`'s `pci-host-ecam-generic` node parse: ACPI's MCFG
 /// names the ECAM window, and there is no `_CRS` reader for the BAR window (that needs an AML
 /// interpreter, which this kernel does not have), so `main.rs` supplies both from what it already
-/// knows and fills the same static every consumer already reads. See notes/x86-port.md.
+/// knows and fills the same static every consumer already reads. See notes/x86-port/acpi-and-pci.md.
 ///
 /// Its only caller is `x86_64`'s boot tour; the other two architectures fill the same static from
 /// their device tree inside `init` instead.
