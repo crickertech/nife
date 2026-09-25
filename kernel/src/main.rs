@@ -281,7 +281,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // What the loader said: the PVH memory map and the ACPI root pointer. The x86 stand-in for
         // the device tree, and the only thing that reads the map so far; `memory::init` is a
         // device-tree parser, so the frame allocator cannot come up here until there is a discovery
-        // seam between the two. See notes/x86-port.md.
+        // seam between the two. See notes/x86-port/acpi-and-pci.md.
         let Some(info) = arch::machine::boot_info(boot_info_pointer) else {
             println!(
                 "  memory      : no PVH boot info at {boot_info_pointer:#x}; nothing else can be found"
@@ -562,7 +562,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // fine-grained W^X tables and switch `CR3` to them. We keep running, and keep printing,
         // across the switch, which is what proves the fine map covers this code and this stack.
         // The identity map is gone afterwards, and with it the last alias of physical memory in the
-        // half ring 3 will get. See notes/x86-port.md.
+        // half ring 3 will get. See notes/x86-port/interrupts-and-the-fine-map.md.
         arch::mmu::init();
         arch::mmu::print_summary();
         println!(

@@ -85,7 +85,7 @@ decision has to cover.
 
 `kernel/src/arch/x86_64/boot.s:178` and `:385` are the only writes to `CR4` in the tree, and both
 are `or eax, 1 << 5`, which is `PAE`. `TSD` is bit 2 and is never touched, so it holds its reset
-value of clear, and ring 3 may execute `rdtsc`. `notes/x86-port.md` states this in its own words and
+value of clear, and ring 3 may execute `rdtsc`. `notes/x86-port/user-mode-runtime.md` states this in its own words and
 is the record that it was noticed rather than overlooked:
 
 > `now()` is `rdtsc`, and ring 3 may read it because `CR4.TSD` is clear at reset and this kernel does
@@ -93,7 +93,7 @@ is the record that it was noticed rather than overlooked:
 > `scounteren.TM`, with the difference that here the permissive state is the default and the kernel
 > would have to act to *close* it.
 >
-> -- notes/x86-port.md
+> -- notes/x86-port/user-mode-runtime.md
 
 So one of the three supported architectures has already answered milestone 75 with option 1, by
 inheritance. **A decision that says "closed unless granted" is not a decision to open something; on
@@ -846,7 +846,7 @@ So a no is affordable for everything except the one comparison milestone 127 bou
   tree; it was not observed. It was not run because the answer that matters is on argon, where the
   reset value is UNKNOWN and no emulator can report it, and because the aarch64 EL0 read is the one
   measurement that a QEMU run would answer least usefully. The `x86_64` claim was not spiked either
-  and rests on reading `boot.s`'s two `CR4` writes and on notes/x86-port.md's own statement.
+  and rests on reading `boot.s`'s two `CR4` writes and on notes/x86-port/user-mode-runtime.md's own statement.
 - **The context-switch cost is priced by shape, not measured.** "One compare, one `msr` on change" is
   read off `switch_user_root`'s structure. Nobody has measured what an added `msr` costs on the
   switch path on any of the three architectures, and on `x86_64` a `CR4` write is serializing and

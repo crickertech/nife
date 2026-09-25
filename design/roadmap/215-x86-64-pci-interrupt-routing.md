@@ -30,7 +30,7 @@ anywhere.
 available and both lose:
 
 - *Read ACPI's `_PRT`.* It is AML, this tree has no interpreter, and growing one for four numbers
-  is a project that would then have to be maintained and verified. `notes/x86-port.md` had already
+  is a project that would then have to be maintained and verified. `notes/x86-port/acpi-and-pci.md` had already
   written that refusal down before there was a device on the bus to need it.
 - *Hardcode `q35`'s swizzle.* It would pass every gate on this machine. **It fails on the
   OptiPlex**, or rather it might, and nobody could tell which from here, so milestone 87 would
@@ -150,7 +150,7 @@ arriving on a machine whose firmware turns it on.
 - **One MSI-X vector per function, entry 0.** Every driver here waits on a single queue's
   completion; a multi-queue driver would want more, and would want a per-queue table index rather
   than the one `PciVirtioDevice::msix_vector` carries.
-- **Proved on QEMU, not on silicon.** What only xenon can confirm is in `notes/x86-port.md`: that
+- **Proved on QEMU, not on silicon.** What only xenon can confirm is in `notes/x86-port/acpi-and-pci.md`: that
   the OptiPlex's firmware leaves interrupt remapping off, that a real function's MSI-X table is
   reachable once *firmware* rather than this kernel has placed its BARs, and that a machine with
   more than one local APIC still delivers to the boot core's id.
@@ -174,7 +174,7 @@ arriving on a machine whose firmware turns it on.
 - **Recorded.** `design/roadmap/215-x86-64-pci-interrupt-routing.md`'s own `BUGS`: one MSI-X vector
   per function, entry 0. A multi-queue driver would want more, and a per-queue table index rather
   than the single one `PciVirtioDevice::msix_vector` carries.
-- **Recorded.** `notes/x86-port.md` holds what only xenon can confirm: that the OptiPlex's firmware
+- **Recorded.** `notes/x86-port/acpi-and-pci.md` holds what only xenon can confirm: that the OptiPlex's firmware
   leaves interrupt remapping off, that a real function's MSI-X table is reachable once firmware
   rather than this kernel has placed its BARs, and that a machine with more than one local APIC
   still delivers to the boot core's id.

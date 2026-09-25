@@ -60,7 +60,7 @@
 # means the instruction after `mov cr0, eax` is fetched through a broken mapping, the CPU takes a
 # page fault with no IDT, escalates to a double fault with no IDT, and triple-faults, which on QEMU
 # is a machine reset with no output. `-d int,cpu_reset -no-reboot` is how you see it. See
-# notes/x86-port.md.
+# notes/x86-port/boot.md.
 
 # ---------------------------------------------------------------------------------------------
 # The PVH entry note. This is the whole boot header: four words that tell the loader where to jump.

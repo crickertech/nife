@@ -40,7 +40,7 @@
 # (an interrupt gate cleared it on entry; `IA32_FMASK` clears it for `syscall`; the two entry points
 # below `cli` before they touch anything), which closes it for everything except an NMI or a machine
 # check. Those need a paranoid entry path that reads `IA32_GS_BASE` and decides, which this port
-# does not have; it is recorded in notes/x86-port.md rather than pretended away.
+# does not have; it is recorded in notes/x86-port/ring-3.md rather than pretended away.
 
 .section .text
 .code64

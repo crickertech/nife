@@ -369,7 +369,7 @@ pub(crate) fn x86_initrd_path() -> String {
 /// block operations into and no scalar fallback for that operator. It is not a nife bug and there
 /// is no flag on this side that fixes it; the routes out are a RedoxFS built without its crypto
 /// feature, or an x86 target spec that keeps SSE for userspace. Both are their own work.
-/// See notes/x86-port.md.
+/// See notes/x86-port/userspace.md.
 ///
 /// **Naming, updated 2026-08-27**: this function's own name predates a naming scheme; the mismatch
 /// it used to flag against its two siblings (`mkinitrd` for aarch64, `initrd_riscv` for RISC-V,

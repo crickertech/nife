@@ -27,7 +27,7 @@ That was found by a person running a command by hand, not by a gate, and it is w
 found it**, and it is the same failure this project keeps meeting from other directions: a run that
 is indistinguishable from a passing one.
 
-**And a machine's firmware has already hidden a missing boot path.** `notes/x86-port.md`: PVH is a
+**And a machine's firmware has already hidden a missing boot path.** `notes/x86-port/boot.md`: PVH is a
 hypervisor protocol and no real firmware speaks it, so the kernel booted under QEMU for weeks by a
 route the OptiPlex could not offer. QEMU's convenience concealed the gap until real hardware refused
 it. A second machine profile is the cheap half of noticing that class earlier.

@@ -78,7 +78,7 @@ const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 /// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
 /// `helpers/qemu-runner-x86_64.sh`, exactly as the RISC-V one is, and since item 4's hand-off this
 /// const also builds the third userspace archive: `initrd-x86` compiles `user` for it and
-/// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port.md.
+/// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port/userspace.md.
 const X86_TARGET: &str = "x86_64-unknown-none";
 
 /// Whether this run builds optimized binaries. Only `bench --release` sets it (a fair cross-OS

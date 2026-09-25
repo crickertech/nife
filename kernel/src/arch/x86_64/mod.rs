@@ -477,7 +477,7 @@ fn close_ring3_pages_to_ring0_execution() {
 /// That block names `CR4.TSD` (bit 2), which gates `RDTSC`, and deliberately leaves it alone: this
 /// architecture's `user_mode_runtime::now()` **is** `rdtsc` and there is no coarse counter to fall back to, so
 /// closing it would take `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
-/// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port.md` and in a
+/// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port/user-mode-runtime.md` and in a
 /// `BUGS` section beside `now()`, and nothing here changes it.
 ///
 /// **`CR4.PCE` is bit 8 and gates a different instruction.** `RDPMC` reads a performance counter by

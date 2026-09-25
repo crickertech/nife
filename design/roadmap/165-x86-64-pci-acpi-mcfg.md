@@ -19,7 +19,8 @@ milestone 161, which has since been built.
 
 Milestone 161 (the x86_64 kernel port) landed real ACPI table parsing (the RSDP scan, the root
 table walk, the MADT, and the MCFG) against real hardware evidence (the Dell OptiPlex 7050 Micro,
-milestone 87, x86_64's real target machine). `notes/x86-port.md`'s "discovery seam" section recorded
+milestone 87 (the x86_64 bare-metal machine)).
+`notes/x86-port/acpi-and-pci.md`'s "discovery seam" section recorded
 the gap this milestone closes: "The PCIe ECAM window the MCFG describes is exactly the constant
 `arch::mmu::PCI_ECAM_PHYS` hardcodes... The constant should come from here rather than being checked
 against here, and doing that is a line of code once something consumes it." `kernel/src/pci.rs`
@@ -53,7 +54,7 @@ probe here with nobody home", true of x86_64 unconditionally, since it has no de
 3. **The BAR window is hardcoded, not discovered, and this is a real, permanent limitation rather
    than a temporary gap.** ACPI's MCFG names only the ECAM window; the 32-bit MMIO window BARs are
    placed in lives in the PCI host bridge's `_CRS` object on a real ACPI machine, which is AML, and
-   this kernel has no AML interpreter (`notes/x86-port.md`'s own "What is deliberately not decoded").
+   this kernel has no AML interpreter (`notes/x86-port/acpi-and-pci.md`'s own "What is deliberately not decoded").
    `arch::x86_64::mmu::PCI_BAR_PHYS` is a hardcoded constant (`0xc000_0000`, q35's conventional PCI
    hole), confirmed disjoint from RAM, ECAM, the HPET and both APICs by reading QEMU's `info mtree`,
    but **not exercised by an actual BAR placement**: no PCI function that needs one is on the bus
