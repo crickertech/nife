@@ -1,4 +1,4 @@
-Falsifies `dma_validator::an_oversized_batch_is_refused`.
+Falsifies `direct_memory_access_validator::an_oversized_batch_is_refused`.
 
 The defect: the batch-size guard is gone, so `validate_and_shadow` walks whatever
 gap the driver publishes between `from_idx` and `to_idx`. Nothing about
@@ -15,10 +15,10 @@ around: it passes closures that panic on any access, so *reaching memory at all*
 the failure, and `assert!(!ok, "an oversized batch was accepted instead of
 refused")` at the end is the weaker backstop that is never reached.
 
-diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+diff --git a/crates/direct_memory_access_validator/src/lib.rs b/crates/direct_memory_access_validator/src/lib.rs
 index 9a6d0500..7d46a9ca 100644
---- a/crates/dma_validator/src/lib.rs
-+++ b/crates/dma_validator/src/lib.rs
+--- a/crates/direct_memory_access_validator/src/lib.rs
++++ b/crates/direct_memory_access_validator/src/lib.rs
 @@ -203,9 +203,7 @@ pub fn validate_and_shadow(
      // device consuming some. A larger jump in avail.idx is malformed or hostile, and walking it would
      // spin this loop up to 65535 times under the caller's lock with interrupts masked. Refuse it

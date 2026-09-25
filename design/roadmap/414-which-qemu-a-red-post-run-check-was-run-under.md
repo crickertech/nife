@@ -12,7 +12,10 @@ where the version is read rather than whether to print it.
 version beside a post-run check or in the per-architecture banner; the only place the tree ties a
 number to a QEMU is `.qemu-version` and `script/qemu-check`, which the icount baselines cite and the
 post-run checks do not. `notes/load-sensitive-assertions.md` still carries no `BUGS` entry saying
-the post-run set is emulator-dependent, so the smaller version of the fix is also still open.
+the post-run set is emulator-dependent, so the smaller version of the fix is also still open. *(Corrected
+2026-09-24: #1211 added that entry to the main page's `BUGS` in
+[notes/load-sensitive-assertions.md](../../notes/load-sensitive-assertions.md), naming the 8.2.2 and
+11.0.2 split and this milestone as the fix. The smaller version is done; the version line is not.)*
 
 ## What was measured
 

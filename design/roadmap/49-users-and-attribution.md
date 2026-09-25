@@ -232,7 +232,8 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
 
 - ~~Not wired into the interactive boot.~~ **Resolved, 2026-08-27.** `credentialer`,
   `identity_provisioner`, `login` and a new `audit_sink` (provisional name; drains `login`'s own
-  `AUDIT` endpoint so its blocking send never parks the service, `components/src/audit_sink.rs`'s own doc)
+  `AUDIT` endpoint so its blocking send never parks the service; its own doc is now
+  `components/src/login_audit_receiver.rs`, renamed 2026-09-24)
   are now built by `crates/system_initializer::boot` on both ISAs, from the real virtio-rng-backed
   entropy service DECISIONS §120's amendment already unblocked (see this entry's own prior text for
   that half's account, unchanged). Executing this entry's own three-item plan, in order:

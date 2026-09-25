@@ -1,4 +1,4 @@
-Falsifies `dma_validator::verification::an_accepted_descriptor_is_confined`.
+Falsifies `direct_memory_access_validator::verification::an_accepted_descriptor_is_confined`.
 
 The defect: `Desc::is_indirect` tests the wrong bit, so it answers false for every
 descriptor. `check_descriptor` refuses an indirect descriptor because that is a table the
@@ -23,10 +23,10 @@ The harness still catches that, and it is the more obvious of the two defects; i
 replaced rather than kept because a harness carries one record and the guard-drop was
 never the blind spot.
 
-diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+diff --git a/crates/direct_memory_access_validator/src/lib.rs b/crates/direct_memory_access_validator/src/lib.rs
 index 32d8aa80..97c00b8d 100644
---- a/crates/dma_validator/src/lib.rs
-+++ b/crates/dma_validator/src/lib.rs
+--- a/crates/direct_memory_access_validator/src/lib.rs
++++ b/crates/direct_memory_access_validator/src/lib.rs
 @@ -140,7 +140,7 @@ impl Desc {
      /// Whether `F_INDIRECT` is set: the buffer holds a table of further descriptors rather than
      /// data, which this validator refuses to chase (see the confinement decision above).

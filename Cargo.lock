@@ -326,7 +326,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dma_validator"
+name = "direct_memory_access_validator"
 version = "0.1.0"
 
 [[package]]
@@ -524,7 +524,7 @@ dependencies = [
  "credential_protocol",
  "current_cpu_protocol",
  "device_tree_blob",
- "dma_validator",
+ "direct_memory_access_validator",
  "elf",
  "entropy_protocol",
  "environment_protocol",

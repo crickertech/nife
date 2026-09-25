@@ -41,9 +41,10 @@ exclude_globs = [
     # split of what a host test could and could not have reached.
     "crates/system_initializer/**",
 
-    # Driver whose entry points each orchestrate a live virtio device; two volatile ops per
-    # thousand lines of orchestration. Its security-critical logic lives in crates/dma_validator
-    # (milestone 35), which IS mutated. Same exemption, same wording, as the coverage floor.
+    # Driver whose entry points each orchestrate a live virtio device; two volatile ops per thousand
+    # lines of orchestration. Its security-critical logic lives in
+    # crates/direct_memory_access_validator (milestone 35 (prove the DMA-confinement boundary)),
+    # which IS mutated. Same exemption, same wording, as the coverage floor.
     "crates/virtio/**",
 
     # **The UEFI application itself, and it is here for a THIRD reason** neither of the two above:
@@ -66,6 +67,12 @@ exclude_globs = [
     # What proves this file is `cargo xtask uefi-boot` under OVMF, on `script/test`'s own leg.
     # Excluding it here does not make it proved; see notes/mutation-testing.md for the split.
     "uefi_loader/src/main.rs",
+    # And the modules `main.rs` declares, which are the same unbuilt target in other files. Found
+    # 2026-09-24: the entry above covered the root only, so `src/arch/` scored 132 of the crate's
+    # 182 MISSED at the 2026-09-21 census, every one in a file no host build compiles. `script/lint`
+    # now walks the target's module tree, so a new `mod` here fails the gate until it is listed.
+    "uefi_loader/src/arch/**",
+    "uefi_loader/src/chooser.rs",
 
     # **A Kani harness module that is its own FILE**, which the `proofs::` entry below cannot reach.
     # cargo-mutants names a mutant by the path of the function WITHIN the file it parsed, so an

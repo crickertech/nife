@@ -149,8 +149,10 @@ that says whether the PIT calibration was right.
   were measured.
 - `scripts/qemu-runner-x86_64.sh`: forwards SIGTERM to QEMU. See below; this is a separate bug that
   this lane's own sweep tripped over several hundred times.
-- `notes/benchmarks.md`: the 2026-08-24 x86 `ns/iter` table is marked in place, and a new dated
-  section records what the defect reaches and what it does not.
+- `notes/benchmarks.md` (since split: the table is in `notes/benchmarks/x86-tss-iomap.md` and the
+  dated section in `notes/benchmarks/counter-frequency-and-calibration.md`): the 2026-08-24 x86
+  `ns/iter` table is marked in place, and a new dated section records what the defect reaches and
+  what it does not.
 
 ## The bug this lane tripped over on its way, and fixed
 

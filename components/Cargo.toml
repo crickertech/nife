@@ -368,12 +368,14 @@ path = "src/login.rs"
 test = false
 bench = false
 
-# The audit sink (milestone 49's boot-wiring update, provisional name): drains `login`'s AUDIT
+# The login audit receiver (milestone 49 (users and attribution), its boot-wiring update;
+# `audit_sink` until calef's 2026-09-13 ruling was performed on 2026-09-24): drains `login`'s AUDIT
 # endpoint so its blocking `send` on a successful login never parks the whole service, holding
-# nothing but that one READ capability. `initrd_aarch64` packs it as "audit_sink" for both ISAs.
+# nothing but that one READ capability. `initrd_aarch64` packs it as "login_audit_receiver" for both
+# ISAs.
 [[bin]]
-name = "audit_sink"
-path = "src/audit_sink.rs"
+name = "login_audit_receiver"
+path = "src/login_audit_receiver.rs"
 test = false
 bench = false
 

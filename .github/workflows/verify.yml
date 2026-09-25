@@ -80,9 +80,22 @@ jobs:
   # the event payload's `draft` is a snapshot that has been wrong, `ready_for_review` did not
   # reliably raise a run to correct it, and a skipped job still satisfies a required check. This
   # asks what the pull request is right now and fails safe toward running.
+  #
+  # On a push to `main` it asks a second question, A′ (calef, 2026-09-24): did a `merge_group` run
+  # of THIS workflow conclude `success` at this exact commit? If so the proofs already ran against
+  # this tree and the push cites that run instead of re-proving it for ~47 minutes on a starved
+  # runner pool. ci.yml's `gate` carries the evidence (the SHA check against history, the #1213
+  # eviction) and the fail-safe cases; they are identical here.
   gate:
     name: draft gate
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
+    # `actions: read` is for the push branch below: listing this workflow's merge_group runs. The
+    # job-level block replaces the workflow's, so the reads the draft half already relied on are
+    # restated rather than inherited.
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     outputs:
       run: ${{ steps.state.outputs.run }}
     steps:
@@ -90,6 +103,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A′: a push to `main` whose exact commit a merge group already tested. See the comment
+          # above this job. Any answer but a run ID (no run, an API error, a missing permission)
+          # leaves `tested` empty and falls through to running everything.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tested="$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/verify.yml/runs?event=merge_group&head_sha=${{ github.sha }}&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty' 2>/dev/null || true)"
+            if [ -n "$tested" ]; then
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "==> ${{ github.sha }} was tested by merge group run $tested; skipping"
+              echo "==> https://github.com/$GITHUB_REPOSITORY/actions/runs/$tested"
+              exit 0
+            fi
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "==> no successful merge_group run of verify.yml at ${{ github.sha }}; running everything"
+            exit 0
+          fi
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "==> ${{ github.event_name }} is not a pull request; running everything"
@@ -108,7 +138,7 @@ jobs:
 
   scope:
     name: verify scope
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     needs: gate
     if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     outputs:
@@ -142,7 +172,7 @@ jobs:
       !cancelled() &&
       needs.scope.outputs.needed == 'true' &&
       needs.gate.outputs.run != 'false'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     # Half the serial job plus its setup. The serial job's 60 was for ~30 minutes of proving; a
     # shard proves ~15, and the box stays generous because a hung solver must fail loudly rather
     # than sit on the runner's 6-hour default.
@@ -179,43 +209,37 @@ jobs:
         env:
           VERIFY_JOBS: 2
 
-  # **The same `kernel` row, on the other host architecture** (milestone 304).
+  # **The same `kernel` row, on the other host architecture** (milestone 304 (`cargo kani -p kernel`
+  # only ever compiled one architecture, and it was the runner's)), and since milestone 587 (most CI
+  # jobs do not need an arm64 host) the other architecture is aarch64.
   #
-  # Every other job in this file runs on `ubuntu-24.04-arm`, and until this one existed that was not
-  # a scheduling detail: `kernel/src/arch/mod.rs` selects its subtree with
-  # `#[cfg(target_arch = ...)]` and Kani compiles for the HOST, so the whole suite proved
-  # `arch/aarch64/` and compiled no line of `arch/riscv64/` or `arch/x86_64/`. Two thirds of the
-  # architecture layer was unreachable for a `cfg` rather than for a construct, which is
-  # `design/fatal-risks.md` risk 2 ("the proofs prove trivia") wearing a shape nobody had named, and
-  # a DECISIONS §19 parity gap besides: a property proved on one ISA and never run on the others is
-  # exactly what §19 exists to catch.
+  # `kernel/src/arch/mod.rs` selects its subtree with `#[cfg(target_arch = ...)]` and Kani compiles
+  # for the HOST, so whichever runner proves the `kernel` row proves that runner's `arch/` subtree and
+  # compiles no line of the others. Milestone 304 found the suite on arm64 proving `arch/aarch64/` and
+  # nothing else, and added an x86_64 job for `--only kernel`. Milestone 587 moved the `prove` shards
+  # to `ubuntu-24.04` because the arm64 hosted pool was where the queue waited, which turns the
+  # picture over: the shards' own `kernel` row now proves `arch/x86_64/`, the old x86_64 job would
+  # repeat it, and `arch/aarch64/` would be proved nowhere. So this job is the x86_64 one mirrored
+  # rather than a fourth prover: same command, arm64 label, and the label IS the mechanism.
   #
-  # `ubuntu-24.04` (no `-arm`) is x86_64, so the label IS the mechanism. `--only kernel` because
-  # `kernel` is the one row whose meaning depends on the machine; the other eighteen are portable
-  # logic and re-proving them here would buy a runner's time and no coverage.
-  #
-  # **Cost, measured rather than asserted** (2026-09-16, on cordoba, 4 cores / 23 GB, the same Kani
-  # 0.67.0): about 60 seconds of `cargo kani` wall time from cold, of which the solver is ~0.7s and
-  # the rest is the kernel's own compile, plus Kani's install. It is a parallel runner, and the
-  # `prove` shards are 15 minutes each, so this adds nothing to the critical path and no memory
-  # pressure to any existing job. It grows with the harnesses in `arch/x86_64/`, not with the kernel.
-  #
-  # **`VERIFY_JOBS` is left at the script's default** rather than pinned to 2 like the shards: the
-  # memory kill that forced theirs was four concurrent CBMC formulas at `glob`'s size, and this job
-  # runs four harnesses whose formulas are milliseconds.
+  # **Cost**: about 0.1 minutes of proving and the rest Kani's install, measured on the x86_64 twin
+  # (2026-09-24, run 36029132635). Its harnesses are the `arch/aarch64/` ones (the SMMU tables and
+  # stream isolation), whose formulas are small, so `VERIFY_JOBS` stays at the script's default. It
+  # still waits for an arm64 runner, and that is the price of the proof: one short job in that queue
+  # rather than four long ones.
   #
   # **riscv64 is not here and cannot be.** GitHub offers no riscv64 image, Kani has no cross-target
   # flag (checked: `cargo kani --help` has `--target-dir` and nothing else), and CBMC needs a
   # goto-binary for the host it runs on. `radon` is a lab board, not a runner. `arch/riscv64/` stays
   # outside the prover's reach, and notes/kernel-proofs.md says so where a reader meets the claim.
-  prove-kernel-x86_64:
-    name: prove the kernel on x86_64
+  prove-kernel-aarch64:
+    name: prove the kernel on aarch64
     needs: [gate, scope]
     if: >-
-      !cancelled() &&
+      always() &&
       needs.scope.outputs.needed == 'true' &&
       needs.gate.outputs.run != 'false'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     # Kani's install dominates; the proving is ~1 minute. Generous against growth, tight enough that
     # a hung solver fails loudly rather than sitting on the runner's 6-hour default.
     timeout-minutes: 45
@@ -245,7 +269,11 @@ jobs:
   # every other record in `crates/` finishes in seconds. Both crates' BUGS sections carry the
   # measurement. Raising the timeout is not the fix and was deliberately not taken here: a per-pull
   # request gate that can spend an hour is a gate that gets disabled, and the real question is
-  # whether those two proofs can be made cheap. That is its own piece of work.
+  # whether those two proofs can be made cheap. **They were, 2026-09-24**: both harnesses now carry
+  # `#[kani::unwind(9)]`, measured to change nothing on the correct tree, and their records go red in
+  # seconds (#1239, #1243). And `script/falsifications` now gives each record 15 minutes and reports
+  # one that runs out as `no verdict` (#1242), so the next such record costs a quarter of this job
+  # rather than all of it.
   #
   # **Not a required check**, deliberately: the ruleset requires `verify (Kani proofs)` and nothing
   # else from this workflow, and this must be able to fail loudly without being one more name in a
@@ -279,7 +307,7 @@ jobs:
 
   verify:
     name: verify (Kani proofs)
-    needs: [gate, scope, prove, prove-kernel-x86_64]
+    needs: [gate, scope, prove, prove-kernel-aarch64]
     # **`!cancelled()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
     # scope job says the proofs are not needed, and a required check that never reports blocks the
     # merge forever, which notes/repo-hardening.md names as the single most likely way to get this
@@ -291,7 +319,7 @@ jobs:
     if: >-
       !cancelled() &&
       needs.gate.outputs.run != 'false'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     # Reads two strings. The proving is upstream; nothing here needs a toolchain, a checkout or a
     # cache.
     timeout-minutes: 5
@@ -305,10 +333,10 @@ jobs:
         run: |
           scope="${{ needs.scope.result }}"
           prove="${{ needs.prove.result }}"
-          kernel_x86="${{ needs['prove-kernel-x86_64'].result }}"
+          kernel_aarch64="${{ needs['prove-kernel-aarch64'].result }}"
           echo "scope: $scope"
           echo "prove: $prove"
-          echo "prove-kernel-x86_64: $kernel_x86"
+          echo "prove-kernel-aarch64: $kernel_aarch64"
           if [ "$scope" != "success" ]; then
             echo "==> the scope job did not finish; refusing to report the proofs as green" >&2
             exit 1
@@ -318,16 +346,17 @@ jobs:
             skipped) echo "==> nothing in this change can reach a proof" ;;
             *)       echo "==> a shard reported '$prove'" >&2; exit 1 ;;
           esac
-          # The x86_64 kernel row (milestone 304), judged by exactly the vocabulary above and for
-          # the same reasons: `skipped` is the deliberate green-without-proving path the scope job
-          # decides, and anything else, `cancelled` included, is a job that did not finish and must
-          # not read as one that did. It is folded into THIS job rather than made a second required
-          # check, because the ruleset requires the string `verify (Kani proofs)` and nothing else;
-          # adding a name to a ruleset is a change nobody can make from a lane, and a proof that
-          # fails while the required check stays green is the invisible failure this file has
-          # already recorded twice.
-          case "$kernel_x86" in
-            success) echo "==> the kernel proved on x86_64 too" ;;
+          # The aarch64 kernel row (milestone 587; it was the x86_64 row from milestone 304 until the
+          # shards moved to x86_64 and began proving that one themselves), judged by exactly the
+          # vocabulary above and for the same reasons: `skipped` is the deliberate
+          # green-without-proving path the scope job decides, and anything else, `cancelled`
+          # included, is a job that did not finish and must not read as one that did. It is folded
+          # into THIS job rather than made a second required check, because the ruleset requires the
+          # string `verify (Kani proofs)` and nothing else; adding a name to a ruleset is a change
+          # nobody can make from a lane, and a proof that fails while the required check stays green
+          # is the invisible failure this file has already recorded twice.
+          case "$kernel_aarch64" in
+            success) echo "==> the kernel proved on aarch64 too" ;;
             skipped) echo "==> nothing in this change can reach a proof" ;;
-            *)       echo "==> the x86_64 kernel row reported '$kernel_x86'" >&2; exit 1 ;;
+            *)       echo "==> the aarch64 kernel row reported '$kernel_aarch64'" >&2; exit 1 ;;
           esac

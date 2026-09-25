@@ -189,7 +189,9 @@ fi
 #
 # So the mechanism is a second host, and this is the flag that lets a job on one ask for the row
 # that differs instead of re-proving the eighteen that do not. See
-# `.github/workflows/verify.yml`'s `prove-kernel-x86_64` job and
+# `.github/workflows/verify.yml`'s `prove-kernel-aarch64` job (the `prove-kernel-x86_64` job until
+# milestone 587 (most CI jobs do not need an arm64 host) moved the shards to x86_64 and the second
+# host became aarch64) and
 # design/roadmap/304-prover-one-architecture.md.
 #
 # It refuses a crate that is not in the table, rather than passing the name to `cargo kani` and
@@ -309,7 +311,7 @@ nifefs	2	the initrd parser the kernel runs on boot input
 package_archive	4	a package file is refused or read entirely inside itself, on bytes the solver chose
 pci	6	config-space decode on hostile-device input
 non_volatile_memory_express	2	the queue rings never index out, and the doorbell/PRP arithmetic is total
-dma_validator	175	the DMA-confinement validator, no descriptor escapes the grant
+direct_memory_access_validator	175	the DMA-confinement validator, no descriptor escapes the grant
 network_time_protocol	17	the 1900-epoch era pivot, and no hostile packet moves the clock
 globally_unique_identifier_partition_table	64	the partition table's CRC-32, its round trips, and partitions that overlap
 calendar	600	the civil-date arithmetic, and the parser on hostile text

@@ -28,7 +28,7 @@
 //! address the device will touch has to be inside it, whichever direction the bytes move:
 //!
 //! ```
-//! use dma_validator::{Desc, check_descriptor, in_region};
+//! use direct_memory_access_validator::{Desc, check_descriptor, in_region};
 //!
 //! // One 64 KiB region, granted to a userspace virtio driver.
 //! let (base, size) = (0x4000_0000u64, 0x1_0000u64);
@@ -56,7 +56,7 @@
 //! correct on ordinary input:
 //!
 //! ```
-//! use dma_validator::{Desc, F_INDIRECT, F_NEXT, check_descriptor, in_region};
+//! use direct_memory_access_validator::{Desc, F_INDIRECT, F_NEXT, check_descriptor, in_region};
 //!
 //! let (base, size, qsize) = (0x4000_0000u64, 0x1_0000u64, 8u16);
 //!
@@ -78,9 +78,21 @@
 //! assert!(!in_region(u64::MAX - 4, 1500, base, 16));
 //! ```
 //!
-//! Name: ratified 2026-08-01 (calef, milestone 63), replacing `dma_validate`. Refused
-//! `dma_validate` (a verb, while the crate's own first line already called itself "the
-//! DMA-confinement validator": it had named itself a noun and carried a verb).
+//! Name: ratified 2026-09-24 (calef, #1229), replacing `dma_validator`. Refused `dma_validator`
+//! (deratified by §154's acronym test, since "direct memory access" is a phrase people say).
+//! Refused `direct_memory_access_confinement` (it names the property, not the thing, and drops the
+//! ratified noun `validator`). Refused `descriptor_validator` (it drops DMA, the crate's reason to
+//! exist). Refused `dma_validate` (a verb, while the crate's own first line already called itself
+//! "the DMA-confinement validator": it had named itself a noun and carried a verb).
+//!
+//! The name follows every other rename under §154 (the acronym test is whether the phrase is
+//! spoken): expand the acronym and keep the rest, as `nvme` became `non_volatile_memory_express` and
+//! `ipc` became `inter_process_communication`. `dma_validator` was ratified 2026-08-01 under
+//! milestone 63 (directory and package names) and deratified by §154 on 2026-09-18. Its block read
+//! `ratified` until 2026-09-24 and `provisional` for the hours between that correction and this
+//! ruling. The same change expanded the kernel's and drivers' `dma_*` identifiers, so the crate and
+//! its callers spell the word one way; `dma_wmb` became `direct_memory_access_write_barrier`, the
+//! `wmb` half expanded by the same test.
 
 #![no_std]
 
@@ -184,8 +196,8 @@ pub fn check_descriptor(base: u64, size: u64, qsize: u16, d: Desc) -> bool {
 /// model. `qsize` is the negotiated queue size (the kernel's `QSIZE`); the walks are bounded by it.
 #[allow(clippy::too_many_arguments)]
 pub fn validate_and_shadow(
-    dma_base: u64,
-    dma_size: u64,
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
     driver_desc: u64,
     driver_avail: u64,
     shadow_desc: u64,
@@ -220,8 +232,8 @@ pub fn validate_and_shadow(
         // shadow. The confinement theorem is proved against `shadow_one_head` directly, so refuse the
         // whole batch if it refuses this head.
         if !shadow_one_head(
-            dma_base,
-            dma_size,
+            direct_memory_access_base,
+            direct_memory_access_size,
             driver_desc,
             shadow_desc,
             head,
@@ -257,8 +269,8 @@ pub fn validate_and_shadow(
 /// len/flags/next share one 64-bit word read and copied verbatim.
 #[allow(clippy::too_many_arguments)]
 fn shadow_one_head(
-    dma_base: u64,
-    dma_size: u64,
+    direct_memory_access_base: u64,
+    direct_memory_access_size: u64,
     driver_desc: u64,
     shadow_desc: u64,
     head: u16,
@@ -274,7 +286,12 @@ fn shadow_one_head(
             word: read64(src + 8),
         };
 
-        if !check_descriptor(dma_base, dma_size, qsize, desc) {
+        if !check_descriptor(
+            direct_memory_access_base,
+            direct_memory_access_size,
+            qsize,
+            desc,
+        ) {
             return false;
         }
 
@@ -344,7 +361,7 @@ mod verification {
     /// and `base <= addr` and `addr + len <= base + size`. This is the arithmetic the whole boundary
     /// rests on, quantified over all 2^256 input combinations at once, and it also proves totality
     /// (the hardened checked adds never panic on any input).
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.in_region_is_sound.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.in_region_is_sound.patch`
     #[kani::proof]
     fn in_region_is_sound() {
         let base: u64 = kani::any();
@@ -384,7 +401,7 @@ mod verification {
     /// the device-readable TX shape are both covered) and every region, if [`check_descriptor`]
     /// accepts it then it carries no indirect flag and its whole buffer is in-region. This is the
     /// per-descriptor core of the walk, isolated so it is proved without any loop.
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.an_accepted_descriptor_is_confined.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.an_accepted_descriptor_is_confined.patch`
     #[kani::proof]
     fn an_accepted_descriptor_is_confined() {
         let base: u64 = kani::any();
@@ -547,7 +564,7 @@ mod verification {
     /// and position. The outer loop of [`validate_and_shadow`] only repeats this validated single-head
     /// processing for each further head (its bound proved by [`an_oversized_batch_is_refused`]), so it
     /// reaches no new descriptor state.
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.validate_and_shadow_confines_every_chain.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.validate_and_shadow_confines_every_chain.patch`
     #[kani::proof]
     #[kani::unwind(10)]
     fn validate_and_shadow_confines_every_chain() {
@@ -566,7 +583,7 @@ mod verification {
     /// [`validate_and_shadow`] returns false having read and written nothing: the memory closures
     /// panic if called, so reaching one is a proof failure. This is the outer-loop bound the
     /// single-head main theorem factors out.
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.an_oversized_batch_is_refused.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.an_oversized_batch_is_refused.patch`
     #[kani::proof]
     fn an_oversized_batch_is_refused() {
         let from: u16 = kani::any();
@@ -598,12 +615,12 @@ mod verification {
     /// driver's copy, which nothing reads.
     /// Falsification: unfalsified. Milestone 202 looked for a defect in this crate that would
     /// turn this harness red on the property it names, and did not find one: the time-of-check /
-    /// time-of-use claim holds because the driver's table and the shadow are two disjoint arrays
-    /// in `ChainMem`, and no line of `dma_validator` can make them the same array. Aiming
-    /// `shadow_one_head`'s copy back at `driver_desc` does turn it red, but through
+    /// time-of-use claim holds because the driver's table and the shadow are two disjoint arrays in
+    /// `ChainMem`, and no line of `direct_memory_access_validator` can make them the same array.
+    /// Aiming `shadow_one_head`'s copy back at `driver_desc` does turn it red, but through
     /// `ChainMem::write64`'s address arithmetic rather than through the post-mutation assertion,
-    /// which is a red for the wrong reason and so is not recorded as evidence. What that means
-    /// is worth saying plainly: this harness proves a property of the *design* (a copy the driver
+    /// which is a red for the wrong reason and so is not recorded as evidence. What that means is
+    /// worth saying plainly: this harness proves a property of the *design* (a copy the driver
     /// cannot write) rather than of code that could regress, so its honest denominator is this
     /// state and not a patch.
     #[kani::proof]
@@ -672,7 +689,7 @@ mod verification {
     /// here is one descriptor), and Kani's unwinding assertion fails if a loop could run longer. So
     /// no index pair, wrapped or not, makes this loop spin: the property that keeps a hostile
     /// `avail.idx` from holding the `DEVICES` lock with interrupts masked.
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.the_outer_walk_stays_inside_the_rings_and_terminates.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.the_outer_walk_stays_inside_the_rings_and_terminates.patch`
     #[kani::proof]
     #[kani::unwind(11)]
     fn the_outer_walk_stays_inside_the_rings_and_terminates() {
@@ -786,7 +803,7 @@ mod verification {
     /// in both the driver region and the shadow, so validating one queue never reads or writes
     /// another's rings. For any two distinct in-range queues, the lower queue's whole ring area ends
     /// before the higher queue's block begins, and a queue's ring area fits inside its own block.
-    /// Falsification: replayable `crates/dma_validator/falsifications/verification.distinct_queues_occupy_disjoint_blocks.patch`
+    /// Falsification: replayable `crates/direct_memory_access_validator/falsifications/verification.distinct_queues_occupy_disjoint_blocks.patch`
     #[kani::proof]
     fn distinct_queues_occupy_disjoint_blocks() {
         let q1: u16 = kani::any();
@@ -860,8 +877,8 @@ mod tests {
         /// the slot arithmetic (`idx % qsize`, `4 + slot * 2`) only shows its shape there.
         fn run_range(&self, from: u16, to: u16) -> bool {
             validate_and_shadow(
-                0x1_0000_0000, // dma_base: an arbitrary in-test region
-                0x1000,        // dma_size
+                0x1_0000_0000, // direct_memory_access_base: an arbitrary in-test region
+                0x1000,        // direct_memory_access_size
                 DD,
                 DA,
                 SD,

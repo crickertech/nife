@@ -58,3 +58,8 @@ moving them a level up. A committed file keeps the inbox on disk and the intent 
 `README.md` is exempt from the slug rule for that reason, in
 `scripts/roadmap_proposals.py`. It is the only exemption, and it is a file rather than a pattern so
 that a second one has to be argued for.
+
+*Name: recorded (milestone 247). Milestone 247 (follow-on work named by a finished milestone goes
+nowhere) created this directory as the inbox for work without a number. The stems here are not tracked by
+`script/names`: a proposal's slug becomes its milestone's, and calef ruled milestone titles drafts
+on 2026-08-04.*

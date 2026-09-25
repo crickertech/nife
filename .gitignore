@@ -8,8 +8,12 @@
 target/
 *.ll
 
-# Claude Code agent worktrees and local session files
-.claude/
+# Claude Code agent worktrees and local session files. The directory's contents are ignored rather
+# than the directory itself, because git cannot re-include a file under an ignored directory, and
+# settings.json is the project's shared hook configuration (#1202 meant to check it in and could
+# not, for exactly that reason). settings.local.json stays ignored: it is per person.
+.claude/*
+!.claude/settings.json
 .playwright-mcp/
 
 # macOS finder junk, tracked once by accident.

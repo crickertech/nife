@@ -60,6 +60,7 @@ the conversation that minted the milestone, and the tree disagreed.
 | from | to | item | rate | source |
 |---|---|---|---|---|
 | 2026-07-12 | (current) | Claude subscription, the inference this project runs on | 200.00 / month | calef, 2026-09-21 |
+| 2026-09-24 | (current) | GitHub Team plan, one seat: CI concurrency 20 → 60 jobs (Actions minutes stay free on a public repository) | 4.00 / month | calef, 2026-09-24 |
 
 **The billing day is an assumption and it is the only one in this file.** No invoice is recorded
 anywhere in this tree, so `script/metrics` places each charge in the ISO week containing the monthly

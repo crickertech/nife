@@ -198,7 +198,8 @@ it.
 **Corrected 2026-09-15: the second rename will not happen.** calef ruled that the `login` stem stays
 for the whole family, so the cost this section accepted is never paid and `login_protocol` is final.
 The account above is kept as written, because it is what this lane knew and chose when it performed
-the suffix; the argument for keeping the stem is in `design/naming.md`, "The `login` stem stays".
+the suffix; the argument for keeping the stem is in `design/naming/vocabulary-rulings.md`, "The
+`login` stem stays".
 
 ## How it was performed, and what the sweep took
 

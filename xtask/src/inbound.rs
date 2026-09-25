@@ -220,6 +220,7 @@ fn probe_inbound(
         // five exits and they mean different things: only two of them are "nothing was consumed",
         // and telling them apart is the whole diagnosis when a round goes missing.
         let mut outcome = "answered";
+        let mut error: Option<String> = None;
         while got.len() < INBOUND_OUT.len() {
             match s.read(&mut buf) {
                 Ok(0) => {
@@ -233,7 +234,7 @@ fn probe_inbound(
                     break;
                 }
                 Ok(n) => got.extend_from_slice(&buf[..n]),
-                Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
+                Err(e) if read_error_is_not_yet(e.kind()) => {
                     // Still waiting on a guest that has not polled yet. Hold the connection: see
                     // this function's note on why dropping it would feed the guest a round we
                     // cannot collect. The run ending is the only thing that ends this wait.
@@ -248,6 +249,10 @@ fn probe_inbound(
                 }
                 Err(e) => {
                     last = format!("reading the guest's answer failed: {e}");
+                    // Kept on the event, not only in `last`, which is printed on a red run alone.
+                    // notes/net.md: a green run's `read-failed` once threw away the one fact that
+                    // would have named it.
+                    error = Some(format!("{:?}, os error {:?}", e.kind(), e.raw_os_error()));
                     outcome = match e.kind() {
                         ErrorKind::ConnectionReset => "reset",
                         ErrorKind::ConnectionAborted => "aborted",
@@ -269,7 +274,7 @@ fn probe_inbound(
             // The loop filled its quota without matching: bytes that are not the guest's answer.
             outcome = "wrong-bytes";
         }
-        trace.note(outcome, opened, got.len());
+        trace.note_error(outcome, opened, got.len(), error);
         // Not an answer: almost always "no listener yet", which is the normal state for most of the
         // run. Keep the last one only so a genuine failure has something to say.
         if !got.is_empty() {
@@ -305,6 +310,24 @@ fn probe_inbound(
     }
 }
 
+/// **Whether a read error means "not yet" rather than "this connection is over".**
+///
+/// `WouldBlock` and `TimedOut` are the 250 ms read timeout expiring. `Interrupted` is a signal
+/// landing on the blocked `recv` (`EINTR`), which says nothing about the connection at all, and
+/// treating it as fatal was the inbound check's lost round. On CI, every `read-failed` in two weeks
+/// of traces landed on the five-second grid `HostLoad` samples on, and the first trace that kept its
+/// errno said `Interrupted, os error 4`. Dropping the connection there does not take back the
+/// payload already written: slirp still delivers it when the guest next polls, the guest serves a
+/// round into a socket nobody holds, and two of those in one boot is "2 of 4" and a red leg. See
+/// notes/net.md.
+fn read_error_is_not_yet(kind: std::io::ErrorKind) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        kind,
+        ErrorKind::WouldBlock | ErrorKind::TimedOut | ErrorKind::Interrupted
+    )
+}
+
 /// **What every prober connection did, kept so a failure can name a mechanism instead of a count.**
 ///
 /// The check has failed twice with nothing to go on but "the guest served 3 of 4", which does not
@@ -324,7 +347,7 @@ struct InboundTrace {
     /// `(ms since the prober started, outcome, held ms, bytes)` for connections worth a line: the
     /// ones that collected bytes, and the ones held over a second. A connection that was reset in
     /// under a millisecond with nothing on it is the boring majority and is only counted.
-    events: Vec<(u128, &'static str, u128, usize)>,
+    events: Vec<(u128, &'static str, u128, usize, Option<String>)>,
     started: Option<std::time::Instant>,
 }
 
@@ -337,17 +360,29 @@ impl InboundTrace {
     }
 
     pub(crate) fn note(&mut self, outcome: &'static str, opened: std::time::Instant, bytes: usize) {
+        self.note_error(outcome, opened, bytes, None);
+    }
+
+    /// [`note`](Self::note), with the error that ended the connection when one did. Any event that
+    /// carries an error gets a line, however briefly it was held.
+    pub(crate) fn note_error(
+        &mut self,
+        outcome: &'static str,
+        opened: std::time::Instant,
+        bytes: usize,
+        error: Option<String>,
+    ) {
         self.attempts += 1;
         *self.counts.entry(outcome).or_insert(0) += 1;
         let held = opened.elapsed().as_millis();
-        if bytes > 0 || held >= 1000 || outcome == "answered" {
+        if bytes > 0 || held >= 1000 || outcome == "answered" || error.is_some() {
             let at = self
                 .started
                 .map(|s| s.elapsed().as_millis())
                 .unwrap_or_default();
             // Bounded, so a pathological run cannot grow this without limit.
             if self.events.len() < 64 {
-                self.events.push((at, outcome, held, bytes));
+                self.events.push((at, outcome, held, bytes, error));
             }
         }
     }
@@ -363,11 +398,38 @@ impl InboundTrace {
         if out.is_empty() {
             out.push_str("no attempts");
         }
-        for (at, outcome, held, bytes) in &self.events {
+        for (at, outcome, held, bytes, error) in &self.events {
             out.push_str(&format!(
                 "\n    +{at} ms: {outcome} after {held} ms, {bytes} bytes"
             ));
+            if let Some(error) = error {
+                out.push_str(&format!(" ({error})"));
+            }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::ErrorKind;
+
+    /// A signal on a blocked read is a reason to read again, never a verdict on the connection.
+    /// Before this, `Interrupted` fell to the catch-all arm, the connection was dropped as
+    /// `read-failed`, and the round its payload bought was served to nobody.
+    #[test]
+    fn an_interrupted_read_keeps_the_connection() {
+        assert!(super::read_error_is_not_yet(ErrorKind::Interrupted));
+        assert!(super::read_error_is_not_yet(ErrorKind::WouldBlock));
+        assert!(super::read_error_is_not_yet(ErrorKind::TimedOut));
+    }
+
+    /// And a connection the peer really ended is still over, so the fix cannot turn a reset into
+    /// an endless wait.
+    #[test]
+    fn a_reset_still_ends_it() {
+        assert!(!super::read_error_is_not_yet(ErrorKind::ConnectionReset));
+        assert!(!super::read_error_is_not_yet(ErrorKind::ConnectionAborted));
+        assert!(!super::read_error_is_not_yet(ErrorKind::BrokenPipe));
     }
 }

@@ -51,7 +51,7 @@ firmware_dir() {
     [ -n "$bin" ] && echo "$(dirname "$(dirname "$bin")")/share/qemu"
 }
 
-VARS="$(mktemp -t nife-stick-vars)"
+VARS="$(mktemp "${TMPDIR:-/tmp}/nife-stick-vars.XXXXXX")"
 trap 'rm -f "$VARS"' EXIT
 trap 'rm -f "$VARS"; exit 143' HUP INT TERM
 

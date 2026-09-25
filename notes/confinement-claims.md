@@ -35,11 +35,11 @@ themselves. The last column is this milestone's result.
 | 10 | A user virtual address is in the low half and page-aligned, on every ISA | §19 | `paging::{aarch64,sv39,x86_64}::the_user_va_gate_admits_only_the_aligned_low_half` | **yes, three times** |
 | 11 | No page is both writable and executable | §19 | `paging::x86_64::no_encoded_leaf_is_both_writable_and_executable` | **yes** |
 | 12 | An IOMMU entry sets no bit the hardware treats as reserved | §20 | `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit` | **yes, since 2026-09-16, and see below** |
-| 13 | A device cannot touch memory outside its driver's granted region | §20 | `dma_validator::in_region_is_sound`, `an_accepted_descriptor_is_confined`, `validate_and_shadow_confines_every_chain` | **yes, three** |
-| 14 | A driver cannot send its device to descriptors nothing validated | §20 | `dma_validator::an_accepted_descriptor_is_confined` (the indirect refusal) | **yes** |
-| 15 | A driver cannot make the validator walk outside the rings, or forever | §20 | `dma_validator::the_outer_walk_stays_inside_the_rings_and_terminates`, `an_oversized_batch_is_refused` | **yes, two** |
-| 16 | One queue's validation cannot touch another queue's rings | §20 | `dma_validator::distinct_queues_occupy_disjoint_blocks` | **yes** |
-| 17 | A descriptor changed after validation cannot reach the device | §20 | `dma_validator::a_descriptor_mutated_after_validation_cannot_reach_the_device` | **no, and see below** |
+| 13 | A device cannot touch memory outside its driver's granted region | §20 (IOMMU-backed DMA isolation) | `direct_memory_access_validator::in_region_is_sound`, `an_accepted_descriptor_is_confined`, `validate_and_shadow_confines_every_chain` | **yes, three** |
+| 14 | A driver cannot send its device to descriptors nothing validated | §20 | `direct_memory_access_validator::an_accepted_descriptor_is_confined` (the indirect refusal) | **yes** |
+| 15 | A driver cannot make the validator walk outside the rings, or forever | §20 | `direct_memory_access_validator::the_outer_walk_stays_inside_the_rings_and_terminates`, `an_oversized_batch_is_refused` | **yes, two** |
+| 16 | One queue's validation cannot touch another queue's rings | §20 | `direct_memory_access_validator::distinct_queues_occupy_disjoint_blocks` | **yes** |
+| 17 | A descriptor changed after validation cannot reach the device | §20 | `direct_memory_access_validator::a_descriptor_mutated_after_validation_cannot_reach_the_device` | **no, and see below** |
 | 18 | A wiring plan never grants a right the declaration did not ask for | §41 | `component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` | **yes** |
 | 19 | A directory capability reaches its subtree and nothing above it | §50 | `filesystem_protocol::attenuate_never_widens`, `a_grandchild_is_bounded_by_the_root`; `kernel::user::dir_capability_tests` | milestone 194 (the proofs) |
 | 20 | A memory-unsafe C component faults on an out-of-bounds write and changes nothing outside its grant | §31 | `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant` | **yes, by hand** |
@@ -220,13 +220,13 @@ assertion survives, with the caveat that which one is redundant moves when the o
 
 ### One claim has no falsification and the reason is structural
 
-Row 17, the time-of-check/time-of-use property, stayed `unfalsified` on purpose. It holds
-because the driver's descriptor table and the shadow are two disjoint arrays in the harness's
-memory model, and no line of `dma_validator` can make them one. Aiming the copy back at the
+Row 17, the time-of-check/time-of-use property, stayed `unfalsified` on purpose. It holds because
+the driver's descriptor table and the shadow are two disjoint arrays in the harness's memory model,
+and no line of `direct_memory_access_validator` can make them one. Aiming the copy back at the
 driver's table does turn the harness red, but through `ChainMem::write64`'s address arithmetic
-rather than through the post-mutation assertion, which is a red for the wrong reason and so is
-not recorded as evidence. The harness proves a property of the *design* rather than of code that
-could regress, and its honest denominator is that state and not a patch.
+rather than through the post-mutation assertion, which is a red for the wrong reason and so is not
+recorded as evidence. The harness proves a property of the *design* rather than of code that could
+regress, and its honest denominator is that state and not a patch.
 
 ## What breaking the kernel tests found (milestone 305)
 

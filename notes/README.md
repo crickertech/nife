@@ -234,6 +234,7 @@ Gates, records and the merge queue: the machinery that keeps many lanes honest.
 - [Selectors that can select nothing](empty-selectors.md): gates that pass when their pattern matches nothing. Name provisional.
 - [What to do when `main` goes red](main-is-red.md). Names provisional.
 - [The merge queue, and the three things that watch it](merge-queue.md): the scripts that land, watch, and flag queue work. Names provisional.
+- [Working from a cloud session](working-from-a-cloud-session.md): what past cloud sessions hit, how to set up, claim and gate in CI, and what needs patagonia. Name provisional.
 - [The automation's own identity](automation-identity.md): the `smelter` GitHub App that replaces a personal token. Name provisional.
 - [Hardening the repository itself](repo-hardening.md): the GitHub settings that cannot be committed.
 - [The roadmap](roadmap.md): how to add a milestone, and its vocabularies.
@@ -263,3 +264,4 @@ How agents do the work here, and what it costs.
 - [Does a delegated AI review catch what the gates and the maintainer miss](delegated-review/README.md).
 - [Renting an open-weight model for the mechanical lanes](open-model-lanes.md).
 - [Reviewing the work of one model](model-attribution-review.md): a plan for reviewing one model's commits fairly. Name provisional.
+- [Comparing models as lanes and maintainer](model-comparison.md): a pre-registered pilot, Opus 5 against Opus 5.5. Name provisional.

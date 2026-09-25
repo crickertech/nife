@@ -91,7 +91,7 @@ Both are unrepeatable **in time** rather than in hardware, which is a weaker cla
 claim about two files rather than about anything a board will print tomorrow. So:
 
 - **The captures are left byte-identical.** Rewriting a marker inside `captured/` would be the
-  fabricated transcript `design/naming.md` opens its rename section with.
+  fabricated transcript `design/naming/rename-where-names-hide.md` records.
 - **The respelling happens at read time**, in one function with the argument beside it,
   `board_console::respell_pre_297_markers`, which replaces the marker prefix and nothing else.
 - **The parser keeps one spelling**, unlike 295's, because a permanent second match would pay

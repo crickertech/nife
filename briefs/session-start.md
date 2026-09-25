@@ -1,5 +1,5 @@
 **Provisional name.** What a maintainer session does before it briefs anything. You have just opened
-a session on patagonia, the machine lanes run on, and you do not yet know what happened while nobody
+a session, on patagonia or in a cloud container, and you do not yet know what happened while nobody
 was here. Do the work; do not ask questions.
 
 **Where this came from.** The two clauses below lived in `AGENTS.md` (the `launchd` watchers, and
@@ -42,6 +42,10 @@ plist; until it is loaded, `scripts/at-risk-check.sh` is one pass you can run by
 checkout. Nothing else should be in that list: `com.nife.merge-drain` and `com.nife.trunk-health`
 are retired, and a laptop still running either is a second drain arming the same pull requests the
 workflow is arming. The retirement commands are in `notes/merge-queue.md`.
+
+**In a cloud session there is no `launchctl` and no lane worktree to watch, so skip this check and
+go to step 2.** The risk it covers moves to you: an ephemeral container that ends with uncommitted
+work loses it, and nothing watches for that, so commit and push before every pause.
 
 `notes/merge-queue.md` has the workflows, the plist, the tested premise they rest on, the cadence
 costs calef accepted, and a `BUGS` section honest that nothing reports a watcher's death.

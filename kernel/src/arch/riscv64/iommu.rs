@@ -287,7 +287,7 @@ fn cmd_push(s: &mut Iommu, dword0: u64, dword1: u64) {
         core::ptr::write_volatile(slot.add(1), dword1);
     }
     // The IOMMU reads the command from memory: publish the words before moving the tail.
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
     s.cq_tail = (s.cq_tail + 1) % (2 * entries);
     w32(s.base, CQT, s.cq_tail);
 
@@ -329,12 +329,12 @@ pub fn attach(rid: u32, root: u64, pscid: u16) {
             }
         }
     }
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
     // SAFETY: as above.
     unsafe {
         core::ptr::write_volatile(dc, DC_TC_V); // tc: valid, faults reported (DTF clear)
     }
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
 
     // Invalidate the cached context and every translation, then fence: the IOMMU's IODIR covers
     // its device-context cache, IOTINVAL.VMA (no address, no PSCID: everything) its address

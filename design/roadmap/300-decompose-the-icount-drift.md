@@ -55,22 +55,24 @@ the aarch64/riscv peak to the net ~+35.7 ticks/switch at HEAD.
 
 The bisect pinned the cost to 139, and PR #885 read that as intended feature work and re-saved the
 baselines to absorb it. **That classification was wrong, and this block records the correction.**
-Milestone 237 had already made the cycle-counter grant a *measurement-only* feature that ships
-OFF: `set_cycle_counter_grant` is `#[cfg(any(test, feature = "cycle_counter_grant"))]` and does not
-appear in a feature-off binary at all. So the cost 139 introduced was not paying for a shipping
-feature; it was a residual 237's gating left behind, the const-`false` `next_cycle_counter` element
-still threaded through the shared switch tuple (a `#[cfg]` is not allowed on a tuple element, which is
-why 237 reached for a fold instead). That fold works in the release build but NOT in the debug build
-the icount gate measures, so the read, the tuple element, and a gated-off `install` call all stayed
-in the shipping switch. This is the exact class milestone 299 fixed for the port grant, and the fix
-is 299's: carry the grant in a `#[cfg]`-gated local read and installed at the switch site, keep the
-tuple at its pre-139 width. Recovered, measured on both ISAs (#885 floor -> fix, near pre-139):
+Milestone 237 (the cycle-counter grant) had already made the cycle-counter grant a
+*measurement-only* feature that ships OFF: `set_cycle_counter_grant` is `#[cfg(any(test, feature =
+"cycle_counter_grant"))]` and does not appear in a feature-off binary at all. So the cost 139
+introduced was not paying for a shipping feature; it was a residual 237's gating left behind, the
+const-`false` `next_cycle_counter` element still threaded through the shared switch tuple (a
+`#[cfg]` is not allowed on a tuple element, which is why 237 reached for a fold instead). That fold
+works in the release build but NOT in the debug build the icount gate measures, so the read, the
+tuple element, and a gated-off `install` call all stayed in the shipping switch. This is the exact
+class milestone 299 (the x86 port-range capability) fixed for the port grant, and the fix is 299's:
+carry the grant in a `#[cfg]`-gated local read and installed at the switch site, keep the tuple at
+its pre-139 width. Recovered, measured on both ISAs (#885 floor -> fix, near pre-139):
 `yield_switch` 1167649->1101149 aarch64 / 195910->184875 riscv64, `ctx_switch` 3089320->2922971
 aarch64 / 522565->495050 riscv64, ~91-93% of the drift, the ~0.5% residual within the codegen noise
 floor `coremark` sits in (it stayed flat, 20915884->20915599 aarch64). The baselines are re-saved on
 `nightly-2026-09-15` against these RECOVERED numbers. The full per-benchmark grid, the bisect, the
 recovery table, and the standing "save from the shipping feature set" rule live in
-[notes/benchmarks.md](../../notes/benchmarks.md) under the 2026-09-15 heading.
+[notes/benchmarks/drift-decomposition.md](../../notes/benchmarks/drift-decomposition.md) under the
+2026-09-15 heading.
 
 **x86_64 was NOT unaffected**, which corrects both #885 and this lane's own brief. The residual was
 the *shared* switch tuple, not an aarch64/riscv-only path, so the x86 debug icount build carried the

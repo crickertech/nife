@@ -44,6 +44,9 @@ NIFE = "NIFE"
 # occurrences it is the single loudest false positive in the tree.
 sie = "sie"
 SIE = "SIE"
+# `sip.STIP`, the Supervisor Timer Interrupt Pending bit, which `arch::timer::tick_pending` reads on
+# riscv64. The checker offers "STOP" and "STRIP".
+STIP = "STIP"
 # 16550 UART registers: Transmitter Holding Register, and its Empty flag.
 THR = "THR"
 THRE = "THRE"

@@ -39,6 +39,24 @@
 #                              here: kernel, xtask, redoxfs_server, tools/redoxfs_host, and the
 #                              root-level workspaces std_exerciser and entropy_backend
 #
+# And four kinds added 2026-09-24, when calef asked that provisional names queue for him rather
+# than reach him one at a time. They are many names per file, so they are found by marker:
+#
+#   item       any `.rs` file: a `///` doc run holding a `/// Name: ...` paragraph, for the function,
+#              constant, type, module, macro, field or variant it documents, whatever its visibility
+#   module     any `.rs` file that is not a crate root or program: its `//! Name: ...` block
+#   directory  a directory of `.md` under design/, notes/ or briefs/: a paragraph of its README.md
+#              opening `Name:` (emphasis allowed, bold not), which §75 already required
+#   document   each `.md` stem in such a directory: a README paragraph opening `` `stem` Name: ``,
+#              or the directory's block when it has none
+#
+# An item or module WITHOUT a marker is not tracked and never fails: thousands exist and nothing
+# says why they are named so. A lane minting one writes the marker, which is how it reaches the
+# worklist. A bold `**Provisional name**` opening a doc line is the one shape that fails, because it
+# reads as a record to a person and is invisible here. Stems that open with a digit (numbered or
+# dated records) and everything under design/roadmap/ (milestone slugs, which calef ruled drafts on
+# 2026-08-04) are skipped.
+#
 # The form, which is all that is checked:
 #
 #   Name: ratified <YYYY-MM-DD> (<who>, <where>). Refused `x` (why), `y` (why).
@@ -119,6 +137,7 @@ ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 exec python3 - "$ROOT" "${1:-}" <<'PY'
 import os
 import re
+import subprocess
 import sys
 
 root, mode = sys.argv[1], sys.argv[2]
@@ -138,9 +157,10 @@ import name_provenance                                                      # no
 # The three surfaces that are a directory listing, each with the file that holds its header. The
 # fourth kind, `package`, is discovered instead: see `packages()` below, which is what covers
 # `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host` and the root-level workspaces. What is
-# genuinely out of scope is `scripts/` (the helper drawer) and types. `scripts/` was priced and
+# genuinely out of scope is `scripts/` (the helper drawer); types are covered when marked, as
+# `item` (2026-09-24). `scripts/` was priced and
 # refused by milestone 446 (the naming worklist says what it covers, and stops saying what it used
-# to). design/naming.md's BUGS section is the one place that carries the reason, and this comment
+# to). design/naming/provenance-limits.md is the one place that carries the reason, and this comment
 # deliberately cites it rather than restating it, because the last copy of this scope claim went
 # stale without anyone noticing.
 SURFACES = [
@@ -284,6 +304,8 @@ def stray_problems(kind, name, path, prefix, text):
     out = []
     where = os.path.relpath(path, root)
     for number, line, why in name_provenance.strays(text, prefix):
+        if prefix == "//!" and line.lstrip().startswith("///"):
+            continue    # an item's own block (2026-09-24), judged with the `item` kind below
         out.append(f"{kind} {name}: {where}:{number} reads as a provenance header and is not the "
                    f"block that was read, because {STRAY_WHY[why]}\n      {line.strip()}")
     # The other half of the same question (2026-09-18). `strays` asks what reads as a HEADER without
@@ -304,7 +326,128 @@ def stray_problems(kind, name, path, prefix, text):
 # drift. The messages below stay here: a gate tells a contributor how to fix a block, and a
 # dashboard only needs to know the block held no status.
 
+# ---- the kinds that are not one name per file (2026-09-24) -------------------------------------
+#
+# Three more kinds, each carrying the same `Name:` grammar and judged by the same `classify`:
+#
+#   item       a `///` doc run containing a `Name:` block, attached to the Rust item, field or
+#              variant below it (function, constant, type, module, macro). Any file, any visibility.
+#   module     a `//!` block in a Rust file that is not a crate root or a program, naming the module.
+#   directory  a documentation directory under design/, notes/ or briefs/: its README's `Name:`
+#              paragraph, per §75 (directories carry provenance in their own README).
+#   document   each `.md` stem in such a directory: its own `` `stem` Name: `` paragraph in the
+#              README, or the directory's block when it has none.
+#
+# Only a name that CARRIES a marker is tracked, for `item` and `module`. Thousands of `pub fn`s have
+# no record of why they are named so, and failing them would build the wall this script refuses to
+# build. A lane minting a name writes the marker, which is how the name reaches calef's queue.
+# `directory` is the exception: §75 already required the README, so a directory without one fails.
+#
+# Two stem families are not names anybody ratifies, and are skipped: a stem that opens with a digit
+# (a numbered record, `212-a-prose-budget`, or a dated one, `2026-09-23-the-sweep`), cited by its
+# number or date; and everything under design/roadmap/, whose slugs restate milestone titles, which
+# calef ruled drafts on 2026-08-04 (a proposal's slug becomes its milestone's).
+
+def tracked(*patterns):
+    out = subprocess.run(["git", "-C", root, "ls-files", "-z", "--", *patterns],
+                         capture_output=True, text=True, check=True).stdout
+    return [p for p in out.split("\0") if p]
+
+
+SURFACE_FILES = {os.path.relpath(path, root) for kind, _n, path, _p in items()
+                 if kind in ("crate", "program")}
+RECORD_STEM = re.compile(r"^\d")
+
+
+def rust_records():
+    out = []
+    for rel in tracked("*.rs"):
+        if rel.startswith(("vendor/", "patches/")):
+            continue
+        text = open(os.path.join(root, rel), errors="replace").read()
+        if "Name:" not in text and "Provisional name" not in text:
+            continue
+        for it in name_provenance.rust_items(text):
+            for number, line, why in it["strays"]:
+                problems.append(f"item in {rel}:{number} reads as a provenance header and is not "
+                                f"the block that was read, because {STRAY_WHY[why]}\n      {line}")
+            for number in it["ad_hoc"]:
+                problems.append(f"item in {rel}:{number} marks its name provisional in prose, which "
+                                f"the worklist cannot see; write `/// Name: provisional, <who, "
+                                f"when>.` instead")
+            if it["block"] is None:
+                continue
+            if it["name"] is None:
+                problems.append(f"item in {rel}:{it['line']}: a `Name:` block on a doc comment "
+                                f"that documents nothing the parse can name")
+                continue
+            out.append((f"item", it["name"], f"{rel}:{it['line']}", it["block"], it["what"]))
+        if rel in SURFACE_FILES:
+            continue
+        # A module's own `//!` block. Strays are read over `//!` and `//` lines only: a `///` header
+        # belongs to an item and was judged above.
+        own = "\n".join(line for line in text.split("\n") if not line.lstrip().startswith("///"))
+        for number, line, why in name_provenance.strays(own, "//!"):
+            if not line.lstrip().startswith("//!"):
+                continue    # a `//` note beside code (xtask records subcommand rulings so) is prose
+            problems.append(f"module in {rel}: a line reads as a provenance header and is not the "
+                            f"block that was read, because {STRAY_WHY[why]}\n      {line.strip()}")
+        found = name_provenance.block(text, "//!")
+        if found is not None:
+            stem = os.path.splitext(os.path.basename(rel))[0]
+            if stem in ("mod", "lib", "main"):
+                stem = os.path.basename(os.path.dirname(rel))
+            out.append(("module", stem, rel, found, "module"))
+    return out
+
+
+def document_records():
+    out = []
+    dirs = sorted({os.path.dirname(p) for p in tracked("design/*.md", "notes/*.md", "briefs/*.md")}
+                  - {"design", "notes", "briefs"})
+    for d in dirs:
+        base = os.path.basename(d)
+        if RECORD_STEM.match(base):
+            continue
+        readme = os.path.join(d, "README.md")
+        path = os.path.join(root, readme)
+        if not os.path.exists(path):
+            problems.append(f"directory {d}/: no README.md, and §75 puts a directory's `Name:` "
+                            f"block there")
+            continue
+        own, stems, loose = name_provenance.markdown_blocks(open(path, errors="replace").read())
+        for number, para in loose:
+            problems.append(f"directory {d}/: {readme}:{number} reads as a provenance header the "
+                            f"parse does not take (bold, a second directory block, or a prose "
+                            f"`Provisional name`)\n      {para[:120]}")
+        if own is None:
+            problems.append(f"directory {d}/: {readme} carries no paragraph opening `Name:`")
+            continue
+        out.append(("directory", d + "/", readme, own, "directory"))
+        if d == "design/roadmap" or d.startswith("design/roadmap/"):
+            continue
+        names = sorted(os.path.splitext(os.path.basename(p))[0] for p in tracked(d + "/*.md")
+                       if os.path.dirname(p) == d and os.path.basename(p) != "README.md")
+        for stem in names:
+            if RECORD_STEM.match(stem):
+                continue
+            out.append(("document", stem, f"{d}/{stem}.md", stems.get(stem, own), "document"))
+        for stem in sorted(set(stems) - set(names)):
+            problems.append(f"directory {d}/: {readme} records `{stem}`, which is not a file here")
+    return out
+
+
 records = []
+for kind, name, path, text, what in rust_records() + document_records():
+    status, date, refused, problem = name_provenance.classify(text)
+    if problem is not None:
+        problems.append(f"{what} {name} ({path}): the block must start `ratified <date>`, "
+                        f"`recorded (where)`, `provisional` or `unrecorded`, with a date on "
+                        f"`ratified` and a citation on `recorded` (found {text[:48]!r})")
+        continue
+    records.append({"kind": kind, "name": name, "path": path, "status": status, "date": date,
+                    "refused": refused, "text": text, "what": what})
+
 for kind, name, path, prefix in items():
     source, text, err = block(path, prefix)
     if err:
@@ -364,7 +507,8 @@ refusals = [(bad, r) for r in records for bad in r["refused"]]
 # the worklist as what `--unratified` prints. So the two-category number was the bug and the
 # three-category one was right.
 worklist = provisional + recorded + unrecorded
-KINDS = ["crate", "program", "package", "script"]
+KINDS = ["crate", "program", "package", "item", "module", "directory", "document", "script"]
+PLURAL = {"directory": "directories"}
 
 # The worklist's order, and it is exposure rather than alphabet or count, because exposure is what
 # makes a wrong name expensive. A program is what a person types at the prompt, so it is read by
@@ -378,7 +522,8 @@ KINDS = ["crate", "program", "package", "script"]
 # `components/src/` and `fixtures/src/` is in the initrd and can be typed, so the kind is the
 # honest tier and needs no
 # classification anybody could get wrong.
-EXPOSURE = {"program": 0, "crate": 1, "package": 2, "script": 3}
+EXPOSURE = {"program": 0, "crate": 1, "package": 2, "item": 3, "module": 3,
+            "directory": 4, "document": 4, "script": 5}
 # `package` sits between `crate` and `script`: a package name is read in a `[dependencies]`
 # list and in a `use` statement, which is the crate tier, but most of these are structural
 # (`kernel`, `user`, `xtask`) and a stranger meets them as directories rather than as choices.
@@ -415,9 +560,13 @@ if mode == "--check":
               "never fails a build.", file=sys.stderr)
         print("`unrecorded` is a real answer; a ratification you cannot cite is not.",
               file=sys.stderr)
+        print("An item marks its name with a `/// Name: provisional, <who, when>.` paragraph, a "
+              "documentation directory with a", file=sys.stderr)
+        print("README paragraph opening `Name:`; see the `item` and `directory` kinds in this "
+              "script's header.", file=sys.stderr)
         sys.exit(1)
     print(f"names: {len(records)} names carry provenance "
-          f"({', '.join(f'{len(by_kind.get(k, []))} {k}s' for k in KINDS)})")
+          f"({', '.join(f'{len(by_kind.get(k, []))} {PLURAL.get(k, k + chr(115))}' for k in KINDS)})")
     print(f"names: {len(ratified)} ratified, {len(provisional)} provisional, {len(recorded)} "
           f"recorded, {len(unrecorded)} unrecorded, {len(refusals)} refusals recorded beside them")
     print(f"names: {len(worklist)} still want calef "
@@ -454,14 +603,17 @@ if mode == "--unrecorded":
 
 if mode == "--unratified":
     todo = sorted(worklist,
-                  key=lambda r: (EXPOSURE[r["kind"]], URGENCY[r["status"]], r["name"]))
+                  key=lambda r: (EXPOSURE[r["kind"]], KINDS.index(r["kind"]),
+                                 URGENCY[r["status"]],
+                                 r["path"] if r["kind"] == "document" else r["name"]))
     if not todo:
         print("every name in the tree is ratified")
         sys.exit(0)
     print(f"UNRATIFIED ({len(todo)} of {len(records)}), in the order worth working through\n")
     print("Exposure first: a program is typed at the prompt, a crate is what a newcomer greps,")
-    print("a script/ entry point is typed by whoever works on the tree. Within a tier, a name")
-    print("nobody can justify comes before one whose reasoning merely lacks a signature.\n")
+    print("an item or module is read in a `use` line, a directory or document is what a reader")
+    print("opens, and a script/ entry point is typed by whoever works on the tree. Within a tier,")
+    print("a name nobody can justify comes before one whose reasoning merely lacks a signature.\n")
     # design/naming.md is the authority for the conventions a ratification is judged against
     # (DECISIONS §155). AGENTS.md keeps only "names are calef's, ship provisional", so whoever is
     # about to rule is reading the wrong file unless something says so, and this is the command
@@ -471,8 +623,9 @@ if mode == "--unratified":
     for r in todo:
         if (r["kind"], r["status"]) != tier:
             tier = (r["kind"], r["status"])
-            print(f"  {r['kind']}s, {r['status']}")
-        print(f"    {r['name']:<28} {r['path']}")
+            print(f"  {PLURAL.get(r['kind'], r['kind'] + 's')}, {r['status']}")
+        label = f"{r['name']} ({r['what']})" if r["kind"] == "item" else r["name"]
+        print(f"    {label:<40} {r['path']}")
     print(f"\n{len(provisional)} provisional (the author expects a change), "
           f"{len(unrecorded)} unrecorded (research, then a ruling), "
           f"{len(recorded)} recorded (a ruling only).")

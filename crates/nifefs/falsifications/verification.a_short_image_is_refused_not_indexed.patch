@@ -6,14 +6,23 @@ check; what it misses is that the entry table runs on to the end of `DIR_BLOCKS`
 comment above the line is the only thing that says so.
 
 Expected to fail: the harness's `assert_eq!(Fs::parse(&image).err(), Some(Error::Truncated))` on
-an image one byte short of the directory span. The parse continues into entry reads past the end
-of the buffer, which is a filesystem server indexing an image a client handed it.
+an image one byte short of the directory span, alongside an unwinding assertion in `parse`'s entry
+loop. The parse accepts the short image and goes on to index its directory, which is a filesystem
+server trusting an image a client handed it. Red in 19.6 s of verification on 2026-09-24.
+
+This record needs the harness's `#[kani::unwind(9)]`. Without it the replay never reaches a
+verdict (#1156's CI run was cancelled at 45 minutes), which is why #1217 briefly recorded a
+reordering in its place; the harness's comment has the measurements.
 
 diff --git a/crates/nifefs/src/lib.rs b/crates/nifefs/src/lib.rs
 --- a/crates/nifefs/src/lib.rs
 +++ b/crates/nifefs/src/lib.rs
-@@ -254,3 +254,3 @@ impl<'a> Fs<'a> {
+@@ -262,7 +262,7 @@ impl<'a> Fs<'a> {
+         // The directory blocks must be present before any entry offset (up to HEADER_LEN +
+         // MAX_FILES*ENTRY_LEN, which sits inside DIR_BLOCKS) is read; this guard is what makes
          // those reads sound.
 -        if image.len() < DIR_BLOCKS * BLOCK {
 +        if image.len() < BLOCK {
              return Err(Error::Truncated);
+         }
+         if image[0..8] != MAGIC {

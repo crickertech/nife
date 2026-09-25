@@ -5,8 +5,25 @@ name: toolchain bump
 #   1. PROPOSE (here): raise the pin, rebuild the std overlay as a fast sanity check, open a PR.
 #   2. VERIFY (the CI workflow, on that PR): both ISAs, the proofs, the benchmarks. The real gate
 #      stays the real gate; this job deliberately does not try to be it.
-#   3. ACCEPT (a human): re-record the icount floors on this branch, having read what moved, then
-#      merge. Nothing changes what the project compiles with until someone says so.
+#   3. ACCEPT (whoever picks it up, usually a maintainer session): re-record the icount floors on
+#      this branch, having read what moved, then let it merge. Nothing changes what the project
+#      compiles with until someone has read the delta.
+#
+# **The default is to merge** (calef, 2026-09-24: "Our default should be to merge and we should only
+# block it if there is a compelling reason to."). Once the floors are re-recorded and CI is green, the
+# bump is not labelled `needs-architect` and the merge drain enqueues it like any other green pull
+# request; this job does not arm it, and does not need to. Hold it (the label, plus a `## What I need
+# from you` comment carrying the evidence) only for a compelling reason, which is one of:
+#
+#   - a Kani proof or falsification result that changed;
+#   - a bench tripwire that moved beyond tolerance;
+#   - a new lint that could only be silenced with a crate- or workspace-level allow;
+#   - a behaviour change in a test's output;
+#   - a compile break that could not be fixed small.
+#
+# Before 2026-09-24 this step read "ACCEPT (a human)", and the pull request said "it wants a human".
+# The ruling keeps the part of that which was load-bearing (somebody reads the delta and writes a
+# `--why`) and drops the rest (that the somebody had to be calef).
 #
 # **The floors are part of ACCEPT and not of PROPOSE, on purpose** (calef, 2026-09-21). A new
 # compiler emits different instruction sequences, so `bench/baseline-*.txt` is revalued by a bump
@@ -45,7 +62,7 @@ jobs:
     # branches are `main` only. A merge-group build runs on a `gh-readonly-queue/main/...` ref, which
     # is not `main`, so it cannot read them even if a pull request edits this workflow to name the
     # environment. Adopted by calef 2026-09-24 (options 2 and 3 of
-    # design/roadmap/proposals/a-merge-needs-a-review-no-fork-can-supply.md; the finding is 1 in
+    # design/roadmap/588-a-merge-needs-a-review-no-fork-can-supply.md; the finding is 1 in
     # design/audit-reports/2026-09-24-new-trust-boundaries.md). BUGS: the protection only exists
     # once the organisation-level copies of the two secrets are deleted, since an org secret is
     # visible to every job whatever its environment. Only jobs that mint the App token name it,
@@ -289,7 +306,9 @@ jobs:
           a change no commit is responsible for, and this job re-recording them for you would make
           them track the toolchain silently.
 
-          Merging changes what every build in the project compiles with, so it wants a human."
+          Merging changes what every build in the project compiles with, so somebody reads the
+          delta and re-records the floors first. After that the default is to merge (calef,
+          2026-09-24); hold only for a compelling reason, listed in this workflow's header."
             body="$lane
 
           Raises \`rust-toolchain.toml\` from \`$CURRENT\` to \`$TARGET\`.
@@ -307,12 +326,15 @@ jobs:
           not, most of the tripwire's headroom went, and the tree was bumped again before anybody
           acted.
 
-          The fix is three commands on this branch, in this PR, having **read the deltas first**:
+          The fix is three commands on this branch, in this PR, having **read the deltas first**.
+          \`--check\` compares against the floors, which also carry any drift already on \`main\`; to
+          see what the compiler alone moved, compare this PR's bench job with the merge-group bench
+          run of its base commit, which is the same tree on the old nightly:
 
           \`\`\`
           script/bench --check && script/bench --riscv --check && script/bench --x86 --check
-          script/bench --save --why "nightly bump: <what moved>"
-          script/bench --riscv --save --why "..." && script/bench --x86 --save --why "..."
+          script/bench --save --why \"nightly bump: <what moved>\"
+          script/bench --riscv --save --why \"...\" && script/bench --x86 --save --why \"...\"
           \`\`\`
 
           **This job deliberately does not do that for you.** A bump that re-recorded the floors as
@@ -320,6 +342,14 @@ jobs:
           that genuinely made this kernel slower would move the floor by as much as it moved the
           kernel and report nothing. \`--why\` is required and writes that account into the floor
           itself, beside the numbers (milestone 302 (a baseline records what it was saved against)); say the same thing in the commit message.
+
+          **Then the default is to merge** (calef, 2026-09-24). Once the floors are re-recorded and CI
+          is green, the merge drain enqueues this like any other green pull request. Hold it with
+          \`needs-architect\` and a \`## What I need from you\` comment only for a compelling reason:
+          a changed proof or falsification result, a bench move beyond tolerance, a lint silenced
+          only by a crate- or workspace-level allow, a changed test output, or a compile break too
+          large to fix small. Merge before the next scheduled run: this branch is force-pushed daily,
+          and a re-recorded floor on it does not survive that.
 
           If CI here is red, upstream has moved away from us. Do not merge; the fix is a commit to this
           branch adding whatever the overlay now needs (usually a name in the \`pub use

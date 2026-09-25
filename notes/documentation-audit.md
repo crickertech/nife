@@ -174,6 +174,13 @@ $ script/audits --baseline     # the counts to paste into both index tables
 
 ## BUGS
 
+- The worklist cannot see a moved document. Added by the 2026-09-24 sweep. It ranks a document by
+  how much of the code it cites has moved since the document was edited. A document split into
+  appendices was edited that day, so it ranks low, while every file citing one of its sections now
+  points at the wrong page. None of the eight documents split on 2026-09-23 and 2026-09-24 was in the
+  worklist's top 30, and that sweep found 39 such pointers. After a split, sweep the inbound side:
+  grep the tree for the document's path next to a quoted heading, a date or the word "section".
+
 - **The worklist cannot see a doc comment, so it cannot see the ABI.** Added by the 2026-08-17 sweep,
   which took its lens from the trigger instead and found five stale claims about the width of the
   syscall surface. Not one ABI document was in the worklist's top twenty, and the reason is

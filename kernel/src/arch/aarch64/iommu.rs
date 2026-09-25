@@ -256,7 +256,7 @@ fn cmd_push(s: &mut Smmu, cmd: [u32; 4]) {
         }
     }
     // The SMMU reads the command by DMA from its own viewpoint: publish the words before PROD.
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
     s.cmdq_prod = (s.cmdq_prod + 1) & ((1 << (CMDQ_LOG2 + 1)) - 1);
     w32(s.base, CMDQ_PROD, s.cmdq_prod);
 
@@ -366,7 +366,7 @@ pub fn attach(rid: u32, ttb: u64, asid: u16) {
     }
 
     // The tables are read by the SMMU, a separate observer: publish before telling it to look.
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
 
     // Drop whatever the SMMU cached for this stream: its STE, its CD, and every TLB entry (a
     // re-attach reuses the ASID with a brand-new table, so the broad TLBI is the correct one).

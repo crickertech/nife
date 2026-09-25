@@ -96,8 +96,9 @@ fn tx_buf(i: usize) -> u64 {
 }
 
 // Raw DMA-page and device-register access. The DMA page is one contiguous physical frame mapped at
-// DMA_VA, so a physical address the device needs is `dma_phys + offset`. Bounds-checked against
-// the page by `WINDOW` (milestone 139) instead of trusted by hand at every call site.
+// DMA_VA, so a physical address the device needs is `direct_memory_access_phys + offset`.
+// Bounds-checked against the page by `WINDOW` (milestone 139 (drive the unsafe count down))
+// instead of trusted by hand at every call site.
 fn r8(off: u64) -> u8 {
     WINDOW.r8(off)
 }
@@ -132,7 +133,7 @@ fn write_desc(desc_base: u64, i: u64, addr: u64, len: u32, flags: u16, next: u16
 /// The virtio-net device, presenting smoltcp's `Device`. Holds the ring bookkeeping; the buffers
 /// and descriptor tables live in the DMA page at fixed offsets.
 pub struct VirtioNet {
-    dma_phys: u64,
+    direct_memory_access_phys: u64,
     rx_avail: u16,
     rx_seen: u16, // receive used-ring index already drained
     tx_avail: u16,
@@ -142,7 +143,7 @@ pub struct VirtioNet {
 impl VirtioNet {
     /// Bring the NIC up: the modern handshake, both queues through the kernel, and every receive
     /// buffer posted so the device has somewhere to put inbound frames from the first instant.
-    pub fn bring_up(dma_phys: u64) -> VirtioNet {
+    pub fn bring_up(direct_memory_access_phys: u64) -> VirtioNet {
         assert_eq!(mr(MAGIC), 0x7472_6976, "not a virtio device");
 
         mw(STATUS, 0);
@@ -174,7 +175,7 @@ impl VirtioNet {
         );
 
         let mut dev = VirtioNet {
-            dma_phys,
+            direct_memory_access_phys,
             rx_avail: 0,
             rx_seen: 0,
             tx_avail: 0,
@@ -186,7 +187,7 @@ impl VirtioNet {
             write_desc(
                 RX_DESC,
                 i as u64,
-                dev.dma_phys + rx_buf(i),
+                dev.direct_memory_access_phys + rx_buf(i),
                 BUF as u32,
                 VIRTQ_DESC_F_WRITE,
                 0,
@@ -229,9 +230,10 @@ impl VirtioNet {
         let total = r32(RX_USED + 4 + slot * 8 + 4) as u64; // bytes written incl the virtio header
 
         // **Both of those are 32-bit values the DEVICE wrote, and neither is ours to trust**
-        // (notes/shared-page-audit.md, finding 6). The IOMMU and `crates/dma_validator` confine
-        // where the device may *touch*; they say nothing about what it may *say*, and the used
-        // ring is inside this driver's own DMA page, which the device is entitled to write.
+        // (notes/shared-page-audit.md, finding 6). The IOMMU and
+        // `crates/direct_memory_access_validator` confine where the device may *touch*; they say
+        // nothing about what it may *say*, and the used ring is inside this driver's own DMA page,
+        // which the device is entitled to write.
         //
         // An unchecked `id` walks `rx_buf(id) = 0x400 + id * 0x2C0` clean out of the one-page DMA
         // region: `id = 4` is already past it, and `id` near 1.5 million lands on this process's
@@ -296,7 +298,7 @@ impl VirtioNet {
         write_desc(
             TX_DESC,
             i as u64,
-            self.dma_phys + buf,
+            self.direct_memory_access_phys + buf,
             (NET_HDR_LEN + frame.len() as u64) as u32,
             0, // device reads the buffer (transmit)
             0,

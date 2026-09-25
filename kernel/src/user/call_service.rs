@@ -1,3 +1,8 @@
+//! Name: ratified 2026-09-15 (calef, the doc on `wire`, moved here 2026-09-24), as
+//! `call_reply_service`. The wiring folds onto the same `call_reply` stem as the two fixtures it
+//! spawns, so `git grep call_reply` finds the pair and their kernel-side wiring as one family.
+//! Module/file rename pending the batched 291 sweep.
+
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
@@ -9,10 +14,6 @@ use crate::sched::RendezvousId;
 /// **Two images, one endpoint.** These were roles 14 and 15 of the `hello` multiplexer until
 /// milestone 291, so this took one image and two role numbers; they are `fixtures/src/call_server.rs`
 /// and `fixtures/src/call_client.rs` now, and neither reads `x0`.
-///
-/// Name: ratified `call_reply_service` 2026-09-15 (calef, this header). The wiring folds onto the
-/// same `call_reply` stem as the two fixtures it spawns, so `git grep call_reply` finds the pair and
-/// their kernel-side wiring as one family. Module/file rename pending the batched 291 sweep.
 pub fn wire() -> (RendezvousId, RendezvousId) {
     let server = program("call_server").expect("no call_server program in the archive");
     let client = program("call_client").expect("no call_client program in the archive");

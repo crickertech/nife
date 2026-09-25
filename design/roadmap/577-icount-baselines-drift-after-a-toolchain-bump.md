@@ -95,13 +95,13 @@ Measured 2026-09-23 by the lane clearing PR #1112, and corroborated here from gi
   whose only account of itself is a commit message.
 
 **Two competent lanes reached opposite conclusions about the same counter four days apart, and the
-file could not tell either of them anything.** notes/benchmarks.md's 2026-09-21 section attributes
-6476 to a run made at the wrong hart count and shows the row is hart-sensitive (5991 at one hart,
-6432 at two, 7153 at four). Tonight's reading attributes the same oscillation to the compiler. Both
-are argued from outside the file, because the file records a number and not why it holds that value,
-and **that is the gap**: not that a floor goes stale, which now fails loudly, but that a floor cannot
-say what it means. It is the `BUGS`-section posture applied to a data file, and it is already item 2
-of 415 and the `# why:` line of 302.
+file could not tell either of them anything.** `notes/benchmarks/rfence-self-row.md`'s 2026-09-21
+reading attributes 6476 to a run made at the wrong hart count and shows the row is hart-sensitive
+(5991 at one hart, 6432 at two, 7153 at four). Tonight's reading attributes the same oscillation to
+the compiler. Both are argued from outside the file, because the file records a number and not why
+it holds that value, and **that is the gap**: not that a floor goes stale, which now fails loudly,
+but that a floor cannot say what it means. It is the `BUGS`-section posture applied to a data file,
+and it is already item 2 of 415 and the `# why:` line of 302.
 
 The concrete cost is in notes/benchmarks.md already, from the lane that hand-edited the row: the `#`
 comment it wrote above `rfence_self` explaining the correction **did not survive the next `--save`**,

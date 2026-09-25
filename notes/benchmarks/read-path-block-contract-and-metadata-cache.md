@@ -221,16 +221,41 @@ filesystem.
 It also asks a different question. Linux tells us whether the architecture is viable; Redox tells us
 whether we are a good instance of it, against a project about a decade older than this one.
 
-It carries a falsifiable prediction. `redoxfs::DiskCache` is std-only and is never wrapped around
-`IpcDisk` here (measured while identifying the 208 us). Redox has `std`, so Redox is expected to run
-that cache and this system is known not to. If Redox is faster by roughly the 195 us the metadata
-walk costs, that confirms milestone 138's step 2 from an independent direction. If it is faster by
-substantially more, something is wrong somewhere nobody has looked, which is the more valuable
-outcome.
+It carries a falsifiable prediction, restated 2026-09-24 against the build that ships step 2.
+*(Correction, 2026-09-24: the 2026-08-19 version assumed this system ran no metadata cache. It
+predicted Redox faster by roughly the ~195 us the tree walk cost, with `redoxfs::DiskCache` as the
+difference. Step 2, above, shipped `CachedDisk` the same day, so that term is gone from this side
+and the prediction as written would have confirmed nothing.)*
 
-*(Correction, 2026-09-24: step 2, above, has since shipped `CachedDisk`, so this system now does run a
-metadata cache. The prediction has to be restated against the current build before the comparison is
-run.)*
+Both systems now cache the metadata walk, but not the same way, and the prediction has to name
+where they differ:
+
+| | `redoxfs::DiskCache` (Redox, expected) | `CachedDisk` (this system) |
+|---|---|---|
+| size | 16 MiB, `vendor/redoxfs/src/disk/cache.rs` | 64 slots, ~257 KiB |
+| policy | FIFO over a `HashMap` | direct-mapped, `block % 64` |
+| what it holds | every block read, record bodies included | single-block reads only; a record body bypasses it |
+
+Redox is still only *expected* to run `DiskCache`: it is std-only, and Redox has `std`. That is
+read from the vendored source, not from Redox's running filesystem service, and the comparison should confirm it first.
+
+So the prediction splits in three, and each part answers a different question:
+
+1. **One file, first pass.** Neither cache can hold a data block it has not yet read, and both hold
+   the walk after the first request. The ~195 us term should appear on neither side. Whatever gap
+   remains is the IPC, the scheduler, the block driver and the shared-page contract, which is the
+   question this comparison exists for. If Redox is faster here by roughly 195 us again,
+   `CachedDisk` is not doing on this path what `fs_read`'s 22.2x says it does. If it is faster by
+   substantially more, something is wrong somewhere nobody has looked, which is still the more
+   valuable outcome.
+2. **The same file read again.** Redox's cache holds the data blocks and this one does not, so Redox
+   should win by roughly the device term of every record. That prices a data cache this system
+   chose not to build (the page-cache gap milestone 138 (close the read gap) scoped out), not the
+   architecture, and it has to be reported as such or it will be quoted as the latter.
+3. **Several files open at once.** 64 direct-mapped slots collide across the tree's shared upper
+   levels, the case step 2's BUGS says nobody has measured. A gap here is cache capacity and policy.
+   It is worth running because it is the first workload that would show a reader the collision
+   entry above as a number.
 
 Caveats, both directions:
 

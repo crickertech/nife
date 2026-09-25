@@ -1,5 +1,5 @@
 [package]
-name = "dma_validator"
+name = "direct_memory_access_validator"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true

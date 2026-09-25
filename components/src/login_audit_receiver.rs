@@ -34,30 +34,35 @@
 //! to the console, anywhere) needs a different, real consumer in this program's place, which is
 //! follow-on work and not attempted here.
 //!
-//! Name: provisional, and ruled: calef ruled **`login_audit_receiver`** on 2026-09-13, working the
-//! unratified worklist. The block stays `provisional` because the ratified name is not this file's
-//! until the rename is performed, and until then `audit_sink` belongs on the worklist rather than
-//! off it. Minted 2026-08-27 for milestone 49's boot-wiring update.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), and performed 2026-09-24,
+//! replacing `audit_sink`. Minted 2026-08-27 for the boot-wiring update of milestone 49 (users and
+//! attribution) as `audit_sink`, a provisional name. Refused `audit_sink` (half the name was honest
+//! and half was not: an audit trail that is discarded is not an audit trail, and a reader meeting
+//! it in a process listing would reasonably conclude the system records logins somewhere; nothing
+//! does). Refused `login_audit_discarder` (what the program does today and the first
+//! recommendation, but it names the disposal rather than the role and would itself need renaming
+//! the moment the records are kept). Refused `login_audit_sink` (it fixes whose audit it is and
+//! keeps the promise that something is audited). Refused `audit_drain` (the same defect again, and
+//! "drain" is spent in this tree on the merge-drain helper).
 //!
-//! **And it carries the name it becomes.** calef, ruling it: *"We would probably rename to
-//! `login_audit_recorder` when it does record the login audit."* That is the condition written
-//! down rather than left to whoever notices, the same shape §71 asks of a `BUGS` entry that names
-//! what would promote it. Whoever gives this program a `WRITE` view and makes it keep records
-//! performs that rename in the same change.
+//! `login_audit_receiver` survives the day the records are kept, and `login_audit_recorder` is the
+//! honest successor. calef, ruling it: *"We would probably rename to `login_audit_recorder` when it
+//! does record the login audit."* That is the condition written down rather than left to whoever
+//! notices, the same shape §71 (a limitation is promoted when it stops being a fact) asks of a
+//! `BUGS` entry that names what would promote it. Whoever gives this program a `WRITE` view and
+//! makes it keep records performs that rename in the same change.
 //!
-//! **Why `audit_sink` went.** Half the name was honest and half was not. "Sink" is already this
-//! tree's word for the end of a stream nobody reads further (`byte_sink_protocol`,
-//! `terminal_sink_caretaker`), and that is exactly this program's role. But an audit trail that is
-//! discarded is not an audit trail, and a reader meeting `audit_sink` in a process listing would
-//! reasonably conclude the system records logins somewhere. Nothing does. That is the fault
-//! `flaky` was renamed for the same day: borrowed recognition the program contradicts.
+//! Why the old name went, in more words. "Sink" is already this tree's word for the end of a stream
+//! nobody reads further (`byte_sink_protocol`, `terminal_sink_caretaker`), and that is exactly this
+//! program's role. The fault was the `audit` half, which is the fault `flaky` was renamed for the
+//! same day: borrowed recognition the program contradicts. The structural-versus-current test this
+//! ruling set is in `design/naming/vocabulary-rulings.md`.
 //!
-//! Refused `login_audit_discarder`, which is what the program does today and was the first
-//! recommendation, because it names the disposal rather than the role and would itself need
-//! renaming the moment the records are kept; `login_audit_receiver` survives that day and
-//! `login_audit_recorder` is the honest successor. Refused `login_audit_sink`, which fixes whose
-//! audit it is and keeps the promise that something is audited. Refused `audit_drain`, the same
-//! defect again, and "drain" is spent in this tree on `scripts/merge-drain.sh`.
+//! The first form of this block (2026-09-13 to 2026-09-24) wrote the four refusals as one run-on
+//! paragraph, so the parse also recorded `login_audit_receiver` and `login_audit_recorder` as
+//! refused. Neither was: one won and the other is the named successor. Rewritten with one refusal
+//! per sentence at the rename, which moved the tree-wide refusal count by those two and by the one
+//! `audit_sink` adds.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

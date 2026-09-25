@@ -31,7 +31,7 @@ So if a lane reports a failure that CI says did not happen, believe the lane and
 
 ## Know that a watcher will fight you, and check it first
 
-`scripts/merge-drain.sh` runs unattended on patagonia under `launchd` with `StartInterval 300`, and
+`scripts/merge-drain.sh` runs unattended as the `merge drain` Actions workflow every five minutes, and
 its charter is the first line of its own header: enqueue every pull request that does not need calef.
 **It re-enqueued a held set three times on 2026-09-23 while the operator watched**, because its
 admission policy knew only drafts and `needs-architect`. The failure is invisible in the worst way: a
@@ -41,9 +41,9 @@ it was misdiagnosed twice before anyone read the script.
 The drain now excludes `held-for-red-trunk` as well, so a hold placed with that change on `main`
 survives. **A hold placed against a checkout or a running drain from before it does not, and will be
 undone within five minutes.** If in doubt, stop the drain first and remember that you now owe a
-reload:
+re-enable. This works from any host with `gh`, including a cloud session:
 
-    launchctl unload ~/Library/LaunchAgents/com.nife.merge-drain.plist
+    gh workflow disable "merge drain"
 
 ## Then hold, and hold before you enqueue the fix
 
@@ -80,9 +80,9 @@ more often than it feels like it is.
 
 **If you stopped the drain, start it again. This is part of release, not an afterthought:**
 
-    launchctl load ~/Library/LaunchAgents/com.nife.merge-drain.plist
+    gh workflow enable "merge drain"
 
-A drain left unloaded is a queue that lands nothing and says nothing about why, which is the same
+A drain left disabled is a queue that lands nothing and says nothing about why, which is the same
 silent-stall shape this whole procedure exists to shorten.
 
 Release re-arms auto-merge and removes the label. **Anything it could not re-arm keeps the label on
@@ -101,8 +101,8 @@ The label is the whole recovery record; nothing else was kept, and nothing expir
 1. `gh pr list --repo crickertech/nife --label held-for-red-trunk` is the held set, whoever made it.
 2. `scripts/trunk-health.sh --once`. If `main` is green, the fix landed and the hold was simply never
    given back: run `scripts/queue-hold.sh release`.
-3. Check the drain is loaded: `launchctl list | grep com.nife.merge-drain`. A session that stopped
-   it by hand and died owes you the reload, and nothing else will notice it is gone.
+3. Check the drain is enabled: `gh workflow view "merge drain"` reads `active`. A session that
+   disabled it and died owes you the re-enable, and nothing else will notice it is gone.
 4. If `main` is still red and no fix pull request is open, the previous session died before it wrote
    one. You are now the session that noticed; start at the top of this brief.
 5. If a pull request carries both `held-for-red-trunk` and `needs-architect`, leave it held. The

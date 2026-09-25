@@ -91,7 +91,7 @@ coremark = { version = "0.1.0", path = "../crates/coremark" }
 # sentinel have one definition rather than a literal apiece with a "must match" comment.
 capability_witness_protocol = { version = "0.1.0", path = "../crates/capability_witness_protocol" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
-dma_validator = { version = "0.1.0", path = "../crates/dma_validator" }
+direct_memory_access_validator = { version = "0.1.0", path = "../crates/direct_memory_access_validator" }
 filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
 graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 # The entropy contract (milestone 56, DECISIONS §44). The kernel wires the entropy service and its
@@ -170,7 +170,8 @@ spin = { version = "0.12", default-features = false, features = ["spin_mutex"] }
 # The work-steal handshake (milestone 80): the one lock-free cross-core protocol in the scheduler,
 # lifted out of `cpu.rs` so a model checker can reach it. The kernel calls the checked type rather
 # than keeping a second copy of the compare-exchange, the same move `memory_regions`,
-# `inter_process_communication` and `dma_validator` made for Kani. See notes/interleaving.md.
+# `inter_process_communication` and `direct_memory_access_validator` made for Kani. See
+# notes/interleaving.md.
 work_steal_slot = { version = "0.1.0", path = "../crates/work_steal_slot" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The scheduler's block/wake handshake, so the kernel calls the loom-searched transitions rather

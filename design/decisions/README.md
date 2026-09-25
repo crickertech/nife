@@ -1,6 +1,6 @@
 # nife: Architecture Decisions
 
-*Name: ratified (§75 covers this directory). `decisions` names what the files are, one each, and the tree cites them as `§N` regardless of the directory's name; the plural is deliberate, since a singular would read as one decision about design rather than a place where decisions live.*
+*Name: ratified 2026-08-04 (calef, §75 (directories under `design/` and `notes/` carry provenance in their own README) covers this directory). `decisions` names what the files are, one each, and the tree cites them as `§N` regardless of the directory's name; the plural is deliberate, since a singular would read as one decision about design rather than a place where decisions live.*
 
 Decisions made 2026-07-12, before any code was written. Each entry records what we
 chose, what we rejected, and why. Revisit these deliberately, not accidentally.
@@ -313,7 +313,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 200 | DECIDED | [Two crates the documentation system refused, and why each loses on its own terms](200-two-crates-the-documentation-system-refused.md) |
 | 201 | DECIDED | [One roadmap until a citation has to cross, and the blocked side declares the dependency](201-one-roadmap-until-a-citation-has-to-cross.md) |
 | 202 | DECIDED | [Mechanical work goes to a cheaper model, and the gates are why that is safe](202-mechanical-work-goes-to-a-cheaper-model.md) |
-| 203 | DECIDED | [Capacity is rented rather than bought, and what each of the three benches is still for](203-capacity-is-rented-not-bought.md) |
+| 203 | AMENDED | [Capacity is rented rather than bought, and what each of the three benches is still for](203-capacity-is-rented-not-bought.md) |
 | 204 | DECIDED | [How userspace asks where a thread runs](204-how-userspace-asks-where-a-thread-runs.md) |
 | 205 | DECIDED | [The subscription stays, and rented models fill the mechanical tail](205-the-subscription-stays-and-renting-fills-the-tail.md) |
 | 206 | PROPOSED | [Filing a lane's findings is a step, not a duty somebody remembers](206-filing-a-lanes-findings-is-a-step-not-a-duty.md) |
@@ -324,6 +324,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 211 | DECIDED | [What a fatal-risk verdict says, and what the chart can plot as a result](211-what-a-fatal-risk-verdict-says.md) |
 | 212 | DECIDED | [A prose budget: 3,000 words of main body, with appendices under the same cap](212-a-prose-budget-for-every-document.md) |
 | 213 | DECIDED | [Writing standards: three countable rules, one review rule, and a ratchet](213-writing-standards.md) |
+| 214 | DECIDED | [The Team plan buys runner concurrency, and merge throughput is no longer third](214-the-team-plan-buys-runner-concurrency.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

@@ -81,7 +81,7 @@
 #     evening, invisibly (a dequeue leaves no trace of why an entry returned). Its admission policy
 #     now excludes `held-for-red-trunk` alongside `needs-architect`. **A drain running from a
 #     checkout older than that change will still undo a hold within five minutes**; stop it by hand
-#     (`launchctl unload ~/Library/LaunchAgents/com.nife.merge-drain.plist`) and reload it on
+#     (`gh workflow disable "merge drain"`, since it is an Actions workflow now) and re-enable it on
 #     release. briefs/main-is-red.md carries both commands.
 #   - **`gh pr list --label` reads a search index that lags the label write.** In the 2026-09-23
 #     rehearsal a `release --dry-run` run seconds after a label was added listed one held pull

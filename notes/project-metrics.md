@@ -14,9 +14,31 @@ describes.
 **This page is a deck** (calef, 2026-09-24). A chart is a heading, an image, and at most a line or
 two saying what it plots and what would otherwise be misread. Everything longer, the definitions,
 the arguments behind a measure, the deadlines, the reconciliations and the dated analyses, lives in
-[`notes/register-of-measures.md`](register-of-measures.md) under *The weekly series*, which is the
-half of this pair that does not change. Keep it that way: a caveat that cannot survive one line is
+[`notes/register-of-measures.md`](register-of-measures.md), whose *The weekly series* table routes
+each chart to the appendix that argues it. That register is the half of this pair that does not
+change. Keep it that way: a caveat that cannot survive one line is
 not a caption, it is a register entry.
+
+<!-- toc: script/metrics writes this -->
+- [The nine things that would kill nife](#the-nine-things-that-would-kill-nife)
+- [Kani proof harnesses, and what can falsify them](#kani-proof-harnesses-and-what-can-falsify-them)
+- [unsafe blocks outside kernel/src/arch/](#unsafe-blocks-outside-kernelsrcarch)
+- [The same unsafe blocks, by trust boundary](#the-same-unsafe-blocks-by-trust-boundary)
+- [Milestones built each week](#milestones-built-each-week)
+- [Pull requests merged each week](#pull-requests-merged-each-week)
+- [Which model wrote it](#which-model-wrote-it)
+- [Lines touched, by the model that signed them](#lines-touched-by-the-model-that-signed-them)
+- [What this project costs](#what-this-project-costs)
+- [What a turn costs](#what-a-turn-costs)
+- [Architecture decisions by status](#architecture-decisions-by-status)
+- [Names by what the tree records about them](#names-by-what-the-tree-records-about-them)
+- [Milestones by status](#milestones-by-status)
+- [Rust in the tree](#rust-in-the-tree)
+- [BUGS sections](#bugs-sections)
+- [Coverage](#coverage)
+- [The lowest-covered file](#the-lowest-covered-file)
+- [The prose budget](#the-prose-budget)
+<!-- /toc -->
 
 ## Read this before you read a number
 
@@ -39,7 +61,10 @@ not a caption, it is a register entry.
 
 From `design/fatal-risks.md`, by **Experiment status**: `RUN`, `NOT-RUN` or `CANNOT-RUN`, the field
 calef ratified on 2026-09-23. It says whether an experiment happened, never what it found; the
-verdicts are prose in that file, and the early bars are short because the field did not exist yet.
+verdicts are prose in that file. **Every bar from 2026W36 is nine**, the risks in that week's file:
+where the field did not exist yet, or held a word with no meaning today, the risk is drawn as
+**unclassified** rather than left out. 2026W35 and earlier are zero because the file reached `main`
+on 2026-08-31 UTC.
 
 ## Kani proof harnesses, and what can falsify them
 
@@ -87,6 +112,9 @@ backfills to the first commit. 2026W29 and 2026W30 are genuine zeros: the practi
 From the `Co-Authored-By` trailer. Attributed plus unattributed plus merge is every commit that
 week, and **a merge is a pull request landing rather than a piece of writing**. 2026W29 predates
 the convention, so it is absent rather than zero.
+
+The palette has eight hues, so **other models** is Opus 4.8, Fable 5.1 and any trailer the script
+does not recognise, drawn as one band; `notes/project-metrics/models.csv` keeps each apart.
 
 ## Lines touched, by the model that signed them
 
@@ -163,7 +191,9 @@ backfilled that way on 2026-09-19. 2026W29 is empty because no instrument existe
 
 The minimum per-file coverage, which is the number `script/coverage` actually gates on at 80%.
 **The aggregate above can hold steady while one file slides**, so this is the panel that predicts a
-failing build; the series starts at 2026W39 because earlier runs kept only the aggregate.
+failing build. 2026W31 to 2026W38 were backfilled on 2026-09-24 from each week's own lcov;
+2026W30 is empty because the floor did not exist yet. The provenance is in the register's
+[proofs and coverage](register-of-measures/code-proofs-and-coverage.md) appendix.
 
 ## The prose budget
 
@@ -175,6 +205,12 @@ calef ratified a 3,000-word cap per document on 2026-09-23, enforced as a ratche
 is the debt, the words that would have to move into appendices for the tree to meet its own rule;
 the second is how many documents that work sits in. **A ratchet is invisible without a graph**,
 which is why there are two.
+
+**The weeks before the cap was ratified are derived, not recorded**: each is counted from that week's
+own tree by `script/metrics --backfill`, applying today's cap and today's document scope to a tree
+that had no such rule. The scope is `_prose_documents()` in the script, and it will change when
+milestone 586 (a prose ratchet in lint) shares one definition with `script/lint`; the whole series is
+restated from history when it does.
 
 ## How it stays current
 

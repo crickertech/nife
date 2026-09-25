@@ -117,7 +117,7 @@ Each sets a test that reaches past the word. The arguments are in
 | Ruling | The test it sets |
 |---|---|
 | A half implies two; a third of anything is an arm | "half" is for a two-way split; a branch of three or more is an arm, part, piece or leg |
-| A terminus that is structural, or one that is merely current | name a program for an end of stream only if no grant could end it. calef ruled `audit_sink` should be `login_audit_receiver` |
+| A terminus that is structural, or one that is merely current | name a program for an end of stream only if no grant could end it. `audit_sink` became `login_audit_receiver` |
 | An identity is what you present; a principal is what you become | `principal` is the authenticated actor holding a capability set |
 | The `login` stem stays | ratified 2026-09-15 for the whole family |
 | The casing of `nife` | lowercase everywhere, prose included |
@@ -128,6 +128,16 @@ Provenance lives at the name, per milestone 115 (the names that were ratified, a
 were refused). A crate's `lib.rs` header, a program's module doc, a `script/` entry's comment and a
 Cargo package's manifest each carry one `Name:` block. Adding a name touches one file, so lanes
 cannot collide.
+
+Four more kinds are read by marker (2026-09-24), in the same grammar:
+
+- `item`: a `/// Name:` paragraph in the doc of a function, constant, type, field or variant.
+- `module`: a `//! Name:` block in a Rust file that is not a crate root or a program.
+- `directory`: the `Name:` paragraph of a documentation directory's `README.md`, per §75.
+- `document`: a README paragraph opening `` `stem` Name: ``, else the directory's block.
+
+A lane minting any of these writes the marker, so the name joins `--unratified`. An unmarked item is
+not tracked and never fails.
 
 The refusals are the valuable half. A refused name is visible nowhere else, and the person who most
 needs it is the one about to propose it again.
@@ -283,15 +293,11 @@ The directory and stems are provisional, minted 2026-09-24.
 
 ## BUGS
 
-- Crates, programs, `script/` entries and Cargo packages carry blocks, and directories carry a
-  README. Types do not, and nothing gates them.
+- An item without a marker is invisible to the worklist, and nothing gates that. Only the lane
+  that minted a name can say it is new.
   [provenance-limits.md](naming/provenance-limits.md) says which kinds of name are uncovered.
 - `scripts/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
   says what it covers). None of their paragraphs recorded a refusal when that was priced.
 - A `ratified` is never checked against calef, and a `recorded` citation is never followed.
-- `dma_validator`'s block still reads `ratified 2026-08-01`, though §154 deratified the name, so
-  `script/names` counts it settled. Found 2026-09-24; it waits on calef's ruling.
-- The `audit_sink` to `login_audit_receiver` rename, ruled 2026-09-13, was never performed.
-  `components/src/audit_sink.rs` still carries the old name; the rename is owed to a lane.
 - The boot mode is still `shell` (`cargo xtask shell`) while the program is `swish`.
 - `design/capsicum-and-the-retrofit-question.md` still names `worker` in a present-tense claim.

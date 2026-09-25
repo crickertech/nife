@@ -54,7 +54,7 @@
 //! the bitmap: `SWIDTH`, `DWIDTH` and the property block are ignored, which is right for a
 //! fixed-pitch cell and wrong for anything else.
 //!
-//! Name: **provisional** (this lane, bench/font-options). "Specimen" is the printing trade's word
+//! Name: provisional (this lane, bench/font-options). "Specimen" is the printing trade's word
 //! for exactly this sheet, which is the guard rail the naming tenet keeps, but the name is calef's.
 
 use std::collections::BTreeMap;

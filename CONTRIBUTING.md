@@ -22,7 +22,7 @@ person reading it between other things. Both halves of that are honest.
 
 ## Before you write anything
 
-**Read [`AGENTS.md`](AGENTS.md).** It is about 50 KB and you do not need all of it to start, but you
+**Read [`AGENTS.md`](AGENTS.md).** It is about 40 KB and you do not need all of it to start, but you
 do need these, and each one will otherwise cost you a rewrite:
 
 - **Where architecture-specific code lives.** All of it is under `kernel/src/arch/`. `asm!` outside
@@ -32,7 +32,8 @@ do need these, and each one will otherwise cost you a rewrite:
   a `#[path]` module, because a shared module inside a `no_std` binary is unreachable by host tests
   and by Kani, and this project's whole method is pure logic in host-testable crates plus proofs.
 - **Names are the architect's call.** Ship a provisional one and say so in your pull request; do not
-  wait, and do not rename anything on your own initiative.
+  wait, and do not rename anything on your own initiative. [`design/naming.md`](design/naming.md)
+  has the conventions, and `script/names --unratified` lists what is still waiting on a ruling.
 - **`design/decisions/` section numbers are assigned at merge**, never claimed by a branch. Put your
   reasoning in `notes/` and in the pull request instead.
 - **The ladder.** When something must not go wrong, prefer making the wrong state unrepresentable
@@ -58,7 +59,7 @@ cannot do.
 ```sh
 git clone https://github.com/crickertech/nife
 cd nife
-script/setup     # installs the pinned Rust toolchain and QEMU, then builds
+script/setup     # installs the pinned Rust toolchain, QEMU, python3 and gh, then builds
 script/test      # host crates, then the kernel under QEMU on all three ISAs
 ```
 
@@ -72,8 +73,8 @@ holds `no_std` programs that only build for the bare-metal targets, so `cargo bu
 fails on the host with "unwinding panics are not supported without std", which reads like a broken
 tree and is only the wrong entry point.
 
-The full command reference is [`notes/scripts.md`](notes/scripts.md). The seven worth knowing on day
-one are in the README.
+The full command reference is [`notes/scripts.md`](notes/scripts.md). The few worth knowing on day
+one are in the README's [Try it](README.md#try-it) block.
 
 ## What kind of change is wanted
 
@@ -96,6 +97,10 @@ Concretely, a change is finished when:
   hits a limitation the docs hid will not trust anything again.
 - Anything measurable is **measured**. `script/bench` runs icount microbenchmarks against a committed
   baseline. An honest tie recorded plainly is worth more than an overclaimed win.
+- Its prose stays within budget. [§212 (a prose budget)](design/decisions/212-a-prose-budget-for-every-document.md)
+  caps a document's main body at 3,000 words, and
+  [§213 (writing standards)](design/decisions/213-writing-standards.md) limits sentence length and
+  bold. A new document meets both outright; an edited one may not get worse.
 
 ## What is not yours to decide, and why that saves you time
 
@@ -106,7 +111,7 @@ about:
 |---|---|
 | **The syscall surface** | A boundary, not a habit. A new method inside the existing capability model is fine and gets its semantics recorded in `design/decisions/`; a new syscall number is a design fork. |
 | **A new dependency** | Taking one is a decision (DECISIONS §46 (thin primitives or whole subsystems)). The tree is thin architectural primitives or whole subsystems nobody would write, with nothing in between. |
-| **Names** | Crates, programs, and shared modules are named by the architect. Ship provisional, say so. |
+| **Names** | Crates, programs, modules, public functions and directories are named by the architect. Ship provisional, say so. |
 | **Anything two programs agree on** | A wire format, an opcode number, a packed word. The code is a morning's work; the un-shipping is not. |
 | **`design/decisions/` section numbers** | Assigned at merge. |
 
@@ -116,36 +121,42 @@ them costs more than getting them wrong.
 ## How to propose a change
 
 ```sh
-git checkout -b fix/short-description        # or milestone/, feature/, roadmap/, decisions/,
-                                             # toolchain/, ci/, bench/, integration/, audit/
-# ...work, committing as pieces prove out...
-script/ci-build                              # every check a PR must pass, cheapest first
-git push -u origin HEAD
-gh pr create --draft                         # then mark it ready when the checks are green
+script/claim fix/short-description           # branch, worktree, empty commit, push, draft PR
+# ...work in the worktree, committing and pushing as pieces prove out...
+script/ci-build                              # every local check a PR must pass, cheapest first
+gh pr ready                                  # CI runs; a draft skips it
 ```
 
-`script/lint` refuses a branch prefix outside that set, so the first line saves you a red check.
-**`script/ci-build` is the one command to remember**: with no arguments it runs every check a pull
-request must pass, cheapest first, so a formatting slip costs twenty seconds rather than the whole
-run. It provisions first (`script/bootstrap`, which does nothing on a machine that already has
-what it needs), so it works on a cold checkout.
+Claim before you work. §90 (the claim is a draft pull request) makes a draft pull request the
+claim, so two people cannot silently take the same milestone. `script/claim` makes it in one
+command: it refuses a malformed branch name, cuts a worktree, and pushes an empty commit behind a
+draft. The empty commit matters, because without it GitHub closes the draft as merged when its base
+lands. Any branch prefix is accepted except a near-miss of `milestone/<N>-<slug>`, the one prefix
+with a meaning: `script/lint` reads it to require that milestone's roadmap block be updated.
 
-`script/ci-build --list` prints the checks. They are **not** repeated here, and that is the point of
-milestone 286 (one enumeration of the checks that gate a pull request): this sentence had been
-corrected by hand twice as checks were added (three to five on 2026-08-22, five to seven on
-2026-09-03) and was wrong again by 2026-09-13, because a set written
-down twice rots in one of the two copies. The list now lives in exactly one place, the table at the
-top of `script/ci-build`, and CI names checks out of that same table.
+`script/ci-build` is the one command to remember. With no arguments it runs every local check,
+cheapest first, so a formatting slip costs twenty seconds rather than the whole run. It provisions
+first with `script/bootstrap`, so it works on a cold checkout. `script/ci-build --list` prints the
+checks with their tier. `local` is what the no-argument run does. `ci` is a check only a runner
+waits for (Kani, the CPU matrix, coverage, fuzzing, the supply-chain audit), and you can still run
+one by name: `script/ci-build coverage`. The list lives only in the table at the top of
+`script/ci-build`, per milestone 286 (one enumeration of the checks that gate a pull request), and
+CI reads the same table. `hvf` runs the aarch64 suite on the physical Apple Silicon core. It is the
+slowest local check and the likeliest to flake on a busy host, and it skips loudly where
+Hypervisor.framework is missing. See notes/load-sensitive-assertions.md if it flakes.
 
-The `--list` output also carries a **tier**. `local` is what the no-argument run does; `ci` is a
-check only a runner waits for (Kani, the CPU matrix, coverage, fuzzing, the supply-chain audit), and
-you can still run one by name: `script/ci-build coverage`. `hvf` (the aarch64 suite on the physical
-Apple Silicon core) is the slowest local check and the one most likely to flake on a contended host;
-it skips loudly, saying so, on any machine that cannot supply Hypervisor.framework. See
-notes/load-sensitive-assertions.md if it flakes.
+CI does not run on a draft. Both workflows open with a `draft gate` that skips the suite, and a
+skipped check still satisfies a required one. Mark the pull request ready when the work is done, or
+dispatch the workflows by hand to gate it earlier; [`briefs/gate-in-ci.md`](briefs/gate-in-ci.md)
+has the commands.
 
-Pull requests land through GitHub's merge queue, which batches and rebases them, so you do not need
-to keep your branch current by hand.
+Landing is automatic for a branch in this repository. Once a pull request is ready,
+`nife-smelter[bot]` arms auto-merge from `merge-drain.yml`. It lands through GitHub's merge queue
+when green, and the queue batches and rebases it, so you do not need to keep the branch current. A pull request from a fork waits for a
+maintainer: its workflows need an approving click, and the drain never arms a head from another
+repository. The `needs-architect` label holds a pull request for the architect's decision, and a
+correction-of-error pull request gets that label automatically. If an agent writes a pull request,
+its body opens with the `**Lane:**` line AGENTS.md describes, so a reader can tell who is speaking.
 
 **One purpose per commit, and the message explains why rather than what** (the diff already shows
 what). If a commit records a correction or a surprise, say so in the message: those are the most
@@ -153,8 +164,10 @@ useful commits in this history. `git blame` is the test. A reader tracing why a 
 does has to land on a commit that explains it.
 
 **If your change is a design argument rather than code**, it goes in `design/decisions/` as a file
-with `**Status: PROPOSED.**`, saying what is being decided, the options, the recommendation with its
-reason, and what is blocked until it is answered. A decision that lives only in a pull request thread
+whose frontmatter says `status: PROPOSED` ([the schema](design/decisions/README.md)). It says what is
+being decided, the options, the recommendation with its reason, and what is blocked until it is
+answered. Work you found but are not doing goes in
+[`design/roadmap/proposals/`](design/roadmap/proposals/README.md), unnumbered. A decision that lives only in a pull request thread
 is in the medium this project exists to get things out of.
 
 ## Where the arguments are
@@ -162,8 +175,8 @@ is in the medium this project exists to get things out of.
 - [`design/decisions/`](design/decisions/README.md) is what was chosen, what was rejected, and why,
   **including the decisions that were refused**. That is on purpose: you can disagree with an
   argument, but not with an authority.
-- [`design/roadmap/`](design/roadmap/) is the only status in the tree: one file per milestone, no
-  index, and `script/roadmap` to query it. It has a fixed status vocabulary
+- [`design/roadmap/`](design/roadmap/README.md) is the only status in the tree: one file per
+  milestone, with `script/roadmap` as the index. It has a fixed status vocabulary
   ([notes/roadmap.md](notes/roadmap.md)) and a checker; anywhere else that claims status is stale by
   construction.
 - [`notes/`](notes/README.md) is a glossary written while building, one file per question that
@@ -198,7 +211,7 @@ is dual licensed the same way, with no additional terms. There is no CLA.
   are more, and some of them (the ladder, the record-versus-code distinction, the worktree hazards)
   are judgement rather than checklist. The split is deliberate: this file is for deciding whether to
   contribute, that one is for doing the work.
-- **`AGENTS.md` is 50 KB and reads as a constitution rather than a manual**, which is a real cost to
+- **`AGENTS.md` is about 40 KB and reads as a constitution rather than a manual**, which is a real cost to
   a first-time reader and is known. `CLAUDE.md` at the root is a symlink to it, kept so agent tooling
   keeps finding it; a human who opens `CLAUDE.md` and a human who opens `AGENTS.md` get the same
   file.

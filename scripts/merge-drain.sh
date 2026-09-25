@@ -192,9 +192,11 @@ dequeue_held() {
 # the program below because jq cannot compose `-f` with inline text. If that file is missing, jq
 # refuses the program and the `|| echo '[]'` arms nothing, which is the direction to fail in.
 ELIGIBLE_JQ="$(dirname "$0")/queue-eligible.jq"
+# `statusCheckRollup` rides along for `stranded_numbers` and the unreported-checks case below; it
+# is the one field here that is a list rather than a scalar, at forty-odd entries per pull request.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName,autoMergeRequest,isCrossRepository 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,headRefOid,baseRefName,autoMergeRequest,isCrossRepository,statusCheckRollup 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" --arg R "$RED_TRUNK_LABEL" "$(cat "$ELIGIBLE_JQ")"'
 			[ .[]
 			  | eligible
@@ -342,6 +344,61 @@ blocked_by() {
 	printf '%s' "$1" | sed -n 's/.*[Bb]locked-by:[[:space:]]*#\([0-9][0-9]*\).*/\1/p' | head -1
 }
 
+# **Enqueue what the platform promised to and did not** (2026-09-24). Auto-merge is GitHub's promise
+# to put a pull request into the queue when its checks go green. On 2026-09-24 #1202, #1200 and
+# #1207 each sat armed, CLEAN, every required check green, and never entered `mergeQueue.entries`;
+# each went in only when a person called the `enqueuePullRequest` mutation by hand, and a session
+# watcher was doing that as a stopgap. This is that call, made by the drain, on the predicate in
+# scripts/queue-stranded.jq: eligible (the same admission every arming passes, spliced first so the
+# enqueue path cannot admit a head the drain would not arm), armed, CLEAN, absent from the queue,
+# and in that state since before now minus STRANDED_MINUTES. **The minutes stand in for "two
+# consecutive passes"**: each `merge-drain.yml` run is one `--once` pass in a fresh process, five
+# minutes apart, so a pull request stranded for one interval is one that two passes in a row have
+# seen stranded, and the default is that interval. No `jump`: the queue's order is the queue's.
+STRANDED_MINUTES=${STRANDED_MINUTES:-5}
+STRANDED_JQ="$(dirname "$0")/queue-stranded.jq"
+# The numbers to enqueue, given `queue()`'s output and the numbers already queued (one per line).
+stranded_numbers() {
+	cutoff=$(( $(date +%s) - STRANDED_MINUTES * 60 ))
+	queued_json=$(printf '%s\n' "$2" | jq -R 'select(length > 0) | tonumber' | jq -cs '.')
+	printf '%s' "$1" | jq -r --argjson queued "$queued_json" --argjson cutoff "$cutoff" \
+		"$(cat "$ELIGIBLE_JQ")$(cat "$STRANDED_JQ")"'[ .[] | stranded($queued; $cutoff) | .number ] | .[]' 2>/dev/null
+}
+
+# **Rerun the CI run a concurrency group cancelled as a duplicate, once** (2026-09-24, #1203's
+# cause, found by the A′ lane and written up in notes/merge-queue.md's BUGS). One push can raise two
+# `synchronize` events; the group cancels the newer copy before any job exists; GitHub reads the
+# newest run per workflow, so the empty cancelled suite hides the green one and the queue answers
+# "11 of 13 required status checks are expected". No workflow-level fix is sound, so the drain
+# reruns the run it finds. The detection is scripts/cancelled-duplicate.jq, the note's own query,
+# and `rerunnable` is what decides: only a run at `run_attempt` 1, so the same run is never rerun
+# twice and the run itself is the record. The rerun needs `actions: write`, which the App's token
+# does not carry, since milestone 128 (the automation gets its own identity) minted it with
+# Contents and Pull requests; `merge-drain.yml`
+# passes the workflow's own token as MERGE_DRAIN_RERUN_TOKEN for this one call, and a laptop run
+# uses whatever `gh` is logged in as.
+CANCELLED_JQ="$(dirname "$0")/cancelled-duplicate.jq"
+# The runs still owed a rerun at `$1` (a head SHA): "<id> <workflow name>" per line.
+cancelled_duplicate_runs() {
+	gh api "repos/$REPO/actions/runs?head_sha=$1&event=pull_request&per_page=100" 2>/dev/null |
+		jq -r "$(cat "$CANCELLED_JQ")"'rerunnable | "\(.id) \(.name)"' 2>/dev/null
+}
+# `gh run rerun` with the token that may do it: the workflow's own under Actions, `gh`'s login on a
+# laptop. Exported only for this call, and only when set, so a laptop run with no GH_TOKEN keeps
+# its keyring login rather than an empty variable.
+rerun_run() {
+	if [ -n "$MERGE_DRAIN_RERUN_TOKEN" ]; then
+		GH_TOKEN="$MERGE_DRAIN_RERUN_TOKEN" gh run rerun "$1" --repo "$REPO" >/dev/null 2>&1
+	else
+		gh run rerun "$1" --repo "$REPO" >/dev/null 2>&1
+	fi
+}
+# Whether any duplicate at `$1` has already had its one rerun: "yes" or nothing.
+cancelled_duplicate_spent() {
+	gh api "repos/$REPO/actions/runs?head_sha=$1&event=pull_request&per_page=100" 2>/dev/null |
+		jq -r "$(cat "$CANCELLED_JQ")"'[ cancelled_duplicates | select(.run_attempt > 1) ] | if length > 0 then "yes" else empty end' 2>/dev/null
+}
+
 # The numbers currently IN the merge queue. One call, asked once per pass and reused, because
 # `mergeQueue.entries` is the only thing that knows about a pull request whose arming has already
 # become membership. See the verification block in `pass` for why neither field alone covers both
@@ -373,6 +430,10 @@ queued_numbers() {
 #
 #     merge-drain: ARMED #N ...        this pass put #N into the queue, or armed it to enter
 #     merge-drain: DEQUEUED #N ...     this pass took #N back out
+#     merge-drain: ENQUEUED #N ...     this pass put an armed, green #N into the queue itself,
+#                                      because the platform had not (2026-09-24, see stranded_numbers)
+#     merge-drain: RERAN #N run <id> .. this pass reran the CI run a concurrency group cancelled as a
+#                                      same-second duplicate, once (2026-09-24, see cancelled_duplicate_runs)
 #
 # **What makes them events rather than snapshots is the suppression, not the wording.** Arming is
 # idempotent and is attempted on every eligible pull request on every pass, so printing on every
@@ -410,7 +471,8 @@ pass() {
 	# What was ALREADY armed when this pass began. Both shapes, because the pull request object
 	# reports a null `autoMergeRequest` once arming has become queue membership. This is the
 	# baseline the `ARMED` event is printed against; see the events comment above `pass`.
-	armed_before=" $(printf '%s' "$q" | jq -r '.[] | select(.autoMergeRequest != null) | .number' 2>/dev/null | tr '\n' ' ')$(queued_numbers | tr '\n' ' ')"
+	queued_now=$(queued_numbers)
+	armed_before=" $(printf '%s' "$q" | jq -r '.[] | select(.autoMergeRequest != null) | .number' 2>/dev/null | tr '\n' ' ')$(printf '%s\n' "$queued_now" | tr '\n' ' ')"
 
 	armed=0
 	stalled=0
@@ -465,6 +527,48 @@ pass() {
 			continue
 		fi
 
+		# A fourth shape (2026-09-24): BLOCKED with nothing failing and nothing running, and a
+		# CANCELLED check at the head. That is the "N of M required checks expected" page, and its
+		# one known cause is the same-second duplicate `cancelled_duplicate_runs` detects. The
+		# rollup in `q` is the cheap pre-filter, so the runs API is asked only for a pull request
+		# in this shape; then the cancelled duplicate is rerun once and said so as an event, a
+		# duplicate already rerun is a stall a person must read, and a cancellation with no
+		# same-second sibling is the older, unexplained stall line.
+		if [ "$state" = "BLOCKED" ] && [ "$(printf '%s' "$q" | jq -r --arg n "$num" '
+				.[] | select(.number == ($n | tonumber)) | .statusCheckRollup
+				| (map(select(.status == "QUEUED" or .status == "IN_PROGRESS" or .status == "PENDING")) | length) == 0
+				  and (map(select(.conclusion == "CANCELLED")) | length) > 0' 2>/dev/null)" = "true" ]; then
+			sha=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .headRefOid')
+			# The loop runs in a subshell (a pipe), so its lines are collected and printed here
+			# rather than counted there; the one thing the outer shell needs to know is whether
+			# any rerun took.
+			reran=$(cancelled_duplicate_runs "$sha" | while IFS=' ' read -r run_id run_name; do
+				[ -n "$run_id" ] || continue
+				if rerun_run "$run_id"; then
+					echo "$ME: RERAN #$num run $run_id ($run_name was cancelled as a same-second duplicate and hid the green one) ($title)"
+				else
+					echo "$ME: STALLED. #$num run $run_id ($run_name) is a cancelled duplicate and the rerun was refused; the token may lack actions:write ($title)"
+				fi
+			done)
+			if [ -n "$reran" ]; then
+				printf '%s\n' "$reran"
+				case "$reran" in
+				*"RERAN #$num "*) continue ;;
+				esac
+				stalled=$((stalled + 1))
+				continue
+			fi
+			if [ "$(cancelled_duplicate_spent "$sha")" = "yes" ]; then
+				msg="$ME: STALLED. #$num has a cancelled duplicate run that was already rerun once and is still not reporting; a person should read it ($title)"
+			else
+				msg="$ME: STALLED. #$num has required checks that will never report: a run at its head was cancelled with no same-second sibling, which is not the shape the drain reruns (push an empty commit) ($title)"
+			fi
+			echo "$msg"
+			notify "$num" "merge-drain:unreported-checks" "$msg"
+			stalled=$((stalled + 1))
+			continue
+		fi
+
 		# A third stall shape: neither DIRTY nor FAILURE, a run just never started. See
 		# `stuck_checks`'s own comment for why this needs a person rather than a retry.
 		head=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .headRefName')
@@ -496,6 +600,28 @@ pass() {
 		fi
 
 		attempted="$attempted $num"
+	done
+
+	# What the platform left behind: armed, green, and not in the queue for a whole interval. The
+	# `enqueuePullRequest` mutation is what a person types by hand for the same case; the drain
+	# types it, once per stranded pull request per pass, and says so as an event. Verified below
+	# with everything else that was attempted, so a call that took and changed nothing is a
+	# `STALLED.` line and not a silent success.
+	for num in $(stranded_numbers "$q" "$queued_now"); do
+		title=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .title')
+		id=$(gh api "repos/$REPO/pulls/$num" --jq '.node_id' 2>/dev/null)
+		if [ -z "$id" ] || ! gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"$id\"}){clientMutationId}}" >/dev/null 2>&1; then
+			msg="$ME: STALLED. #$num is armed and green but the queue refused it ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:would-not-enqueue" "$msg"
+			stalled=$((stalled + 1))
+			continue
+		fi
+		echo "$ME: ENQUEUED #$num (armed and green for $STRANDED_MINUTES minutes with no queue entry; the platform had not) ($title)"
+		case " $attempted " in
+		*" $num "*) ;;
+		*) attempted="$attempted $num" ;;
+		esac
 	done
 
 	# **Verify, and know that "armed" has two shapes, because neither field alone covers both.**

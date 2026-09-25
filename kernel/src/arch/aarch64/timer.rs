@@ -643,6 +643,22 @@ pub fn uptime_ms() -> u64 {
     now() * 1000 / freq
 }
 
+/// **Is this core's tick raised and waiting** (`CNTV_CTL_EL0.ISTATUS`)? True once the deadline has
+/// passed and the timer has signalled it, until the handler moves `CNTV_CVAL_EL0` forward, whether
+/// or not interrupts are masked.
+///
+/// The twin of the riscv64 `tick_pending`, whose comment has the measurement: the emulator raises
+/// the timer from its own main loop, milliseconds and occasionally tens of milliseconds after the
+/// deadline, so a test that assumes a tick is pending after a fixed masked spin can be measuring
+/// the host. The tests that hold a tick across a mask wait for this bit instead. See
+/// notes/load-sensitive-assertions.md.
+///
+/// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn tick_pending() -> bool {
+    CNTV_CTL_EL0.is_set(CNTV_CTL_EL0::ISTATUS)
+}
+
 /// Busy-wait. Uses the counter, so it works with interrupts masked, which is exactly when a
 /// tick-based delay would hang forever.
 ///
@@ -724,11 +740,14 @@ mod tests {
         // steal at any preemption point, which would compare two unrelated counters (`ticks_on`).
         let core = crate::cpu::id();
         let before = timer::ticks_on(core);
-        timer::spin_for(timer::interval() * 3);
-        let after = timer::ticks_on(core);
+        // **Waited for, not spun for.** A fixed three periods asked the emulator to have raised the
+        // timer within 30 ms of wall clock, and it raises it from its own main loop: measured on
+        // 2026-09-24 at up to 86 ms after the deadline (`tick_pending`'s comment has the numbers).
+        // A timer that is genuinely dead still fails, a second later.
+        let ticked = within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(core) > before);
 
         assert!(
-            after > before,
+            ticked,
             "no timer interrupt in three tick periods: the GIC or the timer is not delivering"
         );
     }
@@ -986,9 +1005,12 @@ mod tests {
         // The timer is alive. Core-scoped, for `ticks_on`'s reason.
         let alive_on = crate::cpu::id();
         let t0 = timer::ticks_on(alive_on);
-        timer::spin_for(timer::interval() * 2);
+        // Waited for rather than spun for, for `the_timer_is_ticking`'s reason: the emulator can
+        // raise a tick tens of milliseconds late, and this assertion (aarch64's copy) went red that
+        // way before the suite's userspace half on 2026-08-27. See
+        // notes/load-sensitive-assertions.md.
         assert!(
-            timer::ticks_on(alive_on) > t0,
+            within_periods(RAISE_BOUND_PERIODS, || timer::ticks_on(alive_on) > t0),
             "the timer is not ticking at all"
         );
 
@@ -1018,6 +1040,27 @@ mod tests {
                  and the deadlock in notes/locking.md is live: a handler that touched this lock \
                  would spin forever waiting for code that cannot run."
             );
+
+            // **And a tick is now raised and waiting**, which is what makes the release below a
+            // test of `restore` rather than of the host. The spin above is thirty milliseconds of
+            // wall clock, and the emulator raises the timer from its own main loop, as much as 86
+            // ms after the deadline (measured 2026-09-24; `tick_pending`'s comment). This twin
+            // failed CI once exactly that way, on `sifive-u54`, "interrupts did not resume" after
+            // twenty periods of waiting for a tick nobody had raised. Still masked, so still this
+            // core, and the assertion above is repeated because the wait is part of the window.
+            assert!(
+                within_raise_bound(timer::tick_pending),
+                "the timer was never raised in a second with the lock held, so the release below \
+                 would test nothing: the timer is not being armed, or the emulator stopped \
+                 delivering it"
+            );
+            assert_eq!(
+                timer::ticks_on(core),
+                before,
+                "A TIMER INTERRUPT FIRED WHILE A LOCK WAS HELD. IrqSafeMutex is not masking, \
+                 and the deadlock in notes/locking.md is live: a handler that touched this lock \
+                 would spin forever waiting for code that cannot run."
+            );
             (core, before)
         };
 
@@ -1038,6 +1081,31 @@ mod tests {
     /// delivered, a miss being counted), which is the direction where a busy host produces a late
     /// pass rather than a wrong answer. The fixed spins these replaced turned a late delivery into
     /// a failure. See notes/load-sensitive-assertions.md.
+    /// How long a wait on the timer being raised may take, in tick periods: one second, against a
+    /// worst case measured at under nine periods (86 ms, `tick_pending`'s comment). **A leak trap,
+    /// not a timing claim**: nothing the kernel does is inside it once the deadline has passed.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+    const RAISE_BOUND_PERIODS: u32 = 100;
+
+    /// Spin until `cond`, bounded by [`RAISE_BOUND_PERIODS`] of the free-running counter, checking
+    /// continuously rather than once a period. For waits made **with interrupts masked**, where
+    /// nothing can change `cond` except the hardware and a period's granularity would only add
+    /// latency.
+    ///
+    /// Name: provisional, minted 2026-09-24 (`cda66d656`, waiting for the tick to be raised).
+    fn within_raise_bound(mut cond: impl FnMut() -> bool) -> bool {
+        let bound = u64::from(RAISE_BOUND_PERIODS) * crate::arch::timer::interval();
+        let start = crate::arch::timer::now();
+        while !cond() {
+            if crate::arch::timer::now().wrapping_sub(start) >= bound {
+                return false;
+            }
+            core::hint::spin_loop();
+        }
+        true
+    }
+
     fn within_periods(periods: u32, mut cond: impl FnMut() -> bool) -> bool {
         for _ in 0..periods {
             if cond() {

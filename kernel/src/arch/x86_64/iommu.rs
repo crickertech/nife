@@ -372,7 +372,7 @@ pub fn attach(rid: u32, root: u64, did: u16) {
             // Publish the (still all-absent) context table before the root entry that makes it
             // reachable, so the IOMMU can never walk to a root entry whose context table isn't
             // there yet.
-            crate::arch::dma_wmb();
+            crate::arch::direct_memory_access_write_barrier();
             let root_entry = phys_to_virt(s.root + bus as u64 * 16) as *mut u64;
             // SAFETY: `s.root` is a kernel-owned page-aligned frame; `bus` is masked to 0..256,
             // which is exactly the 256 entries a one-page root table holds.
@@ -398,12 +398,12 @@ pub fn attach(rid: u32, root: u64, did: u16) {
         core::ptr::write_volatile(ctx_entry.add(1), hi);
         core::ptr::write_volatile(ctx_entry, lo);
     }
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
     // SAFETY: as above.
     unsafe {
         core::ptr::write_volatile(ctx_entry, lo | CTX_ENTRY_P);
     }
-    crate::arch::dma_wmb();
+    crate::arch::direct_memory_access_write_barrier();
 
     invalidate_all(s);
 }

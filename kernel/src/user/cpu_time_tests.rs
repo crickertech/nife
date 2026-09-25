@@ -182,7 +182,8 @@ fn the_thread_that_ran_is_the_thread_that_is_charged() {
     // on whichever core holds it, so the last of its pages can land after this body returns, and a
     // *neighbouring* test measuring the global count either side of its own teardown would see
     // this test's pages arrive inside its window and report recovering more than it ever held
-    // (notes/load-sensitive-assertions.md, "two unowned reds"). The courtesy is retired rather than
+    // (notes/load-sensitive-assertions/unowned-reds.md, "two unowned reds"). The courtesy is
+    // retired rather than
     // dropped: after the 2026-09-23 sweep no test in this suite brackets the global count, so
     // there is no neighbour left for a late page to confuse. The assertion half is kept, narrowed
     // to the pages this test is actually responsible for, where `tidy`'s two reclaims make it

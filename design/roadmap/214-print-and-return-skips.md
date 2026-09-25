@@ -147,10 +147,11 @@ by hand and why nothing here claims to have found the last one.
   around its arguments, so a message that only says "skip" across the seam does not set the flag.
   Every site in the tree today puts the word in a literal, and the failure direction is a missed
   catch rather than a false alarm.
-- **Milestone 164's block records "211 passed, 44 skipped" for x86_64 and is now two counts
-  stale.** It is another milestone's block, so this lane did not edit it; the table above is the
-  current reading. The same goes for `notes/load-sensitive-assertions.md`'s "300 passed, riscv64
-  303, x86_64 189", which was already a dated snapshot of a different tree.
+- **The block of milestone 164 (x86_64 userspace can't build `aes`) records "211 passed, 44 skipped"
+  for x86_64 and is now two counts stale.** It is another milestone's block, so this lane did not
+  edit it; the table above is the current reading. The same goes for
+  `notes/load-sensitive-assertions/caretaker-teardown-wait.md`'s "300 passed, riscv64 303, x86_64
+  189", which was already a dated snapshot of a different tree.
 
 ## Follow-on
 

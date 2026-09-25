@@ -121,6 +121,64 @@ The sweep's cost is dominated by the **rebuild each patch forces**, so it scales
 distinct crates carrying records rather than with the record count. That is why the weekly workflow
 is unsharded, and it is a measurement to re-take rather than a rule.
 
+### A record that never reaches a verdict: the per-record limit
+
+2026-09-24. #1156 landed a `nifefs` record, the length guard weakened to one block, whose replay
+never finished. Once the guard admitted the harness's one concrete length, CBMC entered `parse`'s
+entry loop, whose bound is a `count` read from symbolic bytes, and unrolled it without end. Nothing
+stopped it but the job: the per-pull-request `falsify` job was cancelled at its 45 minutes, and the
+weekly sweep (falsifications.yml run 36031723556) at its 120, after that one record had run for
+**1 h 44 min** and every record after it had gone unswept.
+
+So each replay now runs under a wall-clock limit, and one that runs out is **`ERROR ... no
+verdict`**, never red and never a survivor. The sweep goes on to the next record and exits non-zero
+at the end.
+
+| record kind | limit | where the number comes from |
+|---|---|---|
+| Kani harness | 15 min | 1.8 times the slowest record measured |
+| kernel test | 30 min | `ci.yml`'s bound on building the kernel and running the whole suite |
+
+The Kani timings are the one full-tree sweep whose timestamps survived, the cancelled run above: 73
+records before the hang, **median 1.6 s, 90th percentile 8.2 s**, and a tail entirely in
+`machine_discovery` (116 s, 136 s, 497 s), each including the rebuild its patch forced on a hosted
+runner. One record was slower and is not in that sample because the hang came first:
+`package_archive::a_short_file_is_refused`, measured locally at 20 to 31 minutes, the same
+unbounded-loop shape. It got the harness bound rather than a limit raised to fit it (#1243, red in
+1.3 s since), because a record that takes half an hour is the problem, not the limit. Every verdict
+line now prints its own time, so the next sweep is a better sample than this one was. The first
+such sample, the tail package swept on patagonia under the new limit (2026-09-24): 16 records, all
+red, slowest 287.5 s, then 82.6 s and 71.3 s, the other thirteen under 10 s.
+
+#### Example
+
+```
+$ FALSIFICATIONS_RECORD_LIMIT=60 script/falsifications --sweep nifefs
+==> nifefs::a_short_image_is_refused_not_indexed
+    ERROR    no verdict within the 60 s limit; `cargo kani` and its CBMC was killed. ... (60.4 s)
+==> nifefs::the_validation_implies_reads_slice_is_in_bounds
+    red      the harness caught it (1.9 s)
+
+2 swept, 0 survivors, 0 stale or broken, 1 without a verdict
+  no verdict nifefs::a_short_image_is_refused_not_indexed (limit 60 s)
+```
+
+That is the limit's own falsification, run on patagonia against #1156's original record (exit 1).
+`FALSIFICATIONS_RECORD_LIMIT` (seconds) overrides both limits.
+
+**The whole process group is killed**, not the child. `cargo` is what the sweep starts; `cbmc` and
+QEMU are grandchildren, and killing only `cargo` would leave a solver holding a core and gigabytes
+after the sweep had moved on.
+
+#### BUGS
+
+- **A wall clock on a shared machine can turn a slow record into a false `no verdict`.** The
+  headroom is 1.8 times one measured maximum, not a proven margin. A timeout on a busy laptop that
+  does not reproduce in CI is load.
+- **"Would have finished at minute 16" and "would never finish" are reported alike**, because
+  neither is evidence. The fix for either is a faster falsification or a bound on the harness, which
+  is what `nifefs::a_short_image_is_refused_not_indexed` got in #1239.
+
 ## Milestone 212: the ratio was a fraction of one directory
 
 The walk was `os.walk("crates")`, so the number this script prints as a statement about the tree's
@@ -312,7 +370,7 @@ harness goes **red**. Both directions were checked for every one, because the wh
 | `component_plan::the_device_split_partitions_the_mappings` | `PageKind::mode`, which `plan` fills the word from | device registers mapped `MAP_RW` |
 | `component_plan::dependents_finds_exactly_the_non_target_instances_that_declared_it` | `str_eq`, which `dependents` decides membership with | `str_eq` true for strings of different lengths |
 | `credential_protocol::no_request_word_makes_the_parse_read_outside_the_page` | `id_len`, which `read` slices with | the identity length read from the wrong four bits of the request word |
-| `dma_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
+| `direct_memory_access_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
 | `jh7110_entropy::ready_requires_rand_rdy_and_carries_the_words_untouched` | `assemble`, which `interpret` calls | entropy laid out big-endian |
 | `network_time_protocol::accepting_is_total_and_a_sample_is_coherent` | `Interval::is_negative`, which `accept` guards on | the predicate never true, so a negative delay is accepted |
 | `paging::sv39::the_leaf_keeps_address_and_permissions_apart` | `entry_pa`, the decoder for the encoder under test | `PPN_SHIFT` moved, so both agree on the wrong bits |
@@ -428,13 +486,13 @@ holds.
 `be32`'s answer: subject from the crate, expectation from the format. `nifefs`'s harness wrote
 both sides itself. Same shape at a glance, opposite in what they prove.
 
-**A second question, for duplication on the assumption side**, where a harness restates a guard
-in order to reach the state it wants: **which way does drift fail?** If the implementation moves
-and the harness's assumed set becomes *wider* than the code's accepted set, the harness asserts on
+**A second question, for duplication on the assumption side**, where a harness restates a guard in
+order to reach the state it wants: **which way does drift fail?** If the implementation moves and
+the harness's assumed set becomes *wider* than the code's accepted set, the harness asserts on
 inputs the code now refuses and goes red, which is the safe direction.
-`dma_validator::an_oversized_batch_is_refused` restates the batch guard's condition and fails
-this way. If drift makes the assumed set narrower, or if the assertion is the harness's own
-arithmetic too, it goes green and says nothing. That is the `nifefs` case, and it is why the
+`direct_memory_access_validator::an_oversized_batch_is_refused` restates the batch guard's condition
+and fails this way. If drift makes the assumed set narrower, or if the assertion is the harness's
+own arithmetic too, it goes green and says nothing. That is the `nifefs` case, and it is why the
 implication in it was the whole harness rather than a detail of it.
 
 ### The finding: one, and it is the one the block named
@@ -502,10 +560,11 @@ rather than a function: there is nothing to extract and call. It stays, with the
 expiry recorded at the harness.
 
 Two more were looked at and dismissed on sight, and are named so nobody re-derives them.
-`dma_validator`'s `walk` and `inter_process_communication`'s `seed` look like harness-side reimplementations and are not:
-`walk` calls the real `shadow_one_head` and `seed` builds its symbolic state through the real
-`push_back`. `component_plan::declares_by_core_eq` is the good version in its purest form, an
-independent implementation of `str_eq` standing on the expectation side on purpose.
+`direct_memory_access_validator`'s `walk` and `inter_process_communication`'s `seed` look like
+harness-side reimplementations and are not: `walk` calls the real `shadow_one_head` and `seed`
+builds its symbolic state through the real `push_back`. `component_plan::declares_by_core_eq` is the
+good version in its purest form, an independent implementation of `str_eq` standing on the
+expectation side on purpose.
 
 `script/falsifications` reads **36 of 146** after this lane, from 35.
 

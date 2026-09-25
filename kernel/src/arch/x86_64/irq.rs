@@ -138,6 +138,9 @@ mod reg {
     pub const TIMER_CURRENT: u64 = 0x390;
     /// How much the timer divides the bus clock by.
     pub const TIMER_DIVIDE: u64 = 0x3e0;
+    /// The Interrupt Request Register, 256 bits as eight 32-bit words 0x10 apart: bit `v` is set
+    /// while vector `v` has been accepted by this local APIC and not yet delivered to the core.
+    pub const IRR: u64 = 0x200;
 }
 
 /// Bit 8 of the spurious-interrupt register: the local APIC's software enable.
@@ -209,9 +212,9 @@ static LOCAL_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
 
 /// Where this machine's local APIC is, physically, or `None` if ACPI has not said yet.
 ///
-/// **Provisional name** (milestone 161): `mmu::LOCAL_APIC_PHYS` is the architectural *default*
-/// constant and this is what the machine actually reported, which is a distinction worth a better
-/// pair of names than these two.
+/// Name: provisional (milestone 161 (the kernel port)): `mmu::LOCAL_APIC_PHYS` is the
+/// architectural *default* constant and this is what the machine actually reported, which is a
+/// distinction worth a better pair of names than these two.
 pub fn local_apic_phys() -> Option<u64> {
     match LOCAL_APIC_PHYS.load(Ordering::Relaxed) {
         0 => None,
@@ -330,6 +333,15 @@ pub fn arm_periodic_timer(count: u32) {
     write(reg::LVT_TIMER, LVT_TIMER_PERIODIC | TIMER_VECTOR as u32);
 }
 
+/// **Is the timer's vector raised and waiting in this local APIC** (its bit in the IRR)? True from
+/// the moment the countdown expires until the core accepts the interrupt, which with `IF` clear is
+/// not until interrupts are unmasked. See `timer::tick_pending`, the caller.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn timer_pending() -> bool {
+    let v = TIMER_VECTOR as u64;
+    read(reg::IRR + (v / 32) * 0x10) & (1 << (v % 32)) != 0
+}
+
 /// Stop the timer delivering.
 pub fn mask_timer() {
     write(reg::LVT_TIMER, LVT_MASKED | TIMER_VECTOR as u32);
@@ -390,7 +402,7 @@ const REDIR_ACTIVE_LOW: u32 = 1 << 13;
 /// flat map gives 0x30..0x47 two priority classes and no say in which line is in which). Nothing
 /// here has a priority policy to express yet.
 ///
-/// **Provisional name** (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
+/// Name: provisional (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
 /// below.
 pub const GSI_VECTOR_BASE: u8 = 0x30;
 
@@ -407,7 +419,8 @@ pub const GSI_VECTOR_BASE: u8 = 0x30;
 /// no controller input and nothing to unmask), so an MSI intid **is** its vector, and the whole
 /// vector-to-intid inversion the trap handler used to owe for a device line never arises.
 ///
-/// **Provisional name** (milestone 215): calef names public items.
+/// Name: provisional (milestone 215 (a PCI function's interrupt reaches nothing)): calef
+/// names public items.
 pub const MSI_VECTOR_BASE: u8 = 0xc0;
 
 /// The most redirection entries this kernel will use. Real parts have 24 (the 82093AA, QEMU's q35,
@@ -470,7 +483,7 @@ const MSI_VECTORS: u32 = SPURIOUS_VECTOR as u32 - MSI_VECTOR_BASE as u32;
 /// every machine whose firmware leaves remapping off, which is the default. Turning it on is its
 /// own piece of work and is recorded as one; see this module's BUGS.
 ///
-/// **Provisional name** (milestone 215).
+/// Name: provisional (milestone 215).
 pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
     let offset = MSI_NEXT.fetch_add(1, Ordering::Relaxed);
     if offset >= MSI_VECTORS {
@@ -621,7 +634,7 @@ pub fn io_apic_entries() -> u32 {
 /// **This is the same partiality [`redirection_index`] has**, and it is the point rather than a
 /// side effect: a GSI with no entry has no vector, and the old total signature had to invent one.
 ///
-/// **Provisional name, and this change makes it worse rather than better** (milestone 161 marked it
+/// Name: provisional, and this change makes it worse rather than better (milestone 161 marked it
 /// provisional; milestone 308 is the lane that noticed): the function now maps an *index* into the
 /// vector space and the GSI is what it takes, not what it adds. `gsi_vector` still describes the
 /// question a caller asks, so it is not wrong, but a name naming the index would be more honest.

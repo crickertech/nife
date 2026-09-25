@@ -35,13 +35,38 @@ shards, all green.
 | like-for-like, 2026-09-14 | 38 | 6,552 | 93.6% |
 | like-for-like, 2026-09-19, read the same way | 38 | 6,604 | 94.7% |
 
+### The 2026-09-21 census
+
+Re-read on 2026-09-24. The scheduled run of 2026-09-21,
+[35589550926](https://github.com/crickertech/nife/actions/runs/35589550926), went green and was not
+captured for three days. `script/mutation-census --add-run` recorded it then.
+
+| | crates | viable | killed |
+|---|---|---|---|
+| census, 2026-09-21 | 66 | 10,178 | 92.4% |
+| the same, without `uefi_loader`'s unbuilt modules | 66 | 10,046 | 93.6% |
+| like-for-like, 2026-09-21 | 38 | 6,747 | 96.1% |
+
+Like-for-like rose again, 94.7% to 96.1%. The corpus fell for two reasons, and neither is decay:
+
+- 132 of `uefi_loader`'s 182 missed sat in `src/arch/`, modules of a `[[bin]]` no host build
+  compiles. It was the 2026-09-04 trap in files the exclusion did not name. Pull request #1232
+  excludes them and makes `script/lint` walk a gated target's module tree.
+- Four crates were measured for the first time. `stick_maker` (64.9%, 101 missed) and
+  `portable_executable` (72.6%, 76) carry most of it. The proposal
+  `design/roadmap/proposals/triage-the-crates-the-2026-09-21-census-measured-first.md` holds that
+  triage.
+
+771 missed survivors stand, and 206 timeouts. The amber reads the same on this census as on the last.
+
 ### Two joins, each worth about a point
 
 The published rows disagree about what a timeout is: the baseline and the 2026-09-14 figures follow
-`notes/mutation-testing.md`'s rule that a timeout is a kill, while the 2026-09-19 figures scored
-that run's 205 timeouts as survivors. And `cred` was renamed to `credentialer`, so the join dropped
-it: 103 viable mutants at 100%. Reproducing the published 37 crates and 6,472 viable requires
-resolving two crates by hand and missing that one.
+`notes/mutation-testing.md`'s rule that a timeout is a kill, while the 2026-09-19 figures (now in
+`notes/mutation-testing/regressions-capability-to-dtb.md`) scored that run's 205 timeouts as
+survivors. And `cred` was renamed to `credentialer`, so the join dropped it: 103 viable mutants at
+100%. Reproducing the published 37 crates and 6,472 viable requires resolving two crates by hand and
+missing that one.
 
 The direction reverses under either definition read consistently, timeouts-as-survivors giving 89.5%
 then 91.4%, and survivors across the corpus fell 771 to 563.
@@ -54,8 +79,8 @@ it needs that milestone's rename mapping. And an unresolved intersection lands j
 94.2%. The published 92.6% is reproducible exactly as a survivor-basis number, against a 93.6% that
 is kill-basis, which is the mixing stated above seen from the other side.
 
-It stays amber, on the standard this entry actually holds. 563 survivors are untriaged against
-milestone 85 (mutation testing over the host crates)'s rule that every survivor becomes a test, an
+It stays amber, on the standard this entry actually holds. On 2026-09-19, 563 survivors were untriaged.
+The rule is milestone 85 (mutation testing over the host crates)'s: every survivor becomes a test, an
 exclusion carrying its reason, or a recorded gap. That was the honest ground all along. The fall was
 never needed to reach amber, and leaning on it meant this entry asserted a cause it could not
 attribute, which its own next paragraph admitted in the same breath.
@@ -116,7 +141,7 @@ of `--report` meets it.
 
 One convention is now load-bearing and unchecked. Whether a timeout counts as a kill moves this
 entry by about two points, and the rule rests on a hand-check of the baseline's 96 timeouts six
-weeks ago. There are 205 today and none of them has been checked.
+weeks ago. There were 205 on 2026-09-19 and 206 on 2026-09-21, and none of them has been checked.
 
 The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
 that score. `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with

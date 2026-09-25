@@ -700,7 +700,7 @@ pub fn load(image: &[u8], windowed: u64) -> Result<(AddressSpace, u64), LoadErro
         .map_new(USER_STACK_VA, Flags::user_data())
         .map_err(LoadError::Unmappable)?;
 
-    // The timebase page, from milestone 161 (the x86_64 kernel port) and its `cntfrq` follow-up,
+    // The timebase page, from milestone 161 (the kernel port) and its `cntfrq` follow-up,
     // widened to riscv64 on 2026-09-21: the
     // one number `user_mode_runtime::now()` needs on an architecture with no `CNTFRQ_EL0` to read it
     // from. `x86_64` measures it; `riscv64` reads it out of the device tree, which is privileged
@@ -2690,7 +2690,7 @@ pub struct GraphicalTerminal {
 /// endpoint, which is DECISIONS §21's line-discipline contract and is what both existing sources
 /// already speak, byte for byte.
 ///
-/// Name: **provisional** (milestone 192's lane).
+/// Name: provisional (milestone 192 (a keyboard on real silicon)'s lane).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum KeystrokeSource {
     /// A virtio-input device, driven by `components/src/keyboard_driver.rs` in `MODE_DIRECT`. What

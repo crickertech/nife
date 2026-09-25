@@ -37,6 +37,8 @@ $ scripts/merge-drain.sh --once
 merge-drain: DEQUEUED #918 (needs-architect arrived after it was enqueued): the loader stops guessing
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
 merge-drain: ARMED #214 (the caretaker outlives its job)
+merge-drain: ENQUEUED #1207 (armed and green for 5 minutes with no queue entry; the platform had not) (the metrics page is a deck)
+merge-drain: RERAN #1203 run 36022256151 (CI was cancelled as a same-second duplicate and hid the green one) (the loader stops guessing)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
 $ scripts/merge-drain.sh            # loop until nothing is left to enqueue
@@ -45,7 +47,7 @@ merge-drain: queue empty; nothing open that does not need calef
 ```
 
 **Two of those lines are events and the rest are snapshots, and only the events can be counted.**
-`ARMED` and `DEQUEUED` say what this pass *did*; every other line says what was *true* when the pass
+`ARMED`, `DEQUEUED`, `ENQUEUED` and `RERAN` say what this pass *did*; every other line says what was *true* when the pass
 ended. Summing `4 armed` across passes double counts every pull request that was still armed on the
 next pass, which is why 3,355 passes of this log could not answer "how often does the drain act"
 when calef asked on 2026-09-23. `STALLED.` has the same defect: a stall that persists is re-printed
@@ -56,6 +58,8 @@ So:
 ```console
 $ grep -c 'merge-drain: ARMED #' ~/Library/Logs/nife/merge-drain.log      # enqueues, countable
 $ grep -c 'merge-drain: DEQUEUED #' ~/Library/Logs/nife/merge-drain.log   # withdrawals, countable
+$ grep -c 'merge-drain: ENQUEUED #' ~/Library/Logs/nife/merge-drain.log   # the platform's promise, kept by the drain, countable
+$ grep -c 'merge-drain: RERAN #' ~/Library/Logs/nife/merge-drain.log      # cancelled duplicates rerun, countable
 $ grep -c 'merge-drain: [0-9]* armed' ~/Library/Logs/nife/merge-drain.log # passes, not enqueues
 ```
 
@@ -439,6 +443,92 @@ the ordering brain above necessary and what milestone 119 measured as the bottle
 the same thing, the candidate against the tip, without staling anybody's branch to do it. Same
 prevention, one rung up: the platform holds it rather than a rule everybody has to route around.
 
+## A push to `main` cites the merge group instead of repeating it (A′, 2026-09-24)
+
+calef approved this on 2026-09-24 ("Proceed with A′"). On a `push` to `main`, the `draft gate` job in
+`ci.yml` and `verify.yml` asks the API whether a `merge_group` run of the **same workflow** concluded
+`success` at **exactly** `github.sha`. If one did, it sets `run=false`, prints that run's ID and URL,
+and every gated job skips. If there is no such run, the run did not succeed, or the API errors, it
+runs everything. A commit that reaches `main` outside the queue has no merge-group run and still gets
+the full suite.
+
+**Why.** The runners were starved. 31 runs were queued at 16:40 UTC that day, and every landed batch
+paid for its suite twice: once on the `gh-readonly-queue/` ref, then again, identically, on the push
+to `main`. A full verify is the project's long pole on its own.
+
+**The premise, checked against history first.** For each of the twelve first-parent commits on
+`main` from `aee5b141` to `47c3a3c9`, a successful `merge_group` CI run has `head_sha` equal to that
+commit. The queue builds each entry's merge commit on its own ref, and the commit that lands is that
+very object. Inside a batch only the tip gets a `push` run: `ac04fb01` (#1179) and `b9b0d4bb` (#1202)
+got none, while the batch tips `0b72f673` and `47c3a3c9` did. The tip's merge-group run tested the tip
+with every earlier entry of its batch already beneath it, so an exact-SHA lookup answers "was this tree
+tested" without inferring anything about neighbours.
+
+```console
+$ gh api "repos/crickertech/nife/actions/workflows/ci.yml/runs?event=merge_group&head_sha=47c3a3c9d01e96c8d007a4b41ff9d2adc8858f10&status=success&per_page=1" \
+    --jq '.workflow_runs[0].id'
+36025842548
+```
+
+A push that finds one logs `==> <sha> was tested by merge group run <id>; skipping the suite` in its
+`draft gate` step, with the run's URL on the next line.
+
+`scripts/trunk-health.sh` reads a skipped push run as green, since the run concludes `success`, and
+names the merge-group runs behind it. That keeps this green distinct from the skipped-docs green its
+own `BUGS` still warns about.
+
+## The queue's check timeout is 240 minutes, not 60 (2026-09-24)
+
+The maintainer raised the ruleset's `check_response_timeout_minutes` from 60 to 240 after #1213 was
+evicted with reason `checks_timed_out`. Measured from the timeline and the run data:
+
+| event | UTC |
+|---|---|
+| #1213 added to the queue | 16:53:43 |
+| merge-group CI 36030550892 and verify 36030550968 created | 16:54:01 |
+| first verify job past the gate starts (a runner freed) | 17:13:05 |
+| last prove shard finishes | 17:48:23 |
+| **evicted, `checks_timed_out`** | **17:54:14** |
+| required `verify (Kani proofs)` aggregate starts, then reports `success` | 17:58:53 |
+
+**The build did run.** What timed out was the wait: about nineteen minutes queued before any real job,
+then a five-second aggregate job that sat ten minutes for a runner after the last shard and reported
+four minutes past the deadline. CI had finished green at 17:45:20. At 60 minutes the timeout measured
+runner supply rather than the change, so it evicted a green pull request and made it queue again.
+
+## `script/preflight-queue`: the group build, run here first
+
+**The queue's prevention has a price, and a red member is where it is paid.** A group of up to five
+is built as one, and a member that is red on top of the entries ahead of it fails the whole group,
+which is then rebuilt without it. Every other member's build is thrown away. Per-pull-request CI
+cannot see this case at all, because the failing input is the stack, not the branch: on 2026-09-24 a
+lane replayed the queue by hand (23 entries, about 40 minutes) and found three pull requests, #1194,
+#1222 and #1182, green alone and red on top of what was ahead of them. Each would have cost a group
+roughly an hour of runner time per member.
+
+`script/preflight-queue` makes that replay a command. It walks the queue in order, then the pull
+requests armed but not yet queued, merges each onto the green ones ahead in a scratch worktree, and
+runs the cheap end of `script/ci-build` plus one aarch64 suite for anything that touches code. Its
+header has the ladder, what it skips and why, and its `BUGS`.
+
+**When to run it:**
+
+- **Before enqueueing a batch.** When a session is about to arm several pull requests at once, and
+  especially when two of them touch the test-wiring hotspot, run it with the batch armed but before
+  the queue has formed groups. A dry run costs this machine minutes per code entry and seconds per
+  documentation entry.
+- **When a group has just failed and the queue is deep.** The failure evicted one member; the rest
+  are rebuilt, and a second red member behind it costs another group. A dry run says whether there is
+  one.
+- **Not beside a `script/verify` or a mutation sweep**, which is AGENTS.md's memory ceiling; the
+  script already skips its own falsification rung when a solver is running, but its aarch64 suite
+  still competes for cores.
+
+It defaults to `--dry-run`. `--act` comments on each red entry, with the failing command, an excerpt
+and the stack it was tested on, and dequeues it (or disables auto-merge if it was not yet queued).
+If `main` itself is red at the baseline, it acts on nothing and exits 3, because every entry would
+inherit that failure.
+
 ## What the queue bought, measured
 
 Taken 2026-08-16, and it is milestone 119's (the merge queue is the bottleneck) own definition of
@@ -671,6 +761,70 @@ ambiguity is worst exactly when it matters, which is when something unexpected h
 that needs distinct GitHub identities rather than a better log; the proposal is
 [design/roadmap/proposals/who-took-the-step.md](../design/roadmap/proposals/who-took-the-step.md)
 (name provisional) and it is calef's call.
+
+- **A′ lets `main`'s Actions caches go stale.** `Swatinem/rust-cache` saves on the ref that ran, and
+  a pull request can restore only its own ref's caches and the base branch's. Merge-group refs are
+  neither, so once most pushes to `main` skip, the `main` caches that pull requests fall back to stop
+  being refreshed by CI and verify. Pushes that still run in full refresh them: commits landed outside
+  the queue, and any tip whose merge-group run did not succeed. Expect slower cold builds on pull
+  requests, not wrong ones. Nobody has measured it yet.
+- **A′ trusts a merge-group run's overall conclusion, which is stricter than what the queue
+  requires.** The queue lands on the required checks alone. A merge-group run can conclude
+  `cancelled` or `failure` because of a non-required job and still land: `0b72f673` (#1156) did,
+  when verify's falsify job hit its 45-minute timeout. That push then re-runs the whole workflow,
+  and it did (verify 36029132635, cancelled by the same timeout). This errs toward running, which
+  is the right direction, but a flaky non-required job costs a full re-run on `main`.
+- **A 240-minute check timeout is four hours in which a genuinely hung group blocks everything
+  behind it.** Sixty was right for the work and wrong for runner supply. The honest fix is fewer
+  runs competing for runners, and A′ is the first of those. When the queue stops starving, lower
+  the timeout again, because the cost of a long timeout only shows up when a group is actually stuck.
+- **One push can raise two `synchronize` events, and when the cancelled copy is the newer run the
+  pull request is stranded, green and armed, outside the queue** (#1203, 2026-09-24). Every
+  workflow on `e0875d56` ran twice at 15:43:24, including `coe architect label`, which listens only
+  for `opened`, `reopened` and `synchronize`, so it was not `ready_for_review` (that fired at
+  15:30:28). The concurrency group cancelled one copy of each within a second and before any job
+  existed. For verify the cancelled copy was the older id (36022255755) and nothing broke. For CI it
+  was the newer id (36022256151, over 36022255835's success), and a forced enqueue answered "11 of
+  13 required status checks are expected": CI's eleven. So GitHub reads the newest suite per
+  workflow, and an empty cancelled suite there hides a green one. Rerunning the cancelled run fixed
+  it, at the cost of a whole second suite (attempt 2 ran 16:41 to 17:37).
+
+  **No workflow-level fix is sound.** The duplicate event is GitHub's. A pending run is always
+  cancelled when a newer one joins its group, whatever `cancel-in-progress` says. Putting the SHA in
+  the group key would stop the duplicates cancelling each other, but a new push would then stop
+  superseding the old one. Skipping when a same-SHA run already succeeded would also skip after a
+  draft run that concluded `success` with every job skipped, which is #567 again. **The detection
+  belongs in the drain**, which can rerun the run it finds:
+
+  ```sh
+  sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
+  gh api "repos/crickertech/nife/actions/runs?head_sha=$sha&event=pull_request&per_page=100" --jq '
+    .workflow_runs | group_by(.name)[] | sort_by(.id) as $r | ($r | last) as $n
+    | select($n.conclusion == "cancelled")
+    | select([$r[] | select(.id != $n.id and .created_at == $n.created_at
+                            and (.conclusion == "success" or .status != "completed"))] | length > 0)
+    | $n.id'          # each id printed: gh run rerun <id>
+  ```
+
+  The same-second condition is what separates this from the ordinary supersede. #1207, #1209 and
+  #1211 each have a cancelled CI run followed 20 to 66 seconds later by a successful one, which is
+  a draft marked ready, and none of them was stranded.
+
+  **The drain does this now** (#1252, 2026-09-24): the query above is `scripts/cancelled-duplicate.jq`,
+  spliced into `merge-drain.sh`, and a pull request in this shape gets its cancelled duplicate
+  rerun once, logged as `RERAN #N run <id>`. Once is decided by the run's own `run_attempt`, so no
+  file or label holds the state; a duplicate already at attempt 2 is a `STALLED.` line for a person.
+  The rerun uses the workflow's own token with `actions: write`, because the App's token cannot
+  rerun a workflow; adding `Actions: read/write` to the App is calef's, and would let the rerun
+  carry the App's identity.
+- **A branch stacked on another pull request, then merged with `main`, has two merge bases, and
+  GitHub calls that a conflict that git does not see** (#1220, 2026-09-24). #1220 was cut from
+  #1213's branch. After #1213 landed and `main` was merged back in, `git merge-base --all` gave
+  both `47c3a3c9` and #1213's own commit. `git merge-tree` merged cleanly against every entry ahead
+  of it in the queue, but the queue marked it `UNMERGEABLE`, built no group for it, and evicted it
+  with `merge_conflict` at 20:00:51. Its page said `CONFLICTING`. **Once the base pull request
+  lands, rebase the stacked commits onto `main` rather than merging `main` in.** The tell is
+  `git merge-base --all origin/main HEAD` printing more than one line.
 
 **A branch in the merge queue cannot be pushed to, and the error names the fix without naming the
 cost.** `git push` is rejected with `GH006: Protected branch update failed ... Branches that are

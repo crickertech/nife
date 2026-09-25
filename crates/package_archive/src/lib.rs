@@ -112,14 +112,18 @@
 //!   stores members whole. The first packages are ELFs that were about to be written to a disk
 //!   anyway, and a compressor is a second hostile-input parser on the same path. It is a size cost,
 //!   measured nowhere yet.
-//! - **`a_short_file_is_refused` is expensive to replay**, and that is a property of the harness
-//!   rather than of a laptop. Its falsification took **20 to 31 minutes** at **3.0-3.6 GB** of
-//!   solver memory, where every other falsification record in `crates/` finishes in seconds;
-//!   AGENTS.md records 3.5 GB as the ceiling one harness has reached on the dev Mac. Measured on
-//!   patagonia with other lanes running, so the numbers are an order of magnitude and not a clean
-//!   benchmark. `nifefs`'s `a_short_image_is_refused_not_indexed` costs the same, and the shared
-//!   shape is the hint: both refuse a short input, so the solver case-splits a length check
-//!   against a wholly symbolic buffer. Making them cheaper is real work and nobody has done it.
+//! - **`a_short_file_is_refused` carries `#[kani::unwind(9)]`, and proves nothing less for it.**
+//!   Unbounded, its falsification took **20 to 31 minutes** at **3.0-3.6 GB** of solver memory
+//!   (patagonia, other lanes running, so an order of magnitude). The cause is the harness's shape
+//!   and it is `nifefs`'s exactly: once the weakened guard admits the one concrete length, symbolic
+//!   execution reaches the member loop, bounded by a `count` read from symbolic bytes, and CBMC has
+//!   to unroll it. `nifefs`'s did not finish at all. On the correct tree the guard returns first and
+//!   no loop is reachable, so the bound adds no unwinding assertion and cuts no path. Measured
+//!   2026-09-24, three runs each, Kani 0.67.0: **before**, SUCCESSFUL, 0 of 343 checks failed (25
+//!   unreachable), 0.19 to 0.22 s; **after**, the same 0 of 343 (25 unreachable), 0.18 to 0.23 s.
+//!   The falsification now goes red in **1.3 s**, on the harness's own `assert_eq!` and nothing
+//!   else. 9 is the least bound that lets the 8-byte magic compare finish, the reason `nifefs`
+//!   chose it.
 //! - **A package is bounded by `u32`.** A member longer than 4 GiB, or a file longer than 4 GiB,
 //!   cannot be represented. The largest member anyone has packed is `rg` at 10.7 MB.
 //! - **A duplicate member name is refused by the writer and first-wins in the reader**, which is
@@ -659,6 +663,7 @@ mod verification {
     ///
     /// Falsification: replayable `crates/package_archive/falsifications/verification.a_short_file_is_refused.patch`
     #[kani::proof]
+    #[kani::unwind(9)]
     fn a_short_file_is_refused() {
         let bytes: [u8; HEADER_LEN - 1] = kani::any();
         assert_eq!(Package::parse(&bytes), Err(Error::BadMagic));
