@@ -45,6 +45,7 @@ pub mod ap_boot;
 pub mod context;
 pub mod exceptions;
 pub mod fp;
+mod instructions;
 pub mod interrupts;
 pub mod iommu;
 pub mod irq;
@@ -449,11 +450,7 @@ fn close_ring3_pages_to_ring0_execution() {
         return;
     }
 
-    let cr4: u64;
-    // SAFETY: reads a control register. No side effects, no memory touched.
-    unsafe {
-        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
-    }
+    let cr4 = instructions::read_cr4();
     if cr4 & SMEP != 0 {
         return;
     }
@@ -461,9 +458,7 @@ fn close_ring3_pages_to_ring0_execution() {
     // kernel code lives in a `U/S` page). CPUID advertised the bit, so the write cannot `#GP`. Paging
     // bits are preserved; no TLB entry is invalidated, and the bit takes effect on the next fetch
     // without one, because SMEP is evaluated against the leaf at fetch time.
-    unsafe {
-        core::arch::asm!("mov cr4, {}", in(reg) cr4 | SMEP, options(nomem, nostack, preserves_flags));
-    }
+    unsafe { instructions::write_cr4(cr4 | SMEP) };
     crate::println!(
         "  cr4.smep    : set on core {}; ring 0 faults on a fetch from a ring-3 page",
         crate::cpu::id()
@@ -519,12 +514,7 @@ fn close_performance_counters_to_ring3() {
     /// privilege level; clear means ring 0 only.
     const PCE: u64 = 1 << 8;
 
-    let cr4: u64;
-    // SAFETY: reads a control register. No side effects, no memory touched.
-    unsafe {
-        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
-    }
-
+    let cr4 = instructions::read_cr4();
     if cr4 & PCE == 0 {
         return;
     }
@@ -534,9 +524,7 @@ fn close_performance_counters_to_ring3() {
     // (`PAE`, bit 5, is preserved by the mask), does not invalidate any TLB entry, and cannot make
     // a kernel access illegal, since `RDPMC` at CPL 0 is legal whatever this bit says. Every other
     // bit is written back as it was read.
-    unsafe {
-        core::arch::asm!("mov cr4, {}", in(reg) cr4 & !PCE, options(nomem, nostack, preserves_flags));
-    }
+    unsafe { instructions::write_cr4(cr4 & !PCE) };
 }
 
 /// Stop this CPU forever, cheaply. `hlt` parks it until an interrupt; with interrupts masked and
@@ -544,24 +532,18 @@ fn close_performance_counters_to_ring3() {
 /// other two architectures' `wfi`. See CLAUDE.md, "Never leave QEMU running".
 pub fn halt() -> ! {
     loop {
-        // SAFETY: halting until the next interrupt is always safe; it only affects when the next
-        // instruction runs.
-        unsafe { asm!("hlt", options(nomem, nostack)) };
+        instructions::hlt();
     }
 }
 
 /// Park until the next interrupt (the scheduler's idle primitive).
 pub fn wait_for_interrupt() {
-    // SAFETY: as `halt`, but returns when an interrupt arrives.
-    unsafe { asm!("hlt", options(nomem, nostack)) };
+    instructions::hlt();
 }
 
 /// This CPU's current stack pointer, for the stack-overflow canary check (stack.rs).
 pub fn current_sp() -> u64 {
-    let rsp: u64;
-    // SAFETY: reads a register. No side effects.
-    unsafe { asm!("mov {}, rsp", out(reg) rsp, options(nomem, nostack, preserves_flags)) };
-    rsp
+    instructions::read_rsp()
 }
 
 /// A DMA write memory barrier: order all prior stores before any device sees a later one.
@@ -577,8 +559,7 @@ pub fn current_sp() -> u64 {
 /// x86 first could have said the reverse, and the tree would have accumulated invisible
 /// strong-ordering assumptions that only a real port would have found.
 pub fn direct_memory_access_write_barrier() {
-    // SAFETY: a fence has no memory effect of its own; it only constrains ordering.
-    unsafe { asm!("sfence", options(nostack, preserves_flags)) };
+    instructions::sfence();
 }
 
 /// Make the instruction fetcher aware of code just written as data.
