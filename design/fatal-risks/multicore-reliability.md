@@ -60,9 +60,11 @@ That cuts against the claim's second clause, and it is the strongest evidence th
   return a state from one publish beside an offset from another. Milestone 116 (the fences with no
   partner) is the sweep it triggered. And the same mistake was found the same day by a hand audit
   that shared nothing with the harness.
-- A double free on the untyped region claim, found by loom and gated by a falsification witness that
-  passes only when the pre-fix protocol still double-frees, in milestone 135 (the region claim,
-  under loom).
+- A double free on the untyped region claim, found by a riscv64 QEMU flake: one panic in 45 loaded
+  full-suite runs, in milestone 62 (tests that assert on time)'s acceptance run, fixed 2026-08-18
+  ([`notes/object-revocation.md`](../../notes/object-revocation.md)). Loom came afterwards:
+  milestone 135 (the region claim, under loom) gates the fix with a falsification witness that
+  passes only when the pre-fix protocol still double-frees.
 - A boot-core-identity defect that failed `every_secondary_runs_scheduled_work` about half the time
   at two cores on x86_64, found and fixed under QEMU by milestone 316 (which core booted).
 - A port revocation that did not reach every core, found the same way and fixed on 2026-09-23 by

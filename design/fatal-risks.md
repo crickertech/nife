@@ -170,29 +170,26 @@ skeptic expects the project to die here, because this is where the most evidence
 The claim: the concurrency is wrong in ways that QEMU cannot show and that arrive one at a time,
 forever.
 
-**Experiment status: NOT-RUN, 2026-09-23.** No verdict. The sentence this entry opened with had been
-retracted two weeks before the file was written: the VisionFive 2's receiver
-woken with nothing delivered was overturned by `notes/visionfive2.md`'s own fifth bench stop on
-2026-08-15. So the gate has never fired on a field failure
-([`notes/scheduler.md`](../notes/scheduler.md)). The correction propagated badly, so
-milestone 201 (is multicore reliability converging)'s three seed data points need re-deriving before
-it starts.
+**Experiment status: NOT-RUN, 2026-09-23.** The VisionFive 2 wakeup this entry opened with was
+retracted by `notes/visionfive2.md`'s fifth bench stop on 2026-08-15, so the gate has never fired on
+a field failure ([`notes/scheduler.md`](../notes/scheduler.md)). The correction propagated badly,
+and milestone 201 (is multicore reliability converging)'s three seed data points were re-derived on
+2026-09-24: none of them can be a point on its curve, since none was found under measured stress.
+The curve's first points are radon's three soak runs of 2026-09-03, about three and a half hours of
+riscv64 with zero defects ([`notes/multicore-defect-curve.md`](../notes/multicore-defect-curve.md)).
 
-Meanwhile every multicore defect this project has found was found without silicon, two by loom and
-two under two-core QEMU. Both instruments are cheap. A defect emulation can find is not evidence
-about the class it cannot. But it retires the reading that treated silicon as the only productive
-instrument.
+Every multicore defect this project has found whose instrument is recorded was found without
+silicon: one by loom, one by an audit, and the rest under QEMU, most at two cores. The only one seen
+on physical cores and not under TCG is an HVF test hang that is still unclassified. A defect
+emulation can find is not evidence about the class it cannot, but it retires the reading that
+silicon is the only productive instrument.
 
-**The decisive experiment, which has not been run:** milestone 225 (run the soak on radon, argon and
-xenon), gated `HARDWARE`. Everything it needs now exists and none of it did on 2026-09-01.
+**The decisive experiment:** milestone 225 (run the soak on radon, argon and xenon), gated
+`HARDWARE`. Everything it needs now exists.
 
-Two caveats. Every load-sensitive red so far has resolved to a test bug, which is equally consistent
-with a healthy kernel and with an instrument that cannot see
-([`notes/load-sensitive-assertions.md`](../notes/load-sensitive-assertions.md)). The reachable
-fraction of this risk under CI is five protocols under loom's C11 model plus a TCG interleaving, with
-no real-silicon leg at all on riscv64 or x86_64. And none of it can return a green: a flattening
-defect-discovery curve is a confidence, and a linear one is the red result.
-[Appendix](fatal-risks/multicore-reliability.md).
+Two caveats, argued in the [appendix](fatal-risks/multicore-reliability.md): every load-sensitive
+red so far has been a test bug, which fits a healthy kernel and a blind instrument equally well, and
+no result here can be green, since a flattening curve is only a confidence.
 
 ## 6. A capability-confined userspace driver cannot drive real hardware at real speed
 
@@ -327,7 +324,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's ve
 | ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 96.1% like-for-like against 92.4% on 2026-09-21, and 771 missed survivors hold the amber | milestone 326 | done; the triage remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
-| -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result, and three seed points need re-deriving first | milestone 201 (is multicore reliability converging) | weeks, hardware |
+| -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result; seeds re-derived 2026-09-24, and radon's first 3.5 hours are on it with zero defects | milestone 201 (is multicore reliability converging) | weeks, hardware |
 | ~~7~~ | 7, confinement | **RUN, 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** A confinement test could not fail, and DECISIONS §12 was false on x86_64. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
 | -- | 8, nobody needs it | **CANNOT-RUN, 2026-09-23.** No experiment, and none available: milestone 576 (how many systems are out there, and what do they run) is behind milestone 198 (a package manager, and the trivial install that makes a second customer possible) | milestone 576 | blocked, not costed |
 
