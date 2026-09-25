@@ -86,7 +86,9 @@ for f in changed:
         # so the delay was on the critical path, and it landed the same day the repository started
         # requiring branches to be up to date before merging, which makes every re-run cost this
         # again.
-        if f == "script/verify":
+        # `script/verify-riscv64` is the same exception one file over (milestone 589 (Kani can prove riscv64 from the hosts we already have)): it builds the
+        # prover the riscv64 row runs under, so a change to it changes what that row proves.
+        if f in ("script/verify", "script/verify-riscv64"):
             needed.append((f, "the proofs' own wiring"))
         else:
             inert.append((f, "a script/ or helpers/ entry point; not an input to cargo kani"))
@@ -216,7 +218,23 @@ if [ "$1" = "--only" ]; then
 	shift 2
 fi
 
-if ! cargo kani --version >/dev/null 2>&1; then
+# **`VERIFY_CARGO_KANI` names a different `cargo kani`** (milestone 589; name provisional), and it
+# exists for exactly one caller: script/verify-riscv64, whose patched Kani cannot be reached as
+# `cargo kani` on a machine that also has the stock one, because cargo searches `$CARGO_HOME/bin`
+# before PATH for its subcommands. When it is set, the stock install below is refused rather than
+# attempted: stock Kani ignores the riscv64 target, so installing it would prove the host's `arch/`
+# and report it as the one that was asked for.
+if [ -n "${VERIFY_CARGO_KANI:-}" ]; then
+	if ! "$VERIFY_CARGO_KANI" --version >/dev/null 2>&1; then
+		echo "script/verify: VERIFY_CARGO_KANI=$VERIFY_CARGO_KANI does not run; refusing to fall back to stock Kani" >&2
+		exit 1
+	fi
+	kani() { "$VERIFY_CARGO_KANI" "$@"; }
+else
+	kani() { cargo kani "$@"; }
+fi
+
+if [ -z "${VERIFY_CARGO_KANI:-}" ] && ! cargo kani --version >/dev/null 2>&1; then
 	echo "==> installing Kani (first run only)"
 	cargo install --locked kani-verifier
 	cargo kani setup
@@ -446,5 +464,5 @@ for c in $crates; do
     # Unquoted on purpose: `extra` is either empty or two flags, and quoting it would hand cargo one
     # argument that is the empty string.
     # shellcheck disable=SC2086
-    cargo kani -p "$c" $extra "$@"
+    kani -p "$c" $extra "$@"
 done

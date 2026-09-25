@@ -229,9 +229,9 @@ that must keep running on a battery, which is the system Tock is.
   a snapshot, nothing regenerates them, and a reader should re-derive before quoting.
 - **"The trusted base is the kernel" is a claim about the design, not a measurement.** It assumes the
   MMU and the capability table do what the code says, which is what `design/fatal-risks.md`'s risk 2
-  (the proofs prove trivia) exists to interrogate, and that risk is AMBER: `kernel/src/arch/` is
-  still out of reach of the prover on two of three architectures, and riscv64 is unreachable in
-  principle with the current toolchain.
+  (the proofs prove trivia) exists to interrogate, and that risk is AMBER. Most of `kernel/src/arch/`
+  is behind `asm!` and MMIO, riscv64's included since milestone 589 (Kani can prove
+  riscv64 from the hosts we already have).
 - **Line counts are a poor proxy for a proof obligation and a worse one across languages.** 39,892
   lines of Rust and 10 kSLOC of C are not the same unit of anything, and a tree can shrink this
   number by moving code out of `kernel/src` without reducing what anyone has to trust. The move to

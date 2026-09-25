@@ -1,0 +1,190 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Alef <chris@crickertech.com>
+Date: Fri, 25 Sep 2026 02:21:45 +0000
+Subject: [PATCH] Let Kani target riscv64gc-unknown-linux-gnu from an aarch64
+ or x86_64 host
+
+Carried by nife (https://github.com/crickertech/nife) in
+patches/kani-0.67.0-riscv64-target.patch, against the kani-0.67.0 tag,
+under nife's DECISIONS section 218 (provisional number) and milestone 589.
+nife builds Kani from that release tag plus this file, never from a fork.
+
+What it does. CBMC is host-independent and already models riscv64
+(set_arch_spec_riscv64 in src/util/config.cpp), so what Kani lacks is a
+riscv64 target, not a riscv64 host. Four places tie Kani to its host:
+
+- compiler_interface.rs new_machine_model: a riscv64 arm (the aarch64
+  arm with the RISC-V psABI's signed 32-bit wchar_t and binary128 long
+  double; char is unsigned on both).
+- compiler_interface.rs check_target: admit riscv64-unknown-linux-gnu.
+- compiler_interface.rs target_config: report riscv64gc's features, so
+  rustc does not warn "target feature `d` must be enabled to ensure that
+  the ABI of the current target can be implemented correctly" on every
+  crate (measured: 54 warnings on nife's kernel without it, 0 with it).
+- kani-driver (call_cargo.rs, cov_session.rs) and tools/build-kani
+  (sysroot.rs): read the target from KANI_TARGET instead of env!("TARGET").
+  build-kani reads it at build time (option_env!), so a build made with
+  KANI_TARGET set has a riscv64-only sysroot; the driver reads it at run
+  time. KANI_TARGET is a provisional name, and upstream's is upstream's
+  to choose.
+
+Where it goes upstream. model-checking/kani#2402, "Command-line flag to
+change model target or environment". A separate nife lane reworks this
+into an upstream-shaped -Z flag with a multi-target sysroot; this carried
+file deliberately stays the minimal tested shape.
+
+When to delete it. When nife's Kani pin reaches a release containing
+riscv64 target support: delete this file, its patches/README.md entry,
+script/verify-riscv64's build step, and the cache step in verify.yml's
+`prove the kernel on riscv64` job. Rebase it (and rename it for the new
+version) whenever the pin moves before then.
+
+When to revisit carrying it. Switch to a maintained fork only if the
+carried change grows past a few hundred lines, or nife comes to carry
+several Kani patches at once. Below that line a single patch file is
+cheaper to read, rebase and delete than a fork is to keep in step.
+---
+ .../compiler_interface.rs                     | 37 +++++++++++++++++++
+ kani-driver/src/call_cargo.rs                 |  9 ++++-
+ kani-driver/src/coverage/cov_session.rs       |  5 ++-
+ tools/build-kani/src/sysroot.rs               |  2 +-
+ 4 files changed, 48 insertions(+), 5 deletions(-)
+
+diff --git a/kani-compiler/src/codegen_cprover_gotoc/compiler_interface.rs b/kani-compiler/src/codegen_cprover_gotoc/compiler_interface.rs
+index 845eb45..009e177 100644
+--- a/kani-compiler/src/codegen_cprover_gotoc/compiler_interface.rs
++++ b/kani-compiler/src/codegen_cprover_gotoc/compiler_interface.rs
+@@ -307,6 +307,11 @@ fn target_config(&self, sess: &Session) -> TargetConfig {
+                 // AArch64 mandates Neon support
+                 _ => vec![sym::neon],
+             }
++        } else if sess.target.arch == Arch::RiscV64 {
++            // riscv64gc: the lp64d ABI needs `d` (and `d` implies `f`). Without this rustc warns
++            // "target feature `d` must be enabled to ensure that the ABI of the current target can
++            // be implemented correctly" on every crate, a warning it says will become an error.
++            ["m", "a", "f", "d", "c", "zicsr", "zifencei"].map(Symbol::intern).to_vec()
+         } else {
+             vec![]
+         };
+@@ -572,8 +577,11 @@ fn check_target(session: &Session) {
+     let is_x86_64_darwin_target = session.target.llvm_target.starts_with("x86_64-apple-");
+     // looking for `arm64-apple-*`
+     let is_arm64_darwin_target = session.target.llvm_target.starts_with("arm64-apple-");
++    // riscv64gc Linux (LP64D), reached from another host through KANI_TARGET.
++    let is_riscv64_linux_target = session.target.llvm_target == "riscv64-unknown-linux-gnu";
+ 
+     if !is_x86_64_linux_target
++        && !is_riscv64_linux_target
+         && !is_arm64_linux_target
+         && !is_x86_64_darwin_target
+         && !is_arm64_darwin_target
+@@ -884,6 +892,35 @@ fn new_machine_model(sess: &Session) -> MachineModel {
+                 word_size: int_width,
+             }
+         }
++        Arch::RiscV64 => {
++            // RISC-V psABI, LP64D: char is unsigned, wchar_t is a signed int,
++            // long double is IEEE binary128.
++            let int_width = 32;
++            MachineModel {
++                // CBMC's config.cpp set_arch() accepts "riscv64".
++                architecture: "riscv64".to_string(),
++                alignment,
++                bool_width: 8,
++                char_is_unsigned: true,
++                char_width: 8,
++                double_width: 64,
++                float_width: 32,
++                int_width,
++                is_big_endian,
++                long_double_width: 128,
++                long_int_width: 64,
++                long_long_int_width: 64,
++                memory_operand_size: int_width / 8,
++                null_is_zero: true,
++                pointer_width,
++                rounding_mode: RoundingMode::ToNearest,
++                short_int_width: 16,
++                single_width: 32,
++                wchar_t_is_unsigned: false,
++                wchar_t_width: 32,
++                word_size: int_width,
++            }
++        }
+         _ => {
+             panic!("Unsupported architecture: {architecture}");
+         }
+diff --git a/kani-driver/src/call_cargo.rs b/kani-driver/src/call_cargo.rs
+index fbcd09c..27023f1 100644
+--- a/kani-driver/src/call_cargo.rs
++++ b/kani-driver/src/call_cargo.rs
+@@ -133,7 +133,7 @@ pub fn cargo_build_std(&self, std_path: &Path, krate_path: &Path) -> Result<Vec<
+ 
+     /// Calls `cargo_build` to generate `*.symtab.json` files in `target_dir`
+     pub fn cargo_build(&mut self, keep_going: bool) -> Result<CargoOutputs> {
+-        let build_target = env!("TARGET"); // see build.rs
++        let build_target: &str = &kani_target(); // see build.rs
+         let metadata = self.cargo_metadata(build_target)?;
+         let target_dir = self
+             .args
+@@ -475,7 +475,7 @@ fn packages_to_verify<'b>(
+ pub fn cargo_config_args() -> Vec<CargoArg> {
+     [
+         "--target",
+-        env!("TARGET"),
++        Box::leak(kani_target().into_boxed_str()),
+         // Propagate `--cfg=kani_host` to build scripts.
+         "-Zhost-config",
+         "-Ztarget-applies-to-host",
+@@ -656,3 +656,8 @@ fn package_targets(args: &VerificationArgs, package: &Package) -> Vec<Verificati
+     }
+     verification_targets
+ }
++
++/// The triple Kani compiles for: KANI_TARGET if set, otherwise the host Kani was built for.
++pub fn kani_target() -> String {
++    std::env::var("KANI_TARGET").unwrap_or_else(|_| env!("TARGET").to_string())
++}
+diff --git a/kani-driver/src/coverage/cov_session.rs b/kani-driver/src/coverage/cov_session.rs
+index 60fa2f1..0b7eb00 100644
+--- a/kani-driver/src/coverage/cov_session.rs
++++ b/kani-driver/src/coverage/cov_session.rs
+@@ -1,6 +1,7 @@
+ // Copyright Kani Contributors
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
++use crate::call_cargo::kani_target;
+ use std::fs;
+ use std::fs::File;
+ use std::io::Write;
+@@ -26,7 +27,7 @@ pub fn save_coverage_metadata(&self, project: &Project, stamp: &String) -> Resul
+     }
+ 
+     fn save_coverage_metadata_cargo(&self, project: &Project, stamp: &String) -> Result<()> {
+-        let build_target = env!("TARGET");
++        let build_target: &str = &kani_target();
+         let metadata = self.cargo_metadata(build_target)?;
+         let target_dir = self
+             .args
+@@ -109,7 +110,7 @@ pub fn save_coverage_results_cargo(
+         results: &Vec<HarnessResult>,
+         stamp: &String,
+     ) -> Result<()> {
+-        let build_target = env!("TARGET");
++        let build_target: &str = &kani_target();
+         let metadata = self.cargo_metadata(build_target)?;
+         let target_dir = self
+             .args
+diff --git a/tools/build-kani/src/sysroot.rs b/tools/build-kani/src/sysroot.rs
+index bb8708a..7faa92b 100644
+--- a/tools/build-kani/src/sysroot.rs
++++ b/tools/build-kani/src/sysroot.rs
+@@ -67,7 +67,7 @@ fn kani_sysroot_bin() -> PathBuf {
+ 
+ /// Returns the build target
+ fn build_target() -> &'static str {
+-    env!("TARGET")
++    option_env!("KANI_TARGET").unwrap_or(env!("TARGET"))
+ }
+ 
+ /// Build the `lib/` folder and `lib-playback/` for the new sysroot.

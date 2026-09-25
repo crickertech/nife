@@ -1,0 +1,166 @@
+#!/bin/sh
+# script/verify-riscv64: prove the `kernel` row for riscv64, from an aarch64 or x86_64 host.
+#
+# Usage:
+#   script/verify-riscv64                    # build the patched Kani if needed, then prove
+#   script/verify-riscv64 --harness <name>   # anything after the script name goes to `cargo kani`
+#   script/verify-riscv64 --build-only       # build (or confirm) the patched Kani and stop
+#
+# **Why this exists**: milestone 589 (Kani can prove riscv64 from the hosts we already have) and
+# DECISIONS §218 (carry a Kani patch so riscv64 is proved).
+# `kernel/src/arch/mod.rs` picks its subtree by
+# `target_arch`, and stock Kani compiles for the host it runs on, so no stock Kani on any machine
+# here compiles a line of `arch/riscv64/`. CBMC does not care what it runs on; Kani does, in four
+# places that hard-code the host triple. `patches/kani-<version>-riscv64-target.patch` unpins them
+# and reads the target from `KANI_TARGET`, and this script builds Kani with that patch, from the
+# release tag and never from a fork, then runs `script/verify --only kernel` under it.
+#
+# **The Kani version lives in exactly one place, the patch's file name.** The script finds the one
+# `patches/kani-*-riscv64-target.patch` and builds that release. Bumping Kani is renaming and
+# rebasing that file; nothing else here names a version.
+#
+# **Where it builds, and why the path must not move.** Kani bakes the absolute path of its build
+# tree into `kani-driver` (`KANI_SYSROOT`, relative to the checkout at compile time), so the build
+# lives at a fixed prefix, `$HOME/.cache/nife-kani-riscv64/kani-<version>`, and CI caches that
+# directory rather than an artifact that could be restored somewhere else. After a build the
+# intermediates (about 1.4 GB) are deleted and what Kani runs from stays. The prefix also holds the
+# stock release's CBMC and kissat, taken from the same version's release bundle, because CBMC needs
+# no change for riscv64 (`set_arch_spec_riscv64` has been in CBMC's `config.cpp` for years).
+#
+# **Idempotent**, like script/ci-qemu, which is the shape this follows: a prefix built from the same
+# version and the same patch bytes is reused, and anything else is rebuilt. The patch's hash is
+# stamped in the prefix, so editing the patch locally is enough to trigger a rebuild.
+#
+# **It refuses to fall back to stock Kani.** `script/verify` installs stock Kani if `cargo kani` is
+# missing, and stock Kani ignores `KANI_TARGET`, so a fallback would prove the host's `arch/` and
+# report it as riscv64's. This script hands script/verify the patched launcher by path
+# (`VERIFY_CARGO_KANI`, which also switches that fallback off), and after the run checks that
+# Kani's output landed under the riscv64 triple.
+#
+# Name: provisional, minted by milestone 589's lane 2026-09-25. Pairs with `script/verify`, whose
+# `kernel` row it runs for one more target. calef names what a reader meets, and a script is an
+# interface.
+
+set -eu
+cd "$(dirname "$0")/.."
+root="$(pwd)"
+
+target=riscv64gc-unknown-linux-gnu
+
+build_only=false
+if [ "${1:-}" = "--build-only" ]; then
+	build_only=true
+	shift
+fi
+
+# The one patch, and the version its name pins.
+patch=""
+for p in patches/kani-*-riscv64-target.patch; do
+	[ -e "$p" ] || continue
+	if [ -n "$patch" ]; then
+		echo "verify-riscv64: more than one patches/kani-*-riscv64-target.patch; keep exactly one" >&2
+		exit 2
+	fi
+	patch="$p"
+done
+if [ -z "$patch" ]; then
+	echo "verify-riscv64: no patches/kani-*-riscv64-target.patch to build from" >&2
+	exit 2
+fi
+version="$(basename "$patch" | sed 's/^kani-\(.*\)-riscv64-target\.patch$/\1/')"
+patch_sha="$(shasum -a 256 "$patch" | cut -d' ' -f1)"
+
+prefix="${KANI_RISCV64_PREFIX:-$HOME/.cache/nife-kani-riscv64}/kani-$version"
+src="$prefix/src"
+cbmc_bin="$prefix/cbmc/bin"
+
+case "$(uname -s)-$(uname -m)" in
+	Linux-aarch64) host=aarch64-unknown-linux-gnu ;;
+	Linux-x86_64) host=x86_64-unknown-linux-gnu ;;
+	Darwin-arm64) host=aarch64-apple-darwin ;;
+	Darwin-x86_64) host=x86_64-apple-darwin ;;
+	*)
+		echo "verify-riscv64: Kani $version ships no release for $(uname -s)-$(uname -m)" >&2
+		exit 2
+		;;
+esac
+
+# The warm path: the same version, built from the same patch bytes.
+if [ -x "$src/target/kani/bin/kani-driver" ] && [ -x "$cbmc_bin/cbmc" ] &&
+	[ "$(cat "$prefix/patch.sha256" 2>/dev/null || true)" = "$patch_sha" ]; then
+	echo "==> patched Kani $version already built at $prefix (cache hit)"
+else
+	echo "==> building Kani $version with $patch (cold; this is the slow path)"
+	start="$(date +%s)"
+	rm -rf "$prefix"
+	mkdir -p "$prefix" "$cbmc_bin"
+
+	# CBMC and kissat from the stock release bundle: unmodified, and the exact versions Kani
+	# $version was released and tested against (its `kani-dependencies` file).
+	bundle="kani-$version-$host.tar.gz"
+	curl -fsSL "https://github.com/model-checking/kani/releases/download/kani-$version/$bundle" \
+		-o "$prefix/$bundle"
+	for b in cbmc goto-cc goto-instrument goto-analyzer kissat; do
+		tar -xzf "$prefix/$bundle" -C "$prefix" "kani-$version/bin/$b"
+		mv "$prefix/kani-$version/bin/$b" "$cbmc_bin/$b"
+	done
+	rm -rf "${prefix:?}/$bundle" "${prefix:?}/kani-$version"
+
+	# Kani itself, from the release tag plus the carried patch. `charon` is an optional dependency
+	# (the LLBC backend, off by default) but cargo still resolves its manifest, so the submodule
+	# has to be present; the other two submodules are test fixtures and are left out.
+	git clone --quiet --depth 1 --branch "kani-$version" \
+		https://github.com/model-checking/kani.git "$src"
+	git -C "$src" submodule --quiet update --init --depth 1 charon
+	git -C "$src" -c user.name=nife -c user.email=nife@invalid am --quiet "$root/$patch"
+
+	# The toolchain Kani pins, with what building it needs. Installed explicitly rather than left to
+	# rustup's toolchain-file auto-install, which rustup 1.28 briefly removed.
+	build_channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$src/rust-toolchain.toml")"
+	rustup toolchain install "$build_channel" --profile minimal \
+		--component llvm-tools,rustc-dev,rust-src,rustfmt
+
+	# KANI_TARGET at BUILD time as well as run time: the sysroot build (`tools/build-kani`) reads
+	# it through `option_env!` to decide which `std` it builds, and Kani's sysroot has one slot.
+	(cd "$src" && KANI_TARGET="$target" cargo build-dev -- --release)
+
+	# Keep what Kani runs from (`target/kani`: the binaries and the riscv64 sysroot; `library/`,
+	# where the driver finds `kani_lib.c`; `rust-toolchain.toml`, which names the toolchain), and
+	# drop the build's intermediates.
+	rm -rf "$src/target/tools" "$src/target/release" "$src/target/debug" \
+		"$src/target/build-libs" "$src/target/legacy-libs" "$src/.git" "$src/charon"
+	echo "$patch_sha" >"$prefix/patch.sha256"
+	echo "==> built in $(($(date +%s) - start)) s; $(du -sh "$prefix" | cut -f1) at $prefix"
+fi
+
+# A developer-mode Kani runs cargo through `rustup run <its toolchain>`, so the toolchain must exist
+# even when the build above was skipped (a CI cache hit restores the prefix, not ~/.rustup).
+channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$src/rust-toolchain.toml")"
+if ! rustup run "$channel" rustc --version >/dev/null 2>&1; then
+	rustup toolchain install "$channel" --profile minimal \
+		--component llvm-tools,rustc-dev,rust-src,rustfmt
+fi
+
+$build_only && exit 0
+
+# CBMC on PATH (a developer-mode Kani looks for it there), the patched launcher named to
+# script/verify directly (cargo would find a stock `cargo-kani` in `$CARGO_HOME/bin` first), and the
+# target the patch reads.
+# A marker older than anything this run writes, for the check after it.
+marker="$(mktemp)"
+trap 'rm -f "$marker"' EXIT
+
+PATH="$cbmc_bin:$PATH" \
+	VERIFY_CARGO_KANI="$src/scripts/cargo-kani" \
+	KANI_TARGET="$target" \
+	script/verify --only kernel "$@"
+
+# The last check, and the one that does not trust anything above it: Kani's build output for this
+# run must be under the riscv64 triple. A Kani that ignored `KANI_TARGET` would have written it
+# under the host's.
+out="target/kani/$target"
+if [ ! -d "$out" ] || [ -z "$(find "$out" -newer "$marker" -name '*.symtab.out' -print -quit 2>/dev/null)" ]; then
+	echo "verify-riscv64: no riscv64 goto output under $out from this run; the proofs above were not riscv64's" >&2
+	exit 1
+fi
+echo "==> the kernel proved for $target"
