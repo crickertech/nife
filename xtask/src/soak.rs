@@ -504,6 +504,14 @@ pub(crate) fn soak_test() -> ExitCode {
         profile_dir()
     ));
     cmd.env("NIFE_INITRD", &initrd);
+    // **No disk on `x86_64`**, `boot_check`'s fix applied here (found 2026-09-25 by milestone 593,
+    // provisional number, in a fresh worktree). `host::cargo` exports a `NIFE_DISK` naming a file
+    // only `mkdisk` writes, only the aarch64 leg above calls `mkdisk`, and the `x86_64` runner treats
+    // a named but missing disk as fatal. So `--arch x86_64` passed only in a checkout where some
+    // earlier command had left the image behind. The soak reads no disk.
+    if arch == "x86_64" {
+        cmd.env_remove("NIFE_DISK");
+    }
     if let Some(n) = &smp {
         cmd.env("NIFE_SMP", n);
     }
