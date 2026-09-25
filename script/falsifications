@@ -224,6 +224,13 @@
 set -e
 
 ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$ROOT"
+
+# This project's own QEMU, if `script/ci-qemu` has built one (helpers/qemu-path.sh says why PATH is
+# the mechanism). A kernel-test record boots through `cargo xtask test`, and until 2026-09-25 this
+# script was missing from `script/lint`'s check for the line: it builds that command as a Python
+# list, which the check's pattern does not see. A no-op on macOS and without that prefix.
+. helpers/qemu-path.sh
 
 exec python3 - "$ROOT" "$@" <<'PY'
 import json
