@@ -61,7 +61,7 @@ same condition milestone 87's UEFI lane worked in and is why the deliverable is 
 one's was: the mechanism, and a bench procedure detailed enough that the person who *can* reach the
 board spends their time on the machine rather than on reconstructing what to type.
 
-- **`--features reboot_soak`** (name provisional), riscv64 only. After a fixed window the soak calls
+- **`--features reboot_soak`** (name provisional), on all three architectures since 2026-09-24. After a fixed window the soak calls
   SBI SRST `system_reset` with reset type 1 instead of beating forever.
   `arch::semihosting::reboot` returns `sbiret.error`, so a firmware that refuses says so on the
   console instead of being assumed either way.
@@ -105,10 +105,9 @@ because the ordering is the argument.
    `boot_lottery` was the other candidate and was refused: it names the finding, and the flag is met
    by an operator about to write a card that makes their board reset itself. The name has to say
    what the machine will do.
-2. **Any non-riscv64 build of the feature is a `compile_error!`.** The reset is SBI's and the escape
-   is the NS16550's line-status register. A build that compiled and quietly never rebooted is the
-   worst available failure, because it is indistinguishable from a board that drew the same
-   placement fifty times.
+2. **A build that cannot reboot must not pass for one.** It would look exactly like a board that
+   drew the same placement fifty times. This was a `compile_error!` off riscv64 until 2026-09-24;
+   now `script/soak-test --reboot` fails any build that does not come back.
 3. **The kernel polls the console UART's data-ready bit**, every beat and again through the five
    seconds before each reset. **The bit is sticky** (set while a byte is unread, cleared only by
    reading it, and nothing in a soak boot reads it), so a five-second poll cannot miss a keypress:
@@ -152,22 +151,10 @@ is in the `BUGS` sections of both `kernel/src/soak.rs` and notes/soak.md as well
 
 ## The one fact this milestone could not check
 
-**Whether radon's OpenSBI implements SRST reset type 1 as a reset**, as opposed to implementing only
-shutdown. The shutdown path is in use, so the extension exists and the `ecall` arrives; SBI permits
-an implementation to support any subset of the types, and nobody has asked this one. It is treated
-as the first thing the bench verifies, and the kernel is built so the console answers: `reboot`
-returns `sbiret.error` and the failure line prints it, with `-2` (`SBI_ERR_NOT_SUPPORTED`) called
-out by name.
-
-**If it refuses**, this route is closed and the milestone needs a different mechanism rather than a
-different constant. radon already has a smart plug (MEMORY's bench-rig note), so a power-cycled
-series is the obvious alternative and is a stronger experiment besides, since a power cycle is what
-the nine control boots were. It is deliberately not built here: building a second mechanism against
-a firmware limitation nobody has observed is spending a lane on a guess.
-
-**If instead the board goes dark**, the firmware treated type 1 as a shutdown, which is a different
-firmware bug with the same consequence. notes/soak.md's outcome table separates them, because a year
-from now the difference is the whole content of the row.
+Whether radon's OpenSBI implements SRST reset type 1 as a reset. SBI permits any subset of the
+reset types, so the kernel prints `sbiret.error` rather than assuming. A refusal (`-2`) or a dark
+board would each close this route and point at a power-cycled series; notes/soak.md's outcome table
+separates the two. The bench answered on 2026-09-04, below.
 
 ## What it must not become
 
@@ -190,15 +177,14 @@ asks for, and it prints the caveats beside it so a count of draws is not quoted 
 
 ## The bench answered it, 2026-09-04, and closed the route
 
-**radon's OpenSBI implements SRST reset type 1, and the board does not come back.** The `ecall`
-returns no error and the SoC resets; U-Boot SPL then cannot reach the PMIC over i2c, retries, and
-hangs. The transcript is `target/board/radon-2026-09-04-srst-reset-pmic.log` and notes/soak.md
+**radon's OpenSBI accepts SRST reset type 1, and the board does not come back.** Corrected
+2026-09-24: no reset happens. OpenSBI's reset is an I2C write to the PMIC, the write fails, and
+OpenSBI hangs. The transcript is `target/board/radon-2026-09-04-srst-reset-pmic.log` and notes/soak.md
 carries the line-numbered extract.
 
 **That is a third outcome, and neither this block nor the note predicted it.** Both priced a refusal
-(`sbiret.error == -2`) against silence at the `ecall`. What happens is that the firmware accepts, the
-reset occurs, and the firmware *on the way back* fails: something the PMIC needs is not reinitialised
-by a warm SoC reset the way it is by removing power.
+(`sbiret.error == -2`) against silence at the `ecall`. What happens is that the firmware accepts
+and then fails before any reset, in its own PMIC write.
 
 **The kernel half is sound and was verified the same evening.** The reboot fires when it says it
 will, prints what it is about to do, and the escape works: a byte sent mid-soak produced
@@ -217,7 +203,19 @@ filed (`design/roadmap/proposals/board-console-cannot-speak-to-the-board.md`). S
 wrong moment also stopped U-Boot's autoboot countdown and cost a power cycle, which is the fallback
 this block names working as an obstacle.
 
+## All three architectures, 2026-09-24
+
+aarch64 and `x86_64` now reboot through the same soak path, each proven under QEMU by a second boot.
+The routes, the proofs, each board's first bench step and the corrected radon diagnosis are in
+notes/board-reboot.md.
+
 ## Follow-on
+
+- **Proposed.** radon's PMIC hang:
+  `design/roadmap/proposals/radons-reboot-dies-in-opensbis-pmic-write.md`.
+- **Proposed.** A watchdog for a wedged kernel:
+  `design/roadmap/proposals/a-wedged-kernel-resets-itself.md`.
+- **Proposed.** xenon's possible AMT: `design/roadmap/proposals/xenon-may-carry-amt.md`.
 
 - **Milestone 324.** *The watcher reads a board and never speaks to it, so stopping a reboot loop needs a
   person at the keyboard.* `script/board-console` holds the port and cannot send the byte that is
