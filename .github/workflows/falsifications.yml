@@ -53,6 +53,24 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # **QEMU, and the bootstrap that provisions the kernel build**, the same four steps ci.yml's
+      # test job takes and for its reasons (the runner's packaged QEMU is 8.2; the pinned build is
+      # cached by `.qemu-version`). Added 2026-09-25: a kernel-test record boots under QEMU, and
+      # this job had never installed one, so every kernel record since milestone 305 (the six
+      # kernel confinement rows get a falsification a machine can replay) reported `ERROR the
+      # kernel never reached its test runner` here, twelve of them on 2026-09-24, inside a job that
+      # reports success. The Kani records were the only ones this sweep ever replayed.
+      - name: Cache QEMU
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/nife-qemu
+          key: qemu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.qemu-version') }}
+      - name: Build QEMU if the cache missed
+        run: script/ci-qemu
+      - name: Put it on PATH
+        run: echo "$HOME/.cache/nife-qemu/bin" >> "$GITHUB_PATH"
+      - run: script/bootstrap
+
       # script/verify installs Kani on first run; do it here as its own step so an install failure
       # is not reported as a sweep failure.
       - name: Install Kani

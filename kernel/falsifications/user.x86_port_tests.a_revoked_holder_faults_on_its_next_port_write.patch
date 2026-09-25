@@ -25,11 +25,17 @@ Regenerated 2026-09-21 (falsif lane) against the context PR #1059 (risk 7's adve
 that pull request inserted the `outgoing_cap` hand-off sweep directly above the six lines this patch
 removes, so the old hunk no longer matched. Same six lines, same defect, new surrounding context.
 
+Regenerated again 2026-09-25 (UTC) against 53cb6d620, which landed
+milestone 315 (a port revoke that reaches every core). That commit replaced the single-core TSS reset below these six lines with a
+broadcast inside the lock. The broadcast does not rescue the defect: it resets every core's bitmap
+once, and the revoked holder's next switch-in reinstalls the grant from the cache this patch leaves
+standing.
+
 diff --git a/kernel/src/sched.rs b/kernel/src/sched.rs
-index d1054fc8..750e8917 100644
+index 0a86074c2..e233860d9 100644
 --- a/kernel/src/sched.rs
 +++ b/kernel/src/sched.rs
-@@ -3291,12 +3291,6 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>)
+@@ -3419,12 +3419,6 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>)
              if matches!(t.outgoing_cap, Some(c) if c.object == target) {
                  t.outgoing_cap = None;
              }
@@ -40,5 +46,5 @@ index d1054fc8..750e8917 100644
 -                t.port_range_grant = None;
 -            }
          }
-     }
-     // Reach the TSS of the core that might already hold the revoked bitmap. This resets **the
+         // Reach the TSS of **every** core that might already hold the revoked bitmap, before
+         // releasing the lock (milestone 315). Clearing the cached grant above is not enough on a

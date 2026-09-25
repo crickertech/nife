@@ -9,8 +9,8 @@ bitmap on every switch-in, and nothing else consults the table, so the thread ke
 access to the ports for the rest of its life. §12 says a consumed capability cannot be used again;
 this is that claim failing for the one object enforced outside the table.
 
-The patch removes the two lines the fix added to `sched::delete_current_cap` (clearing the cache
-under the lock, and resetting this core's bitmap after it) and keeps the lookup, so the only thing
+The patch removes the two things the fix added to `sched::delete_current_cap` (clearing the cache,
+and resetting this core's bitmap, both under the lock since milestone 315) and keeps the lookup, so the only thing
 that changes is whether the grant survives the delete. `delete_port_range_caps_impl`, the
 `REVOKE` path, is untouched: `a_revoked_holder_faults_on_its_next_port_write` stays green under
 this patch, which is the point. The two milestone 299 tests prove the grant follows the capability
@@ -33,11 +33,16 @@ Replayed by hand on 2026-09-17 with the sweep's own argument list (`cargo xtask 
 x86_64 --test a_holder_that_deletes`), red at `kernel/src/user/x86_port_tests.rs`, `left: 2`,
 `right: 1`.
 
+Regenerated 2026-09-25 (UTC) against 53cb6d620, which landed
+milestone 315 (a port revoke that reaches every core). That commit moved the bitmap reset inside the `IPC_TABLES` critical section and
+rewrote the comment above it, so the old hunk no longer matched. Same two removals, same defect, new
+surrounding context.
+
 diff --git a/kernel/src/sched.rs b/kernel/src/sched.rs
-index 201071c7..3012d9ec 100644
+index 0a86074c2..c72f8cac7 100644
 --- a/kernel/src/sched.rs
 +++ b/kernel/src/sched.rs
-@@ -3242,17 +3242,11 @@ pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
+@@ -3499,19 +3499,13 @@ pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
              };
          }
          t.capability_table.delete(slot)?;
@@ -45,14 +50,16 @@ index 201071c7..3012d9ec 100644
 -        if dropped_port_grant.is_some() {
 -            t.port_range_grant = None;
 -        }
+         // Under the lock, with `delete_port_range_caps_impl`'s broadcast and for its reason
+         // (milestone 315): every writer of a TSS port bitmap holds `IPC_TABLES`, so a revocation
+         // NMI cannot land inside one. No broadcast is owed here. The caller is the thread whose
+         // grant is installed, a core's bitmap only ever permits a range for the thread currently
+         // running on it, and that thread is running here, so this core is the only core to tell.
+         #[cfg(target_arch = "x86_64")]
+-        if let Some((base, count)) = dropped_port_grant {
+-            crate::arch::segments::revoke_installed_port_grant(base, count);
+-        }
++        let _ = dropped_port_grant;
      }
-     // Outside the lock, as `delete_port_range_caps_impl` does: the caller is the thread whose grant
-     // is installed in this core's TSS, so the core-local reset is the whole of the revocation here.
-     #[cfg(target_arch = "x86_64")]
--    if let Some((base, count)) = dropped_port_grant {
--        crate::arch::segments::revoke_installed_port_grant(base, count);
--    }
-+    let _ = dropped_port_grant;
      Ok(())
  }
- 

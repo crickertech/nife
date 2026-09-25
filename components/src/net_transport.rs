@@ -336,6 +336,11 @@ impl Device for VirtioNet {
 }
 
 /// Holds the received frame by value, so it never borrows the device.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended keeping `VnetRxToken`, because it implements smoltcp's
+/// `phy::RxToken` trait, and the upstream word is what a reader of smoltcp looks for.
 pub struct VnetRxToken {
     frame: Vec<u8>,
 }
@@ -351,6 +356,11 @@ impl phy::RxToken for VnetRxToken {
 /// Carries a raw pointer to the device rather than a borrow, so a receive token and a transmit
 /// token can coexist (both are returned from one `&mut self` call). `net_stack` is single-threaded, and
 /// the device outlives any token within a poll, so the deref in `consume` is sound.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended keeping `VnetTxToken`, because it implements smoltcp's
+/// `phy::TxToken` trait, and the upstream word is what a reader of smoltcp looks for.
 pub struct VnetTxToken {
     dev: *mut VirtioNet,
 }

@@ -355,7 +355,11 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// never return. Sixteen is the 16550's FIFO depth; four times that is slack for a part with a
     /// deeper one and is still a fixed number of register reads.
     ///
-    /// Name provisional (milestone 249): calef names public items.
+    /// Name: provisional since milestone 249 (the boot lottery is sampled by a person walking to
+    /// the board), flagged again 2026-09-25 by the lane that re-derived the x86 port falsifications
+    /// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx`
+    /// stands for in his #1255 review; recommended `discard_waiting_bytes`, because it drops the
+    /// bytes `is_byte_waiting` would have reported.
     pub fn discard_rx(&self) {
         let mut bound = 64u32;
         while self.read(LSR) & LSR_DR != 0 && bound > 0 {
@@ -370,6 +374,10 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// before completing the interrupt, or it re-fires immediately. That something is the userspace
     /// input driver, which holds this device's registers as a capability; the kernel arms the
     /// interrupt and reads nothing. The console still polls for transmit.
+    ///
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `enable_receive_interrupt`.
     pub fn enable_rx_interrupt(&self) {
         self.write(IER, IER_ERBFI);
     }
@@ -400,6 +408,10 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// banner (or, on this board, this very driver's own diagnostic prints) can have THRE at 0 for
     /// real time. Bounded the same way `init`'s busy-quirk drain is: a spin this size only ever
     /// trips on silicon not answering at all.
+    ///
+    /// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port
+    /// falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked
+    /// what `rx` stands for in his #1255 review; recommended `enable_transmit_interrupt`.
     #[cfg(test)]
     pub fn enable_tx_interrupt(&self) {
         let mut spins = 1_000_000u32;
