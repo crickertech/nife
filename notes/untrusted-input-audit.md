@@ -182,10 +182,11 @@ not used to bound any read into a fixed buffer (transfers go to the device throu
 overflow is benign. The only device-written values that reach control flow unbounded are the two
 completion fields of finding 1.
 
-**`crates/non_volatile_memory_express`'s completion read itself.** The completion is read from the driver's own `head` slot,
-not from any device-supplied index, and `CqState::owned` distinguishes fresh from stale by the phase
-tag, not by `cid`. So `cid` is never used to index anything (finding 1 is that it is used in an
-*assert*, not that it indexes memory), and the read is memory-safe whatever the device writes.
+**`crates/non_volatile_memory_express`'s completion read itself.** The completion is read from the
+driver's own `head` slot, not from any device-supplied index, and `CqState::is_owned` distinguishes
+fresh from stale by the phase tag, not by `cid`. So `cid` is never used to index anything (finding 1
+is that it is used in an *assert*, not that it indexes memory), and the read is memory-safe whatever
+the device writes.
 
 **`crates/credentialer` and `crates/ntlm`, against §79.** The secret-material rules are followed, and in
 several places the code is already at the standard an audit would ask for:

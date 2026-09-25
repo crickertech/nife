@@ -39,7 +39,7 @@ fn read_trimmed(path: &Path) -> Option<String> {
 
 /// Block device names this program considers at all. Everything else (`ram`, `zram`, `dm-`, `md`,
 /// `sr`, `nbd`) is not a disk anyone writes a boot stick to.
-fn considered(name: &str) -> bool {
+fn is_considered(name: &str) -> bool {
     ["sd", "mmcblk", "nvme", "vd", "xvd", "hd", "loop"]
         .iter()
         .any(|p| name.starts_with(p))
@@ -117,7 +117,7 @@ pub fn assemble(sys_block: &Path, mounts: &str, udev: &Path) -> Vec<Disk> {
     let mut names: Vec<String> = entries
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| considered(n))
+        .filter(|n| is_considered(n))
         .collect();
     names.sort();
 

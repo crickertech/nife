@@ -318,7 +318,7 @@ use supervision_protocol::{
     ChildEndowment, Retention, build_child, retype_obj_from as retype_obj,
     retype_page_frame_from as retype_page_frame, start_child,
 };
-use user_mode_runtime::{call, cap_delete, granted, invoke, recv, recv_cap, send};
+use user_mode_runtime::{call, cap_delete, invoke, is_granted, recv, recv_cap, send};
 
 /// **The capabilities the kernel granted the progenitor, by slot.** Data the boot entry states
 /// rather than code this crate repeats, so a board that grants a different layout says so in one
@@ -890,10 +890,10 @@ pub fn boot(
     }
 
     // **Graphical, when this boot has a GPU and a keyboard both attached** (milestone 177, option
-    // A). Probed the same way the virtio-rng trio is (`user_mode_runtime::granted`, since there is no
-    // fourth `START` argument word left to be told with instead): `disp_term_ep` and `kbd_ep` are
-    // granted together or not at all (`kernel::user::boot_graphical_terminal`'s own contract), so
-    // checking one stands for both.
+    // A). Probed the same way the virtio-rng trio is (`user_mode_runtime::is_granted`, since there
+    // is no fourth `START` argument word left to be told with instead): `disp_term_ep` and `kbd_ep`
+    // are granted together or not at all (`kernel::user::boot_graphical_terminal`'s own contract),
+    // so checking one stands for both.
     //
     // **Computed and acted on here, at the very top, not where it is first needed** (found by
     // hitting the wall the same way the paragraph below describes: bisection, not reasoning).
@@ -915,8 +915,8 @@ pub fn boot(
     // the firmware's framebuffer (`kernel::user::boot_screen_terminal`): the UART stays the
     // console and the keystroke source exactly as on a plain boot, and the console server hands
     // every byte it writes to that terminal as well. So `kbd_ep` is what tells the two apart.
-    let has_graphical = granted(g.disp_term_ep) && granted(g.kbd_ep);
-    let has_screen = !has_graphical && granted(g.disp_term_ep);
+    let has_graphical = is_granted(g.disp_term_ep) && is_granted(g.kbd_ep);
+    let has_screen = !has_graphical && is_granted(g.disp_term_ep);
     if has_graphical {
         cap_delete(g.uart_dev);
         cap_delete(g.uart_irq);

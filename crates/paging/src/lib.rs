@@ -387,7 +387,7 @@ impl Flags {
 
 /// Which half of the address space a set of tables serves: the low half (user) or the high half
 /// (kernel). The bit boundary between them is per-format ([`PageFormat::SPLIT_SHIFT`]); this enum is
-/// just the marker, and the format supplies the geometry via [`PageFormat::in_half`] and
+/// just the marker, and the format supplies the geometry via [`PageFormat::is_in_half`] and
 /// [`PageFormat::half_base`].
 ///
 /// # The thing that is easy to get wrong
@@ -419,7 +419,7 @@ pub enum Half {
 ///
 /// Generic over the format so the split lands at the right bit for the running architecture.
 pub fn is_user_page_va<F: PageFormat>(va: u64) -> bool {
-    F::in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
+    F::is_in_half(Half::Low, va) && va.is_multiple_of(PAGE_SIZE)
 }
 
 /// **The seam between the shared walk and a hardware page-table format.**
@@ -484,7 +484,7 @@ pub trait PageFormat {
     /// Does `va` lie in `half` for this format? The top bits (above [`SPLIT_SHIFT`](Self::SPLIT_SHIFT))
     /// must be all-zero for the low half or all-one for the high half; anything between is
     /// non-canonical and faults.
-    fn in_half(half: Half, va: u64) -> bool {
+    fn is_in_half(half: Half, va: u64) -> bool {
         let top = va >> Self::SPLIT_SHIFT;
         match half {
             Half::Low => top == 0,
@@ -672,7 +672,7 @@ where
     pub fn map(&mut self, va: u64, pa: u64, flags: Flags) -> Result<(), MapError> {
         // The hardware selects the table set from the top bits before it touches an index, so
         // mapping a high address into the low tables would build a mapping the CPU never consults.
-        if !F::in_half(self.half, va) {
+        if !F::is_in_half(self.half, va) {
             return Err(MapError::WrongHalf);
         }
 
@@ -739,7 +739,7 @@ where
         if size == PageSize::Size4KiB {
             return self.map(va, pa, flags);
         }
-        if !F::in_half(self.half, va) {
+        if !F::is_in_half(self.half, va) {
             return Err(MapError::WrongHalf);
         }
         let bytes = size.bytes();
@@ -836,7 +836,7 @@ where
     ///
     /// Returns a [`TlbFlush`] you cannot ignore.
     pub fn unmap(&mut self, va: u64) -> Result<(u64, TlbFlush), MapError> {
-        if !F::in_half(self.half, va) {
+        if !F::is_in_half(self.half, va) {
             return Err(MapError::WrongHalf);
         }
         if !va.is_multiple_of(PAGE_SIZE) {
@@ -878,7 +878,7 @@ where
     /// does on every access, in silicon, and it is worth having in software: it is the only way to
     /// *check* that the tables say what you think they say.
     pub fn translate(&self, va: u64) -> Option<(u64, Flags)> {
-        if !F::in_half(self.half, va) {
+        if !F::is_in_half(self.half, va) {
             return None;
         }
 

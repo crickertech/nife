@@ -32,23 +32,23 @@
 //!
 //! // The initial zeros. Phase 0 against an expected phase of 1: not ours, do not read the result.
 //! let stale = Completion::from_dwords([0, 0, 0, 0]);
-//! assert!(!cq.owned(&stale));
+//! assert!(!cq.is_owned(&stale));
 //!
 //! // The controller's first completion, phase bit set, for command id 7.
 //! let fresh = Completion::from_dwords([0, 0, 0, 7 | (1 << 16)]);
-//! assert!(cq.owned(&fresh));
+//! assert!(cq.is_owned(&fresh));
 //! assert_eq!(fresh.cid, 7);
 //! assert_eq!(fresh.status, 0); // 0 is success
 //! assert_eq!(cq.pop(), 1); // the value the driver writes to the completion head doorbell
 //!
 //! // Slot 1, same lap, still phase 1.
-//! assert!(cq.owned(&fresh));
+//! assert!(cq.is_owned(&fresh));
 //! assert_eq!(cq.pop(), 0); // wrapped, so the expected phase flipped
 //!
 //! // Now the ring has lapped, and last lap's entries are the stale ones. This is the whole trick:
 //! // the bytes in slot 0 have not changed, and their meaning has.
-//! assert!(!cq.owned(&fresh));
-//! assert!(cq.owned(&stale));
+//! assert!(!cq.is_owned(&fresh));
+//! assert!(cq.is_owned(&stale));
 //! ```
 //!
 //! Doorbells are pure arithmetic over a stride the controller reports, and getting the parity wrong
@@ -407,7 +407,7 @@ pub struct Completion {
     pub sq_id: u16,
     /// The command identifier the driver assigned, echoed back.
     pub cid: u16,
-    /// The phase tag: dword 3, bit 16. See [`CqState::owned`].
+    /// The phase tag: dword 3, bit 16. See [`CqState::is_owned`].
     pub phase: bool,
     /// The 15-bit status field; 0 is success. Status code type in bits 8..11, code in 0..8.
     pub status: u16,
@@ -508,7 +508,7 @@ impl CqState {
 
     /// Does this completion belong to the driver yet? True when its phase tag matches the phase
     /// this lap expects; a stale entry (last lap's, or the initial zeros) fails the match.
-    pub fn owned(&self, c: &Completion) -> bool {
+    pub fn is_owned(&self, c: &Completion) -> bool {
         c.phase == self.phase
     }
 
@@ -830,10 +830,10 @@ mod tests {
         let fresh = Completion::from_dwords([0, 0, 5 | 1 << 16, 42 | 1 << 16]);
         assert_eq!((fresh.sq_head, fresh.sq_id, fresh.cid), (5, 1, 42));
         assert_eq!(fresh.status, 0);
-        assert!(cq.owned(&fresh));
+        assert!(cq.is_owned(&fresh));
         // A zeroed (never-written) entry is not.
         let stale = Completion::from_dwords([0; 4]);
-        assert!(!cq.owned(&stale));
+        assert!(!cq.is_owned(&stale));
         // An error status decodes: dword 3 bits 17.. carry it.
         let failed = Completion::from_dwords([0, 0, 0, 1 << 16 | 0x2 << 17]);
         assert_eq!(failed.status, 0x2, "Invalid Field in Command");
@@ -847,7 +847,7 @@ mod tests {
         for _ in 0..9 {
             assert!(cq.head() < 3);
             cq.pop();
-            let phase_now = cq.owned(&Completion::from_dwords([0, 0, 0, 1 << 16]));
+            let phase_now = cq.is_owned(&Completion::from_dwords([0, 0, 0, 1 << 16]));
             if phase_now != last {
                 flips += 1;
                 last = phase_now;

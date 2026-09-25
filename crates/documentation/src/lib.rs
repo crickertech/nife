@@ -86,7 +86,7 @@
 //! - **A source line longer than [`LINE_MAX`] is truncated**, and the truncation is silent in the
 //!   output. The longest line in this repository is 1925 bytes <!--count:longest-markdown-line-->,
 //!   which is why the limit is what it is; a document from somewhere else may lose text. The
-//!   renderer records it, so a caller that wants to know can ask [`Renderer::truncated`].
+//!   renderer records it, so a caller that wants to know can ask [`Renderer::is_truncated`].
 //! - **A fence inside a block quote closes now, and did not until 2026-08-18.** The closing test
 //!   was matched against the raw line, so a quoted closing fence never matched its own opener and the
 //!   renderer stayed in code mode to the end of the document: one quoted transcript misrendered
@@ -96,7 +96,7 @@
 //!   on purpose until somebody answered whether the renderer kept quote state across a nested
 //!   fence. It did not. `a_fence_inside_a_block_quote_closes` is what holds it now, and it has to
 //!   be a unit test: the corpus check cannot see this class of failure at all, because verbatim
-//!   output loses no characters. [`Renderer::unclosed_fence`] catches the case where the stuck
+//!   output loses no characters. [`Renderer::has_unclosed_fence`] catches the case where the stuck
 //!   fence is the last one in the page, which is a cheap invariant rather than the guard.
 //! - **A lazy continuation inside a quoted fence keeps its quote markers.** A line inside
 //!   a quoted fence that drops its own marker is taken verbatim, marker and all, because the
@@ -129,7 +129,7 @@
 //!   rendering, and it wants somebody who can price the untyped.
 //!
 //!   The fold is deliberately not loud: a renderer that refused input it could not lay out
-//!   prettily would be worse than one that lays it out badly, and [`Renderer::truncated`] stays
+//!   prettily would be worse than one that lays it out badly, and [`Renderer::is_truncated`] stays
 //!   what it says it is, a report that characters were lost.
 //!
 //!   **The entry this replaces is why the bug survived**, and it is worth saying so here rather

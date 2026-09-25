@@ -28,13 +28,13 @@
 //! `home_dir` is `None`. Each of those *can* say no in its own signature, and each of them needs
 //! something this process has not been given.
 //!
-//! **`getcwd` stopped being one of them on 2026-08-18** (milestone 47's namespace half). It
-//! answers `/`, and that is not a new fiction: `sys/fs/nife.rs` accepts a leading `/` as the root
-//! of *this process's* namespace, which is the directory it was granted, so the path `getcwd`
-//! returns is one the filesystem half resolves. A process holding no directory capability still
-//! gets `Unsupported`, from the same `reachable()` probe every `std::fs` entry point uses: naming
-//! a place you hold no capability for would be this file's own recurring failure, an answer where
-//! a refusal was the truth.
+//! **`getcwd` stopped being one of them on 2026-08-18** (milestone 47's namespace half). It answers
+//! `/`, and that is not a new fiction: `sys/fs/nife.rs` accepts a leading `/` as the root of *this
+//! process's* namespace, which is the directory it was granted, so the path `getcwd` returns is one
+//! the filesystem half resolves. A process holding no directory capability still gets
+//! `Unsupported`, from the same `is_reachable()` probe every `std::fs` entry point uses: naming a
+//! place you hold no capability for would be this file's own recurring failure, an answer where a
+//! refusal was the truth.
 //!
 //! **Answered, because the signature leaves no way to refuse:** `temp_dir` returns a `PathBuf` and
 //! `split_paths` returns an iterator. There is no error channel in either, so "this platform has
@@ -106,7 +106,7 @@ const PATH_SEPARATOR: u8 = b':';
 /// `std::fs` gives it. There is a difference between "you are at your root" and "you have no
 /// root", and a `PathBuf` cannot carry it.
 pub fn getcwd() -> io::Result<PathBuf> {
-    if crate::sys::fs::nife::reachable() {
+    if crate::sys::fs::nife::is_reachable() {
         Ok(PathBuf::from("/"))
     } else {
         unsupported()

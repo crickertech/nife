@@ -102,7 +102,7 @@ pub enum Sign {
 impl Sign {
     /// Is this sign present in `line`? `complete` says whether the line has finished arriving.
     #[must_use]
-    pub fn seen_in(&self, line: &str, complete: bool) -> bool {
+    pub fn is_seen_in(&self, line: &str, complete: bool) -> bool {
         match self {
             Sign::Text(text) => line.contains(text),
             Sign::WordAfter { prefix, not } => {
@@ -175,8 +175,10 @@ impl Rung {
 
     /// Does this line say the rung was reached? `complete` says whether the line has finished.
     #[must_use]
-    pub fn seen_in(&self, line: &str, complete: bool) -> bool {
-        self.signs.iter().any(|sign| sign.seen_in(line, complete))
+    pub fn is_seen_in(&self, line: &str, complete: bool) -> bool {
+        self.signs
+            .iter()
+            .any(|sign| sign.is_seen_in(line, complete))
     }
 }
 
@@ -349,8 +351,8 @@ mod tests {
         assert_eq!(first.partial_cmp(&second), Some(Ordering::Less));
         let relabelled = Rung::new(1, "other", "Other", &[]);
         assert_eq!(first, relabelled);
-        assert!(first.seen_in("U-Boot SPL 2021.10", true));
-        assert!(!relabelled.seen_in("U-Boot SPL 2021.10", true));
+        assert!(first.is_seen_in("U-Boot SPL 2021.10", true));
+        assert!(!relabelled.is_seen_in("U-Boot SPL 2021.10", true));
         // `eq` is depth alone, and `<` above already goes through `partial_cmp` rather than
         // `eq`, so this is the one assertion in the module that actually calls it.
         assert_ne!(first, second, "different depths must not compare equal");
@@ -398,18 +400,18 @@ mod tests {
     #[test]
     fn spl_does_not_satisfy_the_u_boot_rung() {
         let uboot = RADON.rung("uboot").expect("radon has a U-Boot rung");
-        assert!(!uboot.seen_in("U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
-        assert!(uboot.seen_in("U-Boot 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
+        assert!(!uboot.is_seen_in("U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
+        assert!(uboot.is_seen_in("U-Boot 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
         assert!(
-            uboot.seen_in("StarFive # ", false),
+            uboot.is_seen_in("StarFive # ", false),
             "the prompt has no newline"
         );
         // Mid-word, the line is not yet evidence of anything: the next three bytes may be `SPL`.
-        assert!(!uboot.seen_in("U-Boot ", false));
+        assert!(!uboot.is_seen_in("U-Boot ", false));
         // A *complete* line with nothing after the prefix and no trailing whitespace: the word
         // is the rest of the line, which is only true because the line has finished arriving.
         assert!(
-            uboot.seen_in("U-Boot 2021.10", true),
+            uboot.is_seen_in("U-Boot 2021.10", true),
             "a complete line settles a word even with no whitespace after it"
         );
     }

@@ -241,7 +241,7 @@ fn an_overlong_line_is_reported_rather_than_hidden() {
     });
     r.feed(long.as_bytes(), &mut out);
     r.finish(&mut out);
-    assert!(r.truncated());
+    assert!(r.is_truncated());
 }
 
 /// Is this source line a fence opener or closer, quoted or not?
@@ -362,7 +362,7 @@ fn every_character_survives() {
             r.feed(src.as_bytes(), &mut out);
             r.finish(&mut out);
             assert!(
-                !r.unclosed_fence(),
+                !r.has_unclosed_fence(),
                 "{}: the renderer ended inside a code fence",
                 path.display()
             );
@@ -549,7 +549,7 @@ fn a_document_that_lost_nothing_says_so() {
     });
     r.feed(b"# Title\n\nA line well inside the limit.\n", &mut out);
     r.finish(&mut out);
-    assert!(!r.truncated());
+    assert!(!r.is_truncated());
 }
 
 #[test]
@@ -563,7 +563,7 @@ fn a_page_that_never_closes_its_fence_says_so() {
     });
     r.feed(b"```text\nstill inside\n", &mut out);
     r.finish(&mut out);
-    assert!(r.unclosed_fence());
+    assert!(r.has_unclosed_fence());
 }
 
 #[test]

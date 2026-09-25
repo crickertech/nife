@@ -158,7 +158,7 @@ static CONFIG_GRANTED: AtomicU8 = AtomicU8::new(0);
 /// each PAL module is meant to be readable with no other file open.
 const NO_SUCH_METHOD: u64 = 0xffff;
 
-fn config_granted() -> bool {
+fn is_config_granted() -> bool {
     match CONFIG_GRANTED.load(Ordering::Relaxed) {
         1 => true,
         2 => false,
@@ -176,11 +176,11 @@ fn config_granted() -> bool {
 /// 47's environment-variable fork, DECISIONS §111). Called once, from `pal::nife::init`, before
 /// `main` runs; see the module docs.
 ///
-/// A process granted no config page calls [`config_granted`] once, gets `false`, and returns
+/// A process granted no config page calls [`is_config_granted`] once, gets `false`, and returns
 /// having touched nothing: [`ENV`] stays exactly as empty as it was before this milestone
 /// existed, which is what makes this addition safe to call unconditionally at startup.
 pub fn seed() {
-    if !config_granted() {
+    if !is_config_granted() {
         return;
     }
     // SAFETY: the loader maps the config page read-only at `rt::CONFIG_PAGE` alongside the

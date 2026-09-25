@@ -230,7 +230,7 @@ fn is_instruction_backend_available() -> bool {
 /// spawned with, same as aarch64's `entropy.rs` trusts `FEAT_RNG`.
 #[cfg(target_arch = "x86_64")]
 fn is_instruction_backend_available() -> bool {
-    crate::arch::isa::get().rdseed()
+    crate::arch::isa::get().has_random_seed_instruction()
 }
 
 /// riscv64: neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA. Milestone 159's JH7110 TRNG is

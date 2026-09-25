@@ -11,7 +11,7 @@ use crate::Sink;
 /// The longest source line the renderer holds. The longest line in this repository's markdown is
 /// 1925 bytes <!--count:longest-markdown-line-->; this is the next power of two above it, so the
 /// corpus fits with room and a document from elsewhere fails loudly through
-/// [`Renderer::truncated`] rather than quietly.
+/// [`Renderer::is_truncated`] rather than quietly.
 ///
 /// That measurement is re-derived by `script/lint` on every build (see `notes/counted-claims.md`),
 /// because it is a **margin** and not a description: a lane that grows the longest line spends
@@ -225,7 +225,7 @@ impl Renderer {
     ///
     /// Sticky, because the caller wants to know that the document it just printed is incomplete,
     /// not which line did it.
-    pub fn truncated(&self) -> bool {
+    pub fn is_truncated(&self) -> bool {
         self.over
     }
 
@@ -243,11 +243,11 @@ impl Renderer {
     /// later matches the stuck one. What it does catch is the case where the stuck fence is the
     /// last one in the page. See this crate's `BUGS`.
     ///
-    /// Name: unrecorded. Provisional, minted by milestone 40's lane on 2026-08-18 and not put to
-    /// calef. It is a question about the renderer's state and reads as one at the call site;
-    /// `in_code` was the alternative and loses the word "unclosed", which is the whole reason a
-    /// caller asks.
-    pub fn unclosed_fence(&self) -> bool {
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `unclosed_fence` (a bare noun
+    /// phrase reads as a getter; the renderer holds an unclosed fence, so `has_`), minted on
+    /// 2026-08-18 by the lane for milestone 40 (documentation as a system service), and `in_code`
+    /// (it loses the word "unclosed", which is the whole reason a caller asks).
+    pub fn has_unclosed_fence(&self) -> bool {
         self.fence.is_some()
     }
 

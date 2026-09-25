@@ -25,10 +25,10 @@
 //! half the alphabet is symmetric enough to look fine. `F` is not.
 //!
 //! ```
-//! use bitmap_font::{GLYPH_H, GLYPH_W, ink};
+//! use bitmap_font::{GLYPH_H, GLYPH_W, is_ink};
 //!
 //! let art: Vec<String> = (0..GLYPH_H)
-//!     .map(|y| (0..GLYPH_W).map(|x| if ink('F', x, y) { '#' } else { '.' }).collect())
+//!     .map(|y| (0..GLYPH_W).map(|x| if is_ink('F', x, y) { '#' } else { '.' }).collect())
 //!     .collect();
 //!
 //! assert_eq!(
@@ -78,10 +78,10 @@
 //! a character with no glyph draws a visible box rather than nothing:
 //!
 //! ```
-//! use bitmap_font::{ink, glyph, MISSING};
+//! use bitmap_font::{is_ink, glyph, MISSING};
 //!
-//! assert!(!ink('F', 7, 0)); // past the cell
-//! assert!(!ink('F', 0, 99));
+//! assert!(!is_ink('F', 7, 0)); // past the cell
+//! assert!(!is_ink('F', 0, 99));
 //!
 //! // Everything past basic latin (0x80 up, and every non-Latin `char` since milestone 142's UTF-8
 //! // increment) draws the missing-glyph box. A reader sees that the text is wrong instead of seeing
@@ -162,7 +162,7 @@ pub fn glyph(ch: char) -> &'static [u8; 8] {
 ///
 /// Out-of-cell coordinates are not ink rather than a panic: the callers are pixel loops, and a
 /// bounds check they can rely on is cheaper than one each.
-pub fn ink(ch: char, x: u32, y: u32) -> bool {
+pub fn is_ink(ch: char, x: u32, y: u32) -> bool {
     if x >= GLYPH_W || y >= GLYPH_H {
         return false;
     }
@@ -176,7 +176,7 @@ pub fn ink(ch: char, x: u32, y: u32) -> bool {
 /// what QEMU is actually displaying, so none of the three can be wrong in a way the others agree
 /// with.
 pub fn cell_pixel(ch: char, x: u32, y: u32, fg: u32, bg: u32) -> u32 {
-    if ink(ch, x, y) { fg } else { bg }
+    if is_ink(ch, x, y) { fg } else { bg }
 }
 
 #[cfg(test)]
@@ -195,7 +195,7 @@ mod tests {
         let art: Vec<std::string::String> = (0..GLYPH_H)
             .map(|y| {
                 (0..GLYPH_W)
-                    .map(|x| if ink('F', x, y) { '#' } else { '.' })
+                    .map(|x| if is_ink('F', x, y) { '#' } else { '.' })
                     .collect()
             })
             .collect();
@@ -257,12 +257,15 @@ mod tests {
             );
         }
         // Hollow: a filled box would be a solid block, which is a legitimate thing a terminal draws.
-        assert!(!ink('\u{80}', 3, 3), "the missing glyph should be hollow");
         assert!(
-            ink('\u{80}', 1, 1),
+            !is_ink('\u{80}', 3, 3),
+            "the missing glyph should be hollow"
+        );
+        assert!(
+            is_ink('\u{80}', 1, 1),
             "the missing glyph should have a left edge"
         );
-        assert!(ink('\u{80}', 5, 1), "and a right edge");
+        assert!(is_ink('\u{80}', 5, 1), "and a right edge");
     }
 
     /// Control codes are blank. The VT engine consumes them, so one reaching a cell is a bug; if it
@@ -287,7 +290,7 @@ mod tests {
         for y in 0..GLYPH_H {
             for x in 0..GLYPH_W {
                 let got = cell_pixel('A', x, y, FG, BG);
-                assert_eq!(got, if ink('A', x, y) { FG } else { BG });
+                assert_eq!(got, if is_ink('A', x, y) { FG } else { BG });
                 lit += u32::from(got == FG);
             }
         }
@@ -317,7 +320,7 @@ mod tests {
         let spilling: Vec<char> = (0x20..=0x7eu8)
             .chain(core::iter::once(0x80))
             .map(|b| b as char)
-            .filter(|&c| (0..GLYPH_H).any(|y| ink(c, 0, y) || ink(c, GLYPH_W - 1, y)))
+            .filter(|&c| (0..GLYPH_H).any(|y| is_ink(c, 0, y) || is_ink(c, GLYPH_W - 1, y)))
             .collect();
         assert_eq!(
             spilling,
@@ -327,7 +330,7 @@ mod tests {
         // And the five that remain are really used: a font that had quietly become four columns
         // wide would pass the check above.
         assert!(
-            (0x20..=0x7eu8).any(|b| (0..GLYPH_H).any(|y| ink(b as char, GLYPH_W - 2, y))),
+            (0x20..=0x7eu8).any(|b| (0..GLYPH_H).any(|y| is_ink(b as char, GLYPH_W - 2, y))),
             "no glyph uses the fifth ink column",
         );
     }
@@ -341,7 +344,7 @@ mod tests {
     fn the_letters_share_a_baseline_and_a_left_edge() {
         for byte in (b'a'..=b'z').chain(b'A'..=b'Z') {
             let ch = byte as char;
-            let left = (0..GLYPH_W).find(|&x| (0..GLYPH_H).any(|y| ink(ch, x, y)));
+            let left = (0..GLYPH_W).find(|&x| (0..GLYPH_H).any(|y| is_ink(ch, x, y)));
             // Column 1 for a letter with a body, column 2 for the narrow ones (`i j l t f`),
             // which are centred in the cell the way a fixed-pitch font centres them. Anything
             // further right is a letter that has drifted.
@@ -350,7 +353,7 @@ mod tests {
                 "{ch:?} starts at {left:?}, not in the first two ink columns",
             );
             assert!(
-                (0..GLYPH_W).any(|x| ink(ch, x, 6)),
+                (0..GLYPH_W).any(|x| is_ink(ch, x, 6)),
                 "{ch:?} has nothing on the baseline (row 6)",
             );
         }
@@ -360,7 +363,7 @@ mod tests {
         // as an `I` or an `l`.
         let descending: Vec<char> = (0x21..=0x7eu8)
             .map(|b| b as char)
-            .filter(|&c| (0..GLYPH_W).any(|x| ink(c, x, GLYPH_H - 1)))
+            .filter(|&c| (0..GLYPH_W).any(|x| is_ink(c, x, GLYPH_H - 1)))
             .collect();
         assert_eq!(descending, [',', ';', '_', 'g', 'j', 'p', 'q', 'y', '|']);
     }

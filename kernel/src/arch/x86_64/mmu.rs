@@ -21,8 +21,9 @@
 //! | The **direct map** of physical memory | [`DIRECT_MAP_BASE`] `0xffff888000000000` | [`phys_to_virt`], and it has room for 64 TiB |
 //!
 //! They are separate PML4 entries (511 and 273), so nothing about them interferes, and both are
-//! canonically high, so `Ia32e::in_half(Half::High, ..)` admits both by the same bit-47 test. The
-//! `paging` crate needed no change for either, which is milestone 20's claim holding a second time.
+//! canonically high, so `Ia32e::is_in_half(Half::High, ..)` admits both by the same bit-47 test.
+//! The `paging` crate needed no change for either, which is the claim of milestone 20 (a portable
+//! HAL, proven on a second architecture) holding a second time.
 //!
 //! [`phys_to_virt`] is the direct map's arithmetic and [`virt_to_phys`] inverts **both** bases,
 //! because the kernel asks it about image addresses (`memory::image_start`, linker symbols) as well
@@ -147,7 +148,7 @@ pub const KERNEL_VA_BASE: u64 = 0xffff_ffff_8000_0000;
 ///
 /// `0xffff888000000000`, which is Linux's `page_offset_base`, taken rather than invented because a
 /// reader who has met one `x86_64` kernel has met this number. What the value has to satisfy is
-/// short: canonically high (bit 47 set and sign-extended, so the same `Ia32e::in_half` test that
+/// short: canonically high (bit 47 set and sign-extended, so the same `Ia32e::is_in_half` test that
 /// admits the kernel image admits this), clear of PML4[511] where the image lives, clear of the low
 /// half that ring 3 will get, and with room above it for all of physical memory. This has 64 TiB of
 /// room before it would reach anything else, which is 2^46 and not a limit worth thinking about.
@@ -1675,11 +1676,11 @@ pub fn ttbr0_value(root: u64, asid: u16) -> u64 {
 ///
 /// This is the single-root requirement RISC-V has and aarch64 does not, and x86 is on RISC-V's side
 /// of it. The kernel half is PML4 entries 256..512, which is the `SPLIT_SHIFT = 47` line
-/// `Ia32e::in_half` tests: **both** kernel bases live up there ([`KERNEL_VA_BASE`] is PML4[511] and
-/// [`DIRECT_MAP_BASE`] is PML4[273]), so one `copy_from_slice` shares the image, the direct map and
-/// every device window at once. The entries point at kernel intermediate tables, so this shares the
-/// map itself rather than a snapshot of it: a page the kernel maps afterwards is visible in every
-/// process, which is what a shared high half has to mean.
+/// `Ia32e::is_in_half` tests: **both** kernel bases live up there ([`KERNEL_VA_BASE`] is PML4[511]
+/// and [`DIRECT_MAP_BASE`] is PML4[273]), so one `copy_from_slice` shares the image, the direct map
+/// and every device window at once. The entries point at kernel intermediate tables, so this shares
+/// the map itself rather than a snapshot of it: a page the kernel maps afterwards is visible in
+/// every process, which is what a shared high half has to mean.
 ///
 /// Called by `user::AddressSpace::new` right after it allocates a root.
 #[allow(dead_code)]

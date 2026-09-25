@@ -243,7 +243,7 @@ impl Gate {
     /// and a hint only. The answer can be stale by the time the caller acts;
     /// [`try_check`](Self::try_check)'s compare-exchange is what decides.
     #[must_use]
-    pub fn armed_hint(&self) -> bool {
+    pub fn is_armed_hint(&self) -> bool {
         self.state.load(Ordering::Relaxed) == ARMED
     }
 }
@@ -320,7 +320,7 @@ mod tests {
         bounded("a disarmed gate refuses a check", || {
             let gate = Gate::new();
             assert!(gate.try_check().is_none());
-            assert!(!gate.armed_hint());
+            assert!(!gate.is_armed_hint());
         });
     }
 
@@ -329,13 +329,13 @@ mod tests {
         bounded("arming publishes only when the guard drops", || {
             let gate = Gate::new();
             let guard = gate.arm();
-            assert!(!gate.armed_hint(), "mid-arm must not read as armed");
+            assert!(!gate.is_armed_hint(), "mid-arm must not read as armed");
             assert!(
                 gate.try_check().is_none(),
                 "a check must not see a torn plan"
             );
             drop(guard);
-            assert!(gate.armed_hint());
+            assert!(gate.is_armed_hint());
             assert!(gate.try_check().is_some());
         });
     }
@@ -388,11 +388,11 @@ mod tests {
         bounded("rearming an armed gate takes it out of armed", || {
             let gate = Gate::new();
             drop(gate.arm());
-            assert!(gate.armed_hint(), "the first arm published a plan");
+            assert!(gate.is_armed_hint(), "the first arm published a plan");
 
             let guard = gate.arm();
             assert!(
-                !gate.armed_hint(),
+                !gate.is_armed_hint(),
                 "a re-arm must take the gate out of ARMED, not leave the old plan readable"
             );
             assert!(

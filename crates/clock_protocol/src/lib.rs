@@ -97,7 +97,7 @@
 //! // protect, so a plausible proposal is accepted outright. The sanity window still applies.
 //! assert_eq!(policy::decide(state::UNKNOWN, 0, now), status::ACCEPTED);
 //! assert_eq!(policy::decide(state::UNKNOWN, 0, 0), status::REFUSED_IMPLAUSIBLE);
-//! assert!(!policy::plausible(0)); // 1970 plus uptime is not a time this code can be running at
+//! assert!(!policy::is_plausible(0)); // 1970 plus uptime is not a time this code can be running at
 //! ```
 //!
 //! # Everything is nanoseconds since the Unix epoch, in a `u64`
@@ -174,7 +174,7 @@ pub const fn offset_for(wall_nanos: u64, monotonic_nanos: u64) -> u64 {
 /// is the failure, because the caller cannot tell it from a real answer.
 pub mod state {
     /// **The wall clock is unknown.** No clock page, no clock service, an RTC that is absent, or an
-    /// RTC whose reading failed [`super::policy::plausible`]. The offset is meaningless and must
+    /// RTC whose reading failed [`super::policy::is_plausible`]. The offset is meaningless and must
     /// not be used. This is also what a zeroed page reads as, so a page nobody has published to is
     /// honest by default rather than by initialisation.
     pub const UNKNOWN: u64 = 0;
@@ -191,7 +191,7 @@ pub mod state {
     pub const SYNCED: u64 = 3;
 
     /// Whether a state means the machine actually knows the time.
-    pub const fn known(state: u64) -> bool {
+    pub const fn is_known(state: u64) -> bool {
         state != UNKNOWN
     }
 }
@@ -219,7 +219,7 @@ const W_OFFSET: usize = 3;
 pub struct Reading {
     /// One of [`state`]'s values.
     pub state: u64,
-    /// Wall-clock nanoseconds at monotonic zero. Meaningless unless [`state::known`].
+    /// Wall-clock nanoseconds at monotonic zero. Meaningless unless [`state::is_known`].
     pub offset_nanos: u64,
     /// How many times the page has been published to, which is `seq / 2`. A reader that cares
     /// whether the clock stepped under it (a log, a cache with an expiry) compares this across two
@@ -447,7 +447,7 @@ pub mod propose {
 pub mod status {
     /// The proposal was applied. The clock is now [`super::state::SYNCED`].
     pub const ACCEPTED: u64 = 0;
-    /// Outside the sanity window entirely: [`super::policy::plausible`] says no machine running
+    /// Outside the sanity window entirely: [`super::policy::is_plausible`] says no machine running
     /// this code is at that instant. A proposal of 1970, or of 2038, lands here.
     pub const REFUSED_IMPLAUSIBLE: u64 = 1;
     /// Plausible in the absolute, but more than [`super::policy::MAX_STEP_FORWARD_NANOS`] ahead of
@@ -517,7 +517,7 @@ pub mod policy {
     /// window, applied to an RTC reading as well as to a proposal: an RTC that fails this is an RTC
     /// the service refuses to believe, and the clock stays [`state::UNKNOWN`] rather than becoming
     /// confidently wrong.
-    pub const fn plausible(unix_nanos: u64) -> bool {
+    pub const fn is_plausible(unix_nanos: u64) -> bool {
         unix_nanos >= NOT_BEFORE_NANOS && unix_nanos < NOT_AFTER_NANOS
     }
 
@@ -529,10 +529,10 @@ pub mod policy {
     /// because a machine that does not know the time has no belief for a step limit to protect;
     /// the sanity window is the only guard that means anything, and it is applied.
     pub const fn decide(current_state: u64, current_nanos: u64, proposed_nanos: u64) -> u64 {
-        if !plausible(proposed_nanos) {
+        if !is_plausible(proposed_nanos) {
             return status::REFUSED_IMPLAUSIBLE;
         }
-        if !state::known(current_state) {
+        if !state::is_known(current_state) {
             return status::ACCEPTED;
         }
         if proposed_nanos > current_nanos {
@@ -598,14 +598,14 @@ mod tests {
     fn the_sanity_window_rejects_the_two_lies_that_matter() {
         // 1970 is what a machine with no clock reports, and it is exactly what this milestone
         // exists to stop being mistaken for an answer.
-        assert!(!policy::plausible(0));
+        assert!(!policy::is_plausible(0));
         // The far future is where a clock attack aims: past every certificate's expiry.
-        assert!(!policy::plausible(policy::NOT_AFTER_NANOS));
-        assert!(policy::plausible(NOW));
+        assert!(!policy::is_plausible(policy::NOT_AFTER_NANOS));
+        assert!(policy::is_plausible(NOW));
         // 2038, where a 32-bit `time_t` wraps, is deliberately INSIDE the window. It is a real
         // instant this machine may run at, and refusing it would be treating a C bug as a fact
         // about time. Asserted so a future tightening of the ceiling has to mean it.
-        assert!(policy::plausible(2_147_483_647 * NANOS_PER_SEC));
+        assert!(policy::is_plausible(2_147_483_647 * NANOS_PER_SEC));
     }
 
     #[test]
@@ -696,7 +696,7 @@ mod tests {
                 generation: 0,
             }
         );
-        assert!(!state::known(page.read().state));
+        assert!(!state::is_known(page.read().state));
     }
 
     #[test]

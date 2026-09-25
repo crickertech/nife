@@ -1185,7 +1185,7 @@ mod canary {
     /// used to lose the slot to a tick's pass that had read the byte before the flip, and its
     /// silent no-op read as a missed corruption.
     pub fn check() -> bool {
-        if !GATE.armed_hint() {
+        if !GATE.is_armed_hint() {
             return false; // one relaxed load: every unarmed tick's whole cost
         }
         check_armed()
@@ -2836,7 +2836,7 @@ pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
             // The boot-8 gate makes an undelivered resume unreachable; this is its tripwire,
             // loud in every QEMU test build, on the path where the strand was observed.
             debug_assert!(
-                t.handshake.delivered(),
+                t.handshake.is_delivered(),
                 "recv resumed with nothing delivered"
             );
             t.mailbox
@@ -2971,7 +2971,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
             let sched = guard.as_ref().expect("no scheduler");
             let t = sched.threads.get(current_thread_id()).unwrap();
             debug_assert!(
-                t.handshake.delivered(),
+                t.handshake.is_delivered(),
                 "recv_cap resumed with nothing delivered"
             );
             let m = t.mailbox;
@@ -3064,7 +3064,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     let sched = guard.as_ref().expect("no scheduler");
     let t = sched.threads.get(current_thread_id()).unwrap();
     debug_assert!(
-        t.handshake.delivered(),
+        t.handshake.is_delivered(),
         "call resumed with nothing delivered"
     );
     let m = t.mailbox;

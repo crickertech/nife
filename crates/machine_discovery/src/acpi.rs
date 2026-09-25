@@ -85,7 +85,7 @@ pub enum AcpiError {
 
 /// Do these bytes sum to zero in eight-bit arithmetic? That is ACPI's checksum for every structure
 /// it defines.
-pub fn checksum_ok(bytes: &[u8]) -> bool {
+pub fn is_checksum_ok(bytes: &[u8]) -> bool {
     bytes.iter().fold(0u8, |acc, b| acc.wrapping_add(*b)) == 0
 }
 
@@ -126,7 +126,7 @@ pub fn parse_rsdp(bytes: &[u8]) -> Result<Rsdp, AcpiError> {
     if &bytes[0..8] != RSDP_SIGNATURE {
         return Err(AcpiError::BadSignature);
     }
-    if !checksum_ok(&bytes[..RSDP_V1_LEN]) {
+    if !is_checksum_ok(&bytes[..RSDP_V1_LEN]) {
         return Err(AcpiError::BadChecksum);
     }
     let revision = bytes[15];
@@ -149,7 +149,7 @@ pub fn parse_rsdp(bytes: &[u8]) -> Result<Rsdp, AcpiError> {
     if !(RSDP_V2_LEN..=bytes.len()).contains(&length) {
         return Err(AcpiError::BadLength(length as u32));
     }
-    if !checksum_ok(&bytes[..length]) {
+    if !is_checksum_ok(&bytes[..length]) {
         return Err(AcpiError::BadChecksum);
     }
     Ok(Rsdp {
@@ -899,13 +899,13 @@ mod verification {
     fn an_rsdp_is_accepted_only_when_its_bytes_sum_to_zero() {
         let bytes: [u8; N] = kani::any();
         if let Ok(r) = parse_rsdp(&bytes) {
-            assert!(checksum_ok(&bytes[..RSDP_V1_LEN]));
+            assert!(is_checksum_ok(&bytes[..RSDP_V1_LEN]));
             if r.revision >= 2 {
                 // The extended checksum covers the structure's own length field, which is the part
                 // a caller cannot compute for itself.
                 let length = u32(&bytes, 20) as usize;
                 assert!((RSDP_V1_LEN..=N).contains(&length));
-                assert!(checksum_ok(&bytes[..length]));
+                assert!(is_checksum_ok(&bytes[..length]));
             }
             // Not vacuous: an accepted RSDP exists.
             kani::cover!(true, "some byte pattern is a valid RSDP");
@@ -1138,7 +1138,10 @@ mod tests {
     fn the_extended_checksum_is_checked_as_well_as_the_short_one() {
         let mut b = rsdp_v2();
         b[30] ^= 0xff; // inside the extended part only; the 20-byte checksum still passes
-        assert!(checksum_ok(&b[..RSDP_V1_LEN]), "the short one still passes");
+        assert!(
+            is_checksum_ok(&b[..RSDP_V1_LEN]),
+            "the short one still passes"
+        );
         assert_eq!(parse_rsdp(&b), Err(AcpiError::BadChecksum));
     }
 
@@ -1427,7 +1430,7 @@ mod tests {
             "the vendor name starts at offset 10, after the checksum byte"
         );
         assert!(
-            checksum_ok(&t[..h.length as usize]),
+            is_checksum_ok(&t[..h.length as usize]),
             "a sealed table sums to zero"
         );
     }

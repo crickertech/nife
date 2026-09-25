@@ -415,7 +415,7 @@ fn hold_screen_for_host() {
     let mut polls = HOLD_POLLS;
     let mut clock_alive = false;
     while polls > 0 && crate::arch::timer::ticks().wrapping_sub(start) < HOLD_TICKS {
-        if CONSOLE.lock().uart.is_rx_waiting() {
+        if CONSOLE.lock().uart.is_byte_waiting() {
             break;
         }
         // **Park the core between polls rather than spinning, once the clock has proved itself.**
@@ -555,12 +555,15 @@ pub fn rx_enable() {
 ///
 /// riscv64 only, and so is the feature: the reset it is the escape from is SBI's, and the PL011 the
 /// aarch64 console drives has no equivalent method here.
+///
+/// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting` (`rx`
+/// is a decoder for "receive").
 #[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
-pub fn is_rx_waiting() -> bool {
-    CONSOLE.lock().uart.is_rx_waiting()
+pub fn is_byte_waiting() -> bool {
+    CONSOLE.lock().uart.is_byte_waiting()
 }
 
-/// Throw away whatever is already in the console UART's receive buffer, so that [`is_rx_waiting`]
+/// Throw away whatever is already in the console UART's receive buffer, so that [`is_byte_waiting`]
 /// answers about what arrives from now on. Called once, when a rebooting soak arms itself; see
 /// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
 #[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]

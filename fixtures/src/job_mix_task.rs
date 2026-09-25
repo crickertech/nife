@@ -303,13 +303,13 @@ fn run_job(job: u8, seed: u64, code_frame: u64) -> Result<(u64, u64), Refused> {
         job_mix::NULL_SYSCALL => {
             let mut i = 0;
             while i < job_mix::NULL_SYSCALL_CALLS {
-                // **A real trap, and the cheapest one this ABI has.** `granted` invokes a method
+                // **A real trap, and the cheapest one this ABI has.** `is_granted` invokes a method
                 // number no object type defines on a slot this task was given nothing in, so the
                 // kernel validates the slot, refuses, and returns: an entry and an exit with no
                 // object work between them. `now()` was refused for this job because it is *not* a
                 // syscall on any of the three architectures (an unprivileged counter read), so a
                 // job named for the trap would have measured a loop.
-                core::hint::black_box(user_mode_runtime::granted(EMPTY_SLOT));
+                core::hint::black_box(user_mode_runtime::is_granted(EMPTY_SLOT));
                 i += 1;
             }
             seed

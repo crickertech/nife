@@ -42,12 +42,24 @@ pub(crate) enum ArchLegs {
 }
 
 impl ArchLegs {
+    /// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+    /// (design/naming/boolean-predicates-worklist.md). It does not yet follow the Rust predicate
+    /// rule calef ratified 2026-09-24; recommended `includes_aarch64`, because `is_aarch64` would
+    /// be false for `All`, which also answers yes.
     pub(crate) fn aarch64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::Aarch64)
     }
+    /// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+    /// (design/naming/boolean-predicates-worklist.md). It does not yet follow the Rust predicate
+    /// rule calef ratified 2026-09-24; recommended `includes_riscv64`, because `is_riscv64` would
+    /// be false for `All`, which also answers yes.
     pub(crate) fn riscv64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::Riscv64)
     }
+    /// Name: provisional, flagged 2026-09-24 by the boolean-predicate pass
+    /// (design/naming/boolean-predicates-worklist.md). It does not yet follow the Rust predicate
+    /// rule calef ratified 2026-09-24; recommended `includes_x86_64`, because `is_x86_64` would be
+    /// false for `All`, which also answers yes.
     pub(crate) fn x86_64(self) -> bool {
         matches!(self, ArchLegs::All | ArchLegs::X86_64)
     }

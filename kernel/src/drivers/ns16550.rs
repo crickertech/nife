@@ -312,14 +312,17 @@ impl<S: RegisterSpace> Ns16550<S> {
     /// and a script writing one byte to the port are the same event.
     ///
     /// Name provisional (milestone 249): calef names public items.
-    pub fn is_rx_waiting(&self) -> bool {
+    ///
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting`
+    /// (`rx` is a decoder for "receive").
+    pub fn is_byte_waiting(&self) -> bool {
         self.read(LSR) & LSR_DR != 0
     }
 
-    /// **Take the byte, if one is waiting.** [`is_rx_waiting`](Self::is_rx_waiting) with the read
-    /// that consumes it, which is the pair milestone 41 deleted when the input path left the kernel
-    /// and milestone 198 (a package manager, and the trivial install that makes a second customer
-    /// possible)'s rung 2a needed back.
+    /// **Take the byte, if one is waiting.** [`is_byte_waiting`](Self::is_byte_waiting) with the
+    /// read that consumes it, which is the pair milestone 41 deleted when the input path left the
+    /// kernel and milestone 198 (a package manager, and the trivial install that makes a second
+    /// customer possible)'s rung 2a needed back.
     ///
     /// **There is exactly one caller and it runs before userspace exists**: an installer's
     /// confirmation, asked on the console the kernel is still the only holder of
@@ -339,7 +342,7 @@ impl<S: RegisterSpace> Ns16550<S> {
     }
 
     /// **Throw away everything currently in the receive buffer**, so that what arrives after this
-    /// call is what [`is_rx_waiting`](Self::is_rx_waiting) reports.
+    /// call is what [`is_byte_waiting`](Self::is_byte_waiting) reports.
     ///
     /// Called once, when a rebooting soak arms itself. Without it the first check would fire on
     /// U-Boot's leftovers rather than on a person: this board's firmware prints an autoboot

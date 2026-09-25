@@ -92,7 +92,7 @@ fn priority_zero_beats_every_other_reason_to_boot_a_slot() {
         tries: 15,
         successful: true,
     };
-    assert!(!confirmed_but_disabled.bootable());
+    assert!(!confirmed_but_disabled.is_bootable());
     assert_eq!(
         select(&[confirmed_but_disabled, State::installed()]),
         Some(1)
@@ -168,7 +168,7 @@ fn on_trial_saturates_rather_than_wrapping_a_priority_into_never_boot() {
     // this image. Saturating is the difference between a clumsy upgrade and a dead one.
     assert_eq!(State::on_trial(16, 16).priority, MAX_NIBBLE);
     assert_eq!(State::on_trial(200, 200).tries, MAX_NIBBLE);
-    assert!(State::on_trial(16, 1).bootable());
+    assert!(State::on_trial(16, 1).is_bootable());
 }
 
 #[test]

@@ -518,8 +518,8 @@ impl BootProgress {
     /// Not a stage, and deliberately, because the ladder has to stay a ladder: a kernel with no
     /// archive on the card ran its whole tour and never reached this, so putting it below
     /// [`Stage::Tour`] would make reaching the tour imply something that did not happen. It is a
-    /// detail of a successful boot, like [`Self::relocated`], and it is the difference between the
-    /// two successful captures.
+    /// detail of a successful boot, like [`Self::is_relocated`], and it is the difference between
+    /// the two successful captures.
     #[must_use]
     pub fn userspace_ran(&self) -> bool {
         self.userspace_ran
@@ -530,7 +530,7 @@ impl BootProgress {
     /// Not a stage, because the runbook lists it as a *discriminator* rather than a step: it is
     /// what you check when `Starting kernel ...` is followed by silence.
     #[must_use]
-    pub fn relocated(&self) -> bool {
+    pub fn is_relocated(&self) -> bool {
         self.relocated
     }
 
@@ -629,7 +629,7 @@ impl BootProgress {
         // Every rung is offered the line rather than stopping at the first match, because the
         // ratchet is what decides and a log can carry two rungs on one line.
         for rung in self.board.prologue {
-            if rung.seen_in(line, complete) {
+            if rung.is_seen_in(line, complete) {
                 self.reach(Stage::Firmware(rung));
             }
         }
@@ -1023,7 +1023,7 @@ mod tests {
         ));
         assert_eq!(progress.reached(), Stage::Tour);
         assert_eq!(progress.failure(), None);
-        assert!(progress.relocated());
+        assert!(progress.is_relocated());
         assert!(
             !progress.userspace_ran(),
             "this card carried no archive, and the tour says so"
@@ -1044,7 +1044,7 @@ mod tests {
             "../tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log"
         ));
         assert_eq!(progress.reached(), rung("uboot"));
-        assert!(progress.relocated(), "the image did load and relocate");
+        assert!(progress.is_relocated(), "the image did load and relocate");
         assert_eq!(
             progress.failure(),
             Some(&Failure::FirmwareRefused {
@@ -1741,7 +1741,7 @@ mod tests {
 
         let as_radon = feed(&board::RADON, log);
         assert_eq!(as_radon.reached(), Stage::Tour);
-        assert!(as_radon.relocated(), "Moving Image from is U-Boot's");
+        assert!(as_radon.is_relocated(), "Moving Image from is U-Boot's");
 
         let as_xenon = feed(&board::XENON, log);
         assert_eq!(
@@ -1750,7 +1750,7 @@ mod tests {
             "the kernel's own ladder is shared and is read the same either way"
         );
         assert!(
-            !as_xenon.relocated(),
+            !as_xenon.is_relocated(),
             "a relocation note belongs to the firmware that printed it"
         );
         assert_eq!(as_xenon.board().name, "xenon");

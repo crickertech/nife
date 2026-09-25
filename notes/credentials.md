@@ -203,13 +203,13 @@ channel has no room for it. A service that answered a verify with the stored tag
 decryption oracle wearing a verifier's clothes, and the shape of the contract makes that a change
 to the contract rather than a bug in a serve loop.
 
-The reply codes are all small positives (1..=6), which is the trick `entropy_protocol` established: every
-failure the kernel can return from a `CALL` is one of its small negatives, which read as enormous
-`u64`s. So `credential_protocol::authenticated` can collapse "there is no credential service", "the request
-was malformed", "the service died" and "wrong password" into one `false`, and no caller has to
-remember which of six codes were the good ones. **A caller that mistook a missing capability for a
-successful authentication would be the single worst bug this contract could permit**, so it is the
-one made impossible by arithmetic rather than by care.
+The reply codes are all small positives (1..=6), which is the trick `entropy_protocol` established:
+every failure the kernel can return from a `CALL` is one of its small negatives, which read as
+enormous `u64`s. So `credential_protocol::is_authenticated` can collapse "there is no credential
+service", "the request was malformed", "the service died" and "wrong password" into one `false`, and
+no caller has to remember which of six codes were the good ones. **A caller that mistook a missing
+capability for a successful authentication would be the single worst bug this contract could
+permit**, so it is the one made impossible by arithmetic rather than by care.
 
 ## The shared page, and what is left in it
 
@@ -256,12 +256,12 @@ From anything holding the verify endpoint in slot 0:
 ```rust
 let w0 = proto::place(page, b"chris", presented, proto::verify::VERIFY).unwrap();
 let (r0, _) = call(SERVICE, w0, 0);
-if proto::authenticated(r0) {
+if proto::is_authenticated(r0) {
     // let them in
 }
 ```
 
-`authenticated` is the whole client-side API. There is no way to ask "does this identity exist",
+`is_authenticated` is the whole client-side API. There is no way to ask "does this identity exist",
 "what is the salt", or "how many identities are there", because there is no message that would
 answer.
 

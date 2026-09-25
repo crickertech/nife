@@ -431,7 +431,7 @@ mod verification {
             assert_eq!(isa.brand, [0u8; 48]);
         }
         if w.leaf0[0] < 7 {
-            assert!(!isa.rdseed());
+            assert!(!isa.has_random_seed_instruction());
         }
 
         // `REQUIRED` and `WARNED` are folded out of `TABLE` by a `const fn` comparing discriminants,
@@ -1014,9 +1014,13 @@ impl Isa {
         WARNED.difference(self.features)
     }
 
-    /// Does the part implement `RDSEED`? The one row of [`TABLE`] anything outside the boot gate
-    /// branches on, so it gets a name rather than making a call site spell the bit.
-    pub fn rdseed(&self) -> bool {
+    /// Does the part implement `RDSEED`, Intel's "read random seed" instruction, which returns bits
+    /// straight from the hardware entropy source? The one row of [`TABLE`] anything outside the
+    /// boot gate branches on, so it gets a name rather than making a call site spell the bit.
+    ///
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `has_rdseed` (the mnemonic is a
+    /// decoder, not a word).
+    pub fn has_random_seed_instruction(&self) -> bool {
         self.features.contains(RDSEED)
     }
 

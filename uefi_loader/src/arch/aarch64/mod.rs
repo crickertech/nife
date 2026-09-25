@@ -209,7 +209,7 @@ unsafe fn table_at(phys: u64) -> Option<&'static [u8]> {
     let bytes = unsafe { core::slice::from_raw_parts(phys as *const u8, len) };
     // **The checksum is the whole reason to bother**, and it is cheap. A table that does not sum to
     // zero is one this loader will not describe a machine from.
-    acpi::checksum_ok(bytes).then_some(bytes)
+    acpi::is_checksum_ok(bytes).then_some(bytes)
 }
 
 /// The first table in the root list with this signature, checksum already checked.
@@ -393,7 +393,7 @@ fn tree_from_acpi(
                     cpus[cpu_count] = device_tree_from_acpi::Cpu {
                         mpidr,
                         // `online_capable` is a socket firmware would start later, and the kernel's
-                        // `startable` predicate has no third state: it is not a core to call
+                        // `is_startable` predicate has no third state: it is not a core to call
                         // `CPU_ON` on now, so the node is written disabled.
                         enabled,
                     };

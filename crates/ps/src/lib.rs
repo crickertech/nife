@@ -296,8 +296,8 @@ impl Survey<'_> {
     /// hidden because the failure it prevents is a plausible wrong number.
     ///
     /// A refusal in the second walk is recorded exactly as one in the first is, so a caller that
-    /// checks [`refused`](Self::refused) afterwards is told rather than shown a table with a blank
-    /// column.
+    /// checks [`is_refused`](Self::is_refused) afterwards is told rather than shown a table with a
+    /// blank column.
     pub fn join_cpu_time(&mut self, read: &mut dyn FnMut(u64) -> (i64, u64, u64)) {
         let mut cursor = 0u64;
         loop {
@@ -344,14 +344,14 @@ impl Survey<'_> {
 
     /// **Was this a refusal?** True when the domain could not be read at all or not to its end. A
     /// caller must not print an empty table for this: see the crate docs.
-    pub fn refused(&self) -> bool {
+    pub fn is_refused(&self) -> bool {
         self.refused.is_some() || self.stalled
     }
 
     /// **Is this listing the whole domain?** False when the walk was refused, stalled, or ran out of
     /// buffer. A caller that prints the table anyway is printing something it cannot vouch for.
-    pub fn complete(&self) -> bool {
-        !self.refused() && !self.truncated
+    pub fn is_complete(&self) -> bool {
+        !self.is_refused() && !self.truncated
     }
 
     /// **What there is to complain about, as a clause a program name prefixes**, or `None` when the
@@ -399,7 +399,7 @@ impl Survey<'_> {
     /// The table itself, on the output stream. **Nothing at all on a refusal**, so a `ps > out.txt`
     /// that was refused leaves an empty file rather than a plausible-looking listing of nothing.
     pub fn write_report(&self, out: &mut dyn FnMut(&[u8])) {
-        if !self.complete() || self.rows.is_empty() {
+        if !self.is_complete() || self.rows.is_empty() {
             return;
         }
         // The TIME column appears only when somebody asked for it (`Survey::join_cpu_time`), so a
@@ -551,7 +551,7 @@ mod tests {
                 (9, abi::survey::DEAD),
             ]),
         );
-        assert!(!s.refused());
+        assert!(!s.is_refused());
         assert_eq!(s.rows().len(), 3);
         assert_eq!(
             s.rows()[2],
@@ -575,8 +575,8 @@ mod tests {
             (abi::Error::NotPermitted as i64, 0, 0)
         });
 
-        assert!(!empty.refused(), "an empty domain is not a refusal");
-        assert!(refused.refused());
+        assert!(!empty.is_refused(), "an empty domain is not a refusal");
+        assert!(refused.is_refused());
 
         let empty_diag = shown(|o| empty.write_diagnostics(o));
         let refused_diag = shown(|o| refused.write_diagnostics(o));
@@ -603,7 +603,7 @@ mod tests {
                 _ => (abi::Error::Gone as i64, 0, 0),
             }
         });
-        assert!(s.refused());
+        assert!(s.is_refused());
         assert_eq!(
             s.rows().len(),
             1,
@@ -624,7 +624,7 @@ mod tests {
     fn a_cursor_that_does_not_advance_ends_the_walk() {
         let mut rows = [Row::default(); MAX_ROWS];
         let s = collect(&mut rows, &mut |_| (1, 4, abi::survey::READY));
-        assert!(s.refused());
+        assert!(s.is_refused());
         assert!(shown(|o| s.write_diagnostics(o)).contains("did not advance"));
     }
 
@@ -640,10 +640,10 @@ mod tests {
         });
         assert_eq!(s.rows().len(), 2);
         assert!(
-            !s.complete(),
+            !s.is_complete(),
             "a truncated listing claimed to be the whole domain"
         );
-        assert!(!s.refused(), "running out of room is not a refusal");
+        assert!(!s.is_refused(), "running out of room is not a refusal");
         assert!(shown(|o| s.write_diagnostics(o)).contains("more in it"));
         assert_eq!(
             shown(|o| s.write_report(o)),
@@ -664,7 +664,7 @@ mod tests {
                 (abi::survey::DONE as i64, 0, 0)
             }
         });
-        assert!(!s.refused());
+        assert!(!s.is_refused());
         assert_eq!(s.rows().len(), MAX_ROWS);
     }
 
@@ -751,9 +751,9 @@ mod tests {
     fn a_refusal_in_the_second_walk_is_still_a_refusal() {
         let mut rows = [Row::default(); MAX_ROWS];
         let mut s = collect(&mut rows, &mut domain(&[(3, abi::survey::RUNNING)]));
-        assert!(!s.refused());
+        assert!(!s.is_refused());
         s.join_cpu_time(&mut |_| (abi::Error::Gone as i64, 0, 0));
-        assert!(s.refused());
+        assert!(s.is_refused());
         assert_eq!(shown(|o| s.write_report(o)), "");
         assert!(shown(|o| s.write_diagnostics(o)).contains("destroyed"));
     }
@@ -764,7 +764,7 @@ mod tests {
         let mut rows = [Row::default(); MAX_ROWS];
         let mut s = collect(&mut rows, &mut domain(&[(3, abi::survey::RUNNING)]));
         s.join_cpu_time(&mut |_| (1, 3, 10));
-        assert!(s.refused());
+        assert!(s.is_refused());
     }
 
     /// **The ranking is what makes a listing a `top`**: most CPU first, ties on the tid, and a row

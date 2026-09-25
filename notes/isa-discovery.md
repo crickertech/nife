@@ -147,7 +147,7 @@ to implement the SBI base extension cannot be asked what it implements. Treating
 would refuse to boot on hardware that works.
 
 So `Isa::missing_requirements` reports nothing about what the tree does not mention,
-`Isa::described` says how many harts spoke, `Sbi::answered` says whether the firmware could be
+`Isa::described` says how many harts spoke, `Sbi::has_answered` says whether the firmware could be
 asked, and the boot line says "the device tree does not describe this machine's ISA" or "SBI base
 extension did not answer, so nothing here is verified" rather than reporting zeroes as facts.
 

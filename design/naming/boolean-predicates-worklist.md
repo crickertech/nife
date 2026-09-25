@@ -47,7 +47,7 @@ names they were written with, per the rename procedure.
 | `local_apic_ready` | `kernel/src/arch/x86_64/irq.rs` | pub | 10 | `is_local_apic_ready` | kernel follow-up |  |
 | `reachable` | `kernel/src/arch/x86_64/machine.rs` | private | 5 | `is_reachable` | kernel follow-up |  |
 | `update_in_progress` | `kernel/src/arch/x86_64/rtc.rs` | private | 3 | `is_update_in_progress` | kernel follow-up |  |
-| `rx_waiting` | `kernel/src/console.rs, drivers/{ns16550,pl011}.rs` | pub | 18 | `is_rx_waiting` | kernel follow-up |  |
+| `rx_waiting` | `kernel/src/console.rs, drivers/{ns16550,pl011}.rs` | pub | 18 | `is_byte_waiting` | kernel follow-up | first renamed `is_rx_waiting`; calef's review of the crates follow-up (2026-09-24) asked what `rx` stands for, so both UART predicates became `is_byte_waiting` |
 | `full`, `done` | `kernel/src/ipc_stack_depth.rs` | private | 7 | `is_full`, `is_done` | kernel follow-up |  |
 | `host_bridge_present` | `kernel/src/pci.rs` | private | 13 | `is_host_bridge_present` | kernel follow-up |  |
 | `thread_present` | `kernel/src/sched.rs` | pub | 46 | `is_thread_present` | kernel follow-up | seven notes point at it and move; roadmap blocks keep it |
@@ -68,7 +68,7 @@ names they were written with, per the rename procedure.
 | `screen_hold` | `crates/machine_discovery/src/framebuffer.rs` | pub | 9 | `has_screen_hold` | crates follow-up | the `screen_hold` Cargo feature keeps its name |
 | `answered` | `crates/machine_discovery/src/riscv64.rs` | pub | 11 | `has_answered` | crates follow-up |  |
 | `heterogeneous` | `crates/machine_discovery/src/riscv64.rs` | pub | 6 | `is_heterogeneous` | crates follow-up |  |
-| `rdseed` | `crates/machine_discovery/src/x86_64.rs` | pub | 11 | `has_rdseed` | crates follow-up | the instruction keeps its name in prose |
+| `rdseed` | `crates/machine_discovery/src/x86_64.rs` | pub | 11 | `has_random_seed_instruction` | crates follow-up | first renamed `has_rdseed`; calef's review asked what `rdseed` is. Intel's mnemonic `RDSEED` stays where it names the instruction, the CPUID bit, or Linux's `rdseed` flag; `draw_rdseed` became `draw_random_seed` in the same change |
 | `armed_hint` | `crates/memory_corruption_canary_gate` | pub | 8 | `is_armed_hint` | crates follow-up |  |
 | `owned` | `crates/non_volatile_memory_express` | pub | 13 | `is_owned` | crates follow-up |  |
 | `in_half` | `crates/paging (trait `PageFormat`)` | trait | 52 | `is_in_half` | crates follow-up | an in-tree trait, so every impl moves; seven patches move |
@@ -85,7 +85,7 @@ names they were written with, per the rename procedure.
 | `considered` | `crates/stick_maker` | private | 2 | `is_considered` | crates follow-up |  |
 | `granted` | `crates/user_mode_runtime, components/src/printenv.rs` | pub | 28 | `is_granted` | crates follow-up | five programs and `system_initializer` import it |
 | `granted`, `config_granted`, `reachable` | `patches/std-nife/overlay (time, env, fs)` | private | 19 | `is_granted`, `is_config_granted`, `is_reachable` | crates follow-up | compiled only in the patched std build |
-| `rx_pending` | `components/src/input.rs` | pub (in a program) | 4 | `is_rx_pending` | crates follow-up |  |
+| `rx_pending` | `components/src/input.rs` | pub (in a program) | 4 | `is_byte_waiting` | crates follow-up | first renamed `is_rx_pending`; see `rx_waiting` above |
 | `output_correct`, `absent` | `fixtures (c_confiner, login_test_client)` | private | 4 | `is_output_correct`, `is_absent` | crates follow-up |  |
 
 ## What needs calef
@@ -106,6 +106,11 @@ names inside one crate or program, so each is cheap to change later.
 | `no_capability` | `patches/std-nife/overlay/std/src/sys/fs/nife.rs` | private | `is_missing_capability` | `is_no_capability` does not parse |
 
 If calef says no to any of these, the name stays as it is and this table records the refusal.
+
+Each of these, and `removed` and `asked` below, carries a `/// Name: provisional` marker naming the
+recommendation, so it queues on `script/names --unratified` with every other unratified name
+(calef's standing direction, 2026-09-24). The std overlay's `no_capability` carries one too and
+does not show: `script/names` skips `patches/` on purpose, so that entry is visible only here.
 
 ## Fits as written
 

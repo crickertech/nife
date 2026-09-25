@@ -179,7 +179,7 @@ pub enum Status {
 
 impl Status {
     /// Whether `&&` should carry on. Only [`Ran`](Status::Ran) is a yes.
-    pub fn ok(self) -> bool {
+    pub fn is_ok(self) -> bool {
         matches!(self, Status::Ran)
     }
 
@@ -324,7 +324,7 @@ pub fn expansion(
         // does to authority, and it is a narrowing: `rm "*.txt"` hands over one name where
         // `rm *.txt` hands over the set. Asked before `is_pattern`, because the question "is this a
         // pattern" is only worth asking about a word nobody quoted.
-        if spec.quoted(i) {
+        if spec.is_quoted(i) {
             continue;
         }
         match is_pattern(token) {
@@ -1786,8 +1786,8 @@ mod tests {
     #[test]
     fn a_status_carries_a_number_and_nothing_else() {
         assert_eq!(Status::default(), Status::Ran);
-        assert!(Status::Ran.ok());
-        assert!(!Status::Failed.ok() && !Status::Refused.ok());
+        assert!(Status::Ran.is_ok());
+        assert!(!Status::Failed.is_ok() && !Status::Refused.is_ok());
         assert_eq!(
             (
                 Status::Ran.code(),

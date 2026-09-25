@@ -110,9 +110,10 @@
 //!   because there is nobody to ask: the terminal contract has no "how wide are you" verb, and the
 //!   graphical terminal is 32 columns while the serial one is whatever the host window is.
 //! - **Plain text only**, per the section above.
-//! - **A source line longer than `documentation::LINE_MAX` loses its tail**, and this program does not say
-//!   so even though `documentation::Renderer::truncated` would tell it, because its only output channel is
-//!   the rendered document and a diagnostic in the middle of one is worse than the loss.
+//! - **A source line longer than `documentation::LINE_MAX` loses its tail**, and this program does
+//!   not say so even though `documentation::Renderer::is_truncated` would tell it, because its only
+//!   output channel is the rendered document and a diagnostic in the middle of one is worse than
+//!   the loss.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

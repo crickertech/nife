@@ -75,7 +75,7 @@ Follow Rust (calef, ratified 2026-09-24, reviewing `tick_pending`). A function t
 question and changes nothing is named in one of four shapes:
 
 - `is_` before an adjective, participle or noun phrase: `is_empty`, `is_tick_pending`.
-- `has_` before a thing held (`has_rdseed`), or `can_` before a verb (`can_read`).
+- `has_` before a thing held (`has_unclosed_fence`), or `can_` before a verb (`can_read`).
 - A third-person verb phrase, std's shape for a relation: `contains`, `starts_with`, `overlaps`,
   `allows`, `needs_drop`.
 

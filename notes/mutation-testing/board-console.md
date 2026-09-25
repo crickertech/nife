@@ -40,9 +40,10 @@ calls the parser through a doctest, or any other path a deadline-wrapped test co
 
 ### `board.rs`: 3 killed
 
-`Sign::seen_in`'s `None if complete => rest` arm had no test with a *complete* line short enough to
-hit it. The arm is a complete line with no trailing whitespace after a `WordAfter` prefix, such as
-`U-Boot 2021.10` with nothing following it. The existing test only fed that shape as a partial line.
+`Sign::seen_in`'s (now `is_seen_in`) `None if complete => rest` arm had no test with a *complete*
+line short enough to hit it. The arm is a complete line with no trailing whitespace after a
+`WordAfter` prefix, such as `U-Boot 2021.10` with nothing following it. The existing test only fed
+that shape as a partial line.
 
 `Rung`'s `PartialEq` was only ever exercised through `<`, which goes through `partial_cmp`/`Ord`
 rather than `eq`. So `assert_ne!` on two different depths was the one assertion missing.

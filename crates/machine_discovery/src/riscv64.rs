@@ -518,7 +518,7 @@ impl Sbi {
     /// evidence of absence.** Refusing to boot because a probe could not run would refuse on a
     /// machine that works, so [`Isa::missing_requirements`] skips the SBI check entirely when this
     /// is false, and the boot line says the four extensions are unverified rather than present.
-    pub fn answered(self) -> bool {
+    pub fn has_answered(self) -> bool {
         self.spec_major != 0 || self.spec_minor != 0
     }
 
@@ -635,7 +635,7 @@ pub struct Missing {
     /// The tree declares an MMU narrower than Sv39. `false` when it declares nothing.
     pub mmu: bool,
     /// Required SBI extensions (see [`SBI_REQUIRED`]) the firmware says it does not implement.
-    /// Empty when the base extension did not answer at all (see [`Sbi::answered`]).
+    /// Empty when the base extension did not answer at all (see [`Sbi::has_answered`]).
     pub sbi: SbiExtensions,
 }
 
@@ -662,7 +662,7 @@ impl Isa {
                 REQUIRED.difference(self.common)
             },
             mmu: self.mmu != MmuType::Unknown && self.mmu < MmuType::Sv39,
-            sbi: if self.sbi.answered() {
+            sbi: if self.sbi.has_answered() {
                 SBI_REQUIRED.difference(self.sbi.extensions)
             } else {
                 SbiExtensions::NONE
@@ -671,7 +671,7 @@ impl Isa {
     }
 
     /// Do the harts differ from each other?
-    pub fn heterogeneous(&self) -> bool {
+    pub fn is_heterogeneous(&self) -> bool {
         self.common != self.any
     }
 
@@ -883,7 +883,7 @@ fn strip_base_prefix(value: &[u8]) -> &[u8] {
 ///   out. This hart cannot enter S-mode, so it cannot run this kernel, whatever its node's
 ///   `status` and `mmu-type` claim; the vendor S7 lies about both and this is the tell.
 /// - `None`: neither letter. The string is silent about privilege modes (the modern spelling),
-///   and silence is not evidence of absence, same rule as [`Sbi::answered`].
+///   and silence is not evidence of absence, same rule as [`Sbi::has_answered`].
 ///
 /// Only the run before the first `_` is scanned, so `_s`-prefixed multi-letter extensions
 /// (`_sstc`, `_svadu`, `_sdtrig`, all in QEMU's string today) can never read as a bare `s`.
@@ -1028,7 +1028,7 @@ mod verification {
     /// Why that is not merely untidy: the `Some(false)` answer is the *only* thing that refuses the
     /// S7, because its `status` and `mmu-type` both lie. A scan that reaches past the first `_`
     /// turns `Some(false)` into `Some(true)` on any string carrying an `_s` extension, and this
-    /// kernel starts a core with no supervisor mode. [`crate::cpu_list::Cpu::startable`] is the
+    /// kernel starts a core with no supervisor mode. [`crate::cpu_list::Cpu::is_startable`] is the
     /// consumer and it has no second opinion to fall back on.
     ///
     /// The claim is stated as an invariance rather than as a restatement of the code: **appending a
