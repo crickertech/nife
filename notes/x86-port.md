@@ -927,7 +927,7 @@ Every skip prints why. Grouped by cause, largest first:
 | 4 | no PCI bus enumerated, so no GPU, keyboard or NVMe | item 0 again, and the runner |
 | 1 | no `std_exerciser` | an `x86_64-unknown-nife` target and a `std` farm. **Closed by milestone 184**: the test now passes on this port |
 | 1 | no `mkfs` | `fs_server`'s cause, one binary over |
-| 1 | address spaces are not tagged | `CR4.PCIDE`, which is calef's call (item 3) |
+| 1 | address spaces are not tagged | `CR4.PCIDE`, which is an architect's call (item 3) |
 | 1 | `hvm_start_info` is not a device tree | nothing; it is a true statement about this machine |
 | 1 | no instruction-mode entropy source on this build | milestone 162 |
 
@@ -1205,7 +1205,7 @@ physical memory sitting in the half user programs get.
 - **`kernel_main`'s single pointer is called `dtb`.** What arrives on x86 is `hvm_start_info`. The
   *shape* is right (one pointer to everything discoverable) and only the name is wrong.
 
-Both are naming decisions, so both are calef's; a lane records them rather than deciding.
+Both are naming decisions, so both are an architect's; a lane records them rather than deciding.
 
 ## The bug worth knowing about
 

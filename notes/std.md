@@ -982,8 +982,8 @@ $ llvm-objdump -d --demangle std_exerciser/target/aarch64-unknown-nife/release/s
   worktree's, and because the build fails before any dep-info is written, `std-aborts`' foreign
   check never runs and nothing prints the recovery. The cause of the pinning was not diagnosed.
   **Recovery is the same line**: `rm -rf std_exerciser/target`.
-- **`std-aborts` is a provisional name** (milestone 64, 2026-08-18). Names are calef's; this one is
-  not ratified.
+- **`std-aborts` is a provisional name** (milestone 64 (enough `std` to run somebody else's crate),
+  2026-08-18). Names are an architect's; this one is not ratified.
 
 ## The proof
 

@@ -37,7 +37,7 @@ otherwise read the tree's growing honesty as decay.
   going down.
 - **AGENTS.md's "kernel/src measures 40% comments" is stale.** It was 39.3% eight weeks ago and is
   **45.3%** now, rising every week. Flagged on the page and deliberately not corrected in that file,
-  which is calef's.
+  which is an architect's.
 
 ## The honesty the page carries, which is the point of it
 
@@ -94,8 +94,8 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
 - **Milestone 350.** Correct AGENTS.md's
   "kernel/src measures 40% of them" comment ratio. The series put it at 39.3% eight weeks before this
   was written and 45.3% then, and it reached 46.4% on 2026-09-14, climbing every week, so the figure a reader meets in the project's own front-door file
-  is wrong and drifting further from true. AGENTS.md is calef's file, so the one-line edit is his to
-  make; this page flags the staleness and cannot fix it.
+  is wrong and drifting further from true. AGENTS.md is an architect's file, so the one-line edit is
+  an architect's to make; this page flags the staleness and cannot fix it.
 
 ## Index row
 

@@ -180,7 +180,7 @@ awk -F: -v floor="$floor" -v summary="$summary" '
         printf ", 95-99.9%%: %d", band_95 + 0
         printf ", 100%%: %d\n", band_100 + 0
         # The question a proposal to raise the floor actually asks, answered on every run rather
-        # than by somebody re-deriving it from the HTML report. Raising the floor is the architect
+        # than by somebody re-deriving it from the HTML report. Raising the floor is an architect's
         # decision; this only prices it.
         printf "==> a floor of 85 newly fails %d of them; a floor of 90, %d\n",
             newly_85 + 0, newly_90 + 0

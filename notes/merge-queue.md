@@ -1,7 +1,7 @@
 # The merge queue, and the three things that watch it
 
 Three scripts, all maintainer tools rather than front doors. Two were born on 2026-08-04 out of the
-same evening's failures: `helpers/merge-drain.sh` lands what does not need calef, and
+same evening's failures: `helpers/merge-drain.sh` lands what does not need an architect, and
 `helpers/trunk-health.sh` says when `main` is red. `helpers/lane-claim-check.sh` joined them on
 2026-08-31 and watches one step earlier, for work that has not reached the queue at all. A fourth,
 `helpers/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
@@ -43,7 +43,7 @@ merge-drain: 4 armed, 1 stalled, of 5 unheld
 
 $ helpers/merge-drain.sh            # loop until nothing is left to enqueue
 merge-drain: 2 armed, 0 stalled, of 2 unheld
-merge-drain: queue empty; nothing open that does not need calef
+merge-drain: queue empty; nothing open that does not need an architect
 ```
 
 **Two of those lines are events and the rest are snapshots, and only the events can be counted.**
@@ -750,8 +750,8 @@ reported loudly rather than silently released, because it means the thing this w
 is not coming.
 
 **Use it for a mechanical constraint and nothing else.** If a person must decide, the label is still
-the right answer, and the two must not be conflated: one is a queue for calef's attention, the other
-is a fact about two branches.
+the right answer, and the two must not be conflated: one is a queue for an architect's attention,
+the other is a fact about two branches.
 
 ## BUGS
 
@@ -770,7 +770,7 @@ from it is ambiguous between "the drain did not do this" and "somebody did it by
 ambiguity is worst exactly when it matters, which is when something unexpected happened. Closing
 that needs distinct GitHub identities rather than a better log; the proposal is
 [design/roadmap/proposals/who-took-the-step.md](../design/roadmap/proposals/who-took-the-step.md)
-(name provisional) and it is calef's call.
+(name provisional) and it is an architect's call.
 
 - **A′ lets `main`'s Actions caches go stale.** `Swatinem/rust-cache` saves on the ref that ran, and
   a pull request can restore only its own ref's caches and the base branch's. Merge-group refs are

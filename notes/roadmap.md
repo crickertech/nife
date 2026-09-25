@@ -1,6 +1,6 @@
 # The roadmap
 
-*Name: provisional (a lane ships names provisionally; calef names things). This file was
+*Name: provisional (a lane ships names provisionally; an architect names things). This file was
 `notes/roadmap-index.md` until 2026-09-21, when the index it was named for was retired and its
 vocabularies moved here.*
 
@@ -49,7 +49,7 @@ You are a lane, you have been given milestone `N`, and you want it on the roadma
    The heading still says `Index row` although the index is gone. It is the only place a block
    states its Built date and a one-paragraph precis of itself, `script/audits` and
    `script/fatal-risks` both read those through `script/roadmap --index`, and renaming a heading
-   that appears in every block in the directory is calef's call rather than a lane's.
+   that appears in every block in the directory is an architect's call rather than a lane's.
 3. That is the whole procedure. There is no table to update and no regeneration to wait for.
 
 ### EXAMPLES
@@ -143,10 +143,11 @@ own. Merging a lane deletes its branch, which is exactly the moment the token be
 nothing was watching. Naming the branch is what makes the claim falsifiable at all, which is why it is
 required rather than suggested.
 
-**The stronger fix is to retire the token, and that is calef's call rather than a lane's.** §90 (the claim is a draft pull request; the status flip is a gate) made a
-lane's first act a draft pull request, so `gh pr list --draft` already answers "who is on this right
-now" and cannot go stale, because merging removes the row. A status token duplicating that fact is the
-lower rung by construction. Until that is decided, the check above is the tripwire.
+**The stronger fix is to retire the token, and that is an architect's call rather than a lane's.**
+§90 (the claim is a draft pull request; the status flip is a gate) made a lane's first act a draft
+pull request, so `gh pr list --draft` already answers "who is on this right now" and cannot go
+stale, because merging removes the row. A status token duplicating that fact is the lower rung by
+construction. Until that is decided, the check above is the tripwire.
 
 **The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status but `REMOVED`, which keeps it: the milestone did turn `BUILT` on that date and nothing later makes that untrue. **Dates in this tree are UTC** (calef, 2026-08-04), because they arrive from three
 sources that disagree: a git author date is local to whoever committed, a lane deriving a date reads
@@ -215,7 +216,7 @@ one of eight dispositions:
 | `**Done.**` | It was done, and not as a milestone. | What carried it: a pull request, a branch, a file |
 | `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
-| `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
+| `**Decision.**` | It is an architect's call, written up as one. | A file under `design/decisions/` |
 | `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
 | `**Outstanding.**` | Still this milestone's own remaining scope, checked against the tree and still true. `PARTIAL` blocks only. | What is left, and how you checked |
 
@@ -265,8 +266,8 @@ constraint went the same day, and the disposition now resolves to a file somebod
 commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
 this gate exists to stop, arriving through the gate itself.
 
-**The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
-these six words are a lane's, offered with the sweep that produced them.
+**The whole vocabulary is provisional until an architect ratifies it.** `REMOVED` was minted by
+calef and these six words are a lane's, offered with the sweep that produced them.
 
 ## Anybody may add to the roadmap: `design/roadmap/proposals/`
 
@@ -474,7 +475,7 @@ is worth more than the migration: it found drift nobody was looking for.
 - **`## Index row` is named after a thing that no longer exists.** The section is still where a
   block states its Built date and its one-paragraph precis, and both are still read, so the name is
   wrong rather than the section. It appears in every numbered block in `design/roadmap/`, and a
-  rename is calef's (`design/naming.md`). Until then, read it as "the two facts about this
+  rename is an architect's (`design/naming.md`). Until then, read it as "the two facts about this
   milestone that are not in its prose".
 - **`## Index row` was provisional when it was minted, too.** `## Summary` is the generic word this
   tree's naming tenet warns against, and `## Why it matters` was unavailable: 13 blocks already

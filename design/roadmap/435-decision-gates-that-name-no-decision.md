@@ -54,8 +54,8 @@ Some of the 45 will be tokens to correct rather than decisions to write, and a l
 otherwise will mint decisions nobody needs.
 
 **It is not an attempt to answer any of them.** Writing up a fork is not deciding it. Every decision
-this milestone creates lands `**Status: PROPOSED.**` and waits, which is the state that makes calef's
-queue readable instead of scattered.
+this milestone creates lands `**Status: PROPOSED.**` and waits, which is the state that makes the
+architects' queue readable instead of scattered.
 
 **And it is not a claim that the blocks are wrong to be gated.** `script/roadmap --ready` correctly
 excludes all 58. What is wrong is that for 45 of them a reader cannot find out *why* without reading
@@ -106,8 +106,8 @@ fifth were blocks whose gate deferred to a decision that had since been taken:
   to contain a `§` (to §10) and so was counted as citing.
 
 **So the failure this milestone names has a second direction**, and it is the worse one: a gate that
-says `DECISION` for a reason that was answered months ago spends calef's attention on a decision he
-has already made, and there is nothing in the tree that would notice.
+says `DECISION` for a reason that was answered months ago spends an architect's attention on a
+decision already made, and there is nothing in the tree that would notice.
 
 **And the three-way judgement was not the hard part; the stale half was.** Every block in this slice
 was legible about what it wanted. What no reading of the block alone could tell was whether somebody
@@ -192,10 +192,10 @@ the promoted quarter rather than as a prediction for the other 21.
 
 ## BUGS
 
-- **A written-up fork is still a fork, and this milestone makes calef's queue longer to read before
-  it makes it shorter.** Forty-five paragraphs scattered across blocks become some number of files in
-  one directory; that is an improvement in findability and not in volume. The honest claim is that a
-  queue you can list is cheaper than one you cannot, not that this reduces what is owed.
+- **A written-up fork is still a fork, and this milestone makes the architects' queue longer to read
+  before it makes it shorter.** Forty-five paragraphs scattered across blocks become some number of
+  files in one directory; that is an improvement in findability and not in volume. The honest claim
+  is that a queue you can list is cheaper than one you cannot, not that this reduces what is owed.
 - **Section numbers are the expensive half.** Each lane holds a reserved range so two cannot collide,
   and every number in them is provisional until the merge queue lands it, which is the standing rule
   for anything global to the tree.
@@ -231,13 +231,13 @@ the promoted quarter rather than as a prediction for the other 21.
   cites §139.
 - **Done.** *Thirty-three forks that lived as paragraphs addressed to one person now live as files.*
   That is the whole of this milestone's output and its home is `design/decisions/`, one `PROPOSED`
-  section each, listed by `script/decisions --unanswered`. Answering them is calef's and is not this
-  block's to hold open; the `BUGS` section above is honest that writing them up makes his queue
-  longer to read before it makes it shorter.
+  section each, listed by `script/decisions --unanswered`. Answering them is an architect's and is
+  not this block's to hold open; the `BUGS` section above is honest that writing them up makes his
+  queue longer to read before it makes it shorter.
 - **Recorded.** *Milestone 406's title is false by its own first sentence*, found by slice c's lane,
-  which judged the gate and correctly left the retitling alone. A title is a name, so it is calef's
-  and it does not become a decision file. Recorded in 406's own status line, where a reader meets
-  the claim before they meet anything else in the block.
+  which judged the gate and correctly left the retitling alone. A title is a name, so it is an
+  architect's and it does not become a decision file. Recorded in 406's own status line, where a
+  reader meets the claim before they meet anything else in the block.
 - **Recorded.** *Nothing stops the next block gating on an unwritten decision.* A gate that tried
   would have to read prose for intent, which is priced in this block's `BUGS` and in the roadmap
   README's gate vocabulary, where the convention now lives beside the tokens it constrains.

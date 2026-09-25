@@ -111,7 +111,7 @@ than an absent one. The line goes in when there is a release to pin it to, which
 Rung 3a's exit criterion is a package fetched over a network, verified, installed, run, still there
 after a reboot, and removable. Everything after "verified" waits on the **activation** fork
 (milestone 507 (installing a package: mutate, compose, or widen what can be spawned)),
-which has options and no winner and is calef's. That proposal's own
+which has options and no winner and is an architect's. That proposal's own
 finding is why it cannot be worked around: the program namespace is sealed at boot and the spawner
 gives the file service away, so **nothing that builds processes can read an installed program
 today**, whatever a package looks like.

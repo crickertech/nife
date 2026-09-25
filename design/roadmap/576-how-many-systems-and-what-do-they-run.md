@@ -7,7 +7,7 @@ metrics will help us make and maintain a better product if we know what people a
 **Gate: MILESTONE 198, DECISION.** There is nothing to count until something installs, so this
 waits on milestone 198 (a package manager, and the trivial install that makes a second customer
 possible); and what leaves a stranger's machine is the irreversible category this tree is most
-careful about, so the shape of the report is calef's.
+careful about, so the shape of the report is an architect's.
 
 ## What this is
 
@@ -80,8 +80,9 @@ telemetry is exactly where users have learned not to believe anyone.
 ## What calef has to decide, and none of it should be guessed
 
 1. ~~**Opt-in or opt-out**~~ **DECIDED 2026-09-23: opt-out.** The reporter runs by default and can
-   be turned off. calef's call, and it is the one this block said every other decision is downstream
-   of, so the consequences are written into question 2 rather than left to be rediscovered.
+   be turned off. An architect's call, and it is the one this block said every other decision is
+   downstream of, so the consequences are written into question 2 rather than left to be
+   rediscovered.
 2. **Whether package subscriptions are reported at all**, and **opt-out has already narrowed this to
    two answers.** A system that reports by default may report each package **independently, with no
    linkage between reports from one system**, so popularity is countable and no list is ever

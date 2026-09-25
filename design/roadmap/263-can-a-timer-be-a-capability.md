@@ -88,8 +88,8 @@ x86_64 alone is not an answer.
    deadline structure costs **one comparison per tick** (1.000 comparisons and 0.000 writes over
    100,000 idle ticks, for a scan and for a sorted list), so what is unpriced is the object, its
    methods and the signalling, not the bookkeeping.
-3. **Say plainly whether the userspace-service answer survives parity.** If it does not, calef's
-   decision changes, and it is better to know that in a day than three days into a lane.
+3. **Say plainly whether the userspace-service answer survives parity.** If it does not, an
+   architect's decision changes, and it is better to know that in a day than three days into a lane.
 
 ## The fourth shape, which neither milestone 51 nor 106 lists
 
@@ -119,8 +119,8 @@ service, and because a fork should not be settled by discovering an option late.
   because the maintainer's reading is the thing most likely to be wrong here.
 - **It prices nothing about a timer service itself**, only whether one can hold a timer. If the
   answer is yes on all three, the service is still unbuilt, unpriced, and unnamed.
-- **The fourth shape is a syscall-surface addition** whatever its size, so it is calef's under §10
-  and this spike may only measure it.
+- **The fourth shape is a syscall-surface addition** whatever its size, so it is an architect's
+  under §10 (process model) and this spike may only measure it.
 - **Milestone 151 is unbuilt**, so every option here that composes with a notification composes with
   something that does not exist yet, and the spike should say what it assumes about it.
 
@@ -182,8 +182,10 @@ is 1,152 bytes in a 4,096-byte page, 2,944 spare), the walk shares the cached ea
 tick still costs one comparison. Applied to the real consumer, `soak.rs`'s six-line yield loop
 becomes one call and the kernel builds clean with `--features soak`.
 
-**Whether that consumer should be served is calef's**, under §101's carve-out and milestone 106's
-own "this stays owed against a kernel-side consumer appearing". This block only says what it costs.
+**Whether that consumer should be served is an architect's**, under the carve-out in §101
+(notification objects), and under the "this stays owed against a kernel-side consumer appearing" of
+milestone 106 (a wait that ends on either the interrupt or the deadline). This block only says what
+it costs.
 
 ## Follow-on
 

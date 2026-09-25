@@ -1073,7 +1073,7 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 ///
 /// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
 /// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way. The
-/// program's own name is overdue and is calef's; see that file's `BUGS`.
+/// program's own name is overdue and is an architect's; see that file's `BUGS`.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const HELLO_ENTRY: &str = "hello";
 

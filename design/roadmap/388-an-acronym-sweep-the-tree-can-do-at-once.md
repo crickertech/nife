@@ -13,8 +13,9 @@ five names the 2026-09-05 rule deratified, three are still live crates carrying 
 recorded refusal apiece (`dtb`, `gpt`, `ipc`); `dma` and `asid` are no longer names
 `script/names` sees. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** calef names things, and this is a list of names. **The rule behind the gate is
-[§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md)**, cited here from
+**Gate: DECISION.** An architect names things, and this is a list of names. **The rule behind the
+gate is [§154 (the acronym test is whether the phrase is
+spoken)](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md)**, cited here from
 2026-09-19; the block argued from it throughout and never named it.
 
 **§154 is `DECIDED` and it already answers this block's hard half**, which is why nothing new is
@@ -118,8 +119,8 @@ rather than an afternoon.
   these names the **hardware block**, whose device-tree spelling is the vendor's
   (`starfive,jh7110-trng`) and whose boot-log wording throughout the tree is "JH7110 TRNG", so the
   "abbreviation we receive rather than author" clause in design/naming.md may cover them where it did
-  not cover the crate. A lane should not guess: AGENTS.md puts public function names in calef's
-  hands, and this list is where a name waits for him.
+  not cover the crate. A lane should not guess: AGENTS.md puts public function names in an
+  architect's hands, and this list is where a name waits for one.
 
 ## Index row
 

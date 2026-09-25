@@ -143,13 +143,13 @@ the same day and take most of it**, so the proposal is withdrawn rather than lef
 what the boot loader is supposed to do, and depends on catching a two-second window. Fix the boot
 path and nothing needs to type.
 
-**What is left over, and it is calef's**, is smaller than the proposal was: *should this tool ever
-be able to write to the port at all?* 218 may remove the need entirely, in which case the answer is
-no and this stays a reader. If 218's routes all fail, something has to type, and then the question
-is whether it is this tool with an explicit mode or a second one. The argument for one tool is that
-the port can only be held once and a driver contains a reader; the argument for two is that a tool
-which writes to a board is a more dangerous object than one that reads, which is the reasoning this
-block already applies to power.
+**What is left over, and it is an architect's**, is smaller than the proposal was: *should this tool
+ever be able to write to the port at all?* 218 may remove the need entirely, in which case the
+answer is no and this stays a reader. If 218's routes all fail, something has to type, and then the
+question is whether it is this tool with an explicit mode or a second one. The argument for one tool
+is that the port can only be held once and a driver contains a reader; the argument for two is that
+a tool which writes to a board is a more dangerous object than one that reads, which is the
+reasoning this block already applies to power.
 
 **Nothing is blocked on the answer**, which is why it is a paragraph and not a milestone: the tool
 as built serves every read-only use, and 218 is the thing to do first either way.
@@ -188,14 +188,15 @@ as built serves every read-only use, and 218 is the thing to do first either way
   provisional, as a lane's names are, and `script/names --unratified` is the worklist.
 - **Milestone 324.** Whether `script/board-console`
   should ever be able to write to the serial port at all, and if so whether that is this tool with
-  an explicit mode or a second tool. It is calef's call. Milestone 218 may remove the need by fixing
-  autoboot, in which case the answer is no; while it is open, a bench session facing a board that
-  will not boot has no sanctioned way to type at it.
+  an explicit mode or a second tool. It is an architect's call. Milestone 218 (a human typing four
+  commands into U-Boot) may remove the need by fixing autoboot, in which case the answer is no;
+  while it is open, a bench session facing a board that will not boot has no sanctioned way to type
+  at it.
 - **Milestone 324.** Whether argon
   (aarch64) and xenon (x86_64) get this console with a board profile or a tool each. Same behaviour,
-  different banners and a different boot sequence, and the choice is calef's. Until it is made the
-  other two boards have no console tool at all, so the bench workflow this milestone built exists
-  for one board out of three.
+  different banners and a different boot sequence, and the choice is an architect's. Until it is
+  made the other two boards have no console tool at all, so the bench workflow this milestone built
+  exists for one board out of three.
 
 ## Index row
 

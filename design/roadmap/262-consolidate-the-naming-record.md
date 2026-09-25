@@ -71,9 +71,10 @@ three crates the noun rule settled, and the domain table's two arguments.
 - **Nothing will stop it happening again.** No gate compares a rule's statement in `AGENTS.md`
   against `design/naming.md`, and none plausibly could, since the two are meant to say different
   things about the same subject. This milestone reduces the surface rather than closing it.
-- **`AGENTS.md` is calef's file.** A lane may not edit it (milestone 118 records that a lane cannot
-  even carry the budget marker there), so the note half is a lane's and the constitution half is
-  calef's, and the milestone is not done until both have happened.
+- **`AGENTS.md` is an architect's file.** A lane may not edit it (milestone 118 (CLAUDE.md has a
+  budget) records that a lane cannot even carry the budget marker there), so the note half is a
+  lane's and the constitution half is calef's, and the milestone is not done until both have
+  happened.
 - **The naming section is not the only duplicated one.** Nobody has checked whether the merge queue,
   the lane roles or the dependency rule are stated twice the same way; this block is scoped to the
   one that was caught.

@@ -320,7 +320,7 @@ watchdog_probe = []
 # "closed for everyone", which is not the answer that was given.
 #
 # Name provisional, like everything a lane mints: `cycle_counter_grant` is the field it builds
-# (`Thread::cycle_counter_grant`) rather than a new word for it. Names are calef's.
+# (`Thread::cycle_counter_grant`) rather than a new word for it. Names are an architect's.
 cycle_counter_grant = []
 # E3's footprint-perturbation experiment (milestone 134,
 # design/roadmap/134-the-measurements-that-decide.md): adds a large, reachable-but-never-taken

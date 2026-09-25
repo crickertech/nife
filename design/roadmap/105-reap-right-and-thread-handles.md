@@ -11,8 +11,8 @@ are separable rights) is [§32](../decisions/32-reap-without-build.md) (a superv
 corpse without being able to build one), decided 2026-07-29, six days before this block was raised,
 and shipped as `abi::rendezvous::REAP`, whose authorization is the supervision relationship rather
 than the rights bit this block proposes. So the block restated a settled question as open, and a
-gate saying `DECISION` for an answered reason spends calef's attention on a decision he has made.
-What remains is fork two, whether a tid becomes a handle, which is
+gate saying `DECISION` for an answered reason spends an architect's attention on a decision already
+made. What remains is fork two, whether a tid becomes a handle, which is
 [§164](../decisions/164-resolving-a-tid-a-supervisor-holds.md) (whether the kernel resolves a tid it
 already sent), written up 2026-09-19 by milestone 435's lane. Both were recorded in
 notes/trusted-init.md as "calef's call, not a thing to slip in", and fork two still is.

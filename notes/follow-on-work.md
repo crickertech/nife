@@ -142,10 +142,10 @@ own failure one layer in: the section says what happened to the work, and nothin
 still true. They are `Done.` now, with what carried each. `Done.` was added that morning because four
 lanes said the word was missing, and it earned its place before the day was out.
 
-**Promotion is a different act from proposal**, and it is calef's. Five of the 42 are worth his
-attention first, on a stated bar: the work is concrete and bounded, nothing in the tree owns any part
-of it, and leaving it unpromoted costs more than tidiness, because **a claim this project makes rests
-on it or a record in the tree is now known to be wrong**.
+**Promotion is a different act from proposal**, and it is an architect's. Five of the 42 are worth
+an architect's attention first, on a stated bar: the work is concrete and bounded, nothing in the
+tree owns any part of it, and leaving it unpromoted costs more than tidiness, because **a claim this
+project makes rests on it or a record in the tree is now known to be wrong**.
 
 1. **The three instruments nothing runs.** `script/interleaving-check`, `script/crate-probes` and
    `script/rule-violations --check` are referenced by neither CI nor `script/ci-build`. `crate-probes`

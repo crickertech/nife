@@ -42,7 +42,7 @@ rung four, and it is the cheapest item here.
 
 **`.github/pull_request_template.md`.** The lane line as default text, then what changed and why
 (the diff shows what), the five gates named individually so "not run" is a visible answer rather
-than a silence, where identified work went, and a `## Needs the architect` section deleted unless it
+than a silence, where identified work went, and a `## Needs an architect` section deleted unless it
 applies. The gates are listed by name rather than as one "did you run the gates" line because a
 checklist somebody ticks without reading is the thing this was replacing.
 

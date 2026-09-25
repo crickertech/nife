@@ -160,8 +160,8 @@ three-key page**: `TZ`, `LANG` and `TERM`, each validated against a curated doma
 way to hand a std program an arbitrary environment variable, by design (DECISIONS §111).
 
 **This is the finding to act on**, and it is a wire-format decision rather than a lane's: what a
-process may be told at startup, in bytes rather than capabilities. It is calef's under *move fast on
-what can be undone*, because every future program is written against it.
+process may be told at startup, in bytes rather than capabilities. It is an architect's under *move
+fast on what can be undone*, because every future program is written against it.
 
 ### B. A program image has under 896 KiB before it hits its own stack
 
@@ -186,7 +186,7 @@ is written into `crates/supervision_protocol` (`CHILD_STACK_VA`), `crates/counte
 `crates/c_seam`, `components/src/builder.rs`, `fixtures/src/os_primitives_benchmarker.rs`, and half a dozen
 kernel tests. Moving `USER_STACK_VA` alone breaks `authority_tests` immediately (measured: the
 supervision tree fails to build at stage 10, because the programs building it map their children's
-stacks at the old address by hand). So it is an ABI-shaped change and belongs to calef.
+stacks at the old address by hand). So it is an ABI-shaped change and belongs to an architect.
 
 ### C. `mmap` is absent, and that one is already recorded
 

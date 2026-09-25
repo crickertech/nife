@@ -280,7 +280,7 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// that one sits at it, and the same caveat applies: no program in this tree answers with either.
 ///
 /// Name: provisional, like everything a lane mints: a word in a protocol is exactly the kind of
-/// name calef decides.
+/// name an architect decides.
 pub const JOB_FAULTED: u64 = u64::MAX - 1;
 
 /// The ack the progenitor sends on the result endpoint when a **supervised** (interruptible) child started

@@ -510,7 +510,7 @@ cost and it is in this note's BUGS.**
 *Everything from here to the end of this section is the analysis that was written while `2>` was
 still undecided, kept because the reasoning is the reusable part and because it explains what the
 built thing is not. "Today" means before 2026-08-03; the section that closes it is "Why this is
-calef's call", and he called it: option (c), the manifest declaration.*
+an architect's call", and calef called it: option (c), the manifest declaration.*
 
 #### There is no second stream today, and that is a fact rather than an omission
 
@@ -582,7 +582,7 @@ read? every reader forwards diags upstream?). Unix's answer is that fd 2 bypasse
 and that is exactly the property one endpoint cannot express. Attaching a rule to it is a protocol
 design task, not a wiring one.
 
-#### Why this is calef's call
+#### Why this is an architect's call
 
 Both shapes are defensible and they commit to different things. The first says a program can have
 several output capabilities and the model should name them; the second says a program has one

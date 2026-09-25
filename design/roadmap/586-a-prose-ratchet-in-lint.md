@@ -66,7 +66,7 @@ file afterwards, and the 2026-09-24 documentation audit found both marked except
 same day they were granted. `design/fatal-risks.md` was granted 4,235 words and measured 4,440, after
 a correction to risk 2 landed. `AGENTS.md`'s marker says 6,279 and the file measured 6,292. The gate
 should treat the marker's number as the file's baseline: growth past it fails like growth past any
-other baseline, and raising it is a new grant, which is calef's.
+other baseline, and raising it is a new grant, which is an architect's.
 
 calef ruled the same day to cut `design/fatal-risks.md` back rather than raise its grant, and it is
 back at 4,235 words, within the grant, as of 2026-09-24. `AGENTS.md` was not part of that ruling.

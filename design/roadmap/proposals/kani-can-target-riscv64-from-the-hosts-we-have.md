@@ -267,7 +267,7 @@ first riscv64 `kani::stub` harnesses need. aarch64 and x86_64 follow the same pa
    upstream-quality rework and CI cold time are estimates, marked.
 6. Reversibility. A carried patch and one CI job come out cleanly, and nobody downstream acts on
    them. An upstream contribution is a public commitment to maintain, in a small way, a flag other
-   people will use; that is the irreversible part, and it is calef's.
+   people will use; that is the irreversible part, and it is an architect's.
 7. Same cost, same choice? Yes. If the native host cost what the flag does, the flag still wins:
    it runs on hosted runners, on every pull request, and leaves `radon` on the bench. This
    recommendation is not about effort. Carrying versus waiting is about time, and says so.
@@ -275,7 +275,7 @@ first riscv64 `kani::stub` harnesses need. aarch64 and x86_64 follow the same pa
 ## What it does not change
 
 It does not turn fatal risk 2 (the proofs prove trivia) green. The survivorship half of that amber
-is untouched, and `design/fatal-risks.md` is calef's file. What changes is the sentence
+is untouched, and `design/fatal-risks.md` is an architect's file. What changes is the sentence
 `notes/kernel-proofs.md` and milestone 304's block carry, that riscv64 is unreachable and no one here
 can fix it. Once option 1 or 2 lands, that sentence is false, and milestone 536 (two records still say the prover cannot see
 `kernel/src`) should correct it.

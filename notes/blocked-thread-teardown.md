@@ -608,7 +608,7 @@ ranked, and none is recommended.** They are ordered from smallest surface to lar
 
 ### Proposal A: `DESTROY` finishes what it starts
 
-**Provisional name for the concept: *the completed reclaim*. Not minted; calef's call.**
+**Provisional name for the concept: *the completed reclaim*. Not minted; an architect's call.**
 
 **Mechanism.** In `reap_region_objects`'s refuse phase, a resident thread that is `Blocked` is not
 merely marked `killed`. It is unlinked from whatever holds it (`remove_sender`, a new
@@ -654,9 +654,9 @@ in an endpoint queue: the worst failure mode in the set. That argues for a `debu
 
 ### Proposal B: a terminate verb on the `ThreadControlBlock` capability
 
-**Provisional names, all unratified: `ThreadControlBlock::TERMINATE`, `ThreadControlBlock::STOP`, `ThreadControlBlock::CANCEL`. calef's call, and
-the vocabulary matters more than usual because L4 shipped two words for this and cannot tell them
-apart in its own documentation.**
+**Provisional names, all unratified: `ThreadControlBlock::TERMINATE`, `ThreadControlBlock::STOP`,
+`ThreadControlBlock::CANCEL`. An architect's call, and the vocabulary matters more than usual
+because L4 shipped two words for this and cannot tell them apart in its own documentation.**
 
 **Mechanism.** seL4's `suspend()`, transliterated: cancel the IPC (unlink, sweep the reply caps),
 dequeue, set a terminal state. A `ThreadControlBlock` capability's methods stop refusing non-`Embryo` threads for

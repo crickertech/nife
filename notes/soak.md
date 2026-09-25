@@ -1083,9 +1083,9 @@ the extracted protocols searches the state space directly, which is the thing a 
 saturates at. The two are not competitors and the soak is not the weaker one; the soak is the only one
 that runs on silicon at all, which is where risk 5 says the defects are.
 
-**What none of this decides is the number**, deliberately. It says the number is calef's and gives him
-the axis to pick it on: a crossing target on real silicon, chosen and written down, rather than an
-hour count inherited from a tool's default.
+**What none of this decides is the number**, deliberately. It says the number is an architect's and
+gives them the axis to pick it on: a crossing target on real silicon, chosen and written down,
+rather than an hour count inherited from a tool's default.
 
 ## BUGS
 

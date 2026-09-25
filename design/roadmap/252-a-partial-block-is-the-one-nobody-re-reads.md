@@ -101,7 +101,7 @@ a module header or a note still saying the old thing, where no gate reads it. Te
 **One block should probably not be `PARTIAL` at all.** Milestone 207's four Community Standards
 items are all delivered and GitHub scores the repository at 100%; what keeps it `PARTIAL` is that
 nothing verifies the issue forms render. Its index row still says `CODE_OF_CONDUCT` is missing.
-That call is calef's, so the block says so rather than moving.
+That call is an architect's, so the block says so rather than moving.
 
 ## BUGS
 
@@ -133,10 +133,10 @@ That call is calef's, so the block says so rather than moving.
 - **Done.** `script/roadmap`'s header described a `--unswept` mode that never shipped, left as half
   a sentence spliced onto the next when milestone 247 removed its exemption list an hour after
   writing it. Corrected here, by the lane that was reading the header in order to add to it.
-- **Decision.** Whether milestone 207 should be `BUILT` rather than `PARTIAL` is calef's, since a
-  status word is a claim about the tree and this lane does not move another milestone's. The
-  evidence is in 207's own `## Follow-on` and in `design/decisions/` nowhere: it is one line in a
-  review, not a decision file.
+- **Decision.** Whether milestone 207 (the four things GitHub asks for) should be `BUILT` rather
+  than `PARTIAL` is an architect's, since a status word is a claim about the tree and this lane does
+  not move another milestone's. The evidence is in 207's own `## Follow-on` and in
+  `design/decisions/` nowhere: it is one line in a review, not a decision file.
 - **Recorded.** `Outstanding.` is a provisional name, like the seven words it joins. It is recorded
   as provisional in `script/roadmap`'s own comment and in `notes/roadmap.md`, which is where that
   vocabulary moved when the roadmap index was retired on 2026-09-21.

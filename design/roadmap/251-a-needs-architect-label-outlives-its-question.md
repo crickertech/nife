@@ -6,7 +6,7 @@ request he had already answered. *(Number provisional until the merge queue land
 **Gate: NONE.** It needs `gh` and a delivery point that already runs.
 
 **In brief.** AGENTS.md puts the `needs-architect` label at rung two on purpose, so that what is
-waiting on the architect is `gh pr list --label needs-architect` rather than a paragraph somebody has
+waiting on an architect is `gh pr list --label needs-architect` rather than a paragraph somebody has
 to have read:
 
 > **The `needs-architect` label**, so the queue is `gh pr list --label needs-architect` rather than a
@@ -28,8 +28,8 @@ check that cannot tell an answer from a question gets disabled in a week.
 scheduled workflows (milestone 238) and `script/roadmap --proposed` took for the proposal pile
 (milestone 247). Two signals are available and neither claims to know the answer:
 
-- **Activity:** a labelled pull request whose newest comment is calef's is *probably* answered and
-  is worth a maintainer's eye. That is a prompt, not a verdict.
+- **Activity:** a labelled pull request whose newest comment is an architect's is *probably*
+  answered and is worth a maintainer's eye. That is a prompt, not a verdict.
 - **Age:** a labelled pull request nobody has touched in N days is stalled whether or not it was
   answered, and stalled is the thing the label exists to prevent.
 
@@ -66,5 +66,5 @@ reported, so the signal stays worth reading.
 
 ## Index row
 
-nothing takes the label off, so the one query that says what is waiting on the architect can be
+nothing takes the label off, so the one query that says what is waiting on an architect can be
 false

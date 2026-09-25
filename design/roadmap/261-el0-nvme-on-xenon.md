@@ -18,7 +18,8 @@ contracts routinely."* Designed so option 4 can be added later without reshaping
 choice between them settled by measurement rather than argument.
 
 **Not reopened here**: whether a new `Object` variant is minted, and whether a validator ships with
-it. §86 says plainly those are calef's, and they are option 4's questions, not 2a's.
+it. §86 (whether an NVMe driver can leave the kernel) says plainly those are an architect's, and
+they are option 4's questions, not 2a's.
 
 ## One premise of §86 has changed, and it matters to this milestone
 
@@ -66,8 +67,8 @@ An EL0 NVMe server under §86's option 2a, against QEMU's NVMe, which the runner
 in-kernel driver milestone 53 built; the work is moving the queue mechanics out to a confined process
 that is handed a doorbell page and a DMA window and nothing else.
 
-**The name is calef's** and a lane should ship a provisional one and say so. `nvme_server` is what
-§86 calls it in passing and that is not a ratification. **Settled 2026-09-18**: the program is
+**The name is an architect's** and a lane should ship a provisional one and say so. `nvme_server` is
+what §86 calls it in passing and that is not a ratification. **Settled 2026-09-18**: the program is
 `non_volatile_memory_express`, sharing its crate's name, under DECISIONS §154. The paragraph above
 is kept as the brief the lane worked from.
 

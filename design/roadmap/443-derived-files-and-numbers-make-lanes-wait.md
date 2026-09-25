@@ -95,8 +95,8 @@ and it is not the load-bearing one.
 integrator's at merge, written in `AGENTS.md` and in `script/roadmap`'s header, which is rung four,
 and on 2026-09-19 `main` carried three stale rows because rung four is what it is. A post-merge
 workflow is **a bot writing to `main`, which this tree has never done**, and it needs milestone 128's
-identity plus a rule about what else such a commit may touch. That is calef's call and is written up
-rather than built: `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
+identity plus a rule about what else such a commit may touch. That is an architect's call and is
+written up rather than built: `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
 
 **The point stands without it.** After this milestone a stale index costs a reader an out-of-date
 page and costs a gate nothing, which is what "purely a rendering" was supposed to mean.
@@ -159,8 +159,8 @@ reported, and that the later lander takes the next free numbers instead of displ
 
 - **Milestone 510.** Post-merge regeneration of `design/roadmap/README.md`, with the bot-identity
   question it depends on, in milestone 510 (regenerating the index is nobody's job), `design/roadmap/510-nothing-regenerates-the-roadmap-index.md`.
-  It is calef's call, not a lane's, which is why this milestone stopped at removing the gates'
-  dependence on the file rather than at keeping the file current.
+  It is an architect's call, not a lane's, which is why this milestone stopped at removing the
+  gates' dependence on the file rather than at keeping the file current.
 - **Milestone 513.** `design/decisions/README.md` is hand-maintained and is now the tree's remaining
   index hotspot, in milestone 513 (the decision index is still hand-maintained), `design/roadmap/513-the-decision-index-is-still-hand-maintained.md`.
 - **Recorded.** `script/metrics` and `script/catch-up` still read the committed index, at historical
@@ -172,7 +172,7 @@ reported, and that the later lander takes the next free numbers instead of displ
   177, which turned BUILT on 2026-09-19. `script/fatal-risks --check` reports it now, and the
   pre-443 check produces the same finding byte for byte on a freshly regenerated index, so it was
   latent rather than new. Its home is the gate, which is red until it is answered, and the answer is
-  the architect's: what 177's completion does to the risk is a judgement about the risk, not about
+  an architect's: what 177's completion does to the risk is a judgement about the risk, not about
   the record. The standing rule it falls under is
   `design/decisions/194-sessions-interleave-rather-than-serialize.md`, that anything global stays
   provisional until the queue lands it; this one is held under the `needs-architect` label with the

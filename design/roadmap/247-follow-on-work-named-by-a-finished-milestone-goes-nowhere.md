@@ -96,7 +96,7 @@ it), `Recorded.` (any path it cites must exist), `Refused.` (a reason), `Decisio
 design/roadmap/README.md, argued in notes/follow-on-work.md, and put to calef for ratification in
 `design/decisions/140-follow-on-disposition-vocabulary.md`.
 
-**And the half that makes it cheap enough to use**, which is calef's rather than this lane's
+**And the half that makes it cheap enough to use**, which is an architect's rather than this lane's
 (2026-09-03): `design/roadmap/proposals/<slug>.md`, an unnumbered proposal any lane may write. The
 reason lanes could not add to the roadmap was stated as collision, and *"the collision is in the
 number, not in the authority"*. Separating them means work reaches the tree at the moment it is
@@ -161,10 +161,10 @@ this milestone's own failure mode arriving through this milestone's own mechanis
   them, two of them stale for a month, and only a lane going to look found that out. A `Proposed.`
   or `Recorded.` bullet ages exactly as badly as the prose it replaced; what changed is that it now
   has a shape somebody could sweep.
-- **Decision.** The seven disposition words are a lane's and calef names things. He minted `REMOVED`
-  in the status vocabulary himself, so this one is the same shape one level down; the ratification
-  ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points at the
-  sweep's five proposed milestones.
+- **Decision.** The seven disposition words are a lane's and an architect names things. calef minted
+  `REMOVED` in the status vocabulary himself, so this one is the same shape one level down; the
+  ratification ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points
+  at the sweep's five proposed milestones.
 
 ## Index row
 

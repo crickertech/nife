@@ -3,8 +3,8 @@
 **Status: REMOVED 2026-08-30.** Built 2026-08-17, and the implementation was deleted from the tree on 2026-08-30, on
 calef's decision, after the customer it served moved to borg over SSH on cordoba; journey 2 is
 retired and milestone 55's premise went with it. The status word says BUILT because it was built,
-and the roadmap vocabulary has no word for "built, then removed"; minting one is calef's call and
-this block says so rather than inventing it.
+and the roadmap vocabulary has no word for "built, then removed"; minting one is an architect's call
+and this block says so rather than inventing it.
 
 **Everything below is history, and is deliberately kept.** This milestone was the project's only
 realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share served by nife's
@@ -87,7 +87,7 @@ the features themselves, and none of them belongs to this milestone's question:
 - **The adapter is configured with a resource name**, which is one authority more than it needs. The
   right answer is a narrower capability, so the endpoint *is* the credential for one resource and the
   name is implied and unforgeable: DECISIONS §27's argument applied to `cred_proto`, and a change to a
-  contract two programs agree on, so it is calef's.
+  contract two programs agree on, so it is an architect's.
 - **Sessions are not signed.** Identity buys authentication of the client, not integrity of the
   stream. That is what `SessionBaseKey` is for and why the credential service publishes one.
 - **The server challenge is a clock, not entropy**, and a repeated challenge is what makes a captured
@@ -151,10 +151,10 @@ backups but not delete them", which is a genuinely useful thing to be able to sa
 - **Milestone 327.** Replace the SMB
   adapter's resource-name configuration with a narrower `cred_proto`
   capability, so the endpoint is the credential for one resource and the name is implied and
-  unforgeable, which is DECISIONS §27's argument applied to `cred_proto`. It is calef's call,
-  because it changes a contract two programs agree on. `notes/smb.md` records the shape as a next
-  step rather than as an accepted limitation, so the extra authority is carried without anyone
-  having chosen it.
+  unforgeable, which is the argument of DECISIONS §27 (the filesystem service) applied to
+  `cred_proto`. It is an architect's call, because it changes a contract two programs agree on.
+  `notes/smb.md` records the shape as a next step rather than as an accepted limitation, so the
+  extra authority is carried without anyone having chosen it.
 - **Done.** The status word for "built, then removed" was minted: calef added `REMOVED` to the
   vocabulary on 2026-08-30, the same day this code was deleted. `design/roadmap/README.md` carries
   the token, why the six words then available could only lie about this milestone, and the extra

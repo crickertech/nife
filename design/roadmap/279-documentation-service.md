@@ -42,7 +42,8 @@ capability lives in exactly one place, and what crosses the endpoint is a term i
 names out. `doc`'s two slots do not change, and neither does the property that finding a page grants
 nothing.
 
-The wire contract is a crate, per §7, and its name is calef's. A lane ships a provisional one.
+The wire contract is a crate, per AGENTS.md's codebase rule 7, and its name is an architect's. A
+lane ships a provisional one.
 
 ## The refusals
 
@@ -77,4 +78,4 @@ reads the store, and a program holding that capability widens the contract `doc`
 exists to demonstrate. The consequence nobody recorded is that the search is not a component. Only `manual::index::search` is portable; the store walk (`swish.rs:937`) and the presentation are not,
 and the walk already exists three times. A server holding the store with `apropos` as a thin
 client applies the shape `fs_server` already has and keeps the capability argument intact. Wire
-format and the protocol crate's name are calef's.
+format and the protocol crate's name are an architect's.

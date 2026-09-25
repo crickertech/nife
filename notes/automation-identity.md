@@ -16,11 +16,12 @@ artifacts. The maintainer argued against it on literal process-matching grounds 
 objection: the tree's actor names are metaphors already, so convention-match is the stronger test.*
 
 *Name of this note: provisional. `automation-identity` is a lane's coinage; `design/naming.md` is
-the rule and calef ratifies. The alternatives considered were `github-app.md` (names the vendor's
-mechanism rather than what it is for, and this note would survive a move off GitHub only by lying)
-and `bot-identity.md` (`bot` is what GitHub calls the badge, not what the thing is). The two secret
-names below, `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`, are provisional too and are deliberately
-left alone rather than renamed to match `smelter`: a rename is a naming decision with extra steps.*
+the rule and an architect ratifies. The alternatives considered were `github-app.md` (names the
+vendor's mechanism rather than what it is for, and this note would survive a move off GitHub only by
+lying) and `bot-identity.md` (`bot` is what GitHub calls the badge, not what the thing is). The two
+secret names below, `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`, are provisional too and are
+deliberately left alone rather than renamed to match `smelter`: a rename is a naming decision with
+extra steps.*
 
 The daily toolchain-bump workflow has to open a pull request that **gets CI**. GitHub's
 anti-recursion rule says a pull request opened with a workflow's own ephemeral `GITHUB_TOKEN`
@@ -99,7 +100,7 @@ Once, by an owner of the `crickertech` organization.
    **It may be taken.** App names are globally unique across the whole of GitHub, not just this
    organization, and a one-word English name very likely already belongs to somebody. GitHub tells
    you at this screen and nowhere earlier. If it is unavailable, use **`nife smelter`**, which
-   renders as `nife-smelter[bot]`. Do not invent a third; bring it back to calef.
+   renders as `nife-smelter[bot]`. Do not invent a third; bring it back to an architect.
 
    Whichever of the two you get, the byline (`smelter[bot]` or `nife-smelter[bot]`) is what every
    future bump pull request is authored by, so write down which one you took.
@@ -199,9 +200,9 @@ Once, by an owner of the `crickertech` organization.
     Either way, delete the downloaded `.pem` afterwards. A key sitting in a downloads folder is the
     leak this whole exercise is meant to reduce.
 
-    Both secret names are **provisional** until calef ratifies them. They were deliberately not
-    renamed to match `smelter` when the App's name was ratified: a rename is a naming decision with
-    extra steps, and `AUTOMATION_*` says what the secrets are for rather than what the App is
+    Both secret names are **provisional** until an architect ratifies them. They were deliberately
+    not renamed to match `smelter` when the App's name was ratified: a rename is a naming decision
+    with extra steps, and `AUTOMATION_*` says what the secrets are for rather than what the App is
     called, which survives the App being renamed.
 
 ## Confirming it took, and only then retiring the PAT

@@ -174,7 +174,9 @@ fn holdings(nav: &Nav) -> grant_plan::Holdings {
         dir: nav.dir.is_some(),
         // **Always `None` from this shell today** (milestone 154's boot-wiring mechanism,
         // `system_initializer::boot`'s `second_dir` parameter, is not enabled at any real entry
-        // point, since DECISIONS §126 reserves that policy call for calef). Even where it were, this
+        // point, since DECISIONS §126 (a real, single, moving `cwd`) reserves that policy call for
+        // an architect). Even where it
+        // were, this
         // shell has no way yet to *learn* of a second grant's label and cspace slot: `Nav` is
         // built from `_start`'s three `START` words (role, argument, clock slot), all already
         // spoken for, so wiring a second grant into `Nav` needs its own wire-format decision

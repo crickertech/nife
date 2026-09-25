@@ -5,7 +5,7 @@ the harnesses work, and until this note nothing in the tree had asked whether th
 anything. This is that question, asked against the only evidence that cannot be arranged after the
 fact: the project's own written record of real defects.
 
-*Note name provisional, per the naming tenet. calef names things.*
+*Note name provisional, per the naming tenet. An architect names things.*
 
 ## The finding
 
@@ -427,11 +427,11 @@ next lane on.
 | 5 | `region_end_is_total` in `dtb`, and a sweep for its siblings | `Region::end` overflowed on a hostile memory map | the `be32` hardening applied to every `pub` arithmetic helper on blob-derived fields | small |
 | 6 | Lift `login`'s cspace bookkeeping into a crate and prove occupancy is restored | `mint()`'s 8-login ceiling; `connect()`'s rendezvous leak | a real extraction, the largest item here | a lane |
 | 7 | A loom crate over the PLIC enable-bit read-modify-write | the lost update the arch audit found and fixed by inspection | the `work_steal_slot` pattern, which is precedented | modest |
-| 8 | A convention that marks a harness's falsification record | the reverse pass could not enumerate them | naming or an attribute; **calef's call**, since it is a convention | a decision, not a lane |
+| 8 | A convention that marks a harness's falsification record | the reverse pass could not enumerate them | naming or an attribute; **an architect's call**, since it is a convention | a decision, not a lane |
 | 9 | `cover!` guards on the assuming harnesses that have none | twenty of twenty-four harness crates carry no vacuity guard | mechanical, one per harness that assumes | modest |
 
-Item 8 is a proposal rather than a task, and it is the only thing here that is calef's rather than a
-lane's: it is a tree-wide convention, and this note has no authority to mint one.
+Item 8 is a proposal rather than a task, and it is the only thing here that is an architect's rather
+than a lane's: it is a tree-wide convention, and this note has no authority to mint one.
 
 ## EXAMPLES
 
@@ -533,7 +533,7 @@ in the tree does it.
 **This note has no gate and produces no artifact the build checks**, which is milestone 191's own
 `BUGS` entry and remains true. Its worklist is nine rows of prose, and prose is rung four. The one
 thing that stops it going the way milestone 94's inventory went is that item 1 is a gate, item 8 is a
-decision for calef, and the rest name a crate a reader can grep for.
+decision for an architect, and the rest name a crate a reader can grep for.
 
 **The counts will drift.** They were taken on 2026-08-30 at base `f1f138a8`. The EXAMPLES section
 exists so the next reader re-derives them instead of quoting this table, which is the failure

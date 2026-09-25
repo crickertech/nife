@@ -16,7 +16,7 @@
 //! **This is rung 3a's producer half and the parser it implies.** It deliberately does *not*
 //! install anything: what installing a package *does* to a running system is the activation fork
 //! (milestone 507 (installing a package: mutate, compose, or widen what can be spawned),
-//! options with no winner), which is calef's and is not decided. A package that
+//! options with no winner), which is an architect's and is not decided. A package that
 //! can be built, named, verified and read is what that ruling will act on, and it is buildable
 //! without it.
 //!

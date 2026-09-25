@@ -2,15 +2,15 @@
 
 **Status: NOT-STARTED.** Promoted from the proposal `what-the-weekly-miri-run-should-cost`, filed
 2026-09-17 by the milestone 310 lane on the first measurement of a run that actually finished. The
-cadence itself is calef's call; the measurement and the cut are not. *(Number provisional until the
-merge queue lands it.)*
+cadence itself is an architect's call; the measurement and the cut are not. *(Number provisional
+until the merge queue lands it.)*
 
 **Gate: NONE.** A lane can start today and get most of the value: collecting per-crate wall clocks
 and sampling the crates that dominate are `cfg(miri)` gates at the test site, the convention five
-crates in this tree already follow, and neither needs a ruling. Only the last step is calef's,
-changing the weekly cadence or tightening `timeout-minutes`, and it is the cheapest step of the
-three. Nothing is blocked meanwhile: the job is green as of milestone 310 and finishes inside its
-current budget.
+crates in this tree already follow, and neither needs a ruling. Only the last step is an
+architect's, changing the weekly cadence or tightening `timeout-minutes`, and it is the cheapest
+step of the three. Nothing is blocked meanwhile: the job is green as of milestone 310 (the Miri leak
+check stays on) and finishes inside its current budget.
 
 **Premise re-checked 2026-09-19 and still true.**
 `.github/workflows/undefined-behavior-check.yml` still runs on `cron: "0 6 * * 1"` with

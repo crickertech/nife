@@ -15,8 +15,8 @@ enqueuing the one fix and holding everything else until that lands, then re-enab
 else."*
 
 That is the whole procedure, correctly stated, and nothing implemented it. `helpers/trunk-health.sh`
-says the trunk is red. `helpers/merge-drain.sh` arms everything that does not need calef, which
-during a red trunk is precisely the wrong thing and it will keep doing it every five minutes.
+says the trunk is red. `helpers/merge-drain.sh` arms everything that does not need an architect,
+which during a red trunk is precisely the wrong thing and it will keep doing it every five minutes.
 `helpers/lane-claim-check.sh` and `helpers/at-risk-check.sh` watch one step earlier still. The
 response lived in whoever happened to be at the keyboard, which is rung zero of AGENTS.md's ladder
 and is not a mechanism.

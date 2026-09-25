@@ -117,7 +117,7 @@ this risk names.
   likely to be recorded badly. The format is fixed now: one exposure row per boot, read off the last
   `soak-test:` beat, in `notes/multicore-defect-curve.md`. Crossings and boots are recorded beside
   hours, because `notes/soak.md` argues clock time is the wrong axis; which one the curve is judged on
-  is calef's call, and recording all three means it can be made after the run.
+  is an architect's call, and recording all three means it can be made after the run.
 - **Every defect classified** as concurrency or not. A curve polluted with unrelated failures answers
   a different question.
 
@@ -148,8 +148,8 @@ this risk names.
   architecture. Checked 2026-09-24: the note has three radon rows, all riscv64, and none for argon or
   xenon.
 - **Outstanding.** Which denominator the curve is judged on (hours, crossings or boots), and the
-  stated duration `design/fatal-risks/multicore-reliability.md` asks for. Both are calef's; checked
-  2026-09-24 that neither is decided anywhere in the tree.
+  stated duration `design/fatal-risks/multicore-reliability.md` asks for. Both are an architect's;
+  checked 2026-09-24 that neither is decided anywhere in the tree.
 - **Recorded.** The history table is one lane's sweep rather than a census, D5's instrument is
   unrecorded, and nothing computes the curve; all three are in
   `notes/multicore-defect-curve.md`'s `BUGS`.

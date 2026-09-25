@@ -67,8 +67,8 @@ ruled, with the date and what was refused), `recorded` (the tree argues the name
 citation), `unrecorded` (nothing outside this block says why). **The gate checks presence, never
 `ratified`**, so an unratified name never blocks a build and `unrecorded` is a truthful answer.
 
-**The name is calef's** (AGENTS.md, "calef names the crates, the programs, and the shared modules").
-Ship a provisional one, say so in your report, expect it to change.
+**The name is an architect's** (AGENTS.md, "calef names the crates, the programs, and the shared
+modules"). Ship a provisional one, say so in your report, expect it to change.
 
 **Write `provisional` when you expect the name to change**, which is AGENTS.md's word and, since
 §89 (2026-08-16), the gate's too. Four states:
@@ -85,9 +85,9 @@ about the **record**. A settled name can be `unrecorded` (nobody wrote down why 
 `hello`, and nobody needs to), so the two are not the same word for the same thing.
 
 `script/names --provisional` lists them and they sort first in `--unratified`, because a name its
-own author called wrong is the shortest conversation calef can have. This page told newcomers the
-opposite until §89: run 2 of the stranger test wrote the word AGENTS.md asked for and got a red
-gate, which is what raised the decision.
+own author called wrong is the shortest conversation an architect can have. This page told newcomers
+the opposite until §89 (`provisional` becomes the fourth provenance state): run 2 of the stranger
+test wrote the word AGENTS.md asked for and got a red gate, which is what raised the decision.
 
 ### 3. A `[[bin]]` block in that package's `Cargo.toml`
 
@@ -292,7 +292,8 @@ rung one, deliberately, and it is the one place this milestone went down the lad
   `jh7110_entropy` and `pmap` to the aarch64 archive and `pmap` to the other two. `pmap` is packed
   and spawned by nothing (see `crates/pmap`'s `BUGS`); it costs a directory slot, which is what the
   rule prices it at.
-- **Whether a program may take an argument and an input together is open**, and it is calef's call:
+- **Whether a program may take an argument and an input together is open**, and it is an architect's
+  call:
   [a-program-that-takes-an-argument-and-an-input.md](../design/roadmap/498-a-program-that-takes-an-argument-and-an-input.md).
   The tree allows it and nothing uses it. The `crates/swish` sweep that used to go red on it (the
   "eighth edit site" milestone 117's fifth stranger found) now types every operand a manifest asks

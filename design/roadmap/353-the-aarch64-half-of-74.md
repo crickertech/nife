@@ -18,7 +18,7 @@ Rewritten 2026-09-19 by the `milestone/74-cycle-counters-aarch64` lane, which bu
 file used to describe. The first version was the riscv64 lane's
 handoff: `PMCR_EL0.E` and `PMCNTENSET_EL0.C` were never written, so `PMCCNTR_EL0` was a stopped
 counter. That part is built (milestone 74's block, "What the aarch64 half built"). What is left is the
-two things that lane and this one were both told are calef's, and this file is now those two
+two things that lane and this one were both told are an architect's, and this file is now those two
 decisions, each answered against AGENTS.md's seven questions, with **options and no winner**, because
 both are facts that leave the machine.
 
@@ -75,7 +75,7 @@ qualifier.
 
 ### Question 1: What else was considered, and why each is a live option rather than a loser
 
-None loses on the facts; they answer different questions, which is why this is calef's.
+None loses on the facts; they answer different questions, which is why this is an architect's.
 
 - **A3 cannot referee an IPC comparison, and that is the one thing to know about it.** An IPC round
   trip timed from EL0 spends almost all of its cycles in the kernel, and `P` = 1 stops the counter
@@ -280,10 +280,11 @@ number every time. That was built on 2026-09-19 and `bench::cycles_per_tick` now
 all, so the measurement half of milestone 74 exists on all three architectures. **The three are not
 yet the same quantity**, and closing that gap is a ruling rather than code: riscv64 counts every
 mode including M-mode firmware, x86_64 counts ring 0 and 3, and aarch64 counts EL0 and EL1 under a
-provisional `PMCCFILTR_EL0`. Two things here are calef's and both are facts that leave the machine:
-what `PMCCFILTR_EL0` counts, because a count excluding the kernel is not comparable to seL4's and
-one including it is not comparable to a userspace-only profile, and what a program calls the
-cycle-counter read and what it promises. §19 makes the first a parity gap in the one subsystem whose
-entire purpose is cross-machine comparison, and milestone 25's `sel4bench` needs it. Nothing can be
-settled on Apple silicon: the PMU is not architected state a hypervisor must present, so the machine
-that decides it is argon, with a person at it.
+provisional `PMCCFILTR_EL0`. Two things here are an architect's and both are facts that leave the
+machine: what `PMCCFILTR_EL0` counts, because a count excluding the kernel is not comparable to
+seL4's and one including it is not comparable to a userspace-only profile, and what a program calls
+the cycle-counter read and what it promises. §19 (architectural parity is a tenet) makes the first a
+parity gap in the one subsystem whose entire purpose is cross-machine comparison, and the
+`sel4bench` of milestone 25 (cross-OS performance comparison) needs it. Nothing can be settled on
+Apple silicon: the PMU is not architected state a hypervisor must present, so the machine that
+decides it is argon, with a person at it.

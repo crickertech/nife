@@ -20,10 +20,11 @@ and activation by [§208](../decisions/208-installing-is-granting.md) (installin
 activation set is versioned) on 2026-09-23. The rulings §157 (a trivial install is a web page, a USB drive, and packages over the internet)
 placed on later rungs gate those rungs
 and not this block, because each sits on a milestone of its own: the install layout on milestone 515
-(rung 2a), Secure Boot on milestone 500 (a stick that boots with Secure Boot on) for rungs 1d and 4, and publication is calef's act at rung 4.
-The transport is ruled too, by §196 (nife carries TLS). **Until 2026-09-24 this line read `DECISION`**, and it stayed
-that way for a day after §208 answered its last fork, because nothing connects a ruling to the gate
-it answers; the proposal `a-ruling-updates-the-gate-it-answers` is the mechanism.
+(rung 2a), Secure Boot on milestone 500 (a stick that boots with Secure Boot on) for rungs 1d and 4,
+and publication is an architect's act at rung 4. The transport is ruled too, by §196 (nife carries
+TLS). **Until 2026-09-24 this line read `DECISION`**, and it stayed that way for a day after §208
+answered its last fork, because nothing connects a ruling to the gate it answers; the proposal
+`a-ruling-updates-the-gate-it-answers` is the mechanism.
 
 **The history of that line.** **Ruled by calef on 2026-09-19 (16:32 UTC):
 `MILESTONE 23` is dropped from this line.** It read `DECISION, MILESTONE 23`, inherited through
@@ -314,4 +315,4 @@ on 2026-09-23): a stick reaching a prompt on a PC (1a on xenon over serial
 needs nothing new; the screen and the USB keyboard, milestone 242, are the rest), that system
 installed onto the disk (a new installer proposal plus milestone 261's bench step), growing by
 packages over the network (this milestone on a LAN first, then a real network card and the
-internet), and the web page, which is calef's act.
+internet), and the web page, which is an architect's act.

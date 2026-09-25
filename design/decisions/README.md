@@ -60,11 +60,11 @@ ratified_by: calef
 | `status` | `PROPOSED`, `DECIDED`, `AMENDED`, `SUPERSEDED` | always |
 | `raised` | `YYYY-MM-DD`, UTC | always |
 | `decided` | `YYYY-MM-DD`, UTC | `status` is `DECIDED` or `AMENDED` |
-| `ratified_by` | a GitHub username | `status` is `DECIDED` or `AMENDED` |
+| `ratified_by` | a GitHub username listed in [`ARCHITECTS.md`](../../ARCHITECTS.md) | `status` is `DECIDED` or `AMENDED` |
 | `superseded_by` | a section number | `status` is `SUPERSEDED` |
 
-The schema is calef's, ratified 2026-09-23, and a lane does not extend it. Keys are snake_case,
-values uppercase, dates UTC like every other date in this tree.
+calef ratified the schema on 2026-09-23. Extending it is an architect's call and never a lane's.
+Keys are snake_case, values uppercase, dates UTC like every other date in this tree.
 
 This was `**Status: DECIDED.**` in prose until milestone 582 (a decision's status becomes a field,
 and the index becomes generated). Two failures came from reading a field out of a sentence. A file

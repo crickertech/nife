@@ -279,9 +279,10 @@ same size:
   else. `Gpt::create` is built and proved. No pin divergence. This is a lane.
 - **`mkfs` on the target** needs that plus `Header::new_with_uuid` inside `vendor/redoxfs`, which is
   a new entry in `vendor/redoxfs.divergence.patch` and a new file in `patches/` for upstream
-  submission. §46's rule makes that calef's call, and the honest alternative is still on the table:
-  `redoxfs_host` on a Mac formats the drive today, which is what actually gets a disk ready for the
-  board, and the target-side version is then a capability demonstration rather than a prerequisite.
+  submission. §46 (thin primitives or whole subsystems) makes that an architect's call, and the
+  honest alternative is still on the table: `redoxfs_host` on a Mac formats the drive today, which
+  is what actually gets a disk ready for the board, and the target-side version is then a capability
+  demonstration rather than a prerequisite.
 
 **Effort: not estimated.** The GPT crate turned out to be about one lane on the history-calibrated
 scale, and so did the block-device lane.

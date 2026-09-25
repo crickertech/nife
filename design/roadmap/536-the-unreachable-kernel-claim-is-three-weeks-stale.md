@@ -3,12 +3,12 @@
 **Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-unreachable-kernel-claim-is-three-weeks-stale`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane, which was briefed
 on the claim and found it expired before it found anything else.
 
-**Gate: DECISION.** `design/fatal-risks.md` is calef's file and risk 2's text is his to amend;
-AGENTS.md puts the falsification list outside a lane's reach, and the edit to it by the lane for
-milestone 64 (enough `std` to run somebody else's crate) is recorded as an exception rather than a
-precedent. `notes/proof-retrospective.md` is an ordinary
-note and needs no decision, but the two say the same sentence and should be corrected together or
-the reader meets a tree that disagrees with itself.
+**Gate: DECISION.** `design/fatal-risks.md` is an architect's file and risk 2's text is theirs to
+amend; AGENTS.md puts the falsification list outside a lane's reach, and the edit to it by the lane
+for milestone 64 (enough `std` to run somebody else's crate) is recorded as an exception rather than
+a precedent. `notes/proof-retrospective.md` is an ordinary note and needs no decision, but the two
+say the same sentence and should be corrected together or the reader meets a tree that disagrees
+with itself.
 
 ## The claim
 

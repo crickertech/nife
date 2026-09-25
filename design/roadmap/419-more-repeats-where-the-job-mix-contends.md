@@ -68,8 +68,9 @@ rather than noise to be minimised away, and reporting only the best discards it.
 **Recommendation: 3, with 4 as the interim**, and the reason is the one this proposal opened with.
 The job mix exists to measure what contention costs; a report that keeps only the least-contended
 sample is answering a different question than the one §96 asked. But option 3 changes a line two
-programs read, so it is calef's rather than a lane's, and until it is decided the honest thing is
-option 4, which is what milestone 168's block now does.
+programs read, so it is an architect's rather than a lane's, and until it is decided the honest
+thing is option 4, which is what the block of milestone 168 (a multi-tasking workload benchmark) now
+does.
 
 **Blocked until it is answered:** milestone 168 turning `BUILT`. Its own status line says it does
 not, until a number exists, and `tasks=4` does not yet have one.

@@ -8,10 +8,11 @@ constructor that `OPENDIR` and `MKDIR` narrow *through*, not an operation on a h
 31's block still records the refusal in "The two shapes a grant cannot take", and no interactive boot
 roots the shell below the image root.
 
-**Gate: DECISION.** Both permanent answers are calef's, and they are permanent in different ways. A
-narrowing verb is an addition to `filesystem_protocol`, which two programs agree on, so it cannot be
-un-shipped. An interactive boot rooted one component below the image root changes what every other
-command at that prompt means, which cannot be un-taught. Nothing can start until one is chosen.
+**Gate: DECISION.** Both permanent answers are an architect's, and they are permanent in different
+ways. A narrowing verb is an addition to `filesystem_protocol`, which two programs agree on, so it
+cannot be un-shipped. An interactive boot rooted one component below the image root changes what
+every other command at that prompt means, which cannot be un-taught. Nothing can start until one is
+chosen.
 
 **In brief.** A subtree caretaker attenuates by performing one `OPENDIR` *into* the directory it was
 granted. The root of the shell's namespace has no name to descend into, and `filesystem_protocol` has

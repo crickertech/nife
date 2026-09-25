@@ -4,7 +4,7 @@
 rule and how far it reaches, nouns over verbs, the acronym history, and what `crates/` holds. It
 exists to verify or challenge the main page, and a reader who only needs to name, ratify or rename
 something should not have to open it. The directory `design/naming/` and this file's stem are
-provisional names, minted 2026-09-24 by the lane that split the file; naming is calef's.*
+provisional names, minted 2026-09-24 by the lane that split the file; naming is an architect's.*
 
 ## Crates
 
