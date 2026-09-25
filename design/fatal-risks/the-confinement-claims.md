@@ -72,6 +72,15 @@ reading every capability mint site shrank from 45 counted components to two obje
 milestone 307 marked quotable-but-unreachable, none of which turned out weaker than its claim. And
 the two new machine classes, radon and xenon.
 
+Checked 2026-09-25 (UTC) against pull request #1275, which found that x86_64 brought up the DMAR's
+first VT-d unit and called a device confined whenever any unit was on. On xenon's sibling machine
+that first unit covers only the integrated graphics. None of this entry's support depends on it. The
+audit's xenon reading rested on no component holding a DMA-capable device there, which is still
+true. DECISIONS §12's x86_64 defect was a port grant, not DMA. And the x86_64 IOMMU rows in
+[`notes/confinement-claims.md`](../../notes/confinement-claims.md) were measured on the host or
+under QEMU, whose one unit owns the whole bus. The audit report carries the one sentence the finding
+does correct.
+
 ### Three things this does not settle
 
 The syscall surface and IPC model are the remaining untaken lens and want their own audit. The

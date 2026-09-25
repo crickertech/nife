@@ -206,7 +206,7 @@ driver is an EL0 process reaching the TRNG through a capability that names no de
 Every piece now exists and the remaining distance is a bench evening. Milestone 261 (the NVMe driver
 leaves the kernel, on the machine that can finally confine it) is §86 (whether an NVMe driver can
 leave the kernel, and what capability would let it)'s option 2a. xenon has a plain PCIe NVMe function
-behind VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
+and VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
 
 Two caveats. This does not retire the risk, and the reason is the device. A TRNG has no DMA and one
 register window, so it is the smallest real device on the board. The rate is not comparable to a
