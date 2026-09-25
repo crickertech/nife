@@ -130,7 +130,14 @@ pub fn output_len(src: &[u8]) -> Result<usize, Error> {
     let rsv = rsvmap_len(src, &h)?;
     // BEGIN_NODE "chosen" (4 + 8) + END_NODE (4) + two props (12 + 8 each) + two names.
     let extra = 12 + 4 + 2 * 20 + INITRD_START.len() + 1 + INITRD_END.len() + 1;
-    Ok(HEADER_LEN + 8 + rsv + h.size_struct + h.size_strings + extra + 8)
+    // **Exact, not padded**: this is the size `with_initrd` writes for a tree with no `/chosen`
+    // and neither name in its strings, which is the largest it can write, and a test holds the two
+    // equal. The header needs no padding before the reservation block because 40 is already the
+    // multiple of 8 that block needs (asserted below), so `with_initrd`'s `pad_to(8)` writes
+    // nothing. Until milestone 326 (2026-09-24) this added two unexplained 8s, and fifteen mutants
+    // of its arithmetic survived because a bound with slack cannot be told from a wrong one.
+    const _: () = assert!(HEADER_LEN.is_multiple_of(8));
+    Ok(HEADER_LEN + rsv + h.size_struct + h.size_strings + extra)
 }
 
 /// Offset of `name` in the strings block, if it is already there as a whole string.
@@ -458,5 +465,351 @@ mod tests {
             Err(Error::OutputTooSmall),
             "256 bytes is not a whole QEMU tree"
         );
+    }
+
+    // --- Milestone 326 (turn a mutation score upward), 2026-09-24. The 2026-09-21 census left
+    // --- 43 mutants of this file alive; notes/mutation-testing/uefi-loader.md has which test
+    // --- killed which. Every tree below is built by hand so each property has one cause.
+
+    fn word(s: &mut Vec<u8>, w: u32) {
+        s.extend_from_slice(&w.to_be_bytes());
+    }
+    fn pad4(s: &mut Vec<u8>) {
+        while !s.len().is_multiple_of(4) {
+            s.push(0);
+        }
+    }
+    fn begin(s: &mut Vec<u8>, name: &str) {
+        word(s, BEGIN_NODE);
+        s.extend_from_slice(name.as_bytes());
+        s.push(0);
+        pad4(s);
+    }
+    fn prop(s: &mut Vec<u8>, name_off: u32, data: &[u8]) {
+        word(s, PROP);
+        word(s, data.len() as u32);
+        word(s, name_off);
+        s.extend_from_slice(data);
+        pad4(s);
+    }
+
+    /// Strings for the hand-built trees: `answer` at 0, `linux,initrd-start` at 7.
+    const STRINGS: &[u8] = b"answer\0linux,initrd-start\0";
+
+    /// A flattened tree around `structure` (which must end with `END`): header, reservation block
+    /// holding `reserved` and its terminator, then the structure and strings blocks in that order
+    /// or, with `strings_first`, the other, then `slack` bytes the header's total still covers.
+    fn tree(
+        reserved: &[(u64, u64)],
+        structure: &[u8],
+        strings_first: bool,
+        slack: usize,
+    ) -> Vec<u8> {
+        let mut src = vec![0u8; HEADER_LEN];
+        let rsv = src.len();
+        for (address, size) in reserved.iter().chain([&(0, 0)]) {
+            src.extend_from_slice(&address.to_be_bytes());
+            src.extend_from_slice(&size.to_be_bytes());
+        }
+        let (st, strings);
+        if strings_first {
+            strings = src.len();
+            src.extend_from_slice(STRINGS);
+            pad4(&mut src);
+            st = src.len();
+            src.extend_from_slice(structure);
+        } else {
+            st = src.len();
+            src.extend_from_slice(structure);
+            strings = src.len();
+            src.extend_from_slice(STRINGS);
+        }
+        src.extend(core::iter::repeat_n(0, slack));
+        let fields = [
+            MAGIC,
+            src.len() as u32,
+            st as u32,
+            strings as u32,
+            rsv as u32,
+            17,
+            16,
+            3, // boot_cpuid_phys, which must survive the rewrite
+            STRINGS.len() as u32,
+            structure.len() as u32,
+        ];
+        for (i, f) in fields.iter().enumerate() {
+            src[i * 4..i * 4 + 4].copy_from_slice(&f.to_be_bytes());
+        }
+        src
+    }
+
+    /// The root with one property and no children.
+    fn bare_root() -> Vec<u8> {
+        let mut s = Vec::new();
+        begin(&mut s, "");
+        prop(&mut s, 0, &[0, 0, 0, 0x2a]);
+        word(&mut s, END_NODE);
+        word(&mut s, END);
+        s
+    }
+
+    fn field(blob: &[u8], i: usize) -> usize {
+        u32::from_be_bytes(blob[i * 4..i * 4 + 4].try_into().unwrap()) as usize
+    }
+
+    /// How many nodes called `chosen`, at any depth, the structure block holds.
+    fn chosen_nodes(blob: &[u8]) -> usize {
+        let (st, size) = (field(blob, 2), field(blob, 9));
+        let mut token = BEGIN_NODE.to_be_bytes().to_vec();
+        token.extend_from_slice(b"chosen\0\0");
+        blob[st..st + size]
+            .windows(token.len())
+            .filter(|w| *w == token)
+            .count()
+    }
+
+    /// **The bound is exact for the tree it is a bound for**: a tree with no `/chosen` and neither
+    /// name in its strings is rewritten to precisely `output_len` bytes, and every other tree to
+    /// fewer. The caller allocates this from the firmware, so a bound short by a byte is a boot that
+    /// stops at "no room to rewrite the device tree".
+    #[test]
+    fn the_bound_is_exact_for_a_tree_with_nothing_to_reuse() {
+        let src = tree(&[(0x8000_0000, 0x1000)], &bare_root(), false, 0);
+        let mut plain = src.clone();
+        // Take `linux,initrd-start` out of the strings so neither name can be reused.
+        let at = field(&plain, 3) + 7;
+        plain[at] = b'X';
+        let mut out = vec![0; output_len(&plain).unwrap()];
+        assert_eq!(
+            with_initrd(&plain, 0x1000, 0x2000, &mut out),
+            Ok(output_len(&plain).unwrap())
+        );
+        let mut out = vec![0; output_len(&src).unwrap()];
+        let n = with_initrd(&src, 0x1000, 0x2000, &mut out).unwrap();
+        assert_eq!(n + 19, output_len(&src).unwrap(), "one name reused");
+    }
+
+    /// **The reservation block is carried entry for entry**, terminator included. It is where
+    /// firmware says which memory is not the kernel's, so losing an entry hands the kernel memory
+    /// that is in use.
+    #[test]
+    fn the_reservation_block_is_carried_entry_for_entry() {
+        let reserved = [(0x8000_0000, 0x1000), (0x9000_0000, 0x2_0000)];
+        let src = tree(&reserved, &bare_root(), false, 0);
+        let out = rewrite(&src, 0x1000, 0x2000);
+        let (from, to) = (field(&src, 4), field(&out, 4));
+        assert_eq!(
+            out[to..to + 48],
+            src[from..from + 48],
+            "two entries and the zero one"
+        );
+        let mut regions = [Region { start: 0, size: 0 }; 4];
+        let n = DeviceTreeBlob::from_bytes(&out)
+            .unwrap()
+            .reserved_regions(&mut regions)
+            .unwrap();
+        assert_eq!(
+            regions[..n],
+            [
+                Region {
+                    start: 0x8000_0000,
+                    size: 0x1000
+                },
+                Region {
+                    start: 0x9000_0000,
+                    size: 0x2_0000
+                }
+            ]
+        );
+    }
+
+    /// **The header describes the blocks that were written**: each block's size is the distance
+    /// to the next, the structure block ends on `END`, and the boot CPU is the firmware's.
+    #[test]
+    fn the_header_describes_the_blocks_it_wrote() {
+        for src in [PLAIN, RISCV, &tree(&[], &bare_root(), false, 0)[..]] {
+            let out = rewrite(src, 0x4800_0000, 0x4849_0000);
+            let (total, st, strings, rsv) = (
+                field(&out, 1),
+                field(&out, 2),
+                field(&out, 3),
+                field(&out, 4),
+            );
+            assert_eq!(field(&out, 0) as u32, MAGIC);
+            assert_eq!(total, out.len());
+            assert_eq!(rsv, HEADER_LEN);
+            assert_eq!(st + field(&out, 9), strings, "size_dt_struct");
+            assert_eq!(strings + field(&out, 8), total, "size_dt_strings");
+            assert_eq!(out[strings - 4..strings], END.to_be_bytes());
+            assert_eq!((field(&out, 5), field(&out, 6)), (17, 16));
+            assert_eq!(field(&out, 7), field(src, 7), "boot_cpuid_phys");
+        }
+    }
+
+    /// **A header that points outside the blob is refused, not followed**, one field at a time; and
+    /// the layouts that are legal but unusual are accepted: a buffer longer than the tree, space
+    /// the tree's total covers after its last block, and the structure block last.
+    #[test]
+    fn each_header_bound_is_checked_on_its_own() {
+        let mut out = vec![0u8; 4096];
+        let src = tree(&[], &bare_root(), false, 0);
+        let with = |i: usize, v: usize| {
+            let mut t = src.clone();
+            t[i * 4..i * 4 + 4].copy_from_slice(&(v as u32).to_be_bytes());
+            t
+        };
+        let len = src.len();
+        assert_eq!(
+            with_initrd(&with(1, len + 1), 0, 1, &mut out),
+            Err(Error::Truncated),
+            "total"
+        );
+        assert_eq!(
+            with_initrd(&with(9, len), 0, 1, &mut out),
+            Err(Error::Truncated),
+            "struct"
+        );
+        assert_eq!(
+            with_initrd(&with(8, len), 0, 1, &mut out),
+            Err(Error::Truncated),
+            "strings"
+        );
+        assert_eq!(
+            with_initrd(&with(4, len), 0, 1, &mut out),
+            Err(Error::Truncated),
+            "rsvmap"
+        );
+
+        let mut longer = src.clone();
+        longer.extend_from_slice(&[0xff; 64]);
+        assert!(
+            with_initrd(&longer, 0, 1, &mut out).is_ok(),
+            "a buffer longer than the tree"
+        );
+        let slack = tree(&[], &bare_root(), false, 16);
+        assert!(
+            with_initrd(&slack, 0, 1, &mut out).is_ok(),
+            "covered space after the strings"
+        );
+        let struct_last = tree(&[], &bare_root(), true, 0);
+        assert!(
+            with_initrd(&struct_last, 0, 1, &mut out).is_ok(),
+            "the structure block last"
+        );
+    }
+
+    /// **`NOP` tokens are skipped and dropped**: the specification lets firmware blank a property
+    /// out with them in place, so a walker that stops at one loses the rest of the tree.
+    #[test]
+    fn nop_tokens_are_skipped_and_dropped() {
+        let mut s = Vec::new();
+        begin(&mut s, "");
+        word(&mut s, NOP);
+        prop(&mut s, 0, &[0, 0, 0, 0x2a]);
+        word(&mut s, NOP);
+        word(&mut s, END_NODE);
+        word(&mut s, END);
+        let out = rewrite(&tree(&[], &s, false, 0), 0x1000, 0x2000);
+        let without = rewrite(&tree(&[], &bare_root(), false, 0), 0x1000, 0x2000);
+        assert_eq!(out, without, "the same tree, less its NOPs");
+        let tree = DeviceTreeBlob::from_bytes(&out).unwrap();
+        assert_eq!(
+            tree.initrd().unwrap(),
+            Some(Region {
+                start: 0x1000,
+                size: 0x1000
+            })
+        );
+    }
+
+    /// **Only the root's `chosen` child is `/chosen`.** A node that happens to be called `chosen`
+    /// deeper down gets nothing, the real one still gets added, and a tree that has `/chosen`
+    /// keeps exactly one.
+    #[test]
+    fn only_the_roots_chosen_child_receives_the_pair() {
+        let nested = |name: &str| {
+            let mut s = Vec::new();
+            begin(&mut s, "");
+            begin(&mut s, "soc");
+            begin(&mut s, name);
+            word(&mut s, END_NODE);
+            word(&mut s, END_NODE);
+            word(&mut s, END_NODE);
+            word(&mut s, END);
+            rewrite(&tree(&[], &s, false, 0), 0x1000, 0x2000)
+        };
+        let out = nested("chosen");
+        let tree_out = DeviceTreeBlob::from_bytes(&out).unwrap();
+        assert_eq!(
+            tree_out.initrd().unwrap(),
+            Some(Region {
+                start: 0x1000,
+                size: 0x1000
+            })
+        );
+        assert_eq!(chosen_nodes(&out), 2, "/soc/chosen and the new /chosen");
+        // Byte for byte what a node of any other name there produces, less the name itself.
+        let mut other = nested("chosex");
+        let at = other.windows(7).position(|w| w == b"chosex\0").unwrap();
+        other[at + 5] = b'n';
+        assert_eq!(out, other, "/soc/chosen is treated like any other node");
+
+        for src in [PLAIN, WITH_INITRD, RISCV] {
+            let out = rewrite(src, 0x1000, 0x2000);
+            assert_eq!(chosen_nodes(&out), chosen_nodes(src), "no second /chosen");
+        }
+    }
+
+    /// **Replacing stops at `/chosen`'s end**: a later sibling that carries a property of the same
+    /// name keeps it, because the pair being replaced is `/chosen`'s alone.
+    #[test]
+    fn a_sibling_after_chosen_keeps_its_own_properties() {
+        let mut s = Vec::new();
+        begin(&mut s, "");
+        begin(&mut s, "chosen");
+        word(&mut s, END_NODE);
+        begin(&mut s, "other");
+        prop(&mut s, 7, &0x1234u64.to_be_bytes());
+        word(&mut s, END_NODE);
+        word(&mut s, END_NODE);
+        word(&mut s, END);
+        let out = rewrite(&tree(&[], &s, false, 0), 0x1000, 0x2000);
+        let tree = DeviceTreeBlob::from_bytes(&out).unwrap();
+        assert_eq!(
+            tree.node_prop(b"other", INITRD_START).unwrap(),
+            Some(&0x1234u64.to_be_bytes()[..])
+        );
+    }
+
+    /// **A property whose length runs past the structure block is refused**, rather than copied
+    /// from bytes that are not the tree (or past the end of the buffer, which in a UEFI application
+    /// is a panic with no console to report it).
+    #[test]
+    fn a_property_longer_than_its_block_is_refused() {
+        let mut s = bare_root();
+        s[8 + 4..8 + 8].copy_from_slice(&0x1000u32.to_be_bytes()); // the property's length
+        let mut out = vec![0u8; 4096];
+        assert_eq!(
+            with_initrd(&tree(&[], &s, false, 0), 0, 1, &mut out),
+            Err(Error::Truncated)
+        );
+    }
+
+    /// **Every refusal has its own sentence for the firmware console**, since it is the only thing
+    /// a person at a machine with no other output will see.
+    #[test]
+    fn every_refusal_says_something_different() {
+        let all = [
+            Error::NotADeviceTree,
+            Error::Truncated,
+            Error::Malformed,
+            Error::OutputTooSmall,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            assert!(a.reason().contains("device tree"), "{a:?}");
+            for b in &all[i + 1..] {
+                assert_ne!(a.reason(), b.reason());
+            }
+        }
     }
 }

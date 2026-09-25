@@ -74,6 +74,18 @@ exclude_globs = [
     "uefi_loader/src/arch/**",
     "uefi_loader/src/chooser.rs",
 
+    # **`stick_maker`'s host half and its entry point**, mirroring `script/coverage`'s exemption of
+    # the same two paths for the same reason (the stick program, 2026-09-19). `src/host/` runs
+    # `diskutil`, `sfdisk`, `mkfs.vfat` and `mount`, or four `kernel32` calls, against a real disk,
+    # and the Linux arm erases a whole block device as root; each arm is `#[cfg]`-selected per host
+    # OS, so on the Linux census runner the macOS and Windows arms are not even compiled and scored
+    # MISSED in "0s build + 0s test". Every decision the program makes is in a file that stays
+    # mutated (`disk.rs`, `cli.rs` against a fake host, and the per-host parsers). What proves the
+    # host half is `scripts/stick-maker-proof.sh` and `.github/workflows/stick-maker-hosts.yml`,
+    # which run each arm on its own host. 61 of the crate's 101 MISSED at the 2026-09-21 census were
+    # these two paths; found by milestone 326 (turn a mutation score upward), 2026-09-24.
+    "crates/stick_maker/src/host/**",
+    "crates/stick_maker/src/main.rs",
     # **A Kani harness module that is its own FILE**, which the `proofs::` entry below cannot reach.
     # cargo-mutants names a mutant by the path of the function WITHIN the file it parsed, so an
     # inline `#[cfg(kani)] mod proofs { .. }` yields `proofs::a_fire_is_strictly_in_the_future` and

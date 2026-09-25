@@ -150,6 +150,7 @@ awk -F: -v floor="$floor" -v summary="$summary" '
         # the real machine; a test never executes the main of a binary, in the same structural
         # sense that a successful build never executes the failure paths of a build script.
         # (No apostrophes in this block: it sits inside the single-quoted awk program.)
+        # Mirrored in .cargo/mutants.toml exclude_globs; change the two together.
         if (index(file, "/stick_maker/src/host/") || file ~ /\/stick_maker\/src\/main\.rs$/) { next }
         if (found <= 0) { next }
         # Past every exemption, so this is exactly the population the floor acts on, and therefore

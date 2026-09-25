@@ -382,4 +382,87 @@ mod tests {
         assert_eq!(unescape_mount("/plain"), "/plain");
         assert_eq!(unescape_mount("/tail\\04"), "/tail\\04");
     }
+
+    // Milestone 326 (turn a mutation score upward), 2026-09-24: the properties below were each
+    // unasserted, found by the 2026-09-21 census. notes/mutation-testing/stick-maker.md.
+
+    /// **Every octal escape decodes by place value, and a value past a byte is kept as written.**
+    /// `\040` alone cannot tell `4 * 8` from much else; `\134` (a backslash) and `\011` (a tab) use
+    /// all three digits.
+    #[test]
+    fn octal_escapes_decode_by_place_value() {
+        assert_eq!(unescape_mount("/a\\134b"), "/a\\b");
+        assert_eq!(unescape_mount("/a\\011b"), "/a\tb");
+        assert_eq!(unescape_mount("/a\\777b"), "/a\\777b");
+    }
+
+    /// **What a volume is, read from sysfs, udev and the mount table together.** A partition's
+    /// filesystem and label come from udev when it is not mounted, and its size from its own
+    /// directory; a whole disk is a volume only if something says it carries a filesystem (a
+    /// "superfloppy" stick), and a bare whole disk contributes none, so the plan says "it has no
+    /// volumes" rather than inventing an unknown one.
+    #[test]
+    fn volumes_come_from_partitions_or_from_a_whole_disk_filesystem() {
+        let root =
+            std::env::temp_dir().join(format!("stick_maker-linux-vol-{}", std::process::id()));
+        let (block, mounts, udev) = fake_machine(&root);
+        // A superfloppy: FAT on the whole of `sdc`, no partition table, not mounted.
+        let sdc = root.join("devices/pci0000:00/usb3/3-3/host2/block/sdc");
+        fs::create_dir_all(sdc.join("device")).unwrap();
+        fs::write(sdc.join("removable"), "1\n").unwrap();
+        fs::write(sdc.join("size"), "2048\n").unwrap();
+        fs::write(sdc.join("dev"), "8:32\n").unwrap();
+        std::os::unix::fs::symlink(&sdc, block.join("sdc")).unwrap();
+        fs::write(
+            udev.join("b8:32"),
+            "E:ID_FS_TYPE=vfat\nE:ID_FS_LABEL=FLOPPY\n",
+        )
+        .unwrap();
+
+        let disks = assemble(&block, &mounts, &udev);
+        let by = |id: &str| disks.iter().find(|d| d.id == id).unwrap();
+
+        let stick = by("sdb");
+        assert_eq!(stick.size, 60_063_744 * 512, "sectors are 512 bytes");
+        assert_eq!(stick.volumes.len(), 1);
+        assert_eq!(stick.volumes[0].id, "sdb1");
+        assert_eq!(stick.volumes[0].label, "NIFE", "from udev");
+        assert_eq!(
+            stick.volumes[0].size,
+            1000 * 512,
+            "the partition's own size"
+        );
+
+        let card = by("mmcblk0");
+        assert_eq!(card.volumes.len(), 1, "unmounted, and still a volume");
+        assert_eq!(
+            card.volumes[0].filesystem,
+            Filesystem::Other("exfat".into()),
+            "udev says what an unmounted partition holds"
+        );
+        assert_eq!(card.volumes[0].mount, None);
+
+        let floppy = by("sdc");
+        assert_eq!(
+            floppy.volumes.len(),
+            1,
+            "a whole-disk filesystem is a volume"
+        );
+        assert_eq!(floppy.volumes[0].id, "sdc");
+        assert_eq!(floppy.volumes[0].filesystem, Filesystem::Fat);
+        assert_eq!(floppy.volumes[0].label, "FLOPPY");
+        assert_eq!(floppy.volumes[0].size, 2048 * 512);
+        let Plan::Erase { because } = plan(floppy, 1, |_| 0) else {
+            panic!("an unmounted FAT volume is not a copy target");
+        };
+        assert!(because.contains("not mounted"), "{because}");
+
+        let image = by("loop0");
+        assert!(image.volumes.is_empty(), "a bare whole disk is no volume");
+        let Plan::Erase { because } = plan(image, 1, |_| 0) else {
+            panic!("nothing to copy onto");
+        };
+        assert!(because.contains("no volumes"), "{because}");
+        fs::remove_dir_all(root).unwrap();
+    }
 }

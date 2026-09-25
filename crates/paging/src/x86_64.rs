@@ -429,6 +429,9 @@ mod tests {
         for flags in [Flags::device(), Flags::user_device()] {
             let leaf = Ia32e::leaf_entry(0xfee0_0000, flags);
             assert_ne!(leaf & PCD, 0, "cacheable device page: {flags:?}");
+            // PCD alone selects PAT entry 2, which is UC-, and an MTRR can weaken UC- to
+            // write-combining. PWT with it selects entry 3, strong UC, which nothing overrides.
+            assert_ne!(leaf & PWT, 0, "UC- rather than UC: {flags:?}");
         }
     }
 
@@ -510,6 +513,41 @@ mod tests {
             0,
             "no reserved bit in a table entry either"
         );
+    }
+
+    /// **Execute permission reads back from an `Ia32e` leaf**, both rings. The software bit that
+    /// tells kernel code from kernel rodata is only consulted when `XD` is clear, so an `XD` test
+    /// that is always true or always false loses exactly the pages that run. Milestone 326 (turn a mutation score upward),
+    /// 2026-09-24.
+    #[test]
+    fn execute_permission_reads_back_from_a_leaf() {
+        for flags in [
+            Flags::kernel_code(),
+            Flags::user_code(),
+            Flags::kernel_rodata(),
+            Flags::user_rodata(),
+        ] {
+            assert_eq!(
+                Ia32e::leaf_flags(Ia32e::leaf_entry(0x10_0000, flags)),
+                flags
+            );
+        }
+    }
+
+    /// **VT-d writes pages only, and reads bit 7 as a superpage.** `block_entry` refusing a 4 KiB
+    /// "block" would make every DMA grant fail; `is_block` must agree with the hardware about an
+    /// entry this format never writes but a walk may still meet. Milestone 326, 2026-09-24.
+    #[test]
+    fn vtd_writes_pages_only_and_knows_a_superpage_when_it_sees_one() {
+        let data = Flags::user_data();
+        assert_eq!(
+            Vtd::block_entry(0x10_0000, data, PageSize::Size4KiB),
+            Some(Vtd::leaf_entry(0x10_0000, data))
+        );
+        assert_eq!(Vtd::block_entry(0x20_0000, data, PageSize::Size2MiB), None);
+        assert!(Vtd::is_block(VTD_R | (1 << 7)));
+        assert!(!Vtd::is_block(Vtd::leaf_entry(0x10_0000, data)));
+        assert!(!Vtd::is_block(Vtd::table_entry(0x10_0000)));
     }
 }
 
