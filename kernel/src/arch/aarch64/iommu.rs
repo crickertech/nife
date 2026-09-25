@@ -255,6 +255,11 @@ pub fn scope_of(_rid: u32) -> crate::iommu::Scope {
     }
 }
 
+/// **Firmware-reserved DMA regions for requester `rid`: none on this architecture as this tree
+/// brings it up** (milestone 594 (every VT-d unit translates its own devices)). The VT-d driver reports its RMRRs here so
+/// [`crate::iommu::confine`] can map them into every domain. The SMMUv3 counterpart is an IORT RMR node or a device tree `reserved-memory` region with `iommu-addresses`; this tree reads neither, and no machine it boots publishes one.
+pub fn for_each_reserved_region(_rid: u32, _each: &mut dyn FnMut(paging::domain::DmaRegion)) {}
+
 /// Push one 16-byte command and (for our uses) wait for the SMMU to consume it. The queue is far
 /// larger than any burst we issue, so treating every push as synchronous keeps the driver simple;
 /// QEMU consumes on the PROD write.

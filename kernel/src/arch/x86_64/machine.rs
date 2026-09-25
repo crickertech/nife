@@ -308,19 +308,14 @@ pub struct Acpi {
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
     pub ecam: Option<(u64, u8, u8)>,
-    /// **The VT-d unit this kernel translates through** (milestone 161, roadmap item 6):
-    /// [`DmarUnits::translating`], the segment's `INCLUDE_PCI_ALL` unit when there is one and the
-    /// first DRHD otherwise. It was the first DRHD unconditionally until milestone 261 (the NVMe driver leaves the kernel)'s bench
-    /// rehearsal, which is the graphics unit on a client Intel machine and very likely xenon's;
-    /// see notes/risk-6-bench-evening.md.
-    pub vtd_base: Option<u64>,
     /// **The FADT's reset register** (milestone 249 (the boot lottery is sampled by a person walking to the board)'s `x86_64` half): where firmware says a write
     /// resets the machine, and the value to write. `None` for no FADT, an ACPI 1.0 one, or one
     /// that does not set `RESET_REG_SUP`; the kernel's reboot then starts at port `0xCF9`.
     pub reset: Option<acpi::ResetRegister>,
-    /// **Every DRHD and PCI device scope the DMAR describes**, kept so the kernel can answer, after
-    /// the bus is up, whether the unit at [`Acpi::vtd_base`] is the one that owns a given device.
-    /// Empty on a machine with no DMAR.
+    /// **Every DRHD, PCI device scope and RMRR the DMAR describes** (milestones 261 and 594). The
+    /// kernel brings up every unit here and routes each device to the one that owns it, which it
+    /// can only resolve after the bus is up, so the table is kept rather than read once. Empty on a
+    /// machine with no DMAR.
     pub dmar: DmarUnits,
 }
 
@@ -336,7 +331,6 @@ impl Default for Acpi {
             cpu_count: 0,
             has_8259: false,
             ecam: None,
-            vtd_base: None,
             reset: None,
             dmar: DmarUnits::default(),
         }
@@ -587,7 +581,6 @@ fn read_dmar(body: &[u8], into: &mut Acpi) {
         return;
     }
     into.dmar = DmarUnits::parse(body);
-    into.vtd_base = into.dmar.translating().map(|d| d.register_base);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -735,22 +728,32 @@ pub fn print_acpi_summary(found: &Acpi) {
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
     }
-    // **Every unit, not just the one brought up**, because which one owns the NVMe is fatal risk
-    // 6's first night-of condition and the answer starts here. `all` is the INCLUDE_PCI_ALL flag.
+    // **Every unit and every RMRR, as the firmware described them**, because which unit owns the
+    // NVMe is fatal risk 6's first night-of condition and the answer starts here. Whether each unit
+    // came up is the `vt-d` line's job, later in the tour. `all` is the INCLUDE_PCI_ALL flag.
     for d in found.dmar.units() {
         crate::println!(
-            "                vt-d drhd at {:#x}{}{}",
+            "                vt-d drhd at {:#x}{}",
             d.register_base,
             if d.include_pci_all {
                 ", all (the catch-all)"
             } else {
                 ", named devices only"
             },
-            if Some(d.register_base) == found.vtd_base {
-                ", translating"
-            } else {
-                ""
-            },
+        );
+    }
+    for r in found.dmar.reserved_regions() {
+        crate::println!(
+            "                vt-d rmrr {:#x}..={:#x} ({} KiB), identity-mapped for the device(s) it names",
+            r.base,
+            r.limit,
+            r.size() / 1024,
+        );
+    }
+    if found.dmar.rmrrs_refused > 0 {
+        crate::println!(
+            "                vt-d: {} rmrr(s) refused as malformed (VT-d 8.4), not mapped",
+            found.dmar.rmrrs_refused,
         );
     }
     if found.dmar.truncated {
@@ -758,7 +761,7 @@ pub fn print_acpi_summary(found: &Acpi) {
             "                vt-d: the DMAR did not fit what this kernel records; scope answers are unknown"
         );
     }
-    if found.vtd_base.is_none() {
+    if found.dmar.units().is_empty() {
         crate::println!("                no DMAR: no VT-d unit described");
     }
     // Printed on every boot, not only a rebooting one, because this is the line a bench log is read

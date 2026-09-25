@@ -981,7 +981,7 @@ pub fn memory_mapped_io_window(ecam: (u64, u64)) -> Result<(u64, u64), MemoryMap
         if let Some(io_apic) = super::irq::io_apic_phys() {
             avoid(io_apic, io_apic + PAGE_SIZE);
         }
-        if let Some((base, size)) = memory::vtd_region() {
+        for (base, size) in memory::vtd_regions().into_iter().flatten() {
             avoid(base, base + size);
         }
         if let Some((base, size)) = memory::framebuffer() {
@@ -1109,17 +1109,18 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
         });
     }
 
-    // VT-d's register file (milestone 161, roadmap item 6), one page, device-typed, at the
-    // address ACPI's DMAR named (`memory::record_vtd_region`, called from `main.rs` before this
-    // function runs). Same shape as the local APIC and IO APIC windows above: no DRHD, no
-    // mapping, and `arch::iommu::init` is simply never called. Without this a DRHD's register
+    // VT-d's register files (milestone 161, roadmap item 6), one per unit since milestone 594 (every VT-d unit translates its own devices),
+    // device-typed, each as large as its DRHD's `Size` byte says (one page on every unit met so
+    // far), at the addresses ACPI's DMAR named (`memory::record_vtd_region`, called from `main.rs`
+    // before this function runs). Same shape as the local APIC and IO APIC windows above: no DRHD,
+    // no mapping, and `arch::iommu::init` is simply never called. Without this a DRHD's register
     // reads fault the instant the fine map replaces the coarse boot map that covered every
     // physical address indiscriminately; the first version of this driver found that by faulting.
-    if let Some((base, _)) = memory::vtd_region() {
+    for (base, size) in memory::vtd_regions().into_iter().flatten() {
         each(Claim {
             what: "vt-d registers",
             lo: base,
-            hi: base + PAGE_SIZE,
+            hi: base + size,
             flags: Flags::device(),
             guarded: false,
         });
