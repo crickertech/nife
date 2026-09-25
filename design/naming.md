@@ -81,7 +81,7 @@ question and changes nothing is named in one of four shapes:
 
 A bare adjective, participle or noun (`enabled`, `pending`, `present`, `truncated`) reads as a
 getter, and std spells those `is_enabled`. Exempt: a function that acts and reports whether it
-worked (`insert`, `push`, `claim`, a `take_` that clears a flag); test functions, which are
+worked (`insert`, `push`, `claim`, a `take_` that clears a flag). Also exempt: test functions, which are
 sentences here; fields; a trait method or a name another project owns (`eq`, `readonly`); and an
 `extern` symbol. The prior art and the exceptions std keeps are in
 [boolean-predicates.md](naming/boolean-predicates.md), and the pass that applied the rule is

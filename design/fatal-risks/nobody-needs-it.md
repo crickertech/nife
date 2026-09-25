@@ -58,7 +58,7 @@ The evidence today, counted rather than characterised, and it points one way.
 
 Why no verdict can be rendered, stated as the loop it is. Nobody can be asked to run nife until it
 installs (calef's precondition: no third parties until a package manager and a trivial install
-exist). It will not install until milestone 198 lands, and since §208 (installing is granting) ruled
+exist). It will not install until milestone 198 lands. Since §208 (installing is granting) ruled
 the last of its forks on 2026-09-23, 198 waits on work rather than on calef: rung 3a's consumer
 half, which fetches, verifies, installs and removes a package on a running system. Milestone 530 ruled on 2026-09-21 that the customer path stays vacant, and is blocked rather
 than empty. It refused the closest candidate, a measurement appliance for this project's own

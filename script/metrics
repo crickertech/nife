@@ -165,6 +165,7 @@ from datetime import date, datetime, timedelta, timezone
 sys.dont_write_bytecode = True
 sys.path.insert(0, 'helpers')
 import name_provenance                                                      # noqa: E402
+import prose_ratchet                                                        # noqa: E402
 import roadmap_proposals                                                    # noqa: E402
 import rust_source                                                          # noqa: E402
 from rust_source import non_blank, strip_non_code                           # noqa: E402
@@ -1159,20 +1160,21 @@ def harnesses(tree):
 # subtracted exempted documents would hide the debt rather than measure it. When the gate arrives it
 # wants its own column for what it excuses; it does not get to edit this one.
 #
-# The scope is the ruling's own evidence paragraph: every `.md` directly under these five directories,
-# plus `AGENTS.md`. Directly under, not recursively, so `design/roadmap/proposals/` and
-# `notes/project-metrics/` are out, exactly as the ratified figures had them. `AGENTS.md` is in
-# because a cap the tree's own rulebook is exempt from is not a cap; the ratified headline figures were
+# The scope is `helpers/prose_ratchet.py`'s, shared with the gate so the two cannot drift
+# (milestone 586 (a prose ratchet in lint) moved it there): every `.md` directly under
+# `design/`, `design/decisions/`, `design/roadmap/`, `notes/` and `briefs/`, plus `AGENTS.md`, plus
+# the appendices §212 (a prose budget) puts under the same cap. Before 586 this graph's scope was "directly under"
+# alone and could not see one appendix, although the docstring below said it counted them; the
+# weeks since the first appendix landed (2026W39) restate to include them. `AGENTS.md` is in because
+# a cap the tree's own rulebook is exempt from is not a cap; the ratified headline figures were
 # measured without it, and `design/roadmap/581-one-metrics-file-per-measure.md` reconciles the two.
-PROSE_DIRS = ('design/', 'design/decisions/', 'design/roadmap/', 'notes/', 'briefs/')
-PROSE_ROOT_FILES = ('AGENTS.md',)
-PROSE_CAP = 3000
+PROSE_CAP = prose_ratchet.PROSE_CAP
 
 
 def _prose_documents(tree):
+    wanted = set(prose_ratchet.documents(set(tree.text)))
     for path, text in tree.markdown():
-        if path in PROSE_ROOT_FILES or (
-                '/' in path and path.rsplit('/', 1)[0] + '/' in PROSE_DIRS):
+        if path in wanted:
             yield path, text
 
 
@@ -1180,10 +1182,10 @@ def prose_budget(tree):
     """Words over the 3,000-word cap, and how many documents hold them.
 
     Whitespace-separated words over the whole file, which is what was measured and what was
-    ratified. Main body and whole file are the same number today, because no document in the tree
-    has an appendix yet. The day one does, this counts the parent's body and the appendix
-    separately, as two documents under the same cap, which is what the ruling intends and needs no
-    change here.
+    ratified. The gate (`helpers/prose_ratchet.py`) counts the same documents but strips fenced code
+    and HTML comments first, so a document near the cap can read a little differently in the two;
+    this keeps the ratified definition so the series is not restated a second time. An appendix is
+    its own document under the same cap, which is what the ruling intends.
 
     Read from each week's own revision, unlike the cost columns: a week's prose debt is a property
     of that week's tree and git can answer for it, so `--backfill` restates the whole history.

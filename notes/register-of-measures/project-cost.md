@@ -40,7 +40,7 @@ to 73 and 68 in 2026W36 and 2026W38. Four caveats come with it:
 
 Every other column in `notes/project-metrics.md` is computed from a git revision. History backfills
 by reading the tree at a past commit, which is how the mutation census, the velocity column and the
-coverage cells were filled in retroactively. **Token and wall-clock records are not in git.** They
+coverage cells were filled in retroactively. Token and wall-clock records are not in git. They
 live in the agent harness's session records under `~/.claude/projects/`, on one laptop, outside this
 repository, and nothing promises to keep them.
 
@@ -196,8 +196,8 @@ arrives.
   the code, and the name is narrower than the thing.
 - **Machine effort cannot be attributed to a milestone**, so the chart's ratio is a weekly average
   over everything that happened rather than a per-milestone cost. The raw material for the join is on
-  disk (every record carries a `gitBranch`, and a lane's branch is named for its milestone) and the
-  join is deliberately not built: a branch is not a milestone, and a wrong attribution is worse than
+  disk (every record carries a `gitBranch`, and a lane's branch is named for its milestone).
+  The join is deliberately not built: a branch is not a milestone, and a wrong attribution is worse than
   none.
 - **`price_per_mtok_at_date` restates old weeks at the newest rate in the ledger.** The ledger is
   appended to, and nothing reads a rate as of a week; the last row for a model wins. A rate change
