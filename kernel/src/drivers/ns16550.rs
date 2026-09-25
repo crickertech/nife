@@ -313,9 +313,8 @@ impl<S: RegisterSpace> Ns16550<S> {
     ///
     /// Name provisional (milestone 249): calef names public items.
     ///
-    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
-    /// asked what `rx` stands for. Refused `rx_waiting` and `is_rx_waiting` (`rx` is a decoder for
-    /// "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting`
+    /// (`rx` is a decoder for "receive").
     pub fn is_byte_waiting(&self) -> bool {
         self.read(LSR) & LSR_DR != 0
     }

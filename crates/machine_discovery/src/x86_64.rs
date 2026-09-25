@@ -1018,8 +1018,8 @@ impl Isa {
     /// straight from the hardware entropy source? The one row of [`TABLE`] anything outside the
     /// boot gate branches on, so it gets a name rather than making a call site spell the bit.
     ///
-    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
-    /// asked what `rdseed` is. Refused `has_rdseed` (the mnemonic is a decoder, not a word).
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `has_rdseed` (the mnemonic is a
+    /// decoder, not a word).
     pub fn has_random_seed_instruction(&self) -> bool {
         self.features.contains(RDSEED)
     }

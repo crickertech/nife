@@ -243,12 +243,10 @@ impl Renderer {
     /// later matches the stuck one. What it does catch is the case where the stuck fence is the
     /// last one in the page. See this crate's `BUGS`.
     ///
-    /// Name: recorded (design/naming.md, the predicate rule calef ratified 2026-09-24). Minted as
-    /// `unclosed_fence` on 2026-08-18 by the lane for milestone 40 (documentation as a system
-    /// service) and never put to calef; the rule then gave it `has_`, since the renderer holds an
-    /// unclosed fence. It is a question about the renderer's state and reads as one at the call
-    /// site; `in_code` was the alternative and loses the word "unclosed", which is the whole reason
-    /// a caller asks.
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `unclosed_fence` (a bare noun
+    /// phrase reads as a getter; the renderer holds an unclosed fence, so `has_`), minted on
+    /// 2026-08-18 by the lane for milestone 40 (documentation as a system service), and `in_code`
+    /// (it loses the word "unclosed", which is the whole reason a caller asks).
     pub fn has_unclosed_fence(&self) -> bool {
         self.fence.is_some()
     }

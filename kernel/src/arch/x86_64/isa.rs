@@ -226,8 +226,8 @@ pub fn get() -> Isa {
 /// which this kernel-side copy exists only because ring 3 does not exist yet
 /// (milestone 161 (the `x86_64` kernel port)).
 ///
-/// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review asked
-/// what `rdseed` is. Refused `draw_rdseed` (the mnemonic is a decoder, not a word).
+/// Name: ratified 2026-09-24 (calef, #1255 review). Refused `draw_rdseed` (the mnemonic is a
+/// decoder, not a word).
 pub fn draw_random_seed() -> Option<u64> {
     if !get().has_random_seed_instruction() {
         return None;

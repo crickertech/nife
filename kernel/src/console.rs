@@ -556,9 +556,8 @@ pub fn rx_enable() {
 /// riscv64 only, and so is the feature: the reset it is the escape from is SBI's, and the PL011 the
 /// aarch64 console drives has no equivalent method here.
 ///
-/// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review asked
-/// what `rx` stands for. Refused `rx_waiting` and `is_rx_waiting` (`rx` is a decoder for
-/// "receive").
+/// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting` (`rx`
+/// is a decoder for "receive").
 #[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
 pub fn is_byte_waiting() -> bool {
     CONSOLE.lock().uart.is_byte_waiting()

@@ -111,9 +111,8 @@ mod uart {
         unsafe { &*(UART_VA as *const RegisterBlock) }
     }
 
-    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
-    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
-    /// "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_pending` and `is_rx_pending`
+    /// (`rx` is a decoder for "receive").
     pub fn is_byte_waiting() -> bool {
         !regs().FR.is_set(FR::RXFE)
     }
@@ -146,9 +145,8 @@ mod uart {
         unsafe { core::ptr::write_volatile((UART_VA + off) as *mut u8, v) }
     }
 
-    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
-    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
-    /// "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_pending` and `is_rx_pending`
+    /// (`rx` is a decoder for "receive").
     pub fn is_byte_waiting() -> bool {
         rd(LSR) & LSR_DR != 0
     }
@@ -183,9 +181,8 @@ mod uart {
     const LSR: u16 = 0x3FD; // line status register (base + 5)
     const LSR_DR: u8 = 1 << 0; // data ready
 
-    /// Name: provisional, minted 2026-09-24 by the boolean-predicate pass after calef's review
-    /// asked what `rx` stands for. Refused `rx_pending` and `is_rx_pending` (`rx` is a decoder for
-    /// "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_pending` and `is_rx_pending`
+    /// (`rx` is a decoder for "receive").
     pub fn is_byte_waiting() -> bool {
         inb(LSR) & LSR_DR != 0
     }
