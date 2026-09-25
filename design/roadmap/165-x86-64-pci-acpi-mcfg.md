@@ -68,7 +68,7 @@ probe here with nobody home", true of x86_64 unconditionally, since it has no de
 
 ## What was deliberately not built
 
-- **`scripts/qemu-runner-x86_64.sh` was not touched.** q35 already presents six PCI functions with
+- **`helpers/qemu-runner-x86_64.sh` was not touched.** q35 already presents six PCI functions with
   zero `-device` flags (host bridge, VGA, a default NIC, ISA bridge, SATA/AHCI, SMBus; measured via
   QEMU's monitor `info pci`), which is what made proof possible without changing the runner's default
   device set at all, the exact fork the brief for this lane flagged as needing to stop and report

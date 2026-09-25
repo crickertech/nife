@@ -234,7 +234,7 @@ none of it is ours to take.
 
 ```console
 $ cargo xtask uefi-image                       # kernel + archive + loader, staged at target/esp
-$ scripts/qemu-uefi-x86_64.sh target/esp       # boot it under OVMF
+$ helpers/qemu-uefi-x86_64.sh target/esp       # boot it under OVMF
 $ cargo xtask uefi-boot                        # the same pair, plus the assertions
 ```
 

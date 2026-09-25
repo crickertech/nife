@@ -16,7 +16,7 @@
 # recreate both with the right name, re-apply the commit. A rung-two gate delivering a rung-four
 # experience, because the only place the rule was checkable was the last place it was cheap to fail.
 #
-# This runs the identical refusal (shared with script/lint through scripts/branch-name-check.sh, so
+# This runs the identical refusal (shared with script/lint through helpers/branch-name-check.sh, so
 # the two cannot drift into different answers for the same name) before touching the filesystem or
 # git at all. A bad name here costs one retyped command.
 #
@@ -33,7 +33,7 @@
 # splits in a way nobody had written down"), which records the split the `script/` family already
 # had: what does something takes a verb, what reports takes a noun. This script performs an action
 # rather than reads the tree back, so it takes the verb. Chosen for the word AGENTS.md and
-# scripts/lane-claim-check.sh already use for exactly this act, the empty commit plus draft pull
+# helpers/lane-claim-check.sh already use for exactly this act, the empty commit plus draft pull
 # request that makes a lane visible before it has anything else to show. calef has not ruled on it.
 #
 # See notes/scripts.md.
@@ -43,7 +43,7 @@ set -eu
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 # The shape rule itself lives here so this script and script/lint's check 4 read off one case
 # statement instead of two that can quietly stop agreeing.
-. "$repo_root/scripts/branch-name-check.sh"
+. "$repo_root/helpers/branch-name-check.sh"
 
 usage() {
     cat >&2 <<'EOF'

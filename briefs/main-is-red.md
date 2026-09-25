@@ -1,9 +1,9 @@
 # `main` is red
 
 Hold the merge queue, land one fix alone, give the queue back. This brief holds the judgement;
-`scripts/queue-hold.sh` does the mechanical half. **Provisional names, both of them.**
+`helpers/queue-hold.sh` does the mechanical half. **Provisional names, both of them.**
 
-You are the maintainer session that noticed, or the one `scripts/trunk-health.sh` shouted at. Either
+You are the maintainer session that noticed, or the one `helpers/trunk-health.sh` shouted at. Either
 way the trunk is now yours: "we are all owners here, so if there isn't an owner then own it."
 
 ## First, decide whether it is real, because three things look like a red trunk and are not
@@ -12,7 +12,7 @@ Do this before touching anything. A hold costs everybody's lane a cycle, and hol
 teaches the next session to ignore the procedure.
 
 - **A stale base.** A pull request red against a base it was cut from says nothing about `main`. Read
-  the run whose `headSha` is `main`'s current tip, which is what `scripts/trunk-health.sh --once`
+  the run whose `headSha` is `main`'s current tip, which is what `helpers/trunk-health.sh --once`
   already filters for. If you are reading a pull request's checks, you are reading the wrong thing.
 - **A cancelled shard.** A cancelled run reads as a failure in most listings and is not one. Ask what
   cancelled it: a superseded group build, an eviction, or somebody's `gh run cancel` (including this
@@ -31,7 +31,7 @@ So if a lane reports a failure that CI says did not happen, believe the lane and
 
 ## Know that a watcher will fight you, and check it first
 
-`scripts/merge-drain.sh` runs unattended as the `merge drain` Actions workflow every five minutes, and
+`helpers/merge-drain.sh` runs unattended as the `merge drain` Actions workflow every five minutes, and
 its charter is the first line of its own header: enqueue every pull request that does not need calef.
 **It re-enqueued a held set three times on 2026-09-23 while the operator watched**, because its
 admission policy knew only drafts and `needs-architect`. The failure is invisible in the worst way: a
@@ -47,8 +47,8 @@ re-enable. This works from any host with `gh`, including a cloud session:
 
 ## Then hold, and hold before you enqueue the fix
 
-    scripts/queue-hold.sh hold <fix-pr> --dry-run     # read it first; it names every pull request
-    scripts/queue-hold.sh hold <fix-pr>
+    helpers/queue-hold.sh hold <fix-pr> --dry-run     # read it first; it names every pull request
+    helpers/queue-hold.sh hold <fix-pr>
 
 **Order matters.** Hold first, enqueue the fix second. The script cancels in-flight group builds and
 cannot tell one that contains the fix from one that does not (its own `BUGS` says why: the branch
@@ -75,8 +75,8 @@ more often than it feels like it is.
 
 ## Release, and read what it could not restore
 
-    scripts/queue-hold.sh status       # trunk state and the held set, together
-    scripts/queue-hold.sh release
+    helpers/queue-hold.sh status       # trunk state and the held set, together
+    helpers/queue-hold.sh release
 
 **If you stopped the drain, start it again. This is part of release, not an afterthought:**
 
@@ -91,7 +91,7 @@ while held. That list is the handoff, and it is the one part of this that a pers
 than skim.
 
 `release` does not restore the pre-hold state, because GitHub does not expose it (`autoMergeRequest`
-is cleared at enqueue). It applies `scripts/merge-drain.sh`'s admission policy instead, which is what
+is cleared at enqueue). It applies `helpers/merge-drain.sh`'s admission policy instead, which is what
 the drain would have done on its next pass anyway.
 
 ## If a session died mid-hold
@@ -99,8 +99,8 @@ the drain would have done on its next pass anyway.
 The label is the whole recovery record; nothing else was kept, and nothing expires it.
 
 1. `gh pr list --repo crickertech/nife --label held-for-red-trunk` is the held set, whoever made it.
-2. `scripts/trunk-health.sh --once`. If `main` is green, the fix landed and the hold was simply never
-   given back: run `scripts/queue-hold.sh release`.
+2. `helpers/trunk-health.sh --once`. If `main` is green, the fix landed and the hold was simply never
+   given back: run `helpers/queue-hold.sh release`.
 3. Check the drain is enabled: `gh workflow view "merge drain"` reads `active`. A session that
    disabled it and died owes you the re-enable, and nothing else will notice it is gone.
 4. If `main` is still red and no fix pull request is open, the previous session died before it wrote
@@ -108,7 +108,7 @@ The label is the whole recovery record; nothing else was kept, and nothing expir
 5. If a pull request carries both `held-for-red-trunk` and `needs-architect`, leave it held. The
    architect hold outranks this one and `release` will refuse to re-arm it anyway.
 
-The tell that this happened at all: `scripts/merge-drain.sh` reporting far fewer unheld pull requests
+The tell that this happened at all: `helpers/merge-drain.sh` reporting far fewer unheld pull requests
 than there are open ones, for hours, with no stall named.
 
 ## What this brief deliberately does not do
@@ -118,4 +118,4 @@ resolve, and deciding that a given failure is a real trunk failure, and which pu
 fix, is exactly the judgement a watcher does not have. Every step above is a person's, and the script
 exists only so that the steps a person gets wrong are typed once.
 
-Names minted here are provisional: `scripts/queue-hold.sh`, and the `held-for-red-trunk` label.
+Names minted here are provisional: `helpers/queue-hold.sh`, and the `held-for-red-trunk` label.

@@ -3,15 +3,15 @@
 **Status: NOT-STARTED.** Minted 2026-09-10 by calef, from the live skip inventory taken while
 reviewing milestone 268's parity plan. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Not a design fork. `scripts/qemu-runner-aarch64.sh` and
-`scripts/qemu-runner-riscv64.sh` already wire these devices; this is bringing the third runner
+**Gate: NONE.** Not a design fork. `helpers/qemu-runner-aarch64.sh` and
+`helpers/qemu-runner-riscv64.sh` already wire these devices; this is bringing the third runner
 script into line with the other two, the way `notes/architecture-list-sweep.md`'s eleven gaps
 already are.
 
 ## What is skipping, and why this is the cheapest fix in the inventory
 
 Four `#[test_case]`s skip on **every** x86_64 test run, all for the same reason:
-`scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` and no `virtio-input` function onto the
+`helpers/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` and no `virtio-input` function onto the
 PCI bus it enumerates.
 
 - `kernel/src/user/display_tests.rs`, twice (GPU driver start; keyboard-to-terminal byte)
@@ -30,8 +30,8 @@ single change that closes four of the seven skips found in the 2026-09-10 invent
 
 ## What this needs
 
-1. Add the QEMU device arguments `scripts/qemu-runner-aarch64.sh` / `-riscv64.sh` already pass for
-   `virtio-gpu-pci` and `virtio-input` (keyboard) to `scripts/qemu-runner-x86_64.sh`, gated the same
+1. Add the QEMU device arguments `helpers/qemu-runner-aarch64.sh` / `-riscv64.sh` already pass for
+   `virtio-gpu-pci` and `virtio-input` (keyboard) to `helpers/qemu-runner-x86_64.sh`, gated the same
    way the other two gate them (`NIFE_GPU`, `NIFE_KEYBOARD`).
 2. Confirm the four sites above stop skipping and pass under q35's PCI enumeration (milestone 165),
    not just under `virt`'s.

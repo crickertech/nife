@@ -943,7 +943,7 @@ fn swish_check_leg(arch: &str) -> bool {
         // OVMF, one core (the runner's default, for `ap_boot`'s BUGS #3). The runner bounds itself
         // with `qemu-bounded.sh`; the bound here is every wait below added up, so it only ever
         // fires on a leg that has already failed.
-        let mut c = Command::new("scripts/qemu-uefi-x86_64.sh");
+        let mut c = Command::new("helpers/qemu-uefi-x86_64.sh");
         c.arg(esp_dir());
         c.env(
             "NIFE_UEFI_TIMEOUT",
@@ -958,7 +958,7 @@ fn swish_check_leg(arch: &str) -> bool {
         c
     } else {
         let mut c = Command::new(if riscv {
-            "scripts/qemu-runner-riscv64.sh"
+            "helpers/qemu-runner-riscv64.sh"
         } else {
             RUNNER
         });
@@ -1493,7 +1493,7 @@ fn swish_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     let _ = std::fs::remove_file(&sock);
 
     let mut cmd = Command::new(if riscv {
-        "scripts/qemu-runner-riscv64.sh"
+        "helpers/qemu-runner-riscv64.sh"
     } else {
         RUNNER
     });
@@ -1518,7 +1518,7 @@ fn swish_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     }
     // The flags [`swish_check_leg`] never sets: a virtio-gpu and (in the device arm) a
     // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
-    // `scripts/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
+    // `helpers/qemu-runner-*.sh` exactly the way they always have been (milestone 177 (wire the graphical terminal stack into the real interactive boot) changed what
     // *the progenitor* does with them existing, not how they get attached).
     cmd.env("NIFE_GPU", "1");
     if keystrokes == Keystrokes::Device {

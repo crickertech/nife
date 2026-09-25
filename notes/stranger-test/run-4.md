@@ -121,7 +121,7 @@ coverage: `script/verify`, `script/bench --check`, `script/coverage`, `script/fu
 B2 is not measured, as pre-registered: the pinned nightly and QEMU were installed, and
 `script/setup` had nothing to do. B4 has one entry, and the stranger scored it against itself.
 `timeout(1)` does not exist on this macOS host. `AGENTS.md` says so and points at
-`scripts/qemu-bounded.sh`, and the stranger hit the missing binary before reading that section. Its
+`helpers/qemu-bounded.sh`, and the stranger hit the missing binary before reading that section. Its
 verdict: *"That is my error, not the tree's, the file that told me is the file the README tells you
 to read third."*
 

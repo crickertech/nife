@@ -437,7 +437,7 @@ at all, including a typo, which is how a compile-fail test rots into an assertio
 fail.
 
 **Milestone 113's Kani shim is not the mechanism here, and it is worth knowing why**, because 135's
-own `BUGS` section proposed it. 113 built `scripts/kani-lint-shim/` so clippy could compile code
+own `BUGS` section proposed it. 113 built `helpers/kani-lint-shim/` so clippy could compile code
 written against Kani's intrinsics; loom needs nothing of the sort, being an ordinary dependency
 behind `[target.'cfg(loom)'.dependencies]`, so the same benefit costs the one flag this script
 already passes. Making harness code visible to the linter is a real gap and it was already closed.

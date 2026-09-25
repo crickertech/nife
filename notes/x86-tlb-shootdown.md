@@ -142,7 +142,7 @@ and passes with it. The suite then reaches `test result: ok. 177 passed` at `NIF
 further runs produced no paint fault at all.
 
 **It is gated as of 2026-09-23, and it took three more fixes to get there.**
-`scripts/qemu-runner-x86_64.sh` defaulted `NIFE_SMP` to 1 for a year of this port's life because
+`helpers/qemu-runner-x86_64.sh` defaulted `NIFE_SMP` to 1 for a year of this port's life because
 other failures could fail a two-core run, and they were closed one at a time: the boot-core-identity
 bug that made `smp::tests::every_secondary_runs_scheduled_work` fail about half the time at two
 (milestone 316 (which core booted)), the AP-bring-up flake that counted a started core as absent (`ap_boot`'s `BUGS` #1,

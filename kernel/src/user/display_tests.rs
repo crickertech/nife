@@ -44,7 +44,7 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
     // `virt` boards (aarch64, riscv64) a real virtio-gpu-pci function is always wired into the
     // test runner, so `start` returning `None` there really is a build-order bug. On x86_64's
     // `q35`, PCI enumeration (milestone 165, ACPI's MCFG) reaches real hardware windows the
-    // runner has never populated with a GPU (`scripts/qemu-runner-x86_64.sh` wires no
+    // runner has never populated with a GPU (`helpers/qemu-runner-x86_64.sh` wires no
     // `virtio-gpu-pci`), so `None` there is an honest, expected gap rather than a bug.
     let Some((driver_report, client_report)) = display_service::start(gpu_driver, painter) else {
         crate::testing::skip!(

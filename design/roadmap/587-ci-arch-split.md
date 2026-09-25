@@ -104,7 +104,7 @@ what recurs.
 ## Every job, classified
 
 **No job in either workflow uses KVM or any accelerator.** Every QEMU leg in CI is TCG
-(`scripts/qemu-runner-aarch64.sh` takes HVF only when `NIFE_ACCEL=hvf`, which only the dev Mac's
+(`helpers/qemu-runner-aarch64.sh` takes HVF only when `NIFE_ACCEL=hvf`, which only the dev Mac's
 `script/test --hvf` sets, and `script/ci-build`'s `hvf` row is never named by a CI job). So "needs
 host-native speed" applies to nothing here. What does apply is whether **the host's architecture
 changes what gets proved or tested**, and that is three things: Kani compiles for the host,
@@ -184,7 +184,7 @@ earns it.
 measured here: multi-threaded TCG runs each guest core on its own host thread and translates guest
 loads and stores to plain host ones, so an aarch64 or riscv64 guest on an aarch64 host can observe
 reorderings the host permits, while on an x86_64 host it sees only what TSO allows. The tree already
-records the other half of that rule: `scripts/qemu-runner-x86_64.sh` notes that QEMU refuses
+records the other half of that rule: `helpers/qemu-runner-x86_64.sh` notes that QEMU refuses
 parallel cores for an x86_64 guest on an aarch64 host (it falls back to round-robin), which is what
 a host weaker than its guest looks like. So the SMP kernel legs on arm64 are the only place CI puts
 guest code in front of weak-memory reorderings, and moving them would remove that silently. "Weakly"

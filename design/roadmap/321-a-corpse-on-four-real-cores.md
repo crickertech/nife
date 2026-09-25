@@ -103,7 +103,7 @@ finding:
 - **x86_64 under QEMU at `NIFE_SMP=8`**: ten filtered runs, all green.
 - **x86_64 under QEMU at `NIFE_SMP=4` with genuinely parallel cores**: twelve filtered runs, all
   green. See below; this leg did not exist before this milestone.
-- **aarch64 at four cores**: `scripts/qemu-runner-aarch64.sh` defaults `NIFE_SMP` to 4, so every
+- **aarch64 at four cores**: `helpers/qemu-runner-aarch64.sh` defaults `NIFE_SMP` to 4, so every
   ordinary `script/test` has been running this test at four cores all along, and it passes.
 
 ### The missing condition was parallelism, not cores, and that is now measured
@@ -115,7 +115,7 @@ this tree has never meant four cores running in the same instant. Measured rathe
 `-smp 4`, QEMU 11.1.1 creates **5** threads under `thread=single` and **8** under `thread=multi`.
 
 So the first sixteen runs above were not the experiment they looked like. `NIFE_TCG_THREAD`
-(**provisional name**) was added to `scripts/qemu-runner-x86_64.sh` to fix that, is empty by default
+(**provisional name**) was added to `helpers/qemu-runner-x86_64.sh` to fix that, is empty by default
 so nothing else changes, and its `BUGS` section carries the caveat that matters: x86's TSO is
 stronger than an aarch64 host provides, QEMU accepts the pair without a warning, and nobody here has
 audited its barrier placement. **A red run under that knob would need confirming on a bench before
@@ -196,13 +196,13 @@ bench evening that was not an assertion written against QEMU.
   because a one-in-many failure in supervision is not a lesser finding than a deterministic one.
 - **Milestone 315.** `kernel::user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
   also fails at `NIFE_SMP=4`, and this lane spent a while treating that as its own find before
-  reading the runner it had been editing. `scripts/qemu-runner-x86_64.sh`'s own header already names
+  reading the runner it had been editing. `helpers/qemu-runner-x86_64.sh`'s own header already names
   it, root-causes it (`PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core only, so a
   holder on another core keeps the ports for up to a tick), and points at
   [milestone 315](315-port-revoke-every-core.md), which closes it and is `NOT-STARTED` with no gate.
   **Nothing is owed here**, and the near-miss is worth the sentence: a proposal file had been written
   for it before the existing record turned up.
-- **Done.** `NIFE_TCG_THREAD=multi` in `scripts/qemu-runner-x86_64.sh` gives this port parallel
+- **Done.** `NIFE_TCG_THREAD=multi` in `helpers/qemu-runner-x86_64.sh` gives this port parallel
   cores under emulation for the first time. **Provisional name**, empty by default, and its `BUGS`
   section is honest that it is a hunting instrument rather than a gate. Whether the suite should
   ever run that way is not this lane's call and is left alone; §153 and milestone 315 are already

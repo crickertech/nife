@@ -82,7 +82,7 @@ made here.
 
 ### What each bucket is
 
-The boundary decisions behind each bucket are in `scripts/rust_source.py`'s own comment on
+The boundary decisions behind each bucket are in `helpers/rust_source.py`'s own comment on
 `trust_boundary_census`.
 
 - kernel (694 blocks, 48,724 code lines, density 142 per 10,000). This is `kernel/src/**` (arch and
@@ -145,7 +145,7 @@ carry a nonzero `unsafe_trust_unclassified`, from 57 up to 188 blocks. This tree
 names out, and most did not always have their current spelling. `crates/ipc`, `crates/dtb`,
 `crates/asid` and around forty more were renamed to `inter_process_communication`,
 `device_tree_blob`, `address_space_identifier` and so on over the weeks this series covers. The
-classification table in `scripts/rust_source.py` is built from today's names. That is the same
+classification table in `helpers/rust_source.py` is built from today's names. That is the same
 restatement trade `MILESTONE_STATUSES`/`NAME_STATUSES` already make, stated in that file's own
 header.
 

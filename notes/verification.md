@@ -90,7 +90,7 @@ A proof is only as good as four things, and each is worth being blunt about:
    `#[cfg(kani)] mod verification` and `clippy::undocumented_unsafe_blocks` could not fire in one.
    The harnesses that set up the queue and endpoint proofs are `unsafe`, and thirteen of those sites
    had no SAFETY comment: an unexamined assumption inside the thing that exists to examine
-   assumptions. `script/lint` now compiles them all against a shim (`scripts/kani-lint-shim/`), which
+   assumptions. `script/lint` now compiles them all against a shim (`helpers/kani-lint-shim/`), which
    is a lint pass and not a second proof. See notes/unsafe-obligations.md.
 4. **The tool is trusted.** Kani, its CBMC backend, and the SAT solver could have bugs. They are
    small and widely used, and the solver emits a checkable certificate, but it is a trust assumption.

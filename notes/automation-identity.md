@@ -296,7 +296,7 @@ inheriting a reason to keep a PAT beside it:
 
 - **A bot byline changes what author filters see.** Bump pull requests will arrive as
   `smelter[bot]` (or `nife-smelter[bot]`) rather than as `calef`. Nothing in this tree filters pull requests by author
-  today, and `scripts/merge-drain.sh` is the file to re-read if that changes.
+  today, and `helpers/merge-drain.sh` is the file to re-read if that changes.
 
 - **This note cannot tell you when the PAT expires**, and neither can anything else in the
   repository: an Actions secret's value is opaque to every API the project can call, and only the account

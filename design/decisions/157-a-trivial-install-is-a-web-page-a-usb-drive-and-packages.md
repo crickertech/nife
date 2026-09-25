@@ -196,7 +196,7 @@ runtime. Every piece is host-side and reversible.
 
 1. **A package, as a host-side recipe.** A directory per package (provisional:
    `packages/<name>/`) declaring how to build it for each triple (an in-tree `[[bin]]` after
-   milestone 150, or a fetch-and-build script, which `scripts/build-ripgrep.sh` already is), its
+   milestone 150 (adding a program should not need eight hand-maintained lists), or a fetch-and-build script, which `helpers/build-ripgrep.sh` already is), its
    licence, and its documentation bundle. One producer and one consumer, both in this tree, so the
    recipe shape is reversible. It generalises the two things already doing this by hand:
    `build-ripgrep.sh` and milestone 40's `DOC_BUNDLES` table.

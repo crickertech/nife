@@ -92,7 +92,7 @@ sentences here; fields; a trait method or a name another project owns (`eq`, `re
 | Domain | Form | Because |
 |---|---|---|
 | Crates, programs, modules | `snake_case` | Rust's own convention |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`) |
+| `script/` and `helpers/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`) |
 | Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs, where a hyphen separates words |
 | Repo-root markdown | `SCREAMING_SNAKE_CASE` | GitHub recognises `README.md`, `SECURITY.md` and `CONTRIBUTING.md` by name |
 | A directory holding a Rust package | exactly the package's name | the directory and the package are one thing |
@@ -123,7 +123,7 @@ the limit pick a name.
 - A builtin takes Unix's word where one exists (`cd`, `ls`, `apropos`). It must not share its first
   word with a program, since builtins match first.
 - `script/` is typed by people: no extension, hyphenated, and the Scripts to Rule Them All set keeps
-  its standard names. `scripts/` holds helpers other scripts call, with an extension. Every
+  its standard names. `helpers/` holds helpers other scripts call, with an extension. Every
   `script/` entry needs a row in [notes/scripts.md](../notes/scripts.md).
 - `target/` is build output, and `targets/` holds the tracked target JSON.
 
@@ -230,7 +230,7 @@ Decision numbers and milestone numbers are separate schemes over the same intege
 ## Branches
 
 A branch that looks like a milestone claim must parse as `milestone/<N>-<slug>`, because
-`script/lint` check 4b reads it. `scripts/branch-name-check.sh` refuses a near-miss such as
+`script/lint` check 4b reads it. `helpers/branch-name-check.sh` refuses a near-miss such as
 `milestone-126-pgrep`, per §77 (the branch-prefix list now describes the tree). Other prefixes are
 convention: `maintainer/`, `fix/`, `bench/`, `audit/`. Write `feature/`, never `feat/`.
 
@@ -316,7 +316,7 @@ The directory and stems are provisional, minted 2026-09-24.
 - An item without a marker is invisible to the worklist, and nothing gates that. Only the lane
   that minted a name can say it is new.
   [provenance-limits.md](naming/provenance-limits.md) says which kinds of name are uncovered.
-- `scripts/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
+- `helpers/` helpers are outside the worklist on purpose, per milestone 446 (the naming worklist
   says what it covers). None of their paragraphs recorded a refusal when that was priced.
 - A `ratified` is never checked against calef, and a `recorded` citation is never followed.
 - The boot mode is still `shell` (`cargo xtask shell`) while the program is `swish`.

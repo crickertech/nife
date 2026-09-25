@@ -45,7 +45,7 @@ more than it looks. Without `origin/main`, the roadmap-flip check and `script/ci
 skip quietly rather than fail.
 
 `gh` must be signed in, usually through `GH_TOKEN`. Claiming, dispatching CI and landing all go
-through it. `scripts/lane-claim-check.sh` now refuses to run without it, instead of calling every
+through it. `helpers/lane-claim-check.sh` now refuses to run without it, instead of calling every
 branch unclaimed.
 
 ## Claim, gate and land
@@ -65,7 +65,7 @@ so none of them depend on a laptop being awake.
 
 - HVF. The default accelerator is TCG everywhere, and `--hvf` and `script/bench --real` are Mac-only.
 - Boards. `script/board-console`, `script/board-netboot` and the UART rig need patagonia's desk.
-- `scripts/at-risk-check.sh` under `launchd`. It watches patagonia's lane worktrees and nothing
+- `helpers/at-risk-check.sh` under `launchd`. It watches patagonia's lane worktrees and nothing
   else. A container has no launchd and nothing watches it, so commit and push before every pause.
 - `nife-dev` relinking. It is one symlink per user account, so a cloud session has its own, and
   `briefs/merge-and-cleanup.md` step 4 is a no-op unless something gated locally.

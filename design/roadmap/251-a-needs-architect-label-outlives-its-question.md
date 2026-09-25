@@ -39,7 +39,7 @@ scheduled workflows (milestone 238) and `script/roadmap --proposed` took for the
 authenticated `gh` would fail in a lane's worktree, in CI, and on a plane, for reasons that have
 nothing to do with the change under test. `script/audits` already records this boundary.
 
-**`scripts/trunk-health.sh`** is the natural home: it runs under `launchd` on patagonia every five
+**`helpers/trunk-health.sh`** is the natural home: it runs under `launchd` on patagonia every five
 minutes, it already reports queue conditions a session should act on, and milestone 238 delivered
 `script/cadence-check` through it for exactly this reason. Whatever ships should follow that pattern
 rather than invent a second one.

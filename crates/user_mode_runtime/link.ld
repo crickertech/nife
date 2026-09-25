@@ -5,7 +5,7 @@
  * (`components/build.rs`, `fixtures/build.rs`). It was `user/link.ld` until milestone 175 split
  * that package; milestone 73 had already refused to rename it on the ground that it is
  * genuinely shared, and two copies would be two places to be wrong about 0x400000.
- * `scripts/build-ripgrep.sh` derives a 0x1000000 variant from it by substitution.
+ * `helpers/build-ripgrep.sh` derives a 0x1000000 variant from it by substitution.
  *
  * The kernel is at 0xffff_..., in TTBR1. A user program is at 0x0000_..., in TTBR0, and the
  * hardware picks between them from bits 63:48 of the address. So a user program can be linked

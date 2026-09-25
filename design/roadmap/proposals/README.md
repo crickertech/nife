@@ -38,7 +38,7 @@ the only tell a script has.
 **Promotion is how a proposal reaches any disposition at all**, including being refused or found
 moot: this directory carries exactly one status by design, so nothing can be retired in place. An
 integrator gives it a number, `git mv`s it up a directory, and the numbered block's status paragraph
-says it was `promoted from the proposal <slug>`, which is the phrasing `scripts/roadmap_proposals.py`
+says it was `promoted from the proposal <slug>`, which is the phrasing `helpers/roadmap_proposals.py`
 matches. The block that named the work updates its `**Proposed.**` bullet to `**Milestone N.**`, so
 neither record orphans the other.
 
@@ -56,7 +56,7 @@ detection then read two lanes' new proposals as belonging in `design/roadmap/` i
 moving them a level up. A committed file keeps the inbox on disk and the intent legible.
 
 `README.md` is exempt from the slug rule for that reason, in
-`scripts/roadmap_proposals.py`. It is the only exemption, and it is a file rather than a pattern so
+`helpers/roadmap_proposals.py`. It is the only exemption, and it is a file rather than a pattern so
 that a second one has to be argued for.
 
 *Name: recorded (milestone 247). Milestone 247 (follow-on work named by a finished milestone goes

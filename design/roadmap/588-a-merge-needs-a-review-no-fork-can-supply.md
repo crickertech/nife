@@ -12,10 +12,10 @@ and deletes the org copies (see `## Follow-on`). The text below is the proposal'
 except for this paragraph, the gate's first sentence, and the `## Follow-on` and `## Index row`
 sections; the ruling paragraph under the gate was added to the proposal before promotion. As filed: Raised by the 2026-09-24 security audit
 (`design/audit-reports/2026-09-24-new-trust-boundaries.md`, finding 1), which found that
-`scripts/merge-drain.sh` armed auto-merge on every open, non-draft pull request against `main`
+`helpers/merge-drain.sh` armed auto-merge on every open, non-draft pull request against `main`
 from any author, that the ruleset on `main` requires zero approving reviews, and that a merge-group
 build runs a pull request's own workflow edits with this repository's secrets. The audit closed the
-path in the script (`scripts/queue-eligible.jq` refuses a head in another repository); this is the
+path in the script (`helpers/queue-eligible.jq` refuses a head in another repository); this is the
 rung above it.
 
 **Gate: DECISION.** Option 1 is still calef's to rule, and the secret move is an organisation

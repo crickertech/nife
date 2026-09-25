@@ -6,7 +6,7 @@
 #
 # Name: provisional, minted 2026-09-22 by the maintainer, taking calef's own word for the duty
 # ("nanny the merge queue"). Refused `queue`, which names the thing rather than the act and collides
-# with every other queue this tree grows; refused `drain`, which `scripts/merge-drain.sh` already
+# with every other queue this tree grows; refused `drain`, which `helpers/merge-drain.sh` already
 # spends on the watcher that reports a stall. calef names scripts; expect this to change.
 #
 # **Why this is a script and not a habit.** On 2026-09-22 the maintainer measured its own session at
@@ -27,7 +27,7 @@
 #
 # # BUGS
 #
-# - **It needs the gateway up** (`scripts/open-lane-gateway.sh` on cordoba) and `OPEN_LANE_BASE_URL`
+# - **It needs the gateway up** (`helpers/open-lane-gateway.sh` on cordoba) and `OPEN_LANE_BASE_URL`
 #   and `OPEN_LANE_MODEL` set. Without them it says so and does nothing, rather than falling back to
 #   doing the work in the expensive session, because a silent fallback would restore exactly the
 #   habit this exists to replace.
@@ -45,7 +45,7 @@ survey_only=${1:-}
 : "${OPEN_LANE_MODEL:?set OPEN_LANE_MODEL; see notes/open-model-lanes.md}"
 
 echo "==> surveying the queue (delegated, read-only)"
-"$here/scripts/open-lane.sh" "$here" "$here/briefs/survey-the-queue.md" 1 || true
+"$here/helpers/open-lane.sh" "$here" "$here/briefs/survey-the-queue.md" 1 || true
 
 [ "$survey_only" = "--survey" ] && exit 0
 
@@ -62,7 +62,7 @@ while IFS="$(printf '\t')" read -r number branch; do
         continue
     fi
     echo "  #$number $branch -> $tree"
-    "$here/scripts/open-lane.sh" "$tree" "$here/briefs/rebase-onto-main.md" 3 || \
+    "$here/helpers/open-lane.sh" "$tree" "$here/briefs/rebase-onto-main.md" 3 || \
         echo "  #$number handed back unrebased; read it before doing anything"
 done
 

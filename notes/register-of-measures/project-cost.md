@@ -188,7 +188,7 @@ arrives.
 - **The cost columns can stop updating and the charts will not say so.** They will simply stop
   gaining weeks, and an absent week is drawn as absent, which is correct and is also exactly what a
   dead capture looks like. `script/cadence-check` is the thing that speaks, and it speaks on
-  patagonia through `scripts/trunk-health.sh`, which inherits that watcher's own recorded gap: a
+  patagonia through `helpers/trunk-health.sh`, which inherits that watcher's own recorded gap: a
   machine asleep is a watcher not watching.
 - **`lane_tokens` counts this project's whole session, not its lanes.** Every response in a record
   stream filed under the nife project directory is counted, including a maintainer answering a

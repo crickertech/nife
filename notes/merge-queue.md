@@ -1,11 +1,11 @@
 # The merge queue, and the three things that watch it
 
 Three scripts, all maintainer tools rather than front doors. Two were born on 2026-08-04 out of the
-same evening's failures: `scripts/merge-drain.sh` lands what does not need calef, and
-`scripts/trunk-health.sh` says when `main` is red. `scripts/lane-claim-check.sh` joined them on
+same evening's failures: `helpers/merge-drain.sh` lands what does not need calef, and
+`helpers/trunk-health.sh` says when `main` is red. `helpers/lane-claim-check.sh` joined them on
 2026-08-31 and watches one step earlier, for work that has not reached the queue at all. A fourth,
-`scripts/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
-sitting in a lane worktree; it has no watcher of its own and is called from `scripts/trunk-health.sh`'s
+`helpers/at-risk-check.sh`, joined on 2026-09-23 and watches earlier still, for uncommitted work
+sitting in a lane worktree; it has no watcher of its own and is called from `helpers/trunk-health.sh`'s
 loop instead, so "three things that watch" still names the count of things that run unattended. Names
 are provisional.
 
@@ -30,10 +30,10 @@ The steward was supposed to cover that and did not, for a reason worth recording
 never acted.** "The queue is stalled" arriving in a message is only useful if someone reads the
 message and does something. These two scripts act.
 
-## `scripts/merge-drain.sh`
+## `helpers/merge-drain.sh`
 
 ```console
-$ scripts/merge-drain.sh --once
+$ helpers/merge-drain.sh --once
 merge-drain: DEQUEUED #918 (needs-architect arrived after it was enqueued): the loader stops guessing
 merge-drain: STALLED. #213 is failing cpu matrix (riscv64 across QEMU CPU models) (§69 decided: Endow becomes ChildEndowment)
 merge-drain: ARMED #214 (the caretaker outlives its job)
@@ -41,7 +41,7 @@ merge-drain: ENQUEUED #1207 (armed and green for 5 minutes with no queue entry; 
 merge-drain: RERAN #1203 run 36022256151 (CI was cancelled as a same-second duplicate and hid the green one) (the loader stops guessing)
 merge-drain: 4 armed, 1 stalled, of 5 unheld
 
-$ scripts/merge-drain.sh            # loop until nothing is left to enqueue
+$ helpers/merge-drain.sh            # loop until nothing is left to enqueue
 merge-drain: 2 armed, 0 stalled, of 2 unheld
 merge-drain: queue empty; nothing open that does not need calef
 ```
@@ -92,10 +92,10 @@ check is reported with the pull request named, and the pass carries on arming th
 a person, and a loop that retries them just burns CI. A pass where nothing could be armed ends the
 loop, because re-printing the same stall lines every 150 seconds is not watching.
 
-## `scripts/lane-claim-check.sh`
+## `helpers/lane-claim-check.sh`
 
 ```console
-$ scripts/lane-claim-check.sh
+$ helpers/lane-claim-check.sh
 lane-claim-check: LEFTOVER. milestone/121-ripgrep's #600 is MERGED; delete the branch
 lane-claim-check: UNCLAIMED. milestone/194-falsification-roadmap-status has no pull request after 16 minutes. AGENTS.md §90: gh pr create --draft
 ```
@@ -194,9 +194,9 @@ still says is that a session confirms the watchers are alive and acts on what th
 
 | Workflow | Runs | Identity |
 | --- | --- | --- |
-| `.github/workflows/merge-drain.yml` | `scripts/merge-drain.sh --once`, which calls `scripts/lane-claim-check.sh` inside its own pass | `nife-smelter[bot]` |
-| `.github/workflows/trunk-health.yml` | `scripts/trunk-health.sh --once`, and **fails the run** when `main` is red or a cadence is dead | `nife-smelter[bot]` |
-| `launchd`, per developer | `scripts/at-risk-check.sh`, which reads that machine's own worktrees | nobody: it needs no credential |
+| `.github/workflows/merge-drain.yml` | `helpers/merge-drain.sh --once`, which calls `helpers/lane-claim-check.sh` inside its own pass | `nife-smelter[bot]` |
+| `.github/workflows/trunk-health.yml` | `helpers/trunk-health.sh --once`, and **fails the run** when `main` is red or a cadence is dead | `nife-smelter[bot]` |
+| `launchd`, per developer | `helpers/at-risk-check.sh`, which reads that machine's own worktrees | nobody: it needs no credential |
 
 Each workflow mints a one-hour installation token with `actions/create-github-app-token` from the
 organization secrets `AUTOMATION_APP_ID` and `AUTOMATION_APP_KEY`. **No key is at rest on anybody's
@@ -264,7 +264,7 @@ substituting the path to your own main checkout:
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
-    <string>/Users/calef/projects/nife/scripts/at-risk-check.sh</string>
+    <string>/Users/calef/projects/nife/helpers/at-risk-check.sh</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/calef/projects/nife</string>
   <key>StartInterval</key><integer>300</integer>
@@ -280,7 +280,17 @@ $ launchctl list | grep nife
 -	0	com.nife.at-risk
 ```
 
-**`launchd` is the loop here**, which is why `scripts/at-risk-check.sh` did not grow one: it does a
+**An already-installed plist names its script by absolute path, so the rename of `scripts/` to
+`helpers/` on 2026-09-23 breaks it silently**: `launchd` logs the missing file and the watch simply
+stops reporting. Fix an existing one in place, or reinstall it from the block above.
+
+```console
+$ sed -i '' 's|/scripts/|/helpers/|' ~/Library/LaunchAgents/com.nife.at-risk.plist
+$ launchctl unload ~/Library/LaunchAgents/com.nife.at-risk.plist
+$ launchctl load -w ~/Library/LaunchAgents/com.nife.at-risk.plist
+```
+
+**`launchd` is the loop here**, which is why `helpers/at-risk-check.sh` did not grow one: it does a
 pass and exits, `StartInterval` runs it every five minutes, and a script with no loop cannot be
 killed mid-loop by a prune of the checkout it was launched from (the failure that killed both
 watchers on 2026-08-18).
@@ -334,13 +344,13 @@ itself instead: `gh api graphql` for
 `pullRequest(number: N) { mergeQueueEntry { state position } }`, where no entry while open means
 out of the queue, and treat only `FAILURE` and `TIMED_OUT` as failures.
 
-## `scripts/trunk-health.sh`
+## `helpers/trunk-health.sh`
 
 ```console
-$ scripts/trunk-health.sh --once
+$ helpers/trunk-health.sh --once
 main is green at 5a09f754
 
-$ scripts/trunk-health.sh
+$ helpers/trunk-health.sh
 MAIN IS RED at d1e6b1e9 -- failing: CI -- nobody is assigned to this
 main recovered at 38dc6473
 ```
@@ -355,8 +365,8 @@ trunk without one is the failure being surfaced.
 
 **What to do once it speaks is [notes/main-is-red.md](main-is-red.md)**, added 2026-09-23 because
 calef asked whether the response existed and it did not: this watcher reported a red trunk and
-`scripts/merge-drain.sh` carried on arming pull requests into it every five minutes. The response is
-`scripts/queue-hold.sh` (hold the queue, land one fix alone, release) with the judgement in
+`helpers/merge-drain.sh` carried on arming pull requests into it every five minutes. The response is
+`helpers/queue-hold.sh` (hold the queue, land one fix alone, release) with the judgement in
 [briefs/main-is-red.md](../briefs/main-is-red.md). It stays a person's to run, for the reason this
 note gives throughout: a queue reports, it does not resolve.
 
@@ -365,7 +375,7 @@ CI's *conclusion*, and a required check whose steps were skipped posts `success`
 On 2026-09-23 a documentation-only commit broke a `crates/documentation` test that `ci.yml` had
 skipped, and `main` was red for hours while this script said green.
 
-## `scripts/at-risk-check.sh`, the one watch that stays on your own machine
+## `helpers/at-risk-check.sh`, the one watch that stays on your own machine
 
 AGENTS.md gives the steward a second watch, named beside the idle-lane one and called the more
 valuable of the two: "a lane worktree with modifications and no commit in half an hour is
@@ -375,7 +385,7 @@ rather than delays." Nothing built it. `launchctl list` showed `com.nife.merge-d
 mechanism behind it.
 
 The cost was measured, not hypothetical: in one session on 2026-09-23 three pieces of work were
-found only by luck rather than by anything watching. A fix to `scripts/open-lane.sh` (later #1097)
+found only by luck rather than by anything watching. A fix to `helpers/open-lane.sh` (later #1097)
 surfaced while pruning merged worktrees. A fix to `kernel/src/user/live_swap_tests.rs` (later #1101)
 survived two prunes uncommitted and had to be recovered twice. Sixty-two lines of a decisions
 amendment sat unsaved on `maintainer/202-four-tiers` for hours after the conversation had moved on.
@@ -383,7 +393,7 @@ The maintainer pruned worktrees twice that same session; any of the three could 
 outright.
 
 ```console
-$ scripts/at-risk-check.sh
+$ helpers/at-risk-check.sh
 at-risk-check: UNCOMMITTED. /Users/calef/projects/nife-worktrees/atrisk (maintainer/work-one-prune-from-gone) has 2 changed file(s), newest touched 41 minutes ago. One prune away from gone; commit and push.
 ```
 
@@ -393,9 +403,9 @@ The clock is the newest modification time among the changed files, tracked or un
 branch's last commit date**: a worktree can carry a commit from hours ago and be mid-edit again a
 moment later, and the fact that matters is how long the current uncommitted state has sat, not when
 it was last saved. `AT_RISK_MINUTES` (default 30, AGENTS.md's own "half an hour") overrides it, the
-same convention `GRACE_MINUTES` already sets in `scripts/lane-claim-check.sh`.
+same convention `GRACE_MINUTES` already sets in `helpers/lane-claim-check.sh`.
 
-**It reports and never acts**, the same boundary `scripts/lane-claim-check.sh` holds. It does not
+**It reports and never acts**, the same boundary `helpers/lane-claim-check.sh` holds. It does not
 commit on a lane's behalf, and it does not use `git stash`: the stash stack is per-`.git`, shared
 across every worktree of this repository rather than scoped to one, so one worktree's `git stash`
 can be popped by a session working in a completely different worktree, which is action at a distance
@@ -403,7 +413,7 @@ of exactly the kind this script exists to warn about rather than to commit. AGEN
 "`git stash` is unsafe in these worktrees, for the same reason one level over," is the same finding
 from the other side.
 
-**Folded into `scripts/trunk-health.sh`'s loop on 2026-09-23, unfolded on 2026-09-24, and the
+**Folded into `helpers/trunk-health.sh`'s loop on 2026-09-23, unfolded on 2026-09-24, and the
 reasoning is worth keeping because it was right both times.** The fold was to avoid a third watcher
 that could die silently, reusing a job already firing on the right interval. That holds only while
 both halves run on the same machine. When the trunk half moved to Actions they stopped doing so:
@@ -473,7 +483,7 @@ $ gh api "repos/crickertech/nife/actions/workflows/ci.yml/runs?event=merge_group
 A push that finds one logs `==> <sha> was tested by merge group run <id>; skipping the suite` in its
 `draft gate` step, with the run's URL on the next line.
 
-`scripts/trunk-health.sh` reads a skipped push run as green, since the run concludes `success`, and
+`helpers/trunk-health.sh` reads a skipped push run as green, since the run concludes `success`, and
 names the merge-group runs behind it. That keeps this green distinct from the skipped-docs green its
 own `BUGS` still warns about.
 
@@ -810,7 +820,7 @@ that needs distinct GitHub identities rather than a better log; the proposal is
   #1211 each have a cancelled CI run followed 20 to 66 seconds later by a successful one, which is
   a draft marked ready, and none of them was stranded.
 
-  **The drain does this now** (#1252, 2026-09-24): the query above is `scripts/cancelled-duplicate.jq`,
+  **The drain does this now** (#1252, 2026-09-24): the query above is `helpers/cancelled-duplicate.jq`,
   spliced into `merge-drain.sh`, and a pull request in this shape gets its cancelled duplicate
   rerun once, logged as `RERAN #N run <id>`. Once is decided by the run's own `run_attempt`, so no
   file or label holds the state; a duplicate already at attempt 2 is a `STALLED.` line for a person.

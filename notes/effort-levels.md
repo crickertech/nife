@@ -2,7 +2,7 @@
 
 **Provisional name.** Written 2026-09-23. `claude --effort <level>` has existed the whole time this
 project has (`claude --help` lists it) and no lane, rented or otherwise, has ever passed it.
-`scripts/open-lane.sh` now takes `OPEN_LANE_EFFORT`; this note is the measurement that set its
+`helpers/open-lane.sh` now takes `OPEN_LANE_EFFORT`; this note is the measurement that set its
 default, run before trusting a lever nobody had turned.
 
 ## What the CLI accepts
@@ -82,14 +82,14 @@ ordering, not from effort level. With that caveat stated plainly: even comparing
 **This cost is the CLI's own `total_cost_usd`, at list-price rates against a subscription
 session, not a bill.** These runs went through `claude`'s ordinary session auth (this lane had no
 `ANTHROPIC_API_KEY` and could not use `--bare`, and had no OpenRouter credentials to route through
-`scripts/open-lane-gateway.sh`), so no real dollar amount moved and no OpenRouter credit balance
+`helpers/open-lane-gateway.sh`), so no real dollar amount moved and no OpenRouter credit balance
 was checked. `total_cost_usd` is Claude Code's own notional accounting of what the same usage would
 cost at API list price (`"costBasis":"list"` in the raw JSON); it is the only cost number this lane
 could get, and it is reported as exactly that, not as a charge.
 
 ## What was not measured, and why it matters
 
-**The effort flag was never tested against the backend `scripts/open-lane.sh` actually drives.**
+**The effort flag was never tested against the backend `helpers/open-lane.sh` actually drives.**
 That script runs `claude --bare --effort <level>` with `ANTHROPIC_BASE_URL` pointed at a LiteLLM
 gateway translating to an open-weight model over OpenRouter (`notes/open-model-lanes.md`). This
 lane had no `OPENROUTER_API_KEY` and no running gateway to test against, so every run above went
@@ -114,7 +114,7 @@ null result, reported as one, rather than a manufactured recommendation. If a fu
 it.
 
 **This should be re-measured through the actual gateway once `OPENROUTER_API_KEY` and a running
-`scripts/open-lane-gateway.sh` are available to a lane.** That is the gap that matters most: this
+`helpers/open-lane-gateway.sh` are available to a lane.** That is the gap that matters most: this
 note answers "does `--effort` change what Claude does," which it does (time, turns, tokens) without
 changing correctness on this task; it does not yet answer "does `--effort` reach the open-weight
 model at all."

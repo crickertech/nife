@@ -18,11 +18,11 @@ reading rather than deciding.
 backticked citations of `design/roadmap/proposals/<slug>.md` survive it, spread across roughly
 twenty-seven files: milestone blocks (296 has five, 267 and 304 have three each), two audit reports
 under `design/audit-reports/`, `design/naming.md`, `design/decisions/152-port-range-capability.md`,
-four notes, `kernel/src/pci.rs` and `scripts/qemu-runner-x86_64.sh`.
+four notes, `kernel/src/pci.rs` and `helpers/qemu-runner-x86_64.sh`.
 
 **A handful of finished blocks also describe the directory in the present tense**, which is a
 smaller defect of the same family: milestone 276's block says `script/roadmap --proposed` "already
-computes" a number, and milestone 301's says `scripts/roadmap_proposals.py` "matches PROPOSED and
+computes" a number, and milestone 301 (one grant order for the progenitor)'s says `helpers/roadmap_proposals.py` "matches PROPOSED and
 nothing else, so a proposal cannot be retired" in place. Both were true when written. A BUILT block
 is a record of its moment and the tree's convention lets older records describe the past, so these
 want a dated amendment rather than a rewrite, and deciding which of the two they get is part of

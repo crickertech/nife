@@ -29,7 +29,7 @@ them.
 Everything. `gh auth status` on patagonia reports one account, `calef`, with scopes
 `admin:public_key, gist, read:org, repo, workflow`, and three distinct actors use it:
 
-1. **`scripts/merge-drain.sh`**, running unattended under `launchd`: arms auto-merge, dequeues held
+1. **`helpers/merge-drain.sh`**, running unattended under `launchd`: arms auto-merge, dequeues held
    pull requests, posts stall comments.
 2. **A maintainer session and its lanes**: `gh pr create`, `gh pr comment`, labels, merges, and the
    lane worktrees' pushes.
@@ -139,7 +139,7 @@ unchanged.
 
 ### Singleton, and singleton by accident
 
-`scripts/merge-drain.sh`, `scripts/lane-claim-check.sh`, `scripts/trunk-health.sh`, and pull request
+`helpers/merge-drain.sh`, `helpers/lane-claim-check.sh`, `helpers/trunk-health.sh`, and pull request
 #1170's `held-for-red-trunk` hold must each run once. Two drains double-enqueue; two holds race.
 
 **They are single only because they happen to run on one laptop, under one person's `launchd`, as

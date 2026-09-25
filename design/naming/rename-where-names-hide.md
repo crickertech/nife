@@ -165,14 +165,14 @@ name the move happened under.)
 | A mutation-testing exclusion glob | `.cargo/mutants.toml`'s `"crates/user_mode_runtime/**"` | a glob that matches nothing is not an error |
 | A crate-keyed row in a measurement baseline | `.cargo/mutants-baseline.txt`'s `user_mode_heap 20 3 5 7` | a plain data file, keyed by crate name, that no build reads |
 | An identifier derived from the crate name inside a gate's embedded script | `reaches_user_mode_runtime()` in `script/lint`'s python | it compiles and runs either way; only the reader is misled |
-| A shell script that derives an artifact from the crate's directory | `scripts/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
+| A shell script that derives an artifact from the crate's directory | `helpers/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
 | A generated module in the patched-`std` overlay | `sys/alloc/nife/user_mode_heap.rs`, written by `xtask` from the crate and declared `mod user_mode_heap;` in the overlay | it compiles only when the `std` farm is rebuilt, in a source tree outside every workspace |
 | `Cargo.lock` in each separate workspace | `redoxfs_server/Cargo.lock`, `tools/redoxfs_host/Cargo.lock` | regenerated on their own next build, not on the main workspace's |
 | A **glob that selects the set a gate then judges** | `script/lint` check 3 looped over `crates/*proto` and rejected any name not ending `_proto` | after milestone 265 that glob matches no directory, so the loop body never runs and the check passes by checking zero crates |
 
 Corrected 2026-09-24: `git grep` now finds `crates/user_mode_runtime/link.ld` in five `build.rs`
 files, three of them (`cryptography_exerciser`, `redoxfs_server`, `std_exerciser`) in separate
-workspaces, plus `scripts/build-ripgrep.sh`.
+workspaces, plus `helpers/build-ripgrep.sh`.
 
 The glob row is worse than the `--exclude` row above it and belongs beside it anyway. Both fail by
 going quiet. But an `--exclude` that has gone stale still covers everything else; a selector that

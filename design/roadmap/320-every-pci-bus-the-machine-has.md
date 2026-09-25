@@ -103,7 +103,7 @@ the floor; `pci::ecam_buses()` is the answer, and all three architectures' `map_
 ## What could not be tested, and why
 
 - **The real topology.** Only xenon has it. `NIFE_PCIE_ROOT_PORT=1` on
-  `scripts/qemu-runner-x86_64.sh` (provisional name) puts the NVMe behind a `pcie-root-port`, which
+  `helpers/qemu-runner-x86_64.sh` (provisional name) puts the NVMe behind a `pcie-root-port`, which
   is the *shape* xenon is believed to have, and `cargo xtask test --arch x86_64` runs one three-second
   boot against it. That gates the walk. It does not confirm anything about xenon.
 - **A working disk behind a bridge.** A bridge forwards memory only inside the window its own

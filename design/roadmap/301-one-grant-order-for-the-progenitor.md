@@ -9,7 +9,7 @@ this cheap to settle.
 
 **Promoted and disposed of in one act, on calef's ruling**, because promotion is how a proposal
 reaches a disposition at all. `design/roadmap/proposals/` carries exactly one status by design
-(`scripts/roadmap_proposals.py` matches `PROPOSED` and nothing else), so a proposal cannot be retired
+(`helpers/roadmap_proposals.py` matches `PROPOSED` and nothing else), so a proposal cannot be retired
 in place; the terminal vocabulary lives on numbered blocks. `SUPERSEDED` was minted for this on
 2026-09-15 rather than reusing `REMOVED`, because this was never built and did not need to be: other
 work answered it. Milestones 54 and 55 both record that the vocabulary has no word for their own case

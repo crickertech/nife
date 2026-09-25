@@ -81,7 +81,7 @@ machine was already warm, so nobody had met it.
 >
 > And the two printed commands looped. `script/ci-qemu` installs into `$HOME/.cache/nife-qemu`, and
 > the only thing in the tree that put that prefix on PATH was `.github/workflows/ci.yml`. Nothing in
-> `script/`, `scripts/` or `xtask` did. A Linux developer following the instructions spent twelve
+> `script/`, `helpers/` or `xtask` did. A Linux developer following the instructions spent twelve
 > minutes building the right QEMU and re-ran `script/setup` as told. `qemu-check`'s
 > `command -v qemu-system-aarch64` then found `/usr/bin`'s 8.2.2 again: same failure, same message,
 > same remedy, forever.
@@ -91,7 +91,7 @@ machine was already warm, so nobody had met it.
 > Linux clone, which was run 2's whole value, and the fix it prompted was never run against it.
 >
 > Milestone 287 is the actual fix. Bootstrap runs `script/ci-qemu` instead of printing how to,
-> `scripts/qemu-path.sh` is the PATH half, and `script/lint` gates that every entry point resolves
+> `helpers/qemu-path.sh` is the PATH half, and `script/lint` gates that every entry point resolves
 > it. Reproduced and verified on a stock Ubuntu box with apt's 8.2.2 on `/usr/bin`.
 
 ### Four corrections to `notes/adding-a-program.md`

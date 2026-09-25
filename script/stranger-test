@@ -237,7 +237,7 @@
 #
 # **It isolates a tree, not a machine, and run 6 wrote to the machine.** The stranger, believing a
 # QEMU version mismatch had failed a gate, ran `brew install meson`, downloaded QEMU 11.0.2 and
-# built it into `$HOME/.cache/nife-qemu`, which `scripts/qemu-path.sh` puts on PATH for **every
+# built it into `$HOME/.cache/nife-qemu`, which `helpers/qemu-path.sh` puts on PATH for **every
 # checkout on the machine** whose `.qemu-version` matches: the two lanes gating beside it would
 # have switched emulators mid-run. The operator killed the first build and made the directory
 # read-only; the stranger found the permission error, ran `chmod u+w` on it, rebuilt and installed.

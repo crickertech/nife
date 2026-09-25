@@ -4,8 +4,8 @@ name: trunk health
 # 2026-09-23). Same move and same reasons as `merge-drain.yml`, which carries the tested premise and
 # the cadence BUGS entry; only what is specific to this watcher is written here.
 #
-# **This is the half of `scripts/trunk-health.sh` that could move.** That script had a second watch
-# folded into it on 2026-09-23, `scripts/at-risk-check.sh`, which reads this machine's own worktrees
+# **This is the half of `helpers/trunk-health.sh` that could move.** That script had a second watch
+# folded into it on 2026-09-23, `helpers/at-risk-check.sh`, which reads this machine's own worktrees
 # and their `git status`. A runner has no lane worktrees, so running it here would report nothing
 # forever while the real hazard sat on somebody's laptop unwatched. The fold was undone rather than
 # carried along: the at-risk watch stays per-developer under its own `launchd` job, and
@@ -77,7 +77,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          out=$(scripts/trunk-health.sh --once)
+          out=$(helpers/trunk-health.sh --once)
           printf '%s\n' "$out"
           case "$out" in
           *"main is RED"*)

@@ -3,7 +3,7 @@
 #
 # It boots the SAME Alpine kernel run_linux.sh uses, on the SAME `virt,accel=hvf` machine with the
 # SAME `-cpu host`, `-m 256M`, `-smp 4` and the SAME `virtio-blk-device` on a raw host image file
-# that scripts/qemu-runner-aarch64.sh gives nife's own bench boot. That matching is the whole point:
+# that helpers/qemu-runner-aarch64.sh gives nife's own bench boot. That matching is the whole point:
 # the two filesystems then differ in the filesystem and in nothing under it.
 #
 # Needs: rustup target add aarch64-unknown-linux-musl; qemu-system-aarch64; network (once, for the
@@ -83,10 +83,10 @@ rm -rf "$WORK/iroot" && mkdir "$WORK/iroot" && cp "$WORK/init" "$WORK/iroot/init
 mkdir "$WORK/iroot/mods" && cp "$WORK"/mods/*.ko "$WORK/iroot/mods/"
 ( cd "$WORK/iroot" && find . | cpio -o -H newc 2>/dev/null ) > "$WORK/initramfs.cpio"
 
-# `scripts/qemu-bounded.sh`, not `timeout(1)` (which macOS does not have) and never `perl -e alarm`
+# `helpers/qemu-bounded.sh`, not `timeout(1)` (which macOS does not have) and never `perl -e alarm`
 # (QEMU installs its own SIGALRM handler and swallows it; CLAUDE.md records the eleven leaked
 # emulators that taught us).
-"$ROOT/scripts/qemu-bounded.sh" 300 \
+"$ROOT/helpers/qemu-bounded.sh" 300 \
     qemu-system-aarch64 -M virt,accel=hvf,gic-version=2 -cpu host -m 256M -smp 4 \
     -kernel "$KERNEL" -initrd "$WORK/initramfs.cpio" \
     -append "console=ttyAMA0 rdinit=/init panic=1 quiet loglevel=0" \

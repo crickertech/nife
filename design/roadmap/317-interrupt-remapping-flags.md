@@ -52,7 +52,7 @@ what makes any of the rest checkable, and it is what turned two of the three ans
 **§86 said interrupt remapping is off in every x86_64 boot this tree runs. It has been on the
 whole time.**
 
-That section reached its conclusion by reading `scripts/qemu-runner-x86_64.sh`, which attaches
+That section reached its conclusion by reading `helpers/qemu-runner-x86_64.sh`, which attaches
 `-device intel-iommu` with no `intremap=on`. The reading of the file is correct. The conclusion
 drawn from it is not, and the difference only shows up when you boot the machine and read the
 register. `ECAP` printed from inside the guest, QEMU 11.1.1, `q35` under TCG on patagonia:
@@ -208,7 +208,7 @@ different route.
 reports `MSI_FLAT`, so the capability is present with no option to add, and unlike `intel-iommu`
 there is no property to turn it off. Both sides of the `x86_64` comparison exist there because
 QEMU offers `intremap=off`; here only one side exists, and no flag this lane could add would
-create the other. `scripts/qemu-runner-riscv64.sh` is unchanged by this milestone.
+create the other. `helpers/qemu-runner-riscv64.sh` is unchanged by this milestone.
 
 ### The inversion, which is the sharpest thing here
 

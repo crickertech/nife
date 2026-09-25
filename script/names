@@ -70,7 +70,7 @@
 #
 # **It used to stop at the first empty comment line**, and that sentence is what hid 91 refusals:
 # a block written one argument per paragraph put all of them out of reach, and nobody noticed for as
-# long as the convention had existed. Changed 2026-09-18; `scripts/name_provenance.py` carries the
+# long as the convention had existed. Changed 2026-09-18; `helpers/name_provenance.py` carries the
 # measurement and what the wider read still gets wrong. A block is now expected to be the LAST thing
 # in its comment, which 139 of 143 files already did.
 #
@@ -148,17 +148,17 @@ root, mode = sys.argv[1], sys.argv[2]
 # these blocks. What stays HERE is the file sourcing: this script walks the working tree, because a
 # gate is asked about the tree in front of it, where `script/metrics` enumerates the same four kinds
 # out of a `git ls-tree` at a revision nobody has checked out. `dont_write_bytecode` because the
-# import would otherwise leave a `scripts/__pycache__/` behind on every run, which is an untracked
+# import would otherwise leave a `helpers/__pycache__/` behind on every run, which is an untracked
 # directory a gate has no business creating.
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(root, "scripts"))
+sys.path.insert(0, os.path.join(root, "helpers"))
 import name_provenance                                                      # noqa: E402
 
 # The three surfaces that are a directory listing, each with the file that holds its header. The
 # fourth kind, `package`, is discovered instead: see `packages()` below, which is what covers
 # `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host` and the root-level workspaces. What is
-# genuinely out of scope is `scripts/` (the helper drawer); types are covered when marked, as
-# `item` (2026-09-24). `scripts/` was priced and
+# genuinely out of scope is `helpers/` (the helper drawer); types are covered when marked, as
+# `item` (2026-09-24). `helpers/` was priced and
 # refused by milestone 446 (the naming worklist says what it covers, and stops saying what it used
 # to). design/naming/provenance-limits.md is the one place that carries the reason, and this comment
 # deliberately cites it rather than restating it, because the last copy of this scope claim went
@@ -274,7 +274,7 @@ def block(path, prefix):
 
 
 # Why a header-shaped line is not the block, phrased for whoever has to fix it. The tokens are
-# `scripts/name_provenance.py`'s, for the reason that module's own header gives: the judgement is
+# `helpers/name_provenance.py`'s, for the reason that module's own header gives: the judgement is
 # shared with `script/metrics`, the wording is this gate's.
 STRAY_WHY = {
     name_provenance.STRAY_MARKUP:
@@ -321,7 +321,7 @@ def stray_problems(kind, name, path, prefix, text):
 
 
 # `refused_in`, `parse`, the `recorded` citation check and the three-word status vocabulary all
-# live in `scripts/name_provenance.py`, because `script/metrics` reads the same blocks out of git
+# live in `helpers/name_provenance.py`, because `script/metrics` reads the same blocks out of git
 # history to count them per week and a second copy of this parse would be a definition waiting to
 # drift. The messages below stay here: a gate tells a contributor how to fix a block, and a
 # dashboard only needs to know the block held no status.
@@ -637,21 +637,32 @@ if mode and not mode.startswith("-"):
     refused_hits = [(bad, r) for bad, r in refusals if bad == mode]
     if not hits and not refused_hits:
         # **A scoped answer, not a confident wrong one** (milestone 446, the naming worklist says
-        # what it covers, and stops saying what it used to). `scripts/` is deliberately outside the
+        # what it covers, and stops saying what it used to). `helpers/` is deliberately outside the
         # table, and nine of its seventeen files carry a `Name:` paragraph anyway. Left
         # alone, `script/names merge-drain` said "neither a name in the tree nor a recorded refusal"
         # about a file whose header argues the name at length, which is the exact shape the
         # `package` kind was added to fix one level along: a registry with a hole answering
         # confidently about the names it happens to cover. Naming the scope costs six lines and
         # sends the reader to the file instead of to nothing.
-        helper = next((os.path.join("scripts", mode + ext)
+        helper = next((os.path.join("helpers", mode + ext)
                        for ext in (".sh", ".py")
-                       if os.path.exists(os.path.join(root, "scripts", mode + ext))), None)
+                       if os.path.exists(os.path.join(root, "helpers", mode + ext))), None)
         if helper:
-            print(f"names: {mode!r} is a helper under scripts/, which the naming worklist leaves out "
+            print(f"names: {mode!r} is a helper under helpers/, which the naming worklist leaves out "
                   f"on purpose (design/naming.md's BUGS section says why).")
             print(f"       Its record, if it has one, is in {helper} rather than in this table.")
             sys.exit(1)
+        # The two directories themselves are names too, and calef ratified one of them on
+        # 2026-09-23. Neither is a crate, a program, a `script/` entry point or a package, so
+        # nothing in the table above can carry the record and the answer above was the confident
+        # wrong one this block exists to refuse. The record is the Scripts section of
+        # design/naming/programs-scripts-and-directories.md.
+        if mode in ("script", "helpers"):
+            print(f"names: {mode!r} is a directory rather than one of the four kinds this table "
+                  f"covers, so its record is prose.")
+            print("       design/naming/programs-scripts-and-directories.md's Scripts section has it: "
+                  "`helpers` was ratified by calef on 2026-09-23 (UTC), replacing `scripts`.")
+            sys.exit(0)
         print(f"names: {mode!r} is neither a name in the tree nor a recorded refusal")
         sys.exit(1)
     for r in hits:

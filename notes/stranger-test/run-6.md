@@ -94,7 +94,7 @@ for references to it. It never ran `git show` or anything else that would recove
 The protocol says no help mid-run, and a run that hides help is not a measurement. Protecting the
 machine outranked the protocol once. About eleven minutes in, the stranger decided an x86_64 failure
 (below) was a QEMU version mismatch. It ran `brew install meson`, downloaded QEMU 11.0.2, and
-started building it into `$HOME/.cache/nife-qemu`. `scripts/qemu-path.sh` puts that prefix on PATH
+started building it into `$HOME/.cache/nife-qemu`. `helpers/qemu-path.sh` puts that prefix on PATH
 for every checkout on the account whose `.qemu-version` matches. So the two lanes gating beside it
 would have changed emulators mid-suite.
 
@@ -144,7 +144,7 @@ B4 fails, with six entries:
 2. The test log is binary to `grep` without `-a`.
 3. The pinned QEMU cannot be had on macOS by any documented route.
 4. Building it by hand needs `--disable-cocoa --disable-pvg`.
-5. `scripts/qemu-path.sh` honours a hand-built prefix on macOS too.
+5. `helpers/qemu-path.sh` honours a hand-built prefix on macOS too.
 6. The VT-d lines above are expected.
 
 ### The mental model, scored: seven answered, one absent

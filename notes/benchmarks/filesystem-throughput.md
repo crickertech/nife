@@ -231,7 +231,7 @@ reproduce.
 
 ### One tooling bug found on the way
 
-`scripts/qemu-bounded.sh` killed its watchdog subshell when the guest finished on its own and left the
+`helpers/qemu-bounded.sh` killed its watchdog subshell when the guest finished on its own and left the
 `sleep` inside it running. An orphaned `sleep` holds the write end of the pipe it inherited. So every
 bounded run whose output is piped blocked for the full bound, however quickly the guest exited. The
 Linux comparison boots a guest that powers itself off in about fifteen seconds, and each round took

@@ -41,7 +41,7 @@ source. It is the piece both of them named and neither built.
 
 ## The test bench, which costs nothing and already exists as a workaround
 
-`scripts/qemu-stick.sh` boots the stick's `BOOTAA64.EFI` under EDK2, and line 72 carries the
+`helpers/qemu-stick.sh` boots the stick's `BOOTAA64.EFI` under EDK2, and line 72 carries the
 workaround with its reason attached:
 
 > `acpi=off`, because EDK2 withholds the device tree when it presents ACPI, and nife on aarch64
@@ -52,13 +52,13 @@ workaround with its reason attached:
 
 ```
 $ cargo xtask stick                                            # or just the aarch64 payload
-$ scripts/qemu-stick.sh aarch64 target/stick                   # acpi=off, the script's default
+$ helpers/qemu-stick.sh aarch64 target/stick                   # acpi=off, the script's default
 ...
 nife uefi_loader: milestone 87
 uefi_loader: kernel placed, exiting boot services
 nife self-test: 5 of 5 passed
 
-$ scripts/qemu-stick.sh aarch64 target/stick -machine acpi=on  # the failure
+$ helpers/qemu-stick.sh aarch64 target/stick -machine acpi=on  # the failure
 ...
 nife uefi_loader: milestone 87
 uefi_loader: the firmware offers no device tree (on QEMU virt, boot with acpi=off; nife on
@@ -74,7 +74,7 @@ milestone rather than an expensive one:
   exited, so the failure is a clean, named refusal rather than a machine that goes quiet. A lane
   working on this gets a readable error on every wrong turn.
 - **QEMU accepts the override.** `-machine acpi=on` after the script's own `-machine virt,acpi=off`
-  wins, so no edit to `scripts/qemu-stick.sh` is needed to reproduce the failure. When this
+  wins, so no edit to `helpers/qemu-stick.sh` is needed to reproduce the failure. When this
   milestone is done, that trailing flag is the test: the same transcript as the default boot.
 
 **No hardware, no cloud account, and no money are needed to do this work or to know when it is
@@ -269,7 +269,7 @@ architecture-neutral; what is missing is aarch64's own contents: MADT types 0x0B
 and the CPU list, a GTDT for the timer interrupts, the FADT's Arm boot flags for PSCI, SPCR for the
 console, and a memory map, which ACPI does not carry at all and which is why the handover is a fork
 for calef rather than a parser. The failure reproduces on a laptop one flag apart,
-`scripts/qemu-stick.sh aarch64 target/stick -machine acpi=on`, so no hardware and no account are
+`helpers/qemu-stick.sh aarch64 target/stick -machine acpi=on`, so no hardware and no account are
 needed to do this work or to know when it is done. The `0x4008_0000` link address is the second
 blocker behind the first and belongs to milestone 127 (the seL4 machine: a Jetson TX1, so identical
 silicon referees the comparison); what this block adds is that the same work now has two customers.

@@ -576,7 +576,7 @@ pub(crate) fn test() -> bool {
     // `--arch x86_64` was not asked for, aarch64 when it was the only leg.
     //
     // **The crash and blank images are aarch64's and riscv64's alone**, and that is why the x86_64
-    // arm below is separate rather than the guard simply going away. `scripts/qemu-runner-x86_64.sh`
+    // arm below is separate rather than the guard simply going away. `helpers/qemu-runner-x86_64.sh`
     // attaches two PCI functions, the nifefs image and the RedoxFS one; milestone 37's crash disk
     // and milestone 57's GPT and blank disks are not among them, so those two checks would open
     // whatever a previous full run left and report a true statement about a stale file and a false
@@ -653,7 +653,7 @@ fn hvf_kernel_leg() -> bool {
     // probers (milestone 222). If it will not, each of those reports its own failure about a QEMU
     // that never existed, and the transcript then carries four confident-sounding messages about
     // monitors and forwarded ports, none of which is the reason. The runner owns the question and
-    // the words; this only decides when to ask. See scripts/qemu-runner-aarch64.sh.
+    // the words; this only decides when to ask. See helpers/qemu-runner-aarch64.sh.
     let probe = Command::new(RUNNER)
         .env("NIFE_PROBE", "1")
         .env("NIFE_ACCEL", "hvf")

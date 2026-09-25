@@ -66,7 +66,7 @@ From the provenance block in each named thing's own header. Milestone 115 (the n
 ratified, and the ones that were refused) put it there: a crate's `src/lib.rs`, a program's, a
 `script/` entry point's comment, a Cargo package's manifest. `script/names` derives the same four
 counts by walking the working tree; this series derives them from git history. They share the parse
-(`scripts/name_provenance.py`) but not the file walk, so the two agree by construction. At 2026W36
+(`helpers/name_provenance.py`) but not the file walk, so the two agree by construction. At 2026W36
 they do: 204 names, 104 `ratified`, 37 `recorded`, 63 `provisional`, 0 `unrecorded`.
 
 The four words are what a block *says*:

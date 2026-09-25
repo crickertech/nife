@@ -644,7 +644,7 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
     // test runner, so `start_driver` returning `None` there really is a build-order bug: PCI is
     // enumerated and the device is simply not on the bus. On x86_64's `q35`, PCI enumeration
     // (milestone 165, ACPI's MCFG) reaches real hardware windows the runner has never populated
-    // with a GPU (`scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci`), so `None` there is
+    // with a GPU (`helpers/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci`), so `None` there is
     // an honest, expected gap rather than a bug -- milestone 164's own shape (a scope gap named
     // where the reader meets the feature) rather than a loud panic. Skipping either way keeps the
     // one thing this test cannot tell apart from a hardware absence out of its own hands.

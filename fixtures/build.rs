@@ -10,7 +10,7 @@
 //! rename `user/link.ld` on exactly that ground ("it is genuinely shared"), and milestone 175 split
 //! the package that held it. `user_mode_runtime` is the runtime that supplies `_start`'s ABI and the panic
 //! handler to every program in both packages, so a program image's layout is its business.
-//! `scripts/build-ripgrep.sh` derives its high-load variant from the same file by substitution.
+//! `helpers/build-ripgrep.sh` derives its high-load variant from the same file by substitution.
 //!
 //! Since milestone 36 this also compiles the **C** half of the `c_shim` program (`c/c_seam.c`) with
 //! a bare-metal clang and hands the object to the linker for that one binary only. Both C-linked

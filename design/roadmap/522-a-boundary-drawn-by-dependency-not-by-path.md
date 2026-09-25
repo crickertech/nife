@@ -58,7 +58,7 @@ catch**: `board_console`, `portable_executable`, `stick_maker`. Each says so in 
 (`stick_maker`'s: *"A host program, not a nife program. It runs on macOS, Linux and Windows and
 never on nife"*); each is read only by `xtask` or invoked directly, never by a nife binary. They sit
 under `crates/`, not one of `HOST_ONLY`'s path prefixes (`bench/host/`, `xtask/`, `tools/`, `fuzz/`,
-`scripts/`, `patches/`), so the existing census counts their 6 unsafe blocks as if they ran on nife.
+`helpers/`, `patches/`), so the existing census counts their 6 unsafe blocks as if they ran on nife.
 
 **This was found and is reported here, and `unsafe_census()`/`unsafe_outside_arch`/`script/lint`'s
 ceiling are left exactly as they were.** The 824 and 77 that `script/lint` still gates on mean
@@ -114,7 +114,7 @@ number; this milestone does not touch it.
   from `cargo metadata` on 2026-09-20 and is applied to every week alike, the same restatement trade
   `script/metrics`'s `MILESTONE_STATUSES`/`NAME_STATUSES` tables already make. A crate renamed,
   split or removed since will misclassify or, if the table has genuinely never seen its name at all,
-  report `unsafe_trust_unclassified` rather than guess. See `scripts/rust_source.py`'s own comment.
+  report `unsafe_trust_unclassified` rather than guess. See `helpers/rust_source.py`'s own comment.
 - **A `shared` crate's unsafe is not attributed to a call site.** Whether a given block in one of the
   five `shared` crates that carry `unsafe` is reached by the kernel's production logic, by a
   userspace `std` program, or only by the kernel's own `#[cfg(test)]` test-oracle modules (several

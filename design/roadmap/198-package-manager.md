@@ -284,7 +284,7 @@ calef's acts are named there rather than here.
   NVMe behind Intel RST or VMD.
 - **A third party cannot author a package without cloning this repository**, because the `nife-dev`
   toolchain, the target specifications and the linker script exist only as build steps inside it
-  (`scripts/build-ripgrep.sh` is the one out-of-tree build and it needs them). §151's
+  (`helpers/build-ripgrep.sh` is the one out-of-tree build and it needs them). §151 (the goal of the repository split is independent release)'s
   "third-party programs" needs a downloadable toolchain, which nothing tracks yet.
 - **The cold build time a stranger pays was not measured**, because two other lanes were gating on
   the machine when this block was scoped. ~~The first slice's stranger-harness run should measure it

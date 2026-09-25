@@ -13,7 +13,7 @@ mechanism, and an expensive one is not made safe by adding a gate afterwards.
 problem.** Code, notes, roadmap wording, which milestone a lane takes, how a script is structured.
 Getting these wrong costs an hour. Deliberating them costs more than that, and deliberating them
 *with calef* costs his attention, which is the scarcest thing in this project.
-`scripts/merge-drain.sh` was rewritten three times in one evening, each version wrong in a way the
+`helpers/merge-drain.sh` was rewritten three times in one evening, each version wrong in a way the
 next one fixed, and that was cheaper than designing it correctly up front would have been.
 
 **A few decisions are expensive, and the expense is almost never the code.** It is the consequences

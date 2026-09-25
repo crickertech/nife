@@ -40,7 +40,7 @@ pub(crate) fn icount() -> bool {
     if legs.aarch64() && !icount_leg("aarch64", RUNNER, TARGET) {
         return false;
     }
-    if legs.riscv64() && !icount_leg("riscv64", "scripts/qemu-runner-riscv64.sh", RISCV_TARGET) {
+    if legs.riscv64() && !icount_leg("riscv64", "helpers/qemu-runner-riscv64.sh", RISCV_TARGET) {
         return false;
     }
     true

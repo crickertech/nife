@@ -938,7 +938,7 @@ fn ipc_rtt_el0() {
 /// read it back from the printed `ns/iter` column); a real core reports its own frequency (24 MHz
 /// measured on the Apple Silicon dev machine under HVF). Nothing else distinguishes the two
 /// accelerators inside the guest: `NIFE_ACCEL` is a host-side environment variable for the QEMU
-/// launch, never passed into the boot (see xtask's `bench` and `scripts/qemu-runner-aarch64.sh`).
+/// launch, never passed into the boot (see xtask's `bench` and `helpers/qemu-runner-aarch64.sh`).
 #[cfg(target_arch = "aarch64")]
 const TCG_VIRT_CNTFRQ_HZ: u64 = 62_500_000;
 

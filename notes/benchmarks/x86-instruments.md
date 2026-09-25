@@ -30,7 +30,7 @@ Two different questions were being conflated, and they have different answers.
 
 ### The evidence
 
-`-icount shift=0,sleep=off` was added to `scripts/qemu-runner-x86_64.sh`'s invocation (the runner
+`-icount shift=0,sleep=off` was added to `helpers/qemu-runner-x86_64.sh`'s invocation (the runner
 already forwards extra QEMU args), booting the existing `--features bench` kernel. Three
 consecutive boots produced byte-identical tick counts on every line. That includes the
 PIT-calibrated TSC frequency itself (`bench: cntfrq 999935600`, all three runs). The calibrated
@@ -49,7 +49,7 @@ and riscv64 follow.
 
 ### One operational bug, which leaked a CPU-burning QEMU
 
-`scripts/qemu-runner-x86_64.sh` is the one runner of the three that does not `exec` into
+`helpers/qemu-runner-x86_64.sh` is the one runner of the three that does not `exec` into
 `qemu-system-x86_64`. Its header explains why: it translates `isa-debug-exit`'s always-odd exit
 status. So on this leg `run_bench`'s `Child` is the wrapper shell, not QEMU, and killing it after
 `bench: done` orphaned the real `qemu-system-x86_64`. Under plain TCG that orphan idles at ~0% CPU
@@ -168,7 +168,7 @@ bits and this measurement.
 
 ## 2026-09-23: five x86_64 counters left the tripwire and no benchmarked code had changed
 
-Milestone 315 (a port revoke that reaches every core) flipped `scripts/qemu-runner-x86_64.sh`'s
+Milestone 315 (a port revoke that reaches every core) flipped `helpers/qemu-runner-x86_64.sh`'s
 `NIFE_SMP` default from 1 to 2, per DECISIONS §153 (how a two-core x86_64 test earns its place).
 CI's `bench (icount regression tripwire)` then failed on x86_64 with five counters out of bounds,
 four of them faster:

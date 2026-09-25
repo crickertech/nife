@@ -8,7 +8,7 @@ commit; the fixes in the audit's own branch move some of them by a few lines.
 
 | Question | Answer | Where |
 |---|---|---|
-| What arms auto-merge | every open, non-draft PR against `main`, no author test | `scripts/merge-drain.sh` `queue()`; `scripts/queue-hold.sh` `holdable()` |
+| What arms auto-merge | every open, non-draft PR against `main`, no author test | `helpers/merge-drain.sh` `queue()`; `helpers/queue-hold.sh` `holdable()` |
 | Reviews required on `main` | `required_approving_review_count: 0` | `gh api repos/crickertech/nife/rules/branches/main` |
 | Forking, auto-merge | `allow_forking: true`, `allow_auto_merge: true`, public | `gh api repos/crickertech/nife` |
 | Fork workflow approval | `first_time_contributors` | `gh api repos/crickertech/nife/actions/permissions/fork-pr-contributor-approval` |

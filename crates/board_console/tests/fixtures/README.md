@@ -65,8 +65,8 @@ unedited:
 off a board:
 
 - **`qemu-2026-09-19-aarch64-job-mix-medians.log`** is a `--features job_mix` kernel on the aarch64
-  `virt` machine with four cores, taken with `scripts/qemu-bounded.sh` around
-  `scripts/qemu-runner-aarch64.sh` so that the capture is the guest's console and nothing else. It
+  `virt` machine with four cores, taken with `helpers/qemu-bounded.sh` around
+  `helpers/qemu-runner-aarch64.sh` so that the capture is the guest's console and nothing else. It
   runs the whole sweep: six points, 126 subruns, seven `job-mix-kind:` lines under each point, and
   `job-mix: done`. It is what turned the sweep's markers from constants somebody wrote into text a
   kernel printed, and it is where the 4.0-second longest-subrun figure in `script/job-mix`'s `BUGS`

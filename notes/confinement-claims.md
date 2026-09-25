@@ -96,8 +96,8 @@ without interrupt remapping for this reason, and names its escape hatch `allow_u
 
 **The absence is the finding, and it is three-deep.** Row 12 and row 13 are about where a device may
 *read and write*, and neither covers where it may *interrupt*. When this was written, no boot this
-tree runs could exercise the question even if a claim existed: `scripts/qemu-runner-x86_64.sh`
-attached `-device intel-iommu` with no `intremap=on`, and `scripts/qemu-runner-aarch64.sh` used
+tree runs could exercise the question even if a claim existed: `helpers/qemu-runner-x86_64.sh`
+attached `-device intel-iommu` with no `intremap=on`, and `helpers/qemu-runner-aarch64.sh` used
 `gic-version=2`, which has no ITS. And no driver touches an MSI-X table (notes/non-volatile-memory-express.md's `BUGS`: the
 NVMe controller is brought up with `IEN=0` and no MSI-X table is touched), so nothing has ever come
 near it.

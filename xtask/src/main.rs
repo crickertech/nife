@@ -18,7 +18,7 @@
 //!     cargo xtask board-script   write the U-Boot script that boots the board without a person at its prompt
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
-//! which invokes `scripts/qemu-runner-aarch64.sh` via the runner setting in
+//! which invokes `helpers/qemu-runner-aarch64.sh` via the runner setting in
 //! `.cargo/config.toml`. That script is the single source of truth for how the kernel
 //! gets booted, so there is exactly one place to get the QEMU flags wrong.
 
@@ -68,15 +68,15 @@ use crate::swish_check::swish_check;
 use crate::uefi::{uefi_boot, uefi_image, uefi_test};
 
 const TARGET: &str = "aarch64-unknown-none-softfloat";
-const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
+const RUNNER: &str = "helpers/qemu-runner-aarch64.sh";
 
 /// The RISC-V target, for the second-architecture initrd (milestone 20). The kernel itself is built
-/// and run through cargo + `scripts/qemu-runner-riscv64.sh` directly, not this xtask; this const exists
+/// and run through cargo + `helpers/qemu-runner-riscv64.sh` directly, not this xtask; this const exists
 /// only so `initrd-riscv` builds the userspace archive for the matching target.
 const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 
 /// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
-/// `scripts/qemu-runner-x86_64.sh`, exactly as the RISC-V one is, and since item 4's hand-off this
+/// `helpers/qemu-runner-x86_64.sh`, exactly as the RISC-V one is, and since item 4's hand-off this
 /// const also builds the third userspace archive: `initrd-x86` compiles `user` for it and
 /// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port.md.
 const X86_TARGET: &str = "x86_64-unknown-none";
@@ -313,7 +313,7 @@ pub(crate) fn user() -> bool {
     ]) && initrd_aarch64()
 }
 
-/// The packed initrd archive ([`archive::initrd_path`]) is what `scripts/qemu-runner-aarch64.sh` passes to QEMU as
+/// The packed initrd archive ([`archive::initrd_path`]) is what `helpers/qemu-runner-aarch64.sh` passes to QEMU as
 /// `-initrd` (milestone 19f); the raw user ELFs ([`host::bin_elf`]) are only the input `initrd_aarch64` packs.
 ///
 /// **Deliberately the same road Linux's initramfs travels**, now literally an archive like theirs.

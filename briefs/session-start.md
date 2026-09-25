@@ -38,7 +38,7 @@ worktrees and nothing else can:
     launchctl list | grep nife
 
 One entry must be present, `com.nife.at-risk`. If it is missing, `notes/merge-queue.md` has the
-plist; until it is loaded, `scripts/at-risk-check.sh` is one pass you can run by hand from the main
+plist; until it is loaded, `helpers/at-risk-check.sh` is one pass you can run by hand from the main
 checkout. Nothing else should be in that list: `com.nife.merge-drain` and `com.nife.trunk-health`
 are retired, and a laptop still running either is a second drain arming the same pull requests the
 workflow is arming. The retirement commands are in `notes/merge-queue.md`.

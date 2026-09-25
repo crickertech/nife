@@ -91,7 +91,7 @@ whose contract belongs to the trait, and every other one carries a `# Safety` se
 fails.
 
 **One derived split is needed and the tree does not publish it**, so it is computed here with
-`scripts/rust_source.py`'s own stripper and the same `HOST_ONLY` exclusion `script/metrics` applies:
+`helpers/rust_source.py`'s own stripper and the same `HOST_ONLY` exclusion `script/metrics` applies:
 
 | | code lines | `unsafe` blocks |
 |---|---|---|
@@ -238,7 +238,7 @@ that must keep running on a battery, which is the system Tock is.
   `crates/paging` and `crates/direct_memory_access_validator` is exactly that shape, and it was done
   for the prover rather than for the number, but a future reader cannot tell those two motives apart
   from the series.
-- **The `unsafe` block count is a regex over stripped source** (`scripts/rust_source.py`), so it
+- **The `unsafe` block count is a regex over stripped source** (`helpers/rust_source.py`), so it
   counts `unsafe {` and `unsafe fn` and cannot see how much code is inside one.
 - **The six-category audit is a reading, not a proof.** "nife has no allocator in the kernel" was
   checked by grepping for `#[global_allocator]` in `kernel/src` and reading

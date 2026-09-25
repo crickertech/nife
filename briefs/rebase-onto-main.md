@@ -55,8 +55,8 @@ verification is the only thing separating this rule from a guess.
 **If the two sides edit the same sentence or the same rule, stop.** A rule's meaning in dispute is
 calef's call, not a lane's.
 
-**7. Both sides edit one line of a shell script under `scripts/`, touching different tokens.**
-Combine them. The worked example, from `scripts/merge-drain.sh` on 2026-09-24:
+**7. Both sides edit one line of a shell script under `helpers/`, touching different tokens.**
+Combine them. The worked example, from `helpers/merge-drain.sh` on 2026-09-24:
 
 - `origin/main`: `echo "$ME: dequeued #$num ($HELD_LABEL arrived after it was enqueued): $title"`
 - the branch: `echo "merge-drain: dequeued #$num ($why arrived after it was enqueued): $title"`
@@ -77,7 +77,7 @@ for conflict markers. On 2026-09-24 a branch added `echo "merge-drain: ARMED ...
 converted every other literal to `$ME:`, which would have left the script printing a mix of tagged
 and untagged lines and defeated the tagging for the one event that branch existed to add.
 
-**Why `scripts/` needs its own case.** `scripts/merge-drain.sh` has become what
+**Why `helpers/` needs its own case.** `helpers/merge-drain.sh` has become what
 `kernel/src/user/tests.rs` already was: the one file every branch in a subsystem has to edit. When
 `main` gained instance tagging for the watchers (`INSTANCE`, `ME`), every in-flight watcher branch
 collided with it at once.

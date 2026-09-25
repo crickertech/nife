@@ -114,7 +114,7 @@ Two mechanisms stand behind it, because it can die in two different ways:
   shape). `ProgramArguments` is `/bin/sh -c 'cd <checkout> && script/effort --snapshot'`, and a
   `StartInterval` of 21600 (four times a day) is ample for a weekly figure.
 - `script/cadence-check` says when the capture has not happened. It asks whether the committed
-  `notes/project-metrics/effort.csv` holds the current week. `scripts/trunk-health.sh` already calls
+  `notes/project-metrics/effort.csv` holds the current week. `helpers/trunk-health.sh` already calls
   it every five minutes on patagonia, the same machine that holds the records. It is the only row
   in that report that is not a workflow. There is no run history to interrogate, so the output is
   checked instead of the run.
@@ -167,7 +167,7 @@ The biggest mover is `merged_pull_requests`: 17 to 108, all verified against `gi
   abandoned.
 
 `unsafe_trust_unclassified` reappeared, 0 to 16. This is a data gap, not an instrument change.
-`scripts/rust_source.py` was not touched in this window, but its hand-maintained crate tables were.
+`helpers/rust_source.py` was not touched in this window, but its hand-maintained crate tables were.
 Four `crates/` directories landed in those two days that none of `KERNEL_ONLY_CRATES`,
 `USERSPACE_ONLY_CRATES`, `SHARED_CRATES` or `BOOT_CHAIN_CRATES` know about yet: `boot_slot`,
 `current_cpu_protocol`, `file_allocation_table` and `top`. `current_cpu_protocol` carries the unsafe

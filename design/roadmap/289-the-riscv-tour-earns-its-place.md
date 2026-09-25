@@ -50,7 +50,7 @@ breadcrumbs were added for boot 11 to bracket a failure that was *initrd-path-co
 say coupled to this step.
 
 **Booted, rather than read off the source.** On 2026-09-14, in this lane, with QEMU 11.0.2:
-`cargo xtask initrd-riscv`, the default release kernel, `scripts/qemu-bounded.sh 45`:
+`cargo xtask initrd-riscv`, the default release kernel, `helpers/qemu-bounded.sh 45`:
 
 ```
   init/build  : the userspace builder loaded 'least_authority_demo' from a 7648768-byte archive

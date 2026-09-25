@@ -5,7 +5,7 @@ while making `script/bootstrap` finish on a stock Linux box and did not take it 
 stops short of the claim; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **`script/bootstrap` was re-read on 2026-09-19 and the premise is intact.** Its Linux branch still
 runs `sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf`
-(line 78), and it still sources `scripts/qemu-path.sh` at line 18 before any `command -v` probe and
+(line 78), and it still sources `helpers/qemu-path.sh` at line 18 before any `command -v` probe and
 again at line 198 after `script/ci-qemu` builds the pinned QEMU, so the three emulator packages are
 still shadowed for the life of the checkout. The only change to the file since this was written is a
 documentation path, in `9dc04b0` on 2026-09-18. *(Number provisional until the merge queue lands
@@ -23,7 +23,7 @@ sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qe
 ```
 
 and then, minutes later on the same run, builds QEMU 11.0.2 from source because no Ubuntu release
-ships one with `riscv-iommu-pci`. From that moment `scripts/qemu-path.sh` puts the built prefix ahead
+ships one with `riscv-iommu-pci`. From that moment `helpers/qemu-path.sh` puts the built prefix ahead
 of `/usr/bin` on PATH, so **the three emulator packages are shadowed for the life of the checkout**.
 They are a few hundred megabytes downloaded to be overridden.
 
@@ -37,7 +37,7 @@ efi-virtio.rom          pxe-e1000.rom     pxe-virtio.rom     edk2-x86_64-code.fd
 edk2-aarch64-code.fd    edk2-i386-vars.fd edk2-riscv-code.fd (and nine more edk2-*)
 ```
 
-So QEMU ships both of them itself, into the prefix, and `scripts/qemu-uefi-x86_64.sh` already
+So QEMU ships both of them itself, into the prefix, and `helpers/qemu-uefi-x86_64.sh` already
 searches `<prefix>/share/qemu/edk2-x86_64-code.fd` **first**, ahead of the `/usr/share/OVMF` entries,
 for a reason its own header records: CI builds QEMU into a cached prefix, so no absolute path in a
 list can ever name the firmware.
@@ -51,7 +51,7 @@ would be the shape milestone 287 exists to correct: a change that looks right an
 against the configuration it changes.
 
 There is a second-order effect worth stating, because milestone 287 introduced it. `script/bootstrap`
-now sources `scripts/qemu-path.sh` before its `command -v` probes, so on a machine where the prefix
+now sources `helpers/qemu-path.sh` before its `command -v` probes, so on a machine where the prefix
 already holds the pinned QEMU **the whole apt branch is skipped**, firmware packages included. A box
 that ran `script/ci-qemu` before its first `script/setup` therefore never gets `ovmf` or `ipxe-qemu`
 at all. That is believed fine, on the measurement above, and it is currently believed rather than
@@ -62,7 +62,7 @@ shown.
 1. On a Linux box, `apt-get remove --purge ipxe-qemu ovmf` and confirm nothing else on the machine
    wanted them.
 2. `cargo xtask uefi-image && cargo xtask uefi-boot` green, which exercises
-   `scripts/qemu-uefi-x86_64.sh`'s firmware search against the prefix alone.
+   `helpers/qemu-uefi-x86_64.sh`'s firmware search against the prefix alone.
 3. `script/netboot-rehearsal` green, which is the other consumer of the option ROMs.
 4. `script/test` green on all three ISAs, which is where `-device virtio-blk-device` loads
    `efi-virtio.rom`.
@@ -85,11 +85,11 @@ does not. Priced accordingly.
 
 On a cold Linux clone `script/bootstrap` installs five apt packages and then, minutes later on the
 same run, builds QEMU 11.0.2 from source because no Ubuntu release ships one with
-`riscv-iommu-pci`; from that moment `scripts/qemu-path.sh` puts the built prefix ahead of `/usr/bin`
+`riscv-iommu-pci`; from that moment `helpers/qemu-path.sh` puts the built prefix ahead of `/usr/bin`
 on `PATH`, so the three emulator packages are a few hundred megabytes downloaded to be overridden
 for the life of the checkout. The two firmware packages were the reason to be careful and are
 probably redundant too: the prefix QEMU's own `make install` lays down `efi-virtio.rom` and thirteen
-`edk2-*` firmware images, and `scripts/qemu-uefi-x86_64.sh` already searches the prefix ahead of
+`edk2-*` firmware images, and `helpers/qemu-uefi-x86_64.sh` already searches the prefix ahead of
 `/usr/share/OVMF`. Milestone 287 did not act on that, and the restraint is the point: the prefix
 containing the files is not the same claim as the gates passing without the packages, and removing
 one on that evidence would be the shape 287 exists to correct. So the work is four runs on a Linux

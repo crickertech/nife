@@ -6,7 +6,7 @@ groups that cannot pass. Three scripts watched the queue before 2026-09-23 and a
 none responded. This note is the response, what it is made of, and what it got wrong first.
 
 The procedure itself is in [briefs/main-is-red.md](../briefs/main-is-red.md); the mechanics are in
-`scripts/queue-hold.sh`'s header. Neither is repeated here. This is the why, and the evidence.
+`helpers/queue-hold.sh`'s header. Neither is repeated here. This is the why, and the evidence.
 
 ## The gap calef named
 
@@ -14,10 +14,10 @@ The procedure itself is in [briefs/main-is-red.md](../briefs/main-is-red.md); th
 enqueuing the one fix and holding everything else until that lands, then re-enabling everything
 else."*
 
-That is the whole procedure, correctly stated, and nothing implemented it. `scripts/trunk-health.sh`
-says the trunk is red. `scripts/merge-drain.sh` arms everything that does not need calef, which
+That is the whole procedure, correctly stated, and nothing implemented it. `helpers/trunk-health.sh`
+says the trunk is red. `helpers/merge-drain.sh` arms everything that does not need calef, which
 during a red trunk is precisely the wrong thing and it will keep doing it every five minutes.
-`scripts/lane-claim-check.sh` and `scripts/at-risk-check.sh` watch one step earlier still. The
+`helpers/lane-claim-check.sh` and `helpers/at-risk-check.sh` watch one step earlier still. The
 response lived in whoever happened to be at the keyboard, which is rung zero of AGENTS.md's ladder
 and is not a mechanism.
 
@@ -41,7 +41,7 @@ wrong on **2026-09-23** unless another date is given.
 
        gh api graphql -f query='mutation($pr:ID!){dequeuePullRequest(input:{id:$pr}){clientMutationId}}' -f pr="$node_id"
 
-   `scripts/merge-drain.sh` learned the same call on 2026-09-18 for a different reason (a
+   `helpers/merge-drain.sh` learned the same call on 2026-09-18 for a different reason (a
    `needs-architect` label arriving 73 seconds after an enqueue), and `queue-hold.sh` borrows its
    before/after timeline count: the mutation is a silent no-op on a pull request that is not queued,
    so counting `removed_from_merge_queue` events is the only honest way to say whether anything
@@ -57,14 +57,14 @@ wrong on **2026-09-23** unless another date is given.
    check is required, so the merge queue would wait forever). That rule is sound for a kernel and
    false for `crates/documentation`, whose tests render those exact files. So a documentation-only
    commit broke `every_character_survives`, merged, and left `main` red for hours while
-   `scripts/trunk-health.sh`, which reads the conclusion, said green. Pull request #1168 fixes the
+   `helpers/trunk-health.sh`, which reads the conclusion, said green. Pull request #1168 fixes the
    skip. The durable lesson is the watcher's, and is now in its `BUGS`: **a conclusion is a claim
    about what ran, not about the tree.**
 
 ## The fifth thing that fails, and it was ours
 
 **A watcher undid the hold three times, and the hold reported success each time.** Found 2026-09-23
-by watching the live queue refill. `scripts/merge-drain.sh` runs under `launchd` with
+by watching the live queue refill. `helpers/merge-drain.sh` runs under `launchd` with
 `StartInterval 300`, and its admission policy excluded exactly two things, drafts and
 `needs-architect`. It knew nothing about `held-for-red-trunk`, so every hold survived at most five
 minutes and then quietly came apart.
@@ -74,7 +74,7 @@ Two things make this worse than an ordinary bug and worth the space:
 - **The evidence points at the wrong thing.** Dequeuing leaves no record of why an entry returned, so
   a refilled queue reads as the operator's own dequeue having failed. It was misdiagnosed twice
   before anyone read the drain.
-- **It is the same class as the defect this note already records against `scripts/trunk-health.sh`:**
+- **It is the same class as the defect this note already records against `helpers/trunk-health.sh`:**
   a mechanism whose assumption about its environment quietly stopped being true. The drain's
   assumption was that the only reason to keep a pull request out of the queue is a label about that
   pull request. A red trunk is a reason about the queue.
@@ -110,7 +110,7 @@ overturn.
 each pull request's auto-merge state at hold time and restores exactly that. It cannot be built:
 GitHub clears `autoMergeRequest` the moment a pull request enters the queue, so "armed and queued"
 and "never armed" are indistinguishable through the API. Release therefore re-arms every held pull
-request under `scripts/merge-drain.sh`'s admission policy, which is what the drain would have done on
+request under `helpers/merge-drain.sh`'s admission policy, which is what the drain would have done on
 its next pass anyway.
 
 ## How it was rehearsed, since the live queue was not available
@@ -142,7 +142,7 @@ is a failure that reports success:
 ## BUGS
 
 - **Nothing releases a hold, and nothing expires one.** A session that dies mid-hold leaves the queue
-  stopped until a person notices. The tell is `scripts/merge-drain.sh` reporting far fewer unheld
+  stopped until a person notices. The tell is `helpers/merge-drain.sh` reporting far fewer unheld
   pull requests than there are open ones, and the recovery list is in the brief. This is an accepted
   gap of the same family as the watchers not reporting their own death.
 - **A pull request opened or marked ready during a hold is not held.** `hold` labels what is open

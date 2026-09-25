@@ -556,7 +556,7 @@ A nife kernel that has finished its work calls `arch::halt()`, which is `loop { 
 exits, so QEMU never exits either unless something kills it or the kernel asks the host to terminate
 via semihosting (which only the test build does). Two consequences:
 
-1. Every interactive or demo QEMU run must be bounded, with `scripts/qemu-bounded.sh <seconds>
+1. Every interactive or demo QEMU run must be bounded, with `helpers/qemu-bounded.sh <seconds>
    <cmd...>`. `timeout(1)` does not exist on macOS, and `perl -e 'alarm N; exec @ARGV'` DOES NOT
    WORK ON QEMU: QEMU installs its own `SIGALRM` handler and swallows the alarm, so the process runs
    forever.
