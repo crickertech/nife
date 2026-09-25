@@ -217,8 +217,7 @@ const S_SOFTWARE: u32 = 1;
 /// acknowledged, so the handler clears it or it would re-fire the instant interrupts reopen.
 fn clear_software_interrupt() {
     const SSIP: u64 = 1 << 1;
-    // SAFETY: clears a `sip` bit; no memory effect. `csrc` is atomic read-clear.
-    unsafe { core::arch::asm!("csrc sip, {}", in(reg) SSIP, options(nomem, nostack)) };
+    super::instructions::clear_sip(SSIP);
 }
 
 /// Unmask this hart's software interrupts (`sie.SSIE`, bit 1): the reschedule-IPI source. Armed per
@@ -227,10 +226,8 @@ fn clear_software_interrupt() {
 /// until the target's next timer tick.
 pub fn enable_software_interrupts() {
     const SSIE: u64 = 1 << 1;
-    // SAFETY: sets a `sie` bit; takes effect under sstatus.SIE. No memory effect.
-    unsafe {
-        core::arch::asm!("csrs sie, {}", in(reg) SSIE, options(nomem, nostack, preserves_flags));
-    };
+    // Takes effect under sstatus.SIE.
+    super::instructions::set_sie(SSIE);
 }
 /// `scause` exception code for `ecall` taken from U-mode: the syscall.
 const CAUSE_ECALL_U: u64 = 8;
@@ -310,10 +307,8 @@ fn classify(frame: &TrapFrame, code: u64) -> UserFault {
 /// the timer's `sie.STIE`. Setting this is what lets a device interrupt reach [`riscv_trap_dispatch`].
 pub fn enable_external() {
     const SEIE: u64 = 1 << 9;
-    // SAFETY: setting sie.SEIE only unmasks the external-interrupt source; it takes effect under SIE.
-    unsafe {
-        core::arch::asm!("csrs sie, {}", in(reg) SEIE, options(nomem, nostack, preserves_flags));
-    };
+    // Setting sie.SEIE only unmasks the external-interrupt source; it takes effect under SIE.
+    super::instructions::set_sie(SEIE);
 }
 
 /// Install the trap vector: `stvec` = [`trap_entry`], direct mode (all traps to one handler; the low
@@ -323,8 +318,8 @@ pub fn init() {
         fn trap_entry();
     }
     let vector = trap_entry as *const () as usize;
-    // SAFETY: `vector` is our 4-byte-aligned trap entry; writing stvec has no memory effect.
-    unsafe { core::arch::asm!("csrw stvec, {}", in(reg) vector, options(nomem, nostack)) };
+    // SAFETY: `vector` is our 4-byte-aligned trap entry (trap.s's `.balign 4`).
+    unsafe { super::instructions::write_stvec(vector) };
 }
 
 /// Advance `sepc` past the instruction that trapped: 2 bytes if it is compressed (low two bits not
@@ -574,8 +569,7 @@ fn user_fault(frame: &TrapFrame, scause: u64, code: u64) -> ! {
 /// Returns the breakpoint count so the caller can confirm the handler actually ran.
 pub fn self_test() -> usize {
     let before = BRK_COUNT.load(Ordering::Relaxed);
-    // SAFETY: `ebreak` raises a breakpoint the dispatcher handles; it has no other effect.
-    unsafe { core::arch::asm!("ebreak") };
+    super::instructions::ebreak();
     BRK_COUNT.load(Ordering::Relaxed) - before
 }
 
@@ -606,9 +600,7 @@ mod tests {
         }
         let expected = trap_entry as *const () as u64;
 
-        let stvec: u64;
-        // SAFETY: reads a CSR. No side effects.
-        unsafe { core::arch::asm!("csrr {}, stvec", out(reg) stvec, options(nomem, nostack)) };
+        let stvec = crate::arch::riscv64::instructions::read_stvec();
 
         assert_eq!(
             stvec & !0b11,
@@ -648,8 +640,8 @@ mod tests {
 
         let before = BRK_COUNT.load(Ordering::Relaxed);
 
-        // SAFETY: this deliberately traps. We handle it.
-        unsafe { core::arch::asm!("ebreak") };
+        // This deliberately traps. We handle it.
+        crate::arch::riscv64::instructions::ebreak();
 
         assert_eq!(
             BRK_COUNT.load(Ordering::Relaxed),

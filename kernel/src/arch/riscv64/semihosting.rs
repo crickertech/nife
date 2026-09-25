@@ -25,8 +25,6 @@
 // `cfg(test)`, exactly as on aarch64. `not(test)` rather than a blanket allow, so the test build
 // still holds this file to the dead-code gate.
 
-use core::arch::asm;
-
 /// The harness's success code (a passing exit).
 #[cfg_attr(not(test), allow(dead_code))]
 pub const EXIT_SUCCESS: u32 = 0;
@@ -68,8 +66,7 @@ pub fn exit(code: u32) -> ! {
 
     // The finisher terminates the guest; if it somehow does not, stop rather than run on.
     loop {
-        // SAFETY: wait-for-interrupt is always safe.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
+        super::instructions::wfi();
     }
 }
 
@@ -109,26 +106,14 @@ const SRST_RESET_REASON_NONE: usize = 0;
 /// caller should expect is `SBI_ERR_NOT_SUPPORTED` (-2) from an implementation that does not do the
 /// type asked for.
 ///
-/// `a1` is written by the call as `sbiret.value` and is discarded, which is why it is an
-/// `inlateout` rather than an `in`: an `in`-only register the callee writes is exactly the shape
-/// that produces a miscompile nobody sees until the value is used.
+/// `a1` is written by the call as `sbiret.value` and discarded; [`super::sbi::call`] declares it as
+/// an output for every call, so no call site can get that operand wrong any more.
 #[cfg(any(feature = "board", feature = "reboot_soak_test"))]
 fn sbi_system_reset(reset_type: usize) -> isize {
-    let error: isize;
-    // SAFETY: an SBI call. a7 = extension id (SRST), a6 = function id (system_reset), a0 = reset
-    // type, a1 = reset reason (none). The firmware returns sbiret in a0 (the error, taken) and a1
-    // (the value, discarded); nothing else is touched.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_SRST_EID,
-            in("a6") SBI_SYSTEM_RESET_FID,
-            inlateout("a0") reset_type => error,
-            inlateout("a1") SRST_RESET_REASON_NONE => _,
-            options(nostack),
-        );
-    }
-    error
+    let args = [reset_type, SRST_RESET_REASON_NONE, 0, 0, 0, 0];
+    // SAFETY: SRST system_reset with (reset type, reason none). It resets or shuts the machine down,
+    // which is what every caller is asking for; a return means the firmware refused.
+    unsafe { super::sbi::call(SBI_SRST_EID, SBI_SYSTEM_RESET_FID, args) }.error
 }
 
 /// **Ask the firmware for a cold reboot** (milestone 249), and return only if it refuses.
@@ -182,7 +167,6 @@ pub fn exit(code: u32) -> ! {
 
     // SBI SRST should not return. If it does, stop rather than run on.
     loop {
-        // SAFETY: wait-for-interrupt is always safe.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
+        super::instructions::wfi();
     }
 }

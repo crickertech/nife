@@ -473,10 +473,19 @@ def harnesses(pkgs=None):
             if not PROOF.match(line.strip()):
                 continue
             # Downward past any further attributes (`#[kani::unwind(8)]`, `#[kani::solver(..)]`)
-            # to the function this proves.
+            # to the function this proves. An attribute rustfmt wrapped over several lines (a
+            # long `#[kani::stub(..)]`) is skipped to its closing `)]`; before 2026-09-25 one read
+            # as a harness named "?" and dropped out of the count.
             name = None
+            open_attr = False
             for j in range(i + 1, len(lines)):
                 s = lines[j].strip()
+                if open_attr:
+                    open_attr = not s.endswith(")]")
+                    continue
+                if ATTR.match(s) and not s.endswith("]"):
+                    open_attr = True
+                    continue
                 if not s or ATTR.match(s) or COMMENT.match(s):
                     continue
                 hit = FN.match(s)
@@ -631,7 +640,7 @@ class Harness:
         """
         argv = ["cargo", "kani", "-p", self.package]
         if self.pkg.has_global_asm:
-            argv += ["-Z", "unstable-options", "--ignore-global-asm"]
+            argv += ["-Z", "unstable-options", "--ignore-global-asm", "-Z", "stubbing"]
         if self.target is not None and self.target[1] == "bin" and len(self.pkg.bins) > 1:
             argv += ["--bin", self.target[0]]
         return argv + ["--harness", self.qualified, "--exact", "--output-format=terse"]

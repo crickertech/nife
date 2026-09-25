@@ -43,7 +43,7 @@
 //!   64, so the save would be wrong rather than refused. `arch::isa` already reads the ISA string
 //!   and is where that check belongs; it is recorded rather than built.
 
-use core::arch::asm;
+use super::instructions;
 
 /// **How many FP registers this architecture saves**: `f0`-`f31`. See the aarch64 twin.
 #[cfg(test)]
@@ -126,10 +126,7 @@ const SSTATUS_VS: u64 = 0b11 << 9;
 /// call site.
 pub fn init() {
     disable();
-    // SAFETY: clears two bits in `sstatus`, which names no memory.
-    unsafe {
-        asm!("csrc sstatus, {}", in(reg) SSTATUS_VS, options(nomem, nostack, preserves_flags));
-    }
+    instructions::clear_sstatus(SSTATUS_VS);
 }
 
 /// Let this hart execute FP instructions, by moving `FS` out of Off.
@@ -138,11 +135,9 @@ pub fn init() {
 /// Dirty alone, which is exactly the "at least open" this wants. No fence is needed; a CSR write is
 /// ordered with respect to the instructions after it.
 pub fn enable() {
-    // SAFETY: sets one bit in `sstatus`, which names no memory. On a hart with no FP unit the field
-    // is hardwired to zero and this is a no-op, which [`is_enabled`] is how the caller finds out.
-    unsafe {
-        asm!("csrs sstatus, {}", in(reg) SSTATUS_FS_INITIAL, options(nomem, nostack, preserves_flags));
-    }
+    // On a hart with no FP unit the field is hardwired to zero and this is a no-op, which
+    // [`is_enabled`] is how the caller finds out.
+    instructions::set_sstatus(SSTATUS_FS_INITIAL);
 }
 
 /// Is the FP unit open on this hart right now?
@@ -152,12 +147,7 @@ pub fn enable() {
 /// turns the first-use trap into a fault rather than retrying an instruction that will never
 /// execute.
 pub fn is_enabled() -> bool {
-    let sstatus: u64;
-    // SAFETY: reads one CSR into a local.
-    unsafe {
-        asm!("csrr {}, sstatus", out(reg) sstatus, options(nomem, nostack, preserves_flags));
-    }
-    sstatus & SSTATUS_FS != 0
+    instructions::read_sstatus() & SSTATUS_FS != 0
 }
 
 /// Take the unit away again: `FS = Off`.
@@ -165,10 +155,7 @@ pub fn is_enabled() -> bool {
 /// **The caller owes the scrub**, as on every architecture here. See [`crate::fp`]'s header for the
 /// CVE that makes that sentence load-bearing rather than tidy.
 pub fn disable() {
-    // SAFETY: clears two bits in `sstatus`.
-    unsafe {
-        asm!("csrc sstatus, {}", in(reg) SSTATUS_FS, options(nomem, nostack, preserves_flags));
-    }
+    instructions::clear_sstatus(SSTATUS_FS);
 }
 
 /// Copy the live register file into `state`.
@@ -205,7 +192,7 @@ pub fn touch() {
     // SAFETY: writes one FP register. Under `FS == Off` this raises the illegal-instruction trap
     // that `exceptions.rs` turns into an enable, and is re-executed after it.
     unsafe {
-        asm!(
+        core::arch::asm!(
             ".option push",
             ".option arch, +d",
             "fmv.d.x f0, zero",

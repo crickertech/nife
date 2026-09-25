@@ -61,6 +61,8 @@ will actually meet it.
    far side of this line, but "unreachable by construction" was a claim about a directory and the
    truth is a claim about two constructs. (This paragraph named the VisionFive 2 undelivered wake
    until 2026-09-24; BUGS below records why that reading is retracted.)
+
+   A stub can cross it, at a price: [kernel-proofs/stubbing-an-instruction.md](kernel-proofs/stubbing-an-instruction.md).
 3. **Two thirds of `kernel/src/arch/` is not compiled at all, and this is a `cfg` rather than a
    construct** (milestone 304, 2026-09-16). `arch/mod.rs` selects its subtree with
    `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one
@@ -186,13 +188,12 @@ is the thing most often read as more coverage than it is.
 
 | host | `arch/` subtree compiled | harnesses that run |
 |---|---|---|
-| aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/`, and `arch/riscv64/iommu.rs` | 6: two in `syscall.rs`, two in each `iommu.rs` |
-| x86_64 (cordoba; the `ubuntu-24.04` runner) | `arch/x86_64/` | 4: the same two in `syscall.rs`, two in `arch/x86_64/irq.rs` |
+| aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/`, and `arch/riscv64/iommu.rs` | 7: two in `syscall.rs`, two in each `iommu.rs`, one in `fp.rs` |
+| x86_64 (cordoba; the `ubuntu-24.04` runner) | `arch/x86_64/` | 5: the same two in `syscall.rs`, two in `irq.rs`, one in `fp.rs` |
 | riscv64 | **nothing** | **nothing** natively |
 
-Eight distinct harnesses, not ten: `syscall.rs`'s two are portable and run on both. They pass
-identically on both hosts, which is the parity question milestone 304 was sent to answer and is a
-clean answer rather than an interesting one.
+Ten distinct harnesses, not twelve: `syscall.rs`'s two are portable, and pass identically on both
+hosts.
 
 **riscv64 cannot be proved natively here.** GitHub offers no riscv64 image; Kani has no
 cross-target flag; `radon` is a lab board. Its asm-free files can be proved from aarch64 (item 8).

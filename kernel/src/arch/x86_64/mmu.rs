@@ -277,23 +277,13 @@ pub const PCI_ECAM_BUSES: u16 = 1;
 /// is a constant `true` in practice and is read back from the hardware anyway: the one thing worth
 /// knowing here is what the machine says, not what we believe.
 pub fn is_enabled() -> bool {
-    let cr0: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags));
-    }
-    cr0 & (1 << 31) != 0
+    super::instructions::read_cr0() & (1 << 31) != 0
 }
 
 /// The physical address of the page-table root the CPU is currently walking (`CR3`, with the
 /// PCID/flag bits masked off).
 pub fn current_root() -> u64 {
-    let cr3: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-    }
-    cr3 & 0x000f_ffff_ffff_f000
+    read_cr3() & 0x000f_ffff_ffff_f000
 }
 
 /// Print what the MMU is doing, one line, on every boot. The x86 twin of the other two
@@ -429,10 +419,8 @@ pub fn init() {
 /// fetched through a table that does not describe it, which on this architecture is a page fault
 /// escalating to a triple fault and a silent machine reset.
 unsafe fn install(root: u64) {
-    // SAFETY: the caller's contract. This is a control-register write with no memory operand.
-    unsafe {
-        core::arch::asm!("mov cr3, {}", in(reg) root, options(nostack, preserves_flags));
-    }
+    // SAFETY: the caller's contract.
+    unsafe { super::instructions::write_cr3(root) };
 }
 
 /// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root (`CR3` names the whole
@@ -492,11 +480,9 @@ pub fn unmap_page(va: u64) -> Result<u64, MapError> {
 ///
 /// Local first, so this core's own page-table write is retired before anyone is told to look.
 pub fn flush_tlb(va: u64) {
-    // SAFETY: TLB maintenance is always sound. Getting it wrong means a stale translation, which is
-    // the memory-unsafety that matters here rather than Rust's.
-    unsafe {
-        core::arch::asm!("invlpg [{}]", in(reg) va, options(nostack, preserves_flags));
-    }
+    // Getting TLB maintenance wrong means a stale translation, which is the memory-unsafety that
+    // matters here rather than Rust's.
+    super::instructions::invlpg(va);
     shoot_down_others(va);
 }
 
@@ -682,10 +668,7 @@ pub fn serve_shootdown_nmi() -> bool {
         // SAFETY: rewriting CR3 with the value it already holds changes no mapping and invalidates
         // every non-global entry, which with `CR4.PGE` clear is every entry. See `flush_asid`.
         _ if word == SHOOTDOWN_ALL => unsafe { install(read_cr3()) },
-        // SAFETY: TLB maintenance is always sound, at any address.
-        _ => unsafe {
-            core::arch::asm!("invlpg [{}]", in(reg) word, options(nostack, preserves_flags));
-        },
+        _ => super::instructions::invlpg(word),
     }
 
     // Release: the invalidate above is complete before the sender may observe the acknowledgement
@@ -1619,12 +1602,7 @@ pub(crate) fn phys_to_ptr(pa: u64) -> *mut paging::PageTable {
 /// out; the two differ only once `CR4.PCIDE` or the PWT/PCD bits are used, and neither is today.
 /// Kept apart so [`switch_user_root`]'s early return compares what the hardware actually holds.
 fn read_cr3() -> u64 {
-    let cr3: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-    }
-    cr3
+    super::instructions::read_cr3()
 }
 
 /// The physical root of the currently installed user address space.

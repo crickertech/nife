@@ -226,17 +226,12 @@ fn close_cycle_counter_to_el0() {
     // the one place that already had to work it out.
     PMU_PRESENT[cpu::id()].store(true, Ordering::Relaxed);
 
-    // SAFETY: `msr pmuserenr_el0, xzr` only *removes* EL0 permissions; every field of that register
+    // SAFETY: writing zero to `pmuserenr_el0` only *removes* EL0 permissions; every field of that register
     // is an EL0 enable, so zero cannot make any access newly legal, and it does not affect EL1's own
     // PMU access (which `MDCR_EL2.TPM` and `PMCR_EL0` govern, not this register). Writing it is a
     // legal EL1 operation whenever the register is present, which the PMUVer check above
     // establishes. It touches no memory and clobbers no flags, which the options state.
-    unsafe {
-        core::arch::asm!(
-            "msr pmuserenr_el0, xzr",
-            options(nomem, nostack, preserves_flags)
-        );
-    }
+    unsafe { super::instructions::write_pmuserenr(0) };
     COUNTER_OPEN[cpu::id()].store(false, Ordering::Relaxed);
 }
 
@@ -329,13 +324,7 @@ pub fn set_cycle_counter_grant(granted: bool) {
     // Every field of the register is an EL0 *enable*, so no value written here can affect what EL1
     // may do, nor make any EL1 access newly legal; EL1's own PMU access is governed by `MDCR_EL2`
     // and `PMCR_EL0`. It touches no memory and clobbers no flags, which the options state.
-    unsafe {
-        core::arch::asm!(
-            "msr pmuserenr_el0, {}",
-            in(reg) value,
-            options(nomem, nostack, preserves_flags)
-        );
-    }
+    unsafe { super::instructions::write_pmuserenr(value) };
     COUNTER_OPEN[cpu].store(granted, Ordering::Relaxed);
 }
 

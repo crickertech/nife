@@ -36,7 +36,7 @@
 //!   touched one `xmm` register much cheaper than 512 bytes. `fxsave` has no such thing. Worth
 //!   revisiting with the `XCR0` work above rather than before it.
 
-use core::arch::asm;
+use super::instructions::{self, read_cr0, read_cr4};
 
 /// **How many vector registers this architecture saves**: `xmm0`-`xmm15`, sixteen rather than the
 /// other two ISAs' thirty-two. See the aarch64 twin.
@@ -136,12 +136,16 @@ const CR4_OSXMMEXCPT: u64 = 1 << 10;
 pub fn init() {
     let mut cr4 = read_cr4();
     cr4 |= CR4_OSFXSR | CR4_OSXMMEXCPT;
-    write_cr4(cr4);
+    // SAFETY: a read-modify-write of the two SSE enables; `PAE` and every other bit go back as read,
+    // and both bits exist on every x86_64 part.
+    unsafe { instructions::write_cr4(cr4) };
 
     let mut cr0 = read_cr0();
     cr0 &= !CR0_EM;
     cr0 |= CR0_MP | CR0_NE | CR0_TS;
-    write_cr0(cr0);
+    // SAFETY: a read-modify-write of the four FP bits above; paging and write protect go back as
+    // read.
+    unsafe { instructions::write_cr0(cr0) };
 }
 
 /// Let the current CPU execute FP and SSE instructions: clear `CR0.TS`.
@@ -149,9 +153,7 @@ pub fn init() {
 /// `clts` is one byte and exists for exactly this, which is the clearest evidence available that
 /// the whole `TS` mechanism was designed for the lazy scheme this kernel deliberately does not use.
 pub fn enable() {
-    // SAFETY: clears one bit of `CR0`. It names no memory; the widest consequence of getting it
-    // wrong is a thread executing an FP instruction, or trapping one it should not have.
-    unsafe { asm!("clts", options(nomem, nostack, preserves_flags)) };
+    instructions::clts();
 }
 
 /// Is the FP unit open on this CPU right now?
@@ -164,7 +166,8 @@ pub fn is_enabled() -> bool {
 /// **The caller owes the scrub.** That sentence is this architecture's in particular: see the
 /// module header on CVE-2018-3665.
 pub fn disable() {
-    write_cr0(read_cr0() | CR0_TS);
+    // SAFETY: sets `TS` alone; every other bit goes back as read.
+    unsafe { instructions::write_cr0(read_cr0() | CR0_TS) };
 }
 
 /// Copy the live register file into `state`.
@@ -195,31 +198,6 @@ unsafe extern "C" {
     fn fp_restore(state: *const FpState);
 }
 
-fn read_cr0() -> u64 {
-    let cr0: u64;
-    // SAFETY: reads one control register into a local.
-    unsafe { asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags)) };
-    cr0
-}
-
-fn write_cr0(value: u64) {
-    // SAFETY: the callers set and clear only the FP-related bits above, each read back out of the
-    // live register first, so nothing else in `CR0` (paging, write protect) is disturbed.
-    unsafe { asm!("mov cr0, {}", in(reg) value, options(nomem, nostack, preserves_flags)) };
-}
-
-fn read_cr4() -> u64 {
-    let cr4: u64;
-    // SAFETY: reads one control register into a local.
-    unsafe { asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags)) };
-    cr4
-}
-
-fn write_cr4(value: u64) {
-    // SAFETY: as `write_cr0`; read-modify-write of two bits, so `PAE` and the rest are untouched.
-    unsafe { asm!("mov cr4, {}", in(reg) value, options(nomem, nostack, preserves_flags)) };
-}
-
 /// **One harmless SSE instruction, to take the first-use trap on purpose.** Tests only.
 ///
 /// `xorps xmm0, xmm0` zeroes a register the caller is about to overwrite anyway.
@@ -228,7 +206,7 @@ pub fn touch() {
     // SAFETY: writes one `xmm` register. Under a set `CR0.TS` this raises `#NM`, which
     // `exceptions.rs` turns into an enable, and is re-executed after it.
     unsafe {
-        asm!(
+        core::arch::asm!(
             ".arch .default",
             "xorps xmm0, xmm0",
             options(nomem, nostack, preserves_flags),
@@ -273,5 +251,140 @@ impl FpState {
             let at = XMM0 + index * 16;
             self.area[at..at + 16].iter().all(|&byte| byte == 0)
         })
+    }
+}
+
+/// Proofs of the `CR0`/`CR4` edits, reachable since 2026-09-25 because the control-register accesses
+/// they make are functions in [`instructions`] that a harness can stub.
+///
+/// # What the stubs assume
+///
+/// `CR0` and `CR4` are modelled as plain 64-bit registers: a write is visible to the next read,
+/// exactly, and `clts` clears bit 3 of `CR0` and nothing else (Intel SDM vol. 2A, `CLTS`). Real
+/// parts reserve bits and fault on writing them; the model does not, so these proofs say only that
+/// the code writes back every bit it did not mean to change, which is the property a reserved bit
+/// needs. See notes/kernel-proofs/stubbing-an-instruction.md.
+///
+/// **Proved on the `x86_64` verify host only.** Kani compiles for its host, and this file is
+/// `x86_64`'s, so the aarch64 dev machine never compiles it; CI's `prove` shards run on x86_64.
+#[cfg(kani)]
+mod proofs {
+    use core::sync::atomic::AtomicU64;
+    use core::sync::atomic::Ordering::Relaxed;
+
+    use super::*;
+
+    /// The modelled `CR0`.
+    static CR0: AtomicU64 = AtomicU64::new(0);
+    /// The modelled `CR4`.
+    static CR4: AtomicU64 = AtomicU64::new(0);
+
+    #[allow(dead_code)] // named only by `#[kani::stub]`, which rustc cannot see
+    fn read_cr0_model() -> u64 {
+        CR0.load(Relaxed)
+    }
+
+    /// Model of the write.
+    ///
+    /// # Safety
+    /// None of its own: `unsafe` only so its signature matches the `unsafe fn` it stands in for.
+    /// It touches nothing but the model's statics.
+    #[allow(dead_code)] // named only by `#[kani::stub]`
+    unsafe fn write_cr0_model(value: u64) {
+        CR0.store(value, Relaxed);
+    }
+
+    #[allow(dead_code)] // named only by `#[kani::stub]`
+    fn clts_model() {
+        CR0.fetch_and(!CR0_TS, Relaxed);
+    }
+
+    #[allow(dead_code)] // named only by `#[kani::stub]`
+    fn read_cr4_model() -> u64 {
+        CR4.load(Relaxed)
+    }
+
+    /// Model of the write.
+    ///
+    /// # Safety
+    /// None of its own: `unsafe` only so its signature matches the `unsafe fn` it stands in for.
+    /// It touches nothing but the model's statics.
+    #[allow(dead_code)] // named only by `#[kani::stub]`
+    unsafe fn write_cr4_model(value: u64) {
+        CR4.store(value, Relaxed);
+    }
+
+    /// **Every FP edit of `CR0` and `CR4` changes exactly the bits it names, and [`is_enabled`]
+    /// reads back what the last one did.**
+    ///
+    /// `CR0` carries `PG` and `WP` beside the four FP bits, and `CR4` carries `PAE`, `SMEP` and the
+    /// paging controls beside the two SSE enables. A mask one bit wide of its mark here turns off
+    /// write protection or paging on the core that runs it, and on QEMU most such mistakes land on a
+    /// bit that happens to be clear already. [`init`] is also the only thing that establishes `TS`
+    /// set before the first thread runs, which is this module's whole guarantee. Checked for every
+    /// starting value of both registers.
+    ///
+    /// Falsification: unfalsified. This lane (2026-09-25) had no x86_64 host with Kani, so the
+    /// harness has been proved only by CI and never seen red. The three mutations to attest it
+    /// with: `init` omitting `CR0_TS`, `disable` storing `CR0_TS` rather than or-ing it in, and
+    /// `init` setting `CR4_OSFXSR` alone.
+    #[kani::proof]
+    #[kani::stub(super::super::instructions::read_cr0, read_cr0_model)]
+    #[kani::stub(super::super::instructions::write_cr0, write_cr0_model)]
+    #[kani::stub(super::super::instructions::clts, clts_model)]
+    #[kani::stub(super::super::instructions::read_cr4, read_cr4_model)]
+    #[kani::stub(super::super::instructions::write_cr4, write_cr4_model)]
+    fn every_fp_edit_changes_exactly_the_bits_it_names() {
+        let cr0_before: u64 = kani::any();
+        let cr4_before: u64 = kani::any();
+        CR0.store(cr0_before, Relaxed);
+        CR4.store(cr4_before, Relaxed);
+
+        let which: u8 = kani::any();
+        kani::assume(which < 3);
+        // (CR0 bits touched, their value after, CR4 bits touched, their value after)
+        let (cr0_touched, cr0_want, cr4_touched, cr4_want) = match which {
+            0 => {
+                init();
+                let sse = CR4_OSFXSR | CR4_OSXMMEXCPT;
+                (
+                    CR0_EM | CR0_MP | CR0_NE | CR0_TS,
+                    CR0_MP | CR0_NE | CR0_TS,
+                    sse,
+                    sse,
+                )
+            }
+            1 => {
+                enable();
+                (CR0_TS, 0, 0, 0)
+            }
+            _ => {
+                disable();
+                (CR0_TS, CR0_TS, 0, 0)
+            }
+        };
+
+        let cr0 = CR0.load(Relaxed);
+        let cr4 = CR4.load(Relaxed);
+        assert!(
+            cr0 & cr0_touched == cr0_want,
+            "a named CR0 bit did not reach its value"
+        );
+        assert!(
+            cr0 & !cr0_touched == cr0_before & !cr0_touched,
+            "a CR0 bit moved that is not FP's"
+        );
+        assert!(
+            cr4 & cr4_touched == cr4_want,
+            "a named CR4 bit did not reach its value"
+        );
+        assert!(
+            cr4 & !cr4_touched == cr4_before & !cr4_touched,
+            "a CR4 bit moved that is not FP's"
+        );
+        assert!(
+            is_enabled() == (which == 1),
+            "is_enabled disagrees with the last edit"
+        );
     }
 }
