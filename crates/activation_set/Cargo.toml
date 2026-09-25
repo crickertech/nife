@@ -1,0 +1,13 @@
+[package]
+name = "activation_set"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The digest and the line shape. A table entry is `measured_boot`'s manifest line with one column
+# added, so the parser for a digest is the one the progenitor already trusts.
+measured_boot = { version = "0.1.0", path = "../measured_boot" }

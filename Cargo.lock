@@ -16,6 +16,13 @@ name = "abi"
 version = "0.1.0"
 
 [[package]]
+name = "activation_set"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
+
+[[package]]
 name = "address_space_identifier"
 version = "0.1.0"
 

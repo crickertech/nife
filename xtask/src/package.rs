@@ -177,8 +177,16 @@ pub(crate) fn build(root: &std::path::Path, text: &str) -> Result<Built, String>
     for (name, source) in &recipe.members {
         let path =
             resolve(root, recipe.architecture, source).map_err(|c| format!("{name}: {c}"))?;
-        let content = std::fs::read(&path)
-            .map_err(|e| format!("{name}: could not read {}: {e}", path.display()))?;
+        // **A program is packed stripped**, the same bytes the image packs (`read_stripped`).
+        // Unstripped, `uptime` was 881,152 bytes against a job region of 40 pages (160 KiB): an
+        // installed program is bytes something on the target must read into memory to build a
+        // process from, and debug sections nobody on the target reads would have cost more than the
+        // program. Found by rung 3a's consumer lane, 2026-09-24.
+        let content = match source {
+            Source::Program(_) => crate::inspect::read_stripped(&path.display().to_string()),
+            Source::File(_) => std::fs::read(&path),
+        }
+        .map_err(|e| format!("{name}: could not read {}: {e}", path.display()))?;
         bytes.push(content);
     }
     let members: Vec<(&str, &[u8])> = recipe

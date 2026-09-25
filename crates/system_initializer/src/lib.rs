@@ -137,8 +137,11 @@
 //! - [`JOBS_BUDGET_PAGES`] for the jobs the prompt asks for, one reclaimable region per job.
 //!
 //! It also gives up the UART device capability and the UART interrupt as soon as the drivers that
-//! need them are built, the file service as soon as the shell holds it, and everything in
-//! [`BootEndowment::for_test_roles`] with them. The proof is a negative control taken from inside the process and
+//! need them are built, and everything in [`BootEndowment::for_test_roles`] with them. **It keeps
+//! the file service** (milestone 31 phase 3, 2026-08-17): this sentence said it gave that away as
+//! soon as the shell held it, and DECISIONS §208 and milestone 507 repeated it as the reason the
+//! spawner cannot read an installed program. It can; see "The filesystem stays" in `boot`, and
+//! DECISIONS §215 (how the shell names an installed program to the spawner) for what that changes. The proof is a negative control taken from inside the process and
 //! printed at the prompt, exactly the shape `root_supervisor` uses: after the delete, `RETYPE` and
 //! `RETYPE_OBJ` on that slot must answer `NoSuchSlot` (there is nothing there) rather than
 //! `NotPermitted` (there is, and you may not).
