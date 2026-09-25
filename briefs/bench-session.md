@@ -19,9 +19,30 @@ Whoever finishes an entry moves it off this list in the same pull request.
 
 | rank | board | milestone | procedure | calef's hands |
 |---|---|---|---|---|
-| 1 | radon | 168, the multi-tasking workload number (fatal risk 4) | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots.** radon cannot reboot itself: SBI SRST reset type 1 is accepted and U-Boot SPL then hangs at `cannot read pmic power register` (`design/roadmap/249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md`, "The bench answered it, 2026-09-04"). Nothing on patagonia can reach the plug (milestone 224 (nothing can power-cycle radon, so a hung soak needs a person)). |
-| 2 | xenon | 261, the NVMe driver leaves the kernel, and then the soak on xenon (fatal risk 6, then 5) | `design/roadmap/261-el0-nvme-on-xenon.md`; the bench procedure is being written by another lane, so check that block's current text first | the one-time firmware **Data Wipe** of the internal NVMe (261's "What calef has to do"), which cannot be undone; then power |
+| 1 | radon | 168, the multi-tasking workload number (fatal risk 4) | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots**, until the reset fix below lands |
+| 2 | xenon | 261, the NVMe driver leaves the kernel, and then the soak on xenon (fatal risks 6, then 5) | `design/roadmap/261-el0-nvme-on-xenon.md`; the bench procedure is being written by another lane, so read that block's current text first | the one-time firmware **Data Wipe** of the internal NVMe (261's "What calef has to do"), which cannot be undone; power; a keypress at POST |
 | 3 | argon | 127, first light, then 225's soak on argon | `design/roadmap/127-the-sel4-machine.md` and `notes/bench-runbook.md`, "argon, and why it is last" | everything: argon has never booted nife, so cabling, media and power are all his |
+
+**The first step of each session is a watched reset, because a board that can reset itself turns
+every later boot from calef's hands into a command.**
+
+- **radon.** Today it cannot. On 2026-09-04 an SBI SRST cold reboot stopped at `cannot read pmic
+  power register` and never came back (milestone 249 (the boot lottery is sampled by a person
+  walking to the board), "The bench answered it, 2026-09-04"). Pull request #1279 re-read that log:
+  no reset happened; OpenSBI's reboot is an I2C write to the PMIC, and it hangs because U-Boot gated
+  that bus's clocks before the handoff. Nothing on patagonia can reach plug 2 (milestone 224
+  (nothing can power-cycle radon, so a hung soak needs a person)). **Once the lane re-enabling
+  those I2C clocks before the reset has landed**, the first step on radon is one reset, watched
+  through to a second `U-Boot SPL` banner, `payload came from net`, and `soak-test: started`. If it
+  works, milestone 168's boots need no plug cycles, and the calef's-hands cell above shrinks to the
+  first power-on. Until it lands, do not try it: the outcome is known, and it costs a power cycle.
+- **xenon.** The first step is one kernel-initiated reset, the `script/soak-test --reboot` path (pull request #1279, not yet on `main` when this was written),
+  watched to a full boot. The firmware is set to halt at POST on warnings, so a reset that lands on
+  a warning waits for a keypress: say so rather than calling it a hang. While calef is at the
+  machine, ask him to press **Ctrl-P at POST** and record whether Intel AMT/MEBx appears
+  (`design/roadmap/proposals/xenon-may-carry-amt.md`); AMT would be remote power.
+- **argon.** First light comes first. The step after it is a PSCI system reset over `smc`, watched
+  the same way.
 
 The radon soak (milestone 225) is not on this list because it ran on 2026-09-25. Another radon soak
 buys a second draw of the placement lottery, which is worth something, but entry 1 answers a fatal

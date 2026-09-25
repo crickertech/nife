@@ -6,9 +6,10 @@ provisional until the merge queue lands it.)*
 
 **Gate: HARDWARE.** It is the second kind the roadmap README distinguishes: the board is here and
 **this needs a person at it**. The mechanism, the escape and the reader are built and are green on
-what a host can gate. **One claim about radon has since been made, and it closed the route**: on
-2026-09-04 the board accepted SRST reset type 1 and hung in U-Boot SPL at the PMIC read on the way
-back (*The bench answered it, 2026-09-04* below). This paragraph said every such claim was unmade
+what a host can gate. **One claim about radon has since been made**: on 2026-09-04 the board accepted
+SRST reset type 1, stopped at `cannot read pmic power register`, and did not come back without a
+power cycle (*The bench answered it, 2026-09-04* below; which firmware hung, and why, has been
+re-read since). This paragraph said every such claim was unmade
 until 2026-09-25, when it led a maintainer to schedule the same experiment a second time; corrected
 by milestone 225 (run the soak on radon, argon and xenon)'s radon lane. See *What was built, with the board powered off* below, and
 notes/soak.md's procedure, whose first four steps are the ones a lane cannot take.
