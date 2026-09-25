@@ -248,8 +248,8 @@ pub fn print_memory_map(info: &BootInfo) {
 
 use machine_discovery::acpi::{
     self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader, first_drhd,
-    isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_madt, parse_rsdp, parse_sdt_header,
-    root_entry, root_entry_count,
+    isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_fadt_reset, parse_madt, parse_rsdp,
+    parse_sdt_header, root_entry, root_entry_count,
 };
 
 /// The BIOS area the RSDP is required to be in when it is not in the EBDA: `0xe0000..0x100000`,
@@ -313,6 +313,10 @@ pub struct Acpi {
     /// DRHD is what QEMU's `-device intel-iommu` presents, and this driver does not yet route a
     /// device to one of several.
     pub vtd_base: Option<u64>,
+    /// **The FADT's reset register** (milestone 249 (the boot lottery is sampled by a person walking to the board)'s `x86_64` half): where firmware says a write
+    /// resets the machine, and the value to write. `None` for no FADT, an ACPI 1.0 one, or one
+    /// that does not set `RESET_REG_SUP`; the kernel's reboot then starts at port `0xCF9`.
+    pub reset: Option<acpi::ResetRegister>,
 }
 
 impl Default for Acpi {
@@ -328,6 +332,7 @@ impl Default for Acpi {
             has_8259: false,
             ecam: None,
             vtd_base: None,
+            reset: None,
         }
     }
 }
@@ -505,6 +510,11 @@ pub fn read_acpi(hint: u64) -> Acpi {
             b"APIC" => read_madt(body, &mut found),
             b"MCFG" => read_mcfg(body, &mut found),
             b"DMAR" => read_dmar(body, &mut found),
+            b"FACP" => {
+                found.reset = parse_fadt_reset(body);
+                #[cfg(feature = "reboot_soak_test")]
+                super::reset::record(found.reset);
+            }
             _ => {}
         }
     }
@@ -721,6 +731,22 @@ pub fn print_acpi_summary(found: &Acpi) {
     match found.vtd_base {
         Some(base) => crate::println!("                vt-d drhd at {base:#x}"),
         None => crate::println!("                no DMAR: no VT-d unit described"),
+    }
+    // Printed on every boot, not only a rebooting one, because this is the line a bench log is read
+    // for when the question is "what will a reset on this machine write, and where".
+    match found.reset {
+        Some(r) => crate::println!(
+            "                fadt reset register: {:?} {:#x} ({} bits) <- {:#04x}",
+            r.space,
+            r.address,
+            r.bit_width,
+            r.value,
+        ),
+        None => {
+            crate::println!(
+                "                no FADT reset register: a reboot starts at port 0xcf9"
+            );
+        }
     }
 }
 

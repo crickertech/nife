@@ -731,9 +731,9 @@ the board never wedges in the loop, it only stays in it.
 **Two facts this tree does not have, and the bench gets both in the first four minutes.**
 
 **Answered on the bench, 2026-09-04, and the answer is a third outcome this note did not predict.**
-radon's OpenSBI **implements** SRST reset type 1: the `ecall` returns no error, and the SoC resets.
-**The board does not come back.** U-Boot SPL restarts, cannot reach the PMIC over i2c, retries and
-hangs. From `target/board/radon-2026-09-04-srst-reset-pmic.log`, in file order:
+radon's OpenSBI **accepts** SRST reset type 1 and never returns.
+**The board does not come back.** Corrected 2026-09-24: there is no reset. OpenSBI's reset is an I2C
+write to the PMIC; it fails and OpenSBI hangs (notes/board-reboot.md). From `target/board/radon-2026-09-04-srst-reset-pmic.log`, in file order:
 
 ```
 line   3: U-Boot SPL 2021.10 (Feb 12 2023 - 18:15:33 +0800)     <- the power-on boot
@@ -879,7 +879,7 @@ Read this against the log, in this order; the first row that matches is the one 
 | `--stop` exiting 3 having sent **nothing** | No armed reboot loop announced itself: the card may not carry a `--reboot` build, or the watch ended before a draw came round | Check `target/board/boot.cmd` and the build flags, and give `--for` longer. Nothing was written to the board. |
 | `soak-test-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
 | `rebooting now`, then `U-Boot SPL` a few seconds later | **The mechanism works.** SRST reset type 1 is implemented and the loop is running. | Nothing. This is the series. |
-| `rebooting now`, then U-Boot SPL's `i2c read` retries and `cannot read pmic power register` | **What radon actually does** (2026-09-04). The reset happens and the firmware cannot re-init the PMIC on the way back. Not a refusal and not silence: a third outcome. | Power-cycle to recover. The route is closed on this board; milestone 224 is the alternative. |
+| `rebooting now`, then `i2c read` retries and `cannot read pmic power register` | **What radon actually does** (2026-09-04). OpenSBI's PMIC write fails and it hangs before any reset (notes/board-reboot.md). A third outcome. | Power-cycle to recover. The route is closed on this board; milestone 224 is the alternative. |
 | `rebooting now`, then `soak-test-reboot: FAILED ... sbiret.error=-2` | This OpenSBI implements SRST shutdown and **not** cold reboot | The route is closed. The soak keeps running and the board is fine. A smart-plug power cycle is the alternative mechanism; raise it. |
 | `rebooting now`, then nothing, and the board is dark | The firmware treated reset type 1 as a shutdown | Power the board back on. Same conclusion as the row above; record which of the two happened, because they are different firmware bugs. |
 | `rebooting now`, then nothing, and the board is powered but silent | It reset and hung before SPL, or the console dropped | Power-cycle. If it recurs at the same point, that is a finding about the reset path and worth more than the distribution. |

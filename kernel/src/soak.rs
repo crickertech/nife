@@ -129,18 +129,14 @@
 //!   placements and the second measures what one placement does over time. Neither substitutes for
 //!   the other, and the three-hour run in notes/soak.md is why the second is worth keeping.
 
-// **The rebooting soak is riscv64's alone, and the compiler says so rather than a comment**
-// (milestone 249). The reset it performs is SBI SRST's, which is a RISC-V firmware interface; the
-// escape it is checked against is the NS16550's line-status register, which is this architecture's
-// console here. A build of this feature for aarch64 or x86_64 could not do either, and the failure
-// mode of letting it compile is the worst one available: a card written from a build that quietly
-// never reboots looks exactly like a board that drew the same placement fifty times.
-#[cfg(all(feature = "reboot_soak_test", not(target_arch = "riscv64")))]
-compile_error!(
-    "--features reboot_soak_test is riscv64-only: it reboots through SBI SRST and escapes through the \
-     NS16550's LSR, and neither exists on this target. See design/roadmap/\
-     249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md."
-);
+// **The rebooting soak runs on all three architectures** (milestone 249 (the boot lottery is sampled by a person walking to the board)'s parity half,
+// 2026-09-24). It was riscv64's alone, and a `compile_error!` said so, for a reason that still
+// stands: a build that compiled and quietly never rebooted would be the worst available failure,
+// indistinguishable from a board that drew the same placement fifty times. What changed is that
+// each architecture now has a real reset behind `arch::reboot` (SBI SRST, PSCI `SYSTEM_RESET`, the
+// FADT reset register and the two legacy ports) and a real escape behind `console::is_byte_waiting`
+// (the NS16550's and PL011's sticky data-ready bits), and `script/soak-test --reboot` proves under
+// QEMU, per architecture, that the machine came back rather than that the call returned.
 
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
@@ -488,6 +484,17 @@ const TICK_INTID_TOP: u32 = 255;
 #[cfg(feature = "reboot_soak_test")]
 const REBOOT_MARKER: &str = "soak-test-reboot:";
 
+/// **How this architecture asks for a cold reboot, in the words the banner uses** (milestone 249).
+/// `arch::reboot` prints the detail of each attempt; this is the one-phrase version an operator
+/// reads before walking away.
+#[cfg(all(feature = "reboot_soak_test", target_arch = "riscv64"))]
+const REBOOT_ROUTE: &str = "SBI SRST system_reset, reset type 1";
+#[cfg(all(feature = "reboot_soak_test", target_arch = "aarch64"))]
+const REBOOT_ROUTE: &str = "PSCI SYSTEM_RESET, on the conduit /psci names";
+#[cfg(all(feature = "reboot_soak_test", target_arch = "x86_64"))]
+const REBOOT_ROUTE: &str =
+    "the FADT reset register, then port 0xcf9 full reset, then the 8042 reset pulse";
+
 /// **How long one boot soaks before it draws the placement lottery again** (milestone 249).
 ///
 /// Two minutes, and both bounds on the number are measured rather than picked.
@@ -539,8 +546,8 @@ fn arm_reboot() {
     crate::console::discard_rx();
     println!(
         "{REBOOT_MARKER} THIS BUILD REBOOTS THE BOARD. It soaks for {REBOOT_AFTER_SECONDS}s, then \
-         asks the firmware for a cold reboot (SBI SRST reset type 1) and draws the thread-placement \
-         lottery again, forever."
+         asks for a cold reboot ({REBOOT_ROUTE}) and draws the thread-placement lottery again, \
+         forever."
     );
     println!(
         "{REBOOT_MARKER} to stop the loop: press any key on this console. The check is a poll of \
@@ -549,15 +556,15 @@ fn arm_reboot() {
          disarms the reboot and leaves the soak running; it does not end the run."
     );
     println!(
-        "{REBOOT_MARKER} the fallback that needs no cooperation from this kernel is U-Boot's own \
-         autoboot countdown on the next boot, and after that, the card."
+        "{REBOOT_MARKER} the fallback that needs no cooperation from this kernel is the firmware's \
+         own autoboot countdown or boot menu on the next boot, and after that, the boot medium."
     );
 }
 
 /// **The window has run out: announce, offer the grace period, and reset** (milestone 249).
 ///
 /// Returns in exactly two cases, and the caller disarms on both: somebody typed, or the firmware
-/// refused. It cannot return having rebooted, because a successful SRST does not come back.
+/// refused. It cannot return having rebooted, because a successful reset does not come back.
 ///
 /// **It is called after the beat's verdict and never before it**, which is the ordering that
 /// matters most in this file. A soak that has just failed panics, and a panic diverges, so a run
@@ -589,23 +596,15 @@ fn draw_again(elapsed: u64) {
         sched::yield_now();
     }
 
-    // The last line before the machine goes away. Printed *before* the ecall for the same reason
-    // the board test exit prints its verdict before shutting down: once the firmware begins a
-    // reset the UART stops draining, and anything after the call may never reach the wire.
+    // Every attempt prints its own line before it is made, because a reset stops the UART
+    // draining and anything after the call may never reach the wire. `arch::reboot` returns only
+    // when every route this architecture has was refused, each refusal already on the console.
+    println!("{REBOOT_MARKER} rebooting now ({REBOOT_ROUTE}).");
+    arch::reboot(REBOOT_MARKER);
     println!(
-        "{REBOOT_MARKER} rebooting now (SBI SRST system_reset, reset type 1, cold reboot). The \
-         next thing this console should show is U-Boot SPL."
-    );
-
-    // Only reached if the firmware said no. `sbiret.error` is -2 for SBI_ERR_NOT_SUPPORTED, which
-    // is what an OpenSBI build that implements shutdown and not reboot returns, and it is the one
-    // fact about radon's firmware this milestone could not check without the board.
-    let error = arch::semihosting::reboot();
-    println!(
-        "{REBOOT_MARKER} FAILED: the firmware refused a cold reboot and returned \
-         sbiret.error={error} (-2 is SBI_ERR_NOT_SUPPORTED). This OpenSBI implements SRST shutdown \
-         and not SRST reset type 1, so an unattended series is not available on this board by this \
-         route. The soak keeps running; nothing has been damaged and no further reset is attempted."
+        "{REBOOT_MARKER} FAILED: every reset route was refused (the lines above say how), so an \
+         unattended series is not available on this machine by this route. The soak keeps running; \
+         nothing has been damaged and no further reset is attempted."
     );
 }
 

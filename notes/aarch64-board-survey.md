@@ -64,6 +64,15 @@ Foundation has never validated, which is the "seL4 only boots there" failure wit
 
 Prices and availability checked 2026-08-14.
 
+Correction, 2026-09-24: upstream TF-A no longer has a Tegra210 port. It was removed in TF-A
+commit `ab69640507e1` (2026-01-23, "deprecate tegra210 platform"), which cites NVIDIA's forum thread
+"Upstream TF-A fails to boot on Tegra210"
+(<https://forums.developer.nvidia.com/t/upstream-tf-a-fails-to-boot-on-tegra210/350094>). The TX1
+rows below that say "TF-A BL31 (upstream tegra210 port)" describe a port that has since been
+removed, so argon's PSCI is NVIDIA's own firmware or an old TF-A tag. Found while pricing milestone
+249's aarch64 reboot, whose PSCI `SYSTEM_RESET` over `smc` is argon's to prove. Read by that lane's
+research. Nobody has checked which BL31 argon's L4T flash actually carries.
+
 | board | CPU | RAM | GIC | UART | PSCI | sel4bench tier | price, availability |
 |---|---|---|---|---|---|---|---|
 | **Jetson TX1 dev kit** | 4x A57 @ 1.9 GHz | 4 GB | GIC-400 (v2) | 16550-compat @ `0x70006000` | yes, TF-A BL31 (upstream tegra210 port) | **published** | ~$80-105 used, eBay; EOL at NVIDIA |
