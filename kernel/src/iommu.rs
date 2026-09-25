@@ -39,6 +39,92 @@ pub fn is_active() -> bool {
     crate::arch::iommu::is_active()
 }
 
+/// **Whether a requester id's DMA passes through an IOMMU this kernel programmed** (milestone
+/// 261's bench rehearsal). The question `confine` cannot answer for itself: it builds a domain and
+/// hands it to the unit that is up, and on a machine with more than one unit that may not be the
+/// unit the device's transactions reach. Fatal risk 6's first night-of condition, as a value.
+///
+/// Name: provisional. calef names public items.
+// Each architecture's driver constructs its own subset: VT-d the last three, the SMMUv3 and the
+// RISC-V IOMMU `WholeBus`. So on every build some variant is never constructed, by design.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    /// No IOMMU is translating on this machine.
+    NoIommu,
+    /// One IOMMU fronts every requester on the bus: the SMMUv3 and the RISC-V IOMMU as this tree
+    /// brings them up, where the device tree's `iommu-map` is an identity over the whole bus.
+    WholeBus,
+    /// VT-d: the unit at `unit` is translating and owns this requester, and `how` says why.
+    Owned {
+        unit: u64,
+        how: machine_discovery::acpi::Ownership,
+    },
+    /// VT-d: the unit at `translating` is up and **does not own** this requester; `owner` is the
+    /// unit that does, if any. The device's DMA is not translated by anything this kernel set up.
+    Elsewhere {
+        translating: u64,
+        owner: Option<u64>,
+    },
+    /// VT-d: the DMAR described more than this kernel records, so no answer is honest.
+    Unknown { translating: u64 },
+}
+
+impl Scope {
+    /// True only when this kernel's page tables are what the device's DMA is checked against.
+    pub fn is_confining(&self) -> bool {
+        matches!(self, Scope::WholeBus | Scope::Owned { .. })
+    }
+}
+
+impl core::fmt::Display for Scope {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use machine_discovery::acpi::Ownership;
+        match *self {
+            Scope::NoIommu => write!(f, "no iommu is translating on this machine"),
+            Scope::WholeBus => write!(f, "the machine's one iommu fronts the whole bus"),
+            Scope::Owned { unit, how } => match how {
+                Ownership::Named => write!(f, "drhd {unit:#x} names it in its scope"),
+                Ownership::UnderBridge(b, d, fu) => {
+                    write!(
+                        f,
+                        "drhd {unit:#x} owns bridge {b:02x}:{d:02x}.{fu} above it"
+                    )
+                }
+                Ownership::CatchAll => {
+                    write!(
+                        f,
+                        "drhd {unit:#x} is the catch-all and no other unit names it"
+                    )
+                }
+            },
+            Scope::Elsewhere {
+                translating,
+                owner: Some(owner),
+            } => write!(
+                f,
+                "drhd {owner:#x} owns it, but this kernel translates {translating:#x}"
+            ),
+            Scope::Elsewhere {
+                translating,
+                owner: None,
+            } => write!(
+                f,
+                "no drhd owns it (no scope names it, no catch-all); {translating:#x} is up"
+            ),
+            Scope::Unknown { translating } => write!(
+                f,
+                "the dmar did not fit what this kernel records; {translating:#x} is up"
+            ),
+        }
+    }
+}
+
+/// Ask the architecture's driver for `rid`'s [`Scope`].
+pub fn scope_of(rid: u32) -> Scope {
+    crate::arch::iommu::scope_of(rid)
+}
+
 /// Allocate one zeroed frame and return its physical address. The domain's root table and every
 /// intermediate table come from here. These frames are owned by the IOMMU from now on; a re-attach
 /// of the same device leaks the previous domain's tables, which is acceptable because `confine`

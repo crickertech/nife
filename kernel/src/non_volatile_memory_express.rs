@@ -1,5 +1,5 @@
 //! **The NVMe controller's admin plane** (milestone 53's storage half, narrowed to the admin half
-//! by milestone 261; notes/non-volatile-memory-express.md, [DECISIONS §86](../../design/decisions/86-el0-nvme-driver.md)).
+//! by milestone 261 (the NVMe driver leaves the kernel); notes/non-volatile-memory-express.md, [DECISIONS §86 (whether an NVMe driver can leave the kernel)](../../design/decisions/86-el0-nvme-driver.md)).
 //!
 //! What is left in the kernel after §86's **option 2a**, and the line is the one the hardware
 //! already draws. Creating a queue names the physical address a ring lives at, in a PRP field of
@@ -95,8 +95,10 @@ pub enum Error {
     /// The controller completed a command with a nonzero status field (the field is carried).
     Command(u16),
     /// The identify data described a namespace this driver cannot serve (LBA format outside
-    /// 512..=4096 bytes, or a size of zero).
-    UnsupportedNamespace,
+    /// 512..=4096 bytes, or a size of zero). `lba_shift` is the format's LBADS as the controller
+    /// reported it, 0 if the structure was too short to carry one, so the refusal names the LBA
+    /// size it refused (fatal risk 6's second night-of condition).
+    UnsupportedNamespace { lba_shift: u8, blocks: u64 },
     /// CAP describes a controller this driver cannot drive: queues too shallow, a minimum page
     /// size above the kernel's 4 KiB frames, or a doorbell stride whose file would not fit the
     /// one page of BAR0 an EL0 data plane is mapped (`non_volatile_memory_express::MAX_DSTRD`).
@@ -204,10 +206,16 @@ impl NonVolatileMemoryExpress {
                 page_frames::FRAME_SIZE as usize,
             )
         };
-        c.ns = non_volatile_memory_express::parse_identify_namespace(data)
-            .ok_or(Error::UnsupportedNamespace)?;
+        let refused = Error::UnsupportedNamespace {
+            lba_shift: non_volatile_memory_express::lba_format_shift(data).unwrap_or(0),
+            blocks: data
+                .get(0..8)
+                .and_then(|b| b.try_into().ok())
+                .map_or(0, u64::from_le_bytes),
+        };
+        c.ns = non_volatile_memory_express::parse_identify_namespace(data).ok_or(refused)?;
         if c.ns.blocks == 0 || c.ns.blocks_per(BLOCK_SIZE as u64).is_none() {
-            return Err(Error::UnsupportedNamespace);
+            return Err(refused);
         }
 
         // The I/O pair, by admin command, completion queue first: the submission queue names its
@@ -374,22 +382,37 @@ impl NonVolatileMemoryExpress {
 pub struct Found {
     /// BAR0's physical base.
     pub bar0: u64,
+    /// The controller's PCIe requester id, which is what an IOMMU unit owns or does not.
+    pub rid: u32,
     /// The initialized admin plane.
     pub controller: NonVolatileMemoryExpress,
 }
 
-/// **Find, confine, and initialize the machine's NVMe disk.** `None` when no controller is on the
-/// bus (every boot the runner did not attach one), which is a fact about the machine; a controller
-/// that is present but fails bring-up prints the phase it died in and also returns `None`, because
-/// every caller's next move is the same, and the test that cares asserts presence first.
+/// Why [`bring_up`] produced no controller. **Two different facts**, and until milestone 261's
+/// bench rehearsal they shared one `None`: a machine with no NVMe, and a machine whose NVMe this
+/// driver refused. The boot test turned both into the same "skipped" line, and xenon's second
+/// attempt on 2026-09-17 printed exactly that for a disk that was there
+/// (`bench/xenon-2026-09-17/nvme-attempt-2-no-controller-found.log`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Absent {
+    /// No function on the bus carries the NVMe class code.
+    NoController,
+    /// A controller is there and failed bring-up at the named phase.
+    Refused { rid: u32, why: Error },
+}
+
+/// **Find, confine, and initialize the machine's NVMe disk.** [`Absent::NoController`] when no
+/// controller is on the bus (every boot the runner did not attach one), which is a fact about the
+/// machine; a controller that is present but fails bring-up prints the phase it died in and
+/// returns [`Absent::Refused`], which is a fact about this driver and never a reason to skip.
 ///
 /// The order is the confinement story: the device gets its DMA region *before* the controller is
 /// enabled, so there is no instant at which an enabled controller could reach anything else. On a
 /// machine with no IOMMU (a plain `virt` boot with the flag off) the confinement step is skipped
 /// and the driver still runs, with nothing but the driver's own arithmetic bounding the addresses;
 /// the test boots all have one, so the proven configuration is the confined one.
-pub fn bring_up() -> Option<Found> {
-    let dev = crate::pci::find_nvme_device()?;
+pub fn bring_up() -> Result<Found, Absent> {
+    let dev = crate::pci::find_nvme_device().ok_or(Absent::NoController)?;
     // Zeroing is load-bearing for the completion rings: the phase discipline starts from
     // all-zero entries.
     let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGES as usize)
@@ -405,15 +428,19 @@ pub fn bring_up() -> Option<Found> {
         );
     }
     match NonVolatileMemoryExpress::new(mmu::phys_to_virt(dev.bar0), dma, mmu::phys_to_virt(dma)) {
-        Ok(controller) => Some(Found {
+        Ok(controller) => Ok(Found {
             bar0: dev.bar0,
+            rid: dev.rid,
             controller,
         }),
         Err(e) => {
             crate::println!(
                 "  non_volatile_memory_express: controller present but failed bring-up: {e:?}"
             );
-            None
+            Err(Absent::Refused {
+                rid: dev.rid,
+                why: e,
+            })
         }
     }
 }

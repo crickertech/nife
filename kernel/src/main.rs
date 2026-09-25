@@ -79,6 +79,10 @@ mod smp;
 // must still halt: this module is the thing that makes a boot never end.
 #[cfg(feature = "job_mix")]
 mod job_mix;
+// Fatal risk 6's bench boot (milestone 261 (the NVMe driver leaves the kernel)): preflight the two night-of conditions, then measure a
+// confined EL0 NVMe driver's throughput and halt. Behind a feature because it writes to the disk.
+#[cfg(feature = "disk_throughput")]
+mod disk_throughput;
 #[cfg(feature = "soak_test")]
 mod soak;
 mod stack;
@@ -622,8 +626,22 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
             // either write never takes, so reaching this line already is the confirmation: the
             // hardware's own status register, not an assumption that the write succeeded.
+            arch::iommu::record_dmar(acpi.dmar);
             arch::iommu::init(base);
-            println!("  vt-d        : drhd {base:#x} up, translation enabled (gsts.tes confirmed)");
+            println!(
+                "  vt-d        : drhd {base:#x} up ({} of {} unit(s), {}), translation enabled (gsts.tes confirmed)",
+                acpi.dmar
+                    .units()
+                    .iter()
+                    .position(|d| d.register_base == base)
+                    .map_or(0, |i| i + 1),
+                acpi.dmar.units().len(),
+                if acpi.dmar.translating().is_some_and(|d| d.include_pci_all) {
+                    "the catch-all"
+                } else {
+                    "named devices only"
+                },
+            );
         } else {
             println!("  vt-d        : skipped, no DMAR");
         }
@@ -799,13 +817,22 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
         // **Nothing halts by default** (milestone 268), on this architecture as on the other two:
         // the boot hands the machine to the progenitor, loaded from the archive and measured, and
         // the boot thread parks in a preemptible `wfi` loop so it gets scheduled. That is milestone
         // 182's entry point. What it cannot reach yet is a prompt, because a shell needs a console
         // and this one is port I/O; `x86_hand_over` says so in the transcript rather than leaving
         // a silent machine to be read as a hang.
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         {
             // **The install offer** (milestone 198 (a package manager, and the trivial install that
             // makes a second customer possible), rung 2a), and it has to be here rather than after
@@ -1656,6 +1683,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
         // **Nothing halts by default** (milestone 268, item 4). The tour used to end here in
         // `arch::halt()`, and that was the right thing to do while the arch layer beneath the
         // shared path was still being built: there was nothing honest to fall through to. There is
@@ -1676,7 +1708,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // `halt` afterwards, and it is not dead: the boot thread's own work is done and it parks in
         // a preemptible `wfi` loop so the progenitor and its children get scheduled. A boot with no
         // archive says so inside `riscv_hand_over` and parks the same way.
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         {
             riscv_hand_over();
             arch::halt();
@@ -2065,8 +2101,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
 
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to the userspace progenitor.");
@@ -2079,7 +2124,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
     // parking.
-    #[cfg(not(any(feature = "bench", feature = "soak_test", feature = "job_mix")))]
+    #[cfg(not(any(
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    )))]
     arch::halt()
 }
 
@@ -2243,7 +2293,13 @@ fn stack_top() -> usize {
 // rather than `cfg`-ed out, so the function still compiles in every configuration: a handoff that
 // only type-checks in the configurations that use it is one that rots in the others.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 fn riscv_hand_over() {
@@ -2293,7 +2349,13 @@ fn riscv_hand_over() {
 #[cfg(target_arch = "x86_64")]
 // Uncalled in the four configurations `riscv_hand_over` is, for the same reasons.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 fn x86_hand_over() {

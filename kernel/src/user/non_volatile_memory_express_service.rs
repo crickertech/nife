@@ -110,9 +110,20 @@ pub struct Wiring {
     /// bytes through the direct map. Not something a client of the blk contract needs; the kernel
     /// test uses it to read back what the disk returned.
     pub transfer_phys: u64,
-    /// True when an IOMMU was active and the controller's requester id was confined to the DMA
-    /// region before it was enabled. False means the driver is as unconfined as its arithmetic.
+    /// True when the IOMMU unit this kernel programmed is **the one that owns the controller's
+    /// requester id** ([`crate::iommu::Scope::is_confining`]), and the controller was confined to the
+    /// DMA region before it was enabled. False means the driver is as unconfined as its
+    /// arithmetic. Until milestone 261's bench rehearsal this was `iommu::is_active()`, which is true
+    /// on any machine where *some* unit is translating, owner or not.
     pub confined_by_iommu: bool,
+    /// Which unit owns the controller, and how: the evidence behind `confined_by_iommu`, printed
+    /// by the bench preflight (fatal risk 6's first night-of condition).
+    pub scope: crate::iommu::Scope,
+    /// The controller's PCIe requester id.
+    pub rid: u32,
+    /// Logical blocks per 4096-byte filesystem block, as the handoff carried it into ring 3:
+    /// always in `1..=8` for a server that started (fatal risk 6's second night-of condition).
+    pub blocks_per: u16,
     /// **The namespace's size in bytes as the kernel's admin plane read it from IDENTIFY**, which
     /// is the number [`non_volatile_memory_express::Handoff`] carried into ring 3. A test compares the server's answers
     /// against *this* rather than against a constant, so the same assertions hold on QEMU's 8 MiB
@@ -128,20 +139,33 @@ static REQUEST: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::n
 static TRANSFER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 static CONFINED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 static SIZE_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+static RID: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+static BLOCKS_PER: core::sync::atomic::AtomicU16 = core::sync::atomic::AtomicU16::new(0);
 
 /// Wire the NVMe server if this boot has not already, else hand back what is already running.
 /// `None` when there is no NVMe controller on the bus, or when one is present and failed
-/// bring-up: both are facts about the machine rather than about this wiring, and
-/// `kernel/src/non_volatile_memory_express.rs::bring_up` prints which.
+/// bring-up. For a caller that must tell those two apart (a test, a bench), [`ensure_or_why`].
 pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
+    ensure_or_why(image).ok()
+}
+
+/// [`ensure`], keeping the reason there is no server: no controller on the bus, or a controller
+/// this driver refused and why (milestone 261's bench rehearsal). The second is never a skip.
+pub fn ensure_or_why(
+    image: &'static [u8],
+) -> Result<Wiring, crate::non_volatile_memory_express::Absent> {
     use core::sync::atomic::Ordering;
 
     if WIRED.load(Ordering::Acquire) {
-        return Some(Wiring {
+        let rid = RID.load(Ordering::Relaxed);
+        return Ok(Wiring {
             ready: None,
             request: REQUEST.load(Ordering::Relaxed),
             transfer_phys: TRANSFER.load(Ordering::Relaxed),
             confined_by_iommu: CONFINED.load(Ordering::Relaxed),
+            scope: crate::iommu::scope_of(rid),
+            rid,
+            blocks_per: BLOCKS_PER.load(Ordering::Relaxed),
             size_bytes: SIZE_BYTES.load(Ordering::Relaxed),
         });
     }
@@ -150,14 +174,18 @@ pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
     TRANSFER.store(w.transfer_phys, Ordering::Relaxed);
     CONFINED.store(w.confined_by_iommu, Ordering::Relaxed);
     SIZE_BYTES.store(w.size_bytes, Ordering::Relaxed);
+    RID.store(w.rid, Ordering::Relaxed);
+    BLOCKS_PER.store(w.blocks_per, Ordering::Relaxed);
     WIRED.store(true, Ordering::Release);
-    Some(w)
+    Ok(w)
 }
 
 /// **Bring the controller up in the kernel, then hand its data plane to a process.**
-fn start(image: &'static [u8]) -> Option<Wiring> {
+fn start(image: &'static [u8]) -> Result<Wiring, crate::non_volatile_memory_express::Absent> {
     let found = crate::non_volatile_memory_express::bring_up()?;
-    let confined_by_iommu = crate::iommu::is_active();
+    let rid = found.rid;
+    let scope = crate::iommu::scope_of(rid);
+    let confined_by_iommu = scope.is_confining();
     let handoff = found.controller.handoff();
     let words = handoff.pack();
 
@@ -214,11 +242,14 @@ fn start(image: &'static [u8]) -> Option<Wiring> {
     })
     .expect("could not spawn the NVMe server");
 
-    Some(Wiring {
+    Ok(Wiring {
         ready: Some(ready),
         request,
         transfer_phys,
         confined_by_iommu,
+        scope,
+        rid,
+        blocks_per: handoff.blocks_per,
         size_bytes: handoff.size_bytes,
     })
 }

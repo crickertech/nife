@@ -550,6 +550,22 @@ pub fn parse_identify_namespace(data: &[u8]) -> Option<IdentifyNamespace> {
     })
 }
 
+/// **The LBA data shift the namespace is formatted with, whatever it is**: the same LBADS byte
+/// [`parse_identify_namespace`] reads, before that function's bounds refuse it. `None` only when
+/// the structure is too short to carry the format table.
+///
+/// It exists so a refusal can say what it refused (milestone 261's bench rehearsal). Fatal risk
+/// 6's second night-of condition is that the Micron's format gives `blocks_per` in `1..=8`, and a
+/// namespace this driver declines has to print its LBA size rather than arrive at the bench as a
+/// server that never started and a test that reads "skipped".
+pub fn lba_format_shift(data: &[u8]) -> Option<u8> {
+    if data.len() < 384 {
+        return None;
+    }
+    let flbas = data[26] & 0xf;
+    Some(data[128 + 4 * flbas as usize + 2])
+}
+
 /// See [`parse_identify_namespace`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IdentifyNamespace {
@@ -576,7 +592,7 @@ impl IdentifyNamespace {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The split between an admin plane and a data plane (milestone 261, DECISIONS §86 option 2a).
+// The split between an admin plane and a data plane (milestone 261 (the NVMe driver leaves the kernel), DECISIONS §86 (whether an NVMe driver can leave the kernel) option 2a).
 //
 // Everything above this line is indifferent to who runs it. Everything below exists because the
 // two halves of an NVMe driver now live in two privilege levels: the admin plane (reset, the
@@ -916,6 +932,20 @@ mod tests {
         data[130] = 13; // an LBA format this driver cannot serve
         assert!(parse_identify_namespace(&data).is_none());
         assert!(parse_identify_namespace(&[0u8; 100]).is_none(), "truncated");
+    }
+
+    /// A refused format still says what it was, which is what lets the bench print "8192-byte
+    /// LBAs" instead of "skipped". Read through FLBAS, so a namespace formatted with its second
+    /// format reports that one rather than format 0.
+    #[test]
+    fn a_refused_lba_format_still_reports_its_shift() {
+        let mut data = [0u8; 4096];
+        data[26] = 1; // FLBAS: format 1
+        data[130] = 9; // format 0: 512 bytes, not the one in use
+        data[134] = 13; // format 1: 8192 bytes
+        assert!(parse_identify_namespace(&data).is_none());
+        assert_eq!(lba_format_shift(&data), Some(13));
+        assert_eq!(lba_format_shift(&[0u8; 383]), None);
     }
 
     #[test]

@@ -44,11 +44,13 @@
 //! - **The MADT's `flags` bit 0 (`PCAT_COMPAT`) is reported and not acted on.** It means the machine
 //!   also has 8259 PICs that must be masked before the APICs are used. Whoever brings the APIC up
 //!   has to mask them; this only says whether they are there.
-//! - **A DRHD's device-scope list is not decoded**, only skipped over by [`DmarStructures`]' length
-//!   field. On a machine with one DRHD covering the whole segment (QEMU's `-device intel-iommu`)
-//!   that list decides nothing this driver needs; on a machine with more than one unit it decides
-//!   which DRHD owns which device, and [`first_drhd`] taking the first one is exactly the corner
-//!   this parser cuts. See `kernel/src/arch/x86_64/iommu.rs`'s own header for what that costs.
+//! - **A DRHD's PCI device scopes are decoded into fixed arrays** ([`DmarUnits`], milestone 261 (the NVMe driver leaves the kernel)'s
+//!   bench rehearsal) and anything past them sets [`DmarUnits::truncated`], which turns an
+//!   ownership question into "unknown" rather than a guess. IOAPIC, HPET and ACPI-namespace scopes
+//!   are skipped, and RMRR, ATSR and the rest are not decoded at all: nothing here maps an RMRR,
+//!   so a device firmware expects to keep DMA-ing into one (USB legacy emulation, the integrated
+//!   GPU's stolen memory) faults once its unit translates. [`first_drhd`] is kept for its callers
+//!   and is no longer the unit the kernel brings up.
 //! - **`Dmar::flags`' `INTR_REMAP` bit is read and never used.** Interrupt remapping is a real VT-d
 //!   feature this parser can report the presence of and this kernel does not build.
 //! - **An MCFG window whose `end_bus` precedes its `start_bus` is reported as written.** Nothing in
@@ -705,6 +707,264 @@ pub fn first_drhd(body: &[u8]) -> Option<Drhd> {
         DmarEntry::Drhd(d) => Some(d),
         DmarEntry::Other(_) => None,
     })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Which unit owns which device: the device-scope lists, decoded (milestone 261's bench rehearsal).
+// ---------------------------------------------------------------------------------------------
+
+/// How many DRHDs [`DmarUnits`] records. A client Intel part has two (one for the integrated
+/// graphics, one catch-all); a two-socket server has one per root complex, a handful. A table with
+/// more than this sets [`DmarUnits::truncated`] rather than dropping the rest silently.
+pub const MAX_DRHDS: usize = 8;
+/// How many PCI device-scope entries [`DmarUnits`] records across every DRHD. Only the two PCI
+/// types are kept (endpoint and sub-hierarchy); IOAPIC, HPET and ACPI-namespace entries name no
+/// requester id this kernel confines and are skipped.
+pub const MAX_SCOPES: usize = 32;
+/// The longest path a recorded scope can carry: the device itself plus three bridges above it.
+/// Deeper than any machine this tree has met, and a deeper one sets [`DmarUnits::truncated`].
+pub const MAX_SCOPE_PATH: usize = 4;
+
+/// Device-scope type 1: a PCI endpoint, named by its path from the start bus.
+pub const SCOPE_PCI_ENDPOINT: u8 = 1;
+/// Device-scope type 2: a PCI-PCI bridge, and with it **every device below it**.
+pub const SCOPE_PCI_SUBHIERARCHY: u8 = 2;
+
+/// The fixed part of a device-scope entry before its path: type, length, flags, reserved,
+/// enumeration id, start bus. VT-d 3.x section 8.3.1; QEMU's `insert_scope` writes the same six.
+const SCOPE_FIXED_LEN: usize = 6;
+
+/// **One PCI device-scope entry, as the firmware wrote it**: a start bus and a path of
+/// (device, function) pairs, each hop but the last a bridge whose secondary bus is where the next
+/// hop lives. Resolving the path therefore needs the bus's live bridge registers, which is why
+/// [`DmarUnits::owner`] takes a reader rather than doing it here.
+///
+/// Name: provisional (milestone 261's bench rehearsal). calef names public items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DeviceScope {
+    /// Index into [`DmarUnits::drhds`] of the unit this entry belongs to.
+    pub unit: u8,
+    /// [`SCOPE_PCI_ENDPOINT`] or [`SCOPE_PCI_SUBHIERARCHY`].
+    pub kind: u8,
+    pub start_bus: u8,
+    /// `(device, function)` per hop, the first on `start_bus`. Only `path[..path_len]` is real.
+    pub path: [(u8, u8); MAX_SCOPE_PATH],
+    pub path_len: u8,
+}
+
+/// **How a unit came to own a device**, which is the half of the answer a bench reader needs to
+/// believe the other half. The three ways the VT-d specification allows (section 8.3).
+///
+/// Name: provisional (milestone 261's bench rehearsal).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ownership {
+    /// The unit's scope names this function as an endpoint.
+    Named,
+    /// The unit's scope names a bridge, and this function's bus is inside the bridge's
+    /// secondary..=subordinate range. The bridge is carried as (bus, device, function).
+    UnderBridge(u8, u8, u8),
+    /// Nothing names the function, and this unit carries `INCLUDE_PCI_ALL` for its segment.
+    CatchAll,
+}
+
+/// **Every DRHD and every PCI device scope in one DMAR**, decoded into fixed arrays so the kernel
+/// can keep it after the firmware's bytes are out of reach (it is read at boot, before the fine
+/// map, and asked after it). `Copy` and free of lifetimes for exactly that reason.
+///
+/// This exists because [`first_drhd`] answered a question nobody on real hardware asks. xenon's
+/// DMAR is 204 bytes and its first DRHD is `0xfed90000`; on the Skylake `OptiPlex` 7040, the same
+/// family and the same register addresses, Linux reports that unit with flags `0x0` and a second
+/// at `0xfed91000` with flags `0x1` (`INCLUDE_PCI_ALL`), which is the integrated-graphics unit
+/// followed by the catch-all. If xenon is laid out the same way, the unit this kernel brought up
+/// on 2026-09-17 never saw the NVMe's requester id at all. See
+/// notes/risk-6-bench-evening.md for the source and what the bench does about it.
+///
+/// Name: provisional (milestone 261's bench rehearsal).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DmarUnits {
+    pub drhds: [Drhd; MAX_DRHDS],
+    pub drhd_count: usize,
+    pub scopes: [DeviceScope; MAX_SCOPES],
+    pub scope_count: usize,
+    /// Something in the table did not fit the arrays above: a ninth DRHD, a thirty-third PCI
+    /// scope, a path deeper than [`MAX_SCOPE_PATH`], or a scope whose length disagrees with its
+    /// path. **When set, a device no recorded scope names is answered "unknown" rather than handed
+    /// to the catch-all**, because the entry that names it may be the one that was dropped.
+    pub truncated: bool,
+}
+
+impl Default for DmarUnits {
+    fn default() -> Self {
+        Self {
+            drhds: [Drhd {
+                include_pci_all: false,
+                segment: 0,
+                register_base: 0,
+            }; MAX_DRHDS],
+            drhd_count: 0,
+            scopes: [DeviceScope::default(); MAX_SCOPES],
+            scope_count: 0,
+            truncated: false,
+        }
+    }
+}
+
+impl DmarUnits {
+    /// Decode every DRHD and its PCI scopes. `body` begins after the SDT header. Total for any
+    /// input: a malformed scope list stops that unit's scopes and sets [`DmarUnits::truncated`].
+    pub fn parse(body: &[u8]) -> DmarUnits {
+        let mut u = DmarUnits::default();
+        let mut at = DMAR_FIXED_LEN;
+        while at + 4 <= body.len() {
+            let kind = u16(body, at);
+            let len = u16(body, at + 2) as usize;
+            if len < 4 || at + len > body.len() {
+                break;
+            }
+            let e = &body[at..at + len];
+            at += len;
+            if kind != 0 || len < DRHD_FIXED_LEN {
+                continue;
+            }
+            if u.drhd_count == MAX_DRHDS {
+                u.truncated = true;
+                continue;
+            }
+            let unit = u.drhd_count;
+            u.drhds[unit] = Drhd {
+                include_pci_all: e[4] & 1 != 0,
+                segment: u16(e, 6),
+                register_base: u64(e, 8),
+            };
+            u.drhd_count += 1;
+            u.read_scopes(unit as u8, &e[DRHD_FIXED_LEN..]);
+        }
+        u
+    }
+
+    fn read_scopes(&mut self, unit: u8, mut list: &[u8]) {
+        while list.len() >= 2 {
+            let kind = list[0];
+            let len = list[1] as usize;
+            if len < SCOPE_FIXED_LEN
+                || len > list.len()
+                || !(len - SCOPE_FIXED_LEN).is_multiple_of(2)
+            {
+                self.truncated = true;
+                return;
+            }
+            let entry = &list[..len];
+            list = &list[len..];
+            if kind != SCOPE_PCI_ENDPOINT && kind != SCOPE_PCI_SUBHIERARCHY {
+                continue;
+            }
+            let hops = (len - SCOPE_FIXED_LEN) / 2;
+            if hops == 0 || hops > MAX_SCOPE_PATH || self.scope_count == MAX_SCOPES {
+                self.truncated = true;
+                continue;
+            }
+            let mut s = DeviceScope {
+                unit,
+                kind,
+                start_bus: entry[5],
+                path_len: hops as u8,
+                ..DeviceScope::default()
+            };
+            for h in 0..hops {
+                s.path[h] = (
+                    entry[SCOPE_FIXED_LEN + 2 * h],
+                    entry[SCOPE_FIXED_LEN + 2 * h + 1],
+                );
+            }
+            self.scopes[self.scope_count] = s;
+            self.scope_count += 1;
+        }
+    }
+
+    /// The recorded DRHDs, in table order.
+    pub fn units(&self) -> &[Drhd] {
+        &self.drhds[..self.drhd_count]
+    }
+
+    /// **The unit this kernel should translate through**, when it brings up exactly one: the
+    /// `INCLUDE_PCI_ALL` unit for segment 0 if there is one, else the first. The catch-all is the
+    /// unit every device this kernel drives by DMA lives behind on a client Intel machine (NVMe,
+    /// NIC, USB); the other is the graphics unit, and translating that one confines only a GPU this
+    /// kernel does not drive. On QEMU's single-unit `q35` the two rules pick the same unit.
+    pub fn translating(&self) -> Option<Drhd> {
+        self.units()
+            .iter()
+            .copied()
+            .find(|d| d.include_pci_all && d.segment == 0)
+            .or_else(|| self.units().first().copied())
+    }
+
+    /// **Which unit owns PCI function `bus:dev.func` on `segment`**, by the VT-d specification's
+    /// rule (section 8.3): an explicit scope anywhere wins, then the segment's `INCLUDE_PCI_ALL`
+    /// unit. `Ok(None)` is a machine where nothing translates this device's DMA. `Err(())` is a
+    /// table this decoder recorded only part of, where the missing part could be the answer.
+    ///
+    /// `bridge` returns a bridge's `(secondary, subordinate)` bus numbers, or `None` when
+    /// `bus:dev.func` is not a bridge. It is the live bus, which is the only thing that can turn a
+    /// firmware path into a bus number.
+    #[allow(clippy::result_unit_err)]
+    pub fn owner(
+        &self,
+        segment: u16,
+        bus: u8,
+        dev: u8,
+        func: u8,
+        bridge: &mut dyn FnMut(u8, u8, u8) -> Option<(u8, u8)>,
+    ) -> Result<Option<(Drhd, Ownership)>, ()> {
+        for s in &self.scopes[..self.scope_count] {
+            let unit = self.drhds[s.unit as usize];
+            if unit.segment != segment {
+                continue;
+            }
+            // Walk every hop but the last: each is a bridge, and its secondary bus is where the
+            // next hop sits. A hop that is not a bridge on this machine means the path describes
+            // hardware that is not here, and the scope names nothing.
+            let mut at_bus = s.start_bus;
+            let mut resolved = true;
+            let n = s.path_len as usize;
+            // `parse` never records an empty or over-long path; the fields are public, so say so
+            // here rather than let a hand-built scope underflow `n - 1`.
+            if n == 0 || n > MAX_SCOPE_PATH {
+                continue;
+            }
+            for &(d, f) in &s.path[..n - 1] {
+                match bridge(at_bus, d, f) {
+                    Some((secondary, _)) => at_bus = secondary,
+                    None => {
+                        resolved = false;
+                        break;
+                    }
+                }
+            }
+            if !resolved {
+                continue;
+            }
+            let (d, f) = s.path[n - 1];
+            if (at_bus, d, f) == (bus, dev, func) {
+                return Ok(Some((unit, Ownership::Named)));
+            }
+            if s.kind == SCOPE_PCI_SUBHIERARCHY
+                && let Some((secondary, subordinate)) = bridge(at_bus, d, f)
+                && (secondary..=subordinate).contains(&bus)
+            {
+                return Ok(Some((unit, Ownership::UnderBridge(at_bus, d, f))));
+            }
+        }
+        if self.truncated {
+            return Err(());
+        }
+        Ok(self
+            .units()
+            .iter()
+            .copied()
+            .find(|d| d.include_pci_all && d.segment == segment)
+            .map(|d| (d, Ownership::CatchAll)))
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2079,5 +2339,162 @@ mod tests {
         body[DMAR_FIXED_LEN + 2] = 0;
         body[DMAR_FIXED_LEN + 3] = 0;
         assert_eq!(dmar_structures(&body).count(), 0);
+    }
+
+    extern crate std;
+
+    /// A DRHD with its scope list, for the device-scope tests below.
+    fn drhd(flags: u8, base: u64, scopes: &[&[u8]]) -> std::vec::Vec<u8> {
+        let len = DRHD_FIXED_LEN + scopes.iter().map(|s| s.len()).sum::<usize>();
+        let mut e = std::vec![0u8; DRHD_FIXED_LEN];
+        e[0..2].copy_from_slice(&0u16.to_le_bytes());
+        e[2..4].copy_from_slice(&(len as u16).to_le_bytes());
+        e[4] = flags;
+        e[8..16].copy_from_slice(&base.to_le_bytes());
+        for s in scopes {
+            e.extend_from_slice(s);
+        }
+        e
+    }
+
+    /// One device-scope entry: type, start bus, and a path of (device, function) hops.
+    fn scope(kind: u8, start_bus: u8, path: &[(u8, u8)]) -> std::vec::Vec<u8> {
+        let mut s = std::vec![
+            kind,
+            (SCOPE_FIXED_LEN + 2 * path.len()) as u8,
+            0,
+            0,
+            0,
+            start_bus
+        ];
+        for &(d, f) in path {
+            s.push(d);
+            s.push(f);
+        }
+        s
+    }
+
+    fn dmar(units: &[std::vec::Vec<u8>]) -> std::vec::Vec<u8> {
+        let mut b = std::vec![0u8; DMAR_FIXED_LEN];
+        b[0] = 38;
+        for u in units {
+            b.extend_from_slice(u);
+        }
+        b
+    }
+
+    /// The bus xenon is expected to have: a root port at 00:1d.0 with the NVMe on bus 1 below it.
+    fn xenon_bus(bus: u8, dev: u8, func: u8) -> Option<(u8, u8)> {
+        ((bus, dev, func) == (0, 0x1d, 0)).then_some((1, 1))
+    }
+
+    /// **The layout a client Intel machine publishes, and the reason this decoder exists.** The
+    /// integrated-graphics unit first, naming 00:02.0 and nothing else, then the catch-all with its
+    /// IOAPIC and HPET scopes. This is the `OptiPlex` 7040's as Linux prints it (flags 0x0 at
+    /// 0xfed90000, flags 0x1 at 0xfed91000); xenon is the 7050, the next generation of the same
+    /// board. `first_drhd` picks the graphics unit, and the NVMe is not behind it.
+    #[test]
+    fn on_a_client_intel_layout_the_nvme_belongs_to_the_catch_all_not_the_first_unit() {
+        let body = dmar(&[
+            drhd(0, 0xfed9_0000, &[&scope(SCOPE_PCI_ENDPOINT, 0, &[(2, 0)])]),
+            drhd(
+                1,
+                0xfed9_1000,
+                &[&scope(3, 0xf0, &[(0x1f, 0)]), &scope(4, 0, &[(0x1f, 0)])],
+            ),
+        ]);
+        let u = DmarUnits::parse(&body);
+        assert!(
+            !u.truncated,
+            "IOAPIC and HPET scopes are skipped, not errors"
+        );
+        assert_eq!(u.units().len(), 2);
+        assert_eq!(first_drhd(&body).unwrap().register_base, 0xfed9_0000);
+        assert_eq!(
+            u.translating().unwrap().register_base,
+            0xfed9_1000,
+            "the unit to translate through is the catch-all"
+        );
+        let (unit, how) = u.owner(0, 1, 0, 0, &mut xenon_bus).unwrap().unwrap();
+        assert_eq!(
+            (unit.register_base, how),
+            (0xfed9_1000, Ownership::CatchAll)
+        );
+        let (unit, how) = u.owner(0, 0, 2, 0, &mut xenon_bus).unwrap().unwrap();
+        assert_eq!((unit.register_base, how), (0xfed9_0000, Ownership::Named));
+    }
+
+    /// **A bridge named as a sub-hierarchy owns everything below it**, and a device no scope names
+    /// on a machine with no catch-all is owned by nobody. The second half is the verdict the bench
+    /// must be able to print, and it is the shape QEMU writes when a host bridge bypasses the IOMMU.
+    #[test]
+    fn a_subhierarchy_scope_owns_its_buses_and_an_unnamed_device_has_no_owner() {
+        let body = dmar(&[drhd(
+            0,
+            0xfed9_0000,
+            &[&scope(SCOPE_PCI_SUBHIERARCHY, 0, &[(0x1d, 0)])],
+        )]);
+        let u = DmarUnits::parse(&body);
+        assert_eq!(
+            u.owner(0, 1, 0, 0, &mut xenon_bus).unwrap().unwrap().1,
+            Ownership::UnderBridge(0, 0x1d, 0)
+        );
+        assert_eq!(u.owner(0, 0, 3, 0, &mut xenon_bus), Ok(None));
+        assert_eq!(
+            u.owner(1, 1, 0, 0, &mut xenon_bus),
+            Ok(None),
+            "another segment"
+        );
+    }
+
+    /// **A two-hop path is resolved through the live bridge**: the first hop is 00:1d.0, its
+    /// secondary bus is 1, and the endpoint is 01:00.0. A path whose first hop is not a bridge on
+    /// this machine names nothing, rather than being read as a bus-0 device.
+    #[test]
+    fn a_multi_hop_endpoint_path_is_resolved_through_the_bridge_registers() {
+        let body = dmar(&[drhd(
+            0,
+            0xfed9_2000,
+            &[&scope(SCOPE_PCI_ENDPOINT, 0, &[(0x1d, 0), (0, 0)])],
+        )]);
+        let u = DmarUnits::parse(&body);
+        assert_eq!(
+            u.owner(0, 1, 0, 0, &mut xenon_bus).unwrap().unwrap().1,
+            Ownership::Named
+        );
+        assert_eq!(u.owner(0, 1, 0, 0, &mut |_, _, _| None), Ok(None));
+    }
+
+    /// **A table that did not fit answers "unknown", never "the catch-all"**, because the dropped
+    /// entry could have been the one naming the device.
+    #[test]
+    fn a_truncated_table_refuses_to_guess() {
+        let many: std::vec::Vec<std::vec::Vec<u8>> = (0..MAX_SCOPES as u8 + 1)
+            .map(|i| scope(SCOPE_PCI_ENDPOINT, 0, &[(i, 0)]))
+            .collect();
+        let refs: std::vec::Vec<&[u8]> = many.iter().map(|s| s.as_slice()).collect();
+        let u = DmarUnits::parse(&dmar(&[drhd(1, 0xfed9_1000, &refs)]));
+        assert!(u.truncated);
+        assert_eq!(u.owner(0, 5, 0, 0, &mut xenon_bus), Err(()));
+        assert_eq!(
+            u.owner(0, 0, 3, 0, &mut xenon_bus).unwrap().unwrap().1,
+            Ownership::Named,
+            "a recorded scope still answers"
+        );
+    }
+
+    /// Hostile scope lengths (zero, odd, past the end) stop the list and mark it, without a panic.
+    #[test]
+    fn a_malformed_scope_list_is_marked_rather_than_trusted() {
+        for bad in [
+            &[1u8, 0][..],
+            &[1, 7, 0, 0, 0, 0, 0][..],
+            &[1, 40, 0, 0, 0, 0, 1, 0][..],
+        ] {
+            let u = DmarUnits::parse(&dmar(&[drhd(1, 0xfed9_1000, &[bad])]));
+            assert!(u.truncated, "{bad:?}");
+            assert_eq!(u.units().len(), 1);
+        }
+        assert_eq!(DmarUnits::parse(&[]).units().len(), 0);
     }
 }
