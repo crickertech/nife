@@ -138,6 +138,17 @@
 // (the NS16550's and PL011's sticky data-ready bits), and `script/soak-test --reboot` proves under
 // QEMU, per architecture, that the machine came back rather than that the call returned.
 
+// **The watchdog soak is x86_64's alone, and the compiler says so** (milestone 593 (a wedged kernel
+// resets itself), provisional number). It drives the Intel TCO, which only a PC has. The failure
+// this prevents is milestone 249's worst one turned around: a build that compiled and quietly never
+// armed would look exactly like a board that never wedged.
+#[cfg(all(feature = "watchdog_soak_test", not(target_arch = "x86_64")))]
+compile_error!(
+    "--features watchdog_soak_test is x86_64-only: the watchdog it arms is the Intel TCO \
+     (kernel/src/arch/x86_64/tco.rs). radon's JH7110 watchdog and argon's Tegra WDT are later steps \
+     of design/roadmap/593-a-wedged-kernel-resets-itself.md."
+);
+
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use paging::Flags;
@@ -713,6 +724,113 @@ fn prepare_the_reset_route() {
     }
 }
 
+/// **The prefix every line about the watchdog carries** (milestone 593, provisional number). One
+/// grep finds how the watchdog was found, armed, petted, disarmed or deliberately starved, and
+/// `script/soak-test --watchdog` and `--wedge` read these lines. Name provisional.
+#[cfg(feature = "watchdog_soak_test")]
+const WATCHDOG_MARKER: &str = "soak-test-watchdog:";
+
+/// **Seconds from the last pet to the reset** (milestone 593).
+///
+/// Sixty, as the proposal this milestone came from priced it: twelve beats of margin, so a beat
+/// delayed by a loaded machine cannot trip it, and short enough that a wedged board is back before a
+/// person would have walked to it. The TCO counts twice before it resets, so this is two counts of
+/// 30 s, 50 ticks each.
+#[cfg(feature = "watchdog_soak_test")]
+const WATCHDOG_RESET_AFTER_SECONDS: u64 = 60;
+
+/// Print a pet once every this many beats, and at the first. Every beat would double the log; the
+/// first line is the one that proves the counter moves, and the rest say it still does.
+#[cfg(feature = "watchdog_soak_test")]
+const WATCHDOG_REPORT_EVERY_BEATS: u64 = 6;
+
+/// **When the test-only wedge happens** (milestone 593): six beats in, so the log shows the watchdog
+/// being petted before it shows it being starved.
+#[cfg(feature = "wedge_soak_test")]
+const WEDGE_AFTER_SECONDS: u64 = 30;
+
+/// **Find the chipset's watchdog and arm it, saying so first** (milestone 593).
+///
+/// Returns the armed driver, or `None` with the reason on the console. A soak without a watchdog
+/// still runs: the soak is the experiment and the watchdog only decides who recovers the machine.
+///
+/// The banner is milestone 249's rule applied again: a build that will reset the machine it runs on
+/// says so on the only channel it has, with how to stop it, before it can happen.
+#[cfg(feature = "watchdog_soak_test")]
+fn arm_watchdog() -> Option<arch::tco::Tco> {
+    // A stale byte must not halt the watchdog at the first beat; see `arm_reboot`.
+    crate::console::discard_rx();
+    let tco = match arch::tco::find() {
+        Ok(tco) => tco,
+        Err(why) => {
+            println!(
+                "{WATCHDOG_MARKER} NOT ARMED: {why}. The soak runs without a watchdog, and a wedge \
+                 on this machine waits for a person."
+            );
+            return None;
+        }
+    };
+    println!(
+        "{WATCHDOG_MARKER} found the Intel TCO watchdog: {:?} layout, TCO registers at I/O port \
+         {:#x}",
+        tco.generation(),
+        tco.base()
+    );
+    match tco.arm(WATCHDOG_RESET_AFTER_SECONDS) {
+        Ok(armed) => {
+            if armed.previous_boot_reset_by_watchdog {
+                println!(
+                    "{WATCHDOG_MARKER} the previous boot was ended by this watchdog: \
+                     SECOND_TO_STS was set when this boot found it, and is now cleared"
+                );
+            } else {
+                println!(
+                    "{WATCHDOG_MARKER} the previous boot was not ended by this watchdog \
+                     (SECOND_TO_STS clear)"
+                );
+            }
+            // Crossed: the build's hazard, then how to stop it, the same order as milestone 249's.
+            println!(
+                "{WATCHDOG_MARKER} ARMED. THIS BUILD RESETS THE MACHINE IF THE SOAK STOPS BEATING: \
+                 {} ticks of 0.6s counted twice, so a reset {}.{}s after the last pet, which comes \
+                 every {BEAT_SECONDS}s from the beat.",
+                armed.ticks,
+                armed.reset_after_tenths / 10,
+                armed.reset_after_tenths % 10,
+            );
+            println!(
+                "{WATCHDOG_MARKER} a soak that FAILS prints its verdict and dump and then stops \
+                 petting, so the reset follows the evidence and never replaces it. To stop the \
+                 watchdog: press any key on this console. It is halted at the next beat and the soak \
+                 keeps running."
+            );
+            Some(tco)
+        }
+        Err(why) => {
+            println!("{WATCHDOG_MARKER} NOT ARMED: {why}.");
+            None
+        }
+    }
+}
+
+/// **Stop beating, on purpose** (milestone 593's test-only wedge).
+///
+/// The wedge a watchdog exists for is a core that will never run the supervisor again. Masking
+/// interrupts and spinning is that, on the one core that matters: no tick can preempt this thread,
+/// so the beat never comes back, and nothing else in the kernel knows how to pet the watchdog.
+#[cfg(feature = "wedge_soak_test")]
+fn wedge(elapsed: u64) -> ! {
+    println!(
+        "{WATCHDOG_MARKER} WEDGING NOW at t={elapsed}s, deliberately (--features wedge_soak_test): \
+         this core masks interrupts and spins, the beat stops, and nothing pets the watchdog. The \
+         next thing this console should show is this kernel booting again."
+    );
+    arch::interrupts::disable();
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 /// The most groups the shared page has room for, and so the most tick routes there can be.
 const MAX_GROUPS: usize = MAX_WORKERS / MEMBERS_PER_GROUP;
 
@@ -867,6 +985,10 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
     // exactly one thread ever asks: the supervisor is the only caller of both halves.
     #[cfg(feature = "reboot_soak_test")]
     let mut armed = true;
+    // **The watchdog, armed as the beat begins** (milestone 593): from here on, a beat that does not
+    // come is a reset about a minute later.
+    #[cfg(feature = "watchdog_soak_test")]
+    let mut watchdog = arm_watchdog();
 
     loop {
         // Yield until the beat is due. `yield_now` rather than a spin: this thread is one more
@@ -1044,6 +1166,41 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
                 draw_again(elapsed);
                 armed = false;
             }
+        }
+
+        // **Pet the watchdog, after the verdict** (milestone 593). After, for `draw_again`'s reason:
+        // a failed beat panics above and never gets here, so the watchdog resets a failed soak only
+        // once its dump is on the console. The escape is the same sticky console byte the reboot
+        // loop reads, asked first, so a keypress halts the watchdog rather than racing it.
+        #[cfg(feature = "watchdog_soak_test")]
+        if let Some(tco) = watchdog.take() {
+            if crate::console::is_byte_waiting() {
+                let halted = tco.disarm();
+                println!(
+                    "{WATCHDOG_MARKER} DISARMED at t={elapsed}s: a byte arrived on this console. The \
+                     watchdog is {} and will not reset this machine. The soak keeps running.",
+                    if halted {
+                        "halted"
+                    } else {
+                        "STILL COUNTING (the halt bit did not take)"
+                    }
+                );
+            } else {
+                let left = tco.ticks_left();
+                tco.pet();
+                if beat % WATCHDOG_REPORT_EVERY_BEATS == 1 {
+                    println!(
+                        "{WATCHDOG_MARKER} petted at t={elapsed}s beat={beat}: the count had {left} \
+                         of {} ticks left",
+                        tco.reload()
+                    );
+                }
+                watchdog = Some(tco);
+            }
+        }
+        #[cfg(feature = "wedge_soak_test")]
+        if elapsed >= WEDGE_AFTER_SECONDS {
+            wedge(elapsed);
         }
 
         // Keep the boot-stage breadcrumb honest for anyone reading a dump: the tour is over and the

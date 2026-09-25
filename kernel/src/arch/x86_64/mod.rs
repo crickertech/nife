@@ -62,8 +62,12 @@ pub mod port;
 #[cfg(feature = "reboot_soak_test")]
 pub mod reset;
 pub mod rtc;
+// The Intel TCO watchdog (milestone 593 (a wedged kernel resets itself), provisional number). Only
+// the watchdog soak drives it, so only that build compiles it; see its own header.
 pub mod segments;
 pub mod semihosting;
+#[cfg(feature = "watchdog_soak_test")]
+pub mod tco;
 pub mod timer;
 /// The TSC calibration's estimator and its two boot assertions. Test-only; see the file header for
 /// why they run under QEMU rather than on the host.

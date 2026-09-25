@@ -565,7 +565,9 @@ pub fn rx_enable() {
 ///
 /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting` (`rx`
 /// is a decoder for "receive").
-#[cfg(feature = "reboot_soak_test")]
+///
+/// The watchdog soak (milestone 593 (a wedged kernel resets itself), number provisional) reads the same byte to halt its watchdog.
+#[cfg(any(feature = "reboot_soak_test", feature = "watchdog_soak_test"))]
 pub fn is_byte_waiting() -> bool {
     CONSOLE.lock().uart.is_byte_waiting()
 }
@@ -578,7 +580,7 @@ pub fn is_byte_waiting() -> bool {
 /// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
 /// for in his #1255 review; recommended `discard_waiting_bytes`, because it drops the bytes
 /// `is_byte_waiting` would have reported.
-#[cfg(feature = "reboot_soak_test")]
+#[cfg(any(feature = "reboot_soak_test", feature = "watchdog_soak_test"))]
 pub fn discard_rx() {
     CONSOLE.lock().uart.discard_rx();
 }
