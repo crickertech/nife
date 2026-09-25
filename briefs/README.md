@@ -80,6 +80,7 @@ on today is a cost problem that can change weekly without this directory changin
 
 | file | what it's for |
 |---|---|
+| `bench-session.md` | Run a bench session on radon, xenon or argon from a lane: what needs a go, what needs calef's hands, and the ranked list of sessions ready to run. **Provisional name.** |
 | `gate-a-lane.md` | The four cheap gates every lane runs before pushing: order, traps, exit criteria. **Provisional name.** |
 | `gate-in-ci.md` | Push the heavy gates (QEMU, `script/verify`) to GitHub Actions instead of this laptop. |
 | `rebase-onto-main.md` | Rebase a branch onto `origin/main`, with the three known conflict classes named. |

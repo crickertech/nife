@@ -1,0 +1,145 @@
+Run a bench session on a real board (radon, xenon or argon) from a lane, safely, while calef is at
+the bench. You are a developer lane. The maintainer relays everything between you and calef. Do the
+work; stop only where this brief says stop.
+
+*(Name **provisional**, minted 2026-09-25 by milestone 225's radon lane, the first bench session
+ever run from a lane rather than from a maintainer session. calef names things.)*
+
+**Why this brief exists.** Until 2026-09-25 every bench session was run by a maintainer, from
+memory, with calef beside the board, and the notes were written for that person. A lane cannot
+flip a switch or type at U-Boot, and it cannot see the desk. This brief is the list of things a lane
+did have to guess on its first session, with the guesses turned into answers.
+
+## Ready to run: take the top entry for the board calef names
+
+calef cannot schedule bench time ahead. He says "radon is ready" (or xenon, or argon) whenever he
+happens to be at the desk. **A lane told "X is ready" takes the top entry below for that board with
+no further briefing**, claims its milestone, and follows this brief and the linked procedure.
+Whoever finishes an entry moves it off this list in the same pull request.
+
+| rank | board | milestone | procedure | calef's hands |
+|---|---|---|---|---|
+| 1 | radon | 168, the multi-tasking workload number (fatal risk 4) | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots.** radon cannot reboot itself: SBI SRST reset type 1 is accepted and U-Boot SPL then hangs at `cannot read pmic power register` (`design/roadmap/249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md`, "The bench answered it, 2026-09-04"). Nothing on patagonia can reach the plug (milestone 224). |
+| 2 | xenon | 261, the NVMe driver leaves the kernel, and then the soak on xenon (fatal risk 6, then 5) | `design/roadmap/261-el0-nvme-on-xenon.md`; the bench procedure is being written by another lane, so check that block's current text first | the one-time firmware **Data Wipe** of the internal NVMe (261's "What calef has to do"), which cannot be undone; then power |
+| 3 | argon | 127, first light, then 225's soak on argon | `design/roadmap/127-the-sel4-machine.md` and `notes/bench-runbook.md`, "argon, and why it is last" | everything: argon has never booted nife, so cabling, media and power are all his |
+
+The radon soak (milestone 225) is not on this list because it ran on 2026-09-25. Another radon soak
+buys a second draw of the placement lottery, which is worth something, but entry 1 answers a fatal
+risk that has no data yet.
+
+## The one rule: ask before you change hardware state, and never guess at hardware
+
+Send the maintainer a one-line message naming the action, and wait for the go, before any of these:
+
+- **power**: any request to switch plug 2 (radon). **Plug 3 is garcia: never, under any
+  circumstances.** `tokul` is a drive on the USB hub: never unplug the hub, never ask for it;
+- **media**: writing a card, a stick, or a disk, including `script/board-image --card`;
+- **the network boot server**: starting or stopping `script/board-netboot`, or changing what it
+  serves;
+- **the serial port**: opening it, after checking nobody holds it (`lsof /dev/cu.usbmodem*`). Two
+  readers split the byte stream silently.
+
+Reading an open log and building on the host need no go.
+
+**Anything physical is calef's**: a cable, a button, a DIP switch, a card in or out, typing at a
+U-Boot prompt. Say what you need in one sentence and keep polling while you wait. Do not infer the
+state of the desk. Ask.
+
+## Step 1: claim, then build on the host
+
+    script/claim milestone/<N>-<slug>
+
+Build the image from the worktree, never from the main checkout: the maintainer may have deleted
+the main checkout's `target/` that day.
+
+    script/board-image --soak --tftp        # or --job-mix, --bench: the milestone's own flag
+
+**`NOT SEALED` on a `--soak`, `--job-mix` or `--bench` build is a false alarm. Do not rebuild.**
+Those builds divert the boot before the only caller of the measured-boot check, so the linker drops
+the trust root and `sealed_pair` finds no digests (`crates/sealed_pair`'s `BUGS`, milestone 563).
+The pair boots. It cost an hour at the bench on 2026-09-21 and again on 2026-09-25, because the
+message names two builds and points nowhere near a cargo feature. `script/board-image` exits 1 when
+it happens, and the files in `target/board` are still the matched pair it packed.
+
+## Step 2: rehearse under QEMU, with the same tree
+
+    script/soak-test --arch riscv64 --for 45s      # radon's architecture
+
+This is the baseline a red on the board gets compared against. A defect only counts as silicon-only
+if the same tree does not reproduce it here (fatal risk 5). A fresh worktree had no
+`target/nifefs.img`, and until 2026-09-25 this command exited 3 in 0.2 s; it builds the disk image
+now.
+
+## Step 3: serve, watch, then ask for power
+
+With the maintainer's go:
+
+    lsof -i UDP:69; lsof /dev/cu.usbmodem*                  # both must be free
+    script/board-netboot                                      # from the worktree, backgrounded
+    script/board-console --port /dev/cu.usbmodem<id> --board radon \
+        --for <duration> --until none --log <scratch>/radon-<what>-<UTC stamp>.log
+
+Start both with `nohup ... &` so they outlive one tool call. Write the log to your scratch
+directory, not to `target/` (the main checkout's may be deleted) and not to `bench/` (the log needs
+cleaning first, step 6). **Start the console before power**, so the boot is captured. An empty log
+at this point means the board is off or halted, which is what you want before a power cycle.
+
+Then ask: "power-cycle radon on plug 2 now". calef does it from the Kasa app.
+
+## Step 4: read the first minute before calef leaves
+
+In order, and report each to the maintainer:
+
+1. `nife: payload came from net`. If it says `card`, stop: the board is running an older image.
+   The `tftp server is` line above it names the address the card expected. If that address moved,
+   the fix is typed at the U-Boot prompt, which is calef's hands.
+2. The workload's start line (for the soak: `4 groups ... (24 user threads) on 4 online core(s)`).
+3. For a soak: **`wakerate` about `100 * harts`** (about 400 on radon), and **`crossings` rising**
+   between beats. After the first census settles (one drift event in the first beat or two, then
+   `drifted=0`), note crossings per second. A slow draw (about 0.5/s on radon, seen 2026-09-03)
+   is a different experiment from a fast one (about 50 to 186/s). Report it and let the maintainer
+   put a redraw to calef.
+
+Only then tell the maintainer calef can walk away.
+
+## Step 5: poll until it ends, and never end your turn while it runs
+
+Block in one call at a time, up to ten minutes each. A loop that returns early when the console
+exits or when a beat shows a nonzero `refused`, `mismatch` or `stalled` does the job. **Ending the
+turn to "wait for a notification" kills the lane.**
+
+`script/board-console` exit statuses: `0` beat for the whole watch, `1` a failure announced, `2`
+went quiet (three missed beats: a hang, which needs calef for a power cycle), `3` ended early.
+
+## Step 6: capture, clean, record
+
+    LC_ALL=C tr -cd '\11\12\15\40-\176' < <scratch log> > bench/<board>-<UTC date>/<what>.log
+
+The console writes bytes that are not UTF-8 under sustained output, and `grep` then silently
+reports nothing. Read raw logs with `LC_ALL=C grep -a`.
+
+Record the run in the milestone's own block and its note, and add a row to
+`notes/multicore-defect-curve.md`'s exposure table if the workload was a soak. A red first gets the
+same image under QEMU (step 2) before anyone writes "silicon-only".
+
+## What to do about the failures that are known, and stop on anything else
+
+| You see | Do |
+|---|---|
+| `NOT SEALED` on a soak, job-mix or bench build | ignore it, step 1 |
+| `soak-test: no heartbeat was seen` in 0.2 s under QEMU | a missing `nifefs.img` on a tree older than 2026-09-25; rebase |
+| `payload came from card` | stop, report the `tftp server is` line |
+| console exit 2 (quiet) | report the last 50 lines; calef power-cycles only after the log is saved |
+| the board needs a reboot | radon cannot reboot itself; that is a power cycle, which is calef's |
+| anything else | stop, report, keep the console running |
+
+## BUGS
+
+- **Every radon power cycle is a person.** Milestone 224 records calef's choice to stay manual, and
+  249 records that the self-reboot route hangs in firmware. A hung soak therefore holds the board
+  until calef is next at the desk.
+- **The plug state is invisible to a lane.** Nothing reports whether plug 2 is on, so an empty log
+  cannot tell a board that is off from one that died before its UART came up.
+- **The TFTP address is read off patagonia at card-write time.** The card written on 2026-09-16
+  asks for `192.168.8.206`, patagonia's USB ethernet adapter. `en0` moved from `.216` to `.138`
+  since then, and the boot survived only because the adapter's address did not move.
