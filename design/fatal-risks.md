@@ -261,8 +261,8 @@ working as designed. What it changed: a first customer should be something nife 
 adequate at within a milestone or two.
 
 Why no verdict can be rendered. Nobody can be asked to run nife until it installs, which waits on
-milestone 198. That is no longer a decision: calef ruled its three forks (trust, format and
-activation) by 2026-09-23, so what remains is work, rung 3a's consumer half. Milestone 530 (name a customer, or
+milestone 198. calef ruled its three forks by 2026-09-23, fetch and verify are built, and
+installing waits on one narrower fork, §219 (how the shell names an installed program). Milestone 530 (name a customer, or
 admit the ranking function has nothing to rank) ruled on 2026-09-21 that the path stays vacant
 (blocked, not empty), so 198 holds the ranking function's top slot. What would falsify it: somebody
 who is not calef installs nife on purpose and is still running it two months later. The install is

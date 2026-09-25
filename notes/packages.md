@@ -2,8 +2,9 @@
 
 Milestone 198 (a package manager, and the trivial install that makes a second customer possible)'s
 rung 3a has two halves. This note is the producer half and the format both halves share, built
-2026-09-23. **Nothing installs a package yet**, and the reason is a ruling rather than a gap: see
-"Where this stops" below.
+2026-09-23, and the first part of the consumer half, built 2026-09-24: a target fetches a package
+over plain HTTP and accepts it only by a digest its own image vouches for. Nothing installs one
+yet, and the reason is a fork for calef rather than a gap: see "Where this stops" below.
 
 ## The two decisions this is downstream of
 
@@ -18,8 +19,9 @@ DECISIONS §195 (a reviewed recipe vouches for a package), in
 changed by human review, trust is scoped per source the owner opted into, and the owner may
 overrule. That is Homebrew's arrangement, and Homebrew is also §197's worked example of the pairing.
 
-Those two together say what a package *is* and what decides whether its bytes may run. They say
-nothing about what installing one does, which is the third fork and is unruled.
+Those two together say what a package *is* and what decides whether its bytes may run. What
+installing one does was the third fork, and DECISIONS §208 (installing a package is granting it, and
+the activation set is versioned) ruled it on 2026-09-23.
 
 ## The format
 
@@ -55,13 +57,19 @@ fixture.
 ```
 $ cargo build -p components --bin uptime --target aarch64-unknown-none-softfloat
 $ cargo xtask package packages/uptime.recipe
-uptime 0.1.0 aarch64, 2 members, 882475 bytes
-  uptime                      881152 bytes  9bdebc907fb3c7eff678a0f1d345098e1d21d509232b745b336b8a9fc731b4a8
+uptime 0.1.0 aarch64, 2 members, 90491 bytes
+  uptime                       89168 bytes  d801cd2b65dbfbd4982226394c8ad5de471d4f782f39eb16c5ee06cd71bcef26
   uptime.licence                1067 bytes  dba2f854c33606c0a4f028f88baf9d9bcef8d30714e29c8f3314dd5eeebf1c14
-digest f303e834bfcde7f676389f61ca2abce25bba81a897a3cf00a09c464784e62a6f  (the recipe records none; review it and add it)
+digest d74f8eb3ecc14b43b9f55b2113c830ee856394eee4398b52da2da1614d426cd9  (the recipe records none; review it and add it)
 wrote target/packages/uptime-0.1.0-aarch64.nifepkg
 package: PASS
 ```
+
+A program is packed stripped since 2026-09-24, the same bytes the image packs. The first run
+above read 881,152 bytes for `uptime`, nearly all of it debug sections, against a job region of 40
+pages (160 KiB): an installed program is bytes something on the target must read into memory to
+build a process from, and nothing there reads DWARF. The digests in this note's history changed
+with it; nobody had fetched one.
 
 Three things in that run are the mechanism rather than decoration.
 
@@ -106,19 +114,74 @@ than an absent one. The line goes in when there is a release to pin it to, which
   than here, because that is where the next person raising it will be looking.
 - **The end-to-end run above**, which is the first package this project has produced.
 
-## Where this stops, and it is a ruling rather than a gap
+## The consumer's first half: fetch, and verify against the image
 
-Rung 3a's exit criterion is a package fetched over a network, verified, installed, run, still there
-after a reboot, and removable. Everything after "verified" waits on the **activation** fork
-(milestone 507 (installing a package: mutate, compose, or widen what can be spawned)),
-which has options and no winner and is calef's. That proposal's own
-finding is why it cannot be worked around: the program namespace is sealed at boot and the spawner
-gives the file service away, so **nothing that builds processes can read an installed program
-today**, whatever a package looks like.
+Built 2026-09-24 by the rung 3a consumer lane. Three pieces, each doing one thing:
 
-The transport half stops in a different place and for a friendlier reason: §196 (nife carries TLS) rules HTTPS, and
-under §195 a recipe's digest is what decides whether bytes may run, so rung 3a over a LAN needs no
-TLS. What it needs is the client, and the client needs somewhere to put what it fetches.
+- The image carries its own package source. Every archive build (`cargo xtask initrd-aarch64`
+  and `initrd-riscv`) runs every recipe under `packages/` for its architecture, writes the package
+  to `target/packages/`, and packs the catalogue lines as the archive entry
+  `package_archive::CATALOGUE` (provisional name), above the measurement table. So the kernel's
+  trust root vouches for the catalogue, and the catalogue vouches for the package. That is §195's
+  "the image's measured table becomes the first source" taken literally, and it is why plain HTTP
+  is enough on this rung: the digest the client checks against never crossed the network. It also
+  means the producer runs end to end on every build, which this note's BUGS said nothing did.
+- A host on the network serves it. `helpers/package-http-peer` is a `guestfwd` peer at
+  10.0.2.9:8080 in both QEMU runners, started by slirp once per connection with the connection on
+  its standard input and output, exactly as the TCP echo peer at 10.0.2.9:7777 is a `/bin/cat`. A
+  real HTTP/1.0 exchange with a real host process, and nothing binds a port on the machine or
+  outlives QEMU. `GET /tampered/<name>` serves the same file with one byte flipped halfway through.
+- The client hashes as it reads. `crates/http_response` (provisional name) writes the `GET` and
+  reads the response a socket read at a time, keeping only the head, so the body goes straight
+  into `measured_boot`'s streaming SHA-256 and a package costs the client one page of socket
+  frame. The client is a mode of `net_stack`'s socket-contract client (`TEST_HTTP_PACKAGE`), because
+  that is the only thing in the tree that holds a `Stack` capability.
+
+### EXAMPLES
+
+```
+$ script/test --arch aarch64 --test package
+running 1 of 359 tests (filter: package)
+test kernel::user::tests::a_package_fetched_over_http_is_accepted_only_by_the_image_digest ... ok
+test result: ok. 1 passed
+$ cat target/packages/catalogue
+uptime-0.1.0-aarch64 d74f8eb3ecc14b43b9f55b2113c830ee856394eee4398b52da2da1614d426cd9
+```
+
+The test fetches twice through one `net_stack`: the genuine package, which must be accepted, then
+the tampered copy, which must be refused. The second fetch is what gives the first its meaning. The
+tampered response is a complete, correct HTTP exchange of the right length; only the digest can
+tell, and a client that accepted whatever arrived would pass the first half too. They share one
+spawn because every `net_stack` a test starts holds a virtio slot for the rest of the boot; this
+lane took the table's tenth bump (`MAX_DEVICES`, to 34) and filed the unregister it keeps deferring
+as `design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`. riscv64 runs the
+same test as a twin in `kernel/src/user/riscv_virtio_tests.rs`.
+
+### The versioned table, as logic
+
+`crates/activation_set` (provisional name) is §208's second clause as a pure, host-tested crate: a
+generation is a text file of `<program> <package> <digest>` lines that is never rewritten, a
+one-line `current` names the live one, and install, upgrade and remove each produce the next
+generation. Its test `a_rollback_restores_the_whole_set` is the property calef asked for by name.
+Nothing on a target reads it yet, for the reason below.
+
+## Where this stops, and it is a fork for calef
+
+Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
+rolled back and removed. The first two are built. The rest wait on one question, written up with
+options and measured costs as DECISIONS §219 (how the shell names an installed program to the
+spawner): when a person types the name of an installed program, what travels to the process that
+builds it. The shell names programs by an id from a closed enum, and an installed program has none.
+Every answer is a change the shell and the progenitor agree on, so it is calef's.
+
+Milestone 507 (installing a package: mutate, compose, or widen)'s finding was half stale, and the half that moved matters. It said nothing that
+builds processes can read an installed program because the progenitor gives the file service away.
+The progenitor has kept the file service since milestone 31 (a capability shell) phase 3 (2026-08-17), so it can read
+one. What it cannot do is be asked for one.
+
+A second gap stood behind that one: the booted system had no network, so the fetch above runs only
+in the kernel's test harness. Milestone 590 (the booted system starts its network stack) now starts
+`net_stack` at boot; moving the fetch out of the harness is still to do.
 
 ## BUGS
 
@@ -127,15 +190,28 @@ TLS. What it needs is the client, and the client needs somewhere to put what it 
   and a compressor is a second hostile-input parser on the same path. The size cost is measured
   nowhere.
 - **A package is bounded by `u32`** in both member length and file length.
-- **The catalogue is one file in `target/`**, not a repository index. §195's per-source trust needs
-  a catalogue per source and a client that reads one, and neither exists.
+- The catalogue is one file in `target/` and one archive entry, not a repository index. The
+  image's own source is the only source; §195's per-source trust needs a catalogue per source the
+  owner opted into, and a way to add one.
+- The fetch runs only in the kernel's test harness, which plays the progenitor's part and maps
+  the catalogue into the client the way the progenitor hands `login` its blobs. The booted system
+  has no network (the proposal above).
+- x86_64 has no fetch test: its QEMU runner attaches no `-netdev`, and no x86 network test
+  exists. The archive build does not pack a catalogue for it either, because nothing there could
+  read one. Milestone 494 (a driver for the network card a PC actually has) is where x86 networking
+  starts.
+- `uptime` is also in the image, so the package the tests fetch is not a program the image
+  lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
+  criterion, and they wait on §219.
+- The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
+  over slirp's forwarding, which is enough to prove the client and not enough to prove a real
+  network card or a host elsewhere on a network (rung 3b).
+- Plain HTTP carries the package, and that is safe only because of the image's catalogue. A
+  source whose digests arrive over the same connection would be worth nothing against a machine in
+  the middle; that is what §196 (nife carries TLS)'s TLS is for on rung 3c.
 - **A recipe cannot say where its source came from.** Homebrew's formula carries an upstream URL and
   a digest of the tarball; this carries neither, because every package that exists is built from
   this repository. The first out-of-tree package is what forces it.
 - **`cargo xtask package` builds nothing.** A `program` whose ELF is not in `target/` is an error
   naming the file. Packaging and building are separate acts here for milestone 150 (adding a program should not need eight hand-maintained lists)'s reason: a tool
   that quietly rebuilt would hide which binary it had packed.
-- **Nothing gates the producer in CI.** The host tests and the fuzz target run; the end-to-end
-  `cargo xtask package` run does not, because it needs a built user program and the gate that builds
-  one is the archive gate. Wiring it is cheap and was left to the lane that has a consumer to gate
-  with it.

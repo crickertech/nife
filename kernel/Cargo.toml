@@ -165,6 +165,10 @@ byte_sink_protocol = { version = "0.1.0", path = "../crates/byte_sink_protocol" 
 # *grants* a net server its listen ports, so it packs the grant with the same `listen_grant` the
 # server checks against rather than open-coding the layout of a word two programs must agree on.
 socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
+# The package format (milestone 198 rung 3a). The kernel's package tests look the image's package
+# catalogue up by `package_archive::CATALOGUE`, the entry name the archive build packs it under,
+# rather than by a second spelling of it.
+package_archive = { version = "0.1.0", path = "../crates/package_archive" }
 generational_table = { version = "0.1.0", path = "../crates/generational_table" }
 spin = { version = "0.12", default-features = false, features = ["spin_mutex"] }
 # The work-steal handshake (milestone 80): the one lock-free cross-core protocol in the scheduler,
