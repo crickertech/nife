@@ -30,8 +30,12 @@ second pass over the harnesses asking which prove a property that could plausibl
 
 ### The verdict of record
 
-RUN, 2026-08-30. AMBER, and the red half is structural. notes/proof-retrospective.md has the study;
-PR #589.
+RUN, 2026-08-30. AMBER. The red half is that no standing proof has caught a regression: every
+defect a proof caught was caught while its harness was being written. The second reason is the
+roughly 18% of `kernel/src` in files calling `asm!`, which no harness passes. notes/proof-retrospective.md
+has the study; PR #589. *(Reworded 2026-09-25 on the architect's ruling that day. It said "the red
+half is structural", naming a crate boundary milestone 193 (put `kernel/src` within reach of the
+prover) removed on 2026-08-30.)*
 
 - No Kani harness in this tree has ever caught a defect after the day it was written. All eighteen
   defects in the corpus were found by something else: a flaky suite, a boot on real silicon, a
