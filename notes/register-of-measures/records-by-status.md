@@ -188,8 +188,10 @@ It is far better than 74 findings nobody can enumerate.
 
 ## Milestones by status
 
-From the milestone blocks in `design/roadmap/`, and from `design/roadmap/README.md`'s index table
-for the weeks before calef retired it on 2026-09-21. The two zero weeks are a restatement artifact,
+From the milestone blocks in `design/roadmap/`, and from the single `design/roadmap.md` in weeks
+before the split. The retired README index is not read (calef, 2026-09-24); the blocks alone
+reproduce every week but 2026W38, where the index lacked the row for milestone 518 (a census that cannot be attributed is a number
+nobody can act on). The two zero weeks are a restatement artifact,
 and the sharpest one in the deck. There really was a roadmap in 2026W30: `design/roadmap.md` landed
 2026-07-22 with ten rows in it. It had no status column. A milestone's state was prose inside a
 cell, phrased a dozen ways: `Built`, then `Built (frame scope)`, then `Built:` followed by a

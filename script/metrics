@@ -441,12 +441,11 @@ class Tree:
 # ---------------------------------------------------------------------------------------------
 # The metrics. Each one takes a Tree and returns numbers; none of them builds anything.
 
-# The roadmap index row: `| 231 | NOT-STARTED | [title](file) | note | date |`, which is how a
-# revision before 2026-09-21 states a milestone's status. The status vocabulary is checked rather
-# than assumed, because that file also held a vocabulary table whose rows start with a pipe, and
-# because `design/roadmap.md` (this directory's predecessor, split by milestone 76 (split the roadmap: `design/roadmap/README.md` as index, one file per milestone)) used the same
-# shape with a different set of tokens. Revisions after the retirement have no such file and are
-# counted from the blocks; see `_blocks` below.
+# The roadmap index row: `| 231 | NOT-STARTED | [title](file) | note | date |`, read ONLY from the
+# single `design/roadmap.md` that trees before milestone 76 (split the roadmap: one file per
+# milestone) carried. The status vocabulary is checked rather than assumed, because that file also
+# held a vocabulary table whose rows start with a pipe. Every tree with blocks is counted from the
+# blocks; see `_blocks` below.
 # The statuses whose index row carries a date, which is `script/roadmap`'s own `DATED`. Both mean
 # the milestone turned BUILT on that day; REMOVED keeps the date because removal does not unbuild
 # it.
@@ -458,24 +457,28 @@ _DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
 
 _INDEX_ROW = re.compile(r'^\|\s*(\d+)\s*\|\s*([A-Z][A-Z0-9 _-]*?)\s*\|')
 
-# The blocks, for every revision after 2026-09-21, when calef retired the index table and
-# `design/roadmap/README.md` stopped existing. Each block states its own number (the filename), its
-# own status (the `**Status:` line) and, since milestone 294, its own Built date (the `**Built:**`
-# line under `## Index row`), so the three fields these two metrics want are all still in the tree,
-# one file per milestone instead of one row per milestone.
+# The blocks, for every revision since milestone 76 split the roadmap. Each block states its own
+# number (the filename), its own status (the `**Status:` line) and, since milestone 294, its own
+# Built date (the `**Built:**` line under `## Index row`), so the fields these two metrics want are
+# in the tree one file per milestone.
 #
-# **The index is still preferred where it exists**, which is every revision before the retirement.
-# A past week is counted the way that week's reader would have counted it, including the staleness
-# the table carried between a merge and a regeneration; re-deriving those weeks from blocks would
-# be revising history rather than reading it, which is the same argument `decisions()` below makes
-# about the years before a decision had a status.
+# **`design/roadmap/README.md` is never read** (calef, 2026-09-24: *"There need not be a check the
+# file for milestone status at all because it cannot be found there any longer."*). Until that day
+# this preferred the README's index table wherever one existed, on the argument that a past week
+# should be counted the way its reader counted it. Measured when the preference was removed, it
+# bought nothing: a backfill from the blocks alone reproduced every `milestones.csv` and
+# `velocity.csv` row from 2026W29 to 2026W37 exactly. The one historical difference is 2026W38,
+# where milestone 518 (a census that cannot be attributed is a number nobody can act on) says
+# `BUILT 2026-09-20` in its block and had no index row at the week's end, so the index was stale
+# and the block was right. And the preference had a live cost: when #1247 brought the README back
+# as a pointer, both readers took it for an empty index and zeroed the series.
 _BLOCK = re.compile(r'^design/roadmap/(\d+)-[a-z0-9][a-z0-9-]*\.md$')
 _BLOCK_STATUS = re.compile(r'\*\*Status: ([A-Z-]+)\b')
 _BLOCK_BUILT = re.compile(r'^\*\*Built:\*\*\s*(\d{4}-\d{2}-\d{2})\s*$', re.M)
 
 
 def _blocks(tree):
-    """(number, status, built) per milestone block in one tree, for revisions with no index."""
+    """(number, status, built) per milestone block in one tree."""
     out = []
     for path, text in tree.text.items():
         m = _BLOCK.match(path)
@@ -490,27 +493,17 @@ def _blocks(tree):
     return out
 
 
-def _roadmap_index(tree):
-    """The hand-kept roadmap index, or None when this tree reads milestones from their blocks.
-
-    **A file of that name is not enough; it has to hold index rows.** Milestone 294 retired the
-    index on 2026-09-21 and the file went away, which is what the `_blocks` fallback keyed on. Pull
-    request #1247 brought `design/roadmap/README.md` back on 2026-09-24 as an eleven-line pointer to
-    `script/roadmap`, and both readers took the pointer for an index with no rows in it: the next
-    backfill counted zero milestones of every status in 2026W39 and zero built in every week of the
-    series. Asking whether any row matches is what makes the pointer, or any later prose in that
-    file, read as what it is.
-    """
-    for path in ('design/roadmap/README.md', 'design/roadmap.md'):
-        text = tree.text.get(path)
-        if text and any(_INDEX_ROW.match(line) for line in text.split('\n')):
-            return text
-    return None
+def _pre_split_roadmap(tree):
+    """The single `design/roadmap.md` of a tree from before milestone 76, or None for any tree
+    that has per-milestone blocks, which is then counted from them."""
+    if any(_BLOCK.match(path) for path in tree.text):
+        return None
+    return tree.text.get('design/roadmap.md')
 
 
 def milestones(tree):
     counts = dict.fromkeys(MILESTONE_STATUSES, 0)
-    text = _roadmap_index(tree)
+    text = _pre_split_roadmap(tree)
     if not text:
         for _number, status, _built in _blocks(tree):
             if status in counts:
@@ -537,8 +530,8 @@ def built_by_week(tree):
 
     **It is read from the CURRENT tree for every week, not from each week's own revision**, which
     breaks this file's usual rule on purpose. Computing it per revision was tried first and is
-    wrong: the index is generated by milestone 294 (`design/roadmap/README.md`'s index is generated)
-    and was regenerated at an integrator's convenience, so a week whose revision predates its own
+    wrong: the index milestone 294 (`design/roadmap/README.md`'s index is generated) generated
+    was regenerated at an integrator's convenience while it existed, so a week whose revision predates its own
     regeneration reports zero and the next week reports both. Backfilled that way on 2026-09-20 it
     gave 0 for 2026W29 through 2026W31 and 0 for 2026W33, against 10, 8, 20 and 9 actually built in
     those weeks. A stock read late is merely stale; a flow read late lands in the wrong bucket,
@@ -553,7 +546,7 @@ def built_by_week(tree):
     REMOVED rows keep their date and are counted here: a week in which something was built and then
     removed still had the building in it.
     """
-    text = _roadmap_index(tree)
+    text = _pre_split_roadmap(tree)
     counts = {}
     if not text:
         for _number, status, built in _blocks(tree):
@@ -1055,8 +1048,7 @@ def proposals(tree):
     """Unnumbered roadmap proposals: identified work filed where a script can see it, awaiting a number.
 
     **Nothing else on this dashboard can count these**, which is why the column exists.
-    `milestones()` above matches index rows in `design/roadmap/README.md` and keys on a milestone
-    NUMBER, and a proposal is defined by not having one, so it is invisible to that count by
+    `milestones()` above reads milestone blocks and keys on a milestone NUMBER, and a proposal is defined by not having one, so it is invisible to that count by
     construction rather than by oversight.
 
     Counted the way `script/roadmap` counts them, out of the shared parse, so the two cannot
@@ -1742,7 +1734,7 @@ def series_of(rows, weeks, columns, scale=1.0):
 # absent carry one, which is milestone 519's cost pair and coverage.
 CHARTS = [
     ('milestones.svg', 'Milestones by status, and proposals waiting for a number',
-     'design/roadmap/README.md until 2026-09-21 and the blocks in design/roadmap/ after it; '
+     'the blocks in design/roadmap/ (design/roadmap.md before the one-file-per-milestone split); '
      'unnumbered proposals from design/roadmap/proposals/ stacked on top',
      [('Built', 'milestones_built'), ('Partial', 'milestones_partial'),
       ('In progress', 'milestones_in_progress'), ('Not started', 'milestones_not_started'),
