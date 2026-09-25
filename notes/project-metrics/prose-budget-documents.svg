@@ -49,9 +49,9 @@
 <path class="seg s0" d="M542.8,324.0 V117.9 Q542.8,113.9 546.8,113.9 H577.4 Q581.4,113.9 581.4,117.9 V324.0 Z"><title>2026W38, documents over the cap: 158</title></path>
 <text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W38</text>
 <text class="fg val" x="562.1" y="108.9" font-size="10" text-anchor="middle">158</text>
-<path class="seg s0" d="M601.4,324.0 V103.2 Q601.4,99.2 605.4,99.2 H636.0 Q640.0,99.2 640.0,103.2 V324.0 Z"><title>2026W39, documents over the cap: 169</title></path>
+<path class="seg s0" d="M601.4,324.0 V111.2 Q601.4,107.2 605.4,107.2 H636.0 Q640.0,107.2 640.0,111.2 V324.0 Z"><title>2026W39, documents over the cap: 163</title></path>
 <text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W39</text>
-<text class="fg val" x="620.7" y="94.2" font-size="10" text-anchor="middle">169</text>
+<text class="fg val" x="620.7" y="102.2" font-size="10" text-anchor="middle">163</text>
 <rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
 <text class="fg" y="74" font-size="11"><tspan x="689" dy="0">documents over the cap</tspan></text>
 </svg>
