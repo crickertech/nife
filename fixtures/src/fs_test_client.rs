@@ -104,7 +104,7 @@ const STAGE_WRITE: u64 = 3;
 ///
 /// `w0` is the raw reply word, `w1` is `0xBADD_0000 | stage << 12 | errno`. The errno is recovered
 /// with `filesystem_protocol::reply_errno`'s rule (a negative reply is a negated errno). Note the known
-/// reply-space overlap (notes/std.md): the kernel's own `invoke` errors are -1..-8, so a small value
+/// reply-space overlap (notes/std/fs.md): the kernel's own `invoke` errors are -1..-8, so a small value
 /// here is ambiguous between "the server returned this errno" and "the IPC itself failed". The raw
 /// word travels in `w0` precisely so that ambiguity is visible rather than hidden.
 fn fail(stage: u64, r0: u64) -> ! {

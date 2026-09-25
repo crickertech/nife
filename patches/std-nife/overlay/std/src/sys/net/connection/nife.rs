@@ -135,7 +135,7 @@ struct Registry {
     // A round-robin cursor for id allocation. net_stack derives each socket's local port from its id
     // (`LOCAL_PORT_BASE + sid`), so handing out ids in rotation rather than always the lowest free
     // one keeps a fresh open from immediately reusing the port a just-closed socket held, which
-    // slirp can still be holding. See the reuse note in notes/std.md.
+    // slirp can still be holding. See the reuse note in notes/std/net.md.
     next: UnsafeCell<usize>,
 }
 

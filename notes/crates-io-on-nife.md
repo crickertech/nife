@@ -586,7 +586,7 @@ Nothing was missing from the contract and nothing was missing from the server; t
 still said the verbs did not exist.
 
 **All five are bound now**, and the `std_exerciser` demo walks them under a real directory
-capability on both ISAs. See notes/std.md for the behaviours (what `read_dir(".")` means with no
+capability on both ISAs. See notes/std/fs.md for the behaviours (what `read_dir(".")` means with no
 global namespace, why the listing is drained rather than streamed, and why `remove_file` refuses a
 directory).
 
