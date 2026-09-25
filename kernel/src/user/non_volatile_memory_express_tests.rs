@@ -1,4 +1,4 @@
-//! **A confined EL0 process drives the machine's NVMe disk** (milestone 261; DECISIONS §86's
+//! **A confined EL0 process drives the machine's NVMe disk** (milestone 261 (the NVMe driver leaves the kernel); DECISIONS §86 (whether an NVMe driver can leave the kernel)'s
 //! option 2a, notes/non-volatile-memory-express.md).
 //!
 //! This is the test the kernel-resident driver's own end-to-end test became. The sequence is the
@@ -22,7 +22,16 @@ use super::*;
 fn start() -> Option<non_volatile_memory_express_service::Wiring> {
     let image = program("non_volatile_memory_express")
         .expect("no non_volatile_memory_express program in the initrd archive");
-    let w = non_volatile_memory_express_service::ensure(image)?;
+    // **A controller that is there and refused is a failure, never a skip** (milestone 261's
+    // bench rehearsal). Both used to arrive here as `None`, so xenon's second attempt on
+    // 2026-09-17 reported "skipped: no NVMe controller came up" about a disk that was on the bus.
+    let w = match non_volatile_memory_express_service::ensure_or_why(image) {
+        Ok(w) => w,
+        Err(crate::non_volatile_memory_express::Absent::NoController) => return None,
+        Err(crate::non_volatile_memory_express::Absent::Refused { rid, why }) => panic!(
+            "an NVMe controller at requester id {rid:#06x} is on the bus and this driver refused              it: {why:?}. Not a skip: see notes/risk-6-bench-evening.md"
+        ),
+    };
     if let Some(report) = w.wait_for_ready() {
         assert_eq!(
             report[0],
@@ -80,9 +89,13 @@ fn a_confined_el0_process_serves_the_block_interface_end_to_end() {
     // more here than it did for the kernel-resident driver: with the driver at EL0 the IOMMU is
     // the *whole* of what stops a compromised server reaching memory it was not given, where
     // before it was a second line behind the kernel's own arithmetic.
+    // Since milestone 261's bench rehearsal this asks whether the unit that is up *owns* the
+    // controller, not whether any unit is up: on a machine with two VT-d units those differ.
     assert!(
         disk.confined_by_iommu,
-        "the NVMe server was wired without an IOMMU; the confinement claim is untested"
+        "the NVMe server was wired without an IOMMU that owns it ({}); the confinement claim is \
+         untested",
+        disk.scope,
     );
 
     // SIZE: the server was told the geometry rather than allowed to ask, since asking means

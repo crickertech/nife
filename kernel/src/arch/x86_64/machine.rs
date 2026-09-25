@@ -149,7 +149,7 @@ pub fn memory_map_entry(info: &BootInfo, index: usize) -> Option<MemoryEntry> {
     memory_entry(bytes, 0)
 }
 
-/// **The initrd, if the loader put one in RAM** (milestone 161): x86's answer to the device tree's
+/// **The initrd, if the loader put one in RAM** (milestone 161 (the `x86_64` kernel port)): x86's answer to the device tree's
 /// `/chosen/linux,initrd-start`, which is what both other architectures read.
 ///
 /// QEMU's PVH loader turns `-initrd FILE` into one entry in the module list `hvm_start_info` points
@@ -247,7 +247,7 @@ pub fn print_memory_map(info: &BootInfo) {
 // ---------------------------------------------------------------------------------------------
 
 use machine_discovery::acpi::{
-    self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader, first_drhd,
+    self, DmarUnits, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader,
     isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_madt, parse_rsdp, parse_sdt_header,
     root_entry, root_entry_count,
 };
@@ -308,11 +308,16 @@ pub struct Acpi {
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
     pub ecam: Option<(u64, u8, u8)>,
-    /// **VT-d's register base, from the DMAR's first DRHD** (milestone 161, roadmap item 6).
-    /// `machine_discovery::acpi::first_drhd`'s own doc says why "first" rather than "every": one
-    /// DRHD is what QEMU's `-device intel-iommu` presents, and this driver does not yet route a
-    /// device to one of several.
+    /// **The VT-d unit this kernel translates through** (milestone 161, roadmap item 6):
+    /// [`DmarUnits::translating`], the segment's `INCLUDE_PCI_ALL` unit when there is one and the
+    /// first DRHD otherwise. It was the first DRHD unconditionally until milestone 261 (the NVMe driver leaves the kernel)'s bench
+    /// rehearsal, which is the graphics unit on a client Intel machine and very likely xenon's;
+    /// see notes/risk-6-bench-evening.md.
     pub vtd_base: Option<u64>,
+    /// **Every DRHD and PCI device scope the DMAR describes**, kept so the kernel can answer, after
+    /// the bus is up, whether the unit at [`Acpi::vtd_base`] is the one that owns a given device.
+    /// Empty on a machine with no DMAR.
+    pub dmar: DmarUnits,
 }
 
 impl Default for Acpi {
@@ -328,6 +333,7 @@ impl Default for Acpi {
             has_8259: false,
             ecam: None,
             vtd_base: None,
+            dmar: DmarUnits::default(),
         }
     }
 }
@@ -570,7 +576,8 @@ fn read_dmar(body: &[u8], into: &mut Acpi) {
     if parse_dmar(body).is_err() {
         return;
     }
-    into.vtd_base = first_drhd(body).map(|d| d.register_base);
+    into.dmar = DmarUnits::parse(body);
+    into.vtd_base = into.dmar.translating().map(|d| d.register_base);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -718,9 +725,31 @@ pub fn print_acpi_summary(found: &Acpi) {
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
     }
-    match found.vtd_base {
-        Some(base) => crate::println!("                vt-d drhd at {base:#x}"),
-        None => crate::println!("                no DMAR: no VT-d unit described"),
+    // **Every unit, not just the one brought up**, because which one owns the NVMe is fatal risk
+    // 6's first night-of condition and the answer starts here. `all` is the INCLUDE_PCI_ALL flag.
+    for d in found.dmar.units() {
+        crate::println!(
+            "                vt-d drhd at {:#x}{}{}",
+            d.register_base,
+            if d.include_pci_all {
+                ", all (the catch-all)"
+            } else {
+                ", named devices only"
+            },
+            if Some(d.register_base) == found.vtd_base {
+                ", translating"
+            } else {
+                ""
+            },
+        );
+    }
+    if found.dmar.truncated {
+        crate::println!(
+            "                vt-d: the DMAR did not fit what this kernel records; scope answers are unknown"
+        );
+    }
+    if found.vtd_base.is_none() {
+        crate::println!("                no DMAR: no VT-d unit described");
     }
 }
 
