@@ -10,7 +10,7 @@ what a host can gate. **One claim about radon has since been made, and it closed
 2026-09-04 the board accepted SRST reset type 1 and hung in U-Boot SPL at the PMIC read on the way
 back (*The bench answered it, 2026-09-04* below). This paragraph said every such claim was unmade
 until 2026-09-25, when it led a maintainer to schedule the same experiment a second time; corrected
-by milestone 225's radon lane. See *What was built, with the board powered off* below, and
+by milestone 225 (run the soak on radon, argon and xenon)'s radon lane. See *What was built, with the board powered off* below, and
 notes/soak.md's procedure, whose first four steps are the ones a lane cannot take.
 
 **`PARTIAL` rather than `IN-PROGRESS`, chosen deliberately and against the obvious answer.** This

@@ -2,7 +2,7 @@ Run a bench session on a real board (radon, xenon or argon) from a lane, safely,
 the bench. You are a developer lane. The maintainer relays everything between you and calef. Do the
 work; stop only where this brief says stop.
 
-*(Name **provisional**, minted 2026-09-25 by milestone 225's radon lane, the first bench session
+*(Name **provisional**, minted 2026-09-25 by milestone 225 (run the soak on radon, argon and xenon)'s radon lane, the first bench session
 ever run from a lane rather than from a maintainer session. calef names things.)*
 
 **Why this brief exists.** Until 2026-09-25 every bench session was run by a maintainer, from
@@ -19,7 +19,7 @@ Whoever finishes an entry moves it off this list in the same pull request.
 
 | rank | board | milestone | procedure | calef's hands |
 |---|---|---|---|---|
-| 1 | radon | 168, the multi-tasking workload number (fatal risk 4) | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots.** radon cannot reboot itself: SBI SRST reset type 1 is accepted and U-Boot SPL then hangs at `cannot read pmic power register` (`design/roadmap/249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md`, "The bench answered it, 2026-09-04"). Nothing on patagonia can reach the plug (milestone 224). |
+| 1 | radon | 168, the multi-tasking workload number (fatal risk 4) | `notes/job-mix.md`, "The next bench evening on radon, start to finish" | **one plug-2 power cycle per boot, at least five boots.** radon cannot reboot itself: SBI SRST reset type 1 is accepted and U-Boot SPL then hangs at `cannot read pmic power register` (`design/roadmap/249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md`, "The bench answered it, 2026-09-04"). Nothing on patagonia can reach the plug (milestone 224 (nothing can power-cycle radon, so a hung soak needs a person)). |
 | 2 | xenon | 261, the NVMe driver leaves the kernel, and then the soak on xenon (fatal risk 6, then 5) | `design/roadmap/261-el0-nvme-on-xenon.md`; the bench procedure is being written by another lane, so check that block's current text first | the one-time firmware **Data Wipe** of the internal NVMe (261's "What calef has to do"), which cannot be undone; then power |
 | 3 | argon | 127, first light, then 225's soak on argon | `design/roadmap/127-the-sel4-machine.md` and `notes/bench-runbook.md`, "argon, and why it is last" | everything: argon has never booted nife, so cabling, media and power are all his |
 
@@ -56,7 +56,7 @@ the main checkout's `target/` that day.
 
 **`NOT SEALED` on a `--soak`, `--job-mix` or `--bench` build is a false alarm. Do not rebuild.**
 Those builds divert the boot before the only caller of the measured-boot check, so the linker drops
-the trust root and `sealed_pair` finds no digests (`crates/sealed_pair`'s `BUGS`, milestone 563).
+the trust root and `sealed_pair` finds no digests (`crates/sealed_pair`'s `BUGS`; milestone 563 (a seal check that reads bytes cannot see a check that was dropped)).
 The pair boots. It cost an hour at the bench on 2026-09-21 and again on 2026-09-25, because the
 message names two builds and points nowhere near a cargo feature. `script/board-image` exits 1 when
 it happens, and the files in `target/board` are still the matched pair it packed.
