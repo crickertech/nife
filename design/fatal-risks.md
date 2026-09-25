@@ -39,6 +39,14 @@ Three properties, and an entry that lacks one is a worry rather than a risk:
 The ranking is chance-of-fatal times cheapness-of-test, which is why the running order at the bottom
 is not the numbering. The numbers are identity, like a milestone's.
 
+## Who may change an entry
+
+Verdicts are the architect's: the Experiment status word, the colour and the running order. The
+maintainer corrects a factual error (a wrong date or instrument, a claim the machine disproves)
+without asking, dated and citing its source. Facts arguing for a new verdict go to the architect.
+[§216 (fatal-risk facts are correctable, and verdicts are the architect's)](decisions/216-fatal-risk-facts-are-correctable-verdicts-are-the-architects.md),
+2026-09-25.
+
 ## What an entry's Experiment status says, and the three words it may say it in
 
 Every entry carries one Experiment status line. It answers one question: has the experiment happened.
