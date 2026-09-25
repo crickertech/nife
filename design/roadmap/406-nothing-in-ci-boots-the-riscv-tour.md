@@ -21,8 +21,8 @@ milestone 286, its work now being `script/ci-build`'s table, which is where `boo
 `script/soak` is `script/soak-test` since milestone 297.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§186](../decisions/186-where-the-riscv-tour-check-runs.md) *(number provisional)*, written up
+**Gate: DECISION §186.** The decision is
+§186 (where a riscv64 tour-boot check runs, what it asserts, and what it is called), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. **That lane judged
 the gate and not the title**: the title's claim is false as written, the status paragraph above says
 so, and retitling a block is calef's rather than a sweep's.

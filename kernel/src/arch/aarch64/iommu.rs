@@ -243,6 +243,23 @@ pub fn is_active() -> bool {
     SMMU.lock().is_some()
 }
 
+/// **Whether requester `rid` is behind this IOMMU** (milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal): always, when
+/// it is up. This tree brings the unit up against a device tree whose `iommu-map` is an identity
+/// over the whole bus, so there is no second unit for a device to belong to. VT-d is the
+/// architecture where that stops being true; see `arch::x86_64::iommu::scope_of`.
+pub fn scope_of(_rid: u32) -> crate::iommu::Scope {
+    if is_active() {
+        crate::iommu::Scope::WholeBus
+    } else {
+        crate::iommu::Scope::NoIommu
+    }
+}
+
+/// **Firmware-reserved DMA regions for requester `rid`: none on this architecture as this tree
+/// brings it up** (milestone 594 (every VT-d unit translates its own devices)). The VT-d driver reports its RMRRs here so
+/// [`crate::iommu::confine`] can map them into every domain. The SMMUv3 counterpart is an IORT RMR node or a device tree `reserved-memory` region with `iommu-addresses`; this tree reads neither, and no machine it boots publishes one.
+pub fn for_each_reserved_region(_rid: u32, _each: &mut dyn FnMut(paging::domain::DmaRegion)) {}
+
 /// Push one 16-byte command and (for our uses) wait for the SMMU to consume it. The queue is far
 /// larger than any burst we issue, so treating every push as synchronous keeps the driver simple;
 /// QEMU consumes on the PROD write.

@@ -315,8 +315,21 @@ fn every_character_survives() {
         let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
             continue;
         };
+        // One level down as well: §212 (a prose budget) moves a long page's depth into appendices
+        // under `notes/<stem>/`, and a corpus that stopped at the parent would stop checking every
+        // word the split moved.
+        let mut paths = Vec::new();
         for e in entries.flatten() {
             let path = e.path();
+            if path.is_dir() {
+                if let Ok(sub) = std::fs::read_dir(&path) {
+                    paths.extend(sub.flatten().map(|e| e.path()));
+                }
+            } else {
+                paths.push(path);
+            }
+        }
+        for path in paths {
             if path.extension().and_then(|s| s.to_str()) != Some("md") {
                 continue;
             }
@@ -429,7 +442,8 @@ fn alignment_does_not_outlive_its_table() {
 
 #[test]
 fn an_escaped_pipe_is_cell_text_and_not_a_column_boundary() {
-    // `notes/scripts.md` has one (`--arch aarch64\| riscv64`), and reading it as a separator gave
+    // `notes/scripts/build-test-and-gate.md` has one (`--arch aarch64\| riscv64`; the row lived in
+    // `notes/scripts.md` until 2026-09-25), and reading it as a separator gave
     // that table a third column nobody wrote and squeezed the other two to pay for it. The
     // backslash is the escape and not the text, so it does not reach the output either.
     let out = plain("| cmd | note |\n|---|---|\n| a \\| b | two |\n", 80);

@@ -5,6 +5,15 @@
 #   script/soak-test                             # aarch64, one minute
 #   script/soak-test --arch riscv64 --for 10m    # the architecture radon runs
 #   script/soak-test --arch x86_64 --smp 1       # xenon's architecture, forced to one core
+#   script/soak-test --reboot --arch x86_64      # milestone 249 (the boot lottery is sampled by a person walking to the board): reset, and prove it came back
+#
+# `--reboot` builds `--features reboot_soak_test` instead, and passes only when the soak's start line
+# appears a second time after the kernel asked for a cold reboot: QEMU reset the machine and loaded
+# the kernel again. It is the per-architecture proof of `arch::reboot` (SBI SRST, PSCI SYSTEM_RESET,
+# the FADT reset register) and takes a little over two minutes, because the window is the board's
+# own 120s. Exit 0 came back; 1 the reset was refused or the kernel panicked; 2 the deadline (six
+# minutes unless `--for` says otherwise) passed; 3 QEMU's output ended, which is what a QEMU that
+# exits on reset looks like and is not a reboot.
 #
 # `design/fatal-risks.md`'s fifth entry ("it cannot be made reliable on multicore, and the bugs
 # appear only on silicon") names its decisive experiment as sustained multi-core stress with the

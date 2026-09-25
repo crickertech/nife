@@ -449,7 +449,7 @@ mod verification {
 /// **The token that asks the kernel to hold the screen at the handover**, so that a host watching
 /// the framebuffer is told when to look instead of guessing (milestone 445 (the screen check stops sampling and starts asking)).
 ///
-/// *Name provisional (`AGENTS.md`: calef names what a reader meets).*
+/// Name: provisional (`AGENTS.md`: calef names what a reader meets).
 ///
 /// **A debugging affordance, and it belongs on no machine anybody boots for its own sake.** A
 /// kernel that finds this word on its boot command line stops between painting the tour and

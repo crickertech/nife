@@ -16,7 +16,7 @@
 //!   from `main.rs`'s boot tour (`memory::record_pci_regions`, `memory::record_uart_irq`;
 //!   milestones 165 and 176). **The only device window with no seam at all is the CMOS RTC**: it
 //!   is not memory-mapped (two fixed I/O ports, not a page), so `memory::RTC_REGION`'s
-//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port.md and
+//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port/acpi-and-pci.md and
 //!   `kernel/src/arch/x86_64/port.rs`'s own doc comment.
 
 use machine_discovery::framebuffer::Framebuffer;
@@ -149,7 +149,7 @@ pub fn memory_map_entry(info: &BootInfo, index: usize) -> Option<MemoryEntry> {
     memory_entry(bytes, 0)
 }
 
-/// **The initrd, if the loader put one in RAM** (milestone 161): x86's answer to the device tree's
+/// **The initrd, if the loader put one in RAM** (milestone 161 (the `x86_64` kernel port)): x86's answer to the device tree's
 /// `/chosen/linux,initrd-start`, which is what both other architectures read.
 ///
 /// QEMU's PVH loader turns `-initrd FILE` into one entry in the module list `hvm_start_info` points
@@ -247,9 +247,9 @@ pub fn print_memory_map(info: &BootInfo) {
 // ---------------------------------------------------------------------------------------------
 
 use machine_discovery::acpi::{
-    self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader, first_drhd,
-    isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_madt, parse_rsdp, parse_sdt_header,
-    root_entry, root_entry_count,
+    self, DmarUnits, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader,
+    isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_fadt_reset, parse_madt, parse_rsdp,
+    parse_sdt_header, root_entry, root_entry_count,
 };
 
 /// The BIOS area the RSDP is required to be in when it is not in the EBDA: `0xe0000..0x100000`,
@@ -308,11 +308,15 @@ pub struct Acpi {
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
     pub ecam: Option<(u64, u8, u8)>,
-    /// **VT-d's register base, from the DMAR's first DRHD** (milestone 161, roadmap item 6).
-    /// `machine_discovery::acpi::first_drhd`'s own doc says why "first" rather than "every": one
-    /// DRHD is what QEMU's `-device intel-iommu` presents, and this driver does not yet route a
-    /// device to one of several.
-    pub vtd_base: Option<u64>,
+    /// **The FADT's reset register** (milestone 249 (the boot lottery is sampled by a person walking to the board)'s `x86_64` half): where firmware says a write
+    /// resets the machine, and the value to write. `None` for no FADT, an ACPI 1.0 one, or one
+    /// that does not set `RESET_REG_SUP`; the kernel's reboot then starts at port `0xCF9`.
+    pub reset: Option<acpi::ResetRegister>,
+    /// **Every DRHD, PCI device scope and RMRR the DMAR describes** (milestones 261 and 594). The
+    /// kernel brings up every unit here and routes each device to the one that owns it, which it
+    /// can only resolve after the bus is up, so the table is kept rather than read once. Empty on a
+    /// machine with no DMAR.
+    pub dmar: DmarUnits,
 }
 
 impl Default for Acpi {
@@ -327,7 +331,8 @@ impl Default for Acpi {
             cpu_count: 0,
             has_8259: false,
             ecam: None,
-            vtd_base: None,
+            reset: None,
+            dmar: DmarUnits::default(),
         }
     }
 }
@@ -505,6 +510,11 @@ pub fn read_acpi(hint: u64) -> Acpi {
             b"APIC" => read_madt(body, &mut found),
             b"MCFG" => read_mcfg(body, &mut found),
             b"DMAR" => read_dmar(body, &mut found),
+            b"FACP" => {
+                found.reset = parse_fadt_reset(body);
+                #[cfg(feature = "reboot_soak_test")]
+                super::reset::record(found.reset);
+            }
             _ => {}
         }
     }
@@ -570,7 +580,7 @@ fn read_dmar(body: &[u8], into: &mut Acpi) {
     if parse_dmar(body).is_err() {
         return;
     }
-    into.vtd_base = first_drhd(body).map(|d| d.register_base);
+    into.dmar = DmarUnits::parse(body);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -649,7 +659,7 @@ fn pciexbar_length_bits(bus_count: u32) -> Option<u32> {
 ///
 /// The write stays for the machine that genuinely arrives with the decode off. It is therefore
 /// **unexercised on both paths this kernel boots today**, which is recorded rather than hidden:
-/// see this module's BUGS in notes/x86-port.md.
+/// see notes/x86-port/acpi-and-pci.md.
 ///
 /// Uses the legacy configuration mechanism rather than the ECAM window itself, which is the only
 /// way to bootstrap: nothing can read the ECAM window to turn the ECAM window on.
@@ -718,9 +728,57 @@ pub fn print_acpi_summary(found: &Acpi) {
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
     }
-    match found.vtd_base {
-        Some(base) => crate::println!("                vt-d drhd at {base:#x}"),
-        None => crate::println!("                no DMAR: no VT-d unit described"),
+    // **Every unit and every RMRR, as the firmware described them**, because which unit owns the
+    // NVMe is fatal risk 6's first night-of condition and the answer starts here. Whether each unit
+    // came up is the `vt-d` line's job, later in the tour. `all` is the INCLUDE_PCI_ALL flag.
+    for d in found.dmar.units() {
+        crate::println!(
+            "                vt-d drhd at {:#x}{}",
+            d.register_base,
+            if d.include_pci_all {
+                ", all (the catch-all)"
+            } else {
+                ", named devices only"
+            },
+        );
+    }
+    for r in found.dmar.reserved_regions() {
+        crate::println!(
+            "                vt-d rmrr {:#x}..={:#x} ({} KiB), identity-mapped for the device(s) it names",
+            r.base,
+            r.limit,
+            r.size() / 1024,
+        );
+    }
+    if found.dmar.rmrrs_refused > 0 {
+        crate::println!(
+            "                vt-d: {} rmrr(s) refused as malformed (VT-d 8.4), not mapped",
+            found.dmar.rmrrs_refused,
+        );
+    }
+    if found.dmar.truncated {
+        crate::println!(
+            "                vt-d: the DMAR did not fit what this kernel records; scope answers are unknown"
+        );
+    }
+    if found.dmar.units().is_empty() {
+        crate::println!("                no DMAR: no VT-d unit described");
+    }
+    // Printed on every boot, not only a rebooting one, because this is the line a bench log is read
+    // for when the question is "what will a reset on this machine write, and where".
+    match found.reset {
+        Some(r) => crate::println!(
+            "                fadt reset register: {:?} {:#x} ({} bits) <- {:#04x}",
+            r.space,
+            r.address,
+            r.bit_width,
+            r.value,
+        ),
+        None => {
+            crate::println!(
+                "                no FADT reset register: a reboot starts at port 0xcf9"
+            );
+        }
     }
 }
 
@@ -901,7 +959,7 @@ const INTEL_VENDOR: u32 = 0x8086;
 ///   2026-09-04 on QEMU 11.1.1 under PVH *and* under OVMF), so under emulation this is always
 ///   `None` and the firmware memory map is the only source. See [`super::mmu::memory_mapped_io_window`].
 ///
-/// **Name provisional**: calef names the functions, and this one was minted by a lane. It is the
+/// Name: provisional. calef names the functions, and this one was minted by a lane. It is the
 /// register's own expansion spelled out (`TOLUD` is "top of low usable DRAM"), on the same
 /// reasoning that keeps `elf` and `pci` spelled the way the field already spells them.
 ///

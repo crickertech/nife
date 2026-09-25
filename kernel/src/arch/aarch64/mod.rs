@@ -17,6 +17,7 @@ pub mod exceptions;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
 pub mod fp;
+mod instructions;
 // The GICv3 CPU interface, `ICC_*` system registers (milestone 227). Private: `irq` is its only
 // caller, and the one place that knows which GIC version this machine has.
 mod gic_cpu_interface;
@@ -190,6 +191,72 @@ pub fn cpu_start(target_mpidr: u64, entry: u64, context: u64) -> i64 {
     }
 }
 
+/// PSCI `PSCI_VERSION`, the SMC32 id every PSCI 0.2 and later implementation answers. Asked before
+/// the reset so the console says which PSCI refused, if one does.
+#[cfg(feature = "reboot_soak_test")]
+const PSCI_VERSION: u64 = 0x8400_0000;
+/// PSCI `SYSTEM_RESET` (PSCI 0.2, section 5.11 of ARM DEN 0022): a **cold** reset of the whole
+/// system, which "does not return" on success. SMC32, so the same id on every implementation; PSCI
+/// 0.1 had no system functions at all, so a 0.1 firmware answers `NOT_SUPPORTED` (-1).
+#[cfg(feature = "reboot_soak_test")]
+const PSCI_SYSTEM_RESET: u64 = 0x8400_0009;
+
+/// **Ask the firmware for a cold reboot through PSCI `SYSTEM_RESET`**, and return only if it
+/// refuses (milestone 249 (the boot lottery is sampled by a person walking to the board)'s aarch64 half).
+///
+/// The arch contract `soak::draw_again` calls on all three architectures: print one line per
+/// attempt, prefixed with `marker`, *before* making it (a reset stops the UART draining), and return
+/// only when every route was refused. aarch64 has one route, because PSCI is the firmware interface
+/// that owns the machine's power here: the same `/psci` node [`cpu_start`] reads names the conduit,
+/// so this cannot be on the wrong one of `hvc` and `smc` unless `CPU_ON` is too.
+///
+/// **Only the conduit is required, not a `CPU_ON` id.** A uniprocessor board may publish `/psci`
+/// with a method and no `cpu_on`; it can still reset. A board with no `/psci` at all is refused
+/// here, out loud, rather than guessed at.
+///
+/// # BUGS
+///
+/// - **Proven under QEMU `virt` only, over `hvc`**, where QEMU itself is the PSCI implementation.
+///   argon's is NVIDIA's TF-A build, reached over `smc`, and whether its `SYSTEM_RESET` comes back
+///   through the bootloader to a netboot is the bench's first question (milestone 249's block).
+/// - **The ACPI half is not wired.** A machine booted with ACPI and no device tree states PSCI in the
+///   FADT's Arm boot flags (`machine_discovery::acpi::parse_arm_boot`); this kernel boots aarch64
+///   from a device tree only, so there is nothing to read that from yet.
+///
+/// Name: provisional (milestone 249): calef names public items.
+#[cfg(feature = "reboot_soak_test")]
+pub fn reboot(marker: &str) {
+    use ::machine_discovery::aarch64::Conduit;
+
+    let Some(conduit) = isa::psci_record().and_then(|p| p.conduit) else {
+        println!(
+            "{marker} PSCI SYSTEM_RESET not attempted: the device tree has no /psci node with a \
+             usable method, so hvc-versus-smc cannot be chosen and a guess is an undefined \
+             instruction"
+        );
+        return;
+    };
+    let call = |func: u64| -> i64 {
+        match conduit {
+            Conduit::Hvc => psci_call!("hvc #0", func, 0u64, 0u64, 0u64),
+            Conduit::Smc => psci_call!("smc #0", func, 0u64, 0u64, 0u64),
+        }
+    };
+    let version = call(PSCI_VERSION);
+    println!(
+        "{marker} attempt 1 of 1: PSCI SYSTEM_RESET over {} (PSCI_VERSION answered {}.{}). The next \
+         thing this console should show is the firmware's banner.",
+        conduit.name(),
+        (version >> 16) & 0xffff,
+        version & 0xffff,
+    );
+    let error = call(PSCI_SYSTEM_RESET);
+    println!(
+        "{marker} PSCI SYSTEM_RESET refused: returned {error} (-1 is NOT_SUPPORTED, a PSCI 0.1 \
+         firmware or one that does not offer system reset)"
+    );
+}
+
 /// Can this machine start a secondary core at all? Asked once by `smp::bring_up_secondaries`.
 ///
 /// False on a machine whose device tree has no `/psci` node, or one whose node did not say enough
@@ -275,12 +342,7 @@ pub fn wait_for_interrupt() {
 /// This core's current stack pointer. Reading `sp` is arch-specific (rule 1), so the stack-overflow
 /// canary check (stack.rs) goes through here rather than embedding an `asm!` in portable code.
 pub fn current_sp() -> u64 {
-    let sp: u64;
-    // SAFETY: reads a register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, sp", out(reg) sp, options(nomem, nostack, preserves_flags));
-    };
-    sp
+    instructions::read_sp()
 }
 
 /// `SPSel`, the register that says which stack pointer the name `sp` currently means at EL1:
@@ -291,10 +353,7 @@ pub fn current_sp() -> u64 {
 /// by privilege level, so there is no analogous register to read (notes/riscv-parity-scope.md).
 #[cfg(test)]
 pub fn spsel() -> u64 {
-    let spsel: u64;
-    // SAFETY: reading SPSel has no side effects.
-    unsafe { core::arch::asm!("mrs {}, spsel", out(reg) spsel, options(nostack, nomem)) };
-    spsel
+    instructions::read_spsel()
 }
 
 /// Order all prior normal-memory writes before the next device (MMIO) write.

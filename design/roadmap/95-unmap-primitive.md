@@ -3,11 +3,11 @@
 **Status: NOT-STARTED.** Raised 2026-08-04 from milestone 22's closing lane, which named it as the
 largest residual left standing after the interactive boot gave away its authority.
 
-**Gate: DECISION.** An unmap method is a syscall-surface addition, which the block calls a design
+**Gate: DECISION §162.** An unmap method is a syscall-surface addition, which the block calls a design
 fork for calef before it is a task: whether unmap belongs on the address space or on the frame,
 what it does to a mapping another holder also has, and whether restructuring the loader to map one
 page at a time avoids the new method entirely. **It is
-[§162](../decisions/162-giving-up-a-mapping.md) (whether a holder can give up a mapping)**, written
+§162 (whether a holder can give up a mapping)**, written
 up 2026-09-19 by milestone 435's lane, which found this gate naming no decision though the block had
 called it a fork since 2026-08-04.
 

@@ -280,6 +280,14 @@ fi
 # difference between seeing that early boot died and watching a blank terminal. Every failure in
 # this port's bring-up so far has been a triple fault; add `-d int,cpu_reset` to see the state.
 #
+# `NIFE_ALLOW_REBOOT=1` drops it, for the one run that wants a reset to reset: milestone 249 (the boot lottery is sampled by a person walking to the board)'s
+# `script/soak-test --reboot --arch x86_64`, whose proof is a second boot. That run bounds itself
+# and fails on a panic line, so a triple-fault loop costs it a timeout rather than a blank terminal.
+NO_REBOOT="-no-reboot"
+if [ -n "$NIFE_ALLOW_REBOOT" ]; then
+    NO_REBOOT=""
+fi
+#
 # NOT `exec`, and that is the one thing in this file that is not like the other two runners. See the
 # status translation below.
 #
@@ -311,7 +319,7 @@ qemu-system-x86_64 \
     -m 256M \
     -display none \
     -serial stdio \
-    -no-reboot \
+    $NO_REBOOT \
     $DEBUG_EXIT \
     $IOMMU \
     $DISK \

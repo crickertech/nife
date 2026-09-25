@@ -25,8 +25,6 @@
 // `cfg(test)`, exactly as on aarch64. `not(test)` rather than a blanket allow, so the test build
 // still holds this file to the dead-code gate.
 
-use core::arch::asm;
-
 /// The harness's success code (a passing exit).
 #[cfg_attr(not(test), allow(dead_code))]
 pub const EXIT_SUCCESS: u32 = 0;
@@ -68,18 +66,17 @@ pub fn exit(code: u32) -> ! {
 
     // The finisher terminates the guest; if it somehow does not, stop rather than run on.
     loop {
-        // SAFETY: wait-for-interrupt is always safe.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
+        super::instructions::wfi();
     }
 }
 
 // ---- Board exit: UART marker + SBI SRST shutdown ----
 
 /// The SBI SRST extension id, "SRST" in ASCII.
-#[cfg(feature = "board")]
+#[cfg(any(feature = "board", feature = "reboot_soak_test"))]
 const SBI_SRST_EID: usize = 0x5352_5354;
 /// The SBI SRST `system_reset` function id.
-#[cfg(feature = "board")]
+#[cfg(any(feature = "board", feature = "reboot_soak_test"))]
 const SBI_SYSTEM_RESET_FID: usize = 0;
 /// SRST reset type: shutdown (power off the board).
 #[cfg(feature = "board")]
@@ -91,13 +88,14 @@ const SRST_RESET_TYPE_SHUTDOWN: usize = 0;
 ///
 /// **Whether radon's OpenSBI implements this one is unverified.** The shutdown path above is in
 /// use, so the extension exists and the `ecall` reaches it; that says nothing about which types
-/// this vendor firmware build accepts, and nobody in this tree has asked it. [`reboot`] returns
+/// this vendor firmware build accepts, and nobody in this tree has asked it. [`reboot`] prints
 /// the firmware's own error code so the answer is read off a console rather than assumed. See
-/// notes/soak.md, "Verifying the reset before anything is left unattended".
+/// notes/soak.md, "Verifying the reset before anything is left unattended". (Asked 2026-09-04: it
+/// accepts, and radon's U-Boot SPL then cannot reach the PMIC; milestone 249 (the boot lottery is sampled by a person walking to the board)'s block has it.)
 #[cfg(feature = "reboot_soak_test")]
 const SRST_RESET_TYPE_COLD_REBOOT: usize = 1;
 /// SRST reset reason: none (no additional reason specified).
-#[cfg(feature = "board")]
+#[cfg(any(feature = "board", feature = "reboot_soak_test"))]
 const SRST_RESET_REASON_NONE: usize = 0;
 
 /// Call SBI SRST `system_reset` with `reset_type`. An `ecall` from S-mode traps to OpenSBI in
@@ -108,26 +106,14 @@ const SRST_RESET_REASON_NONE: usize = 0;
 /// caller should expect is `SBI_ERR_NOT_SUPPORTED` (-2) from an implementation that does not do the
 /// type asked for.
 ///
-/// `a1` is written by the call as `sbiret.value` and is discarded, which is why it is an
-/// `inlateout` rather than an `in`: an `in`-only register the callee writes is exactly the shape
-/// that produces a miscompile nobody sees until the value is used.
-#[cfg(feature = "board")]
+/// `a1` is written by the call as `sbiret.value` and discarded; [`super::sbi::call`] declares it as
+/// an output for every call, so no call site can get that operand wrong any more.
+#[cfg(any(feature = "board", feature = "reboot_soak_test"))]
 fn sbi_system_reset(reset_type: usize) -> isize {
-    let error: isize;
-    // SAFETY: an SBI call. a7 = extension id (SRST), a6 = function id (system_reset), a0 = reset
-    // type, a1 = reset reason (none). The firmware returns sbiret in a0 (the error, taken) and a1
-    // (the value, discarded); nothing else is touched.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") SBI_SRST_EID,
-            in("a6") SBI_SYSTEM_RESET_FID,
-            inlateout("a0") reset_type => error,
-            inlateout("a1") SRST_RESET_REASON_NONE => _,
-            options(nostack),
-        );
-    }
-    error
+    let args = [reset_type, SRST_RESET_REASON_NONE, 0, 0, 0, 0];
+    // SAFETY: SRST system_reset with (reset type, reason none). It resets or shuts the machine down,
+    // which is what every caller is asking for; a return means the firmware refused.
+    unsafe { super::sbi::call(SBI_SRST_EID, SBI_SYSTEM_RESET_FID, args) }.error
 }
 
 /// **Ask the firmware for a cold reboot** (milestone 249), and return only if it refuses.
@@ -137,15 +123,30 @@ fn sbi_system_reset(reset_type: usize) -> isize {
 /// `soak::watch`, behind `--features reboot_soak_test`, and it is reached only after the escape in
 /// `console::is_byte_waiting` has been checked twice.
 ///
-/// The return value is the firmware's `sbiret.error`. Nothing here interprets it or prints it: the
-/// marker vocabulary a console log is read with lives in `kernel/src/soak.rs` beside every other
-/// `soak-test-reboot:` line, so this stays a call to the firmware and the caller stays the only place
-/// that speaks to a reader.
+/// **The arch contract is `arch::reboot(marker)` on all three architectures** (milestone 249's
+/// parity half, 2026-09-24): print one line per attempt, prefixed with `marker`, *before* making it,
+/// and return only when every route this architecture has was refused. Here there is one route.
+/// The line is printed before the `ecall` because once the firmware begins a reset the UART stops
+/// draining; the refusal is printed after, with the firmware's own `sbiret.error`, so a firmware
+/// that says no is read off a console rather than assumed.
 ///
-/// Name provisional (milestone 249): calef names public items.
+/// Works under QEMU `virt` as well as on radon: OpenSBI implements reset type 1 there through the
+/// `sifive_test` device, the machine resets, and `-kernel` is loaded again. That is what
+/// `script/soak-test --reboot --arch riscv64` proves.
+///
+/// Name: provisional (milestone 249 (the boot lottery is sampled by a person walking to the
+/// board)): calef names public items.
 #[cfg(feature = "reboot_soak_test")]
-pub fn reboot() -> isize {
-    sbi_system_reset(SRST_RESET_TYPE_COLD_REBOOT)
+pub fn reboot(marker: &str) {
+    crate::println!(
+        "{marker} attempt 1 of 1: SBI SRST system_reset, reset type 1 (cold reboot). The next thing \
+         this console should show is the firmware's banner."
+    );
+    let error = sbi_system_reset(SRST_RESET_TYPE_COLD_REBOOT);
+    crate::println!(
+        "{marker} SBI SRST refused: sbiret.error={error} (-2 is SBI_ERR_NOT_SUPPORTED, an OpenSBI \
+         that implements shutdown and not reset type 1)"
+    );
 }
 
 /// Terminate the board run with `code` (0 = success). Prints a fixed UART marker line so a harness
@@ -166,7 +167,6 @@ pub fn exit(code: u32) -> ! {
 
     // SBI SRST should not return. If it does, stop rather than run on.
     loop {
-        // SAFETY: wait-for-interrupt is always safe.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
+        super::instructions::wfi();
     }
 }

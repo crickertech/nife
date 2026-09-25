@@ -417,7 +417,8 @@ fn load(ed: &mut Editor, name: &[u8]) {
 /// assertion beside that buffer says. Naming the quantity is what let the two constants be compared
 /// at all, and comparing them is how the defect recorded there was found.
 ///
-/// Name provisional (milestone 197): calef names functions (AGENTS.md, extended 2026-08-23).
+/// Name: provisional (milestone 197 (`user/` and `xtask` are out of reach of the prover)): calef
+/// names functions (AGENTS.md, extended 2026-08-23).
 fn staged_len(ed: &Editor) -> usize {
     let mut n = 0usize;
     for i in 0..ed.nrows {
@@ -440,7 +441,7 @@ fn staged_len(ed: &Editor) -> usize {
 /// ones inside the copies where nothing says what they are protecting. If that slice exists the
 /// writes fit, because `n` never runs past the sum it is accumulating toward.
 ///
-/// Name provisional (milestone 197). `stage` is the verb [`save`]'s own doc already used for this.
+/// Name: provisional (milestone 197). `stage` is the verb [`save`]'s own doc already used for this.
 fn stage(ed: &Editor, buf: &mut [u8]) -> usize {
     let out = &mut buf[..staged_len(ed)];
     let mut n = 0usize;

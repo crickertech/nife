@@ -128,6 +128,21 @@ boot reported `iommu : VT-d drhd at 0x00000000fed90000, root table default-deny,
 `pci : 15 function(s) on the bus`, so the IOMMU this experiment needs came up on its own hardware
 rather than under emulation.
 
+Corrected 2026-09-25 (UTC), from pull request #1275 (milestone 261's bench rehearsal). The sentence
+above claims more than that boot showed. The kernel brought up the DMAR's first unit and reported a
+device confined whenever any unit was translating. On the OptiPlex 7040, which shares xenon's
+register addresses, the first unit (`0xfed90000`, flags `0x0`) covers only the integrated graphics.
+The catch-all unit there is `0xfed91000`. So the line shows that a VT-d unit came up on xenon, not
+that the unit in front of the NVMe did. That is an inference from a sibling machine, not a reading
+of xenon's own table, and it stays unverified until milestone 261's bench evening reads xenon's DMAR
+(`notes/risk-6-bench-evening.md`, added by #1275).
+
+What it does not touch. No result recorded on xenon asserted that a PCI device was confined. The
+2026-09-17 NVMe attempts crashed or skipped, and xenon's entropy source is `rdseed`, which has no
+requester id to confine. Under QEMU `-device intel-iommu` presents one unit that owns the whole bus,
+so every x86_64 confinement result from QEMU stands. The verdict above rests on radon's TRNG, which
+has no IOMMU in its path at all.
+
 What stood in the way was not hardware, it was that the disk held somebody else's Windows, and a
 disk this project must not write to is not a disk it can drive. calef confirmed on 2026-09-05 that
 the installation is a freshly wiped image from the seller, not anyone's data. He also confirmed that

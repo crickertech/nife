@@ -27,6 +27,10 @@ nife machine: x86_64, 4 processor(s), 17119 MiB, 100 Hz
 nife self-test: 5 of 5 passed
 ```
 
+*Corrected 2026-09-25, pull request #1275:* the `iommu` line names the DMAR's first unit.
+On the OptiPlex 7040, at xenon's addresses, that unit covers only integrated graphics: the line
+shows a unit translating, not a device confined. Unverified until xenon's DMAR is read.
+
 **The `AlreadyMapped` fix held.** `mmu : fine W^X 4-level map installed` is the line this machine
 died before reaching on 2026-09-04, and the boot went straight past it.
 
@@ -144,10 +148,7 @@ port is not gated on the purchase. That line belongs to 161 or 182, not here.
 promise to match an outcome is how a record stops being one. This paragraph is what a reader should
 believe instead of it.
 
-**What remains is one person, one USB stick and a serial console**, and the procedure is written
-out step by step, with a failure-triage table, in notes/x86-uefi-boot.md's "The bench" section. It
-is deliberately one file to copy: `target/esp/EFI/BOOT/BOOTX64.EFI`, which `cargo xtask uefi-image`
-writes and which carries the kernel and the userspace archive inside itself.
+The bench procedure and its failure triage are in notes/x86-uefi-boot.md's "The bench".
 
 ## What was built (2026-08-30)
 

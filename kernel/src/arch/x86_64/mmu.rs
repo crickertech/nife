@@ -157,8 +157,9 @@ pub const KERNEL_VA_BASE: u64 = 0xffff_ffff_8000_0000;
 /// valid from the first instruction rather than from [`init`]; the module header says why that
 /// matters more than it looks like it should.
 ///
-/// **Name provisional** (milestone 161): calef names the constants, and this one was minted by a
-/// lane. The tree's analogous name is [`KERNEL_VA_BASE`], which is why this is `_BASE` too.
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): calef names the constants, and
+/// this one was minted by a lane. The tree's analogous name is [`KERNEL_VA_BASE`], which is why
+/// this is `_BASE` too.
 pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 
 /// The top-level (PML4) index the direct map occupies, **duplicated in `boot.s`** because a 32-bit
@@ -181,7 +182,7 @@ pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 ///
 /// PML4[402], which is nothing else's: the image is PML4[511] and the direct map PML4[273].
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub const THREAD_STACK_AREA: u64 = 0xffff_c900_0000_0000;
 
 const DIRECT_MAP_PML4_INDEX: u64 = 273;
@@ -276,23 +277,13 @@ pub const PCI_ECAM_BUSES: u16 = 1;
 /// is a constant `true` in practice and is read back from the hardware anyway: the one thing worth
 /// knowing here is what the machine says, not what we believe.
 pub fn is_enabled() -> bool {
-    let cr0: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags));
-    }
-    cr0 & (1 << 31) != 0
+    super::instructions::read_cr0() & (1 << 31) != 0
 }
 
 /// The physical address of the page-table root the CPU is currently walking (`CR3`, with the
 /// PCID/flag bits masked off).
 pub fn current_root() -> u64 {
-    let cr3: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-    }
-    cr3 & 0x000f_ffff_ffff_f000
+    read_cr3() & 0x000f_ffff_ffff_f000
 }
 
 /// Print what the MMU is doing, one line, on every boot. The x86 twin of the other two
@@ -428,10 +419,8 @@ pub fn init() {
 /// fetched through a table that does not describe it, which on this architecture is a page fault
 /// escalating to a triple fault and a silent machine reset.
 unsafe fn install(root: u64) {
-    // SAFETY: the caller's contract. This is a control-register write with no memory operand.
-    unsafe {
-        core::arch::asm!("mov cr3, {}", in(reg) root, options(nostack, preserves_flags));
-    }
+    // SAFETY: the caller's contract.
+    unsafe { super::instructions::write_cr3(root) };
 }
 
 /// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root (`CR3` names the whole
@@ -491,11 +480,9 @@ pub fn unmap_page(va: u64) -> Result<u64, MapError> {
 ///
 /// Local first, so this core's own page-table write is retired before anyone is told to look.
 pub fn flush_tlb(va: u64) {
-    // SAFETY: TLB maintenance is always sound. Getting it wrong means a stale translation, which is
-    // the memory-unsafety that matters here rather than Rust's.
-    unsafe {
-        core::arch::asm!("invlpg [{}]", in(reg) va, options(nostack, preserves_flags));
-    }
+    // Getting TLB maintenance wrong means a stale translation, which is the memory-unsafety that
+    // matters here rather than Rust's.
+    super::instructions::invlpg(va);
     shoot_down_others(va);
 }
 
@@ -681,10 +668,7 @@ pub fn serve_shootdown_nmi() -> bool {
         // SAFETY: rewriting CR3 with the value it already holds changes no mapping and invalidates
         // every non-global entry, which with `CR4.PGE` clear is every entry. See `flush_asid`.
         _ if word == SHOOTDOWN_ALL => unsafe { install(read_cr3()) },
-        // SAFETY: TLB maintenance is always sound, at any address.
-        _ => unsafe {
-            core::arch::asm!("invlpg [{}]", in(reg) word, options(nostack, preserves_flags));
-        },
+        _ => super::instructions::invlpg(word),
     }
 
     // Release: the invalidate above is complete before the sender may observe the acknowledgement
@@ -730,7 +714,7 @@ const LOW_MEGABYTE: u64 = 0x10_0000;
 /// "what we probably map" can drift from what is mapped, and the first time anyone reads it will be
 /// on a bench with no debugger.
 ///
-/// **Name provisional**: calef names the types, and this one was minted by a lane.
+/// Name: provisional. calef names the types, and this one was minted by a lane.
 struct Claim {
     /// What a reader of [`map_everything`] would call this range, short enough to fit a panic line
     /// on a screen console.
@@ -871,7 +855,7 @@ fn window_in_hole(
 /// the same posture for the analogous case (no MCFG means no PCI, and deliberately no legacy
 /// fallback).
 ///
-/// **Name provisional**: calef names the types, and this one was minted by a lane.
+/// Name: provisional. calef names the types, and this one was minted by a lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryMappedIoWindowError {
     /// The boot structure could not be re-read, so there is no memory map to find a hole in.
@@ -980,7 +964,7 @@ pub fn memory_mapped_io_window(ecam: (u64, u64)) -> Result<(u64, u64), MemoryMap
         if let Some(io_apic) = super::irq::io_apic_phys() {
             avoid(io_apic, io_apic + PAGE_SIZE);
         }
-        if let Some((base, size)) = memory::vtd_region() {
+        for (base, size) in memory::vtd_regions().into_iter().flatten() {
             avoid(base, base + size);
         }
         if let Some((base, size)) = memory::framebuffer() {
@@ -1108,17 +1092,18 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
         });
     }
 
-    // VT-d's register file (milestone 161, roadmap item 6), one page, device-typed, at the
-    // address ACPI's DMAR named (`memory::record_vtd_region`, called from `main.rs` before this
-    // function runs). Same shape as the local APIC and IO APIC windows above: no DRHD, no
-    // mapping, and `arch::iommu::init` is simply never called. Without this a DRHD's register
+    // VT-d's register files (milestone 161, roadmap item 6), one per unit since milestone 594 (every VT-d unit translates its own devices),
+    // device-typed, each as large as its DRHD's `Size` byte says (one page on every unit met so
+    // far), at the addresses ACPI's DMAR named (`memory::record_vtd_region`, called from `main.rs`
+    // before this function runs). Same shape as the local APIC and IO APIC windows above: no DRHD,
+    // no mapping, and `arch::iommu::init` is simply never called. Without this a DRHD's register
     // reads fault the instant the fine map replaces the coarse boot map that covered every
     // physical address indiscriminately; the first version of this driver found that by faulting.
-    if let Some((base, _)) = memory::vtd_region() {
+    for (base, size) in memory::vtd_regions().into_iter().flatten() {
         each(Claim {
             what: "vt-d registers",
             lo: base,
-            hi: base + PAGE_SIZE,
+            hi: base + size,
             flags: Flags::device(),
             guarded: false,
         });
@@ -1176,7 +1161,7 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
 /// failure: this kernel got its RAM regions from the same structure, so a machine that reaches here
 /// without one had no ACPI tables to lose access to either.
 ///
-/// **Name provisional** (milestone 161, renamed from `map_firmware_regions` when it stopped mapping
+/// Name: provisional (milestone 161, renamed from `map_firmware_regions` when it stopped mapping
 /// and started describing).
 fn firmware_claims(each: &mut dyn FnMut(Claim)) {
     each(Claim {
@@ -1250,7 +1235,7 @@ fn firmware_claims(each: &mut dyn FnMut(Claim)) {
 /// what makes such a photograph a diagnosis rather than a hypothesis, and it is worth more than any
 /// particular fix, because the next machine nobody can attach a debugger to is the one after this.
 ///
-/// **Name provisional.**
+/// Name: provisional.
 struct MapFailure {
     what: &'static str,
     lo: u64,
@@ -1618,12 +1603,7 @@ pub(crate) fn phys_to_ptr(pa: u64) -> *mut paging::PageTable {
 /// out; the two differ only once `CR4.PCIDE` or the PWT/PCD bits are used, and neither is today.
 /// Kept apart so [`switch_user_root`]'s early return compares what the hardware actually holds.
 fn read_cr3() -> u64 {
-    let cr3: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-    }
-    cr3
+    super::instructions::read_cr3()
 }
 
 /// The physical root of the currently installed user address space.

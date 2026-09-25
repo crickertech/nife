@@ -672,7 +672,17 @@ struct Device {
 /// **Which is the argument for the unregister, not against it.** Nothing above is a reason to keep
 /// bumping; it is the removal of the excuse that the other ceiling would bind first. The next lane
 /// that needs a device should read the generational-name paragraph above as its work item.
-const MAX_DEVICES: usize = 33;
+///
+/// **34 for milestone 198 (a package manager)'s rung 3a fetch, the tenth receipt, and taken
+/// knowing the paragraph above names the unregister as the next lane's work item.** Refused here
+/// for the seventh receipt's reason, which still holds: reuse needs a generational name, and that
+/// is a change to what a `Virtio` capability means, a design fork under DECISIONS §16 (object
+/// revocation) rather than something a package lane settles in passing. The lane did what the
+/// eighth receipt did first: its genuine and tampered fetches share one `net_stack`, so the bump is
+/// one slot, not two. **This is an exception and a foot gun**: the next device will want 35, and
+/// the right answer to that lane is the generational unregister, proposed as
+/// `design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`.
+const MAX_DEVICES: usize = 34;
 
 /// The device table, fixed. `get`/`get_mut` mirror the slice API the call sites already used.
 struct Devices {

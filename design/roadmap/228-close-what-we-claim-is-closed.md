@@ -21,7 +21,7 @@ establish it is closed at all:
   firmware left them set they remain set. That is the identical latent-firmware-default shape the
   same file already records having found for `TM` itself.
 - **x86_64: the counter is ambient, and that was inherited rather than chosen.** `CR4.TSD` is bit 2,
-  never touched, so it holds its clear reset value and ring 3 may `rdtsc`. `notes/x86-port.md`
+  never touched, so it holds its clear reset value and ring 3 may `rdtsc`. `notes/x86-port/user-mode-runtime.md`
   records this as noticed rather than overlooked.
 
 ## What it needs
@@ -35,7 +35,7 @@ establish it is closed at all:
   `rdtsc`, and there is no coarse alternative there the way `CNTVCT_EL0` is on aarch64. Closing it
   today would break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
   benchmark harness at once. Record the position where a reader meets it instead: in
-  `notes/x86-port.md` and beside `now()`, saying it is ambient, that it was inherited, and what
+  `notes/x86-port/user-mode-runtime.md` and beside `now()`, saying it is ambient, that it was inherited, and what
   closing it would cost.
 
 **This changes no policy.** Every architecture ends where the tree already believes it is; two of
@@ -95,7 +95,7 @@ in one number.
 
 **x86_64's `rdtsc`: nothing in the kernel, and two records.** The position is written where a reader
 meets it:
-a `BUGS` section on `crates/user_rt`'s `x86_64` `now()`, and a subsection of `notes/x86-port.md`
+a `BUGS` section on `crates/user_rt`'s `x86_64` `now()`, and a subsection of `notes/x86-port/user-mode-runtime.md`
 carrying the three-architecture table. Both say the same three things, which are what the brief asked
 for: the TSC is ambient here, it was inherited from the reset value rather than chosen, and
 closing it today costs `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
@@ -156,7 +156,7 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   cycle counter at all, and by what authority, is calef's call. This milestone deliberately changed
   no policy. It made the default a fact rather than a firmware assumption, so that a grant means
   something when the decision lands.
-- **Recorded.** In `notes/x86-port.md`, and in a BUGS section on `now()` itself: x86_64's `rdtsc`
+- **Recorded.** In `notes/x86-port/user-mode-runtime.md`, and in a BUGS section on `now()` itself: x86_64's `rdtsc`
   stays ambient. `CR4.TSD` was left clear because `crates/user_mode_runtime`'s `now()` on that architecture is
   `rdtsc` and there is no coarse alternative, so closing it today would break `Instant`,
   `thread::sleep`, the random seed, smoltcp's timestamps and the benchmark harness at once.
@@ -174,7 +174,7 @@ scounteren, TM` became a `csrw`, so the comment claiming CY and IR "stay closed"
 by the instruction beside it. **This changed no policy**: both architectures end where the tree
 already believed they were, and stop depending on firmware to agree. `CR4.TSD` was deliberately
 left alone, because on `x86_64` `now()` **is** `rdtsc` and closing it would break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the benchmark harness at once; that
-position is recorded in `notes/x86-port.md` and in a `BUGS` section on `user_rt`'s `now()`. **`CR4.PCE` was a second door nobody had looked at**, found mid-lane by a research lane reading
+position is recorded in `notes/x86-port/user-mode-runtime.md` and in a `BUGS` section on `user_rt`'s `now()`. **`CR4.PCE` was a second door nobody had looked at**, found mid-lane by a research lane reading
 the ISA: it gates `rdpmc`, fixed counter 2 runs at the TSC rate, and nothing here reads a
 performance counter from ring 3, so `arch::init` now establishes it clear per core at no cost. It
 reads `CR4` back rather than trusting the reset value, and that paid: OVMF leaves five bits set

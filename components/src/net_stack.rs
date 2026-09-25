@@ -113,7 +113,7 @@ struct Sock {
 /// and a TCP connect on a 4-tuple whose slirp flow has not yet cleared stalls in the bounded poll
 /// forever. Advancing monotonically hands out a fresh port each open, so a closed connection's port
 /// is not reused until the whole range has cycled; ports a live socket still holds are skipped
-/// outright. See notes/net.md.
+/// outright. See notes/net/the-outbound-gates.md.
 const EPHEMERAL_LO: u16 = 49152;
 const EPHEMERAL_HI: u16 = 65535;
 
@@ -161,7 +161,9 @@ pub extern "C" fn _start(role: u64, direct_memory_access_phys: u64, a2: u64) -> 
     if role == 0 {
         server(direct_memory_access_phys, a2)
     } else {
-        socket_test_client::run(role)
+        // The client's second word is its own (only the package exchange reads it); the DMA page is
+        // the server's.
+        socket_test_client::run(role, direct_memory_access_phys)
     }
 }
 
@@ -396,7 +398,7 @@ fn read_dst(window: MappedWindow) -> IpEndpoint {
 /// and the exchange is waiting on one of those timers (a segment we must retransmit because its ACK
 /// was dropped), no RX interrupt is coming (the peer is waiting for that retransmit), so the block
 /// never returns and the whole pipeline deadlocks with every core idle. aarch64 happened never to
-/// drop a segment and so never hit it; riscv under the SMP scatter did. See notes/net.md.
+/// drop a segment and so never hit it; riscv under the SMP scatter did. See notes/net/the-outbound-gates.md.
 ///
 /// So: ask smoltcp when it next needs to run. When it has **no** timer pending (`poll_delay` is
 /// `None`), block on the interrupt, which is the common, efficient case (0% CPU until a frame

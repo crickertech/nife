@@ -4,8 +4,8 @@
 of code in this tree covered archive or compression of any kind. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION.** For half of it. `tar` is nobody's call but a lane's and can start today. The
-compressor's write-or-take question is [§146](../decisions/146-archive-and-compression-write-or-take.md),
+**Gate: DECISION §146.** For half of it. `tar` is nobody's call but a lane's and can start today. The
+compressor's write-or-take question is §146 (archive and compression: which pieces we write, which we take, and which we refuse),
 which is `PROPOSED` and calef's, because taking a dependency is a decision under
 [§46](../decisions/46-dependency-rule.md). **A lane may build the whole of part 1 and must stop at
 part 2's fork rather than choosing it.**

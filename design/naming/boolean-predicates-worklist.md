@@ -41,7 +41,7 @@ names they were written with, per the rename procedure.
 | `active` | `kernel/src/iommu.rs, kernel/src/arch/*/iommu.rs` | pub | 15 | `is_active` | kernel follow-up |  |
 | `live` | `kernel/src/arch/*/fp.rs` | pub | 7 | `is_live` | kernel follow-up | the `live` flag it reads keeps its name |
 | `cycle_counter_grantable` | `kernel/src/arch/*/timer.rs` | pub | 9 | `is_cycle_counter_grantable` | kernel follow-up |  |
-| `from_lower_el` | `kernel/src/arch/aarch64/exceptions.rs` | private | 7 | `is_from_lower_el` | kernel follow-up | notes/stack.md's measurement keeps the old name, with the new one beside it |
+| `from_lower_el` | `kernel/src/arch/aarch64/exceptions.rs` | private | 7 | `is_from_lower_el` | kernel follow-up | notes/stack/interrupt-stack.md's measurement keeps the old name, with the new one beside it |
 | `v3` | `kernel/src/arch/aarch64/irq.rs` | private | 7 | `is_v3` | kernel follow-up |  |
 | `pmuv3_present` | `kernel/src/arch/aarch64/pmu.rs` | pub(super) | 6 | `is_pmuv3_present` | kernel follow-up |  |
 | `local_apic_ready` | `kernel/src/arch/x86_64/irq.rs` | pub | 10 | `is_local_apic_ready` | kernel follow-up |  |
@@ -111,6 +111,39 @@ Each of these, and `removed` and `asked` below, carries a `/// Name: provisional
 recommendation, so it queues on `script/names --unratified` with every other unratified name
 (calef's standing direction, 2026-09-24). The std overlay's `no_capability` carries one too and
 does not show: `script/names` skips `patches/` on purpose, so that entry is visible only here.
+
+## `rx` and `tx`
+
+The pass renamed `is_rx_waiting` to `is_byte_waiting` after calef's review of #1255 asked what
+`rx` stands for, and left every other public `rx` or `tx` name alone because none is a predicate.
+They are listed here, 2026-09-25, so the abbreviation is ruled once rather than name by name. Each
+definition carries a `/// Name: provisional` marker naming the recommendation, so all of them queue
+on `script/names --unratified`. None is a wire format: every one is a function or constant inside
+one program, and `UART_RX_INTID`'s value is what other code agrees on, not its spelling.
+
+| Now | Defined in | Visibility | Sites | Recommended | Why |
+|---|---|---|---|---|---|
+| `rx_get` | `components/src/input.rs` (three architectures) | pub in a private `mod uart` | 5 | `read_byte` | it reads the byte `is_byte_waiting` reports, so the pair reads as one vocabulary |
+| `arm_rx_interrupt` | `components/src/input.rs` (aarch64, riscv64) | pub in a private `mod uart` | 4 | `arm_receive_interrupt` | the word both UART manuals spell out |
+| `discard_rx` | `kernel/src/console.rs`, `kernel/src/drivers/{ns16550,pl011}.rs` | pub | 16 | `discard_waiting_bytes` | it drops the bytes `is_byte_waiting` would have reported |
+| `rx_enable` | `kernel/src/console.rs` | pub | 3 | `enable_receive_interrupt` | it enables an interrupt, which the current name does not say; matches the driver method it calls |
+| `enable_rx_interrupt` | `kernel/src/drivers/ns16550.rs` | pub | 3 | `enable_receive_interrupt` | as above |
+| `enable_tx_interrupt` | `kernel/src/drivers/ns16550.rs` | pub, `#[cfg(test)]` | 5 | `enable_transmit_interrupt` | the transmit twin of the row above |
+| `tx_bytes` | `kernel/src/console.rs` | pub | 1 | `bytes_written` | it counts what the kernel wrote to the console; the private static `TX_BYTES` becomes `BYTES_WRITTEN` with it |
+| `UART_RX_INTID` | `kernel/src/user.rs` (three architectures) | pub | 12 | `UART_RECEIVE_INTID` | `INTID` is the GIC's own term and stays |
+| `VnetRxToken`, `VnetTxToken` | `components/src/net_transport.rs` | pub | 13 | keep | they implement smoltcp's `phy::RxToken` and `phy::TxToken`, and the upstream word is what a reader of smoltcp looks for |
+
+Sites are `git grep -w` hits on 2026-09-25 outside `design/roadmap/` and this directory, code and
+notes together; roadmap blocks keep the old names under the rename procedure.
+
+Private names this table leaves out, because the review question was about public ones: the
+virtio-net queue constants (`NET_RX_*`, `NET_TX_*` in `crates/virtio`, `RX_*`, `TX_*` in
+`components/src/net_transport.rs`) and the helpers beside them (`post_rx`, `wait_rx`, `rx_take`,
+`tx_send`, `rx_buf`, `tx_buf`). They follow the virtio specification's own `receiveq`/`transmitq`
+shorthand. `tools/redoxfs_host`'s `ls_tx`, `put_tx` and the rest are a different word: there `tx`
+means a RedoxFS transaction, which is the best argument that the abbreviation does not decode
+itself. If calef rules `rx` out, these are the next pass, and none of them needs a marker to be
+found again: `git grep -wiE '[a-z_]*(rx|tx)[a-z_]*'` is the census.
 
 ## Fits as written
 

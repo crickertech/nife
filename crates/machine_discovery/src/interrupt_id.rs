@@ -17,6 +17,9 @@
 //! then the entry itself:
 //!
 //! - **1 cell** (RISC-V PLIC, `#interrupt-cells = <1>`): the cell is the source number, verbatim.
+//! - **2 cells, and the parent is a PLIC** (`<number trigger>`, the T-Head TH1520's form): the
+//!   first cell is the source number. The parent's `compatible` must be one of
+//!   [`crate::plic::COMPATIBLES`], because two cells mean other things on other controllers.
 //! - **3 cells** (Arm GIC): `<type number flags>`, where the number is *bank-relative* and the
 //!   INTID the GIC actually delivers adds the bank base: SPI (type 0) starts at 32, PPI (type 1)
 //!   at 16. QEMU's PL011 says `<0 1 4>`, which is SPI 1, which is the INTID 33 the kernel has
@@ -27,8 +30,8 @@
 //! - **Only the first `interrupts` entry is decoded.** A device with several (a combined
 //!   TX/RX/error split, say) answers with its first, which is the convention every UART binding
 //!   this kernel meets follows. A caller needing entry *n* needs a wider read.
-//! - **Cell counts other than 1 and 3 answer `None`**, honestly: a 2-cell parent (some PIC-style
-//!   controllers) or a 4-cell `GICv3` extension carries information this decoder does not
+//! - **Cell counts other than 1 and 3 answer `None`**, honestly, except a PLIC's 2: a 2-cell
+//!   parent that is not a PLIC (some PIC-style controllers) or a 4-cell `GICv3` extension carries information this decoder does not
 //!   understand, and a number pulled from the wrong cell would arm the wrong source, which is the
 //!   exact bug this module exists to end. `None` sends the caller to its documented fallback.
 //! - **`interrupts-extended` (the property, on the device) is not read.** No tree this kernel
@@ -70,6 +73,10 @@ pub fn of_node(dt: &DeviceTreeBlob<'_>, node: &[u8]) -> Result<Option<u32>, Erro
     Ok(match cells {
         // A PLIC (or any single-cell parent): the cell is the source number.
         1 => be32_word(interrupts, 0),
+        // A PLIC stating two cells: <number trigger>, the binding's newer form, which T-Head's
+        // TH1520 uses (milestone 89 (Scaleway EM-RV1: a second RISC-V implementation, rented)). Two cells mean something else on other controllers, so the
+        // first cell is the source only when the parent says it is a PLIC.
+        2 if is_a_plic(dt, phandle)? => be32_word(interrupts, 0),
         // A GIC: <type number flags>, the number relative to its bank's base.
         3 => match (be32_word(interrupts, 0), be32_word(interrupts, 1)) {
             (Some(0), Some(n)) => GIC_SPI_BASE.checked_add(n),
@@ -78,6 +85,16 @@ pub fn of_node(dt: &DeviceTreeBlob<'_>, node: &[u8]) -> Result<Option<u32>, Erro
         },
         _ => None,
     })
+}
+
+/// Is the controller `phandle` names a PLIC: does it state one of [`crate::plic::COMPATIBLES`]?
+fn is_a_plic(dt: &DeviceTreeBlob<'_>, phandle: u32) -> Result<bool, Error> {
+    let Some(compatible) = dt.phandle_prop(phandle, b"compatible")? else {
+        return Ok(false);
+    };
+    Ok(compatible
+        .split(|&b| b == 0)
+        .any(|entry| crate::plic::COMPATIBLES.contains(&entry)))
 }
 
 /// Big-endian cell `i` of a property's bytes, `None` when the property is too short.

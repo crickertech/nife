@@ -39,6 +39,14 @@ Three properties, and an entry that lacks one is a worry rather than a risk:
 The ranking is chance-of-fatal times cheapness-of-test, which is why the running order at the bottom
 is not the numbering. The numbers are identity, like a milestone's.
 
+## Who may change an entry
+
+Verdicts are the architect's: the Experiment status word, the colour and the running order. The
+maintainer corrects a factual error (a wrong date or instrument, a claim the machine disproves)
+without asking, dated and citing its source. Facts arguing for a new verdict go to the architect.
+[§216 (fatal-risk facts are correctable, and verdicts are the architect's)](decisions/216-fatal-risk-facts-are-correctable-verdicts-are-the-architects.md),
+2026-09-25.
+
 ## What an entry's Experiment status says, and the three words it may say it in
 
 Every entry carries one Experiment status line. It answers one question: has the experiment happened.
@@ -93,25 +101,18 @@ that does not matter.
 **The experiment:** milestone 191 (did the proofs catch the bugs?), against this project's own defect
 history, plus a reverse pass asking which harnesses prove a property that could plausibly be false.
 
-**Experiment status: RUN, 2026-08-30.** AMBER, and the red half is structural. No Kani harness in
-this tree has ever caught a defect after the day it was written. The cause is one line of
-`script/verify`'s own header: *"`cargo kani -p <crate>` never compiles the kernel, the user programs,
-or xtask."* So 64,818 lines of `kernel/src` were out of reach by construction, which is where every
-concurrency, hardware-contract and resource-accounting defect lived
+**Experiment status: RUN, 2026-08-30.** AMBER. The red half is that no standing proof has caught a
+regression: every defect a proof caught was caught while its harness was being written (rule 1's
+survivorship asymmetry). The second reason is reach. Eight harnesses prove kernel
+code on all three architectures; none passes `asm!`, fixed-address MMIO or an `arch/` subtree its
+host skips. Files with `asm!` hold 15,966 of `kernel/src`'s 86,528 lines, about 18%
+([`notes/kernel-proofs.md`](../notes/kernel-proofs.md)). Reworded 2026-09-25 on the architect's
+ruling; it said "the red half is structural", naming a crate boundary milestone 193 (put
+`kernel/src` within reach of the prover) removed on 2026-08-30
 ([`notes/proof-retrospective.md`](../notes/proof-retrospective.md); PR #589).
 
-Two follow-ons have since aimed the prover into `kernel/src` and at x86_64. The first x86_64 proof
-went red on a latent defect: the class this risk exists to ask about, and the first instance of it.
-
-The caveat. Every defect a proof has caught here was
-caught *while the harness was being written*. That is weaker evidence than a standing proof catching
-a regression, the survivorship asymmetry rule 1 warned about. **Corrected 2026-09-24:** this said
-`arch/`, `user/` and `xtask` were still out of reach. Milestone 197 (`user/` and `xtask` are out of
-reach of the prover) brought `user/` within reach on 2026-08-31 and refused `xtask` on value;
-milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) proves `arch/x86_64/`
-beside `arch/aarch64/`. Only riscv64 is unreachable, and nobody here can change that. So the claim is
-proofs over the pure crates and slices of the kernel, most of which is unverified.
-[Appendix](fatal-risks/proofs-and-their-reach.md).
+The first x86_64 proof went red on a latent defect, the first of the class this risk asks about. The
+claim: proofs over the pure crates and slices of a mostly unverified kernel. [Appendix](fatal-risks/proofs-and-their-reach.md).
 
 ## 3. The tests do not test anything, and the quality is illusory
 
@@ -128,8 +129,9 @@ it did not happen. On 2026-09-21 the 38 baseline crates read 96.1% against
 compiles ([`notes/mutation-testing.md`](../notes/mutation-testing.md)).
 
 It stays amber on the standard this entry holds: milestone 85's rule that every survivor becomes a
-test, an exclusion carrying its reason, or a recorded gap. 771 missed survivors stand on 2026-09-21,
-185 in four newly measured crates, and
+test, an exclusion carrying its reason, or a recorded gap. The 2026-09-21 census counted 771 missed
+survivors; after #1277's 164 kills and triage, 414 are projected, measured at the next census
+([triage](../notes/mutation-testing/census-2026-09-21-triage.md)), and
 milestone 326 (nobody has been assigned to turn a mutation score upward) owns the repair. Green is a ruled
 condition rather than a number (calef, 2026-09-20): inflow, meaning the survivors a merged pull
 request adds on its own lines are triaged.
@@ -206,7 +208,7 @@ driver is an EL0 process reaching the TRNG through a capability that names no de
 Every piece now exists and the remaining distance is a bench evening. Milestone 261 (the NVMe driver
 leaves the kernel, on the machine that can finally confine it) is §86 (whether an NVMe driver can
 leave the kernel, and what capability would let it)'s option 2a. xenon has a plain PCIe NVMe function
-behind VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
+and VT-d, booted nife on 2026-09-17, and calef wiped its disk that day.
 
 Two caveats. This does not retire the risk, and the reason is the device. A TRNG has no DMA and one
 register window, so it is the smallest real device on the board. The rate is not comparable to a
@@ -259,8 +261,8 @@ working as designed. What it changed: a first customer should be something nife 
 adequate at within a milestone or two.
 
 Why no verdict can be rendered. Nobody can be asked to run nife until it installs, which waits on
-milestone 198. That is no longer a decision: calef ruled its three forks (trust, format and
-activation) by 2026-09-23, so what remains is work, rung 3a's consumer half. Milestone 530 (name a customer, or
+milestone 198. calef ruled its three forks by 2026-09-23, fetch and verify are built, and
+installing waits on one narrower fork, §219 (how the shell names an installed program). Milestone 530 (name a customer, or
 admit the ranking function has nothing to rank) ruled on 2026-09-21 that the path stays vacant
 (blocked, not empty), so 198 holds the ranking function's top slot. What would falsify it: somebody
 who is not calef installs nife on purpose and is still running it two months later. The install is
@@ -316,12 +318,12 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number. Each cell's ve
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
-| ~~1~~ | 2, the proofs | **RUN, 2026-08-30: amber**, because `cargo kani` never compiled the kernel | milestone 191 | done |
+| ~~1~~ | 2, the proofs | **RUN, 2026-08-30: amber**, because no standing proof has caught a regression, and `asm!` bounds the reach | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able | milestone 16 (real hardware and IOMMU-backed driver isolation) | bench time, board proven since 2026-08-14 |
 | ~~3~~ | 9, the HAL, on the architecture that carries the risk | **RUN, 2026-09-17: GREEN**, five of five on xenon, everything it needed inside `arch/x86_64/` | milestone 87 (the x86_64 bare-metal machine) | done |
-| 4 | 9, the HAL, at the implementation grain, widened 2026-09-23 | a second machine of an architecture nife already boots | milestone 225 (run the soak on radon, argon and xenon) | unpriced; a lane is costing rented metal for this and risk 4 |
+| 4 | 9, the HAL, at the implementation grain, widened 2026-09-23 | a second machine of an architecture nife already boots | milestone 225 (run the soak on radon, argon and xenon) | riscv64: about 30 rented hours, €1.51, milestone 89 (Scaleway EM-RV1); still unrented |
 | ~~4~~ | 1, the ecosystem | **RUN, 2026-08-31: GREEN on all three since 2026-09-16.** The blocker is a missing argv, not threads | milestone 121 | done |
-| ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 96.1% like-for-like against 92.4% on 2026-09-21, and 771 missed survivors hold the amber | milestone 326 | done; the triage remains |
+| ~~5~~ | 3, the tests | **RUN, 2026-09-19: amber.** 96.1% like-for-like against 92.4% on 2026-09-21, and 771 missed survivors (414 projected after #1277) hold the amber | milestone 326 | done; the triage remains |
 | 6 | 4, performance | the multi-tasking workload number, from the 2026-09-19 instrument | milestone 168 | one radon bench evening |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | **NOT-RUN, 2026-09-23.** A linear defect-discovery curve is the red result; seeds re-derived 2026-09-24, and radon's first 3.5 hours are on it with zero defects | milestone 201 (is multicore reliability converging) | weeks, hardware |

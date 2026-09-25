@@ -244,8 +244,9 @@ pub mod watch;
 /// that belongs to two files, and `captured/qemu-2026-09-14-riscv64-soak-test.log` is a real run in
 /// the current vocabulary, so nothing here rests on hand-written text either.
 ///
-/// Name provisional (milestone 297): calef names public items, and this one is `pub(crate)` and
-/// test-only, so it is the cheap end of that rule rather than an exception to it.
+/// Name: provisional (milestone 297 (`soak` becomes `soak-test`)): calef names public items, and
+/// this one is `pub(crate)` and test-only, so it is the cheap end of that rule rather than an
+/// exception to it.
 #[cfg(test)]
 pub(crate) fn respell_pre_297_markers(capture: &str) -> String {
     capture

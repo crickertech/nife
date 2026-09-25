@@ -387,8 +387,9 @@ much about the expensive thing.
 
 ## See also
 
-- [Rust `std` on the native ABI](std.md), where the three libc tiers are recorded, and the heap this
-  `malloc` is built on.
+- [Rust `std` on the native ABI](std.md): the heap under this `malloc`.
+- [Milestone 36 (a foreign-language component)](../design/roadmap/36-foreign-component.md): the
+  libc tiers.
 - [Supervision](supervision.md): the fault endpoint this leans on, and the five-word message.
 - [Trusted init](trusted-init.md): milestone 22 phase B.2's proxy shape, the alternative to the
   authority this confiner holds directly.

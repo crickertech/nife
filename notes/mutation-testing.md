@@ -105,8 +105,12 @@ measured for the first time and one grew eightfold:
 | `firmware_configuration` | 32 | 84.4% | 5 | new |
 | `sealed_pair` | 63 | 95.2% | 3 | new |
 
-So the worklist is short and named: `stick_maker` and `portable_executable`, then `paging` at 89.5%
-with 57 missed, then `uefi_loader`'s 50 real survivors (below).
+That worklist is done (2026-09-24, [census-2026-09-21-triage](mutation-testing/census-2026-09-21-triage.md)).
+The same appendix sorts all 771 by kind. 193 were files no host build compiles or can run, 286 are
+equivalents or recorded gaps, and 292 were missing tests, of which 203 are now written and **89 are
+untriaged**. `stick_maker` read 64.9% chiefly because its host half was mutated at all; it is now
+excluded, as `script/coverage` already excluded it. Projected onto the census's counts, the corpus
+reads **95.9%** with 414 missed and like-for-like **96.3%**; the next census is the measurement.
 
 Read `uefi_loader`'s row with care: most of its drop was the
 [2026-09-04 trap](mutation-testing/uefi-loader.md) again, confirmed on 2026-09-24. The exclusion
@@ -270,3 +274,4 @@ Each holds the dated entries named in its row, so a citation of "notes/mutation-
 | [board-console](mutation-testing/board-console.md) | the same | 2026-09-20: `board_console` |
 | [video-terminal](mutation-testing/video-terminal.md) | the same | 2026-09-20: `video_terminal` |
 | [clock-and-reset-nvme-screen-console](mutation-testing/clock-and-reset-nvme-screen-console.md) | the same, and what part 3 left | 2026-09-21: `jh7110_clock_and_reset`, `non_volatile_memory_express`, `screen_console` |
+| [census-2026-09-21-triage](mutation-testing/census-2026-09-21-triage.md) | the 2026-09-21 census's 771, classified; 164 killed | 2026-09-24: `portable_executable`, `stick_maker`, `uefi_loader`, `paging` |

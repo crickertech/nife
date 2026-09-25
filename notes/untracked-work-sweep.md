@@ -56,7 +56,7 @@ are the sweep's, which is where the two counts get confused.
 | 103, `^C` stops spinning | raised from a stale handoff note as "decided and never built"; `^C` was built, and §24's own named interim was not |
 | 104, the measurement continues past init | a sentence milestone 22 left behind after it went BUILT |
 | 105, the two forks milestone 22 named and left | two questions `notes/trusted-init.md` marked "calef's call, not a thing to slip in" |
-| 106, a wait that ends on either the interrupt or the deadline | `notes/net.md`, where milestone 30's lane recorded the cost of not having one |
+| 106, a wait that ends on either the interrupt or the deadline | `notes/net/the-outbound-gates.md`, where the lane for milestone 30 (the network stack as a confined component) recorded the cost of not having one |
 | 107, the socket contract learns to accept | the contract has no listen verb and two milestones need one |
 | 108, the drivers move onto frame capabilities | `notes/frames.md`, closing with the migration it deliberately did not do |
 | 109, `xargs` at the grant bound | both glob notes ending on the same sentence about an eight-name cap |
@@ -81,7 +81,7 @@ meets it in, because a registry of blessings would be the same evaporating mediu
 | A `BootInfo` block and a POSIX shim, both deferred with recorded triggers | `notes/abi.md`, "What is deliberately deferred" |
 | No IPC timeouts and no revocation: the seL4 depth parked | `notes/security.md`, "What is deferred, on purpose, and named honestly" |
 | A reclaiming `unmap`, considered and not built, because an address space dies all at once | `notes/teardown.md` |
-| A minted endpoint per socket, deferred with a named trigger | `notes/net.md`, the socket contract |
+| A minted endpoint per socket, deferred with a named trigger | `notes/net/prior-art-and-the-contract.md`, the socket contract |
 | A delegable clock: no program is asking, so it is recorded and not built | `notes/grant-expression.md`, "What a delegable clock would still need" |
 | The capability derivation tree, not built; generational names are the other way to be safe | `notes/generational-names.md` |
 | zsh's glob qualifiers, settled and out, because a qualifier needs a right beyond enumerate | `notes/glob.md` |

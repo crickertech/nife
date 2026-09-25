@@ -67,7 +67,7 @@ it is what the target hardware natively is. GRUB Multiboot 2 stays available and
 BIOS-only machine ever turns up: the 32-bit trampoline in `kernel/src/arch/x86_64/boot.s` is
 already the entry state GRUB delivers, so the delta would be a header and a second handoff decoder.
 
-**And the Multiboot hazard was checked rather than assumed.** `notes/x86-port.md` records QEMU
+**And the Multiboot hazard was checked rather than assumed.** `notes/x86-port/boot.md` records QEMU
 refusing an image over a Multiboot **1** header, fatally. Nothing in this milestone adds a
 Multiboot header of any version, so that hazard is untouched: the PVH note is still the only boot
 header in the image, and `script/test --arch x86_64` still boots through it.
@@ -183,7 +183,7 @@ firmware.
 
 Four of those are code paths that had **never executed**:
 
-- **The non-zero `rsdp`.** `notes/x86-port.md` records `rsdp 0x0` under QEMU's PVH loader, so
+- **The non-zero `rsdp`.** `notes/x86-port/acpi-and-pci.md` records `rsdp 0x0` under QEMU's PVH loader, so
   `arch::x86_64::machine::find_rsdp` has always fallen back to scanning the BIOS area for
   `"RSD PTR "`. Under UEFI the pointer arrives in the handoff and the scan is skipped.
 - **The XSDT walk.** A scanned ACPI 1.0 RSDP has revision 0 and a 32-bit RSDT root. Firmware hands
@@ -603,7 +603,7 @@ Two things are then worth doing, in this order, and neither is in this lane's sc
 1. **Record the numbers**, the way `notes/visionfive2.md` does for the VisionFive 2: the memory map
    the firmware reports, the ACPI tables it carries, the measured TSC rate against the PIT (this
    will *not* be QEMU's 1001 MHz; it is an i5-7500T, and `user_mode_runtime::cntfrq`'s hardcoded constant will
-   be wrong with no way for a caller to tell, which `notes/x86-port.md` already records), and
+   be wrong with no way for a caller to tell, which `notes/x86-port/user-mode-runtime.md` already records), and
    whether the DMAR is present so VT-d can come up.
 2. **Flip milestone 87's status** and open the two follow-ups the bench will inevitably produce.
 

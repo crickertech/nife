@@ -4,14 +4,14 @@
 not to be a gap at all: **nothing in `design/` or `notes/` mentions a clipboard**, not even as a
 named limitation the way mouse support is (see milestone 179). This file is that gap's first record.
 
-**Gate: DECISION.** Not a driver or a wiring question like milestone 179's: a clipboard is shared,
+**Gate: DECISION §169.** Not a driver or a wiring question, as milestone 179 (pointer input) was: a clipboard is shared,
 mutable state that more than one principal reads and writes, and this tree has a standing rule
 against exactly that shape (`AGENTS.md`, milestone 126: "enumeration is itself authority," the same
 posture that refused a hung-thread lookup as "list everything and find the match"). A conventional
 OS clipboard is ambient: any process can read whatever the last process wrote, with nothing proven.
 That is precisely the authority model this system exists to not have, so this cannot be scoped
 before that tension is resolved, and resolving it is calef's, not a lane's. The fork is
-[§169](../decisions/169-whether-a-clipboard-exists.md) (whether a clipboard exists here, and what it
+§169 (whether a clipboard exists here, and what it
 is scoped to), written up 2026-09-19 by milestone 435's lane; before that this gate named no
 decision, which for a block whose whole finding was that nothing in the tree mentions a clipboard
 left the record one rung lower than it should have been.

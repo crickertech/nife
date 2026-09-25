@@ -20,7 +20,7 @@ tuning surface, with no unifying program at all.
 ## The decision
 
 **No `sysctl`.** Each subsystem that grows a runtime tunable exposes it through that subsystem's
-own service and its own capability, the same shape `net.md`'s `/net/tcp/clone` already uses. There
+own service and its own capability, the same shape `notes/net/prior-art-and-the-contract.md`'s `/net/tcp/clone` already uses. There
 is no program on this system that holds a bag of capabilities spanning multiple subsystems for the
 purpose of retuning them.
 
@@ -35,7 +35,7 @@ the ambient-tunables-namespace `sysctl` would need is exactly the kind of thing 
 to refuse.
 
 **And this tree already *built* the alternative, favorably, before this question was ever asked.**
-`notes/net.md` already routes configuration through the specific resource's own control surface
+`notes/net/prior-art-and-the-contract.md` already routes configuration through the specific resource's own control surface
 (`announce 80` written to `/net/tcp/clone`), citing Plan 9's per-resource `ctl` file convention over
 a global panel. Declining `sysctl` is not a new design, it is applying a shape this tree already
 committed to once, to the one remaining place Unix's packaging would have asked for the opposite.

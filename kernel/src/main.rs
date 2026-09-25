@@ -79,6 +79,10 @@ mod smp;
 // must still halt: this module is the thing that makes a boot never end.
 #[cfg(feature = "job_mix")]
 mod job_mix;
+// Fatal risk 6's bench boot (milestone 261 (the NVMe driver leaves the kernel)): preflight the two night-of conditions, then measure a
+// confined EL0 NVMe driver's throughput and halt. Behind a feature because it writes to the disk.
+#[cfg(feature = "disk_throughput")]
+mod disk_throughput;
 #[cfg(feature = "soak_test")]
 mod soak;
 mod stack;
@@ -281,7 +285,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // What the loader said: the PVH memory map and the ACPI root pointer. The x86 stand-in for
         // the device tree, and the only thing that reads the map so far; `memory::init` is a
         // device-tree parser, so the frame allocator cannot come up here until there is a discovery
-        // seam between the two. See notes/x86-port.md.
+        // seam between the two. See notes/x86-port/acpi-and-pci.md.
         let Some(info) = arch::machine::boot_info(boot_info_pointer) else {
             println!(
                 "  memory      : no PVH boot info at {boot_info_pointer:#x}; nothing else can be found"
@@ -323,8 +327,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // kernel already knows about out of the hole it picks a BAR window from, and VT-d's
         // register file is one of them. Recorded afterwards, it would be a window the choice below
         // could not see.
-        if let Some(base) = acpi.vtd_base {
-            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
+        for d in acpi.dmar.units() {
+            memory::record_vtd_region(d.register_base, d.register_size);
         }
 
         // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
@@ -562,7 +566,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // fine-grained W^X tables and switch `CR3` to them. We keep running, and keep printing,
         // across the switch, which is what proves the fine map covers this code and this stack.
         // The identity map is gone afterwards, and with it the last alias of physical memory in the
-        // half ring 3 will get. See notes/x86-port.md.
+        // half ring 3 will get. See notes/x86-port/interrupts-and-the-fine-map.md.
         arch::mmu::init();
         arch::mmu::print_summary();
         println!(
@@ -618,12 +622,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // NIFE_NVME on this leg) still proves the driver stands up against real hardware: root
         // table installed, translation enabled, read back from the register the hardware itself
         // reports status through.
-        if let Some(base) = acpi.vtd_base {
-            // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
-            // either write never takes, so reaching this line already is the confirmation: the
-            // hardware's own status register, not an assumption that the write succeeded.
-            arch::iommu::init(base);
-            println!("  vt-d        : drhd {base:#x} up, translation enabled (gsts.tes confirmed)");
+        if !acpi.dmar.units().is_empty() {
+            // **Every unit the DMAR names, each translating the devices it owns** (milestone 594 (every VT-d unit translates its own devices),
+            // provisional number). `init` polls GSTS.RTPS then GSTS.TES itself on each unit and
+            // panics rather than returning if either write never takes, so a unit reported up
+            // below is the hardware's own status register, not an assumption that the write
+            // succeeded. It prints one `vt-d` line per unit, including any it refused and why.
+            arch::iommu::init(&acpi.dmar);
         } else {
             println!("  vt-d        : skipped, no DMAR");
         }
@@ -799,13 +804,22 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
         // **Nothing halts by default** (milestone 268), on this architecture as on the other two:
         // the boot hands the machine to the progenitor, loaded from the archive and measured, and
         // the boot thread parks in a preemptible `wfi` loop so it gets scheduled. That is milestone
         // 182's entry point. What it cannot reach yet is a prompt, because a shell needs a console
         // and this one is port I/O; `x86_hand_over` says so in the transcript rather than leaving
         // a silent machine to be read as a hang.
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         {
             // **The install offer** (milestone 198 (a package manager, and the trivial install that
             // makes a second customer possible), rung 2a), and it has to be here rather than after
@@ -1656,6 +1670,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
         // **Nothing halts by default** (milestone 268, item 4). The tour used to end here in
         // `arch::halt()`, and that was the right thing to do while the arch layer beneath the
         // shared path was still being built: there was nothing honest to fall through to. There is
@@ -1676,7 +1695,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // `halt` afterwards, and it is not dead: the boot thread's own work is done and it parks in
         // a preemptible `wfi` loop so the progenitor and its children get scheduled. A boot with no
         // archive says so inside `riscv_hand_over` and parks the same way.
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         {
             riscv_hand_over();
             arch::halt();
@@ -1735,7 +1758,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // kernel runs exactly as before. Bringing it up here installs an all-invalid stream table and
     // sets default-deny, so every PCIe stream aborts until virtio::register confines its device.
     // The CPU's own ECAM and BAR reads are not DMA, so PCI enumeration below is unaffected. See
-    // kernel/src/iommu.rs, notes/iommu.md.
+    // kernel/src/iommu.rs, notes/iommu.md. Not compiled on x86_64, whose VT-d `init` takes the
+    // DMAR's units rather than one base (milestone 594) and runs in the x86 arm above; the region
+    // is never recorded there anyway.
+    #[cfg(not(target_arch = "x86_64"))]
     if let Some((smmu_base, _)) = memory::smmu_region() {
         arch::iommu::init(smmu_base);
     }
@@ -2065,8 +2091,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Fatal risk 6's bench boot, when this build asked for one** (milestone 261). The same
+        // position and the same reason as the two above: the tour is evidence, and this replaces
+        // the hand-over. It WRITES to the NVMe disk; see kernel/src/disk_throughput.rs.
+        #[cfg(feature = "disk_throughput")]
+        disk_throughput::run();
 
-        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
+        #[cfg(not(any(
+            feature = "soak_test",
+            feature = "job_mix",
+            feature = "disk_throughput"
+        )))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to the userspace progenitor.");
@@ -2079,7 +2114,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
     // parking.
-    #[cfg(not(any(feature = "bench", feature = "soak_test", feature = "job_mix")))]
+    #[cfg(not(any(
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    )))]
     arch::halt()
 }
 
@@ -2234,8 +2274,9 @@ fn stack_top() -> usize {
 /// exits through semihosting before the tour and a bench boot diverges into `bench::run`, so
 /// neither has a system to hand over.
 ///
-/// Name provisional (milestone 268). This is the x86 caller of the shared `user::boot_progenitor`
-/// loader (milestone 166): it finds the initrd, hands it over, then watches the boot thread bounded
+/// Name: provisional (milestone 268 (every architecture boots the same way)). This is the x86
+/// caller of the shared `user::boot_progenitor` loader (milestone 166 (one boot loader, reached two
+/// inconsistent ways)): it finds the initrd, hands it over, then watches the boot thread bounded
 /// and reports how it left; `riscv_hand_over` is its riscv twin. calef names what a reader meets.
 #[cfg(target_arch = "riscv64")]
 // A `soak` or `job_mix` build replaces the handoff with its own workload and never calls this, and
@@ -2243,7 +2284,13 @@ fn stack_top() -> usize {
 // rather than `cfg`-ed out, so the function still compiles in every configuration: a handoff that
 // only type-checks in the configurations that use it is one that rots in the others.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 fn riscv_hand_over() {
@@ -2289,11 +2336,18 @@ fn riscv_hand_over() {
 /// a thread that left through a ring-3 fault left a record (`arch::exceptions::last_user_fault`) the
 /// kernel's own fault report above it corroborates.
 ///
-/// Name provisional (milestone 182), matching `riscv_hand_over`.
+/// Name: provisional (milestone 182 (`x86_64`'s own interactive-boot entry point)), matching
+/// `riscv_hand_over`.
 #[cfg(target_arch = "x86_64")]
 // Uncalled in the four configurations `riscv_hand_over` is, for the same reasons.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 fn x86_hand_over() {

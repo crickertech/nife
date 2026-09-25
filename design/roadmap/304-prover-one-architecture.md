@@ -72,7 +72,9 @@ host for the same `cfg` reason this milestone is about, and are not expected to.
 offers no riscv64 image; Kani has no cross-target flag (`cargo kani --help` carries `--target-dir`
 and nothing else); CBMC needs a goto-binary for the host it runs on; `radon` is a lab board, not a
 runner. `arch/riscv64/iommu.rs`'s own property, which milestone 255 was careful to say has no
-counterpart in the SMMUv3 harnesses, can be written and cannot be run.
+counterpart in the SMMUv3 harnesses, can be written and cannot be run. *(Corrected by milestone 589 (Kani can prove riscv64 from the hosts we already have),
+2026-09-25: the premise was about stock Kani, not about CBMC, which checks riscv64 goto programs on
+any host. A carried Kani patch now proves the `kernel` row for riscv64 from the arm64 runner.)*
 
 ## The finding, which is worth more than the plumbing
 

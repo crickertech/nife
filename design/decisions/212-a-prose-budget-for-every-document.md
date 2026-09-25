@@ -38,7 +38,13 @@ grow. A document under it may not cross. A new document, or one rewritten wholes
 outright. An exception is marked in the document itself and carries its reason, which is the rung the
 ladder permits when the higher one costs more than the failure does. calef granted
 `design/fatal-risks.md` a marked exception on 2026-09-24 (UTC) at 4,235 words against the cap, the
-first exception granted under this section, and the marker lives in that file with its reason. No
+first exception granted under this section, and the marker lives in that file with its reason.
+On 2026-09-25 (UTC) calef granted two more, and ruled that neither block is split:
+[`design/roadmap/47-navigation-and-naming.md`](../roadmap/47-navigation-and-naming.md) at 17,386
+words and [`design/roadmap/139-drive-down-unsafe.md`](../roadmap/139-drive-down-unsafe.md) at
+13,846. His reason was that both are large and rarely referenced. The maintainer counted 7 files
+linking the first and 2 the second. Roadmap blocks as a class stay under the cap, so question 2's
+refusal of a class exemption stands. Each marker lives in its block. No
 migration sweep: the 174
 documents over the cap are worked worst-first by words times readers, and the ones nobody reads are
 left alone or archived.
@@ -184,9 +190,12 @@ overflow out of sight, and it is a review question.
 reproducing what another document already says. This only works because links here are cheap and
 `script/citations` already watches them, so a split does not silently produce dangling references.
 
-## The gate, described and not built
+## The gate, built
 
 It is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), minted 2026-09-24 and shared with §213's gate.
+#1230 built it on 2026-09-24: `helpers/prose_ratchet.py`, run by `script/lint`, with its baseline in
+`design/prose-baseline.tsv`. The milestone is PARTIAL. One week of baseline-churn measurement
+remains, and that number decides whether the ratchet stays.
 
 - **A word count per file in `script/lint`**, main body only.
 - **A ratchet on growth**, per (d) above, so the 174 do not all go red on day one.

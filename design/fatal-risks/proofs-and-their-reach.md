@@ -18,6 +18,10 @@ matter.
 
 112+ Kani harnesses and `notes/verification.md`. Against: the VisionFive 2's undelivered-wake bug
 was found by a bench on three harts, invisible in QEMU, and no proof was positioned to see it.
+*(Corrected 2026-09-25 under §216 (fatal-risk facts are correctable, and verdicts are the architect's): that reading is retracted. `notes/visionfive2.md`'s fifth bench stop, 2026-08-15,
+found a completed tour's terminal state rather than a stranded receiver, and milestone 201 (is
+multicore reliability converging) keeps it as row D6, class `retracted`. The timer re-arm drift
+below is the counterfactual that stands.)*
 
 ### The experiment
 
@@ -26,18 +30,31 @@ second pass over the harnesses asking which prove a property that could plausibl
 
 ### The verdict of record
 
-RUN, 2026-08-30. AMBER, and the red half is structural. notes/proof-retrospective.md has the study;
-PR #589.
+RUN, 2026-08-30. AMBER. The red half is that no standing proof has caught a regression: every
+defect a proof caught was caught while its harness was being written. The second reason is the
+roughly 18% of `kernel/src` in files calling `asm!`, which no harness passes. notes/proof-retrospective.md
+has the study; PR #589. *(Reworded 2026-09-25 on the architect's ruling that day. It said "the red
+half is structural", naming a crate boundary milestone 193 (put `kernel/src` within reach of the
+prover) removed on 2026-08-30.)*
 
 - No Kani harness in this tree has ever caught a defect after the day it was written. All eighteen
   defects in the corpus were found by something else: a flaky suite, a boot on real silicon, a
   fuzzer, the mutation sweep, loom, a code read, or a CI lint. No red `script/verify` run appears
   anywhere in the record.
-- The cause is one line of `script/verify`'s own header, verified rather than inferred: *"`cargo
-  kani -p <crate>` never compiles the kernel, the user programs, or xtask."* So 64,818 lines of
-  `kernel/src` are out of reach by construction. And that is exactly where every concurrency,
-  hardware-contract and resource-accounting defect lived. The proofs are not failing to catch bugs
-  in the code they cover; they do not cover the code the bugs are in.
+- On 2026-08-30 the cause was one line of `script/verify`'s own header, verified rather than
+  inferred: *"`cargo kani -p <crate>` never compiles the kernel, the user programs, or xtask."* So
+  64,818 lines of `kernel/src` were out of reach by construction. And that is exactly where every
+  concurrency, hardware-contract and resource-accounting defect lived. The proofs were not failing
+  to catch bugs in the code they covered; they did not cover the code the bugs were in.
+  *(Corrected 2026-09-25 by milestone 536 (two records still say the prover cannot see
+  `kernel/src`), under §216: this bullet stayed in the present tense for three weeks. Milestone
+  193 made the header line false the same day, and PR #1276 corrected the header itself.
+  Measured from the merged tree on 2026-09-25: `kernel/src` is 86,528 lines, 42,953 of them
+  non-blank non-comment, and eight harnesses prove code in it. What stops a harness now is `asm!`, a
+  fixed-address MMIO read, or an `arch/` subtree the host does not compile. Files calling `asm!`
+  hold 15,966 lines, every one under `arch/`; that overcounts, because Kani refuses on the call
+  graph rather than the file. [`notes/kernel-proofs.md`](../../notes/kernel-proofs.md) has
+  the per-host table.)*
 - Why it is amber and not red. Two real defects were caught *while harnesses were being written*
   (`dtb::be32`'s unchecked `at + 4`, reachable from a corrupt device tree on the boot path;
   `pci::intx_irq`'s pin-0 underflow). That is the survivorship asymmetry this file's rule 1 warned
@@ -119,7 +136,14 @@ the first time this tree has an instance of it. The survivorship caveat above st
 full force: the harness caught it *while being written*, like `dtb::be32` and `pci::intx_irq` before
 it. So it is evidence that pointing the prover somewhere new pays, not yet evidence that a standing
 proof catches regressions. riscv64 remains unreachable to the prover and nobody here can change
-that: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host. The
+that: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host.
+*(Corrected 2026-09-25 under §216: "nobody here can change that" is too strong. PR #1276 measured
+that `arch/riscv64/iommu.rs`, which has no `asm!`, compiles unchanged under Kani on an aarch64 host
+as a proof-only module. It also read from Kani 0.67's source that Kani supports only the x86_64
+and aarch64 machine models, so a riscv64 runner would not have helped either. The files that do call
+`asm!` fail in rustc before Kani runs. Milestone 432 (the RISC-V IOMMU driver has no counterpart to
+the SMMU's proofs) then proved that file from an aarch64 host on 2026-09-25 Corrected again 2026-09-25 under §216: CI run 36088566670 proved riscv64 with a
+patched Kani.)* The
 fix was deliberately not made in that lane, because it changes a public signature and a documented
 policy. It was raised as a proposal with gate `DECISION`, calef chose to route by redirection index
 on 2026-09-16. It was built the same day as milestone 308 (a GSI reaches its vector by redirection

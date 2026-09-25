@@ -603,12 +603,7 @@ pub unsafe extern "C" fn x86_syscall_handler(frame: *mut TrapFrame) {
 /// Read `CR2`, which holds the faulting address after a page fault (vector 14) and nothing
 /// meaningful otherwise. The x86 analog of `FAR_EL1` and of RISC-V's `stval`.
 fn faulting_address() -> u64 {
-    let cr2: u64;
-    // SAFETY: reads a control register. No side effects.
-    unsafe {
-        core::arch::asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, preserves_flags));
-    };
-    cr2
+    super::instructions::read_cr2()
 }
 
 /// The names of the 32 architecturally defined exceptions, so a fault report says what happened

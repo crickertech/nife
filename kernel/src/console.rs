@@ -328,7 +328,7 @@ static HOLD_AT_HANDOVER: core::sync::atomic::AtomicBool =
 /// (milestone 445 (the screen check stops sampling and starts asking)), ruled in
 /// §199 (the screen check asks instead of sampling).
 ///
-/// *Name provisional (`AGENTS.md`: calef names public items).*
+/// Name: provisional (`AGENTS.md`: calef names public items).
 ///
 /// **A debugging affordance, and the doc comment says so where a reader meets it.** Nothing in a
 /// boot anybody performs calls this: the one caller is the boot-command-line reader, and the token
@@ -538,6 +538,11 @@ pub fn configure_from_dtb() {
 /// in *any* configuration, `--features shell` included.
 ///
 /// riscv-only: the aarch64 console stays polling, and its `ConsoleUart` (a PL011) has no such method.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `enable_receive_interrupt`, because it enables an
+/// interrupt, which `rx_enable` does not say, and matches the driver method it calls.
 #[cfg(target_arch = "riscv64")]
 pub fn rx_enable() {
     CONSOLE.lock().uart.enable_rx_interrupt();
@@ -553,12 +558,14 @@ pub fn rx_enable() {
 /// serial cable and a terminal. Polling LSR turns that cable into a stop button that costs one
 /// register read every five seconds and needs nothing else to be wired up.
 ///
-/// riscv64 only, and so is the feature: the reset it is the escape from is SBI's, and the PL011 the
-/// aarch64 console drives has no equivalent method here.
+/// Every architecture, since the rebooting soak reached aarch64 and `x86_64` (milestone 249 (the
+/// boot lottery is sampled by a person walking to the board)'s parity half): the console is a PL011
+/// on the first and a port-I/O 16550 on the second, and both drivers already carried the same sticky
+/// data-ready read for milestone 445's screen hold.
 ///
 /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting` (`rx`
 /// is a decoder for "receive").
-#[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
+#[cfg(feature = "reboot_soak_test")]
 pub fn is_byte_waiting() -> bool {
     CONSOLE.lock().uart.is_byte_waiting()
 }
@@ -566,7 +573,12 @@ pub fn is_byte_waiting() -> bool {
 /// Throw away whatever is already in the console UART's receive buffer, so that [`is_byte_waiting`]
 /// answers about what arrives from now on. Called once, when a rebooting soak arms itself; see
 /// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
-#[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `discard_waiting_bytes`, because it drops the bytes
+/// `is_byte_waiting` would have reported.
+#[cfg(feature = "reboot_soak_test")]
 pub fn discard_rx() {
     CONSOLE.lock().uart.discard_rx();
 }
@@ -615,7 +627,7 @@ pub fn quiet_uart_interrupt() {
 /// fit in `out` is dropped rather than wrapping. Nothing here is a line editor and nothing should
 /// grow into one: `crates/line_editor` is that, at EL0, where it belongs.
 ///
-/// Name provisional (milestone 198's rung 2a): calef names public items.
+/// Name: provisional (milestone 198's rung 2a): calef names public items.
 #[cfg(target_arch = "x86_64")]
 pub fn read_line(out: &mut [u8], patience: core::time::Duration) -> Option<usize> {
     let hz = crate::arch::timer::frequency_checked()?;
@@ -683,6 +695,11 @@ static TX_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::
 /// `kernel::user::riscv_initrd_demo`'s hang watcher, which went with the program it loaded. The
 /// counter is still incremented on every print, so it is still true and still free to read; what is
 /// gone is the thing that read it. Kept for the same reason `sched::canary` is, written there.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `bytes_written`, because it counts what the kernel wrote to
+/// the console, and its static `TX_BYTES` becomes `BYTES_WRITTEN` with it.
 #[allow(dead_code)]
 pub fn tx_bytes() -> u64 {
     TX_BYTES.load(core::sync::atomic::Ordering::Relaxed)

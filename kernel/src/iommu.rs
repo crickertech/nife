@@ -39,6 +39,98 @@ pub fn is_active() -> bool {
     crate::arch::iommu::is_active()
 }
 
+/// **Whether a requester id's DMA passes through an IOMMU this kernel programmed** (milestone
+/// 261's bench rehearsal). The question `confine` cannot answer for itself: it builds a domain and
+/// hands it to the unit that is up, and on a machine with more than one unit that may not be the
+/// unit the device's transactions reach. Fatal risk 6's first night-of condition, as a value.
+///
+/// Name: provisional. calef names public items.
+// Each architecture's driver constructs its own subset: VT-d the last three, the SMMUv3 and the
+// RISC-V IOMMU `WholeBus`. So on every build some variant is never constructed, by design.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    /// No IOMMU is translating on this machine.
+    NoIommu,
+    /// One IOMMU fronts every requester on the bus: the SMMUv3 and the RISC-V IOMMU as this tree
+    /// brings them up, where the device tree's `iommu-map` is an identity over the whole bus.
+    WholeBus,
+    /// VT-d: the unit at `unit` is translating and owns this requester, and `how` says why.
+    Owned {
+        unit: u64,
+        how: machine_discovery::acpi::Ownership,
+    },
+    /// VT-d: **nothing this kernel brought up owns** this requester. `owner` is the unit that
+    /// does, which this kernel refused to bring up, or `None` when no unit owns it at all;
+    /// `translating` is some unit that is up. The device's DMA is not translated by anything this
+    /// kernel set up.
+    Elsewhere {
+        translating: u64,
+        owner: Option<u64>,
+    },
+    /// VT-d: the DMAR described more than this kernel records, so no answer is honest.
+    Unknown { translating: u64 },
+}
+
+impl Scope {
+    /// True only when this kernel's page tables are what the device's DMA is checked against.
+    pub fn is_confining(&self) -> bool {
+        matches!(self, Scope::WholeBus | Scope::Owned { .. })
+    }
+}
+
+impl core::fmt::Display for Scope {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use machine_discovery::acpi::Ownership;
+        match *self {
+            Scope::NoIommu => write!(f, "no iommu is translating on this machine"),
+            Scope::WholeBus => write!(f, "the machine's one iommu fronts the whole bus"),
+            Scope::Owned { unit, how } => match how {
+                Ownership::Named => write!(f, "drhd {unit:#x} names it in its scope"),
+                Ownership::UnderBridge(b, d, fu) => {
+                    write!(
+                        f,
+                        "drhd {unit:#x} owns bridge {b:02x}:{d:02x}.{fu} above it"
+                    )
+                }
+                Ownership::CatchAll => {
+                    write!(
+                        f,
+                        "drhd {unit:#x} is the catch-all and no other unit names it"
+                    )
+                }
+            },
+            Scope::Elsewhere {
+                translating,
+                owner: Some(owner),
+            } => write!(
+                f,
+                "drhd {owner:#x} owns it, but it did not come up; this kernel translates {translating:#x}"
+            ),
+            Scope::Elsewhere {
+                translating,
+                owner: None,
+            } => write!(
+                f,
+                "no drhd owns it (no scope names it, no catch-all); {translating:#x} is up"
+            ),
+            Scope::Unknown { translating } => write!(
+                f,
+                "the dmar did not fit what this kernel records; {translating:#x} is up"
+            ),
+        }
+    }
+}
+
+/// Ask the architecture's driver for `rid`'s [`Scope`].
+pub fn scope_of(rid: u32) -> Scope {
+    crate::arch::iommu::scope_of(rid)
+}
+
+/// How many regions one domain carries: a caller's grant (two today, virtio's) plus every RMRR
+/// the DMAR decoder can record. Name: provisional (milestone 594 (every VT-d unit translates its own devices)).
+const MAX_CONFINED_REGIONS: usize = 4 + machine_discovery::acpi::MAX_RMRRS;
+
 /// Allocate one zeroed frame and return its physical address. The domain's root table and every
 /// intermediate table come from here. These frames are owned by the IOMMU from now on; a re-attach
 /// of the same device leaks the previous domain's tables, which is acceptable because `confine`
@@ -58,6 +150,33 @@ fn zeroed_page_frame() -> u64 {
 /// board's device tree gives an identity `iommu-map`). The caller must have checked [`is_active`];
 /// attaching before the driver's `init` panics.
 pub fn confine(rid: u32, regions: &[DmaRegion]) {
+    // **The grant, plus every region the firmware reserved for this device** (milestone 594). On
+    // VT-d an RMRR is memory the firmware keeps DMA-ing into (USB legacy emulation, a UMA GPU's
+    // stolen memory), and VT-d 4.1 section 3.16 asks for it identity-mapped in whatever domain
+    // the device uses; a domain built without it would fault the firmware the moment it was
+    // attached. The other two architectures report none. A region that overlaps the grant is
+    // left out rather than mapped twice, which would fail the whole build: the grant already
+    // covers those pages, and a firmware region overlapping kernel-allocated memory is a firmware
+    // bug the boot print names.
+    let mut all = [DmaRegion { base: 0, size: 0 }; MAX_CONFINED_REGIONS];
+    assert!(
+        regions.len() <= all.len(),
+        "a DMA grant of {} regions is more than confine carries",
+        regions.len()
+    );
+    all[..regions.len()].copy_from_slice(regions);
+    let mut n = regions.len();
+    crate::arch::iommu::for_each_reserved_region(rid, &mut |r| {
+        let overlaps = all[..n].iter().any(|g| {
+            r.base < g.base.saturating_add(g.size) && g.base < r.base.saturating_add(r.size)
+        });
+        if !overlaps && n < all.len() {
+            all[n] = r;
+            n += 1;
+        }
+    });
+    let regions = &all[..n];
+
     let root = zeroed_page_frame();
     // Build the identity domain over `regions`. The frame allocator and the pointer projection are
     // the same the kernel's own `Mapper` uses; `DmaFormat` selects the format for this ISA.

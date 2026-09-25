@@ -82,9 +82,9 @@ A proof is only as good as four things, and each is worth being blunt about:
    compiles `arch/aarch64/` and no line of the other two. This is worse than the `asm!` boundary
    above rather than milder, because it is **silent**: an unsupported construct is reported, a
    `cfg`-excluded file produces no diagnostic of any kind, and the suite goes green faster. The
-   `kernel` row is now proved on an aarch64 runner and an x86_64 one for exactly this reason;
-   `arch/riscv64/` is compiled by nothing anywhere, and there is no runner that could. See
-   notes/kernel-proofs.md for the table of what each host reaches.
+   `kernel` row is proved on aarch64, x86_64 and riscv64 for exactly this reason, riscv64 by a
+   patched Kani (milestone 589 (Kani can prove riscv64 from the hosts we already have)). See
+   notes/kernel-proofs.md for what each run reaches.
 3. **The harness itself is code, and until milestone 113 it was code no gate read.** `cfg(kani)` is
    set by the model checker and by nothing else, so `script/lint` never compiled a single
    `#[cfg(kani)] mod verification` and `clippy::undocumented_unsafe_blocks` could not fire in one.
@@ -680,7 +680,7 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**181 harnesses** <!--count:kani-harnesses--> **across 27 packages** <!--count:harness-crates-->. (Milestone 198 (a package manager, and the trivial install) added two on 2026-09-23, in
+**188 harnesses** <!--count:kani-harnesses--> **across 27 packages** <!--count:harness-crates-->. (Milestone 198 (a package manager, and the trivial install) added two on 2026-09-23, in
 `crates/package_archive`; both discharge in **4 seconds**, which is the cheapest row in the table
 after `elf`'s and `memory_regions`'.
 Milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) added two, in

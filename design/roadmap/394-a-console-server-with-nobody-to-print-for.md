@@ -10,8 +10,8 @@ now, 1676 when this was written), and `kernel/src/user/console_service.rs` still
 `Console`, whose own doc comment says the `expect` is this question made visible and should be
 deleted when the question is answered. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§179](../decisions/179-console-server-with-no-client.md) *(number provisional)*, written up
+**Gate: DECISION §179.** The decision is
+§179 (whether the tour boot keeps starting a console server that has no client), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section and the ask lived only
 in the prose below, addressed to one person. calef's, and specifically because the answer is not
 "delete it": this is infrastructure rather than a demonstration, and the lane that found it was told

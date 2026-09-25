@@ -380,4 +380,25 @@ mod tests {
         assert_eq!(human_size(30_752_636_928), "30.8 GB");
         assert_eq!(human_size(10_158_080), "10.2 MB");
     }
+
+    // Milestone 326 (turn a mutation score upward), 2026-09-24.
+
+    /// **Between two FAT volumes with the same room, the first is chosen**, so the same stick gets
+    /// the same answer on every run rather than whichever the comparison happens to favour.
+    #[test]
+    fn equal_room_keeps_the_first_volume() {
+        let mut disk = stick();
+        let mut second = disk.volumes[0].clone();
+        second.id = "disk8s2".into();
+        disk.volumes.push(second);
+        assert_eq!(plan(&disk, 1, |_| 0), Plan::Copy { volume: 0 });
+    }
+
+    /// **The largest unit is the last one**: a size past a thousand terabytes stays in terabytes
+    /// rather than indexing past the table.
+    #[test]
+    fn sizes_past_the_last_unit_stay_in_it() {
+        assert_eq!(human_size(999_000_000_000_000), "999.0 TB");
+        assert_eq!(human_size(5_000_000_000_000_000), "5000.0 TB");
+    }
 }

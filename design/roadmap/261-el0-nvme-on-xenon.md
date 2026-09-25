@@ -56,8 +56,8 @@ between this tree and risk 6's decisive experiment rather than any missing hardw
   anyways."* So this is a seller's fresh image rather than anyone's data.
 - **Cost: nothing, and one boot.** No purchase, unlike milestone 87's requirements list.
 
-**Status: not done as of 2026-09-17.** This block should carry the date it happens, the way 87 carries
-its purchase dates, and its `## Follow-on` says `Outstanding.` with a checked date until then.
+Done 2026-09-17, per `design/fatal-risks.md` risk 6. Corrected 2026-09-24: this line still read
+"not done" a week later.
 
 ## What a lane builds without any of that
 
@@ -147,6 +147,15 @@ new Kani harnesses cover the handoff's round trip, that an accepted handoff's do
 inside the one mapped page, and that no caller-supplied `u64` can wrap into a command for a block the
 namespace does not have.
 
+## The bench boot, built 2026-09-24 without the machine
+
+`cargo xtask disk-throughput --stage-only` stages the bench image; the boot prints two preflight
+verdicts, measures, and ends in one verdict line. Procedure, expected output and outcomes:
+[notes/risk-6-bench-evening.md](../../notes/risk-6-bench-evening.md). Building it found that the
+kernel brought up the DMAR's first VT-d unit, very likely xenon's graphics unit, and called any
+device confined while any unit translated; that page's first night-of condition has the evidence
+and the fix.
+
 ## The proof that this milestone worked
 
 **A confined EL0 process drives xenon's real NVMe at a measured throughput, with VT-d translating
@@ -161,15 +170,9 @@ about a real device at real speed.
 *Reviewed 2026-09-17 against what the build learned. The first entry got sharper rather than
 weaker, the fourth is partly answered, and two are new.*
 
-- **This block assumes VT-d in front of the NVMe and has not proved it, and the QEMU work could not
-  prove it either.** The tour reports a DRHD up under OVMF; nobody has confirmed the NVMe's
-  requester id is behind that unit on this machine, and a DRHD covering only some functions is a
-  normal x86 arrangement. Under QEMU `-device intel-iommu` covers the whole bus, so a green run here
-  says nothing about which functions a real DMAR's scope names. **This is now the load-bearing
-  unknown**: the driver no longer has kernel arithmetic behind it, so on xenon the IOMMU is the
-  entire confinement story, and a DRHD that does not cover the NVMe means the bench boot proves
-  throughput and not confinement. **What to read on the machine**: the DMAR table's device scope, at
-  the boot tour's `vt-d` line, before believing any throughput number.
+- **Whether xenon's DMAR gives the NVMe to the unit this kernel translates is still unread**, and
+  with the driver at EL0 it is the whole confinement story. The bench boot's first preflight line
+  now answers it in print; the catch-all path has run only against host-test tables.
 - **Nothing here is measured.** "At throughput" still has no number attached. Nothing in this lane's
   work produced one and nothing should be read as one: a QEMU figure is a figure about QEMU, and
   risk 6's clause is specifically about a real device at real speed.
@@ -201,13 +204,14 @@ weaker, the fourth is partly answered, and two are new.*
 ## Follow-on
 
 - **Outstanding.** The bench step, which is the whole of what remains and is the only part that
-  answers fatal risk 6. It needs the disk wiped (calef's, above), and then a boot on xenon with the
-  server serving off the real Micron 2450 at a measured rate, photographed, since xenon has no
-  serial console this project can read. Checked 2026-09-17.
-- **Outstanding.** Whether xenon's DMAR scope actually covers the NVMe function. One boot, read at
-  the `vt-d` line, and it decides whether the bench boot proves confinement or only throughput.
-  Already the last item of `notes/x86-uefi-boot.md`'s bench procedure; repeated here because this
-  block is now the thing that depends on it. Checked 2026-09-17.
+  answers fatal risk 6, including whether xenon's DMAR scope covers the NVMe: three boots of the
+  bench image, photographed, read by
+  [notes/risk-6-bench-evening.md](../../notes/risk-6-bench-evening.md). Checked 2026-09-24.
+- **Milestone 594.** Milestone 594 (every VT-d unit translates its own devices): every unit up,
+  each device routed to its owner, RMRRs identity-mapped (number provisional, promoted 2026-09-25).
+- **Proposed.** `design/roadmap/proposals/the-nvme-test-on-a-machine-whose-iommu-does-not-own-it.md`:
+  the NVMe boot test on a machine whose IOMMU does not own the controller, as the replayable
+  falsification of `confined_by_iommu`.
 - **Outstanding.** A replayable falsification for the confinement claim: an EL0 server role that
   aims a PRP outside its own DMA region, the way `block_driver`'s two attacker roles do for virtio,
   so milestone 202's convention (a claim, a test, a replayable falsification) is met by a test rather

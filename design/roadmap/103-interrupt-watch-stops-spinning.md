@@ -47,9 +47,10 @@ passing unchanged on both ISAs.
 
 ## Scope note
 
-**Strictly downstream of milestone 106.** There is no timed wait anywhere in the kernel (§51 records
-the fork and the three candidate shapes), and this milestone adds no kernel surface of its own. If
-106 lands the deadline on `Endpoint::RECV`/`CALL`, this is a small change in one file.
+**Strictly downstream of milestone 106.** There is no timed wait anywhere in the kernel (milestone
+51 (wall-clock time) records the fork and the three candidate shapes), and this milestone adds no
+kernel surface of its own. If 106 lands the deadline on `Endpoint::RECV`/`CALL`, this is a small
+change in one file.
 
 **Not `Tcb::SUSPEND`.** Pausing a job resumably is §24's deliberate deferral and milestone 48's
 phase two; that milestone owns it, along with `fg`, `bg` and a stopped state. The two are adjacent

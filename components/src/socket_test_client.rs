@@ -15,7 +15,7 @@
 //!     configured nameserver (`get_dns_addr_libresolv`), so this exchange depends on the developer's
 //!     DNS working at that instant. It is therefore **non-gating**: a host resolver that does not
 //!     answer reports `NO_ANSWER` and the kernel test skips loudly. A malformed or mismatched
-//!     response still fails, because that would be our bug. See notes/net.md.
+//!     response still fails, because that would be our bug. See notes/net/the-outbound-gates.md.
 //!   - `TEST_TCP_ECHO`: a full TCP round trip to slirp's guestfwd echo peer (10.0.2.9:7777 -> a
 //!     `/bin/cat`): connect (handshake), send, receive the echo, close (teardown).
 //!   - `TEST_TCP_ACCEPT`: **the inbound half** (milestone 107), and the only exchange here that is
@@ -23,7 +23,7 @@
 //!     authority, the granted one binds and is exclusive, and then a *host* process connects to it
 //!     through QEMU's `hostfwd` twice, which proves the listener re-arms.
 //!     The same spawn then carries **the UDP bind grant's refusals** (milestone 55), because a
-//!     second net server does not fit the aarch64 boot (the memory receipt in notes/net.md; that
+//!     second net server does not fit the aarch64 boot (the memory receipt in notes/net/memory-and-reclamation.md; that
 //!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfPageFrames)` in an unrelated
 //!     later test). A fixed port outside the grant is refused as authority, a granted one binds
 //!     and is exclusive, which incidentally proves the two grant halves compose in one word on the
@@ -62,6 +62,7 @@ pub const TEST_TCP_ECHO: u64 = 2;
 pub const TEST_TCP_REOPEN: u64 = 3;
 pub const TEST_UDP_TFTP: u64 = 4;
 pub const TEST_TCP_ACCEPT: u64 = 5;
+pub const TEST_HTTP_PACKAGE: u64 = 6;
 const OK: u64 = 1;
 /// Reported when an exchange could not be completed **for an environmental reason** rather than a
 /// defect in our stack: today only the real-DNS check, whose upstream is the host's resolver. The
@@ -86,8 +87,8 @@ const DNS_IP: [u8; 4] = [10, 0, 2, 3];
 const DNS_PORT: u16 = 53;
 const GW_IP: [u8; 4] = [10, 0, 2, 2];
 const TFTP_PORT: u16 = 69;
-const ECHO_IP: [u8; 4] = [10, 0, 2, 9];
-const ECHO_PORT: u16 = 7777;
+const ECHO_IP: [u8; 4] = socket_protocol::fixture::ECHO_PEER_IP;
+const ECHO_PORT: u16 = socket_protocol::fixture::ECHO_PEER_PORT;
 
 const DNS_TXID: u16 = 0x1234;
 
@@ -411,7 +412,7 @@ fn tcp_echo() -> ! {
 /// close it, then reopen the *same* id and connect again. Before `net_stack` assigned ephemeral local ports
 /// independent of the socket id, the reopen reused the exact local port, and the second connect on a
 /// 4-tuple whose slirp flow had not yet cleared stalled `net_stack`'s bounded poll forever (found by the
-/// `std::net` PAL, notes/net.md). With the rotating allocator the reopen gets a fresh port, so both
+/// `std::net` PAL, notes/net/the-outbound-gates.md). With the rotating allocator the reopen gets a fresh port, so both
 /// connects complete.
 fn tcp_reopen() -> ! {
     attach_page_frame(0);
@@ -495,8 +496,9 @@ fn tcp_accept_inbound() -> ! {
     // The UDP bind half rides in this same spawn (milestone 55's stack half), because a second net
     // server does not fit the aarch64 boot: the spawn is ~154 frames nothing ever reclaims, and
     // this lane measured the eleventh one dying as `Unmappable(OutOfPageFrames)` in an unrelated later
-    // test, the exact failure notes/net.md's memory receipt predicted. Milestone 107 folded its
-    // grant half for the same reason; the stage codes stand in for the separate test's name.
+    // test, the exact failure notes/net/memory-and-reclamation.md's memory receipt predicted.
+    // Milestone 107 (the socket contract learns to accept) folded its grant half for the same
+    // reason; the stage codes stand in for the separate test's name.
     udp_bind_half();
     done(OK);
 }
@@ -569,9 +571,134 @@ fn udp_bind_half() {
     let _ = call(STACK, req(OP_CLOSE, CONN_SID), 0);
 }
 
-/// Run the selected client exchange. Entered from `net_stack`'s `_start` when the entry role is nonzero.
-pub fn run(test: u64) -> ! {
+/// Where the spawner maps the image's package catalogue (`package_archive::CATALOGUE`) for
+/// [`TEST_HTTP_PACKAGE`], read-only. The kernel test and this file must agree; see
+/// `kernel/src/user/virtio_service.rs`'s `NET_CLIENT_CATALOGUE_VA`.
+const CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
+/// Reported in a word of its own when the fetched bytes did not match the catalogue's digest, which
+/// is the refusal the tampered fetch must produce. Distinct from `OK` and from every stage failure,
+/// so a test asserting a refusal cannot be satisfied by a broken fetch.
+pub const DIGEST_REFUSED: u64 = 3;
+/// The package source the runners put at 10.0.2.9:8080 (`helpers/package-http-peer`).
+const PACKAGE_IP: [u8; 4] = [10, 0, 2, 9];
+const PACKAGE_PORT: u16 = 8080;
+
+/// **Rung 3a's fetch and verify** (milestone 198 (a package manager)): `GET` a package from a host
+/// over plain HTTP, hash it as it arrives, and accept it only if the digest is the one the image's
+/// own catalogue names. **Twice, in one spawn**: the genuine package, which must be accepted, then
+/// the peer's copy with one byte flipped, which must be refused. The two verdicts go back as the
+/// report's first and second words. One spawn rather than two tests because every `net_stack` a
+/// test starts takes a virtio slot for the rest of the boot, and the table was full (see
+/// `MAX_DEVICES` in `kernel/src/virtio.rs`); milestone 107 (the socket contract learns to accept)
+/// made the same trade the same way.
+///
+/// The catalogue is what makes plain HTTP enough. It is an archive entry packed above the
+/// measurement table, so the kernel's trust root vouches for it, and the digest it carries never
+/// crossed the network (DECISIONS §195 (a reviewed recipe vouches for a package)). The body is never
+/// held: each read goes through `http_response` and into the hash, so a package costs this client
+/// one page of socket frame and the hash state. **That is also this exchange's limit**: it proves
+/// the bytes, and installing them is `notes/packages.md`'s "Where this stops".
+///
+/// `len` is the catalogue's length; the spawner maps it read-only at [`CATALOGUE_VA`].
+fn http_package(len: u64) -> ! {
+    // SAFETY: the spawner maps `len` bytes of catalogue at CATALOGUE_VA, read-only, for the life of
+    // this client, and nothing writes them.
+    let catalogue = unsafe { core::slice::from_raw_parts(CATALOGUE_VA as *const u8, len as usize) };
+    let Ok(catalogue) = core::str::from_utf8(catalogue) else {
+        done(0xE090);
+    };
+    #[cfg(target_arch = "aarch64")]
+    const STEM: &str = "uptime-0.1.0-aarch64";
+    #[cfg(target_arch = "riscv64")]
+    const STEM: &str = "uptime-0.1.0-riscv64";
+    #[cfg(target_arch = "x86_64")]
+    const STEM: &str = "uptime-0.1.0-x86_64";
+    let Some(expected) = measured_boot::expected_in_manifest(catalogue, STEM) else {
+        done(0xE091); // the image vouches for no such package, so nothing fetched could be run
+    };
+
+    attach_page_frame(0);
+    let genuine = fetch_and_verify(STEM, false, &expected);
+    let tampered = fetch_and_verify(STEM, true, &expected);
+    send(REPORT, genuine, tampered, 0);
+    exit();
+}
+
+/// One fetch on socket 0: `OK`, [`DIGEST_REFUSED`], or the stage code that stopped it.
+fn fetch_and_verify(stem: &str, tampered: bool, expected: &measured_boot::Digest) -> u64 {
+    if call(STACK, req(OP_OPEN_TCP, 0), 0).0 != REP_OK {
+        return 0xE092;
+    }
+    let code = exchange(stem, tampered, expected);
+    let _ = call(STACK, req(OP_CLOSE, 0), 0);
+    code
+}
+
+fn exchange(stem: &str, tampered: bool, expected: &measured_boot::Digest) -> u64 {
+    set_dst(PACKAGE_IP, PACKAGE_PORT);
+    if call(STACK, req(OP_CONNECT, 0), 0).0 != CONNECT_ESTABLISHED {
+        return 0xE093;
+    }
+
+    // `/tampered/` asks the peer for the same file with one byte flipped.
+    let mut path = [0u8; 64];
+    let mut at = 0;
+    for part in [if tampered { "/tampered/" } else { "/" }, stem, ".nifepkg"] {
+        path[at..at + part.len()].copy_from_slice(part.as_bytes());
+        at += part.len();
+    }
+    let path = core::str::from_utf8(&path[..at]).unwrap_or("/");
+    let mut request = [0u8; 128];
+    let Some(n) = http_response::get_request("10.0.2.9", path, &mut request) else {
+        return 0xE094;
+    };
+    for (i, &b) in request[..n].iter().enumerate() {
+        w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
+    }
+    if call(STACK, req(OP_SEND, 0), n as u64).0 != n as u64 {
+        return 0xE095;
+    }
+
+    let mut response = http_response::Response::new();
+    let mut hash = measured_boot::Sha256::new();
+    let mut chunk = [0u8; DATA_MAX];
+    while !response.is_complete() {
+        let (got, _) = call(STACK, req(OP_RECV, 0), 0);
+        if got == 0 || got > DATA_MAX as u64 {
+            return 0xE096; // the peer went away (or the stack failed) before the body was whole
+        }
+        let got = got as usize;
+        for (i, b) in chunk[..got].iter_mut().enumerate() {
+            *b = r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64);
+        }
+        let Ok(body) = response.feed(&chunk[..got]) else {
+            return 0xE097; // not an HTTP response this client accepts
+        };
+        if response.status().is_some_and(|s| s != 200) {
+            return 0xE098;
+        }
+        // A package is bounded by `u32` (package_archive's BUGS); refuse a larger claim before
+        // reading a byte of it.
+        if response
+            .content_length()
+            .is_some_and(|l| l > u64::from(u32::MAX))
+        {
+            return 0xE099;
+        }
+        hash.update(body);
+    }
+    if hash.finalize() == *expected {
+        OK
+    } else {
+        DIGEST_REFUSED
+    }
+}
+
+/// Run the selected client exchange. Entered from `net_stack`'s `_start` when the entry role is
+/// nonzero; `arg` is the second start word, which only [`TEST_HTTP_PACKAGE`] reads.
+pub fn run(test: u64, arg: u64) -> ! {
     match test {
+        TEST_HTTP_PACKAGE => http_package(arg),
         TEST_UDP_DNS => udp_dns(),
         TEST_UDP_TFTP => udp_tftp(),
         TEST_TCP_ECHO => tcp_echo(),

@@ -63,6 +63,14 @@
 #     name more than one. A `MILESTONE N` gate must resolve to a row and must not be BUILT, so the
 #     day a milestone lands, every gate still pointing at it fails the build instead of quietly
 #     staying stale. A BUILT file may not carry a gate at all, for the same reason;
+#   - a `DECISION §N` gate is the same rule for the other kind of wait (milestone 591 (a ruling
+#     should make the gate it answers fail until someone updates it)). It must name a section in
+#     design/decisions/, and that section's frontmatter must still say `PROPOSED`: the day calef
+#     rules, every gate waiting on it fails until someone reads the block and says what is left. Bare
+#     `DECISION` stays legal for a fork nobody has written up, and is checked for nothing, because it
+#     names nothing. Found 2026-09-23: milestone 198 (a package manager, and the trivial install that
+#     makes a second customer possible) sat a day behind a fork §208 (installing a package is
+#     granting it, and the activation set is versioned) had already ruled;
 #   - every `milestone N` citation TREE-WIDE resolves to a block (vendor/ and patches/ excluded:
 #     other people's text). The old gate checked only the roadmap's own prose, so ~1,988 citations in
 #     code comments were validated by nothing. A citation to a milestone that never existed is drift,
@@ -255,6 +263,9 @@ ANSWERS = DATED + ("PARTIAL",)
 
 # The readiness vocabulary. `NONE` is a claim that nothing stands in the way, so it stands alone;
 # the others name a gate and may be combined (milestone 74 waits on a decision AND on silicon).
+# `MILESTONE` always takes a number; `DECISION` may take a section (`DECISION §160` (what a subshell
+# copies)), one token per section, so a gate waiting on two forks says `DECISION §160, DECISION §161`
+# (which subset counts as running Vaultwarden) and loses one when one is ruled.
 GATE_VOCAB = ["NONE", "DECISION", "HARDWARE", "MILESTONE"]
 # A milestone a lane may pick up: nothing gates it, and the status does not already say to leave it
 # alone (BUILT is done, IN-PROGRESS has somebody on it, OPTIONAL and RECORDED are deliberately off
@@ -350,6 +361,8 @@ ids = {}
 milestones = {}
 gates = {}
 gate_specs = []
+# (milestone, token) for every `DECISION §N` gate, checked against design/decisions/ below.
+decision_specs = []
 # slug -> the numbered file whose status paragraph says it was promoted from that proposal.
 # Checked against the pile below, once both have been read.
 promoted = {}
@@ -383,8 +396,29 @@ def blocks_of(lines):
     return out
 
 
-for fname in sorted(os.listdir(d)):
+def is_appendix_dir(fname, is_dir, entries):
+    """True for a §212 appendix directory: a directory named after a block file beside it.
+
+    §212 (a prose budget) sites a long document's appendices in a sibling directory named after
+    it, so `47-navigation-and-naming/` sits beside `47-navigation-and-naming.md`. Its files are
+    appendices, not blocks, and are not scanned as blocks; the prose ratchet's orphan check is what
+    watches them. A directory named after no block is still an error, since nothing else lives here.
+    """
+    return is_dir and FNAME.fullmatch(fname + ".md") is not None and fname + ".md" in entries
+
+
+# The rule's selftest, run every time because it is four lines and a wrong answer either fails
+# every split or lets any directory in.
+assert is_appendix_dir("47-navigation-and-naming", True, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("47-navigation-and-naming", False, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("48-no-such-block", True, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("notes", True, {"notes.md"})
+
+entries = set(os.listdir(d))
+for fname in sorted(entries):
     if fname == "README.md" or fname == PROPOSED_DIR:
+        continue
+    if is_appendix_dir(fname, os.path.isdir(os.path.join(d, fname)), entries):
         continue
     m = FNAME.fullmatch(fname)
     if not m:
@@ -598,11 +632,12 @@ for fname in sorted(os.listdir(d)):
     # Paragraph 1 is the title, paragraph 2 the status, paragraph 3 the gate.
     paras = blocks_of(lines)
     gate_para = paras[2] if len(paras) > 2 else ""
-    gm = re.match(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)", gate_para)
+    gm = re.match(r"\*\*Gate: ([A-Z0-9§, ]+)\.\*\* (\S)", gate_para)
     if not gm:
         problems.append(f"{fname}: the paragraph under the status must be "
-                        f"'**Gate: <spec>.** <why>', where <spec> is NONE, or DECISION, HARDWARE "
-                        f"and MILESTONE <n> in any combination (found {gate_para[:48]!r})")
+                        f"'**Gate: <spec>.** <why>', where <spec> is NONE, or DECISION, "
+                        f"DECISION §<n>, HARDWARE and MILESTONE <n> in any combination "
+                        f"(found {gate_para[:48]!r})")
         continue
     if len(stray) > 1:
         problems.append(f"{fname}: {len(stray)} gate lines; one milestone has one gate, and a "
@@ -624,6 +659,8 @@ for fname in sorted(os.listdir(d)):
                             f"cannot sit beside {', '.join(t for t in spec if t != 'NONE')}")
         if kind == "MILESTONE":
             gate_specs.append((num, token))
+        if kind == "DECISION" and token != "DECISION":
+            decision_specs.append((num, token))
     gates[num] = seen
 
 # A `MILESTONE <n>` gate resolves against the BLOCKS rather than the table, which is what lets a
@@ -640,6 +677,41 @@ for num, token in gate_specs:
     elif milestones[int(mn.group(1))]["status"] == "BUILT":
         problems.append(f"milestone {num}: gate {token!r} is stale, because milestone "
                         f"{mn.group(1)} is BUILT and no longer gates anything")
+
+
+def decision_statuses():
+    """Section number -> the `status:` its frontmatter holds. script/decisions owns the schema and
+    fails a file without one; this reads the one key and trusts that gate for the rest."""
+    out = {}
+    ddir = os.path.join(root, "design", "decisions")
+    for fname in os.listdir(ddir):
+        m = re.match(r"(\d+)-.*\.md$", fname)
+        if not m:
+            continue
+        with open(os.path.join(ddir, fname), encoding="utf-8") as f:
+            text = f.read()
+        fm = re.match(r"---\n(.*?)\n---\n", text, re.S)
+        sm = re.search(r"^status: *(\S+)", fm.group(1), re.M) if fm else None
+        out[int(m.group(1))] = sm.group(1) if sm else None
+    return out
+
+
+# A `DECISION §N` gate is stale the moment §N is anything but PROPOSED: DECIDED and AMENDED answered
+# it, and SUPERSEDED means another section did. Any of the three leaves the block's gate a claim the
+# tree has already contradicted, which is the milestone-198 failure this check exists for.
+if decision_specs:
+    section_status = decision_statuses()
+for num, token in decision_specs:
+    dm = re.fullmatch(r"DECISION §(\d+)", token)
+    if not dm:
+        problems.append(f"milestone {num}: gate {token!r} must be bare DECISION or name one "
+                        f"section (DECISION §160), because a gate nobody can look up is prose")
+    elif int(dm.group(1)) not in section_status:
+        problems.append(f"milestone {num}: gate {token!r} names no section in design/decisions/")
+    elif section_status[int(dm.group(1))] != "PROPOSED":
+        problems.append(f"milestone {num}: gate {token!r} is stale, because §{dm.group(1)} is "
+                        f"{section_status[int(dm.group(1))]}. Read the block, say what the ruling "
+                        f"left, and set the gate to what still stops a start")
 
 # ---- the five-column rendering, for `--index` --------------------------------
 # Two escapes, and they are markdown's rather than this script's. A literal `|` inside a cell would
@@ -1252,7 +1324,8 @@ def gate_order(token):
     # NONE first, then the two standing gates, then the milestone gates in numeric order, because
     # "MILESTONE 106" sorts before "MILESTONE 16" as text and that reads as a mistake.
     kind, _, n = token.partition(" ")
-    return (kind == "MILESTONE", 0 if kind == "NONE" else 1, kind, int(n) if n else 0)
+    n = n.lstrip("§")
+    return (kind == "MILESTONE", 0 if kind == "NONE" else 1, kind, int(n) if n.isdigit() else 0)
 
 
 print(f"\nGATES (what stops the {len(gates)} milestones that are not built)")

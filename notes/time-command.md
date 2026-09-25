@@ -187,7 +187,8 @@ Named here rather than in a tracker, next to the feature.
   and a prefix word inside a stage would have to decide whose shell was doing the timing.
 - **A nested prefix collapses rather than nesting.** `time time date` prints one duration, not two.
   The prefixes are stripped in a loop instead of recursing through `dispatch`, because this shell's
-  stack has run out four times already (notes/pipes.md) and timing something twice measures nothing
+  stack has run out four times already (notes/pipes/the-boot.md) and timing something twice
+  measures nothing
   twice.
 - **The measurement includes the shell.** Planning, spawning, delegating, draining the output and
   rendering it are all inside the interval, because they are all part of running the line. For a

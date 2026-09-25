@@ -108,7 +108,7 @@ is saturated, so all three red at once is a load gauge, not three regressions.
 
 - `script/repeat-under-load [-n runs] [-s spinners]` runs the suite repeatedly with one busy loop
   per core, recording elapsed time, load average and how many QEMUs were up
-  ([notes/scripts.md](scripts.md)). It surfaces a problem well and characterises one badly: its
+  ([notes/scripts/load-and-reliability.md](scripts/load-and-reliability.md)). It surfaces a problem well and characterises one badly: its
   "1 in 45" for the double free was a sighting, and the bug was a deterministic ownership defect.
   A neighbouring emulator predicted reds better than the load average did.
 - `script/icount` boots under `-icount shift=0,sleep=off`, where virtual time advances only when the

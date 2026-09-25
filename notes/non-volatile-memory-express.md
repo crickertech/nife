@@ -194,7 +194,12 @@ given.
 
 **This is not fatal risk 6's experiment**, and nothing here should be read as one. Milestone 16b
 already proved IOMMU-backed isolation against emulated silicon; risk 6's open clause is about a
-real device at real speed, on xenon, photographed, and milestone 261's block carries what remains.
+real device at real speed, on xenon, photographed. The boot that takes it, its two preflights and
+what each outcome means are [risk-6-bench-evening.md](risk-6-bench-evening.md).
+
+Since 2026-09-24, "confined" means the IOMMU unit that owns the controller is the one translating. It used to mean that some unit was up, which on a machine with two VT-d units (a client
+Intel part: one for the GPU, one catch-all) is a different and weaker claim; see that page's first
+night-of condition. And a controller the driver refuses now fails the test rather than skipping it.
 
 **The parity note milestone 53 requires**: what ships on all three architectures is this driver
 against QEMU's `-device nvme`, on the two `virt` machines and on `q35`. The VisionFive 2's PLDA

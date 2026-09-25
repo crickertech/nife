@@ -185,6 +185,35 @@ mod tests {
         assert_eq!(physical_entry(0x10, [boot, text].into_iter()), None);
     }
 
+    /// **A segment contains its entry only below its end**: an entry exactly at one segment's end
+    /// is the next segment's first byte, and translating it through the first would jump into the
+    /// wrong physical page. Milestone 326 (turn a mutation score upward), 2026-09-24.
+    #[test]
+    fn an_entry_at_a_segments_end_belongs_to_the_next_segment() {
+        let first = Segment {
+            vaddr: 0xffff_0000_4008_0000,
+            paddr: 0x4008_0000,
+            memsz: 0x1000,
+            flags: PF_R | PF_X,
+            data: &[],
+        };
+        let second = Segment {
+            vaddr: 0xffff_0000_4008_1000,
+            paddr: 0x5000_0000,
+            memsz: 0x1000,
+            flags: PF_R | PF_X,
+            data: &[],
+        };
+        assert_eq!(
+            physical_entry(0xffff_0000_4008_1000, [first, second].into_iter()),
+            Some(0x5000_0000)
+        );
+        assert_eq!(
+            physical_entry(0xffff_0000_4008_1000, [first].into_iter()),
+            None
+        );
+    }
+
     /// The property this module exists for: the span is over **`p_paddr`**, so an image whose
     /// virtual addresses are in the high half still reports a low physical span.
     #[test]

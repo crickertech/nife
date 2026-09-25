@@ -25,18 +25,25 @@ permitted")`, holding `EVENT_EXIT` (2) where it wanted `EVENT_FAULT` (1): the no
 is permitted, it exits, and the supervisor's message is a clean exit. The holder's half of the test
 (its word arrives) is unaffected by the patch and passes first.
 
+Regenerated 2026-09-25 (UTC) against 53cb6d620, which landed
+milestone 315 (a port revoke that reaches every core). That commit split `set_port_range_grant` into a switch-path wrapper and
+`set_port_range_grant_on`, the body the revocation NMI also calls. The early return goes in the
+wrapper, which is where the "optimisation" would be written: the switch path is the only caller that
+passes `None` for a thread that simply holds nothing. Putting it in the shared body instead would
+also disable the revoke and self-delete resets, a wider defect that proves less about this test.
+
 diff --git a/kernel/src/arch/x86_64/segments.rs b/kernel/src/arch/x86_64/segments.rs
-index 59766bb1..f816b350 100644
+index efa61fbd7..dc9c76de7 100644
 --- a/kernel/src/arch/x86_64/segments.rs
 +++ b/kernel/src/arch/x86_64/segments.rs
-@@ -376,6 +376,10 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
+@@ -375,6 +375,10 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
+ /// out of `schedule()`'s switch), for the price of a call and a compare on the common switch.
  #[cold]
  pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
-     let id = crate::cpu::id();
 +    // A thread with no port capability needs nothing installed for it.
 +    if grant.is_none() {
 +        return;
 +    }
-     // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
-     // the switch path; a different core touches a different index.
-     let installed = unsafe { INSTALLED_PORT_GRANT[id] };
+     set_port_range_grant_on(crate::cpu::id(), grant);
+ }
+ 

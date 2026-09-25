@@ -147,6 +147,11 @@ const NET_TEST_TCP_REOPEN: u64 = 3;
 const NET_TEST_UDP_TFTP: u64 = 4;
 #[cfg(target_arch = "aarch64")]
 const NET_TEST_TCP_ACCEPT: u64 = 5;
+#[cfg(target_arch = "aarch64")]
+const NET_TEST_HTTP_PACKAGE: u64 = 6;
+/// `TEST_HTTP_PACKAGE`'s refusal word, reported for a package whose digest disagrees.
+#[cfg(target_arch = "aarch64")]
+const NET_CLIENT_DIGEST_REFUSED: u64 = 3;
 /// The one port the inbound gate is granted (milestone 107). The runners forward a host port to
 /// exactly this one, and the client asks for `fixture::DENIED_PORT` as well to prove the grant
 /// refuses. Named here because the *spawn service* is what grants it, which is the point.
@@ -1623,7 +1628,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
 /// resolver client and reports `NO_ANSWER` if the host never replied, which we print and skip: a
 /// committed gate must not depend on somebody's router. What still fails loudly is a response
 /// that arrives and is *wrong* (not our transaction id, or not a response), because that would be
-/// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net.md.
+/// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net/the-outbound-gates.md.
 // RISC-V twin: `riscv_virtio_tests::a_client_resolves_a_real_dns_name_when_the_host_resolver_answers`. Gated here rather than run twice: that
 // module drives the same property on the other instruction set, through the same `block_driver` and
 // `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
@@ -1687,6 +1692,44 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         "the TCP echo round trip through the socket contract failed (client code {verdict:#x})",
     );
     net.release_or_fail("a net test's net_stack");
+}
+
+/// **A package fetched over plain HTTP is accepted only by the digest the image vouches for**
+/// (milestone 198 (a package manager) rung 3a). The client `GET`s `uptime 0.1.0` from a host process
+/// on the same network (`helpers/package-http-peer`, a `guestfwd` peer), hashes it as it arrives
+/// through `http_response` and the net stack, and compares against the image's package catalogue,
+/// which the archive build packed above the measurement table. **Then it fetches the peer's copy with
+/// one byte flipped, which must be refused**: that half is what gives the first its meaning, because
+/// the tampered response is a complete, correct HTTP exchange and only the digest can tell. Both
+/// fetches share one `net_stack`, because every stack a test starts holds a virtio slot for the rest
+/// of the boot (`MAX_DEVICES`). Nothing else in the tree fetches a file over TCP or checks a
+/// package's digest on a target.
+// RISC-V twin: `riscv_virtio_tests::a_package_fetched_over_http_is_accepted_only_by_the_image_digest`.
+#[cfg(target_arch = "aarch64")]
+#[test_case]
+fn a_package_fetched_over_http_is_accepted_only_by_the_image_digest() {
+    let catalogue = program(package_archive::CATALOGUE)
+        .expect("no package catalogue in the initrd archive: the archive build packs one");
+    let Some((report, net)) = virtio_service::start_package_fetch(
+        net_stack_image(),
+        NET_TEST_HTTP_PACKAGE,
+        catalogue.len() as u64,
+        catalogue,
+    ) else {
+        crate::testing::skip!("no virtio-net device attached");
+    };
+    let [genuine, tampered, ..] = sched::ipc_recv(report);
+    assert_eq!(
+        genuine, NET_CLIENT_OK,
+        "the package fetched over HTTP was not accepted (client code {genuine:#x}; \
+         {NET_CLIENT_DIGEST_REFUSED} means its digest disagreed with the image's catalogue)",
+    );
+    assert_eq!(
+        tampered, NET_CLIENT_DIGEST_REFUSED,
+        "a package with one byte flipped was not refused by digest (client code {tampered:#x}; \
+         {NET_CLIENT_OK} would mean it was accepted)",
+    );
+    net.release_or_fail("the package fetch's net_stack");
 }
 
 /// The same TCP echo round trip over the PCIe transport, behind the IOMMU.
@@ -1911,7 +1954,7 @@ fn std_net_runs_over_the_socket_contract() {
 ///
 /// **Two connections, and the second is the load-bearing one.** A listener that accepts once and
 /// goes deaf would pass a one-round gate and is precisely what a file server cannot use; the re-arm
-/// happens inside `ACCEPT` (notes/net.md) and nothing but a second `accept()` proves it.
+/// happens inside `ACCEPT` (notes/net/the-inbound-half.md) and nothing but a second `accept()` proves it.
 ///
 /// **The refusals ride in this same spawn rather than in a test of their own**, which is the
 /// machine's call and not a preference: a net test spends minutes in `net_stack`'s userspace

@@ -220,7 +220,18 @@ if [ -n "$NIFE_NVME" ]; then
         echo "qemu-uefi-x86_64: NIFE_NVME=$NIFE_NVME does not exist (xtask's mknvmedisk writes it)" >&2
         exit 1
     fi
-    NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
+    # **Two knobs for fatal risk 6's rehearsal** (milestone 261 (the NVMe driver leaves the kernel); `cargo xtask disk-throughput`,
+    # notes/risk-6-bench-evening.md). Names provisional. NIFE_NVME_ROOT_PORT=1 puts the controller
+    # behind a PCIe root port, which is where xenon's Micron is (bus 1, not bus 0), so the bridge
+    # walk and the DMAR scope resolution both run against the shape the bench has.
+    # NIFE_NVME_DEVICE_OPTS is appended to `-device nvme` verbatim, for the namespace's block size
+    # (`,logical_block_size=8192,physical_block_size=8192` is the one this driver must refuse).
+    NVME_BUS=""
+    if [ -n "$NIFE_NVME_ROOT_PORT" ]; then
+        NVME="-device pcie-root-port,id=nvmeport,chassis=1,slot=1"
+        NVME_BUS=",bus=nvmeport"
+    fi
+    NVME="$NVME -drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0$NVME_BUS${NIFE_NVME_DEVICE_OPTS:-}"
 fi
 
 exec helpers/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \

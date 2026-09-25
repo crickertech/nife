@@ -96,7 +96,7 @@ Ordered as it was built, because each step is what made the next one debuggable.
 
 1. **The boot path.** `kernel/link-x86_64.ld` and `kernel/src/arch/x86_64/boot.s`: a 32-bit
    trampoline into long mode and the high half. The boot protocol is the surprise and is written up
-   at length in both files and in `notes/x86-port.md`: Multiboot 1 **cannot** boot a 64-bit kernel
+   at length in both files and in `notes/x86-port/boot.md`: Multiboot 1 **cannot** boot a 64-bit kernel
    (QEMU refuses the image rather than ignoring the header) and QEMU 11 has no Multiboot 2, so the
    image carries a **PVH** ELF note instead. PVH also hands over the ACPI RSDP address, which is the
    nearest thing x86 has to the single device-tree pointer the other two architectures pass.
@@ -420,8 +420,8 @@ In the order it should be done, because each is a prerequisite for the next.
    3"): the kernel reads CMOS once at boot and hands the seed to the clock service as a `Spawn`
    argument, the same way `kind` already crosses that boundary. `kernel/src/arch/x86_64/machine.rs`'s
    own `BUGS` section now names only the CMOS RTC as the device window with no seam at all;
-   notes/x86-port.md has the table of which fact has which source. See milestone 176 for the current
-   state of both pieces rather than this item duplicating it.
+   notes/x86-port/acpi-and-pci.md has the table of which fact has which source. Milestone 176
+   (the discovery seam's wide half) has the current state of both pieces.
 1. **Fine-grained page tables, and the address-space layout they force a decision about. BUILT
    2026-08-24**; see step 9 of "What was built" for what landed and what it cost. The number is kept
    in place rather than struck out because the items below cite each other by it.

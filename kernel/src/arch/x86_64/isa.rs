@@ -97,7 +97,7 @@ use crate::{print, println};
 /// the prover and a foot gun for anyone who reads it as "this call needs auditing". Delete it when
 /// Kani's pinned rustc passes 2026-02-ish, and the bare call comes back.
 ///
-/// Name provisional (milestone 304 (`cargo kani -p kernel` only ever compiled one architecture)):
+/// Name: provisional (milestone 304 (`cargo kani -p kernel` only ever compiled one architecture)):
 /// `cpuid` is the instruction's own mnemonic, which AGENTS.md's naming section keeps rather than
 /// expands.
 #[allow(unused_unsafe)]

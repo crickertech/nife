@@ -29,7 +29,7 @@ const SH_BUDGET_PAGES: u64 = 128;
 /// the next change found the wall again; 16 KiB of address space is not worth a fifth bisect. The
 /// number must stay level with `system_initializer`'s `CHILD_STACK_PAGES`, because a test wiring with
 /// less headroom than the boot wiring finds faults the boot does not have, which is a bug in the
-/// harness rather than a signal (notes/pipes.md).
+/// harness rather than a signal (notes/pipes/the-boot.md).
 const SHELL_EXTRA_STACK: usize = 11;
 
 /// What the kernel holds of a scripted shell.

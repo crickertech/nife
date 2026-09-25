@@ -16,6 +16,13 @@ name = "abi"
 version = "0.1.0"
 
 [[package]]
+name = "activation_set"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
+
+[[package]]
 name = "address_space_identifier"
 version = "0.1.0"
 
@@ -190,6 +197,7 @@ dependencies = [
  "globally_unique_identifier_partition_table",
  "grant_plan",
  "graphics_protocol",
+ "http_response",
  "jh7110_entropy",
  "line_editor",
  "login_protocol",
@@ -464,6 +472,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "http_response"
+version = "0.1.0"
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -547,6 +559,7 @@ dependencies = [
  "network_time_protocol",
  "nifefs",
  "non_volatile_memory_express",
+ "package_archive",
  "page_frames",
  "paging",
  "pci",
@@ -942,6 +955,7 @@ dependencies = [
  "login_protocol",
  "measured_boot",
  "nifefs",
+ "socket_protocol",
  "supervision_protocol",
  "user_mode_runtime",
 ]

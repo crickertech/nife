@@ -27,7 +27,7 @@ That was found by a person running a command by hand, not by a gate, and it is w
 found it**, and it is the same failure this project keeps meeting from other directions: a run that
 is indistinguishable from a passing one.
 
-**And a machine's firmware has already hidden a missing boot path.** `notes/x86-port.md`: PVH is a
+**And a machine's firmware has already hidden a missing boot path.** `notes/x86-port/boot.md`: PVH is a
 hypervisor protocol and no real firmware speaks it, so the kernel booted under QEMU for weeks by a
 route the OptiPlex could not offer. QEMU's convenience concealed the gap until real hardware refused
 it. A second machine profile is the cheap half of noticing that class earlier.
@@ -80,10 +80,11 @@ twin); and `helpers/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded
 
 **What the confirmation pass actually found on that axis is not a machine row at all**, which is why
 it is not here: the two IOMMU drivers rhyme and their proofs do not. `arch/aarch64/iommu.rs` carries
-two Kani harnesses over its entry-building arithmetic and the RISC-V side carries none, so on
-riscv64 the boot-time confinement test is the whole of the assurance, on one board. That is
-milestone 432 (design/roadmap/432-the-riscv-iommu-driver-has-no-proof.md), and it is a parity gap under §19
-rather than a coverage gap this matrix could close.
+two Kani harnesses over its entry-building arithmetic. The RISC-V side carried none, so the
+boot-time confinement test was the whole of riscv64's assurance, on one board. That was a parity gap
+under §19 (architectural parity is a tenet) rather than a coverage gap this matrix could close, and
+milestone 432 (design/roadmap/432-the-riscv-iommu-driver-has-no-proof.md) closed it on 2026-09-25:
+`arch/riscv64/iommu.rs` now carries two harnesses of its own, proved from an aarch64 host.
 - `sbsa-ref`. Describes itself by **ACPI with no device tree**, which is the discovery seam x86_64
   already exercises and aarch64 never has.
 - `raspi3b`, and `raspi4b` which is also on the pin. A real SoC memory map with a different UART,

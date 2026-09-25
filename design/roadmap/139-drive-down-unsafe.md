@@ -7,6 +7,12 @@ ratchet?"*
 **Gate: NONE.** Milestone 134's instrument (the census and the ceiling relation in `script/lint`)
 has existed and been live all along; this milestone spent it for its first real reduction below.
 
+<!-- prose-budget: exception. 13,846 words (wc -w, this marker included) against a 3,000-word
+     cap. Ratified by calef on 2026-09-25 (UTC), who ruled that this block is not split. Reason:
+     large and rarely referenced; the maintainer counted 2 files linking it that day. Roadmap blocks
+     as a class stay under the cap, per §212 (a prose budget), which refused a class exemption.
+     Marker syntax is PROVISIONAL until the prose-budget gate exists. -->
+
 ## What was built
 
 **The `MappedWindow` cluster, the milestone's first real reduction.** Seven userspace programs

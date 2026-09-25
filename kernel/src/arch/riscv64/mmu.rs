@@ -8,12 +8,12 @@
 //! address-space model (`share_kernel_half`), and TLB maintenance (`sfence.vma`). See
 //! notes/riscv-port.md.
 
-use core::arch::asm;
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageSize, PageTable, Sv39};
 
+use super::instructions;
 use crate::memory;
 
 /// This architecture's page-table format. Portable code names it as `arch::mmu::Format` (see the
@@ -35,12 +35,9 @@ const SATP_PPN_MASK: u64 = (1 << 44) - 1;
 /// The kernel's fine-map root, saved by [`init`] so a secondary hart can adopt it.
 static KERNEL_ROOT: AtomicU64 = AtomicU64::new(0);
 
-/// Read `satp`.
+/// Read `satp`. One instruction, in [`instructions`], so a proof can stub it (see `mod proofs`).
 fn read_satp() -> u64 {
-    let satp: u64;
-    // SAFETY: reads a CSR. No side effects.
-    unsafe { asm!("csrr {}, satp", out(reg) satp, options(nomem, nostack, preserves_flags)) };
-    satp
+    instructions::read_satp()
 }
 
 /// Install a whole address space (kernel high half + user low half) by writing `satp`.
@@ -80,12 +77,12 @@ fn read_satp() -> u64 {
 unsafe fn write_satp(satp: u64) {
     // SAFETY: this function's own `# Safety` contract is exactly the one this write needs; it
     // forwards, it does not weaken.
-    unsafe { asm!("csrw satp, {}", in(reg) satp, options(nostack)) };
+    unsafe { instructions::write_satp(satp) };
 
     if !asid_tagging_is_trusted() {
-        // SAFETY: TLB maintenance is always sound. The full sweep is what makes the switch safe when
-        // the tag cannot be relied on to keep two spaces apart.
-        unsafe { asm!("sfence.vma", options(nostack)) };
+        // The full sweep is what makes the switch safe when the tag cannot be relied on to keep two
+        // spaces apart.
+        instructions::sfence_vma_all();
     }
 }
 
@@ -105,11 +102,11 @@ pub const KERNEL_VA_BASE: u64 = 0xffff_ffc0_0000_0000;
 /// Deliberately far above the direct map, so a stack address can never collide with the virtual
 /// *name* of a physical one. 64 GiB up: RAM will not reach there for a while.
 ///
-/// **Name provisional** (milestone 161): this was a portable expression in `thread.rs`
-/// (`KERNEL_VA_BASE | 0x10_0000_0000`) until `x86_64` arrived, where the expression is not merely
-/// wrong but a no-op -- `KERNEL_VA_BASE` there already has every bit of `0x10_0000_0000` set, so the
-/// OR yielded the kernel image's own base and every kernel thread stack would have been mapped over
-/// `.text`. Rule 1 says an architecture's addresses live under `arch/`; this is that.
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): this was a portable expression in
+/// `thread.rs` (`KERNEL_VA_BASE | 0x10_0000_0000`) until `x86_64` arrived, where the expression is
+/// not merely wrong but a no-op -- `KERNEL_VA_BASE` there already has every bit of `0x10_0000_0000`
+/// set, so the OR yielded the kernel image's own base and every kernel thread stack would have been
+/// mapped over `.text`. Rule 1 says an architecture's addresses live under `arch/`; this is that.
 pub const THREAD_STACK_AREA: u64 = KERNEL_VA_BASE | 0x0000_0010_0000_0000;
 
 /// The boot page table: a single Sv39 root that maps the low physical range (to survive turning
@@ -277,17 +274,13 @@ pub fn init() {
 /// memory touched before the next `sfence`; otherwise the instruction after the `csrw` faults.
 unsafe fn install(root: u64) {
     let satp = SATP_MODE_SV39 | (root >> 12);
-    // SAFETY: caller's contract. sfence.vma before and after brackets the switch so no stale
-    // boot-table entry survives.
-    unsafe {
-        asm!(
-            "sfence.vma",
-            "csrw satp, {satp}",
-            "sfence.vma",
-            satp = in(reg) satp,
-            options(nostack),
-        );
-    }
+    // sfence.vma before and after brackets the switch so no stale boot-table entry survives. Three
+    // `asm!` blocks rather than one since 2026-09-25, so each is a stubbable instruction; none is
+    // `nomem`, so the compiler cannot move a memory access into the gap between them either way.
+    instructions::sfence_vma_all();
+    // SAFETY: caller's contract.
+    unsafe { instructions::write_satp(satp) };
+    instructions::sfence_vma_all();
 }
 
 /// How many `satp.ASID` bits this hardware actually implements, discovered at boot.
@@ -322,27 +315,25 @@ const SATP_ASID_WIDTH: u32 = 16;
 /// The probe writes ones into the ASID field of the *current* `satp`, leaving MODE and PPN alone, and
 /// reads back which bits stuck. The address space is unchanged throughout (only the tag moves), so
 /// the worst case is TLB misses that re-walk the same page table and find the same mappings.
+///
+/// **Rust around five one-instruction wrappers since 2026-09-25, not one `asm!` block**, so
+/// `mod proofs` can prove the two things this function promises: the count is the implemented bits,
+/// and `satp` is put back exactly. The proposal that priced this work classed the probe as
+/// must-stay-asm; it need not be. Code the compiler places between the writes runs on the same root
+/// under a different tag, which is the state the probe was always in, and none of the five blocks is
+/// `nomem`, so no memory access can be moved out past the closing `sfence.vma`.
 fn probe_asid_bits() -> usize {
     let original = read_satp();
     let all_ones = original | (((1u64 << SATP_ASID_WIDTH) - 1) << SATP_ASID_SHIFT);
     // SAFETY: MODE and PPN are carried over from the live `satp`, so this installs the same root
-    // page table under a different ASID tag and then restores it. Both writes are bracketed by
-    // `sfence.vma` so no entry tagged with the probe value outlives the probe.
-    let readback = unsafe {
-        let got: u64;
-        asm!(
-            "csrw satp, {probe}",
-            "sfence.vma",
-            "csrr {got}, satp",
-            "csrw satp, {orig}",
-            "sfence.vma",
-            probe = in(reg) all_ones,
-            got = out(reg) got,
-            orig = in(reg) original,
-            options(nostack),
-        );
-        got
-    };
+    // page table under a different ASID tag. Bracketed by `sfence.vma` so no entry tagged with the
+    // probe value outlives the probe.
+    unsafe { instructions::write_satp(all_ones) };
+    instructions::sfence_vma_all();
+    let readback = read_satp();
+    // SAFETY: `original` is the value the hardware was walking a moment ago.
+    unsafe { instructions::write_satp(original) };
+    instructions::sfence_vma_all();
     let implemented = (readback >> SATP_ASID_SHIFT) & ((1 << SATP_ASID_WIDTH) - 1);
     // WARL bits need not be contiguous in principle; count what is set rather than assuming a
     // low-bit mask, so a strange implementation is reported honestly instead of rounded.
@@ -677,8 +668,7 @@ pub fn asid_of(satp: u64) -> u16 {
 /// shoot down, and single-hart boot tears down address spaces before the secondaries exist.
 pub fn flush_asid(asid: u16) {
     // Local first, so this hart's own page-table writes are ordered before anyone is told to look.
-    // SAFETY: TLB maintenance is always sound.
-    unsafe { asm!("sfence.vma zero, {}", in(reg) asid as u64, options(nostack)) };
+    instructions::sfence_vma_asid(asid as u64);
 
     let others = crate::smp::online_harts_mask() & !(1usize << crate::cpu::id());
     if others != 0 {
@@ -704,17 +694,13 @@ pub fn flush_asid(asid: u16) {
 #[cfg(test)]
 pub fn permit_kernel_access_to_user_pages(allowed: bool) -> bool {
     const SSTATUS_SUM: u64 = 1 << 18;
-    let previous: u64;
-    // SAFETY: sets or clears one `sstatus` bit and reports the old value. Widening what S-mode may
-    // touch is a permission change, not a memory-safety one; the kernel's own mappings are
-    // unaffected.
-    unsafe {
-        if allowed {
-            asm!("csrrs {}, sstatus, {}", out(reg) previous, in(reg) SSTATUS_SUM, options(nostack));
-        } else {
-            asm!("csrrc {}, sstatus, {}", out(reg) previous, in(reg) SSTATUS_SUM, options(nostack));
-        }
-    }
+    // Widening what S-mode may touch is a permission change, not a memory-safety one; the kernel's
+    // own mappings are unaffected.
+    let previous = if allowed {
+        instructions::read_and_set_sstatus(SSTATUS_SUM)
+    } else {
+        instructions::read_and_clear_sstatus(SSTATUS_SUM)
+    };
     previous & SSTATUS_SUM != 0
 }
 
@@ -917,9 +903,9 @@ pub fn unmap_page(va: u64) -> Result<u64, MapError> {
 /// page's translation. Unlike aarch64's `tlbi`, `sfence.vma` also orders the preceding page-table
 /// write and completes locally, so no separate barrier is needed.
 pub fn flush_tlb(va: u64) {
-    // Local first. SAFETY: TLB maintenance is always sound; getting it wrong means a stale
-    // translation, which is the memory-unsafety that matters here, not Rust unsafety.
-    unsafe { asm!("sfence.vma {}, zero", in(reg) va, options(nostack)) };
+    // Local first. Getting TLB maintenance wrong means a stale translation, which is the
+    // memory-unsafety that matters here, not Rust unsafety.
+    instructions::sfence_vma_page(va);
 
     // Then the other online harts (SMP shootdown). The kernel root is shared, so a page mapped or
     // unmapped here must be sfence'd on every hart that might run a thread touching it, or a migrated
@@ -934,10 +920,7 @@ pub fn flush_tlb(va: u64) {
 
 /// Whether paging is on: `satp`'s MODE field is not Bare (0). True from `boot.s`'s Sv39 switch on.
 pub fn is_enabled() -> bool {
-    let satp: u64;
-    // SAFETY: reads a CSR. No side effects.
-    unsafe { asm!("csrr {}, satp", out(reg) satp, options(nomem, nostack, preserves_flags)) };
-    satp >> 60 != 0
+    read_satp() >> 60 != 0
 }
 
 /// Translate a kernel virtual address through the live kernel tables.
@@ -1480,5 +1463,215 @@ mod tests {
             b.ttbr0() & super::SATP_PPN_MASK,
             "two address spaces share a root table",
         );
+    }
+}
+
+/// Proofs of the logic around `satp`, reachable since 2026-09-25 because the instructions it calls
+/// are one-instruction functions in [`instructions`] that a harness can stub.
+///
+/// # What the stubs assume, which is what these proofs are conditional on
+///
+/// Each harness replaces `csrr satp`, `csrw satp` and `sfence.vma` with the model below. **The model
+/// is a claim about the hardware, written from the privileged specification and not checked against
+/// any silicon:**
+///
+/// - `satp` holds what was last written, except that its ASID field is WARL: bits the hart does not
+///   implement read as zero (`IMPLEMENTED_ASID`, chosen by the harness). MODE and PPN are modelled as
+///   fully implemented, which is true of Sv39 on every hart this kernel boots on and is not something
+///   a hart is required to do.
+/// - `sfence.vma` is counted and has no other effect; the model has no TLB. What is proved about a
+///   sweep is **whether it is issued**, never what it does.
+/// - Nothing else runs: no interrupt, no other hart.
+///
+/// What would falsify the model rather than the code: a hart whose `satp` write is not visible to the
+/// next `csrr`, or whose WARL behaviour depends on anything but the bit written. The QEMU and board
+/// suites (`the_hardware_has_at_least_the_asid_bits_the_allocator_assumes`, and the TLB tests of
+/// milestone 58 (RISC-V TLB shootdown)) are what test the model; these harnesses only test the code
+/// against it. See notes/kernel-proofs/stubbing-an-instruction.md.
+#[cfg(kani)]
+mod proofs {
+    use core::sync::atomic::Ordering::Relaxed;
+    use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
+
+    use super::*;
+
+    /// The modelled `satp`.
+    static SATP: AtomicU64 = AtomicU64::new(0);
+    /// Which of the 16 ASID bits the modelled hart implements, as a mask in ASID position 0.
+    static IMPLEMENTED_ASID: AtomicU64 = AtomicU64::new(0);
+    /// How many `csrw satp` the code under proof executed.
+    static WRITES: AtomicU32 = AtomicU32::new(0);
+    /// How many full `sfence.vma` sweeps it executed.
+    static SWEEPS: AtomicU32 = AtomicU32::new(0);
+    /// Whether a `csrw satp` has happened that no sweep has followed yet.
+    static UNSWEPT: AtomicBool = AtomicBool::new(false);
+
+    /// `satp[59:44]`.
+    const ASID_FIELD: u64 = 0xffff << SATP_ASID_SHIFT;
+
+    /// Model of `csrr satp`.
+    #[allow(dead_code)] // named only by `#[kani::stub]`, which rustc cannot see
+    fn read_satp_model() -> u64 {
+        SATP.load(Relaxed)
+    }
+
+    /// Model of `csrw satp`: WARL on the ASID field, exact everywhere else.
+    ///
+    /// # Safety
+    /// None of its own: `unsafe` only so its signature matches the `unsafe fn` it stands in for.
+    /// It touches nothing but the model's statics.
+    #[allow(dead_code)] // named only by `#[kani::stub]`, which rustc cannot see
+    unsafe fn write_satp_model(satp: u64) {
+        let kept = IMPLEMENTED_ASID.load(Relaxed) << SATP_ASID_SHIFT;
+        SATP.store((satp & !ASID_FIELD) | (satp & kept), Relaxed);
+        WRITES.fetch_add(1, Relaxed);
+        UNSWEPT.store(true, Relaxed);
+    }
+
+    /// Model of `sfence.vma` with no operands: counted, nothing else.
+    #[allow(dead_code)] // named only by `#[kani::stub]`, which rustc cannot see
+    fn sfence_vma_all_model() {
+        SWEEPS.fetch_add(1, Relaxed);
+        UNSWEPT.store(false, Relaxed);
+    }
+
+    /// A physical address Sv39 can name as a table root: a page frame below 2^56.
+    fn any_root() -> u64 {
+        let root: u64 = kani::any();
+        kani::assume(root % PAGE_SIZE == 0);
+        kani::assume(root < 1 << 56);
+        root
+    }
+
+    /// **The root the MMU is walking is the root that was installed, and so is the tag.**
+    ///
+    /// `current_root_pa` is what `translate_user`, `is_mapped_in_current_space` and the fault
+    /// classifier all start their walk from, so a mask or shift wrong here sends every one of them
+    /// down somebody else's tables. It was unreachable by any harness until `read_satp` became a
+    /// stubbable function: the `csrr` sat in the same call graph. Stated as a round trip through
+    /// [`ttbr0_value`], the composer every address space is installed with, so it is not the
+    /// formula restated: a composer and a decoder that disagree about a field fail it.
+    ///
+    /// Falsification: attested 2026-09-25. On patagonia with the patched Kani (pull request #1287, not yet merged).
+    /// The shift in `current_root_pa` changed from 12 to 10: this goes red and its two siblings stay
+    /// green. `attested` rather than `replayable` for the reason `script/falsifications` gives for
+    /// every architecture-specific harness: the sweep compiles for its own host, which never
+    /// compiles this file.
+    #[kani::proof]
+    #[kani::stub(super::super::instructions::read_satp, read_satp_model)]
+    fn the_live_root_is_the_root_that_was_installed() {
+        let root = any_root();
+        let asid: u16 = kani::any();
+        SATP.store(ttbr0_value(root, asid), Relaxed);
+
+        assert!(
+            current_root_pa() == root,
+            "the walk starts at a different root"
+        );
+        assert!(
+            asid_of(read_satp()) == asid,
+            "the live tag is not the one installed"
+        );
+        assert!(is_enabled(), "a composed satp reads as Bare");
+    }
+
+    /// **The ASID probe reports exactly the bits the hardware kept, and leaves `satp` as it found
+    /// it, swept.**
+    ///
+    /// The probe is what milestone 58's skipped TLB flush is bought with: on a hart that implements
+    /// too few ASID bits, [`asid_tagging_is_trusted`] must say no, and the only input it has is this
+    /// count. Overcounting is the dangerous direction, since two address spaces would share a tag
+    /// with no flush between them. It was one `asm!` block until 2026-09-25, so none of this was
+    /// provable; every implemented-bit pattern is covered here, including the zero-bit hart the
+    /// specification permits and no machine this tree has booted on has.
+    ///
+    /// Falsification: attested 2026-09-25. On patagonia with the patched Kani, twice and one claim
+    /// at a time: the readback shifted by `SATP_ASID_SHIFT - 1` (a miscount), and the restoring
+    /// `csrw satp` and its sweep deleted. Each turns this red and leaves both siblings green.
+    /// `attested` for the same reason as the harness above.
+    #[kani::proof]
+    #[kani::stub(super::super::instructions::read_satp, read_satp_model)]
+    #[kani::stub(super::super::instructions::write_satp, write_satp_model)]
+    #[kani::stub(super::super::instructions::sfence_vma_all, sfence_vma_all_model)]
+    fn the_asid_probe_counts_the_implemented_bits_and_puts_satp_back() {
+        let implemented = u64::from(kani::any::<u16>());
+        IMPLEMENTED_ASID.store(implemented, Relaxed);
+        // A live `satp` can only hold ASID bits the hart implements; the hardware put it there.
+        let live: u64 = kani::any();
+        kani::assume(live & ASID_FIELD & !(implemented << SATP_ASID_SHIFT) == 0);
+        SATP.store(live, Relaxed);
+
+        let counted = probe_asid_bits();
+
+        assert!(
+            counted == implemented.count_ones() as usize,
+            "the probe miscounted"
+        );
+        assert!(
+            SATP.load(Relaxed) == live,
+            "the probe did not put satp back"
+        );
+        assert!(
+            WRITES.load(Relaxed) == 2,
+            "the probe wrote satp other than twice"
+        );
+        assert!(
+            !UNSWEPT.load(Relaxed),
+            "the probe's last satp write was never swept"
+        );
+    }
+
+    /// **A switch to the kernel-only root sweeps the TLB exactly when the ASID cannot be trusted,
+    /// and writes nothing when that root is already live.**
+    ///
+    /// This is milestone 58's safety argument as one statement: the unconditional flush on every
+    /// `satp` write was removed, and what keeps address spaces apart without it is that the flush
+    /// comes back on any hart whose tag is too narrow (and before the probe has run, when the flag
+    /// is still false). Reached through [`deactivate_user`], the safe entry every switch to a
+    /// kernel thread takes, so it covers [`switch_user_root`]'s early return and [`write_satp`]'s
+    /// condition together. Before 2026-09-25 both conditions sat beside a `csrw` and a
+    /// `sfence.vma` in the same function and no harness could reach either.
+    ///
+    /// Falsification: attested 2026-09-25. On patagonia with the patched Kani, twice: `write_satp`'s
+    /// condition inverted (sweep only when trusted), and `switch_user_root`'s early return deleted.
+    /// Each turns this red and leaves both siblings green. `attested` as above.
+    #[kani::proof]
+    #[kani::stub(super::super::instructions::read_satp, read_satp_model)]
+    #[kani::stub(super::super::instructions::write_satp, write_satp_model)]
+    #[kani::stub(super::super::instructions::sfence_vma_all, sfence_vma_all_model)]
+    fn a_switch_sweeps_the_tlb_exactly_when_the_asid_cannot_be_trusted() {
+        KERNEL_ROOT.store(any_root(), Relaxed);
+        let trusted: bool = kani::any();
+        ASID_TAGGING_TRUSTED.store(trusted, Relaxed);
+        IMPLEMENTED_ASID.store(0xffff, Relaxed);
+        let live: u64 = kani::any();
+        SATP.store(live, Relaxed);
+
+        deactivate_user();
+
+        let target = reserved_root();
+        assert!(
+            SATP.load(Relaxed) == target,
+            "the kernel-only root is not installed"
+        );
+        if live == target {
+            assert!(
+                WRITES.load(Relaxed) == 0,
+                "rewrote a satp that was already live"
+            );
+            assert!(
+                SWEEPS.load(Relaxed) == 0,
+                "swept for a switch that changed nothing"
+            );
+        } else {
+            assert!(
+                WRITES.load(Relaxed) == 1,
+                "installed the root other than once"
+            );
+            assert!(
+                UNSWEPT.load(Relaxed) == trusted,
+                "swept a trusted switch, or left an untrusted one unswept"
+            );
+        }
     }
 }

@@ -375,7 +375,7 @@ fn count_names(path: &Path) -> io::Result<usize> {
             // would designate what it reached: a handle names a directory, and nothing on the wire
             // names its parent. This is the property that makes the walk safe by construction
             // rather than by checking, and it is why `cap-primitives` has to work so much harder on
-            // Unix (see notes/std.md).
+            // Unix (see notes/std/fs-descent.md).
             Component::ParentDir => {
                 return Err(io::const_error!(
                     io::ErrorKind::InvalidFilename,
@@ -1742,7 +1742,7 @@ pub fn set_perm_nofollow(_p: &Path, _perm: FilePermissions) -> io::Result<()> {
 /// **Whole seconds.** The wire carries seconds and the server stores a zero nanosecond part, so a
 /// sub-second part is truncated. That is the same answer a second-granularity filesystem gives on
 /// Unix, and std documents timestamp precision as platform-dependent; it is recorded in
-/// notes/std.md's caveats rather than refused, because refusing every `SystemTime::now()` would make
+/// notes/std/file-times.md's BUGS rather than refused, because refusing every `SystemTime::now()` would make
 /// the call unusable for its commonest caller.
 ///
 /// A `FileTimes` with nothing set changes nothing, and still resolves the name, so a missing file

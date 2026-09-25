@@ -152,7 +152,7 @@ use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
 /// surface larger than the screen loses its right and bottom edges; a surface smaller than the
 /// screen leaves the rest of it alone.
 ///
-/// **Name provisional** (the shell on the firmware screen's lane). "Aperture" is the word the
+/// Name: provisional (the shell on the firmware screen's lane). "Aperture" is the word the
 /// tree already uses for the firmware's framebuffer as a device window
 /// (`kernel/src/arch/x86_64/machine.rs`, milestone 243).
 ///

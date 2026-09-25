@@ -34,7 +34,7 @@
 //! | `LISTEN_IN_USE` | `AddrInUse` | pick another port |
 //!
 //! **A listener and a connection are two objects, and this PAL keeps them apart** because the
-//! contract does (notes/net.md, "A listener is not a connection"). A listener holds a socket id and
+//! contract does (notes/net/the-inbound-half.md, "A listener is not a connection"). A listener holds a socket id and
 //! **no shared frame at all**, since no bytes ever cross on it; `accept` allocates a *second* id,
 //! attaches that one's frame, and asks `OP_ACCEPT` to install the connection there. `net_stack`
 //! refuses an accept into the listener's own id, so the POSIX move of letting a listening descriptor
@@ -53,7 +53,7 @@
 //!   as one here rather than dressed up: a server that logs its peers logs zeros on nife.
 //!   Reporting the real peer means changing what two programs agree on (a second reply word, or the
 //!   frame's dead `dst` fields the way a UDP `RECV` already uses them), which is not a PAL
-//!   decision. See notes/net.md.
+//!   decision. See notes/net/std-tcp-listener.md.
 //! - **Non-blocking mode and read/write timeouts.** The contract is blocking-only; there is no
 //!   poll verb. `set_nonblocking(true)` and `set_*_timeout(Some(..))` return `Unsupported`;
 //!   `set_nonblocking(false)` and the `None` timeouts (which mean "block") succeed.
@@ -135,7 +135,7 @@ struct Registry {
     // A round-robin cursor for id allocation. net_stack derives each socket's local port from its id
     // (`LOCAL_PORT_BASE + sid`), so handing out ids in rotation rather than always the lowest free
     // one keeps a fresh open from immediately reusing the port a just-closed socket held, which
-    // slirp can still be holding. See the reuse note in notes/std.md.
+    // slirp can still be holding. See the reuse note in notes/std/net.md.
     next: UnsafeCell<usize>,
 }
 

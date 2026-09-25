@@ -45,6 +45,7 @@ pub mod ap_boot;
 pub mod context;
 pub mod exceptions;
 pub mod fp;
+mod instructions;
 pub mod interrupts;
 pub mod iommu;
 pub mod irq;
@@ -58,6 +59,8 @@ pub mod mmu;
 // ran. Its own header has the table of all three architectures' two counters.
 pub mod pmu;
 pub mod port;
+#[cfg(feature = "reboot_soak_test")]
+pub mod reset;
 pub mod rtc;
 pub mod segments;
 pub mod semihosting;
@@ -76,6 +79,9 @@ pub use context::{Context, switch_to};
 // How the console reaches its UART's registers on this architecture. Named flat through `arch`
 // because `console.rs` picks it by `target_arch` and must not reach into `arch::x86_64::` directly.
 pub use port::PortIo;
+/// The arch contract for a kernel-initiated cold reboot (milestone 249 (the boot lottery is sampled by a person walking to the board)). See [`reset::reboot`].
+#[cfg(feature = "reboot_soak_test")]
+pub use reset::reboot;
 
 // The 32-bit entry (_start), the long-mode transition, the .bss zeroing, and the stack handoff to
 // `kernel_main`.
@@ -123,8 +129,9 @@ const IA32_GS_BASE: u32 = 0xC000_0101;
 /// Read a model-specific register. `rdmsr` returns the value split across `edx:eax`, with the
 /// register number in `ecx`.
 ///
-/// **Name provisional** (milestone 161): calef names public functions (AGENTS.md, milestone 160),
-/// and this one was minted by a lane.
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): calef names public functions
+/// (AGENTS.md, milestone 160 (review the public function names across the kernel's dependency
+/// crates)), and this one was minted by a lane.
 ///
 /// # Safety
 /// `msr` must be a register this CPU implements. Reading one it does not is a general protection
@@ -147,7 +154,7 @@ pub unsafe fn read_msr(msr: u32) -> u64 {
 
 /// Write a model-specific register. The counterpart of [`read_msr`], with the same split.
 ///
-/// **Name provisional** (milestone 161).
+/// Name: provisional (milestone 161).
 ///
 /// # Safety
 /// `msr` must be one this CPU implements, and `value` must be legal for it. An MSR write is one of
@@ -444,11 +451,7 @@ fn close_ring3_pages_to_ring0_execution() {
         return;
     }
 
-    let cr4: u64;
-    // SAFETY: reads a control register. No side effects, no memory touched.
-    unsafe {
-        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
-    }
+    let cr4 = instructions::read_cr4();
     if cr4 & SMEP != 0 {
         return;
     }
@@ -456,9 +459,7 @@ fn close_ring3_pages_to_ring0_execution() {
     // kernel code lives in a `U/S` page). CPUID advertised the bit, so the write cannot `#GP`. Paging
     // bits are preserved; no TLB entry is invalidated, and the bit takes effect on the next fetch
     // without one, because SMEP is evaluated against the leaf at fetch time.
-    unsafe {
-        core::arch::asm!("mov cr4, {}", in(reg) cr4 | SMEP, options(nomem, nostack, preserves_flags));
-    }
+    unsafe { instructions::write_cr4(cr4 | SMEP) };
     crate::println!(
         "  cr4.smep    : set on core {}; ring 0 faults on a fetch from a ring-3 page",
         crate::cpu::id()
@@ -472,7 +473,7 @@ fn close_ring3_pages_to_ring0_execution() {
 /// That block names `CR4.TSD` (bit 2), which gates `RDTSC`, and deliberately leaves it alone: this
 /// architecture's `user_mode_runtime::now()` **is** `rdtsc` and there is no coarse counter to fall back to, so
 /// closing it would take `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
-/// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port.md` and in a
+/// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port/user-mode-runtime.md` and in a
 /// `BUGS` section beside `now()`, and nothing here changes it.
 ///
 /// **`CR4.PCE` is bit 8 and gates a different instruction.** `RDPMC` reads a performance counter by
@@ -514,12 +515,7 @@ fn close_performance_counters_to_ring3() {
     /// privilege level; clear means ring 0 only.
     const PCE: u64 = 1 << 8;
 
-    let cr4: u64;
-    // SAFETY: reads a control register. No side effects, no memory touched.
-    unsafe {
-        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
-    }
-
+    let cr4 = instructions::read_cr4();
     if cr4 & PCE == 0 {
         return;
     }
@@ -529,9 +525,7 @@ fn close_performance_counters_to_ring3() {
     // (`PAE`, bit 5, is preserved by the mask), does not invalidate any TLB entry, and cannot make
     // a kernel access illegal, since `RDPMC` at CPL 0 is legal whatever this bit says. Every other
     // bit is written back as it was read.
-    unsafe {
-        core::arch::asm!("mov cr4, {}", in(reg) cr4 & !PCE, options(nomem, nostack, preserves_flags));
-    }
+    unsafe { instructions::write_cr4(cr4 & !PCE) };
 }
 
 /// Stop this CPU forever, cheaply. `hlt` parks it until an interrupt; with interrupts masked and
@@ -539,24 +533,18 @@ fn close_performance_counters_to_ring3() {
 /// other two architectures' `wfi`. See CLAUDE.md, "Never leave QEMU running".
 pub fn halt() -> ! {
     loop {
-        // SAFETY: halting until the next interrupt is always safe; it only affects when the next
-        // instruction runs.
-        unsafe { asm!("hlt", options(nomem, nostack)) };
+        instructions::hlt();
     }
 }
 
 /// Park until the next interrupt (the scheduler's idle primitive).
 pub fn wait_for_interrupt() {
-    // SAFETY: as `halt`, but returns when an interrupt arrives.
-    unsafe { asm!("hlt", options(nomem, nostack)) };
+    instructions::hlt();
 }
 
 /// This CPU's current stack pointer, for the stack-overflow canary check (stack.rs).
 pub fn current_sp() -> u64 {
-    let rsp: u64;
-    // SAFETY: reads a register. No side effects.
-    unsafe { asm!("mov {}, rsp", out(reg) rsp, options(nomem, nostack, preserves_flags)) };
-    rsp
+    instructions::read_rsp()
 }
 
 /// A DMA write memory barrier: order all prior stores before any device sees a later one.
@@ -572,8 +560,7 @@ pub fn current_sp() -> u64 {
 /// x86 first could have said the reverse, and the tree would have accumulated invisible
 /// strong-ordering assumptions that only a real port would have found.
 pub fn direct_memory_access_write_barrier() {
-    // SAFETY: a fence has no memory effect of its own; it only constrains ordering.
-    unsafe { asm!("sfence", options(nostack, preserves_flags)) };
+    instructions::sfence();
 }
 
 /// Make the instruction fetcher aware of code just written as data.

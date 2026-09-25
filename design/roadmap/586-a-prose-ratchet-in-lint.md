@@ -1,6 +1,6 @@
 # 586. A prose ratchet in lint
 
-**Status: NOT-STARTED.** Minted by the maintainer on 2026-09-24, at the merge of the two decisions it
+**Status: PARTIAL.** Built on 2026-09-24 except the churn measurement, which needs a week. Minted by the maintainer on 2026-09-24, at the merge of the two decisions it
 enforces: [§212 (a prose budget)](../decisions/212-a-prose-budget-for-every-document.md) and
 [§213 (writing standards)](../decisions/213-writing-standards.md). calef ratified both on 2026-09-23.
 
@@ -38,8 +38,10 @@ Sentence splitting must respect block boundaries first. §213 records a naive pa
 paragraph's last sentence swallow the next heading. It reported a corpus median of 30 words where the
 truth was 20. A gate built on that splitter fails documents that pass.
 
-Markup a script parses, such as the `**Status:` line, counts as bold under §213. That is a marked
-exception in §213's `BUGS`, not a carve-out the gate should invent.
+Markup a script parses, such as a roadmap block's `**Status:` line, counts as bold under §213. That
+is a marked exception in §213's `BUGS`, not a carve-out the gate should invent. Decision files no
+longer carry one: #1195 moved their status into YAML frontmatter on 2026-09-24, and the gate strips
+frontmatter before it counts anything, so a decision's status is neither words nor bold.
 
 ## Design note, 2026-09-24: quoted text is exempt from the sentence limits
 
@@ -69,10 +71,88 @@ other baseline, and raising it is a new grant, which is calef's.
 calef ruled the same day to cut `design/fatal-risks.md` back rather than raise its grant, and it is
 back at 4,235 words, within the grant, as of 2026-09-24. `AGENTS.md` was not part of that ruling.
 
+## What was built, 2026-09-24
+
+The check is `helpers/prose_ratchet.py`, run by `script/lint` as "the prose ratchet". Its header is
+the manual. The baseline is `design/prose-baseline.tsv`, one row per document over a limit.
+
+- Scope. The document list is `script/metrics`' prose-budget scope, moved into the module so the
+  gate and the graph share it. Appendices were added to it. The graph's scope had missed every
+  appendix, though its docstring said it counted them; that changes the series by one document.
+- Measures. Words of main body, median and longest sentence, and bold as two counts. Fenced code,
+  HTML comments, frontmatter and generated tables are stripped first. Blocks are split before
+  sentences. A bold span may wrap onto the next line of its paragraph and still counts once.
+- The ratchet. Over a limit passes only at or under the baseline row. A document with no row meets
+  the limits outright. It is also compared with the merge base, so an unbanked shrink leaves no
+  room to regrow.
+- The baseline only shrinks. Rows may not be added or raised against the merge base, and a row for
+  a missing file fails. A rename carries its row. `--bank` lowers rows and never adds.
+- Exceptions. `<!-- prose-budget: exception. ... -->` is honoured as `AGENTS.md` and
+  `design/fatal-risks.md` already wrote it. `writing-standards` is its §213 twin and is provisional.
+  Each needs a date and a `Reason:`.
+- The orphan check. A file under `X/` must be linked from `X.md` or `X/README.md`. That README is
+  the directory's provenance page and is exempt. A thematic
+  directory, `design/tenets/` today, is listed in the module and checked against its README. It
+  found one orphan, `notes/project-metrics/ledger.md`, now linked.
+- A selftest runs first. It holds each trap the reader must avoid, and each was confirmed to fail
+  when its rule was broken.
+
+### Four choices a reader should know about
+
+Bold is held as counts, not density. Density is bold over words, so condensing a document raises it.
+A density ratchet would fail the work §212 asks for. Each count may not rise; cutting words is free.
+This departs from §213's words, "bold density may not rise", and calef may overrule it.
+
+Banking is lazy. A shrink does not force a baseline edit, because forced banking would put the
+baseline in most pull requests. The merge-base comparison closes the slack instead.
+
+The splitter differs from §213's in three ways, each a place the tree's prose broke it. A lowercase
+word starts a sentence, since `calef` and the board names are lowercase. Inline code is one word,
+since it is verbatim. Quoted text leaves before splitting, per the design note above. So its
+corpus numbers run lower than §213's: the median document's median sentence is 17 words, not 20.
+
+Median and density are not asked of documents under 200 words, §213's own floor. The longest
+sentence is asked of every document.
+
+### What it found on the day
+
+The baseline holds 1,025 of 1,148 documents, regenerated from the tree it merged into. Longest
+sentence is over in 905 and bold in 1,016. Words are over in 162 and the median in 178. Those counts are §212 and §213's debt, now held still.
+
+New documents are the sharp edge. Of 209 added under this scope in the week to 2026-09-24, 163 would
+have failed outright; 160 of those on bold, and only three because of parsed fields like `**Status:`.
+So the gate will ask most new documents to change how they are written. That is what both decisions
+ratified. When it was armed, 9 of 20 open pull requests would have failed it.
+
 ## What would make it not worth doing
 
 If the baseline file churns on every pull request, the ratchet costs more attention than it saves.
 Measuring that churn over the first week is part of the milestone.
+
+## Follow-on
+
+- **Outstanding.** Measure baseline churn over the first week, from 2026-09-24: how many merged pull
+  requests touched `design/prose-baseline.tsv`, and why. The block names churn as the thing that would
+  make this not worth doing, so that number decides whether it stays.
+- **Outstanding.** Promote the two exception markers from provisional. The syntax is honoured as
+  found; calef names it. Where the splitter departs from §213's, and why, is in the module's header.
+- **Done.** Built 2026-09-25: the marker-count check from the design note above. `granted_words()`
+  reads the first number before `words` in a `prose-budget` marker as a whole-file `wc -w` ceiling.
+  It waited on `AGENTS.md`, which #1285 brought to its 6,097. `design/fatal-risks.md` had grown to
+  4,250 against its 4,235 through milestone 89 (Scaleway EM-RV1)'s table cell (#1278). Per calef's
+  ruling of 2026-09-24 it was cut back rather than re-granted, and `main` then passed.
+- **Done.** Resolved 2026-09-25: every new decision failed this gate, because the generated index
+  table in `design/decisions/README.md` counted as prose (found when the queue removed #1278). The
+  gate now skips a table under a heading in `GENERATED_TABLES`, the one `script/decisions` anchors
+  on, as it skips fenced code (aae40a98f). `script/metrics` counts through the same set. The
+  README's row went from 5,242 words to within the cap.
+- **Refused.** A list of parsed markup exempt from the bold count. The maintainer asked for one on
+  2026-09-24, citing the `Status:` and `Gate:` lines roadmap blocks and proposals must carry. It
+  would overturn a ruling, so it is calef's call and was not built. §213 records calef's ruling of the same day:
+  parsed markup is counted, no exclusion was carved, and frontmatter is the likely answer. Measured
+  cost: of 209 documents added in the week to 2026-09-24, three fail bold only because of parsed
+  fields. Proposals are outside the scope, so #1233's is not checked at all. If calef rules for the
+  list, it is a set of line patterns subtracted in `bold_counts()`, about ten lines.
 
 ## Index row
 

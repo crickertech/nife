@@ -428,6 +428,44 @@ mod tests {
         }
     }
 
+    /// **Every word on the line is separated by exactly one space, and none leads or trails.**
+    /// Milestone 326 (turn a mutation score upward), 2026-09-24: a slot the token cannot spell (past one digit) and a build whose
+    /// only word is the hold token were the two ways to a stray space, and neither was asserted.
+    #[test]
+    fn no_word_is_written_with_a_stray_space() {
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder, SCREEN_HOLD};
+
+        let screen = Framebuffer {
+            base: 0x8000_0000,
+            width: 800,
+            height: 600,
+            stride: 3200,
+            order: PixelOrder::Bgrx,
+        };
+        let line = |screen: Option<&Framebuffer>, slot: Option<u8>| {
+            let mut out = [0u8; CMDLINE_LEN];
+            let n = cmdline(screen, slot, &mut out);
+            String::from_utf8(out[..n].to_vec()).unwrap()
+        };
+        let hold = if cfg!(feature = "screen_hold") {
+            format!(" {SCREEN_HOLD}")
+        } else {
+            String::new()
+        };
+        assert_eq!(
+            line(Some(&screen), Some(10)),
+            format!("screen=0x80000000,800,600,3200,bgrx{hold}"),
+            "slot 10 has no token, and leaves no space behind"
+        );
+        if cfg!(feature = "screen_hold") {
+            assert_eq!(
+                line(None, None),
+                SCREEN_HOLD,
+                "the hold token alone, unindented"
+            );
+        }
+    }
+
     /// **A boot with nothing to say writes no command line**, so an ordinary `-kernel` boot and a
     /// stick are byte-for-byte what they were before the slot token existed.
     ///

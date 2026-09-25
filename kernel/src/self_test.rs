@@ -112,7 +112,7 @@ const CHECKS: usize = boot_ladder::SELF_TEST_CHECKS.len();
 /// bounded: a regression there turns a red verdict back into a boot that goes quiet, and
 /// `boot-check --inject` fails on that.
 ///
-/// Name provisional (milestone 268).
+/// Name: provisional (milestone 268 (every architecture boots the same way)).
 const INJECT: bool = cfg!(feature = "self_test_injection");
 
 /// The running count, and the names of whatever failed.

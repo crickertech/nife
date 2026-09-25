@@ -326,7 +326,7 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 /// caller must print it as one. `BadMethod` is a record this kernel does not answer, which is what
 /// a program built against a later kernel gets, and it is likewise not an empty domain.
 ///
-/// Name provisional: calef names public items.
+/// Name: provisional. calef names public items.
 pub fn survey_record(slot: u64, cursor: u64, record: u64) -> (i64, u64, u64) {
     // SAFETY: forwarded from `invoke5`'s contract; SURVEY reads no more than the three words used.
     let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::SURVEY, cursor, record, 0) };

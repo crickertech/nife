@@ -132,7 +132,7 @@ three architectures that could be handed to a process with the tree's existing `
 capability and no new mechanism at all.
 
 What is confirmed in this tree: `crates/machine_discovery/src/acpi.rs` sees an `HPET` table in the
-XSDT walk and does nothing with it, and `notes/x86-port.md` records the QEMU q35 table list read on
+XSDT walk and does nothing with it, and `notes/x86-port/acpi-and-pci.md` records the QEMU q35 table list read on
 2026-08-23 with `0x000ffe22a8 HPET (56 bytes)` in it.
 
 What is **not** confirmed: xenon's own HPET. `notes/x86-uefi-boot.md`'s first-light section (2026-09-05)

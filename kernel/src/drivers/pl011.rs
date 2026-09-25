@@ -132,10 +132,8 @@ impl Pl011 {
     /// userspace input driver, which holds this device as a capability, and this path runs before
     /// any of that exists.
     ///
-    /// Name provisional (milestone 445): calef names public items.
-    ///
-    /// Name: ratified 2026-09-24 (calef, #1255 review). Refused `rx_waiting` and `is_rx_waiting`
-    /// (`rx` is a decoder for "receive").
+    /// Name: ratified 2026-09-24 (calef, #1255 review), provisional from milestone 445 until then.
+    /// Refused `rx_waiting` and `is_rx_waiting` (`rx` is a decoder for "receive").
     pub fn is_byte_waiting(&self) -> bool {
         !self.regs().FR.is_set(FR::RXFE)
     }
@@ -148,7 +146,10 @@ impl Pl011 {
     /// is still a fixed number of register reads. Same shape and same number as
     /// `Ns16550::discard_rx`, deliberately.
     ///
-    /// Name provisional (milestone 445): calef names public items.
+    /// Name: provisional since milestone 445, flagged again 2026-09-25 by the lane that re-derived
+    /// the x86 port falsifications (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`").
+    /// calef asked what `rx` stands for in his #1255 review; recommended `discard_waiting_bytes`,
+    /// because it drops the bytes `is_byte_waiting` would have reported.
     pub fn discard_rx(&self) {
         let mut bound = 64u32;
         while !self.regs().FR.is_set(FR::RXFE) && bound > 0 {

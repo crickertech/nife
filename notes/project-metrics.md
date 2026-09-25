@@ -296,7 +296,7 @@ rest: the snapshot's `launchd` shape, why the file is idempotent, and which comm
   It is pre-existing behaviour of every chart here and it is recorded because the by-model panel is
   the first one certain to hit it.
 - **The cost and context columns carry seven limitations of their own**, from a capture that can
-  stop silently to a price ledger that re-prices history. They are listed where those columns are
+  stop silently to a price [ledger](project-metrics/ledger.md) that re-prices history. They are listed where those columns are
   argued: [what this project costs, *Known limitations*](register-of-measures/project-cost.md#known-limitations).
 - **Four series were restated on 2026-09-24, and an older screenshot will disagree with each.**
   Opus 5.5 got its own column (`opus_5_5`), so this week's commits left *other models*, and Opus 4.8

@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""The host a package is fetched from in rung 3a's tests (milestone 198 (a package manager)).
+
+QEMU's slirp runs this once per connection to 10.0.2.9:8080 (a `guestfwd` in
+helpers/qemu-runner-{aarch64,riscv64}.sh), with the connection on stdin and
+stdout, the same way the TCP echo peer at 10.0.2.9:7777 is a `/bin/cat`. So it
+is a real HTTP/1.0 exchange with a real host process, and nothing binds a port
+on the developer's machine or outlives QEMU.
+
+It serves `target/packages/`, which `cargo xtask`'s archive build fills from the
+recipes under `packages/`:
+
+  GET /<name>.nifepkg            the package, byte for byte
+  GET /tampered/<name>.nifepkg   the same package with one byte flipped halfway
+                                 through: what a man in the middle, a bad disk
+                                 or a lying mirror would serve, and what the
+                                 client must refuse by digest
+  anything else                  404, with a Content-Length like every reply
+
+BUGS: it serves one request per connection and reads no request body, which is
+all rung 3a's client sends. Name: provisional 2026-09-24.
+"""
+import os
+import re
+import sys
+
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "target", "packages")
+NAME = re.compile(rb"^[A-Za-z0-9._-]+\.nifepkg$")
+
+
+def reply(status, body):
+    head = b"HTTP/1.0 %s\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n" % (
+        status,
+        len(body),
+    )
+    sys.stdout.buffer.write(head + body)
+    sys.stdout.buffer.flush()
+
+
+def main():
+    stdin = sys.stdin.buffer
+    request = stdin.readline()
+    while stdin.readline() not in (b"\r\n", b"\n", b""):
+        pass
+    parts = request.split()
+    if len(parts) != 3 or parts[0] != b"GET":
+        return reply(b"400 Bad Request", b"")
+    path = parts[1]
+    tampered = path.startswith(b"/tampered/")
+    name = path[len(b"/tampered/"):] if tampered else path[1:]
+    if not NAME.match(name):
+        return reply(b"404 Not Found", b"")
+    try:
+        with open(os.path.join(ROOT, name.decode()), "rb") as f:
+            body = bytearray(f.read())
+    except OSError:
+        return reply(b"404 Not Found", b"")
+    if tampered and body:
+        body[len(body) // 2] ^= 0x01
+    reply(b"200 OK", bytes(body))
+
+
+main()

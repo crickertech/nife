@@ -369,7 +369,7 @@ fn print_text_words(bottom: u64, top: u64) {
         crate::println!(
             "    vector down to this slot's base, which is exactly the address above. See"
         );
-        crate::println!("    notes/stack.md, \"a kernel stack freed under its owner\".");
+        crate::println!("    notes/stack/kernel-stack-freed-under-its-owner.md.");
     }
     if printed == CAP {
         crate::println!("    ... capped at {CAP} words; the shallower stack is not shown.");
@@ -640,7 +640,8 @@ pub fn report_high_water() {
     assert!(
         max_interrupt <= 8192,
         "an interrupt stack's high-water {max_interrupt} exceeded 8192, half its slot: a trap \
-         handler's chain has grown past anything measured (notes/stack.md, script/stack-depth-check)",
+         handler's chain has grown past anything measured (notes/stack/interrupt-stack.md, \
+         script/stack-depth-check)",
     );
     assert!(
         tmax <= 18432,

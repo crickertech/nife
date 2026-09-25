@@ -258,7 +258,7 @@ between the three shapes or the three data structures.
 **Error bars.** This is *derived* from measured primitives rather than measured end to end: the icount
 figures are the tree's own gated baselines and the ns figures are its own HVF medians, but no run was
 made that counted `SYS_YIELD` calls during a real retransmit backoff. The direction is not in doubt
-(the spin is a hot loop at 100% of a hart, which `notes/net.md` and `testing.rs` both already record),
+(the spin is a hot loop at 100% of a hart, which `notes/net/the-outbound-gates.md` and `testing.rs` both already record),
 and the magnitude is uncertain by about one order of magnitude, which is where the "10^5 to 10^7"
 range comes from rather than a single number.
 
@@ -353,7 +353,6 @@ Milestone 106's block, milestone 103's block and `notes/pipes.md` all cite the t
 exactly the failure `CLAUDE.md` warns about ("`script/decisions --check` verifies that a cited `§N`
 resolves to *some* section, never that it resolves to the right one, so a well-formed wrong citation
 is invisible to it") and the collision `MEMORY.md` records between `§N` and milestone N as two
-numbering schemes. Only 106's block is corrected here, because that is this lane's file;
-`design/roadmap/103-interrupt-watch-stops-spinning.md:50` and `notes/pipes.md:656` still carry it and
-belong to whoever owns them next. `design/decisions/43-clock-authority.md:107` gets it right, saying
+numbering schemes. This lane corrected 106's block; #1291 fixed `notes/pipes.md` and #1296 fixed
+103's, both 2026-09-25. `design/decisions/43-clock-authority.md:107` gets it right, saying
 "the milestone block's fork".

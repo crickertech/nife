@@ -172,7 +172,9 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
 
-    let confined_by_iommu = rid.is_some() && crate::iommu::is_active();
+    // Asked of the unit that owns the device, not of "is any IOMMU up": on a VT-d machine with
+    // more than one unit those differ (milestone 594 (every VT-d unit translates its own devices); `iommu::scope_of`).
+    let confined_by_iommu = rid.is_some_and(|rid| crate::iommu::scope_of(rid).is_confining());
     let vid = crate::virtio::register(transport, dma, DMA_PAGE_FRAMES * FRAME_SIZE, rid);
 
     let ready = crate::sched::create_rendezvous();

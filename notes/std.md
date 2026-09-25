@@ -163,889 +163,135 @@ The load-bearing fields:
   `kernel/src/arch/x86_64/` saves no FPU or SSE state on a context switch, so a std program that let
   LLVM emit SSE would have its `xmm` registers overwritten by whichever thread ran next.
 
-### The x86_64 spec, field by field (milestone 184)
-
-It is the built-in `x86_64-unknown-none` spec with four deliberate differences, because that spec
-is a kernel's and this one is a ring-3 program's:
-
-- **`"code-model": "small"`, not `"kernel"`.** The kernel model assumes every symbol lives in the
-  top 2 GiB of the address space, which is where a higher-half kernel is and where a program linked
-  at `0x40_0000` is not. It happens to link anyway (a low address also fits a sign-extended 32-bit
-  displacement), which is why the `no_std` programs built on `x86_64-unknown-none` work, but the
-  small model is the one whose assumption is true here.
-- **`"relocation-model": "static"`, and no `position-independent-executables`.** The kernel's ELF
-  loader maps segments at their link addresses and applies no relocations. The built-in spec
-  defaults to static-PIE, which `.cargo/config.toml` overrides for the `no_std` programs by flag;
-  here it is in the spec itself, the same as the other two nife targets.
-- **`"os": "nife"`, `"singlethread": true`, `"executables": true`, `metadata.std: true`**, as on
-  the other two.
-- The feature list, `rustc-abi`, `disable-redzone`, `data-layout`, `llvm-target` and
-  `stack-probes` are copied unchanged. `rustc-abi: softfloat` is required: current nightlies refuse
-  a soft-float x86 custom target without it.
-
-**How you would know if SSE leaked in.** Absence of `xmm` in a program that does no float work
-proves nothing, so the check is a probe that does real `f64` and `f32` arithmetic. Built for
-`x86_64-unknown-nife` it disassembles to **zero** instructions naming an `xmm`, `mm` or x87 register
-and **nine** calls into compiler-builtins' `__adddf3`, `__muldf3`, `__divdf3`, `__subdf3`,
-`__mulsf3` and `__floatundidf`. The identical probe against a copy of the spec with `+sse,+sse2` and
-no `rustc-abi` has **92** vector-register instructions and no helper calls, so the grep sees SSE when
-it is there:
-
-```text
-$ llvm-objdump -d --no-show-raw-insn <elf> | grep -Eci 'xmm|ymm|zmm|%mm[0-7]|%st|fld|fstp|fild'
-```
-
-**The entry point differs on x86_64, and only there.** The kernel enters ring 3 with `rsp` on a page
-boundary (`rsp % 16 == 0`), while the x86-64 psABI promises a function `rsp % 16 == 8`, as if a
-`call` had just pushed a return address. aarch64 and RISC-V push nothing on a call, so they have no
-such offset. `sys/pal/nife/mod.rs` therefore makes `_start` a two-instruction `global_asm!` stub
-(`call` the Rust entry, then `ud2`), which makes the psABI's assumption true rather than hoping the
-soft-float code never depends on it. Nothing faults on a misaligned stack without SSE, which is
-exactly why it would have stayed latent.
-
-The build also passes `-Zbuild-std-features=compiler-builtins-mem` to supply `memcpy`/`memset` for
-the bare target.
-
-## `std::net` over the socket contract (milestone 27 phase two)
-
-`sys/net/connection/nife.rs` binds std's `TcpStream` and outbound `UdpSocket` to net_stack's socket
-contract (DECISIONS §25, notes/net.md, `crates/socket_protocol/src/lib.rs`). The PAL is a **client** of the
-frozen contract, nothing more: it holds the `Stack` endpoint (slot 2) and a frame untyped (slot 3),
-and for each socket it mints a shared `Frame`, maps it, delegates it to net_stack (`SEND_CAP`,
-`OP_ATTACH_FRAME`), and then drives the socket with `CALL`s carrying a socket id. Control words ride
-the message; bytes sit in the shared frame. This is the exact path the hand-written `socket_test_client` client
-walks, reached through std's blocking API instead.
-
-The wire constants are not restated: `netproto.rs` is generated verbatim from `crates/socket_protocol/src/lib.rs`
-into `sys/pal/nife/netproto.rs` by `std-src`, the same anti-drift discipline as `abi.rs` and
-`user_mode_heap.rs`. If the contract changes, the PAL's numbers change with it, because there is one source.
-
-What binds, and how it maps to the contract:
-
-- **`TcpStream::{connect, read, write, ...}`** -> `OP_OPEN_TCP`, `OP_CONNECT`, `OP_RECV`, `OP_SEND`,
-  `OP_CLOSE` (on `Drop`). `read` blocks in net_stack until data arrives (a blocked `RECV`), the blocking
-  semantics std's default API wants. A short `read` keeps the segment's tail in a per-socket residual
-  buffer, so a stream never drops bytes.
-- **`UdpSocket::{bind, connect, send, recv, send_to, recv_from}`** -> `OP_OPEN_UDP`, `OP_SENDTO`,
-  `OP_RECV`. UDP `connect` only fixes a default peer (no contract call, matching Unix). `bind`'s
-  local address is validated but not honored: net_stack assigns an ephemeral local port.
-- **Errors map by meaning, no errno.** A refused TCP connect is `ConnectionRefused`; a net_stack timeout
-  on `RECV` is `TimedOut`; a datagram larger than the frame is `InvalidInput`; an IPv6 address is
-  `Unsupported` (net_stack is IPv4-only). A `CALL` on an empty `Stack` slot (no network granted) reads
-  back negative and becomes `Unsupported`, the same answer a program with no net grants gets.
-
-- **`TcpListener::{bind, accept}`** -> `OP_LISTEN` and `OP_ACCEPT` (milestone 64). This is the
-  inbound half, and the reason it reads differently from everything above is that **a listening port
-  is an authority this program was granted or was not**. `net_stack` is spawned with a listen grant,
-  an inclusive port range, and refuses `LISTEN` outside it; `NO_LISTEN_GRANT` is the default, so a
-  std program on a stack nobody granted ports to is refused every port there is. The three contract
-  answers map to three `ErrorKind`s that tell a caller three different things to do:
-  `LISTEN_DENIED` is `PermissionDenied` (ask whoever spawned you; no other port will help),
-  `LISTEN_IN_USE` is `AddrInUse` (pick another port), and a refused `ACCEPT` is `WouldBlock` (the
-  listener is still armed, call again).
-  The `std_net` test boot runs this as its negative control: the same binary prints `listen
-  refused` on a stack granted no ports, on aarch64 and riscv64.
-
-  **A listener and a connection are two socket ids, and the listener never gets a frame.** That is
-  DECISIONS §25 showing through the PAL rather than a choice made here: the shared frame is the
-  granted resource and a listener carries no bytes, so it has nothing to grant. `accept` allocates a
-  *second* id, attaches that one's frame, and asks `OP_ACCEPT` to install the connection there;
-  `net_stack` refuses an accept into the listener's own id, so the POSIX move of turning a listening
-  descriptor into the connection in place is not expressible from this PAL.
-
-  **The peer address is `0.0.0.0:0`**, and it is a placeholder named as one. `accept` must return a
-  `SocketAddr` and the contract's reply carries no peer; reporting the real one is a wire change and
-  therefore a fork rather than a PAL decision (notes/net.md carries the two options).
-
-The concurrency model is the contract's: single-threaded, one synchronous exchange at a time. A
-program can hold up to `MAX_SOCKETS` (6, raised from 4 by milestone 55) sockets at once and
-interleave them, but there is only ever
-one operation in flight, which is all a single-threaded process can do anyway. For a listener that
-means the backlog is **one connection deep**: the listener re-arms inside `ACCEPT`, so serving
-connections one after another works indefinitely, and serving two at once does not.
-
-**A finding, recorded honestly.** net_stack derives a socket's local port from its socket id
-(`LOCAL_PORT_BASE + sid`), so an id is not an ephemeral port that rotates; reopening a just-closed id
-reuses its exact local port. Against QEMU's slirp, a TCP connect that reuses a port whose previous
-flow has not cleared stalls (the SYN's answer never comes, and net_stack blocks in its bounded poll on
-the NIC interrupt). The PAL softens this by handing out ids round-robin, so consecutive opens prefer
-different ids and ports, but a program that churns through more than `MAX_SOCKETS` sockets quickly
-can still hit a reused port. The real fix is net_stack assigning ephemeral local ports independent of the
-socket id, which is a **contract-side change reported up, not a client workaround**. The demo
-sidesteps it by keeping its UDP and TCP sockets on distinct ids at once.
-
-## `std::fs` over the FS-service contract (milestone 27 phase two)
-
-`sys/fs/nife.rs` binds std's `File` to the FS server's file contract (DECISIONS §27,
-notes/fs-server.md, `crates/filesystem_protocol`). Like the net PAL it is a **client** of a frozen contract and
-nothing more, and like the net PAL its wire constants are generated verbatim (`filesystem_protocol` becomes
-`sys/pal/nife/fsproto.rs` by `std-src`), so the PAL's numbers cannot drift from the server's.
-
-### The interesting part: `File::open` takes a path, and there is no global namespace
-
-This is the design question the binding had to answer, and the answer is not a compromise. Per §27,
-open-by-path exists **only inside the FS server**, resolved relative to the one directory node the
-client's endpoint is bound to. So the honest mapping is:
-
-> a std program holds a **directory capability** (slot 4), and `File::open("motd")` means *"motd,
-> under the directory I was granted"*, not *"motd somewhere in a global filesystem"*.
-
-Four behaviours follow, and each is enforced on the client side, before a byte reaches the wire. The
-server enforces the same rule again (it resolves one component in its bound directory and nothing
-else); doing it here as well is not redundant, it is what turns a would-be escape into a legible
-`io::Error` instead of an `ENOENT` that reads like a missing file.
-
-- **A leading `/` names this process's own root** (milestone 47's namespace half, 2026-08-18), which
-  is the directory it was granted, so `/motd` and `motd` are one file. It was refused until then, and
-  the refusal was the honest state of a system with no namespace to root a path in rather than a
-  position. It grants nothing: the slash selects nothing, because a nife process holds exactly one
-  directory capability and there is nothing else to select. A **Windows-shaped prefix** (`C:`) is
-  still refused, because unlike a slash there is no root it could name.
-- **Any `..` is refused**, at every position and including `/..`. It would leave the granted
-  directory, and no capability designates what is out there. This is what makes the slash safe: an
-  absolute path can reach the root and never above it.
-- **A nested path is a chain of descents** (milestone 122). `File::open("a/b/c")` is `OPENDIR a`,
-  `OPENDIR b`, then `OPEN c` against `b`'s handle. It used to be refused outright. The grant is
-  exactly as tight as it was: every hop resolves under the capability this process holds, rights only
-  ever narrow, and there are no symlinks to escape through. What changed is only whether the program
-  has to spell the descent itself.
-- **A name that IS expressible but absent is an ordinary `NotFound`**, which is what makes the three
-  refusals above meaningfully different from "no such file".
-
-**A `Dir` handle is its own root**, and that is a deliberate divergence from `openat`. POSIX makes an
-absolute path ignore the `dirfd`, because `/` names one global thing and a `dirfd` is a shortcut into
-it; neither half holds here. A handle is a namespace, `/` is the root of whichever one the name is
-being resolved in, and a rule that let a name climb out of the handle it was asked of would make
-`std::fs::Dir` useless for the one thing programs reach for it for. It cannot widen anything either
-way, since a process holding a `Dir` holds the root it descended from.
-
-**The refusal is `ErrorKind::InvalidFilename`, deliberately not `PermissionDenied`.** Nothing
-consulted a permission; there is no name here for what was asked, because no capability designates
-it. Mapping a capability refusal onto `PermissionDenied` would be a Unix EPERM fiction, and this
-whole milestone exists to avoid smuggling POSIX assumptions into std (the §22 reasoning). `NotFound`
-was the other candidate (a sandbox commonly reports ENOENT for paths outside its namespace) and was
-rejected for conflating the two cases a program actually wants to tell apart.
-
-### Detecting "no filesystem" without touching the shared page
-
-A program that was not granted a directory has **no shared page mapped**, so a probe that wrote a
-name into it would fault instead of returning an error. The probe therefore has to carry no payload,
-and it is an `FSTAT` on a handle number the server's table can never contain:
-
-- **no capability in the slot:** the kernel refuses the invoke itself and answers with one of its own
-  small negatives (`NoSuchSlot` -1, `WrongObject` -2, `NotPermitted` -3).
-- **a real server:** it answers `-EBADF` (-9) for the impossible handle, which is a *reply*, so a
-  filesystem is reachable.
-
-The answer is cached, because a capability table slot's contents are fixed at spawn on this ABI.
-
-**A wart of the contract, and this paragraph used to be wrong about it.** The wire's error space (a
-negated errno) overlaps the kernel's invoke-error space (-1..-8), so `-2` is both `ENOENT` and
-`WrongObject`, `-5` is both `EIO` and `BadMethod`, and **`-1` is both `EPERM` and `NoSuchSlot`**.
-This note said the overlap was harmless because neither `EPERM` nor `ESRCH` is in the FS server's
-vocabulary; `EPERM` has been since milestone 47 and nobody noticed for four milestones. Milestone 122
-resolved `-1` in favour of the server (see the descent section below): every entry point checks
-reachability first, so a kernel `NoSuchSlot` cannot follow a reply. The cost of that choice is that a
-**revoked** FS endpoint now reads as `PermissionDenied` rather than `Unsupported`, which is a trade
-made deliberately, because `EPERM` is reachable every day and revoking the FS endpoint is milestone
-108's open question. `-3` still reads as the kernel's, because `ESRCH` really is not in the server's
-vocabulary. The clean fix is a tag or an offset in the reply word, which is a contract change
-(`filesystem_protocol`, the FS server, and `fs_test_client`), reported up rather than papered over here.
-
-### What binds, and what stays Unsupported
-
-Bound: `File::open` (`OPEN`), `read`/`read_to_end`/`read_to_string` (`READ`), `write`/`write_all`
-(`WRITE`), `seek`/`stream_position`, `metadata`/`len` and `File::size` (`FSTAT`), close on `Drop`
-(`CLOSE`), and `std::fs::{metadata, read, exists}` built from open + fstat + close. The file position
-lives on the client side because the contract's read and write are both explicitly positional, so
-there is no cursor in the server to get out of step with, and a seek costs no message at all except
-`SeekFrom::End`.
-
-**Also bound since milestone 31 phase 2** (this used to be the head of the Unsupported list):
-`File::create`, `OpenOptions::create_new`, `create(true)`, and `OpenOptions::truncate`, backed by the
-contract's new `CREATE` and `TRUNCATE` verbs. **So `std::fs::write` works.**
-
-Two things about that are worth keeping. The order in `File::open` is POSIX's and it is load-bearing:
-open, then create only if the open reported `NotFound` and the caller asked for it, then truncate
-after a successful open of an existing file. `std::fs::write` is `create(true).truncate(true)`, so
-getting the order wrong leaves the old tail behind on precisely the path that exists to *replace* a
-file's contents, which is the confusion DECISIONS §27 was corrected four times over. And the previous
-refusal was the right call at the time for a reason worth remembering: without `TRUNCATE`, a
-`std::fs::write` would have half-worked, and a write that half-works reads as a write that failed.
-`create_new` over a name that exists closes the handle the probing open minted before returning
-`AlreadyExists`, because the error path is the one nobody exercises and therefore the one that leaks.
-
-**And bound since milestone 64's second pass:** `File::set_len` and `fs::copy`. `set_len` is the same
-`TRUNCATE` message `File::open` has been sending since 31, with the requested size in the second word
-instead of a 0; it grows as well as shrinks, because the contract's verb is `ftruncate` in both
-directions and a binding that only shrank would pass a shrink-only test. `copy` is backed by no verb
-at all and needs none. Neither was waiting on the contract, which is the third time this milestone
-has found a refusal that outlived its own reason; see notes/crates-io-on-nife.md.
-
-**A per-file grant needs no std API at all**, which is the payoff of having bound the PAL to a
-capability contract rather than to a namespace. A program handed a narrowed file capability (§27's
-caretaker, `components/src/fs_file_caretaker.rs`) is an ordinary `std::fs` client: the one granted name
-opens, every other name is an ordinary `NotFound`, and a write through a read-only grant surfaces as
-`ErrorKind::ReadOnlyFilesystem`. Nothing in the PAL knows whether slot 4 leads to a directory or to
-one file, and it does not need to.
-
-**And bound since milestone 64: the namespace verbs.** `read_dir`, `create_dir`, `remove_file`,
-`remove_dir` and `rename`, on `OPENDIR`, `READDIR`, `MKDIR`, `UNLINK`, `RMDIR` and `RENAME`.
-
-**None of these was waiting on the contract**, which is the part worth recording rather than the
-feature. The FS server had been dispatching all six since milestones 47 and 48, while this note and
-the PAL's own comments went on saying "no verb in the contract backs it". A refusal outlived its
-reason by two milestones, and nothing caught it, because a refusal that is correct-looking reads the
-same as a refusal that is correct. Milestone 64 found it by asking fifty crates.io crates what they
-actually needed (notes/crates-io-on-nife.md), which put `create_dir` and `read_dir` near the top
-of real demand.
-
-Four behaviours are worth knowing before you use them:
-
-- **`read_dir(".")` lists the granted directory itself** and costs no `OPENDIR`; the handle is
-  `fs::ROOT`. `read_dir("sub")` descends first (`OPENDIR` mints a capability to `sub`, the
-  enumeration runs through it, and it is closed afterwards), because there is no other way to name
-  what is inside `sub`. There are no `.` and `..` entries: they would be names for things no
-  capability designates.
-- **The listing is drained whole at `read_dir` time**, not streamed. std hands the caller an
-  iterator they may hold across arbitrary work including opening the files they just listed, and
-  the listing arrives through the one page every other operation also locks. So a huge directory
-  costs a `Vec` of its names, and the listing is a snapshot: an entry removed before the caller
-  reaches it opens as `NotFound`. That is the ordinary readdir caveat rather than something this
-  choice introduced.
-- **Neither remove verb removes the kind the other one is for.** `remove_file` on a directory is
-  `IsADirectory` and `remove_dir` on a file is `NotADirectory`, and `remove_dir` takes only an empty
-  one (`DirectoryNotEmpty` otherwise). A single "remove whatever you find" is what makes `rm -r`
-  dangerous and this contract does not offer it at any opcode.
-- **`EROFS` from any of them maps to `ErrorKind::ReadOnlyFilesystem`, and it is a capability
-  answer**, not a mode bit: the directory capability this process holds does not carry the right
-  that verb needs (§47's ladder). It is the one error in the map that is about *you* rather than
-  about the name.
-- **`metadata` answers for a directory now, at no extra message.** `OPEN` refuses one with
-  `EISDIR`, and that refusal *is* the answer to "what kind of thing is this name", so it is read as
-  one rather than propagated. `Path::is_dir()` used to be false for every directory that exists,
-  which meant `std::fs::create_dir_all` was not idempotent: it recovers from `AlreadyExists` by
-  asking whether the name is already a directory and got told no. `metadata(".")` answers without a
-  message at all, because the granted directory is what the endpoint is bound to rather than a name
-  inside it. The size reported is 0 and is a placeholder. `modified` answers for a directory as for
-  a file since milestone 64's last pass (below); `accessed` and `created` still refuse, so nothing
-  here invents a fact the contract does not carry.
-
-**Over-asking for rights is a refusal, not an attenuation**, and it is the trap in this half of the
-PAL. `OPENDIR` and `MKDIR` carry the rights the caller wants on the child, and the server answers
-`EPERM` when the intersection with the parent's comes up *short of the request* (§47's monotonicity
-is the intersection; the refusal is the server telling the truth about it). A PAL cannot know what
-its own capability carries, so it asks for the minimum the operation needs: `ENUMERATE` to
-enumerate, and nothing at all for `create_dir`, which closes the handle it gets back. The first
-version of this binding asked for `dir::ALL` and would have worked through every test in the suite,
-because they all grant the root's full rights, and failed through every narrowed one.
-
-Still Unsupported, and now genuinely because **no verb in the contract backs it**:
-
-- `canonicalize`, `hard_link`, symlinks and `read_link`. **`copy` is bound** (milestone 64's second
-  pass) and needed no verb: it is an open, a read/write loop and two closes, both names under the
-  granted directory. **`remove_dir_all` is bound since milestone 122** and needed no code either;
-  see below.
-- **Permissions, access and creation times, and setting a time through an open `File`.**
-  `Permissions::readonly` is honestly `false`: authority here is a capability, not a mode bit. The
-  modification time is bound by name (below); the rest of the time surface has no verb.
-- **File locks** and `File::try_lock`.
-- **`File::duplicate`.** A handle is a token the server minted for one session; copying the number
-  would forge a second owner of the same handle, including its close.
-- **`fsync`/`datasync` succeed rather than refuse**, and that is honest rather than a shrug: nothing
-  is buffered on the client side, and the server commits a RedoxFS transaction per write (that is
-  what makes a kill mid-write recoverable), so a returned write is already durable.
-
-### File times: `modified` and `set_times` (milestone 64's last pass, 2026-09-19)
-
-**Neither was waiting on the contract, for three weeks**, which is the fifth time this module has
-recorded that exact sentence. Milestone 47's `touch` lane added `GETMTIME`, `SETMTIME` and
-`SETMTIME_AT` on 2026-08-24 (DECISIONS §112); this note and the PAL's comments went on saying "no
-verb reports one" until 2026-09-19, and milestone 64's block carried the binding as its last
-outstanding item.
-
-**The mapping, verb by verb:**
-
-| `std` call | what it does here |
-|---|---|
-| `std::fs::metadata(p).modified()`, `DirEntry::metadata().modified()` | **Bound.** `stat` walks to the directory holding the name (asking `dir::READ`, as it always did), runs `OPEN`/`FSTAT`/`CLOSE` for the size and kind, then `GETMTIME` for the time. Works for a directory as for a file. |
-| `std::fs::set_times(p, t)`, `set_times_nofollow`, `FileTimes::set_modified` | **Bound**, always to `SETMTIME_AT` with the caller's seconds, walking with `dir::WRITE \| dir::SETTIME`. Sub-second part truncated. |
-| `File::metadata().modified()`, `Dir::metadata().modified()` | **Refused**, `Unsupported`: the contract asks by name and a handle has none. |
-| `File::set_times`, `File::set_modified` | **Refused**, `Unsupported`, same reason. |
-| `FileTimes::set_accessed` passed to `set_times` | **Refused whole**, `Unsupported`, and nothing is changed: no verb sets an access time. |
-| `metadata(".")` / `metadata("/")`, `set_times(".")` | The granted directory itself has no name; `modified()` and `set_times` refuse. |
-| `accessed()`, `created()` | **Refused**: no verb carries either. |
-| `SETMTIME` (set to the server's own "now") | **Not used by std**, deliberately (below). |
-
-**Why the handle shapes refuse rather than remember the name.** The PAL could record the name a
-`File` was opened by and ask `GETMTIME` with it. The answer would be about whatever holds that name
-*now*: after a rename it would report another file's time, after an unlink a `NotFound` for a file
-the caller is holding open, and `set_times` the same way would stamp the wrong file and return `Ok`.
-POSIX's `fstat` and `futimens` act on the inode, and a binding that silently acted on a name instead
-is the answer-instead-of-refusing failure this note keeps recording. A handle-taking form is a wire
-change and is proposed in design/roadmap/504-an-mtime-for-an-open-file.md.
-
-**Why `set_times` never falls back to `SETMTIME`.** A `SystemTime` from the caller is an assertion
-about history even when it came from `SystemTime::now()`, and §112 put that authority behind
-`dir::SETTIME`, separate from `dir::WRITE`. So a grant without `SETTIME` answers
-`ReadOnlyFilesystem`. Falling back to `SETMTIME` would write the server's own "now" instead of the
-time asked for and report success, and that "now" is not a time at all (next paragraph).
-
-**A refused `GETMTIME` does not fail `metadata()`.** The size and the kind are still true, and a
-`metadata()` that failed because one field could not be read would break every caller that only
-wanted `is_dir()`. The reply word is kept and `modified()` reports it. Through a per-file grant the
-caretaker refuses all three mtime verbs with `ENOTDIR` (it has no directory to resolve a name
-under), and `modified()` says that in its message rather than reporting `NotADirectory`, which would
-read as a fact about the file.
-
-EXAMPLES, as `std_exerciser` runs them on all three architectures:
-
-```rust
-let t = std::fs::metadata("motd")?.modified()?;          // the host tool's stamp: a real second
-std::fs::write("f", b"x")?;
-std::fs::set_times("f", FileTimes::new().set_modified(t))?; // SETMTIME_AT, needs WRITE | SETTIME
-assert_eq!(std::fs::metadata("f")?.modified()?, t);       // whole seconds round-trip
-let f = File::open("f")?;
-assert_eq!(f.metadata()?.modified().unwrap_err().kind(), ErrorKind::Unsupported);
-```
-
-BUGS:
-
-- **A file written on nife reads as early 1970.** The FS server holds no clock, so every mutation
-  stamps `Server::clock`, a counter that starts at 1 on each mount (notes/touch.md's `BUGS`). The
-  contract says Unix seconds and the PAL reports what the contract says, so `modified()` of a file
-  this system wrote is `UNIX_EPOCH` plus a few seconds. It orders correctly against other writes in
-  the same boot, wrongly against files the host tool made (those carry real seconds), and wrongly
-  across a reboot. The PAL cannot detect it, because `SETMTIME_AT` may legitimately assert a small
-  number. Proposed as its own work: design/roadmap/497-a-filesystem-server-that-knows-the-time.md.
-- **A write on nife never moves a real timestamp.** The engine (`vendor/redoxfs`'s `write_node` and
-  `truncate_node`) only ever moves an mtime *forward*, and the server's counter is always behind a
-  real second. So a file the host tool made keeps its host time through every write this system
-  makes to it, and a file `set_times` put in the future stays there. Found by `std_exerciser`'s
-  first draft, which asserted a write moved a `set_times` value and failed; the test now asserts a
-  write moving a *made* file forward, before the `set_times`, which is what the stamp can promise.
-- **Whole seconds only.** The wire carries seconds and the server stores a zero nanosecond part, so
-  `set_times` truncates. A second-granularity filesystem does the same on Unix and std documents
-  precision as platform-dependent, so this is recorded rather than refused.
-- **A time past `i64::MAX` seconds is refused**, though the server would accept it: `GETMTIME`'s
-  reply word is signed, so the time could be written and never read back.
-- **`metadata` costs four messages plus the walk**, where it cost three, and `DirEntry::metadata` of a
-  directory now costs a walk where it used to cost nothing (it answered from the listing, with no
-  time). The four messages are not atomic: a name replaced between `OPEN` and `GETMTIME` reports the
-  new node's time with the old node's size.
-- **Not exercised through a narrowed grant from `std`.** Every std test grants the mount root with
-  every right, so the `ReadOnlyFilesystem` a grant without `SETTIME` answers is proved by
-  `redoxfs_server`'s host tests (the rights table beside `settime_at`) rather than through this PAL.
-  The same gap the descent section records for `OPENDIR`, and closed the same way.
-
-### Descent: a nested path, and a directory a program can hold (milestone 122)
-
-Until this milestone the PAL called `OPENDIR` in exactly one place, inside `read_dir`, against
-`fs::ROOT`, and then let the handle go. Nothing in `std` held a directory, so a name had to be one
-component and a nested path was refused as a class.
-
-The consequence was sharp and is worth stating before the fix, because it is the shape of the bug
-rather than its size. `read_dir(".")` yields `./name` and feeding that back to `File::open` works;
-one level down an entry's `path()` is `sub/name`, which is two components, which was refused. **A
-`std` program could list a subdirectory and could not open what it had just been told was in there.**
-That pair is what every filesystem walker is built out of, so `walkdir` and `ignore` built and could
-not walk.
-
-Two answers, and they are not alternatives. The milestone's block argues both and this is what
-landed.
-
-#### The walk: `File::open("a/b/c")` is `OPENDIR a`, `OPENDIR b`, `OPEN c`
-
-Every name-taking verb goes through one function now (`walk` in `sys/fs/nife.rs`), which resolves a
-path to **the directory its last name lives in**, plus that name. `open`, `create`, `mkdir`,
-`unlink`, `rmdir`, `rename` and `readdir` all use it, so the shape is the same everywhere and there
-is one place to be wrong.
-
-**The rights it asks for are the design**, and they look like a widening until you do the
-arithmetic. Each hop asks for `DESCEND | needs`, where `needs` is what the *final* verb requires on
-the directory it lands in (`filesystem_protocol::verb::TABLE` is the list; `OPEN`'s "READ or WRITE" is the one
-row a caller has to resolve from its own `OpenOptions`). Carrying `needs` down the whole chain rather
-than asking for it only at the end costs nothing that was ever available, because a child's rights
-are its parent's *intersected* with the request: a right an ancestor lacks is a right no descendant
-of it could have had either. So the walk asks for exactly the maximum the grant could give at the
-depth it is going to, and no more.
-
-**`..` is refused at every position, not only the first**, and that is what makes the walk safe by
-construction rather than by checking. There is no verb for an ascent and no capability that would
-designate what one reached: a handle names a directory and nothing on the wire names its parent.
-`cap-primitives` solves this same problem on Unix and has to work far harder, because there it is
-defending against a hostile namespace rather than standing on one that cannot express the attack.
-
-**At most two handles are open at once.** Each hop drops the one before it, which closes it, so a
-path's depth costs round trips rather than handle-table slots. The milestone block forecast one per
-level and was wrong in the cheap direction.
-
-#### `std::fs::Dir`: the object, and the surprise that it already existed
-
-The other answer is that a program should be able to **hold** a directory and open one name under
-it, which is this system's actual model and what `cap-std` binds to. The surprise was that this is
-not an interface anyone here had to invent: **`std::fs::Dir` exists upstream** behind
-`#![feature(dirfd)]` (rust-lang/rust#120426), with `open`, `open_file`, `open_file_with`,
-`metadata`, `remove_file` and `rename`, and it *is* `openat`.
-
-nife was getting std's generic fallback, which stores a `canonicalize`d path. `canonicalize` is
-`Unsupported` here, so **`Dir::open` on this system failed at its first call**, and the std type most
-aligned with what this OS *is* was the one type it could not offer. It is now a held `OPENDIR`
-handle: `Dir::open(".")` is the granted directory and costs no message at all, and anything else is
-one attenuated descent per component.
-
-**Why a `Dir` asks for everything its parent carries, when everything else here asks for the
-minimum.** The rule in the rest of this PAL is to ask for exactly what the verb needs, because
-over-asking is `EPERM` rather than attenuation and a client cannot read its own capability. A held
-directory has no single verb to be the minimum of: it is an object, and what will be asked of it
-later is not knowable when it is minted. So it asks for the projection of the authority the process
-already holds onto one directory inside it, which cannot widen anything (`parent & requested`) and is
-exactly what `openat(dirfd, name, O_DIRECTORY)` hands back on Unix.
-
-Knowing what the parent carries is the awkward part, because **the contract has no way to say
-"attenuate to whatever you have"** and no verb reporting a handle's rights. The common case is one
-message: ask for `dir::ALL`, and a full-rights grant answers with the handle. A narrowed grant
-answers `EPERM`, and the PAL then finds out what is there by asking for one right at a time, six
-messages, at most once per `Dir::open` because every hop after the first descends from a parent whose
-rights are now known. **That probe is a workaround, not a design.** The fix is a sentinel in
-`OPENDIR`'s rights word meaning "the parent's, whatever they are", which is a wire-format change and
-therefore not a lane's to make.
-
-#### The `dirfd` surface grew: `open_for_traversal`, `create_dir`, `open_dir`, `remove_dir`
-
-`nightly-2026-08-26` added four more inherent methods to upstream `std::fs::Dir` under the same
-`#![feature(dirfd)]` (rust-lang/rust#120426): `Dir::open_for_traversal` (an associated function,
-the minimum-permission open) and three `&self` methods, `create_dir`, `open_dir` and `remove_dir`,
-each a `self`-relative twin of a path-shaped free function this PAL already had (`DirBuilder::mkdir`,
-`Dir::open`/`walk`, and `rmdir`). None of the four needed a new verb; each is the existing `MKDIR`,
-`OPENDIR`+descend-loop, or `RMDIR` call, walked from `self.at` instead of `proto::ROOT`.
-
-**`open_for_traversal` is `Dir::open` under another name here**, and that is not a shortcut, it is
-the same fact the section above already states: this contract has no bit meaning "enough to
-descend, not necessarily to enumerate", so the traversal-minimum open and the full open ask for the
-same thing.
-
-**`open_dir("", opts)` (or `"."`) is the one shape the walk cannot answer**, and it is a real gap
-rather than an oversight. Reopening `self` needs a second handle to the same server-side node, and
-nothing on the wire mints one (`File::duplicate` documents the identical gap for files). Under the
-granted directory itself it costs nothing, because `Dir::root()` is the `ROOT` sentinel and any
-number of `Dir`s may hold it (its `Drop` never closes it); `Dir::open_dir(".")` on any other held
-directory returns `Unsupported`. Nothing in this tree calls it today: `dirfd` is unstable and
-`remove_dir_all`'s own implementation goes through the path-shaped free functions, not through
-`Dir`. The fix, if a caller ever needs it, is a wire addition: a `DUP` verb, or an `OPENDIR` name
-meaning "this node again".
-
-#### `remove_dir_all` needed no code
-
-It had been refused with a note saying the recursion has to descend, a nested path is refused, and
-the loop therefore belongs where it can hold a directory capability per level, which is
-`components/src/rm.rs`. The second half of that was right and is now this module's business, because the
-walk holds one per level. std's own generic implementation is written entirely in terms of
-`read_dir`, `remove_file` and `remove_dir` on paths it composes with `DirEntry::path`, so switching
-one re-export was the whole change.
-
-That is the **fourth** refusal in this PAL found to have outlived its own reason, after milestone
-64's three. Each looked correct while it was wrong, which is the property that makes this class hard:
-a refusal that is correct-looking reads exactly like a refusal that is correct.
-
-#### Two live bugs the walk found
-
-Both were in the tree before this milestone and neither could show against the granted directory,
-because nothing is *requested* there: `fs::ROOT` carries whatever the endpoint carries.
-
-- **A created file was unwritable one directory down.** A file handle carries
-  `parent & (READ | WRITE)` (`create_file_at`, the same arithmetic as `open_file_at`), so a descent
-  that asked only for `CREATE` hands back a directory handle with no `WRITE` in it, which mints a
-  file nobody can write. `std::fs::write("a/b")` created the file and then failed `EROFS` on its own
-  first write. The fix is that `create_handle` asks for `CREATE` *and* what the caller will do with
-  the file.
-- **`dir::EPERM` was reaching std programs as `Unsupported`.** The PAL read a `-1` reply as the
-  kernel refusing the invoke, on the recorded ground that `EPERM` is not in the FS server's
-  vocabulary. **It has been since milestone 47**, where it is what a directory capability answers
-  when a verb's right is withheld and when a descent asks for more than the parent holds. So the one
-  reply meaning "this capability does not carry that right" arrived as "this platform cannot do
-  that", which is §42's silent degradation and would have made a narrowed grant indistinguishable
-  from no grant at all. It is now `ErrorKind::PermissionDenied`, which is not the EPERM fiction the
-  path refusals avoid: those are the client saying no capability designates that name, where nothing
-  consulted a permission; this is the server stating a fact about authority. What makes `-1`
-  unambiguous is that every entry point checks reachability first, so a server has already answered
-  by the time a request is issued.
-
-#### What is proven, and what is not
-
-`std_exerciser`'s fs transcript walks all of it on both ISAs: a file one directory down, a file two
-down, a subdirectory listed and every file in it opened **through the `path()` the listing handed
-back**, a path refused for walking through a file, `std::fs::Dir` opening a file under a held
-directory and refusing `..` through it, a rename between two directories in one message, and
-`remove_dir_all` over a tree the program builds.
-
-**The rights discipline is exercised only under a full-rights grant**, and that is the honest gap.
-Every std test grants the mount root, so a walk that over-asked would pass all of them, which is
-precisely the trap this PAL records nearly falling into once already. A std program spawned on an
-`fs_subtree_caretaker` endpoint is the test that would close it.
-
-### The write path: a correction to the record
-
-notes/fs-server.md and §27 recorded an open item, that an end-to-end write "loops inside RedoxFS's
-allocator commit on bare metal even on a pristine image". **It does not.** Driven through `std::fs`,
-a write to the file the image ships completes on both ISAs, reads back through the server, and, the
-part a cache cannot fake, reads back byte for byte when the host tool reopens the image afterwards
-with the pinned engine. That check is in the gate (`redoxfs_check_after_run` compares `scratch`
-against the fixture, and `mkredoxfs` rewrites it to a placeholder before every run, so the check
-passing means this run's guest write landed).
-
-The likely reason is the fix/irq-delivery change of 2026-07-29, which put the block server back on
-the completion interrupt instead of polling the used ring, the same correction that note had already
-made for the read path. Stated as likely rather than proven: what was measured is that the write
-completes, not why the poll path did not.
-
-## Honest caveats (what is Unsupported, and why)
-
-- **`thread::spawn` returns `Unsupported`.** The kernel has everything it needs (retype a TCB,
-  configure it, start it); what does not exist yet is the std-side plumbing that makes the result
-  safe: a TLS story, park/unpark on a kernel primitive, join. Phase one ships without it rather than
-  shipping it wrong. The sync primitives are std's single-threaded `no_threads` implementations, and
-  the allocator's spinlock is uncontended today but stays correct under future preemption.
-- **The environment starts with only what a grant seeded, and `set_var` is real** (milestone 64,
-  `sys/env/nife.rs`). A nife process inherits no variables, because there is nothing to inherit
-  from: what a process holds is what it was granted, and a variable is not a capability. So
-  `env::var("HOME")` is `None` because nobody gave this program a home. What a program sets on
-  itself reads back, because that is what `set_var` means on every platform and nothing about it
-  leaves the process.
-
-  **`TZ`, `LANG` and `TERM` are seeded from a grant** (milestone 47's environment-variable fork,
-  DECISIONS §111, `environment_protocol`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
-  a `Frame` with `READ`, the same rights-ladder shape as the clock) has those three keys in its
-  table from the first line of `main` onward, read by `pal::nife::init` before the program's own
-  code runs; a process granted no such page is seeded with nothing. This is the *inert
-  configuration* third of the milestone's own three-way split of what Unix puts in one map;
-  **names** (`PATH`, `HOME`) still wait on `bind` (milestone 154's two-directory endowment), and
-  **secrets** are answered elsewhere, by an endpoint (§41), never by a string on this table.
-
-  **This module exists because `env::vars()` used to abort the process.** Without a nife backend, std
-  fell through to `sys::env::unsupported`, whose `env()` is `panic!("not supported on this
-  platform")`. `getenv` was already answering `None` honestly, so nothing in the type system, the
-  build, or a gap list built from `Unsupported` counts said a word; the program simply died. It is
-  the same lesson as `Path::is_dir()` returning `false` for every directory: the dangerous refusal is
-  not the one that says `Unsupported`, it is the one that answers.
-- **The path half of `std::env` answers where it must and refuses where it can** (milestone 64,
-  `sys/paths/nife.rs`), and the split between those two is the whole design. `temp_dir` returns
-  `TMPDIR` if the program set one and `/` otherwise, because `PathBuf` carries no error and
-  something has to be named; `/` is `sys/fs/nife.rs`'s own answer restated (*"./motd is motd: the
-  current directory IS the granted one"*), so a temporary file goes where every other file goes,
-  which is the only directory the process has authority over. `split_paths` and `join_paths` are
-  ordinary string work over `:`. `current_exe` returns `Unsupported` and `home_dir` is `None`:
-  nothing tells a nife process the path it was loaded from, and nobody gave it a home.
-
-  **`current_dir` and the leading slash changed on 2026-08-18** (milestone 47's namespace half).
-  `/` is now the root of *this process's* namespace, which is the directory it was granted, so
-  `/motd` and `motd` are one file and `current_dir()` answers `/` rather than `Unsupported`. That
-  is Plan 9's answer and it is less than Plan 9's: a nife process holds exactly one directory
-  capability, so there is nothing for the slash to select between and no bind table to select it
-  with. **It grants nothing**, which is the point and is asserted rather than argued: the
-  `std_exerciser` transcript reads `/motd` and `motd` and compares the bytes, then asks for
-  `/../motd` and gets `InvalidFilename`, because there is no level above the only root there is.
-  The offline run of the same binary is the negative control: holding no directory capability, its
-  `current_dir()` still refuses, since there is a difference between "you are at your root" and
-  "you have no root" that a `PathBuf` cannot carry.
-
-  `chdir` stays `Unsupported`, and now for a narrower reason than "there is no namespace": a
-  process's directory capability is fixed at spawn, so `/` is the only place it can be. Moving
-  would mean the PAL holding a descent handle as mutable process state and resolving every relative
-  name against it, which is the shell's stack one level down and is not built.
-
-  **Two of the path functions used to abort the process**, which is why the file exists at all. nife had no
-  `paths` backend, and the shared fallback's `temp_dir()` is `panic!("no filesystem on this
-  platform")` while its `split_paths()` is `panic!("unsupported")`. So `tempfile::NamedTempFile::new()`
-  died inside `std::env::temp_dir` before it ever reached `tempfile`'s own "not supported" arm, and
-  notes/crates-io-on-nife.md had recorded the wrong one of those two as the failure for a fortnight.
-  It is `env::vars()`'s lesson a second time, and the rule that falls out of it is short enough to
-  remember: **fix the ones that abort, leave the ones that refuse.**
-- **`std::process::id()` is `0` and the rest of `std::process` refuses** (milestone 64,
-  `sys/process/nife.rs`). This was the third `panic!` of the same sweep: `getpid` in the shared
-  fallback is `panic!("no pids on this platform")`. There is no process identifier here to report,
-  the syscall surface issues none, and `u32` cannot say "there is none", so `0` is the answer,
-  chosen because no Unix assigns it to a user process. Every reachable call site in the fifty
-  measured dependency closures is a *fork* check (`gix-tempfile` compares an owning pid so cleanup
-  runs only in the creating process); nife has no `fork`, so a constant is what makes those
-  comparisons right rather than merely quiet. A scheme that wanted cross-process uniqueness from a
-  pid would be broken here with nothing reporting it, and a real per-process identity is a
-  syscall-surface decision rather than a PAL one.
-- **`std::process::exit` is a real exit, and the code it carries is dropped on the floor**
-  (milestone 64). It was the fourth `panic!`-shaped finding of the same sweep and the worst of them:
-  `sys/exit.rs`'s `_ =>` arm is `crate::intrinsics::abort()`, so a nife program calling
-  `std::process::exit(0)` compiled perfectly and then executed `brk`. The kernel takes that as a
-  fault, reports it on the console, and delivers `EVENT_FAULT` with a pc and a faulting address to
-  the process's supervisor (§26). **A clean exit arrived as a crash**, and this is the way almost
-  every CLI-shaped program ends.
-
-  Nothing had noticed because the two ways a Rust program ends took different exits and only one was
-  wired: `_start` calls the PAL's `rt::exit` on `main`'s return value directly, and
-  `std::process::exit` is the *only* caller of `sys::exit::exit` in the whole of std. Both now reach
-  the same `SYS_EXIT`.
-
-  **The code is still discarded, and that is the kernel's, not the PAL's.** `sched::exit()` is
-  `depart(abi::fault::EVENT_EXIT, 0, 0)`: the §26 message carries the event and the tid, and the
-  two remaining words are a pc and a fault address that a clean exit has nothing to put in. So a
-  supervisor can tell exit from crash and cannot tell `exit(0)` from `exit(1)`. Widening that is a
-  wire-format change to a message two programs agree on, which is the expensive category rather
-  than the cheap one; it is not something a PAL arm can decide. Until it happens, a nife program
-  that wants to report *why* it stopped says so on an endpoint it holds, the way every other
-  result travels here.
-- **`fs` is bound, with the gaps listed above.** A program granted no directory capability still gets
-  `Unsupported` from all of it, and the offline demo checks exactly that: same binary, no slot 4, and
-  `File::open` refuses with `ErrorKind::Unsupported` rather than pretending there is an empty
-  filesystem to look in.
-- **`net` is bound, but with recorded gaps.** `TcpStream`, `TcpListener` and outbound `UdpSocket`
-  work; the honest Unsupported list is an accepted connection's **peer address** (the contract's
-  `ACCEPT` reply carries no peer, so it reads `0.0.0.0:0`; reporting it is a wire change and a fork,
-  see notes/net.md), non-blocking mode and read/write timeouts (the contract is blocking-only, no
-  poll verb), DNS via `lookup_host` (no
-  resolver rides the contract, so `ToSocketAddrs` handles numeric addresses only, and a program that
-  wants DNS does it as a plain UDP query, as the demo does), IPv6 (net_stack is IPv4-only), and `peek` /
-  socket duplication / multicast join-leave (no contract verb backs them). `UdpSocket::recv_from`
-  reports the connected peer or the last send destination as the datagram source, because the
-  contract's `RECV` does not carry it; that is correct for the request/response pattern the demo
-  uses and recorded here for anything that assumes otherwise. Advisory knobs (`set_nodelay`,
-  `set_ttl`, keepalive, broadcast, multicast options) accept and return plausible values rather than
-  fail; they change nothing on the wire.
-- **`SystemTime` is real wall-clock time when the program was granted a clock** (milestone 51,
-  DECISIONS §43, notes/clock.md). It used to be the monotonic counter offset from `UNIX_EPOCH`, so
-  the machine reported **1970 plus uptime** and nothing in the interface said so; that is gone.
-  A std program's wall-clock authority is **slot 5** (a `Frame` capability naming the clock page,
-  with `READ`) plus a read-only mapping of that page at `rt::CLOCK_PAGE`, and `SystemTime::now()` is
-  the offset it finds there plus the ambient monotonic counter: two loads and an add, no server
-  round trip, and nothing the program can write. `Instant` is untouched and cannot be perturbed by a
-  clock adjustment, by construction.
-
-  **A program granted no clock, or running on a machine that does not know the time, gets a panic
-  from `SystemTime::now()`,** naming which of the two it was. This is the honest limit rather than a
-  clean win: `SystemTime::now()` has no error channel, so the only loud refusal available is a
-  panic, and std has no way to represent "I do not know", which means a program cannot ask whether
-  it *can* ask. The `Unsupported` shape `fs` and `net` use is not available here. Anything that
-  needs to check first reads `clock_protocol::state` off the page directly, which is what a `no_std`
-  component does. The alternative considered and rejected was returning a frozen `UNIX_EPOCH`, which
-  is still reporting 1970 and is exactly the confusion §42 forbids.
-- **`std::random` is a granted capability, and refuses loudly without it** (milestone 56, §44). It
-  used to be splitmix64 seeded from the virtual counter, predictable to anyone who could guess
-  boot-relative time; that file has been replaced rather than patched. `SystemRng` is now a `CALL` on
-  **slot 6**, answered by a userspace entropy service that is the only thing that can read the
-  virtio-rng device. A program granted no entropy capability gets a **panic**, for exactly the reason
-  `SystemTime::now()` does: `fill_bytes` has no error channel, and quietly substituting a predictable
-  stream is the lie the milestone exists to remove.
-
-  **`HashMap`'s seed is the one caller that still degrades**, to the same splitmix64 stream, and that
-  is deliberate: its promise is DoS resistance for a hash table rather than cryptographic strength,
-  std's own `unsupported` backend degrades that same function, and a `HashMap` in a program nobody
-  granted entropy must still work. Nothing in the file lets the weak path reach `SystemRng`. See
-  notes/entropy.md for what the bytes are and, under QEMU, are not.
-- **stdout and stderr share one endpoint**, so they interleave by 16-byte chunk. One endpoint is what
-  the contract grants today; milestone 28's terminal contract owns fixing it.
-- **The `std-src` patches are string-anchored to the pinned nightly's std internals.** A rustc bump
-  that reshapes a `cfg_select!` dispatcher fails loudly in `std_patch_dispatch` ("anchor not found"),
-  which is the intended tripwire: re-point the anchor, do not paper over it. `rust-toolchain.toml`
-  pins the channel; the coupling is the price of build-std against a std we do not fork.
+The reasoning of milestone 184 (extend the `std` port to x86_64) for each field, the probe that
+shows no SSE leaked in, and the entry stub that fixes the stack offset are in [the x86_64 spec
+appendix](std/x86-64-target.md).
+
+## `std::net` and `std::fs`
+
+Both are clients of a frozen contract and nothing more. Their wire constants are generated verbatim
+by `std-src` (`netproto.rs` and `fsproto.rs`), so the PAL's numbers cannot drift from the server's.
+
+- `std::net` binds `TcpStream`, `TcpListener` and outbound `UdpSocket` to net_stack's socket
+  contract on slots 2 and 3, under §25 (socket identity). Each socket gets its own shared frame; a listener gets
+  none. Errors map by meaning, not by errno: a refused connect is `ConnectionRefused`, and a port
+  outside the listen grant is `PermissionDenied`. The full mapping is in
+  [the net appendix](std/net.md).
+- `std::fs` binds `File` and the namespace verbs to the FS server's file contract on slot 4,
+  under §27 (the filesystem service). A path is resolved under the one directory this process was granted, so `/motd`
+  and `motd` are one file. Any `..` is refused with `InvalidFilename`, because no capability
+  designates what is above the grant. A nested path is a chain of `OPENDIR` descents
+  since milestone 122 (a directory handle `std` can hold). The mapping is in [the fs appendix](std/fs.md), the walk and `std::fs::Dir` are in
+  [the descent appendix](std/fs-descent.md), and file times are in
+  [their own appendix](std/file-times.md).
+
+A program granted neither gets `Unsupported` from both, because there is no capability to reach.
 
 ## What still ends a nife process
 
-*(Milestone 64, fourth pass, 2026-08-18.)*
-
-**The dangerous std call is not the one that returns `Unsupported`. It is the one that compiles and
-then kills you.** Five have been found so far, each by a different accident:
-
-| call | what it was | found by |
-|---|---|---|
-| `std::env::vars()` | `panic!("not supported on this platform")` | working the ranked gap list and noticing a *neighbour* |
-| `std::env::temp_dir()` | `panic!("no filesystem on this platform")` | reading every module the PAL falls through |
-| `std::env::split_paths()` | `panic!("unsupported")` | the same reading |
-| `std::process::id()` | `panic!("no pids on this platform")` | the same reading |
-| `std::process::exit()` | `crate::intrinsics::abort()` | `cargo xtask std-aborts` |
-
-**None of them could appear on a gap list**, because notes/crates-io-on-nife.md's list is built from
-PAL functions that answer `Unsupported`, and a function that ends the process never answers. And the
-fifth could not be found by the method that found the middle three either: `sys/exit.rs` is not a
-`sys/<module>/mod.rs` backend, it is one file with a `cfg_select!` inside a function, so "read every
-module the PAL falls through" walks straight past it.
-
-So the reading became a check.
+The dangerous std call is not the one that returns `Unsupported`. It is the one that compiles and
+then kills the process. Milestone 64 (enough `std` to run somebody else's crate) found five on
+2026-08-18: `env::vars`, `env::temp_dir`, `env::split_paths`, `process::id` and `process::exit`. All
+five now answer or exit cleanly. A gap list built from `Unsupported` answers could never show them,
+so the reading became a check. It greps the `sys/` sources the compiler actually built for bodies
+that end a process. Each hit is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, which
+carries a reason per entry.
 
 ```sh
 cargo xtask std-aborts       # on its own, against whatever the farm last built
 script/test                  # runs it too: `std-exerciser` ends with it
 ```
 
-### What it does
+The five calls, how the check works and its own BUGS are in
+[the std-aborts appendix](std/std-aborts.md).
 
-It asks the compiler which `library/std/src/sys/**` sources it **actually compiled** for the nife
-targets, by unioning every `library/std/src/sys/` path out of cargo's own dep-info under
-`std_exerciser/target/`, and greps exactly those for bodies that end a process: `panic!`,
-`unimplemented!`, `todo!`, `rtabort!`, `intrinsics::abort()`, `panic_nounwind`. Comment lines are
-skipped, because this tree's PAL files discuss the panics they replaced at length.
+## EXAMPLES
 
-What it finds is compared against `ABORTS_ACCEPTED` in `xtask/src/farm.rs`, **which carries the
-reason for every entry**. A new one fails the build with the file, the line, and the two things it
-can be. Today there are 26 across 79 compiled sources, in three groups:
+Build the patched toolchain and the demo, then check that this worktree's farm matches the main
+checkout's before borrowing it:
 
-- **unreachable on nife** (nine): a body behind a `cfg` this target does not satisfy. `cfg_select!`
-  keeps every arm's source in the file, so they are read but not compiled into anything reachable.
-- **no answer exists** (nine): single-threaded, so the call can only deadlock or end, and upstream
-  chose to end. `Condvar::wait` and `Once::wait` are the two that matter, and they stay open until
-  milestone 64's `thread::spawn` fork is decided rather than being fixable by a PAL arm.
-- **ours, and deliberate** (three files' worth): the clock and entropy refusals, where ending the
-  process is the honest report because the call has no error channel and inventing a value would be
-  the lie §42 forbids.
-
-### EXAMPLES
-
-Adding a `panic!` to a compiled fallback and running the check:
-
-```
-$ cargo xtask std-aborts
-std-aborts: a std source compiled for nife ends the process somewhere new:
-  sys/net/hostname/unsupported.rs:7: pub fn invented() -> ! { panic!("no hostname on this platform") }
+```sh
+cargo xtask std-src           # patch rust-src and link it as nife-dev
+cargo xtask std-exerciser     # build std_exerciser for the nife targets against it
+cargo xtask std-stamp         # run in both checkouts; equal output means the farms match
 ```
 
-and a clean tree:
+Put `nife-dev` back at the main checkout's farm after a merge, and read it back:
+
+```sh
+cd "$(git rev-parse --path-format=absolute --git-common-dir)/.."
+rustup toolchain link nife-dev "$(pwd)/target/nife-farm"
+rustup toolchain list -v | grep nife-dev
+```
+
+What a program granted a directory sees, as `std_exerciser` runs it:
+
+```rust
+let text = std::fs::read_to_string("/motd")?;            // the same file as "motd"
+let err = std::fs::File::open("../motd").unwrap_err();
+assert_eq!(err.kind(), std::io::ErrorKind::InvalidFilename); // nothing is above the grant
+std::fs::write("f", b"x")?;                                 // CREATE or TRUNCATE, then WRITE
+```
+
+And a clean abort sweep:
 
 ```
 $ cargo xtask std-aborts
 std-aborts: 26 process-ending bodies across 79 compiled std sources, all accounted for
 ```
 
-The fix the check prompted, read off the binary rather than off the source, which is the form of
-evidence this milestone is short of:
-
-```
-$ llvm-objdump -d --demangle std_exerciser/target/aarch64-unknown-nife/release/std_exerciser
-000000000040c290 <std::process::exit>:
-  40c290: stp  x30, x19, [sp, #-0x10]!
-  40c294: mov  w19, w0
-  40c298: bl   0x40eaf0 <std::rt::cleanup>      ; flush stdout, announce end of stream
-  40c29c: sxtw x0, w19                          ; the exit code
-  40c2a0: mov  x8, xzr                          ; SYS_EXIT
-  40c2a4: svc  #0
-
-000000000040c2b0 <std::process::abort>:
-  40c2b0: brk  #0                               ; still a fault, which is what abort MEANS
-```
-
-`exit` used to be the second of those two. That is the whole bug in six instructions: the same
-`brk`, under the name of the call that is supposed to be the clean one.
-
-### BUGS
-
-- **It covers `sys/` and nothing else, on purpose, and that is a real gap.** `sys` *is* std's
-  platform layer: a panic under it says "this platform has nothing to offer", while a panic in
-  `path.rs` or `thread/scoped.rs` says "you called this wrong" and says it identically on Linux. The
-  first version swept all of std, found about forty of the second kind and none of the first, and
-  would have been abandoned within a week. The cost of the narrowing is that **portable std code
-  which is only reachable on a platform this thin is invisible here** (a `LazyLock` poisoned by an
-  earlier panic, say), and finding those still needs somebody reading.
-- **An accepted entry matches a substring of a line, not a line number.** That is what stops a
-  nightly's blank line from rewriting the list, and it means one entry can bless two sites when the
-  same text appears twice in a file. `sys/exit.rs`'s `crate::intrinsics::abort()` is exactly that
-  case: the UEFI arm's last resort and the `_ =>` arm nife used to take are the same string, so
-  after this milestone one accepted entry covers a line nobody reaches and a line nobody takes.
-  **Three entries are deliberately blanket**, matching bare `panic!(` in `sys/random/nife.rs`,
-  `sys/time/nife.rs` and `sys/pal/nife/clockproto.rs`: those are the PAL's own files, where every
-  panic is one this project wrote on purpose and a new one arrives through review rather than
-  through a nightly. A blanket entry over a file we do not own would be the wrong trade.
-- **It proves reachability of a *body*, never of a *call*.** A body compiled into the reachable set
-  might still be dead. The check deliberately does not try to decide that, because deciding it is
-  reading the call sites, which is the work it exists to prompt rather than to replace.
-- **It needs a build.** The dep-info only exists after `cargo xtask std-exerciser`, which is why the
-  check runs at the end of that step rather than in `script/lint`. Run against a stale farm it
-  reports the stale farm, honestly and uselessly.
-- **It never checks that the paths it scans are under `farm_dir()`, and a contaminated build is
-  therefore reported as a source defect with file and line numbers.** Found 2026-08-18 by milestone
-  117's fifth stranger, on its first `script/test` from a fresh clone. `nife-dev` is an
-  account-wide `rustup` link, so a clone whose farm has not been built yet compiles `std` out of
-  **whichever worktree built the farm last**, the `-Zbuild-std` dep-info under
-  `std_exerciser/target/` caches those absolute paths, and cargo then considers the unit fresh, so
-  re-running reproduces the same failure in about thirty seconds and looks like a stable defect
-  rather than a stale one. What the stranger saw was two files, two line numbers and two suggested
-  fixes, all of them naming source inside another checkout on the machine; it wrote in its journal
-  that **both suggested fixes would have committed a false statement to `ABORTS_ACCEPTED`**, and
-  the only reason it did not was that it went looking for why the path was foreign. **The recovery
-  is `rm -rf std_exerciser/target`, which nothing in the tree says**, and the assertion that would
-  have made the message true is one comparison against `farm_dir()`. The bullet above says a stale
-  farm is reported "honestly and uselessly"; run 5 is the case where it is reported dishonestly,
-  because the paths belong to a farm this checkout never built.
-- **The same stale cache has a third face, and it never reaches the foreign-path check.** Found
-  2026-09-19 by milestone 168's lane, twice in a row on one worktree: `script/test` failed at
-  `std-exerciser: building std_exerciser for aarch64-unknown-nife failed`, with ten errors inside
-  the **rustup toolchain's own, unpatched** std (`none of the predicates in this cfg_select
-  evaluated to true` in `sys/alloc/mod.rs`, `sys/io/error/mod.rs`, `sys/thread_local`), while
-  `nife-dev` pointed correctly at this worktree's farm and `rustc --print sysroot` answered the
-  farm. `rm -rf std_exerciser/target` and a rebuild compiled std from the farm and passed at once.
-  So a build under `std_exerciser/target` can pin the plain nightly's `library/` as well as another
-  worktree's, and because the build fails before any dep-info is written, `std-aborts`' foreign
-  check never runs and nothing prints the recovery. The cause of the pinning was not diagnosed.
-  **Recovery is the same line**: `rm -rf std_exerciser/target`.
-- **`std-aborts` is a provisional name** (milestone 64, 2026-08-18). Names are calef's; this one is
-  not ratified.
-
 ## The proof
 
-`std_exerciser/src/main.rs` is an ordinary Rust program, no `no_std`, no `unsafe`, and two
-`#![feature]` gates that are both about **an API's stability upstream rather than about this
-platform**: `std::random` (rust-lang/rust#130703) and, since milestone 122, `std::fs::Dir`
-(rust-lang/rust#120426). A program on any target calling those opts in the same way. It is
-**one binary with three behaviours, chosen by the authority it was granted**: on start it probes for
-a directory capability (`File::open` on the fixture name) and then for the network (a single
-`UdpSocket::bind`), and the results branch it.
+`std_exerciser` is an ordinary Rust program with no `no_std` and no `unsafe`. It is one binary with
+three behaviours, chosen by the authority it was granted. With a directory it walks the `std::fs`
+surface; with the network it runs a UDP DNS query and a TCP echo; with neither it runs `Vec`,
+`String`, `HashMap` and `Instant` and checks that `fs` and `net` refuse. Three kernel tests spawn it
+and compare its output byte for byte on both ISAs. What each branch asserts is in
+[the proof appendix](std/the-proof.md).
 
-- **Granted a directory** (slot 4 and the shared page, alongside a running FS service): the open
-  succeeds, and the program reads the file with `Read` and again with `read_to_string`, stats it,
-  overwrites the image's `scratch` file and reads it back, and gets refused on `/etc/passwd`,
-  `../motd`, and `sub/motd`. Since milestone 31 phase 2 it also **creates** a name the image does not
-  carry with `std::fs::write`, writes it a second time with a *shorter* payload, and asserts the
-  read-back equals the shorter one: without `TRUNCATE` that second write would leave the first one's
-  tail behind, which is the whole of §27's four-times-corrected bug pinned at the top level rather
-  than only in a host test. `create_new` over the name it just made is `AlreadyExists`, and creating
-  `/tmp/escape` or `../escape` is refused exactly as opening them is, so `CREATE` did not widen what a
-  client can reach. Since milestone 64 it then walks the **namespace** verbs: makes a directory,
-  lists the granted directory and finds both the fixture (a file) and the directory it just made
-  (marked as one), descends into that directory and finds it empty, gets refused unlinking a
-  directory and rmdir-ing a file, renames the file it created and asserts the *source name is gone*
-  as well as the destination's contents, then removes both. Since milestone 122 it then **descends**:
-  it reads a file one directory down and another two down, builds a small tree of its own and lists
-  it, opens every file that listing named through the `path()` the listing handed back (the pair that
-  used to break), gets refused a path that walks through a file, opens a file under a held
-  `std::fs::Dir` and gets refused `..` through it, renames between two directories in one message,
-  and removes the tree with `remove_dir_all`. **The tree it lists is one it built**, deliberately,
-  and not the fixture's `sub`: milestone 47's directory-capability attacker is granted exactly that
-  directory and writes into it, so `sub`'s contents depend on which tests ran first in this boot, and
-  the first version of this transcript asserted them and failed. `sub/inner` and `sub/deeper/leaf`
-  are safe to *read* because the post-run host check pins them. It cleans up before it starts rather
-  than after, because `NIFE_KEEP_REDOXFS=1` runs the suite against an image a previous boot
-  wrote. The kernel test `std_fs_reads_a_file_through_a_granted_directory_capability` spawns it this
-  way.
-- **Granted the network** (slots 2 and 3, alongside a running net_stack): the bind succeeds, and the
-  program does a real UDP DNS query to slirp's resolver and a TCP echo round trip to slirp's
-  guestfwd peer, both through `std::net` and both asserted. The kernel test
-  `std_net_runs_over_the_socket_contract` spawns it this way.
-- **Granted neither** (only slots 0 and 1): both probes return `Unsupported`, and the program runs
-  the offline transcript, exercising `Vec` (10,000-element collect against the untyped heap),
-  `String`, `HashMap` (the random seed), `Instant` (asserted monotonic and advancing), and the
-  honesty of `fs` and `net`. The kernel test `std_tests::a_whole_std_program_runs_on_the_native_abi`
-  spawns it this way.
+## BUGS
 
-The same binary doing three things by its grants alone is the point of "no ambient authority": the
-code never chose to have a network or a filesystem, its capability table did. All three tests reassemble the
-byte stream off the endpoint and compare it byte for byte, on **both** ISAs out of each arch's own
-initrd (the parity gate, DECISIONS §19). The fs transcript splices the file's own bytes into the
-expected buffer from the shared fixture, so that one comparison covers the whole path: disk,
-DMA-confined block server, FS server running an engine we did not write, the file contract, the PAL,
-and the stdout endpoint. One binary also keeps the initrd inside its nifefs directory limit
-(`nifefs::MAX_FILES`, 31 entries when this was written and 76 since 2026-08-01).
-`cargo xtask test` builds the demo for both targets first, so both initrds carry it; both test legs
-attach a virtio-net NIC (`NIFE_NET`) with the guestfwd echo peer and the RedoxFS image as the
-second disk.
+One line each. The full entry, with its reasoning and history, is in
+[the caveats appendix](std/caveats.md) unless another link is given.
 
-**One boot has one FS service**, because the block server owns the RedoxFS device: a second wiring
-would put a second driver on the same virtio slot and re-bind its interrupt. So `fs_service`
-remembers what it wired, and the hand-written client's test and the `std::fs` test share one
-instance; whichever runs first receives the two readiness sentinels (each is sent once) and the other
-sees `None` and skips those assertions. That keeps the two tests order-independent, which matters
-because nothing guarantees which of them the harness runs first.
+- `thread::spawn` returns `Unsupported`, and `Condvar::wait` and `Once::wait` end the process. Both
+  wait on milestone 64's `thread::spawn` fork.
+- `std::process::exit` exits cleanly, but the kernel drops the code. A supervisor can tell exit from
+  crash and cannot tell `exit(0)` from `exit(1)`. Carrying it is a wire-format change.
+- `SystemTime::now()` and `std::random` panic when the process holds no clock or entropy grant,
+  because neither call has an error channel. `HashMap`'s seed is the one caller that degrades.
+- The environment holds only what a grant seeded (`TZ`, `LANG`, `TERM`) plus what the program sets.
+  `current_exe` and `chdir` refuse, `home_dir` is `None`, and `process::id()` is `0`.
+- `net` has no peer address on `accept` (it reads `0.0.0.0:0`), no non-blocking mode or timeouts, no
+  DNS through `lookup_host`, and no IPv6. A listener's backlog is one connection. A socket's local
+  port follows its id, so fast churn can reuse a port slirp has not cleared
+  ([the net appendix](std/net.md)).
+- `fs` has no `canonicalize`, links, permissions, locks or `File::duplicate`. A revoked FS endpoint
+  reads as `PermissionDenied`, because the wire's errno space overlaps the kernel's invoke errors
+  ([the fs appendix](std/fs.md)). The rights discipline is tested only under a full-rights grant
+  ([the descent appendix](std/fs-descent.md)).
+- A file written on nife reads as early 1970, since the FS server holds no clock. A write never moves
+  a real timestamp, times are whole seconds, and the handle-shaped time calls refuse
+  ([file times](std/file-times.md)).
+- stdout and stderr share one endpoint, so they interleave by 16-byte chunk.
+- The `std-src` patches are string-anchored to the pinned nightly. A bump that reshapes a dispatcher
+  fails with "anchor not found", which is the intended tripwire.
+- `nife-dev` is one name for the whole account. Relinking loudly makes a stolen link visible, and a
+  lane whose build is already in flight when another relinks still loses (above).
+- `std-aborts` covers `sys/` only, and proves a body reachable, never a call. A stale or foreign
+  build under `std_exerciser/target` can be reported as a source defect, or fail inside the unpatched
+  std; the recovery for both is `rm -rf std_exerciser/target`
+  ([the std-aborts appendix](std/std-aborts.md#bugs)). The name `std-aborts` is provisional.
+
+## Appendices
+
+| appendix | what it holds |
+|---|---|
+| [x86-64-target](std/x86-64-target.md) | the x86_64 spec field by field, and the SSE probe |
+| [net](std/net.md) | `std::net` over the socket contract |
+| [fs](std/fs.md) | `std::fs` over the file contract, and what stays `Unsupported` |
+| [file-times](std/file-times.md) | `modified` and `set_times`, with their own BUGS |
+| [fs-descent](std/fs-descent.md) | nested paths, `std::fs::Dir`, and the write-path correction |
+| [caveats](std/caveats.md) | the full caveat list behind BUGS above |
+| [std-aborts](std/std-aborts.md) | the calls that ended a process, and the check that finds them |
+| [the-proof](std/the-proof.md) | what `std_exerciser` asserts under each grant |

@@ -248,9 +248,14 @@ pub fn from_elf(elf: &[u8]) -> Result<Vec<u8>, Error> {
                 if kind != relative_type(machine) || r_info >> 32 != 0 {
                     return Err(Error::UnsupportedRelocation(kind));
                 }
+                // Inside the segment's FILE bytes, not its memory size: the word is written into
+                // `image` here, but each section's raw data is only its first `filesz` bytes, so a
+                // word in `.bss` would lose its addend while its fixup stayed in `.reloc`, and the
+                // firmware would add the load base to zero. This read `memsz` until milestone 326's
+                // mutation triage (2026-09-24) wrote the boundary test and it accepted such a word.
                 let inside = loads
                     .iter()
-                    .any(|l| r_offset >= l.vaddr && r_offset + 8 <= l.vaddr + l.memsz);
+                    .any(|l| r_offset >= l.vaddr && r_offset + 8 <= l.vaddr + l.filesz);
                 if !inside {
                     return Err(Error::RelocationOutsideImage(r_offset));
                 }
@@ -572,5 +577,401 @@ mod tests {
         assert_eq!(u32le(&r, 12), 0x3000);
         assert_eq!(u32le(&r, 16), 12, "one entry padded to two");
         assert_eq!(r.len(), 24);
+    }
+
+    // --- The tests below are from milestone 326 (turn a mutation score upward), 2026-09-24. Each
+    // --- names the property it pins; notes/mutation-testing/portable-executable.md has the
+    // --- mutants each one was seen to kill.
+
+    fn put(e: &mut [u8], at: usize, bytes: &[u8]) {
+        e[at..at + bytes.len()].copy_from_slice(bytes);
+    }
+
+    /// An ELF header with `phnum` program headers at 64, for `machine`, `len` bytes long.
+    fn header(machine: u16, phnum: u16, len: usize) -> Vec<u8> {
+        let mut e = vec![0u8; len];
+        put(&mut e, 0, b"\x7fELF");
+        e[4] = 2;
+        e[5] = 1;
+        e[6] = 1;
+        put(&mut e, 16, &3u16.to_le_bytes());
+        put(&mut e, 18, &machine.to_le_bytes());
+        put(&mut e, 24, &0x2000u64.to_le_bytes()); // entry
+        put(&mut e, 32, &64u64.to_le_bytes());
+        put(&mut e, 54, &56u16.to_le_bytes());
+        put(&mut e, 56, &phnum.to_le_bytes());
+        e
+    }
+
+    /// Program header `i`: (kind, flags, offset = vaddr, filesz, memsz).
+    fn phdr(e: &mut [u8], i: usize, kind: u32, flags: u32, va: u64, fsz: u64, msz: u64) {
+        let at = 64 + i * 56;
+        put(e, at, &kind.to_le_bytes());
+        put(e, at + 4, &flags.to_le_bytes());
+        put(e, at + 8, &va.to_le_bytes());
+        put(e, at + 16, &va.to_le_bytes());
+        put(e, at + 32, &fsz.to_le_bytes());
+        put(e, at + 40, &msz.to_le_bytes());
+    }
+
+    fn dynamic(e: &mut [u8], at: usize, entries: &[(u64, u64)]) {
+        for (i, (tag, value)) in entries.iter().enumerate() {
+            put(e, at + i * 16, &tag.to_le_bytes());
+            put(e, at + i * 16 + 8, &value.to_le_bytes());
+        }
+    }
+
+    fn rela(e: &mut [u8], at: usize, offset: u64, kind: u64, addend: u64) {
+        put(e, at, &offset.to_le_bytes());
+        put(e, at + 8, &kind.to_le_bytes());
+        put(e, at + 16, &addend.to_le_bytes());
+    }
+
+    /// Three kinds of segment, deliberately out of the order a linker usually emits them so that
+    /// "the first section" and "the first code section" differ: a read-only segment at 0x1000
+    /// (0x300 bytes), code at 0x2000 (0x20), and data at 0x3000 (0x100 bytes, 0x1100 in memory)
+    /// holding a six-entry dynamic section at 0x3040 (four used, then zeros) and one
+    /// `R_RISCV_RELATIVE` at 0x30c0 for the word at 0x3008. Offsets equal addresses, so a byte's
+    /// file position is its address.
+    fn three_kinds() -> Vec<u8> {
+        let mut e = header(243, 4, 0x3100);
+        phdr(&mut e, 0, 1, 4, 0x1000, 0x300, 0x300); // R
+        phdr(&mut e, 1, 1, 5, 0x2000, 0x20, 0x20); // R X
+        phdr(&mut e, 2, 1, 6, 0x3000, 0x100, 0x1100); // R W, with .bss
+        phdr(&mut e, 3, 2, 6, 0x3040, 0x60, 0x60);
+        put(&mut e, 0x1000, b"rodata");
+        put(&mut e, 0x2000, &0x13u32.to_le_bytes());
+        dynamic(&mut e, 0x3040, &[(7, 0x30c0), (8, 24), (9, 24), (0, 0)]);
+        rela(&mut e, 0x30c0, 0x3008, 3, 0x1234);
+        e
+    }
+
+    /// **Every header field the firmware reads, with the value it must have.** The first test
+    /// above checks the fields a reader looks at first; this one checks the rest, because the
+    /// firmware reads all of them and a wrong one is a boot that fails with no console to say so.
+    #[test]
+    fn every_header_field_the_firmware_reads_has_its_value() {
+        let pe = from_elf(&three_kinds()).unwrap();
+        let coff = 0x44;
+        assert_eq!(u16le(&pe, coff + 2), 4, ".rdata, .text, .data, .reloc");
+        assert_eq!(u16le(&pe, coff + 16), 240, "SizeOfOptionalHeader");
+        assert_eq!(
+            u16le(&pe, coff + 18),
+            0x0222,
+            "EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE | DEBUG_STRIPPED"
+        );
+        let opt = coff + 20;
+        assert_eq!(
+            u32le(&pe, opt + 4),
+            0x200,
+            "SizeOfCode: .text's raw size only"
+        );
+        assert_eq!(
+            u32le(&pe, opt + 8),
+            0x400 + 0x200 + 0x200,
+            "SizeOfInitializedData: .rdata, .data and .reloc"
+        );
+        assert_eq!(u32le(&pe, opt + 16), 0x2000, "AddressOfEntryPoint");
+        assert_eq!(
+            u32le(&pe, opt + 20),
+            0x2000,
+            "BaseOfCode is .text, not the first section"
+        );
+        assert_eq!(&pe[opt + 24..opt + 32], &[0; 8], "ImageBase");
+        assert_eq!(u32le(&pe, opt + 32), 0x1000, "SectionAlignment");
+        assert_eq!(u32le(&pe, opt + 36), 0x200, "FileAlignment");
+        assert_eq!(
+            u32le(&pe, opt + 56),
+            0x6000,
+            "SizeOfImage: .reloc's page at 0x5000, whole"
+        );
+        assert_eq!(u32le(&pe, opt + 60), 0x200, "SizeOfHeaders");
+        assert_eq!(u16le(&pe, opt + 68), 10, "EFI_APPLICATION");
+        assert_eq!(
+            u16le(&pe, opt + 70),
+            0x0160,
+            "HIGH_ENTROPY_VA | DYNAMIC_BASE | NX_COMPAT"
+        );
+        assert_eq!(u32le(&pe, opt + 108), 16, "NumberOfRvaAndSizes");
+        assert_eq!(
+            u32le(&pe, opt + 112 + 40),
+            0x5000,
+            "BASERELOC directory RVA"
+        );
+        assert_eq!(u32le(&pe, opt + 112 + 44), 12, "BASERELOC directory size");
+
+        // (name, VirtualSize, VirtualAddress, SizeOfRawData, PointerToRawData, Characteristics)
+        type Row = (&'static [u8; 8], u32, u32, u32, u32, u32);
+        let expected: [Row; 4] = [
+            (b".rdata\0\0", 0x300, 0x1000, 0x400, 0x200, 0x4000_0040),
+            (b".text\0\0\0", 0x20, 0x2000, 0x200, 0x600, 0x6000_0020),
+            (b".data\0\0\0", 0x1100, 0x3000, 0x200, 0x800, 0xc000_0040),
+            (b".reloc\0\0", 12, 0x5000, 0x200, 0xa00, 0x4200_0040),
+        ];
+        for (i, want) in expected.iter().enumerate() {
+            let h = opt + 240 + i * 40;
+            let got = (
+                &pe[h..h + 8],
+                u32le(&pe, h + 8),
+                u32le(&pe, h + 12),
+                u32le(&pe, h + 16),
+                u32le(&pe, h + 20),
+                u32le(&pe, h + 36),
+            );
+            assert_eq!(
+                got,
+                (want.0.as_slice(), want.1, want.2, want.3, want.4, want.5),
+                "section {i}"
+            );
+        }
+        assert_eq!(pe.len(), 0xc00, "the last section's raw bytes end the file");
+        assert_eq!(
+            &pe[0x200..0x206],
+            b"rodata",
+            ".rdata's bytes at its PointerToRawData"
+        );
+        assert_eq!(&pe[0x600..0x604], &0x13u32.to_le_bytes());
+        assert_eq!(
+            &pe[0x808..0x810],
+            &0x1234u64.to_le_bytes(),
+            "the addend, written in place"
+        );
+    }
+
+    /// **Each machine gets its own PE machine number and is held to its own `RELATIVE` type.** A
+    /// relocation type is only meaningful per machine: 3 is `R_RISCV_RELATIVE` but `R_AARCH64_*`
+    /// something else entirely, so accepting another machine's number would convert a relocation
+    /// this does not understand.
+    #[test]
+    fn each_machine_gets_its_pe_number_and_its_own_relative_type() {
+        for (machine, relative, pe_machine) in [
+            (62u16, 8u64, 0x8664u16),
+            (183, 1027, 0xaa64),
+            (243, 3, 0x5064),
+        ] {
+            let mut e = three_kinds();
+            put(&mut e, 18, &machine.to_le_bytes());
+            rela(&mut e, 0x30c0, 0x3008, relative, 0x1234);
+            let pe = from_elf(&e).unwrap_or_else(|err| panic!("machine {machine}: {err:?}"));
+            assert_eq!(u16le(&pe, 0x44), pe_machine, "machine {machine}");
+            for other in [8u64, 1027, 3].into_iter().filter(|&t| t != relative) {
+                rela(&mut e, 0x30c0, 0x3008, other, 0x1234);
+                assert_eq!(
+                    from_elf(&e),
+                    Err(Error::UnsupportedRelocation(other as u32)),
+                    "machine {machine} must refuse type {other}"
+                );
+            }
+        }
+        let mut e = three_kinds();
+        put(&mut e, 18, &40u16.to_le_bytes()); // EM_ARM
+        assert_eq!(from_elf(&e), Err(Error::UnknownMachine(40)));
+    }
+
+    /// **The dynamic walk stops at `DT_NULL`, and it stops at the end of its segment.** What
+    /// follows either is not the dynamic section, so a tag found there must not be obeyed. Both
+    /// fixtures put a `DT_REL`, which would be refused, just past the real end.
+    #[test]
+    fn the_dynamic_walk_ends_at_dt_null_or_at_its_segment_end() {
+        let mut e = three_kinds();
+        dynamic(&mut e, 0x3040 + 0x40, &[(17, 0x3000)]);
+        assert!(from_elf(&e).is_ok(), "DT_NULL ends the walk");
+
+        let mut e = three_kinds();
+        phdr(&mut e, 3, 2, 6, 0x3040, 0x30, 0x30); // three entries and no DT_NULL
+        dynamic(&mut e, 0x3040 + 0x30, &[(17, 0x3000)]);
+        assert!(from_elf(&e).is_ok(), "the segment's end ends the walk");
+    }
+
+    /// **Which relocation tables are refused, and which are only refused when non-empty.**
+    /// `DT_REL` and `DT_RELR` hold relocations this does not convert, so their presence is enough.
+    /// `DT_PLTRELSZ` and `DT_JMPREL` are emitted as zero by linkers that have no PLT, and a zero one
+    /// holds nothing to convert.
+    #[test]
+    fn relocation_tables_it_cannot_convert_are_refused_by_tag() {
+        let with = |tag: u64, value: u64| {
+            let mut e = three_kinds();
+            dynamic(&mut e, 0x3040 + 0x30, &[(tag, value), (0, 0)]);
+            from_elf(&e)
+        };
+        assert_eq!(
+            with(17, 0x3000),
+            Err(Error::UnsupportedRelocationTable),
+            "DT_REL"
+        );
+        assert_eq!(
+            with(36, 0x3000),
+            Err(Error::UnsupportedRelocationTable),
+            "DT_RELR"
+        );
+        assert_eq!(
+            with(2, 24),
+            Err(Error::UnsupportedRelocationTable),
+            "DT_PLTRELSZ"
+        );
+        assert_eq!(
+            with(23, 0x3000),
+            Err(Error::UnsupportedRelocationTable),
+            "DT_JMPREL"
+        );
+        assert!(with(2, 0).is_ok(), "an empty DT_PLTRELSZ");
+        assert!(with(23, 0).is_ok(), "an empty DT_JMPREL");
+    }
+
+    /// **`DT_RELAENT` is the stride, and every entry is read at `base + i * stride`.** A linker
+    /// is free to pad `Elf64_Rela`; one that does, read at a fixed 24, reads the second entry
+    /// from the middle of the first.
+    #[test]
+    fn dt_relaent_is_the_stride_between_relocations() {
+        let mut e = three_kinds();
+        dynamic(&mut e, 0x3040, &[(7, 0x30c0), (8, 64), (9, 32), (0, 0)]);
+        rela(&mut e, 0x30c0, 0x3008, 3, 0x1111);
+        rela(&mut e, 0x30e0, 0x3010, 3, 0x2222);
+        let pe = from_elf(&e).unwrap();
+        assert_eq!(&pe[0x808..0x810], &0x1111u64.to_le_bytes());
+        assert_eq!(&pe[0x810..0x818], &0x2222u64.to_le_bytes());
+        let block = &pe[0xa00..];
+        assert_eq!(u32le(block, 4), 12, "two fixups");
+        assert_eq!(u16le(block, 8), (10 << 12) | 0x008);
+        assert_eq!(u16le(block, 10), (10 << 12) | 0x010);
+    }
+
+    /// **A relocated word must lie wholly inside a segment's file bytes.** The word is written into
+    /// the section's raw data, so a word past `filesz` (in `.bss`) would have its addend dropped
+    /// while its fixup stayed in `.reloc`, and the firmware would add the load base to zero. The
+    /// last whole word before `filesz` is accepted; a word straddling it, a word in `.bss`, and a
+    /// word below every segment are refused.
+    #[test]
+    fn a_relocated_word_lies_wholly_inside_a_segments_file_bytes() {
+        let at = |offset: u64| {
+            let mut e = three_kinds();
+            rela(&mut e, 0x30c0, offset, 3, 0x1234);
+            from_elf(&e)
+        };
+        let pe = at(0x30f8).unwrap();
+        assert_eq!(
+            &pe[0x8f8..0x900],
+            &0x1234u64.to_le_bytes(),
+            "the last whole word"
+        );
+        assert_eq!(
+            at(0x30fc),
+            Err(Error::RelocationOutsideImage(0x30fc)),
+            "straddles filesz"
+        );
+        assert_eq!(
+            at(0x3200),
+            Err(Error::RelocationOutsideImage(0x3200)),
+            "in .bss"
+        );
+        assert_eq!(
+            at(0x0800),
+            Err(Error::RelocationOutsideImage(0x0800)),
+            "below every segment"
+        );
+    }
+
+    /// **The segment layout checks at their exact boundaries.** A segment may end at the last byte
+    /// of the file and not one past it; two segments may touch and not overlap; `filesz` may not
+    /// exceed `memsz`.
+    #[test]
+    fn segment_layout_is_checked_at_its_exact_boundaries() {
+        let mut e = three_kinds();
+        e.truncate(0x3100);
+        assert!(
+            from_elf(&e).is_ok(),
+            "a segment ending exactly at the file's end"
+        );
+        e.truncate(0x30ff);
+        assert_eq!(from_elf(&e), Err(Error::Truncated), "one byte short");
+
+        let mut e = three_kinds();
+        phdr(&mut e, 0, 1, 4, 0x1000, 0x300, 0x1000);
+        assert!(from_elf(&e).is_ok(), "segments that touch");
+        phdr(&mut e, 0, 1, 4, 0x1000, 0x300, 0x1001);
+        assert_eq!(
+            from_elf(&e),
+            Err(Error::SegmentLayout),
+            "segments that overlap by a byte"
+        );
+
+        let mut e = three_kinds();
+        phdr(&mut e, 1, 1, 5, 0x2000, 0x21, 0x20);
+        assert_eq!(
+            from_elf(&e),
+            Err(Error::SegmentLayout),
+            "filesz above memsz"
+        );
+    }
+
+    /// **Only a 64-bit little-endian ELF is read**, and each of the two ident bytes is checked on
+    /// its own.
+    #[test]
+    fn only_elfclass64_little_endian_is_read() {
+        let mut e = three_kinds();
+        e[4] = 1;
+        assert_eq!(from_elf(&e), Err(Error::NotElf64), "ELFCLASS32");
+        let mut e = three_kinds();
+        e[5] = 2;
+        assert_eq!(from_elf(&e), Err(Error::NotElf64), "big-endian");
+    }
+
+    /// **The section table must fit in the first page, and 94 sections exactly fill it.** The
+    /// first segment starts at 0x1000, so headers past a page would overwrite it once loaded. The
+    /// header length is 0x40 + 4 + 20 + 240 + 40 per section: 94 is 4,088 bytes, aligned to exactly
+    /// 0x1000, and 95 is 4,128.
+    #[test]
+    fn the_headers_round_up_to_file_alignment_and_fit_in_one_page() {
+        let loads = |n: u16| {
+            let mut e = header(243, n, 0x1000 * (usize::from(n) + 1));
+            for i in 0..usize::from(n) {
+                let va = 0x1000 * (i as u64 + 1);
+                phdr(&mut e, i, 1, 4, va, 0x10, 0x10);
+            }
+            e
+        };
+        // 56 sections is 2,568 bytes of header, eight past 0xa00: a count short by those eight
+        // would place the first section's raw bytes over the last section header.
+        let pe = from_elf(&loads(56)).unwrap();
+        assert_eq!(
+            u32le(&pe, 0x44 + 20 + 60),
+            0xc00,
+            "SizeOfHeaders, rounded up"
+        );
+        assert_eq!(
+            u32le(&pe, 0x44 + 20 + 240 + 20),
+            0xc00,
+            "the first section's raw data"
+        );
+        let pe = from_elf(&loads(94)).unwrap();
+        assert_eq!(
+            u32le(&pe, 0x44 + 20 + 60),
+            0x1000,
+            "SizeOfHeaders, exactly a page"
+        );
+        assert_eq!(
+            u32le(&pe, 0x44 + 20 + 240 + 20),
+            0x1000,
+            "the first section's raw data"
+        );
+        assert_eq!(from_elf(&loads(95)), Err(Error::SegmentLayout));
+    }
+
+    /// **A header field is read from exactly its own bytes.** An ELF cut off right after
+    /// `e_phnum` has every field this reads, so it reaches the layout check rather than being
+    /// called truncated.
+    #[test]
+    fn a_header_field_needs_exactly_its_own_bytes() {
+        let e = header(243, 0, 58);
+        assert_eq!(from_elf(&e), Err(Error::SegmentLayout), "no PT_LOAD at all");
+    }
+
+    /// **A block's size counts its header and two bytes per entry.** Four entries in one page is
+    /// the case that tells `8 + 2 * n` from `8 + 2 + n`, which agree at two.
+    #[test]
+    fn a_relocation_block_is_eight_bytes_plus_two_per_entry() {
+        let r = base_relocations(&[0x2000, 0x2008, 0x2010, 0x2018]);
+        assert_eq!(u32le(&r, 4), 16);
+        assert_eq!(r.len(), 16);
     }
 }

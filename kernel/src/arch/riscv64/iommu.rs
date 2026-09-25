@@ -175,6 +175,46 @@ fn queue_base(pa: u64, log2: u32) -> u64 {
     ((pa >> 12) << 10) | (log2 as u64 - 1)
 }
 
+/// Does device `rid` have a context in the one-level device directory, whose `dc_bytes`-long entries
+/// fill one frame? This is the only thing between a requester id and a raw write, so it is a
+/// function of its own: `no_device_can_reach_another_devices_context` assumes exactly what it
+/// admits and proves the stride in `context_offset` agrees with it.
+fn is_in_directory(rid: u32, dc_bytes: u64) -> bool {
+    (rid as u64) < page_frames::FRAME_SIZE / dc_bytes
+}
+
+/// Where device `rid`'s context sits in the device directory, as a byte offset into its frame.
+fn context_offset(rid: u32, dc_bytes: u64) -> u64 {
+    assert!(
+        is_in_directory(rid, dc_bytes),
+        "device_id {rid} beyond the one-level device directory"
+    );
+    rid as u64 * dc_bytes
+}
+
+/// A device context's words in directory order: `tc`, `iohgatp`, `ta`, `fsc`, then the extended
+/// format's four MSI words. The base (32-byte) format writes only the first four. Pure so that
+/// `the_iommu_is_handed_exactly_the_domain_the_kernel_built` can read each field
+/// back at the spec's bit positions.
+fn device_context(root: u64, pscid: u16) -> [u64; 8] {
+    [
+        DC_TC_V,                          // tc: valid, faults reported (DTF clear)
+        0,                                // iohgatp: Bare
+        (pscid as u64) << TA_PSCID_SHIFT, // ta
+        FSC_MODE_SV39 | (root >> 12),     // fsc = iosatp
+        0,                                // msiptp: MODE Off (see BUGS above)
+        0,                                // msi_addr_mask
+        0,                                // msi_addr_pattern
+        0,                                // reserved
+    ]
+}
+
+/// `IODIR.INVAL_DDT` for exactly device `rid`: opcode 3, function 0, and DV set, so the IOMMU
+/// honours the DID field rather than dropping every device's cached context.
+fn iodir_inval_ddt(rid: u32) -> u64 {
+    CMD_IODIR_INVAL_DDT | CMD_DV | ((rid as u64) << CMD_DID_SHIFT)
+}
+
 /// Enable a queue through its control/status register and wait for it to come on.
 fn queue_enable(base: u64, csr: u64, what: &str) {
     w32(base, csr, QUEUE_EN);
@@ -275,6 +315,23 @@ pub fn is_active() -> bool {
     IOMMU.lock().is_some()
 }
 
+/// **Whether requester `rid` is behind this IOMMU** (milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal): always, when
+/// it is up. This tree brings the unit up against a device tree whose `iommu-map` is an identity
+/// over the whole bus, so there is no second unit for a device to belong to. VT-d is the
+/// architecture where that stops being true; see `arch::x86_64::iommu::scope_of`.
+pub fn scope_of(_rid: u32) -> crate::iommu::Scope {
+    if is_active() {
+        crate::iommu::Scope::WholeBus
+    } else {
+        crate::iommu::Scope::NoIommu
+    }
+}
+
+/// **Firmware-reserved DMA regions for requester `rid`: none on this architecture as this tree
+/// brings it up** (milestone 594 (every VT-d unit translates its own devices)). The VT-d driver reports its RMRRs here so
+/// [`crate::iommu::confine`] can map them into every domain. The RISC-V IOMMU has no firmware table for this; a device tree `reserved-memory` region with `iommu-addresses` would be the place, and this tree reads none.
+pub fn for_each_reserved_region(_rid: u32, _each: &mut dyn FnMut(paging::domain::DmaRegion)) {}
+
 /// Push one 16-byte command and wait for the IOMMU to consume it (QEMU processes the queue on
 /// the tail write; polling the head is the architectural contract).
 fn cmd_push(s: &mut Iommu, dword0: u64, dword1: u64) {
@@ -307,43 +364,38 @@ fn cmd_push(s: &mut Iommu, dword0: u64, dword1: u64) {
 pub fn attach(rid: u32, root: u64, pscid: u16) {
     let mut g = IOMMU.lock();
     let s = g.as_mut().expect("IOMMU attach before init");
-    let per_page = page_frames::FRAME_SIZE / s.dc_bytes;
-    assert!(
-        (rid as u64) < per_page,
-        "device_id {rid} beyond the one-level device directory"
-    );
+    let offset = context_offset(rid, s.dc_bytes);
+    let words = device_context(root, pscid);
 
     // The device context, written back to front: address and tag words first, the valid bit
     // last, with a barrier between, so the IOMMU can never observe a valid entry with a stale
     // root. iohgatp stays Bare (no second stage; there is no guest here), and the MSI words stay
-    // zero (MSI mode Off).
-    let dc = phys_to_virt(s.ddt + rid as u64 * s.dc_bytes) as *mut u64;
-    // SAFETY: ddt is a kernel-owned frame; rid is bounds-checked above.
+    // zero (MSI mode Off). The words themselves come from `device_context`, which is pure so
+    // the harnesses below can prove what they say; this function only decides the order.
+    let dc = phys_to_virt(s.ddt + offset) as *mut u64;
+    // SAFETY: ddt is a kernel-owned frame; `context_offset` bounds rid so the whole
+    // `dc_bytes`-long entry lies inside it.
     unsafe {
-        core::ptr::write_volatile(dc.add(1), 0); // iohgatp: Bare
-        core::ptr::write_volatile(dc.add(2), (pscid as u64) << TA_PSCID_SHIFT); // ta
-        core::ptr::write_volatile(dc.add(3), FSC_MODE_SV39 | (root >> 12)); // fsc = iosatp
+        core::ptr::write_volatile(dc.add(1), words[1]); // iohgatp: Bare
+        core::ptr::write_volatile(dc.add(2), words[2]); // ta
+        core::ptr::write_volatile(dc.add(3), words[3]); // fsc = iosatp
         if s.dc_bytes == 64 {
-            for i in 4..8 {
-                core::ptr::write_volatile(dc.add(i), 0); // msiptp, mask, pattern, reserved
+            for (i, &w) in words.iter().enumerate().skip(4) {
+                core::ptr::write_volatile(dc.add(i), w); // msiptp, mask, pattern, reserved
             }
         }
     }
     crate::arch::direct_memory_access_write_barrier();
     // SAFETY: as above.
     unsafe {
-        core::ptr::write_volatile(dc, DC_TC_V); // tc: valid, faults reported (DTF clear)
+        core::ptr::write_volatile(dc, words[0]); // tc: valid, faults reported (DTF clear)
     }
     crate::arch::direct_memory_access_write_barrier();
 
     // Invalidate the cached context and every translation, then fence: the IOMMU's IODIR covers
     // its device-context cache, IOTINVAL.VMA (no address, no PSCID: everything) its address
     // translation cache, IOFENCE.C orders both before any later transaction.
-    cmd_push(
-        s,
-        CMD_IODIR_INVAL_DDT | CMD_DV | ((rid as u64) << CMD_DID_SHIFT),
-        0,
-    );
+    cmd_push(s, iodir_inval_ddt(rid), 0);
     cmd_push(s, CMD_IOTINVAL_VMA, 0);
     cmd_push(s, CMD_IOFENCE_C, 0);
 }
@@ -376,4 +428,154 @@ pub fn take_fault() -> Option<Fault> {
         code: (hdr & 0xfff) as u32,          // CAUSE, bits [11:0]
         addr: iotval,
     })
+}
+
+/// The RISC-V IOMMU's counterpart to the SMMUv3's proofs in `arch/aarch64/iommu.rs`, from
+/// milestone 432 (the RISC-V IOMMU driver has no counterpart to the SMMU's proofs).
+///
+/// **These run on an aarch64 host, never on riscv64.** Kani compiles for the host and no host here
+/// is riscv64, so this file reaches the prover through a proof-only module in `arch/mod.rs` that
+/// exists only under `cfg(all(kani, target_arch = "aarch64"))`. Two consequences a reader must
+/// carry:
+///
+/// - **Inside that module `crate::arch` is aarch64's.** This file's `phys_to_virt` and write
+///   barrier resolve to the host's, so nothing that calls through `crate::arch` is proved here, and
+///   neither harness calls anything that does: `device_context`, `is_in_directory`,
+///   `context_offset` and `iodir_inval_ddt` are word arithmetic on their arguments, this file's
+///   constants and `page_frames::FRAME_SIZE`. `script/lint` fails if this file gains a `crate::arch` reference it has not recorded, because that is the
+///   moment a future harness could start proving aarch64's code while reading as riscv64's. See
+///   notes/kernel-proofs.md, stub-list item 8.
+/// - **The register offsets and bit constants are not proved and cannot be**, exactly as on the
+///   SMMU side: the harnesses read fields back at the positions the RISC-V IOMMU specification
+///   (v1.0.1, ch. 3) gives them, and if that reading is wrong the code and the proof are wrong
+///   together. The boot-time confinement test in `kernel/src/virtio.rs` is not made redundant.
+///
+/// **Why these properties and not the SMMU's** (milestone 432's "what it is not"). The SMMU splits
+/// a 64-bit address across two 32-bit words that share a word with control bits; this device
+/// context is written in whole 64-bit stores, so that hazard does not exist here. What does exist is
+/// the same pair of questions in this format's shape: does the context name exactly the domain the
+/// seam built (address, tag, and a mode that is still translating), and can one requester id's
+/// entry, or its invalidation, land on another's.
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    /// A RISC-V physical address is at most 56 bits (a 44-bit PPN of 4 KiB pages), which is also
+    /// the width of `iosatp`'s PPN field. Spelled once so the assumption and the field agree.
+    const PA_BITS: u32 = 56;
+
+    /// **The IOMMU is handed exactly the domain the kernel built, and it is still translating.**
+    ///
+    /// `fsc` is `iosatp`: MODE in bits [63:60], reserved zero in [59:44], the root's PPN in
+    /// [43:0]. Two failures live in that word. The PPN can be wrong, in which case the IOMMU walks
+    /// some other table; or MODE can stop being Sv39 (8), and MODE 0 is **Bare**, which is
+    /// translation switched off rather than pointed somewhere wrong. The first half is stated for
+    /// EVERY `root`, with no assumption, because "no address can turn translation off" is the
+    /// claim worth having unconditionally. The rest assumes what `attach`'s caller establishes and
+    /// nothing checks: the root is a page frame below 2^56.
+    ///
+    /// `ta.PSCID` is the tag the IOMMU's address translation cache keys on. A wrong tag is
+    /// invisible to every test here: the confinement test attaches one device and `attach`
+    /// invalidates the whole cache after every write, so two domains sharing a tag never both
+    /// have live entries. It would matter the day invalidation is narrowed to one PSCID.
+    ///
+    /// Falsification: replayable `kernel/falsifications/arch.riscv64.iommu.proofs.the_iommu_is_handed_exactly_the_domain_the_kernel_built.patch`
+    #[kani::proof]
+    fn the_iommu_is_handed_exactly_the_domain_the_kernel_built() {
+        let root: u64 = kani::any();
+        let pscid: u16 = kani::any();
+
+        let dc = device_context(root, pscid);
+        assert!(
+            dc[3] >> 60 == 8,
+            "iosatp.MODE is Sv39 for every root: no address bit can turn translation off"
+        );
+
+        // `root` comes from `paging::domain`, so a page frame, and from RAM, so a real address.
+        kani::assume(root % page_frames::FRAME_SIZE == 0);
+        kani::assume(root < 1 << PA_BITS);
+
+        // Stated on the whole address rather than on the shifted field, so the harness does not
+        // repeat the implementation's `>> 12` back to itself.
+        assert!(
+            (dc[3] & ((1 << 44) - 1)) << 12 == root,
+            "iosatp.PPN is the table root entire"
+        );
+        assert!(
+            (dc[3] >> 44) & 0xffff == 0,
+            "iosatp's reserved bits [59:44] are zero: no address bit reached them"
+        );
+        assert!(
+            (dc[2] >> 12) & 0xf_ffff == pscid as u64 && dc[2] & !(0xf_ffff << 12) == 0,
+            "ta.PSCID is this domain's tag, and nothing else in ta is set"
+        );
+        assert!(
+            dc[0] == 1,
+            "tc.V is set and nothing else: DTF clear, so faults are reported"
+        );
+        assert!(
+            dc[1] == 0,
+            "iohgatp is Bare: no second stage to translate through"
+        );
+        assert!(
+            dc[4..].iter().all(|&w| w == 0),
+            "the extended format's MSI words are zero, msiptp.MODE Off"
+        );
+    }
+
+    /// **No device can reach another device's context, or invalidate the wrong one.**
+    ///
+    /// `context_offset` is the whole of the directory's addressing and its `assert!` is the only
+    /// thing between a requester id and a raw write. The stride depends on a capability bit read
+    /// at run time (64 bytes with `MSI_FLAT`, 32 without), so the bound has to agree with the
+    /// stride in both formats, not only in the one QEMU happens to run; the base format has run
+    /// zero times (the module's BUGS). Both formats are taken symbolically here.
+    ///
+    /// The invalidation is the second half of the same question. `IODIR.INVAL_DDT` names the
+    /// device in a 24-bit DID field; if it named a different device, or omitted DV (which means
+    /// "every device"), the old context could stay cached for the device just re-attached. The
+    /// assertion is that the command decodes, at the spec's positions, to this device and no other.
+    ///
+    /// Falsification: replayable `kernel/falsifications/arch.riscv64.iommu.proofs.no_device_can_reach_another_devices_context.patch`
+    #[kani::proof]
+    fn no_device_can_reach_another_devices_context() {
+        let a: u32 = kani::any();
+        let b: u32 = kani::any();
+        let extended: bool = kani::any();
+        let dc_bytes: u64 = if extended { 64 } else { 32 };
+        // A PCIe requester id is 16 bits (`pci::Bdf::requester_id`).
+        kani::assume(a <= u16::MAX as u32 && b <= u16::MAX as u32);
+        // Anything `context_offset` refuses panics rather than answering wrongly; restrict to what
+        // it admits, asked through the same predicate rather than restated, so a bound that drifts
+        // from the stride turns this red instead of being assumed away.
+        kani::assume(is_in_directory(a, dc_bytes) && is_in_directory(b, dc_bytes));
+
+        let (oa, ob) = (context_offset(a, dc_bytes), context_offset(b, dc_bytes));
+        assert!(
+            oa + dc_bytes <= page_frames::FRAME_SIZE,
+            "every context the bound admits lies inside the directory's single frame"
+        );
+        assert!(
+            oa % 8 == 0,
+            "every context starts on the 8-byte boundary its 64-bit stores need"
+        );
+        assert!(
+            a == b || oa + dc_bytes <= ob || ob + dc_bytes <= oa,
+            "two different devices never share a byte of the directory"
+        );
+
+        let cmd = iodir_inval_ddt(a);
+        assert!(
+            cmd & 0x7f == 3 && (cmd >> 7) & 0b111 == 0,
+            "the command is IODIR.INVAL_DDT"
+        );
+        assert!(
+            (cmd >> 33) & 1 == 1,
+            "DV is set, so the DID field is honoured"
+        );
+        assert!(
+            cmd >> 40 == a as u64,
+            "the invalidation names exactly the device just attached"
+        );
+    }
 }

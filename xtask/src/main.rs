@@ -34,6 +34,7 @@ mod card_check;
 mod confirm;
 mod disk;
 mod disk_check;
+mod disk_throughput;
 mod farm;
 mod host;
 mod icount;
@@ -78,7 +79,7 @@ const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 /// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
 /// `helpers/qemu-runner-x86_64.sh`, exactly as the RISC-V one is, and since item 4's hand-off this
 /// const also builds the third userspace archive: `initrd-x86` compiles `user` for it and
-/// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port.md.
+/// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port/userspace.md.
 const X86_TARGET: &str = "x86_64-unknown-none";
 
 /// Whether this run builds optimized binaries. Only `bench --release` sets it (a fair cross-OS
@@ -235,6 +236,9 @@ fn main() -> ExitCode {
         // The multi-tasking workload sweep under QEMU (milestone 168). Returns its own exit code
         // for `soak-test`'s reason: a rehearsal that cannot say *how* it failed is not a rehearsal.
         "job-mix" => return job_mix_sweep(),
+        // Fatal risk 6's bench boot (milestone 261 (the NVMe driver leaves the kernel)): stage the stick image and rehearse its four
+        // verdicts under OVMF. Name provisional. See xtask/src/disk_throughput.rs.
+        "disk-throughput" => return disk_throughput::disk_throughput(),
         // The card's U-Boot script (milestone 218): what makes the board boot without a person at
         // its prompt. `script/board-image` calls this; it is a separate verb so the script it
         // produces can be rebuilt and read on its own.

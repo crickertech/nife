@@ -969,8 +969,17 @@ pub const INIT_TEST_SGI: u32 = crate::arch::irq::SELF_TEST_VECTOR as u32;
 /// armed this constant there enabled an unrelated source, proven on silicon when a key press at
 /// boot 13's completed tour reached nothing (notes/visionfive2.md, BUGS). This number is what a
 /// tree that does not say falls back to, which on QEMU is also the right answer.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "aarch64")]
 pub const UART_RX_INTID: u32 = 33;
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "riscv64")]
 pub const UART_RX_INTID: u32 = 10;
 /// `x86_64`: COM1 is ISA IRQ 4, which has been true since the PC/AT and is what QEMU's `q35`
@@ -978,6 +987,11 @@ pub const UART_RX_INTID: u32 = 10;
 /// two questions rather than one: which IO APIC input the legacy IRQ was remapped to (the ACPI
 /// MADT's interrupt source overrides say, and this port does not read them), and which IDT vector
 /// that input is programmed to raise. 4 is the legacy line, not either of those.
+///
+/// Name: provisional, flagged 2026-09-25 by the lane that re-derived the x86 port falsifications
+/// (design/naming/boolean-predicates-worklist.md, "`rx` and `tx`"). calef asked what `rx` stands
+/// for in his #1255 review; recommended `UART_RECEIVE_INTID`; `INTID` is the GIC's own term and
+/// stays.
 #[cfg(target_arch = "x86_64")]
 pub const UART_RX_INTID: u32 = 4;
 
@@ -1071,9 +1085,10 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 /// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
-/// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
-/// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way. The
-/// program's own name is overdue and is calef's; see that file's `BUGS`.
+/// Name: provisional (milestone 266 (one progenitor, on all three architectures)): a constant
+/// rather than a program, but it is the name a reader meets at eight call sites, and
+/// `kernel::user::tests` already spelled it this way. The program's own name is overdue and is
+/// calef's; see that file's `BUGS`.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const HELLO_ENTRY: &str = "hello";
 
@@ -1666,7 +1681,7 @@ fn x86_build_child(
 /// And then both regions are destroyed and the frame count is compared, because a userspace that
 /// leaks its processes is not one.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 #[cfg(target_arch = "x86_64")]
 pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
     let before = crate::memory::free_page_frames();
@@ -1909,7 +1924,10 @@ pub fn riscv_uart_driver_demo(
 /// slot 2, the wall clock page read-only at slot 3 (milestone 51's wiring), the inert-configuration
 /// page read-only at slot 4 (milestone 47's environment-variable fork, DECISIONS §111), the file
 /// service and the page its clients share at slots 5 and 6 when a RedoxFS disk is attached (milestone
-/// 50), the virtio-rng trio at 7-9 and the graphical terminal stack at 10-12 when each is present.
+/// 50), the virtio-rng trio at 7-9, the graphical terminal stack at 10-12 and the virtio-net trio
+/// at 13-15 (milestone 590 (the booted system starts its network stack)) when each is present.
+/// That fills sixteen of the table's
+/// twenty-four slots at spawn, which is why the progenitor spends the net trio before anything else.
 /// `components/src/progenitor.rs`'s single `GRANTS` table reads exactly this. Until milestone 166
 /// aarch64's boot carried two extra capabilities at slots 1 and 3 (a report endpoint and a test
 /// interrupt) that the interactive system never used, only because its loader was shared with
@@ -1925,7 +1943,7 @@ pub fn riscv_uart_driver_demo(
 /// - **Arming the interrupt controller.** aarch64's GIC has no boot-hart lottery, so its UART line
 ///   is enabled inline before the thread is built and its virtio-rng source as its caps are inserted;
 ///   riscv64 enables the PLIC source and supervisor external interrupts only after the driver is
-///   running, because the lottery forbids arming earlier (see [`VirtioRngGrant::intid`]); `x86_64`
+///   running, because the lottery forbids arming earlier (see [`VirtioBootGrant::intid`]); `x86_64`
 ///   arms nothing here, because it has no userspace input driver to feed until DECISIONS §149.
 ///
 /// Returns the progenitor's thread, so the caller can say how it left.
@@ -1943,7 +1961,13 @@ pub fn riscv_uart_driver_demo(
 // them: a `soak` or `job_mix` build replaces the hand-off with its own workload, and `test`/`bench`
 // park before it.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    any(
+        test,
+        feature = "bench",
+        feature = "soak_test",
+        feature = "job_mix",
+        feature = "disk_throughput"
+    ),
     allow(dead_code)
 )]
 pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId, LoadError> {
@@ -2229,6 +2253,45 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         .expect("insert the keyboard driver's endpoint");
         assert_eq!(s12, 12);
     }
+    // **The network card** (slots 13-15, milestone 590 (provisional)), when this boot has a
+    // virtio-net device on the MMIO bus: the virtio-rng trio's shape exactly, three slots past the
+    // graphical stack's own, explicit for the same reason those are (every conditional grant
+    // before these would otherwise shift them). GRANT on all three, because the progenitor's only
+    // use for them is to delegate them into the `net_stack` it builds and then delete its own
+    // copies; see `crates/system_initializer`'s network block. `None` on every real board today and
+    // on any run with `NIFE_NET` unset, and the progenitor's probe tells that apart the way it
+    // tells a missing virtio-rng apart. See [`boot_virtio_net_device`].
+    let virtio_net = boot_virtio_net_device();
+    if let Some(g) = &virtio_net {
+        let s13 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::virtio_cap_rights(g.vid, Rights::WRITE.union(Rights::GRANT)),
+            Some(13),
+        )
+        .expect("insert the virtio-net transport");
+        assert_eq!(s13, 13);
+        let s14 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::irq_cap_rights(g.intid, Rights::READ.union(Rights::GRANT)),
+            Some(14),
+        )
+        .expect("insert the virtio-net interrupt");
+        assert_eq!(s14, 14);
+        let s15 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::page_frame_cap(
+                g.dma,
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
+            Some(15),
+        )
+        .expect("insert the virtio-net DMA page");
+        assert_eq!(s15, 15);
+        // aarch64 arms inline, riscv64 at the PLIC after the start below: the virtio-rng
+        // source's split, for its reason.
+        #[cfg(target_arch = "aarch64")]
+        crate::arch::irq::enable(g.intid);
+    }
     // **Say that this boot worked**, if a chooser started it (rung 2b of milestone 198's other
     // half). Here and not a line earlier or later, and the position is the mechanism: the
     // filesystem server above has mounted the installed disk and reported ready, which is as late
@@ -2261,14 +2324,18 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
     {
         crate::drivers::plic::enable(uart_irq, crate::arch::irq::boot_s_context());
         // The virtio-rng device's own source, pinned to the same boot-hart context for the same
-        // reason (`notes/harts-and-pes.md`'s hart lottery; see [`VirtioRngGrant::intid`]'s own doc).
+        // reason (`notes/harts-and-pes.md`'s hart lottery; see [`VirtioBootGrant::intid`]'s own doc).
         if let Some(g) = &virtio_rng {
+            crate::drivers::plic::enable(g.intid, crate::arch::irq::boot_s_context());
+        }
+        // The NIC's, for the same reason (milestone 590 (provisional)).
+        if let Some(g) = &virtio_net {
             crate::drivers::plic::enable(g.intid, crate::arch::irq::boot_s_context());
         }
         crate::arch::exceptions::enable_external();
     }
     #[cfg(target_arch = "x86_64")]
-    let _ = &virtio_rng;
+    let _ = (&virtio_rng, &virtio_net);
     Ok(tid)
 }
 
@@ -2524,10 +2591,11 @@ fn boot_clock_page() -> u64 {
 }
 
 /// The confined transport, the completion interrupt, and the DMA page's physical base, for a
-/// virtio-rng device this kernel discovered and wired at boot. Returned to the caller rather than
+/// virtio device (the rng, or since milestone 590 (provisional) the NIC) this kernel discovered and
+/// wired at boot. Returned to the caller rather than
 /// stored, because `crate::sched::grant`'s next-free-slot placement means the caller decides
 /// exactly where these land relative to whatever else it has already granted.
-struct VirtioRngGrant {
+struct VirtioBootGrant {
     /// The `Virtio` capability's id (`crate::virtio::register`'s return value).
     vid: usize,
     /// The device's completion interrupt. **Routed** (`crate::sched::bind_irq`) but not yet
@@ -2538,23 +2606,27 @@ struct VirtioRngGrant {
     /// already follows), so the caller does that part itself, the same place it already enables
     /// `uart_irq`.
     intid: u32,
-    /// The DMA region's physical base. `entropy.rs` needs this as a plain value (it builds virtio
+    /// The DMA region's physical base. `entropy.rs` (and `net_stack`) needs this as a plain value
+    /// (it builds virtio
     /// ring descriptors, which are physical-address-based by the spec, not a fact any capability
     /// exposes), and there is no fourth `START` argument word to carry it across the kernel/progenitor
     /// boundary (`start_thread_control_block`'s own `[u64; 3]`, already spent on
     /// `role`/`initrd_len`/`fs_rights`). So it travels the way the page's *contents* already do: written
-    /// into the page itself at [`VIRTIO_RNG_DMA_PHYS_OFFSET`], which the progenitor reads back out once,
+    /// into the page itself at [`VIRTIO_DMA_PHYS_OFFSET`], which the progenitor reads back out once,
     /// after mapping the granted frame briefly, and relays to entropy's own `arg1` exactly the way
     /// it already relays `fs_rights`.
     dma: u64,
 }
 
-/// Where [`boot_virtio_rng_device`] writes the DMA region's own physical base, inside that same
-/// region. Entropy's ring (`components/src/entropy.rs`'s `Q_DESC`/`Q_AVAIL`/`Q_USED`) and its one pool
-/// buffer (`components/src/entropy.rs`'s own `POOL_OFF` 0x400, `POOL_LEN` 256 bytes) together reach no
-/// further than byte 0x500 of the page; this sits in the 2816 bytes past that, as far from both as
-/// the page allows, so a future widening of either has room to move without colliding.
-const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
+/// Where [`boot_virtio_mmio_device`] writes the DMA region's own physical base, inside that same
+/// region. Shared by both devices the interactive boot grants this way, and safe for both for the
+/// same reason: neither driver's layout reaches the page's tail. Entropy's ring
+/// (`components/src/entropy.rs`'s `Q_DESC`/`Q_AVAIL`/`Q_USED`) and its one pool buffer (`POOL_OFF`
+/// 0x400, `POOL_LEN` 256 bytes) end at byte 0x500; `net_stack`'s two rings and four frame buffers
+/// (`components/src/net_transport.rs`'s `BUF_BASE` 0x400 plus four `BUF`s of 0x2C0) end at 0xF00.
+/// This sits in the last eight bytes, past both, so a future widening of either has room to move
+/// without colliding. `crates/system_initializer`'s `VIRTIO_DMA_PHYS_OFFSET` is the reader's copy.
+const VIRTIO_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 
 /// **Discover and wire a virtio-rng device on the MMIO bus, for the interactive boot's own use**
 /// (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a
@@ -2576,27 +2648,49 @@ const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 /// is the one that builds the entropy service: `crates/system_initializer`'s own ELF loader, the
 /// tree's only one (milestone 96), and that crate's own header says why a second loader would be
 /// the wrong shape.
-fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
-    let d = crate::virtio::find_entropy_device()?;
-    // Zeroed first, so no stale descriptor or buffer content is visible to the device or to
-    // entropy's own first read.
+fn boot_virtio_rng_device() -> Option<VirtioBootGrant> {
+    boot_virtio_mmio_device(crate::virtio::find_entropy_device()?)
+}
+
+/// **The same for the network card** (milestone 590 (provisional), the booted system starts its
+/// network stack; promoted from the proposal `the-booted-system-has-no-network`). `None` on a boot
+/// with no virtio-net device on the MMIO bus: every real board today, and every QEMU run with
+/// `NIFE_NET` unset. The progenitor builds `net_stack` from these three and nothing else, exactly
+/// as it builds entropy from the rng's three.
+///
+/// **The MMIO NIC, not the PCIe one**, for [`boot_virtio_rng_device`]'s reason, and with a cost
+/// that one does not carry: the MMIO NIC has no IOMMU in front of it, so the confinement of this
+/// device's DMA is the transport's shadow-ring validator alone, not the SMMU of DECISIONS §20
+/// (IOMMU-backed DMA isolation: one seam, two arch drivers). The runners attach both NICs under
+/// `NIFE_NET`; the PCIe one sits unclaimed on this boot. See
+/// milestone 590's block for why that is recorded rather than fixed here.
+fn boot_virtio_net_device() -> Option<VirtioBootGrant> {
+    boot_virtio_mmio_device(crate::virtio::find_net_device()?)
+}
+
+/// The shared body of [`boot_virtio_rng_device`] and [`boot_virtio_net_device`]: a zeroed DMA frame
+/// with its own physical base written at [`VIRTIO_DMA_PHYS_OFFSET`], the interrupt routed but not
+/// enabled, and the transport registered with the kernel, confined to that one frame.
+fn boot_virtio_mmio_device(d: crate::virtio::VirtioMmioDevice) -> Option<VirtioBootGrant> {
+    // Zeroed first, so no stale descriptor or buffer content is visible to the device or to the
+    // driver's own first read.
     let dma = crate::memory::alloc_contiguous_zeroed(1)
-        .expect("no DMA frame for virtio-rng")
+        .expect("no DMA frame for a boot virtio device")
         .addr();
-    // The physical base is written into the tail of the same page, at an offset entropy's own
-    // ring-and-buffer layout never reaches (see [`VIRTIO_RNG_DMA_PHYS_OFFSET`]'s own doc).
+    // The physical base is written into the tail of the same page, at an offset neither driver's
+    // ring-and-buffer layout reaches (see [`VIRTIO_DMA_PHYS_OFFSET`]'s own doc).
     //
     // SAFETY: `dma` is a fresh frame, direct-mapped and owned by nobody else yet, and
-    // `VIRTIO_RNG_DMA_PHYS_OFFSET + 8` is inside `FRAME_SIZE`, so the write stays in the frame.
+    // `VIRTIO_DMA_PHYS_OFFSET + 8` is inside `FRAME_SIZE`, so the write stays in the frame.
     unsafe {
         core::ptr::write_unaligned(
             (mmu::phys_to_virt(dma) as *mut u8)
-                .add(VIRTIO_RNG_DMA_PHYS_OFFSET as usize)
+                .add(VIRTIO_DMA_PHYS_OFFSET as usize)
                 .cast::<u64>(),
             dma,
         );
     }
-    // Routed, not yet enabled; see [`VirtioRngGrant::intid`]'s own doc for why enabling is the
+    // Routed, not yet enabled; see [`VirtioBootGrant::intid`]'s own doc for why enabling is the
     // caller's job.
     crate::sched::bind_irq(d.intid, crate::sched::create_rendezvous());
     let vid = crate::virtio::register(
@@ -2607,7 +2701,7 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
         FRAME_SIZE,
         None,
     );
-    Some(VirtioRngGrant {
+    Some(VirtioBootGrant {
         vid,
         intid: d.intid,
         dma,

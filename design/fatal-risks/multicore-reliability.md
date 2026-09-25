@@ -67,15 +67,19 @@ That cuts against the claim's second clause, and it is the strongest evidence th
   passes only when the pre-fix protocol still double-frees.
 - A boot-core-identity defect that failed `every_secondary_runs_scheduled_work` about half the time
   at two cores on x86_64, found and fixed under QEMU by milestone 316 (which core booted).
-- A port revocation that did not reach every core, found the same way and fixed on 2026-09-23 by
-  milestone 315 (a port revoke that reaches every core). `PortRange::REVOKE` cleared the capability
-  under `IPC_TABLES` but reset the TSS I/O bitmap on the revoker's core only, leaving a window until
+- A port revocation that did not reach every core. Milestone 313 (the security audit that was due
+  since August) raised it first, as its finding 4 on 2026-09-17. It was then reproduced under QEMU
+  and fixed on 2026-09-23 by milestone 315 (a port revoke that reaches every core).
+  `PortRange::REVOKE` cleared the capability under `IPC_TABLES` but reset the TSS I/O bitmap on the revoker's core only, leaving a window until
   every other core's next switch. Diagnosed from evidence rather than argument: a snapshot at the
   revoke read "revoker on cpu 0, cpu 1 holds a grant" on both captured failures, while 27 passing
   runs had no grant installed elsewhere. The fix resets this core and rides the TLB shootdown's NMI
   to the rest. And moves `install_port_grant` inside the locked region so a core cannot reinstall a
-  grant the sweep just cleared. Proved by 12 of 12 full two-core suites green, 36 boots. Found under
+  grant the sweep just cleared. Proved by 12 of 12 full two-core suites green, 36 boots. Shown under
   QEMU, not on silicon, which is the fourth such case and bears on this risk's premise below.
+  *(Corrected 2026-09-25 under §216 (fatal-risk facts are correctable, and verdicts are the architect's): this said "found the same way", meaning under QEMU. The audit
+  found it first and accepted the window on reasoning; QEMU showed it red afterwards, 7 of 12 two-core
+  runs. Sources: milestone 315's block and `notes/multicore-defect-curve.md` row D12.)*
 - A test that hung in two of three full HVF runs and passes in every TCG run and when run alone
   (`notes/hvf-leg.md`), un-diagnosed.
 

@@ -315,6 +315,17 @@ pub mod fixture {
     /// the load-bearing one**: a listener that accepts exactly one connection would pass a
     /// one-round gate and is precisely what a file server cannot use.
     pub const ROUNDS: usize = 2;
+
+    /// **The runners' TCP echo peer**: a `guestfwd` inside QEMU's user-mode network that pipes
+    /// every connection to `10.0.2.9:7777` into a fresh `/bin/cat`
+    /// (`helpers/qemu-runner-aarch64.sh`, and its riscv64 twin). Two binaries connect to it, the
+    /// kernel harness's `socket_test_client` and the prompt's `network_echo_client` (milestone 590
+    /// (the booted system starts its network stack)), which is what put it here rather than in
+    /// each of them. The runners spell it a
+    /// third time for [`LISTEN_PORT`]'s reason.
+    pub const ECHO_PEER_IP: [u8; 4] = [10, 0, 2, 9];
+    /// The echo peer's port; see [`ECHO_PEER_IP`].
+    pub const ECHO_PEER_PORT: u16 = 7777;
 }
 
 #[cfg(test)]

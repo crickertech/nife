@@ -97,6 +97,7 @@ Threads, capabilities, IPC, and how authority ends.
 - [PCIe, and driving a disk over it](pcie.md): the PCIe transport, with the kernel as firmware.
 - [Scoping a PCIe transport](pcie-transport-scope.md): the pre-build scope for PCIe and virtio-pci.
 - [NVMe: the first non-virtio disk](non-volatile-memory-express.md): an NVMe driver confined by the IOMMU alone.
+- [Fatal risk 6's bench evening on xenon](risk-6-bench-evening.md): the confined NVMe driver's preflight, throughput boot and outcomes.
 - [Confining DMA without an IOMMU](dma.md): kernel validation of every descriptor a driver submits.
 - [Confining DMA with an IOMMU](iommu.md): hardware DMA confinement with SMMUv3 and the RISC-V IOMMU.
 - [Block devices: what is attached, and what holding one means](block-devices.md).
@@ -190,6 +191,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md).
 - [Taking a benchmark on radon](footprint-perturbation.md): running the cache-footprint experiments on the small-cache board.
 - [The workload that does not stop](soak.md): a sustained multicore workload whose threads never migrate.
+- [A kernel-initiated reboot on every board](board-reboot.md).
 - [The multicore defect-discovery curve](multicore-defect-curve.md): milestone 201 (is multicore reliability converging)'s data, the format a soak appends to, and every multicore defect so far. Name provisional.
 - [The multi-tasking workload benchmark](job-mix.md): an AIM7-style workload for the process-versus-event kernel question.
 - [Cycle counters on RISC-V, and why nothing here has measured one](riscv-cycle-counters.md).

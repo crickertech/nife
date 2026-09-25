@@ -406,26 +406,11 @@ fn read_csr(csr: u16) -> Option<u64> {
 /// fail; every call here can, and every failure means "there is no cycle counter", which is a fact
 /// the boot line reports rather than one to discard.
 fn sbi_call(fid: usize, args: [usize; 5]) -> (isize, usize) {
-    let error: isize;
-    let value: usize;
-    // SAFETY: an SBI call into M-mode firmware. a7 = extension, a6 = function, a0..a4 = arguments.
-    // The firmware writes a0 (error) and a1 (value) and touches nothing else. `nostack` is right
-    // for the same reason it is at the kernel's other four SBI sites: the callee runs on M-mode's
-    // own stack.
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") EID_PMU,
-            in("a6") fid,
-            inout("a0") args[0] => error,
-            inout("a1") args[1] => value,
-            in("a2") args[2],
-            in("a3") args[3],
-            in("a4") args[4],
-            options(nostack),
-        );
-    }
-    (error, value)
+    let [a0, a1, a2, a3, a4] = args;
+    // SAFETY: the PMU extension configures, starts and stops counters; it changes what the hardware
+    // counts and touches no memory of ours.
+    let ret = unsafe { super::sbi::call(EID_PMU, fid, [a0, a1, a2, a3, a4, 0]) };
+    (ret.error, ret.value)
 }
 
 /// The boot line, printed beside the ISA summary.

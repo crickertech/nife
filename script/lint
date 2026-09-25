@@ -1328,20 +1328,34 @@ echo "script docs: every script documented, every README reference resolves"
 # reinvented: this directory's headers discuss `cargo xtask` constantly. Stripping backticked spans
 # is what keeps `script/lint` (whose only hit is a sentence inside a Python heredoc) and
 # `script/board-netboot` out, correctly, without either of them needing an exemption.
+#
+# BUGS: the token is textual, so an argv built indirectly still escapes it: `CARGO = "cargo"` then
+# `[CARGO, "xtask"]`, or `"xtask"` appended to a list built elsewhere. No entry point does that
+# today; the literal-list form is the one `script/falsifications` used, and it is caught.
 echo "==> the project's QEMU is on PATH"
 python3 - <<'QEMUEOF' || exit 1
 import pathlib
 import re
 import sys
 
-TOKEN = re.compile(r"cargo\s+xtask\b|qemu-system-|helpers/qemu-")
+# The second alternative is the argv-list form, `["cargo", "xtask", ...]`, which a Python entry
+# point builds for `subprocess`. It was missing until 2026-09-25, when `script/falsifications` ran
+# `cargo xtask test` that way without the fragment and this check passed it (PR #1283).
+TOKEN = re.compile(
+    r"cargo\s+xtask\b"
+    r"""|['"]cargo['"]\s*,\s*['"]xtask['"]"""
+    r"|qemu-system-|helpers/qemu-"
+)
 FRAGMENT = "helpers/qemu-path.sh"
 
 def callable_body(path):
     """The file with full-line comments and backticked prose removed."""
     text = path.read_text(errors="replace")
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
-    return re.sub(r"`[^`]*`", "", "\n".join(lines))
+    # A span stops at a newline. Unbounded, one stray backtick paired with the next across dozens of
+    # lines and erased real calls between them, which is the other half of why PR #1283 found
+    # `script/falsifications` unchecked.
+    return re.sub(r"`[^`\n]*`", "", "\n".join(lines))
 
 
 def token_body(path):
@@ -1685,7 +1699,8 @@ def _longest_markdown_line():
     the margin.
 
     It is here because this gate's own author spent it. Documenting the counted-claims check in
-    notes/scripts.md's `script/lint` row, which IS the longest line, took it to 2108 and broke a
+    notes/scripts.md's `script/lint` row (in notes/scripts/build-test-and-gate.md since 2026-09-25),
+    which IS the longest line, took it to 2108 and broke a
     `documentation` render test whose message pointed three hundred lines away at unrelated text. Bytes
     rather than characters, matching what LINE_MAX bounds.
     """
@@ -2388,6 +2403,76 @@ if [ -n "$shared_modules" ]; then
     exit 1
 fi
 
+# 5b. **A file compiled into a proof-only module for another architecture records every
+#     `crate::arch` it names**, from milestone 432 (the RISC-V IOMMU driver has no counterpart to
+#     the SMMU's proofs). `kernel/src/arch/mod.rs` compiles `arch/riscv64/iommu.rs` under
+#     `cfg(all(kani, target_arch = "aarch64"))` so the prover can reach it from an aarch64 host. Inside that module `crate::arch` is aarch64's, not riscv64's, and
+#     nothing says so at the call site: a harness that reaches a `crate::arch` call proves the
+#     host's code while reading as riscv64's, which is the "stub that reads as coverage"
+#     notes/kernel-proofs.md exists to prevent (its stub-list item 8).
+#
+#     The mechanism is a recorded set per file. The references a file has today are listed below
+#     with the reason no harness reaches them; a new one fails here, and the author decides at that
+#     moment whether a harness can reach it. It cannot prove reachability, which is a call graph
+#     and not a grep: it is the tripwire that forces the question to be asked. The file list is
+#     read from the `mod riscv64 { ... }` block itself, so a second file joining the module
+#     without a recorded set fails too. Spellings it cannot see: `use crate::{arch, ...}` is caught
+#     and refused outright, but `super::super::` climbing out of a nested module is caught only
+#     as the literal `super::super`.
+echo "==> proof-only modules: crate::arch is the host's"
+python3 - <<'PY'
+import re, sys
+
+# file (relative to kernel/src/arch/riscv64/) -> the crate::arch paths it may name, and why no
+# harness in it reaches them.
+RECORDED = {
+    "iommu.rs": {
+        # MMIO and DMA-visible memory: `r32`/`w32`/`r64`/`w64`, `zeroed_page_frame`, `attach`,
+        # `cmd_push`, `take_fault`. No harness calls any of them; the harnesses call only
+        # `device_context`, `is_in_directory`, `context_offset` and `iodir_inval_ddt`.
+        "crate::arch::mmu::phys_to_virt",
+        # The write barrier in `attach` and `cmd_push`, neither of which a harness calls.
+        "crate::arch::direct_memory_access_write_barrier",
+    },
+}
+
+mod_rs = open("kernel/src/arch/mod.rs").read()
+block = re.search(r'#\[cfg\(all\(kani, target_arch = "aarch64"\)\)\][^{]*?mod riscv64 \{(.*?)\n\}',
+                  mod_rs, re.S)
+if block is None:
+    print("lint: kernel/src/arch/mod.rs has no proof-only `mod riscv64 { ... }` block, so this check "
+          "read nothing. If the module moved or was removed, update or delete check 5b with it.",
+          file=sys.stderr)
+    sys.exit(1)
+files = [m + ".rs" for m in re.findall(r'\bmod\s+(\w+)\s*;', block.group(1))]
+
+bad = []
+for f in files:
+    src = open("kernel/src/arch/riscv64/" + f).read()
+    found = set(re.findall(r'\bcrate::arch(?:::\w+)+', src))
+    if re.search(r'\bcrate::\{[^}]*\barch\b', src) or "super::super" in src:
+        bad.append(f"{f}: names crate::arch through a grouped `use` or `super::super`, which this "
+                   "check cannot enumerate; spell it `crate::arch::...` so it can")
+    extra = found - RECORDED.get(f, set())
+    if f not in RECORDED:
+        bad.append(f"{f}: compiled into the proof-only module with no recorded set here")
+    for e in sorted(extra):
+        bad.append(f"{f}: {e} is not recorded")
+
+if bad:
+    print("lint: a riscv64 file compiled for the prover on an aarch64 host names crate::arch "
+          "paths nobody has accounted for:", file=sys.stderr)
+    for b in bad:
+        print("  " + b, file=sys.stderr)
+    print("Inside that module crate::arch resolves to aarch64, so a harness reaching one of these "
+          "proves aarch64's code under riscv64's name. If no harness reaches it, add it to "
+          "RECORDED in script/lint check 5b with the reason. If one does, the harness is a fiction: "
+          "restructure it. See notes/kernel-proofs.md, stub-list item 8.", file=sys.stderr)
+    sys.exit(1)
+print(f"proof-only modules: {len(files)} riscv64 file(s) on the aarch64 prover host, every "
+      "crate::arch reference recorded")
+PY
+
 # 6. **`notes/` and `design/` markdown filenames are lowercase and hyphenated** (CLAUDE.md).
 #    They are URL slugs the moment any of this is published, and a hyphen is a word separator in a
 #    URL where an underscore is a joiner. It is also the convention every documentation tree uses
@@ -2679,6 +2764,23 @@ if bad or missing:
     sys.exit(1)
 print(f'markdown: {len(md)} files, every relative link resolves, every note indexed')
 PY
+
+echo "==> the prose ratchet (§212 words, §213 sentences and bold)"
+# Milestone 586 (a prose ratchet in lint). §212 (a prose budget) and §213 (writing standards) were
+# ratified on 2026-09-23 with a ratchet as their enforcement and no gate built, and on 2026-09-24 the
+# word cap slipped twice in one day because nothing checked it: one lane moved facts into eight
+# notes already over the cap and every one of them grew. The measuring, the baseline and the orphan
+# check live in helpers/prose_ratchet.py, whose header is the manual; the document scope there is
+# shared with script/metrics' prose-budget graph, so the gate and the graph count the same files.
+#
+# A document over a limit passes only while it is no worse than design/prose-baseline.tsv and no
+# worse than it was at the merge base, or while it carries a marked exception with a date and a
+# reason. A document missing from the baseline meets the limits outright. The baseline itself may
+# only shrink. When a document improves, `python3 helpers/prose_ratchet.py --bank` lowers its row;
+# nothing forces that, on purpose, because the block names baseline churn as the thing that would
+# make this ratchet cost more than it saves.
+python3 helpers/prose_ratchet.py --selftest
+python3 helpers/prose_ratchet.py --check
 
 echo "==> em-dashes"
 # calef's standing style rule (CLAUDE.md): no em-dashes, use commas, periods, semicolons or

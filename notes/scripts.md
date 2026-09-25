@@ -8,73 +8,115 @@ uses `cargo xtask` and that one uses `make` and the next uses `npm`.
 
 ## The commands
 
+One table per group. Each links to an appendix holding the full row: flags, gates and history.
+
+### Build, test and gate
+
+Full rows, with every flag and the history behind each: [build-test-and-gate.md](scripts/build-test-and-gate.md).
+
 | script | what it does |
 |---|---|
-| `script/bootstrap` | Install every dependency: the pinned Rust toolchain (via rustup, from `rust-toolchain.toml`) and QEMU. Idempotent: it checks first and installs only what is missing. |
+| `script/bootstrap` | Install the pinned toolchain and QEMU. Idempotent. |
 | `script/setup` | First run after a clone: `bootstrap`, then build. |
-| `script/update` | After pulling new code: `bootstrap` (the pinned toolchain can change), then rebuild. |
-| `script/claim <branch-name> [--worktree <dir>] [--title <text>] [--no-claim]` | Cut a lane's branch and worktree, refusing a name that would fail `script/lint`'s check 4 (a near-miss on `milestone/N-slug`) before either exists, instead of after the worktree is built and the work is written. Shares the shape rule with that check through `helpers/branch-name-check.sh` rather than a second copy. `--worktree` overrides the default `~/projects/nife-worktrees/<slug>`; `--title` sets the draft pull request's title and the empty commit's message (default: the branch name). Also makes AGENTS.md §90 (the claim is a draft pull request; the status flip is a gate)'s claim (an empty commit, a push, a draft pull request) unless `--no-claim` stops it at the branch and worktree. **Name provisional.** |
-| `script/decisions` | Index `design/decisions/`; `--check` enforces the numbering, the status vocabulary, that each decision's Status line agrees with its index row, and that every `§N` cited anywhere in the tree resolves. Gated in `script/lint`. |
-| `script/test` | Host-logic crates, then the kernel under QEMU on **both** ISAs. The gate. |
-| `script/verify` | The machine-checked proofs (Kani) over the pure-logic crates. Not in `bootstrap`: Kani pulls its own toolchain and a CBMC backend, so it is installed only where it is used. |
-| `script/bench` | icount microbenchmarks; `--check` fails on >10% drift from `bench/baseline-aarch64.txt`, `--save` rewrites it, `--real` runs under HVF for magnitudes, `--extra-features <name>` (with `--real` only) builds an extra kernel feature alongside `bench` (E3's padded-fastpath latency comparison, milestone 134). |
-| `script/icount` | The instruction-count instrument (milestone 78): boots a `--features icount` kernel under `-icount shift=0,sleep=off` on both ISAs and asserts the two timing claims a wall clock cannot make, because a slow handler and a descheduled emulator look identical from inside the guest. `--arch` narrows it to one leg. Not in `test` (see notes/instruction-clock.md: `-icount` gives every vCPU one shared virtual clock, which is an argument about a boot mode rather than about a command); it IS a `local` row in `ci-build`, and CI runs it beside `bench --check`. This cell read "not in `test` or `gates`" for a month after milestone 62 put it in the set a developer runs. |
-| `script/roadmap` | Index the milestones; `--check` validates the status vocabulary and catches a block with no row, or a milestone cited in prose the table does not carry. Also gates milestone 247's `## Follow-on` section on every finished block, so the work a milestone named on its way out cannot go nowhere. `--ready` lists what a lane could start today; `--unclaimed` lists follow-on work nobody took; `--outstanding` lists what each PARTIAL milestone still says is left (milestone 252); `--proposed` lists the unnumbered proposals in `design/roadmap/proposals/`, oldest first, which anybody may add to without coordinating. Gated in `lint`. |
-| `script/journeys` | A third instance of `script/roadmap`/`script/decisions`'s pattern, one level up: reports progress against the end-to-end user journeys in `design/journeys/`, computed fresh every run from the roadmap and decisions indices rather than hand-maintained (`design/journeys/README.md` explains why). No arguments lists every journey with a one-line rollup; a journey's slug prints its full step-by-step detail; `--check` validates that every cited milestone and decision resolves. Not yet gated in `lint`, since a journey's steps are a human's editorial claim about what a story needs, not a fact `--check` can be wrong about the way `script/roadmap`'s row-link check can. |
-| `script/citations` | The third citation gate, and the only one that reads the target: a `§N (gloss)` or `milestone N (gloss)` must match that record's own title or quote its body, and an attributed block quote must still exist in the file it names. The other two prove a citation resolves to *some* entry; this proves it resolves to the right one. `--check` gates it in `lint`, and `--ratchet` gates the lines a branch adds: a citation on one of them has to say what it cites, once per number per file. `--census` counts the backlog neither of those sees, which is every citation carrying no gloss at all. `--moved` is the one mode that cannot fail: when this branch flips a milestone's status it prints the notes and design pages citing that milestone, so the lane that knows what the milestone now makes true is the one asked to look (milestone 385 (when a milestone's status flips, tell the lane which notes cite it)). It reports and never gates, because it cannot tell a stale sentence from a current one. See notes/citations.md. |
-| `script/fatal-risks` | Does `design/fatal-risks.md` still agree with the records it cites? The falsification list is prose ABOUT milestones and decisions, and until milestone 275 nothing read the two together: its own `BUGS` said so, and a 2026-09-10 review found the warning firing four ways at once. Compares a risk's stated verdict, the running order's struck rows, and any status word it spells out against `script/roadmap`'s and `script/decisions`' own output, and reports a risk entry last dated before a milestone it cites turned BUILT. `--check` gates it in `lint`, on the ground that drift here is always caused by an in-tree edit, which is the test `script/cadence-check` fails and this passes; `--selftest` drives all eight checks against fixtures built to trip them and three near-misses that must stay quiet, and `lint` runs that too, because a green check and a dead one print the same line. **Cannot see a premise going stale**, which is the larger half and stays a person's job. **Name provisional.** |
-| `script/catch-up [<since>]` | What changed since you last looked: milestone status transitions, milestones newly minted, decisions landed or revised, what is waiting on calef, what is ready to start, and the notes that carry the why. `<since>` is a date (`2026-08-01`) or any git rev; the default is seven days, which is a trip. A **derived view**, never a maintained one, for the reason `notes/session-handoff.md` demonstrates: a hand-written "current state" document rots, and this one is recomputed from the roadmap, the decisions and git every time it runs. Reports what it could not read and why, since the structures it reads are young enough that an old window genuinely cannot be answered in full. |
-| `script/apropos <word>` | **Search every document in this repository and say where each one lives** (milestone 40): 512 pages and five megabytes, every note, decision, roadmap block and repository-root document, plus every crate's and program's own module header. It is the guest's `apropos` builtin pointed at a checkout instead of at the six pages the filesystem image installs, and it is deliberately the **same** index and the same reader (`documentation::index::build`, `documentation::index::search`), so a defect in the layout shows up in both places. What differs is what a result names: at the nife prompt it names a page in the store you can open there, and here it names a path in this repository. It exists because of milestone 117's finding rather than for tidiness: three strangers reached neither `notes/net.md` nor `notes/capabilities.md` nor any `design/decisions/` file by following the tree, and none found `crates/abi/src/lib.rs`. Whole words only, no stemming, sixteen results, ranked by occurrence count; the header of the script carries the rest of its `BUGS`. **The name is provisional.** See [documentation.md](documentation.md). |
-| `script/names` | Who named this, when, and what was refused. Reads the `Name:` block every crate, program, `script/` entry point and Cargo package carries in its own header (a package's lives in its `Cargo.toml`, the one file every package must have), so the table is computed rather than maintained. The first three kinds are directory listings; `package` is discovered by walking for `Cargo.toml` outside `crates/`, so one arriving tomorrow is covered without editing the script. `helpers/` helpers are out of scope on purpose and design/naming.md's BUGS section prices the refusal. Each block is one of four words: `ratified` (calef ruled), `recorded` (the tree argues the name and cites where, but nobody put it to him), `provisional` (whoever chose it expects it to change; §89 (`provisional` becomes the fourth provenance state), 2026-08-16) or `unrecorded` (nothing says why). `--unratified` is the worklist, the last two states ordered by exposure: programs, then crates, then packages, then `script/`, and within a tier the unrecorded first. `--refused` lists every refused name and what holds the refusal, which is the query a proposer makes; `--unrecorded` is the narrower slice where research is still owed; `<name>` answers for one name, from the refusals as well as from the tree; `--check` fails the build on a name with no block and **never on a name that is merely unratified**, and is gated in `lint`. **The name of this script is provisional**, as is `--unratified`. See [naming.md](../design/naming.md). |
-| `script/metrics` | **What moved, week by week.** One CSV per measure under `notes/project-metrics/`, one row per ISO week in each, and the committed SVGs [`notes/project-metrics.md`](project-metrics.md) renders, which is the half of [`register-of-measures.md`](register-of-measures.md) that changes. Milestones and decisions by status, code against comment lines with `kernel/src` split out, `BUGS` sections, Kani harnesses and what can falsify them, `unsafe` density, how many fatal risks have been put to an experiment, and how far the tree's prose runs over its own 3,000-word prose cap. `--backfill` walks history and `--update` recomputes the current week; both are **idempotent**, because every file is rewritten from a dictionary keyed by week rather than appended to, and `--check` is exactly that comparison. Milestone 581 (one metrics file per measure) split the data, so a new measure is a new file rather than two more columns on a 58-column line every other metrics branch was also editing; a measure's series begins at the week it was first measured rather than carrying blank cells back to 2026W29. **Nothing here builds or boots**, which is why the whole history costs seconds and why coverage is the one column left blank historically: it needs an instrumented build at every checkout, so it is filled going forward from an lcov file (`--coverage-from`), with the per-file minimum alongside it from `script/coverage`'s own floor summary (`--coverage-min-from`). Deliberately **not** gated in `lint`, since any commit moves `HEAD` and would fail every pull request; the weekly workflow is the mechanism. **Every row is a restatement under today's definitions, not what was reported at the time**, and the page says so on its face. **Name provisional.** See [project-metrics.md](project-metrics.md). |
-| `script/rule-violations` | The violation ledger (milestone 118): totals the strikes recorded in `notes/rule-violations.md` against each documented rule and reports which have reached three. Cannot see a violation happen; it only totals what a table says somebody reported. `--check` fails (non-zero) when an `open` rule reaches the threshold, naming what to do (move the rule up the ladder, or mark it `resolved`) and whose call that is (calef's or the integrator's, never a lane's). **Not wired into `script/lint` or CI**: doing so today would fail the shared gate over an already-crossed threshold that is not a lane's decision to resolve. **Name provisional.** See [rule-violations.md](rule-violations.md). |
-| `script/audits` | Is an audit due? Reads `design/audit-reports/README.md` and counts the tree: milestones built, components, the `crates/abi` constant surface, and the external packages in every committed lockfile. §74's triggers are in the index rather than in the script, so milestone 93 adds documentation sweeps by adding a row. `--due` is the tripwire and exits non-zero when one is overdue, in its own weekly workflow so a due audit never blocks a merge; `--check` is the structural half (the index's two tables agree, every report resolves, every finding carries a disposition) and is gated in `lint`; `--baseline` prints the counts for a new row; `--worklist` ranks documents by how much of the code they cite has moved since they were last edited, which is how a documentation sweep picks its scope (milestone 93, a heuristic with no exit status rather than a signal). It never runs an audit: **red means run the audit**, not "an automation ran it for you". **Name provisional.** See [design/audit-reports/README.md](../design/audit-reports/README.md) and [documentation-audit.md](documentation-audit.md). |
-| `script/cadence-check` | Which scheduled workflows have stopped producing a result? Reports any whose last **successful scheduled** run is more than 15 days old, two weekly cadences plus a day, so one missed Monday is weather rather than news; a workflow too young to have fired is excused by its own creation date. Built for milestone 238 (two scheduled checks have never once succeeded, and one of them is a fatal risk's refresh) after milestone 232 (audit every check against two questions: does anything run it, and does it block) found `mutation testing` red four weeks running and the Miri check red three, holding up a fatal risk whose verdict rests on a weekly report that was never published. **Deliberately not a scheduled workflow**, which is the whole design: a cron that watches crons dies the way its subjects die. Delivery is `helpers/trunk-health.sh`, which runs under `launchd` and could not see this on its own, because its trunk check filters runs to `main`'s current tip and a weekly run matches that tip only until the next merge. Not in `lint` or `gates`, for `script/audits`' recorded reason: a dead cadence is not a defect in the commit that trips it. Since milestone 519 (what this project costs, tracked where it cannot rot) it also carries the one cadence that is **not** a workflow and could not be: whether `script/effort` has captured the current week, asked of the committed file rather than of a run, because a GitHub runner cannot see the session records that capture reads. **Name provisional.** See notes/check-inventory.md. |
-| `script/redo-rate` | How often does work handed to a rented model have to be done again? Reads `notes/delegation/ledger.tsv`, one append-only row per delegated task, and reports the split between clean, defect and redo. **It cannot be a gate and that is the point**: every row in the ledger passed `script/lint`, `script/citations --ratchet` and `script/roadmap --check`, and the defects are the ones no gate can see, a true sentence deleted or two meanings folded into one string. So the verdict is a reviewer's judgement recorded by hand and this script only counts. Built 2026-09-22 alongside the measurement in notes/what-a-session-carries.md: that one says where the tokens go, this one says whether the cheap ones were worth it, and neither means much alone. First five rows: 40% clean, 40% defect, 20% redo. **Name provisional.** |
-| `script/nanny [--survey]` | Works the merge queue by **delegating** it: runs `briefs/survey-the-queue.md` read-only, then `briefs/rebase-onto-main.md` in the worktree of every branch GitHub reports as `DIRTY`. **It does not push and it does not enqueue**, because a conflict resolution is a judgement and nothing here can check which one happened: taking `main`'s baselines rather than hand-merging them is the difference between a correct rebase and a wrong benchmark floor shipped as housekeeping. Built 2026-09-22 after the maintainer measured its own session at 233M tokens a day against 5M for twenty lanes, wrote the rebase brief, measured a delegated rebase at $0.055 with no redo, and then hand-rebased four branches without reaching for it. Each felt too small to delegate, which is `AGENTS.md`'s ladder exactly: the rule was rung four, a resolution held in a head. **A duty that depends on remembering is not a mechanism**, so the default path delegates and doing it by hand now takes more effort than not. Refuses to run without the gateway rather than falling back to the expensive session, because a silent fallback restores the habit. **Name provisional.** |
-| `script/effort [--csv|--snapshot|--update|--check]` | How much machine effort did this project spend, per ISO week? Reads the agent harness's own session records on this machine (`~/.claude/projects/`), deduplicates a streamed response by its request id, and writes `notes/project-metrics/effort.csv`: one row per week and model, tokens split four ways because the API prices them between 0.1x and 2x of each other, and an hours figure that sums in-flight time across parallel lanes and says so. Built for milestone 519 (what this project costs, tracked where it cannot rot), whose deadline is the reason it exists: every other column on the metrics deck is computed from a git revision and backfills, and these records are outside the repository and are discarded. The first capture, 2026-09-21, found 2026W34 onward and found **nothing** for the project's first five weeks; those are recorded as absent, never as zero. `--snapshot` writes a machine-local cache outside the tree so a week outlives its transcripts and is safe to run from `launchd`; `--update` refuses to lower a figure a past week already carries, which is what a pruned transcript looks like. **Not in `lint`**: it reads one machine and would fail everywhere else. **Name provisional.** |
-| `script/stranger-test` | Hand this repository to a process that has never seen it, and record what it could not work out (milestone 117). Clones at a commit **inside** the stranger's working directory rather than as it, which is the whole isolation: project instructions load from ancestors and never from descendants, so no `AGENTS.md` arrives at turn zero while the file is still in its tree to be opened. Withholds the answer key, keeps its own artifacts in a sibling directory with no run number in any path element, scopes `pkill` and `killall` to this clone's QEMU, **probes the isolation rather than assuming it**, tells the stranger it is being measured, debriefs it, and puts the account-wide `nife-dev` link back where it found it. `--prepare-only` builds the tree and stops; `--smoke` exercises the pipeline with a trivial task and is not a measurement. **The run is never in CI and never can be**: it spawns a `claude` process, spends real budget, needs the toolchain and both QEMUs, and ends in a debrief a person scores. What is in CI is the cadence, calef's monthly decision of 2026-08-18 made mechanical: `--due` exits non-zero when a run is owed and lives in its own weekly workflow so a due run never blocks a merge, and `--check` (the cadence sentence appears once, the run headings are numbered without a gap and in date order) is gated in `lint`. Both read the interval and the last run's date out of the note, so the schedule and the record cannot disagree; neither runs the test, and **red means run it**. **Name provisional.** See [stranger-test.md](stranger-test.md). |
-| `script/board-console [--board N] [--until S]` | Read a real board's serial console (milestone 216): open the port at 115200 8N1, log every byte to a file, recognise how far the boot got, and stop on a deadline. A different exit status for each way a session ends, so a bench script can tell a hang from a refusal. **It writes only what a named mode sends, and every byte it sends is printed into the log** (milestone 324 part 4, calef's ruling of 2026-09-19, replacing this row's earlier *"reads and never writes"*); today the one named mode is `--stop`/`--stop-after <n>`, which ends milestone 249's rebooting soak with one byte on the board's own arming announcement and never before it. **What it recognises is two halves** (part 3): `--board radon\|xenon` chooses the firmware prologue, which is the only part that is a board's, and everything from the kernel banner up is shared. `--until` reaches the shared rungs `banner`, `machine`, `selftest`, `tour`, `prompt`, `soak`, `sweep`, `sweep-done` (part 2) as well as the chosen board's firmware rungs; a word this board has no rung for is refused rather than waited out. Does not touch power. No byte has yet reached a board and no sweep has been watched on one. **Name provisional.** See notes/board-console.md. |
-| `script/board-image` | Build the VisionFive 2 microSD payload (milestone 16a): the riscv64 kernel as a flat Image (the RISC-V boot header verified at offset 0x38), the userspace archive it measures, a U-Boot boot script, and the printed copy commands. `--card <dir>` copies the set as a set, because a kernel and an archive from different builds halt at `MEASURED BOOT REFUSED`. `--tftp` (milestone 257) writes a boot script that fetches over the network and falls back to the card, with the server address read off this machine rather than baked into the tree; `--server <ip>` names it instead. It writes under `target/board/` and runs nothing destructive; putting bytes on a card is the bench's decision. **Name provisional.** See notes/visionfive2.md. |
-| `script/card-check [<path>]` | **Does this card's kernel vouch for its archive?** The board's own measured-boot question, asked on the host before the walk to the board: milestone 223 (read a card and say whether its kernel and archive match). It hashes every archive entry the kernel may enter (`progenitor`, `hello`, and the progenitor's own measurement table) and looks for that digest in the kernel image's compiled-in trust root, which is the fact `MEASURED BOOT REFUSED` turns on. Reads a mounted microSD card, a UEFI stick (`EFI/BOOT/*.EFI`, one file with both halves inside it), a single boot file, or, with no argument, the payload `script/board-image` last built. Exit 0 it boots, 1 the board would refuse it and the output names the entry and which of the two files is stale, 2 there is nothing to check there. It reads and never writes, and it is pointed at a mounted filesystem rather than a device node. Not in `lint` or `gates`, because no CI job builds a board payload; `script/board-image` runs it on every payload it builds and every card it writes, and `uefi_loader`'s build refuses an unsealed pair outright. The kernel's check is the authority and this is the early warning. **Name provisional.** See notes/visionfive2.md. |
-| `script/board-netboot` | Serve `target/board` over TFTP so radon boots without a card (milestone 257): read-only, one directory, `blksize` and `tsize`, udp/69 without `sudo`. Prints the `setenv nife_boot_server` line for every private address this machine has, which is the other half of the boot script's echoed expectation. Serves xenon too, unchanged, at `--root target/esp` (milestone 260): the path the DHCP option names is the path inside the ESP, so `\\EFI\\BOOT\\BOOTX64.EFI` on a stick and `EFI/BOOT/BOOTX64.EFI` over the wire are one file staged once. A TFTP ERROR from the client is now reported as a cancellation rather than a failure, because a UEFI client's file-size probe ends every boot with one. `--root <dir>`, `--port <n>`. Written here rather than delegated to dnsmasq because dnsmasq is a DHCP server that also does TFTP, and this bench LAN is a house network with a router already handing out leases; the reason is in the script's own header. **Name provisional.** See notes/visionfive2.md. |
-| `script/netboot-rehearsal` | Boot nife the way xenon will, on patagonia, with nothing plugged in (milestone 260). A synthetic ethernet on QEMU's stream `socket` netdev, carrying real OVMF to the real `script/board-netboot`, with the DHCP answers parsed out of `bench/xenon-netboot/dnsmasq.conf` rather than hardcoded, so a typo in the router configuration fails here instead of at a bench with a camera. No disk of any kind is attached: the wire is the only way in. `--check` answers six clients out of the config and exits, no QEMU, instant, and covers the architecture rows OVMF cannot reach because OVMF cannot be asked to be a BIOS machine; `--mac <addr>` stands in for a house machine that is not xenon and must not be offered a boot file; `--trace` prints every frame. `-netdev user` was refused rather than missed: it PXE boots this image in one line and proves the payload, but it puts neither our configuration nor our server in the path, and slirp's NAT has no TFTP helper so neither can be put there. **Name provisional.** See notes/x86-uefi-boot.md. |
-| `script/qemu-check` | Is the QEMU on PATH the one `.qemu-version` pins, and does it carry the devices the suite needs? **Fails** on a missing device (that would gut a test silently), **warns** on a version mismatch (Homebrew cannot install an arbitrary older QEMU, and an unfollowable rule is worse than none). Called by `bootstrap` and by `ci-qemu`. |
-| `script/ci-qemu` | CI only, Linux only: build the pinned QEMU into a cacheable prefix, because Ubuntu 24.04's 8.2 has no `riscv-iommu-pci` and apt cannot go newer. |
-| `script/drift [nightly-YYYY-MM-DD]` | Does a toolchain still build us? Bare-metal build plus the host-logic tests. With no argument it checks the pin, which makes it a fast health check; given a nightly it checks that one, which is what the daily `toolchain drift` workflow does with the newest. |
-| `script/toolchain-bump [YYYY-MM-DD]` | Raise the pinned nightly, with evidence: install, rebuild the std farm from scratch, run every gate. Restores the old pin if anything fails, because a half-applied toolchain bump is worse than none. Run it when the daily `toolchain drift` workflow goes red. |
-| `script/test` | Run the suite: the host-logic crates in milliseconds, then the kernel under QEMU. The fast inner loop; assumes `setup` has run. `--arch aarch64\|riscv64` runs one ISA leg instead of both (the default is still both, so the parity gate cannot be weakened by forgetting it); `--cpu <model>` picks the emulated CPU (notes/cpu-models.md); `--hvf` runs the aarch64 kernel leg on the physical Apple Silicon core instead of under TCG (aarch64 only, `-cpu host` mandatory, and it skips the host-logic crates because no accelerator exists on that path; notes/hvf-leg.md); `--test <substring>` runs only the kernel tests whose path contains it (milestone 210, see below). |
-| `script/cpu-matrix` | Run the riscv64 suite against every QEMU CPU model in the matrix (`rv64`, `sifive-u54`, `rva22s64`, `rva23s64`, `thead-c906`), because the default `rv64` is QEMU's maximalist model and the board is an RV64GC U74. A CI gate. Preflights that `-cpu` is enforced rather than merely advertised, then runs every model without stopping at the first failure. See notes/cpu-models.md. |
-| `script/repeat-under-load [-n runs] [-s spinners] [-- <script/test args>]` | Run the suite N times with one busy-loop spinner per core, and record what the load actually was: elapsed seconds per run, the one-minute load average sampled every ten seconds (minimum, mean, peak), and how many QEMU processes were up, so a neighbouring lane gating on the same laptop is separable from the contention the script manufactures. Milestone 62's acceptance instrument, and the answer to that block's own BUGS line: a flake that fires one run in six is indistinguishable from a fixed one until you have run it many times, so the evidence is a repeat count under load rather than a green run. **Load causes false failures, not false passes**, which is what makes a green result here conclusive and a red one a lead; the failure text says so, and says not to widen the bound. `-s 0` is the quiet control. Not a gate and never in CI: it costs hours by construction. **Name provisional.** See notes/load-sensitive-assertions.md. |
-| `script/runner-container [-n runs] [--arch A] [--build-only] [--shell]` | Boot the suite over and over inside an approximation of the CI runner, because `inbound check (riscv64)` has gone red three times on `ubuntu-24.04-arm` and never once on macOS. An ubuntu 24.04 aarch64 container, running **native** on an aarch64 laptop so nothing is emulated but the guest, with the emulator built by `script/ci-qemu` from `.qemu-version`'s pin rather than apt-installed, provisioning by `script/bootstrap`, and the core count narrowed by affinity rather than by a CFS quota (a quota throttles without changing what `nproc` says, which is not the runner's shape). The loop is `script/repeat-under-load -s 0`: no induced load, because both CI observations had a load average near 1 and spinners would be manufacturing a different bug. The tree is mounted **read-only** and cloned inside, so a fifty-boot run cannot write into a lane's worktree and cannot take the account-global `nife-dev` link; QEMU cannot leak, because the emulators die with the container. Not a gate and never in CI. **Name provisional.** See notes/net.md's inbound BUGS section for what fifty boots found and what the container does not carry. |
-| `script/ci-build` | **The one enumeration of the checks a pull request must pass** (milestone 286). With no arguments it provisions (`script/bootstrap`, idempotent) and runs the `local` tier in the table's order, cheapest first, so a formatting slip costs twenty seconds rather than ten minutes; that path absorbed `script/gates`, which was a second copy of the same list and had drifted from it in three separate places. `script/ci-build <check>...` runs named checks and nothing else, which is how `ci.yml` fans them into parallel jobs, and is why a check cannot be added to CI without the local set learning about it. `--list` prints the table: `name`, `tier`, and the command. The `ci` tier is what only a runner waits for (the CPU matrix, coverage, fuzzing, the bench tripwire, the supply-chain audit, the two stack instruments, the fastpath footprint), nameable here but never run by the no-argument path, because a gate people skip is not a gate. Kani (`script/verify`) and the falsification sweep are absent on purpose: they are `verify.yml`, a different workflow. The `hvf` check is the aarch64 suite again on the physical Apple Silicon core (milestone 81); it lives here rather than in a workflow because GitHub's hosted macOS arm64 runners are VMs without nested virtualization, and where the host cannot supply it the check **skips loudly**, naming the reason and saying that nothing in the run touched a physical core, so a Linux transcript cannot be read as silicon coverage. About 16 s (measured; notes/hvf-leg.md). Never writes; use `script/fmt` to format. **The tier names and what `no arguments` means are provisional** pending calef (milestone 440, `design/roadmap/440-what-no-arguments-means.md`). |
-| `script/soak-test` | Run milestone 219's sustained multicore workload under QEMU and judge it exactly as a board is judged: boot `--features soak_test`, where the tour ends in a pool of user-mode IPC workers and a five-second heartbeat instead of `arch::halt()`, and feed the console to the same `board_console` recogniser and policy `script/board-console` points at a real port. Same exit statuses (0 beat throughout, 1 announced a failure, 2 went quiet, 3 QEMU exited early or the workload never started, 4 build or arguments). `--arch aarch64|riscv64|x86_64`, `--for <duration>`, `--smp <n>`. **A clean run is a number to compare against, not evidence that the concurrency is correct**, and the script says so on every green run. Named `soak` until calef ratified `soak-test` on 2026-09-14 (milestone 297); the cargo feature and the console markers moved with it. See notes/soak.md. |
-| `script/job-mix [--arch A] [--smp N] [--for D] [--quiet-after D] [--log F]` | Rehearse milestone 168's multi-tasking workload sweep under QEMU: boot `--features job_mix`, where the tour ends in a pool of EL0 tasks swept through a heterogeneous job mix instead of `arch::halt()`, log every byte, and tear the emulator down when it prints `job-mix: done`. **The judging is `crates/board_console`'s** since milestone 324 part 2, the same recogniser `script/soak-test` and `script/board-console` use, so the exit statuses are theirs: 0 the sweep completed, 1 the kernel refused to start it or announced any other failure, **2 it spoke and then went quiet, which is a wedged sweep**, 3 the time ran out with `job-mix: done` unreached, 4 build or arguments. What stood there before was a second reader with no timeout at all, so a wedge hung the command forever. A sweep has no wall-clock heartbeat, so `--quiet-after` defaults to sixty seconds against a 4.0-second slowest subrun (it was 2.6 until milestone 168 took twenty-one repeats of a seven-kind mix) and `--quiet-after 0` is the escape for a very slow board. **This is the rehearsal and not the measurement**: the milestone's gate is HARDWARE, TCG models no cache, and the number `design/decisions/96-process-kernel-or-event-kernel.md` is waiting for is taken on radon by notes/job-mix.md's procedure. No `--check` and no committed baseline, deliberately: a sweep whose subject is scheduling under contention is not deterministic on any accelerator this tree has. **Name provisional.** See notes/job-mix.md. |
-| `script/server` | Boot the OS in QEMU (the milestone tour, then the shell). An OS is the thing you *start*, so it is `server`. |
-| `script/console` | Boot straight to the interactive shell at EL0. For this project the console is literally a shell running as an unprivileged process. |
-| `script/swish-check` | `console`'s gating twin: boot `--features shell` on both ISAs, type eleven lines at the prompt, and check what came back (the pipe and both redirection operators, `wc gate.txt` against `wc < gate.txt`, and the wall clock). The only thing in the tree that runs the **real** progenitor (`components/src/progenitor.rs`, one program on all three architectures since milestone 266 (one progenitor, on all three architectures), built on `crates/system_initializer` since milestone 96 (one init: the spawn service written twice)); every other shell test has the kernel play the first process. Not in `script/test`, because it builds a second kernel and boots it twice. `--arch aarch64\|riscv64` for one leg. |
-| `script/boot-check` | The boot ladder's gate (milestone 268 (every architecture boots the same way)): boot the **default** kernel on all three architectures and fail unless each reaches a green `nife self-test:` verdict. It is the only thing in the tree that boots the default riscv64 or `x86_64` kernel at all (`script/test`'s suite exits through semihosting before the tour; `script/swish-check` boots `--features shell` on two). It reads the console with `crates/board_console`, the same recogniser `cargo xtask board-console` points at a real board. `--arch aarch64\|riscv64\|x86_64` for one leg; `--inject` rebuilds with `--features self_test_injection` and requires the verdict to come back **red**, because a gate that has only ever been seen green is a gate nobody has tested. A `local` row in `script/ci-build`'s table, so the no-argument path runs it before a push and CI's test job names it. |
-| `script/fmt` | Format the tree with the pinned rustfmt; `--check` reports instead of writing (the CI gate). |
-| `script/lint` | Run clippy across the workspace with warnings denied (a CI gate), on both ISAs and in each boot-mode feature build, plus the non-clippy checks that share its job: broken intra-doc links, conflict markers, the roadmap status vocabulary, relative markdown links plus the notes/README.md index, DECISIONS numbering, that every `script/` has an entry here, that no file carries a module-wide `#![allow(dead_code)]` (DECISIONS §38), and the naming conventions a machine can check (no `-d` names, none of the rejected Unix vocabulary, one spelling for contract crates, a recognised branch prefix; design/naming.md). Milestone 68 added three more: **dependency direction** (nothing under `crates/` may depend on a binary, which would still build while leaving the host tests and Kani), **unused dependencies** via `cargo-machete` (DECISIONS §46), and **spelling** via `typos`. Milestone 94 added one more: a **`TODO`/`FIXME` marker in code names the milestone that owns it** (`TODO(milestone N):`, and the block has to exist), because a marker with no home is identified work resting where nobody will look for it. Markdown is exempt, since prose explaining the convention has to spell the shape it forbids, and a note may quote a marker that was resolved milestones ago. Milestone 113 added a fourteenth clippy configuration: the **proof harnesses**, compiled with `--cfg kani` against the shim in `helpers/kani-lint-shim/`, because `cfg(kani)` is set by the model checker and by nothing else and so those modules had never been linted at all (26 warnings on the first run; notes/unsafe-obligations.md). Lint SELECTION is not here: it lives in `Cargo.toml`'s `[workspace.lints]`, with `clippy.toml` and `_typos.toml` holding the two allowlists. See DECISIONS §61 for why three candidate lints were measured and dropped. |
-| `script/coverage` | Coverage for the host-logic crates, gated on an 80%-per-file line floor (a CI gate). Every run also reports the **minimum** per-file coverage, the distribution across bands, and how many files a floor of 85 or of 90 would newly fail, and writes those to `target/llvm-cov/floor.txt` for `script/metrics --coverage-min-from`: the dashboard used to plot only the aggregate, which cannot move when one file slides under the floor. Installs cargo-llvm-cov on first run. |
-| `script/vendor-verify` | Prove each `vendor/*.pin` tree is the published tarball (sha256) plus exactly its divergence patch, byte for byte. `--write-patch` regenerates the patch after a deliberate change. Needs network on a cold cache. |
-| `script/vendor-watch` | Ask what upstream has done since each `vendor/*.pin` was taken: newer crates.io releases, and upstream git commits since the pinned sha, merge commits dropped. **Both**, because releases here are months apart and a correctness fix can sit on master long before it is published. `--write` regenerates `vendor/upstream-status.md` and raises the pin when a newer release exists, which makes `vendor-verify` fail and turns the upgrade into a visible red check; it deliberately does not try to re-apply the divergence patch. Exit codes are the answer rather than a verdict: 0 current, 1 behind, 2 transiently unreachable, 3 permanently unreachable (a 404, meaning the watch itself is broken). The monthly `vendor watch` workflow runs it and opens one pull request on a fixed branch. Needs network. Name **provisional**. |
-| `script/supply-chain` | The milestone-42 gate (a CI gate): cargo-deny (advisories, licences, bans, duplicates, sources) over each workspace against `deny.toml`, then `vendor-verify`. Needs network; installs the cargo-deny pinned in `.cargo-deny-version` if the installed one differs, because 0.19 and 0.20 spell `--config` differently and default it to different directories. |
-| `script/fuzz` | Coverage-guided fuzzing (cargo-fuzz/libFuzzer) over the parsers that read bytes we did not write: `device_tree_blob_walk`, `elf_parse`, `globally_unique_identifier_partition_table`, `nifefs_roundtrip` (a CI gate). `--time N` sets the per-target budget (default 60s, `0` runs until stopped), `--list` explains each target, and a bare target name runs one. Installs the cargo-fuzz pinned in `.cargo-fuzz-version` on absence or mismatch. See notes/fuzzing.md. |
-| `script/undefined-behavior-check` | The host-logic tests again, under Miri's interpreter: aliasing, pointer provenance, uninitialized reads, leaks, the rules no other gate checks. Weekly in CI plus on demand; not in `test` or `gates`, because the interpreter is minutes where the host tests are milliseconds. The exhaustive suites sample themselves under `cfg(miri)`, so "Miri-clean" means the sampled paths. Extra args go to `cargo miri test` (`script/undefined-behavior-check -p globally_unique_identifier_partition_table`). See notes/undefined-behavior.md. |
-| `script/interleaving-check` | The hand-rolled atomic protocols under loom, which searches **every** thread interleaving and every reordering the C11 model permits (milestone 80). The one gate that can falsify CLAUDE.md's fourth rule: Kani's harnesses are single-threaded, Miri runs one interleaving, and QEMU's TCG explores almost none of the orderings aarch64 and riscv64 allow. Covers `crates/steal_request` (the work-steal handshake) and `crates/clock_protocol` (the clock page's seqlock, where it found a real torn read on its first run). `loom` is a `[target.'cfg(loom)'.dependencies]` entry, so no ordinary build resolves or compiles it. Under a second warm; extra args go to `cargo test`. Not in `test` or `gates`; see the note for why. See notes/interleaving.md. |
-| `script/stack-frame-check` | What one kernel function's stack frame costs, from `-Z emit-stack-sizes`, gated at **4096 bytes, the guard page** (this row said "a third of the smallest kernel stack, 5461 bytes" until 2026-08-16, and that was the ceiling the gate shipped with for one day before its own header corrected it: a frame larger than the guard page can step clean over it, so the guard page is the number and any fraction of the stack is not). The complement of milestone 84's watermark: that says how deep the suite *went* and cannot say which function is expensive, which is the question an overflow poses. Written after `sched::reap_region_objects` carried a 6816-byte frame, of which 4096 was one `[u64; MAX_ENDPOINTS]` scratch array, against 4712 bytes of measured headroom; it compiled without a warning and was found only because a milestone's CI faulted one run in five. Gates both ISAs (§19). `--arch` narrows, `--report` prints the deepest 40 and gates nothing. Needs no emulator, so it works from a machine with no QEMU. A CI job, not in `gates`: it builds the kernel test binary twice, which is more than `gates` promises. See notes/stack-high-water.md. |
-| `script/stack-depth-check` | How deep a kernel **thread stack** can get, by walking the call graph: direct calls out of the disassembly, `-Z emit-stack-sizes` frames hung on the resulting graph, longest path from the entry points a thread stack starts at (`thread_entry`, `user_thread_entry`, the arch trap dispatcher). The third instrument, and the one both older notes named as the gap without building: a frame size is not a chain and a watermark sees only what the suite ran. It also checks the claim `stack-frame-check`'s exception table makes by hand, that a given oversized frame cannot reach a thread stack. Fails when the worst chain does not fit in 24576 bytes (`thread::STACK_PAGES`, which said 16384 here for a day after #225 raised it), when the interrupt-stack chain does not fit 16384, when a context switch is **reachable** from the interrupt-stack entry point, or when any frame over the guard page is reachable; warns past 18432, the watermark's own thread row. `--arch` narrows, `--report` prints each chain and gates nothing. The switch-reachability check is milestone 124's, and it is the strong half of the rule that nothing on a per-CPU interrupt stack may context-switch away from it: a violation would corrupt a stack rather than fault, so it is checked statically every build instead of waited for. On 2026-08-16, after that milestone, it read 13456 bytes worst case on aarch64 and 13008 on riscv64, of which the handler leaves 3728 and 3552 on the thread and 3984 and 3888 on the interrupt stack. It is a lower bound rather than an upper one: indirect calls and assembly (which carries no `.stack_sizes` entry at all) are invisible to it. Runs in the `stack-frame-check` CI job, sharing its build. Name **provisional**. See notes/stack.md. |
-| `script/build-is-reproducible` | The same commit builds the same bytes, from any path. Extracts `git archive HEAD` into two temporary trees at different paths, builds each into its own target directory, and compares the artifacts by sha256. **The property was measured for the first time on 2026-09-18 and it held**: three builds of the aarch64 release kernel, all `849a37e7eddca287...`, 548360 bytes, with zero absolute paths in the binary. Nothing claimed it and nothing gated it, so it was true by construction rather than by intent: one `build.rs` embedding a timestamp, a git hash or `CARGO_MANIFEST_DIR` ends it, and the regression surfaces as two machines disagreeing about a binary months later. Both legs build `HEAD` rather than one from the working tree, because a dirty tree legitimately differs from `HEAD` and a gate that cries wolf on uncommitted work is one people learn to skip; the cost is that it cannot check work in progress. `--keep` holds both trees for inspection after a failure. A `local` row **and** a CI job, and the tier is a correction: it was filed as `ci` on the assumption that two cold builds are slow, and its own first CI run measured **11.1 seconds** for both (2026-09-18), against 5 seconds for one cold `-p kernel` release build on the dev machine. That is cheaper than `script/icount` above, so it runs before a push, at the moment somebody writes the `build.rs` that would break it rather than one CI round later. Its own `BUGS` records what it does not cover, and the largest gap is that it reads the kernel only, **not the user-program archive or the `nifefs` image**, which is the artifact that actually ships to somebody else. Name provisional. |
-| `script/fastpath-footprint` | An upper bound (whole symbol sizes) on the **IPC fastpath's instruction footprint**, which is the quantity Liedtke's *On micro-Kernel Construction* (SOSP 1995) identified as the real cost of Mach's IPC: a kernel that touches a lot of memory per IPC evicts the *application's* working set, so the bill arrives as capacity misses in the workload, not as kernel time. Three numbers: `ipc_send_recv` and `ipc_call_reply` are the closures of non-cold calls from each IPC shape's roots (milestone 188 (the IPC fastpath) added the second, the shape services run, 25 to 29% larger; `ipc_fastpath` is the worse of the two), and `syscall_entry` is the trap entry, dispatcher, return path and `syscall::dispatch` summed flat, since the decoder's own bytes are on every syscall whichever arm it takes. aarch64 counts **one** 128-byte vector entry, not sixteen, because an `svc` fetches one. Shares `script/stack-depth-check`'s call-graph walk and its blind spot: indirect calls are invisible. Gated at **5%** growth against `bench/fastpath-<arch>.txt`, tighter than the icount tripwire's 10% because a symbol size moves only when the code moves. Excludes the teardown family reached through `finish_switch`'s reap branch, which no IPC takes and which put 11.2 KiB on a 5.6 KiB figure, plus every function this workspace marks `#[cold]`, read out of the source rather than listed in the gate. **It is not a cache measurement**: nothing in this tree models a cache yet, so it gates the quantity and not the harm. All three ISAs, per §19 (architectural parity is a tenet). `--arch` narrows, `--save --why` re-records and stamps it with the nightly, `--features <name>` builds an extra kernel feature in and reports without gating or saving (E3's footprint-perturbation experiment, milestone 134 (the register of measures)). A CI job, not in `gates`: it builds two release kernels. See notes/benchmarks.md. |
-| `script/image-permissions` | The three shipped kernel images obey W^X: no `PT_LOAD` in `kernel`'s ELF is both writable and executable, on aarch64, riscv64 and x86_64 (§19). Built because `crates/elf` refuses such a segment and `paging::Flags` cannot construct such a page, so W^X was enforced on every ELF this system **loads** and on nothing about the ELF this system **is**; the x86_64 image carried an RWX boot segment from the port until milestone 208, through every other gate in the tree, because nothing had ever parsed it. It reads `p_type` and `p_flags` at the offsets ELF64 fixes rather than calling `Elf::parse`, and the reason is not laziness: that parser binds its accepted `e_machine` at compile time, so a host tool built once can accept exactly one of the three kernels and a gate covering one architecture would fail §19 on the day it was written. It reports every violation rather than the first. `--no-build` checks what is already built. Seconds warm; a `local` row in `script/ci-build` and a CI job of its own, though not yet a required one. Name **provisional**. |
-| `script/crate-probes` | Build fifty crates.io crates against the patched `std` and report the split (milestone 64's measurement, which milestones 99 and 66 consume through notes/crates-io-on-nife.md). Each probe is a `[[bin]]` whose `main` calls the crate, because a library target is never linked and an unreferenced dependency is compiled and never linked; both rules were learned by recording `diesel` as a pass twice. A probe that fails is rebuilt for the host and reports `BODY` instead of `FAIL` when the host fails too, so a wrong call site in this script cannot be read as a nife result. `--no-backend` drops `entropy_backend`, which is the difference between 43 built and 39. Needs network and takes the account-wide `nife-dev` link, so it is not a CI gate and `script/test` does not run it; aarch64 only, since the PAL speaks the capability ABI rather than an ISA. Name **provisional**. See notes/crates-io-on-nife.md. |
-| `script/crypto-probes` | Build every candidate TLS crypto provider, and every primitive one is assembled from, against **nife's own target specifications on the pinned nightly**, for all three architectures, and report what builds, for milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets). `script/crate-probes`' sibling and its machinery, with three differences that are the point: all three ISAs, because the answer differs by ISA; providers and primitives rather than fifty representative crates; and a failure records which architecture it was on, since a row that passes on two and fails on one is the interesting shape. `--soft` reruns with every SIMD path forced off, which is the difference between one green column and four red ones on `x86_64-unknown-nife`. **Its probe crates are built outside this repository**, which is not tidiness: a probe under `target/` inherits this repository's own `rust-toolchain.toml`, which beats `RUSTUP_TOOLCHAIN` for the rustc `-Zbuild-std` invokes, so `std` compiles unpatched and the failure reads exactly like the crate under test failing. Needs network and takes the account-wide `nife-dev` link, so it is not a CI gate and `script/test` does not run it. Name **provisional**. See notes/cryptography-provider.md. |
-| `script/mutation` | Mutation testing (cargo-mutants) over the host crates: would any test notice if this line were wrong? A report, not a gate; the weekly `mutation testing` workflow runs it four-way sharded and publishes the per-crate table against `.cargo/mutants-baseline.txt`. `--shard k/n` splits the run, `-p CRATE` narrows it, `--report` summarizes finished output, `--save-baseline` rewrites the baseline. Exclusions (with reasons) in `.cargo/mutants.toml`; installs the cargo-mutants pinned in `.cargo-mutants-version` on absence or mismatch. Since milestone 277 (bound what one mutant may allocate) each mutant's test binary runs under a 4 GiB address-space ceiling (`helpers/memory-bounded-runner.sh`, tunable with `MUTATION_MEMORY_LIMIT_KB`), because cargo-mutants bounds a mutant on time and the failure that killed every scheduled run was an allocation. See notes/mutation-testing.md. |
-| `script/mutation-census` | **One row per crate, per census, committed.** `script/mutation --report` prints a per-crate table from a finished run and the run output is then thrown away, so until milestone 518 (a census that cannot be attributed is a number nobody can act on) the tree had kept exactly one per-crate record in its life (`.cargo/mutants-baseline.txt`, 2026-08-03) and every comparison anybody wanted was made against it whether or not it was the right comparand. `--add-run <id>` captures a finished GitHub Actions census in one command (the artifacts expire at 90 days; the record does not), `--add-baseline` ingests the baseline file read-only, `--list` and `--show` read the record back, and `--compare A B` prints each crate's **exact** contribution to the corpus-level move, a column that sums to it rather than merely ranking. Resolves crate renames out of a committed table derived from `lib.rs` rather than `Cargo.toml`, because git pairs near-identical manifests across a multi-crate rename sweep and answers confidently wrong. Backfilled to all four censuses that have ever completed; a red run is refused, because a partial corpus read per crate is a sample and a sample cannot tell an absent mutant from a killed one. A report, not a gate, like `script/mutation` itself. **Names provisional.** See [mutation-census.md](mutation-census.md). |
-| `script/ci-log-baseline` | **Per-check attribution for failed CI jobs, mined before the logs expire.** A job conclusion alone says a job failed, not which of its sub-checks did; the log's last `==>` marker usually does. `--update` fetches anything new since the last captured date and appends to `notes/project-metrics/ci-log-baseline.csv`, one row per failed job among the five job types whose logs distinguish more than one check (`clippy`, which is `script/lint`; `supply chain`; `cpu matrix`; `verify (Kani proofs)`; and `bench`'s icount tripwire, matched on its own `CHECK FAIL` line rather than a marker). `--report` reads the record back; `--verify N` re-fetches N existing rows live to catch drift. A job whose log has expired is recorded as `unattributable: log expired`, never dropped. **Names provisional.** See [ci-log-baseline.md](ci-log-baseline.md). |
-| `script/falsifications` | **Can each Kani harness be made to fail?** `script/mutation` asks that of the tests; this asks it of the proofs, which is not the same question, and DECISIONS §134 is why it is written down rather than remembered. Every harness carries a `Falsification:` block above `#[kani::proof]` in one of three states: `replayable <path>` (a patch at `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`, which is Kani's own fully qualified harness name with the separators changed, so the sweep filters with `--exact`), `attested <date>` (a person watched it fail, and nothing can re-check that), or `unfalsified`. Bare, it prints the table and the ratio; `--unfalsified` is the worklist, `--check` is the form gate `lint` runs (presence of a *state*, never `replayable`, exactly the line `script/names --check` draws), `--sweep [crate...]` applies each patch and requires that one harness to go red, and `--affected-since <base>` sweeps only what a diff can reach. A report weekly (`falsification sweep`), a gate per pull request through `verify.yml`, since a patch a commit staled is a defect in that commit. Refuses to sweep a dirty tree. See notes/falsification.md. |
-| `script/preflight-queue [--dry-run \| --act] [--no-hvf]` | **Replay the merge queue on this machine before a group build does.** Walks `mergeQueue(branch: "main")` in order, then the armed-but-unqueued pull requests, merging each onto the green entries ahead of it in a reusable detached worktree (`~/projects/nife-worktrees/preflight`), and runs `script/ci-build fmt` and `lint`, `cargo test -p documentation`, host tests for the crates it touches, one `script/test --arch aarch64` if it touches code (CI's own documentation-only predicate, read out of `ci.yml`), and `script/falsifications --affected-since` when no solver is running. A conflict or a red is a finding. The HVF leg on `main`'s tip runs first and is reported, never blocking; a red `main` baseline means it acts on nothing and exits 3. `--dry-run` is the default; `--act` comments and dequeues. Prompted by three pull requests on 2026-09-24 that were green alone and red on top of the queue; when to run it is in notes/merge-queue.md. **Name provisional.** |
+| `script/update` | After a pull: `bootstrap`, then rebuild. |
+| `script/claim <branch-name>` | Cut a lane's branch and worktree, and make the draft pull request claim. |
+| `script/test` | The suite: host-logic crates, then the kernel under QEMU. The gate. `--arch`, `--cpu`, `--hvf`, `--test` narrow it. |
+| `script/verify` | The Kani proofs over the pure-logic crates. |
+| `script/verify-riscv64` | The `kernel` row for riscv64, under Kani patched from `patches/`. Provisional name. |
+| `script/bench` | icount microbenchmarks; `--check` fails on drift from the baseline. |
+| `script/icount` | Boot a `--features icount` kernel and assert the two timing claims a wall clock cannot make. |
+| `script/fmt` | Format with the pinned rustfmt; `--check` is the CI gate. |
+| `script/lint` | Clippy on every ISA and feature build, plus the non-clippy checks sharing its job. |
+| `script/coverage` | Host-crate coverage, gated at 80% per file. |
+| `script/ci-build` | The one list of checks a pull request must pass. CI runs its rows. |
+| `script/preflight-queue` | Replay the merge queue locally before a group build does. |
+| `script/qemu-check` | Is the QEMU on PATH the pinned one, with the devices the suite needs? |
+| `script/ci-qemu` | Build the pinned QEMU on Linux, where apt cannot. |
+| `script/drift` | Does a toolchain still build us? |
+| `script/toolchain-bump` | Raise the pinned nightly, with every gate as evidence. |
+| `script/server` | Boot the OS in QEMU: the milestone tour, then the shell. |
+| `script/console` | Boot straight to the interactive shell at EL0. |
+
+### The tree's records and indexes
+
+Full rows, with every flag and the history behind each: [records-and-indexes.md](scripts/records-and-indexes.md).
+
+| script | what it does |
+|---|---|
+| `script/decisions` | Index `design/decisions/`; `--check` is gated in `lint`. |
+| `script/roadmap` | Index the milestones; `--ready`, `--unclaimed`, `--outstanding`, `--proposed`. |
+| `script/journeys` | Progress against the end-to-end user journeys. |
+| `script/citations` | Does each `§N` or `milestone N` gloss match what it cites? `--ratchet` gates added lines. |
+| `script/fatal-risks` | Does `design/fatal-risks.md` agree with the records it cites? |
+| `script/catch-up` | What changed since you last looked. |
+| `script/apropos <word>` | Search every document in the repository. |
+| `script/names` | Who named this, when, and what was refused. |
+| `script/metrics` | The weekly measures behind `notes/project-metrics.md`. |
+
+### How the project measures itself
+
+Full rows, with every flag and the history behind each: [process-measures.md](scripts/process-measures.md).
+
+| script | what it does |
+|---|---|
+| `script/rule-violations` | Total the strikes against each documented rule. |
+| `script/audits` | Is an audit due? |
+| `script/cadence-check` | Which scheduled workflows have stopped producing a result? |
+| `script/redo-rate` | How often delegated work has to be done again. |
+| `script/nanny` | Work the merge queue by delegating the rebases. |
+| `script/effort` | Machine effort spent per ISO week. |
+| `script/stranger-test` | Hand the repository to a fresh process and record what it could not work out. |
+
+### Boards and boot checks
+
+Full rows, with every flag and the history behind each: [boards-and-boot-checks.md](scripts/boards-and-boot-checks.md).
+
+| script | what it does |
+|---|---|
+| `script/board-console` | Read a real board's serial console and say how far the boot got. |
+| `script/board-image` | Build the VisionFive 2 microSD payload. |
+| `script/card-check` | Does this card's kernel vouch for its archive? |
+| `script/board-netboot` | Serve `target/board` over TFTP so radon boots without a card. |
+| `script/netboot-rehearsal` | Boot nife the way xenon will, on patagonia, with nothing plugged in. |
+| `script/swish-check` | `console`'s gating twin: type at the prompt and check what came back. |
+| `script/boot-check` | Boot the default kernel on all three architectures to a green verdict. |
+
+### Load, concurrency and reliability
+
+Full rows, with every flag and the history behind each: [load-and-reliability.md](scripts/load-and-reliability.md).
+
+| script | what it does |
+|---|---|
+| `script/cpu-matrix` | The riscv64 suite against every QEMU CPU model in the matrix. |
+| `script/repeat-under-load` | Run the suite N times under a measured load. |
+| `script/runner-container` | Boot the suite repeatedly in an approximation of the CI runner. |
+| `script/soak-test` | A sustained multicore workload under QEMU, judged as a board is. |
+| `script/job-mix` | Rehearse the multi-tasking workload sweep under QEMU. |
+| `script/interleaving-check` | The atomic protocols under loom, every interleaving. |
+| `script/ci-log-baseline` | Per-check attribution for failed CI jobs, before the logs expire. |
+
+### Analysis, proofs and the supply chain
+
+Full rows, with every flag and the history behind each: [analysis-and-supply-chain.md](scripts/analysis-and-supply-chain.md).
+
+| script | what it does |
+|---|---|
+| `script/vendor-verify` | Each `vendor/*.pin` tree is the published tarball plus its patch. |
+| `script/vendor-watch` | What upstream has done since each pin. |
+| `script/supply-chain` | cargo-deny over each workspace, then `vendor-verify`. |
+| `script/fuzz` | Coverage-guided fuzzing of the byte parsers. |
+| `script/undefined-behavior-check` | The host-logic tests under Miri. |
+| `script/stack-frame-check` | One kernel function's frame, gated at the 4096-byte guard page. |
+| `script/stack-depth-check` | How deep a kernel thread stack can get, by walking the call graph. |
+| `script/build-is-reproducible` | The same commit builds the same bytes, from any path. |
+| `script/fastpath-footprint` | An upper bound on the IPC fastpath's instruction footprint. |
+| `script/image-permissions` | The shipped kernel images obey W^X. |
+| `script/crate-probes` | Build fifty crates.io crates against the patched `std`. |
+| `script/crypto-probes` | Which TLS crypto providers build for nife's targets. |
+| `script/mutation` | Mutation testing over the host crates. A report, not a gate. |
+| `script/mutation-census` | One committed row per crate, per mutation census. |
+| `script/falsifications` | Can each Kani harness be made to fail? |
+
 `fmt`, `lint`, `coverage`, `supply-chain`, `fuzz`, `miri`, and `mutants` are not part of the canonical
 set; they exist so the CI format, clippy, coverage, supply-chain, fuzz, miri, and weekly mutation
 jobs are one-liners. `coverage` measures only the pure-logic host crates(`abi`, `capability`, `nifefs`, `device_tree_blob`, `elf`, `frames`, `paging`, `pci`, ...): the kernel and user
@@ -83,103 +125,24 @@ crates run under QEMU, out of reach of host instrumentation, which is the same r
 leaning on `bootstrap`, so the CI test job (which runs `bootstrap`) never compiles a coverage tool
 it does not use.
 
-**What the table's numbers cite**, gathered here rather than inline because the `script/lint` row is
-one of the longest markdown lines in the repository and `documentation::render::LINE_MAX` is sized
-against the longest: DECISIONS §38 (a suppression carries a reason), §46 (thin primitives or whole
-subsystems) and §61 (a lint adopted on evidence), plus milestone 68 (code-quality gates),
-milestone 94 (the untracked-work sweep) and milestone 113 (the proofs' unsafe code is ungated). Two
-rows further down cite milestone 87 (the x86_64 bare-metal machine) and
-milestone 287 (`script/bootstrap` installs a working QEMU on Linux).
-
 ## They are thin wrappers, on purpose
 
 The scripts do almost nothing themselves. `script/test` is `cargo xtask test`; `script/server`
-is `cargo xtask run`; `script/console` is `cargo xtask shell`. **`cargo xtask` is still the
-engine** and still the place the real build logic lives (and it exposes more than the scripts do:
+is `cargo xtask run`; `script/console` is `cargo xtask shell`. `cargo xtask` is still the
+engine and still the place the real build logic lives (and it exposes more than the scripts do:
 `gdb`, `objdump`, `image`, `std-aborts`). The scripts add a normalized interface on top, and nothing was
 duplicated to get it. If you prefer typing `cargo xtask …`, it all still works.
 
-## Two things that are deliberately the way they are
+## `script/` and `helpers/`
 
-**`script/` is the front door and `helpers/` is the drawer behind it.** The normalized entry points
-are in `script/`, GitHub's convention. `helpers/` holds `qemu-runner-aarch64.sh`, `qemu-bounded.sh` and
-`memory-bounded-runner.sh` (milestone 277, **name provisional**, which is a cargo runner of the
-same kind: `script/mutation` points `CARGO_TARGET_<HOST>_RUNNER` at it so each mutant's test binary
-runs under a memory ceiling),
-which are internal plumbing that cargo and the scripts call, not things you run by hand
-(`qemu-bounded-selftest.sh`, milestone 226, is the exception beside them: it is in no gate and
-exists to be run by hand when `qemu-bounded.sh` changes). Two
-directories an `s` apart is a little awkward, but each follows its own convention, and keeping the
-runner where cargo already expects it (`.cargo/config.toml` points at `helpers/qemu-runner-aarch64.sh`)
-was cheaper than moving it.
-
-**The drawer was called `scripts/` until 2026-09-23**, and the rename is the reason this paragraph
-reads the way it does. The split was always sound; the two names were not. `script/` and `scripts/`
-differ by one character, they sorted next to each other, and nothing in either name said which one a
-person types. calef ratified `helpers/` after opening the tree and losing his place in it: *"I'm
-totally disoriented in the script directory. Also, why do we have script and scripts?"* Captured
-transcripts and dated accounts keep `scripts/` where they describe the past, the same way this tree
-keeps `cricker-os`.
-
-**One thing in `helpers/` is not internal plumbing, and it is worth naming so the rule above is not
-misread.** `helpers/qemu-uefi-x86_64.sh` (milestone 87) boots the x86_64 kernel under OVMF, the real
-UEFI firmware, from a staged EFI system partition. It is run by hand as well as by
-`cargo xtask uefi-boot`, and it lives beside the runners rather than in `script/` because it is a
-QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
-`-kernel` argument for cargo to pass it. See notes/x86-uefi-boot.md.
-
-**And one thing in `helpers/` is sourced rather than run.** `helpers/qemu-path.sh` (milestone 287,
-**name provisional**) puts this project's own QEMU on PATH when `script/ci-qemu` has built one. It
-has no shebang on purpose: it exists to edit the caller's PATH, which an executed script cannot do,
-so every `script/` entry point that can reach an emulator reads it with `. helpers/qemu-path.sh`
-immediately after the `cd` to the root. `script/lint`'s *the project's QEMU is on PATH* check is
-keyed on exactly that, so a new entry point cannot quietly skip it.
-
-**Why PATH and not the 38 call sites.** The emulator is named bare from 38 places across 16 files in
-three languages, including `exec qemu-system-aarch64` at the bottom of each `helpers/qemu-runner-*.sh`
-and a `subprocess` list in `script/netboot-rehearsal`. Exporting PATH once at the top of the process
-tree reaches every one of them, including the ones nobody has written yet, which is why the helpers
-under `helpers/` do not source it themselves: they are spawned by an entry point, or by the
-`cargo xtask` that entry point spawned, and have already inherited it.
-
-**And one thing in `helpers/` is not a script at all.** `helpers/rust_source.py` is a Python module
-nothing executes: it holds the derivations `script/lint` and `script/metrics` both need (the
-comment-and-literal strip that makes a code-line count a code-line count, the `unsafe` census, and
-the harness count taken from source text alone), and both import it. Milestone 236 put it there
-because those three derivations existed twice, once in a gate and once in the dashboard, and a gate
-that changed its definition would have left `notes/project-metrics.md` quietly asserting the old
-one. It sits in `helpers/` rather than `script/` for the reason the paragraph above gives: `script/`
-is the front door, and this is not a door.
-
-The premise that had kept the derivations copied turned out to be false, and it is worth writing
-down because the same shape will come up again: an inline `python3` heredoc looks like a place
-nothing can be imported into, but every one of these scripts `cd`s to the repository root before it
-runs python, so `sys.path.insert(0, 'helpers')` is all it takes. The alternative on the table was a
-host crate, which would have made three `script/` commands depend on a `cargo build`.
-
-**`bootstrap` installs system packages, and on Linux it also builds one.** Running
-`script/bootstrap` will `brew install qemu` on macOS or `apt-get install` on Linux if QEMU is
-missing. That is the pattern's intent: a fresh clone should be one command from working, but it is
-also why `script/test` does *not* call `bootstrap` every time: re-checking a package manager on
-every inner-loop test run is a poor trade. `setup`/`update` do the heavy dependency work; `test`
-stays fast; `ci-build` provisions on its no-argument path, because that is the command a person runs on a
-cold checkout before pushing. A named check (`ci-build fmt`) does not, because the caller naming
-one check is a CI job that has already installed exactly what it needs, and a rustfmt runner has
-no business apt-installing QEMU.
-
-**On Linux the package manager cannot finish the job, so bootstrap runs `script/ci-qemu` itself**
-(milestone 287). No Ubuntu release ships a QEMU with `-device riscv-iommu-pci`, and `apt-get`
-already fetches the newest package for the release, so there is nothing better for apt to get.
-Bootstrap therefore says what it is about to cost and builds the pinned version, which takes about
-**twelve minutes** the first time and under a second on every run after it. Before that milestone it
-printed the two commands for a human to type, which is rung four of AGENTS.md's ladder; worse, the
-printed sequence looped, because nothing outside `.github/workflows/ci.yml` put the build's install
-prefix on PATH. See `helpers/qemu-path.sh` and
-design/roadmap/287-bootstrap-installs-a-working-qemu.md.
+`script/` is the front door. `helpers/` is the drawer behind it: cargo runners, `qemu-bounded.sh`,
+and modules the scripts import. You do not run those by hand. `bootstrap` installs system packages,
+and on Linux it also builds the pinned QEMU. [helpers-and-bootstrap.md](scripts/helpers-and-bootstrap.md)
+has the reasons, the exceptions and the 2026-09-23 rename from `scripts/`.
 
 ## A piped gate reports the pipe's status, not the gate's
 
-**`script/lint | tail -30; echo $?` prints `tail`'s exit code.** So does `| grep`, `| head`, and
+`script/lint | tail -30; echo $?` prints `tail`'s exit code. So does `| grep`, `| head`, and
 every other filter somebody reaches for to make a long gate readable. The gate can fail and the
 shell will say `0`.
 
@@ -188,11 +151,11 @@ This is not theoretical and it is not rare. A rename lane on 2026-09-18 read exi
 introduced; it was caught only by re-running the command unpiped. The maintainer session briefing
 that lane had been using the same shape earlier the same night.
 
-**It is the worst kind of defect this tree can have in a gate**, because it fails in the safe-looking
+It is the worst kind of defect this tree can have in a gate, because it fails in the safe-looking
 direction: a red gate reporting green is indistinguishable from a green one, and the whole point of
 `script/lint` is that a person does not have to read it.
 
-**Write it as a redirect, and read `$?` before anything else touches it:**
+Write it as a redirect, and read `$?` before anything else touches it:
 
 ```console
 $ script/lint > /tmp/lint.txt 2>&1; echo "exit=$?"
@@ -200,34 +163,15 @@ exit=0
 $ grep -iE "^error|PROBLEM" /tmp/lint.txt      # now filter, having already read the status
 ```
 
-`set -o pipefail` fixes it inside a script and is what `script/` entry points use; it is **not** on
+`set -o pipefail` fixes it inside a script and is what `script/` entry points use; it is not on
 by default in an interactive shell or in most one-liners, which is exactly where this bites.
 
-**Nothing gates this**, and nothing plausibly could: a shell pipeline is not something the repository
+Nothing gates this, and nothing plausibly could: a shell pipeline is not something the repository
 can inspect. It is rung four, recorded where somebody about to run a gate is already reading.
-
-## Counted claims, one of `script/lint`'s checks
-
-Milestone 125 added a check that does not fit the table above, because what it gates is the prose
-rather than the code. A number carrying a `<!--count:NAME-->` marker is re-derived from the tree on
-every build, and `script/lint` fails on a mismatch, naming both values and the line. Three registry
-entries so far (`kani-harnesses`, `harness-crates`, `sh-scripts`); an unmarked number stays
-unchecked, which is the ratchet working as designed. See [counted-claims.md](counted-claims.md) for
-how to add one, and for the honest limits.
-
-**This section is prose and not a row in that table on purpose**, and the reason is worth knowing
-before you edit either. The longest line in the repository's markdown is
-1925 bytes <!--count:longest-markdown-line-->, and `manual`'s renderer sizes `LINE_MAX` at 2048
-against exactly that measurement. The rows in the table above are the next three longest and sit
-within about a hundred bytes of it (this sentence named `script/lint`'s row as the longest, which
-stopped being true without anything noticing, because the marker vouches for the NUMBER and nothing
-vouches for which line carries it). Extending one of those rows by a sentence overflows the buffer,
-and the way you find out is a `manual` render test failing while pointing at text three hundred
-lines further down the file.
 
 ## CI leverages them
 
-**Every job in `.github/workflows/ci.yml` names one check out of `script/ci-build`'s table**
+Every job in `.github/workflows/ci.yml` names one check out of `script/ci-build`'s table
 (milestone 286): the format job runs `script/ci-build fmt`, the clippy job `script/ci-build lint`,
 the test job `script/ci-build test swish-check`, the bench job `script/ci-build bench` and
 `script/ci-build icount`, and so on down the file. So CI executes the same commands a developer
@@ -249,7 +193,7 @@ because that directory is neither versioned nor shared, and a lane's worktree sh
 checkout's `.git`: setting `core.hooksPath` covers every worktree at once, which is the case
 that motivated the first hook.
 
-- **`pre-push`** runs `script/fmt --check` (~0.7 s) and refuses the push if rustfmt would change
+- `pre-push` runs `script/fmt --check` (~0.7 s) and refuses the push if rustfmt would change
   a file, because CI's `rustfmt` is a required check and learning about a wrapped line from a
   runner ten minutes later is the slowest possible way to learn it. Every lane on 2026-08-15 and
   -16 paid that tax at least once. `git push --no-verify` bypasses it, deliberately: pushing a
@@ -260,10 +204,10 @@ An existing clone installs it by rerunning `script/setup`, or by hand with the c
 
 ### BUGS
 
-- **The hook is opt-in per clone.** A contributor who never runs `script/setup` never has it, and
+- The hook is opt-in per clone. A contributor who never runs `script/setup` never has it, and
   nothing detects that; the gate in CI stays the authority, which is the correct direction for
   this to be wrong in.
-- **It checks the whole tree, not the pushed range.** Cheap enough at this size that the
+- It checks the whole tree, not the pushed range. Cheap enough at this size that the
   precision is not worth the complexity, and a tree that is unformatted anywhere fails CI anyway.
 
 ## Running one kernel test (`script/test --test`)
@@ -294,32 +238,12 @@ made the flag worth much less than it sounds. It is not. Timed on patagonia, aar
 | the whole `--arch aarch64` run, host crates and builds included | **174 s** |
 | the same run with `--test <one test>`, warm | **8.6 s** |
 
-So the boot is about **1%** of the QEMU leg, not most of it, and the flag is worth more than the
+So the boot is about 1% of the QEMU leg, not most of it, and the flag is worth more than the
 block expected rather than less. What is left in the 8.6 s is the fixture work `test` does before
 any leg (the userspace archive, the `std` exerciser, and five disk images), not the boot.
 
-### How the filter reaches the kernel, and why it is compile-time
-
-`kernel/build.rs` bakes `NIFE_TEST_FILTER` into the test binary as a `rustc-env`, and `runner`
-reads it as a `const`. That is not the obvious design (a boot argument is), and the reason is
-parity: a runtime channel means the boot protocol, and there are three of them. aarch64 and riscv64
-arrive with a device tree whose `/chosen/bootargs` this kernel does not parse; x86_64 arrives
-through PVH with no device tree at all. One `env!` is identical on all three and needs no parsing.
-The price is a kernel relink, measured at about 2.3 s, when the filter *changes*.
-
-### What the flag turns off, and why
-
-A filtered run is not the suite, so three things that assert what unselected tests would have
-written are suppressed rather than allowed to fail for an unrelated reason:
-
-- **the host-logic crates** do not run at all (they already have `cargo test <name>`, and running
-  their 72 s to reach one kernel test would keep most of the cost the flag removes);
-- **the post-run RedoxFS, crash and blank image checks** are skipped, the same guard `--arch
-  x86_64` already has: they would open a stale image from a previous run and report a true fact
-  about a leftover file as a false one about this run;
-- **the scanout and inbound referees** still run (the scanout referee is also what
-  presses keys over QEMU's monitor, which the keyboard test needs) but their verdicts become
-  advisory, and the run says so on a line of its own.
+How the filter reaches the kernel, and what a filtered run switches off, are in
+[one-kernel-test.md](scripts/one-kernel-test.md).
 
 ### EXAMPLES
 
@@ -346,17 +270,34 @@ no test matches the filter `no_such_test_anywhere`
 
 ### BUGS
 
-- **`--test` selects tests, not architectures, and that is deliberate** (DECISIONS §19). A filter
-  naming an architecture-specific test and no `--arch` runs all three legs and fails on the two
-  that do not have it. Failing is the honest outcome, because the alternative (skipping a leg with
-  no matches) makes a typo indistinguishable from a green run; the message names the fix.
-- **A filtered run proves nothing about the whole-suite instruments.** The frame ledger's
+- `--test` selects tests, not architectures, and that is deliberate, per DECISIONS §19
+  (architectural parity is a tenet). A filter naming an architecture-specific test and no `--arch`
+  runs all three legs and fails on the two that do not have it. Failing is the honest outcome,
+  because the alternative (skipping a leg with no matches) makes a typo indistinguishable from a
+  green run; the message names the fix.
+- A filtered run proves nothing about the whole-suite instruments. The frame ledger's
   kept-frames ceiling, the thread peak and the stack high-water are all totals over 312 tests, so a
   one-test run's readings sit far under them and cannot fail. Read a green filtered run as "this
   test passes", never as "the suite would".
-- **Tests are not independent, and running one alone can fail honestly.** A test that only passes
+- Tests are not independent, and running one alone can fail honestly. A test that only passes
   because an earlier one wired a service will fail on its own. That is a true finding about the
   test rather than a defect in the flag, and it is worth reading as one.
-- **The fixture work is not filtered.** The 8.6 s above is almost entirely archive and image
+- The fixture work is not filtered. The 8.6 s above is almost entirely archive and image
   building that happens whether or not the selected test needs a disk. Filtering that too would
   need `test` to know which fixtures a given test wants, which nothing records.
+
+## Appendices
+
+Split out on 2026-09-25 (UTC) under §212 (a prose budget). Every former section kept its heading.
+The directory and stems are provisional names; [the directory's README](scripts/README.md) says so.
+
+| Appendix | What it holds |
+|---|---|
+| [build-test-and-gate.md](scripts/build-test-and-gate.md) | full rows for build, test and gate; what the rows cite; Counted claims, one of `script/lint`'s checks |
+| [records-and-indexes.md](scripts/records-and-indexes.md) | full rows for the record and index commands |
+| [process-measures.md](scripts/process-measures.md) | full rows for the process measures |
+| [boards-and-boot-checks.md](scripts/boards-and-boot-checks.md) | full rows for the board and boot commands |
+| [load-and-reliability.md](scripts/load-and-reliability.md) | full rows for the load and reliability commands |
+| [analysis-and-supply-chain.md](scripts/analysis-and-supply-chain.md) | full rows for analysis, proofs and the supply chain |
+| [helpers-and-bootstrap.md](scripts/helpers-and-bootstrap.md) | Two things that are deliberately the way they are |
+| [one-kernel-test.md](scripts/one-kernel-test.md) | How the filter reaches the kernel; What the flag turns off |
