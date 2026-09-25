@@ -86,8 +86,8 @@ const DNS_IP: [u8; 4] = [10, 0, 2, 3];
 const DNS_PORT: u16 = 53;
 const GW_IP: [u8; 4] = [10, 0, 2, 2];
 const TFTP_PORT: u16 = 69;
-const ECHO_IP: [u8; 4] = [10, 0, 2, 9];
-const ECHO_PORT: u16 = 7777;
+const ECHO_IP: [u8; 4] = socket_protocol::fixture::ECHO_PEER_IP;
+const ECHO_PORT: u16 = socket_protocol::fixture::ECHO_PEER_PORT;
 
 const DNS_TXID: u16 = 0x1234;
 

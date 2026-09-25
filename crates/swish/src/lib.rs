@@ -1247,6 +1247,24 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
         out(b"                              hand a random source to anything it spawns\n");
         out(b"                              a program without this row draws no randomness at all\n");
     }
+    // **The network, which no token on the line designates either** (milestone 590 (the booted
+    // system starts its network stack)).
+    // The entropy row's shape and its reason: whether a program can reach the network is a fact
+    // about what it holds, so a person reads it here before anything runs rather than learning it
+    // from a firewall afterward. The third line is the honest one. The socket contract names a
+    // socket by a number every client of the stack shares, so this capability does not keep one
+    // declaring program out of another's sockets; saying less would describe a narrower grant than
+    // the one being made.
+    if e.prog.manifest().network {
+        out(b"    cap 10 endpoint  network  WRITE. it may open outbound sockets through the network\n");
+        out(b"                              stack, and nothing else: it cannot reach the card, cannot\n");
+        out(b"                              listen, and cannot hand the network to anything it spawns.\n");
+        out(b"                              it shares the stack's socket numbers with every other\n");
+        out(b"                              program holding this row\n");
+        out(
+            b"                              a program without this row reaches no network at all\n",
+        );
+    }
     // **The row this milestone exists to print.** On Linux there is nothing here to say: `ps` reads
     // /proc and the answer is "every process on the machine", which no command line chose and no
     // tool can narrow. Here the scope is a capability, so it is a line a person can read before
@@ -2097,6 +2115,43 @@ mod tests {
             }
         }
         assert_eq!(declared, 1);
+    }
+
+    #[test]
+    fn exactly_one_program_declares_the_network() {
+        // `exactly_one_program_declares_entropy`'s reason, one authority over: the manifest table is
+        // the whole of who may reach the network from this prompt (milestone 590 (provisional)), so
+        // a second declaring program is a decision, and this is where it has to be made.
+        let mut declared = 0;
+        for &p in Prog::ALL {
+            if p.manifest().network {
+                assert_eq!(
+                    p,
+                    Prog::NetworkEchoClient,
+                    "{} declares the network",
+                    p.name()
+                );
+                declared += 1;
+            }
+        }
+        assert_eq!(declared, 1);
+    }
+
+    #[test]
+    fn the_preview_shows_the_network_only_where_it_is_declared() {
+        // What `caps` prints is what the progenitor's spawn service reads (`Manifest::network`),
+        // so the row appearing for the witness would be the preview admitting an over-grant.
+        let shown_for = |p: Prog| shown(|o| write_preview(&endowment(p), o));
+        assert!(shown_for(Prog::NetworkEchoClient).contains("cap 10 endpoint  network  WRITE"));
+        for &p in Prog::ALL {
+            if p != Prog::NetworkEchoClient {
+                assert!(
+                    !shown_for(p).contains("network  WRITE"),
+                    "`caps {}` shows a network it does not declare",
+                    p.name()
+                );
+            }
+        }
     }
 
     #[test]

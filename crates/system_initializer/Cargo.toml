@@ -40,6 +40,10 @@ login_protocol = { version = "0.1.0", path = "../login_protocol" }
 # reads: the readiness sentinel an entropy service answers once it has drawn its first bufferful
 # from a real device. Pure logic, no non-dev dependencies of its own.
 entropy_protocol = { version = "0.1.0", path = "../entropy_protocol" }
+# The socket contract (milestone 590 (the booted system starts its network stack)), for exactly one
+# word: the inbound authority this
+# crate hands the `net_stack` it builds (`NO_LISTEN_GRANT`). Pure logic, no dependencies of its own.
+socket_protocol = { version = "0.1.0", path = "../socket_protocol" }
 # The credential contract (milestone 49's boot-wiring update), for the request word `identity_provisioner`
 # needs staged and the provision opcodes (`PUT`, `SEAL`) this crate sends directly. Pure logic, no
 # non-dev dependencies of its own; `login_protocol` itself re-exports the same functions rather than

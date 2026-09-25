@@ -1,0 +1,194 @@
+//! **Reach the network from a booted system's prompt** (milestone 590 (the booted system starts
+//! its network stack)).
+//!
+//! Opens a TCP connection to the QEMU runners' echo peer (`socket_protocol::fixture::ECHO_PEER_IP`,
+//! port `ECHO_PEER_PORT`), sends [`MSG`], reads what comes back, and prints it:
+//!
+//! ```text
+//! nife> network_echo_client --mem 4
+//! echo peer 10.0.2.9:7777 answered: nife-net!
+//! ```
+//!
+//! Every network test before this one started `net_stack` from the kernel's test harness, so none
+//! of them said anything about the system a person boots. This program is spawned by the real
+//! progenitor, through the real spawn service, holding exactly what its manifest
+//! (`grant_plan::Prog::NetworkEchoClient`) declares, and it talks to the `net_stack` the progenitor
+//! built at boot. A green `script/swish-check` line for it is the claim.
+//!
+//! A fixture and not a tool, because the peer it talks to exists only inside a QEMU runner. The
+//! package client milestone 198 (a package manager) needs is the first real program that will
+//! declare the same manifest field.
+//!
+//! # What this program holds
+//!
+//! - slot 0: its output, the sink contract (`crates/byte_sink_protocol`).
+//! - slot 1: the `--mem` budget, which it mints the one page it trades bytes with the stack
+//!   through out of. The network grant carries no memory, so a socket client pays for its own page.
+//! - slot 10 ([`grant_plan::NETWORK_SLOT`]): `WRITE` on the stack's endpoint, the right to `CALL`
+//!   the socket contract. Placed there by the progenitor because the manifest declares
+//!   `network`, and empty on a boot whose progenitor built no stack (`x86_64`, or any run with
+//!   `NIFE_NET` unset), in which case this prints why and sends nothing.
+//!
+//! # BUGS
+//!
+//! **It uses socket number 0, and so does any other client of the same stack.** The socket
+//! contract names a socket by a small integer every client shares (`socket_protocol::MAX_SOCKETS`),
+//! so two network programs alive at once would operate each other's sockets. Nothing at this prompt
+//! runs two today; milestone 590's block records the limitation and what fixing it would change.
+//!
+//! Name: provisional. Introduced 2026-09-24 for milestone 590; says what it talks to, and expects
+//! to be retired rather than renamed once a real network tool can stand in for it.
+
+#![no_std]
+#![allow(missing_docs)]
+#![no_main]
+
+use abi::rights;
+use socket_protocol::fixture::{ECHO_PEER_IP, ECHO_PEER_PORT};
+use socket_protocol::*;
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{
+    call, exit, is_granted, map_page_frame, retype_page_frame, send, send_cap,
+};
+
+/// The output slot: the sink contract.
+const OUT: u64 = 0;
+/// The `--mem` budget.
+const MEMORY_REGION: u64 = 1;
+/// The stack's endpoint, where the manifest's declaration puts it.
+const STACK: u64 = grant_plan::NETWORK_SLOT;
+
+/// The socket this program opens. See this file's BUGS.
+const SID: u64 = 0;
+
+/// Where this program maps the page it shares with the stack. Any address its own image does not
+/// use; `socket_test_client`'s choice, because that one is known to be clear of a small program.
+const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+
+// SAFETY: `PAGE_FRAME_VA` is mapped read/write for one page before any access through this window
+// (`attach`), and nothing else in this program touches that range.
+static WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_FRAME_VA, PAGE) };
+
+/// The line sent, and the line that must come back. `socket_test_client`'s own, so the peer sees
+/// the same bytes from the prompt that it sees from the harness.
+const MSG: &[u8] = b"nife-net!";
+
+#[unsafe(no_mangle)]
+pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
+    if !is_granted(STACK) {
+        finish(&[
+            b"network_echo_client: no network capability was granted; ",
+            b"this boot built no network stack\n",
+        ]);
+    }
+    match exchange() {
+        Ok(n) => {
+            let mut got = [0u8; 64];
+            let n = n.min(got.len());
+            for (i, b) in got[..n].iter_mut().enumerate() {
+                *b = WINDOW.r8(OFF_PAYLOAD + i as u64);
+            }
+            let mut addr = [0u8; 24];
+            let a = render_peer(&mut addr);
+            finish(&[b"echo peer ", &addr[..a], b" answered: ", &got[..n], b"\n"]);
+        }
+        Err(step) => finish(&[b"network_echo_client: the exchange failed at ", step, b"\n"]),
+    }
+}
+
+/// Attach a page, open, connect, send, receive, close. `Ok` carries the received length; `Err`
+/// names the step that failed, which is all a person at the prompt can act on.
+fn exchange() -> Result<usize, &'static [u8]> {
+    let frame = retype_page_frame(MEMORY_REGION);
+    if frame < 0 {
+        return Err(b"minting the shared page (was --mem given?)");
+    }
+    let frame = frame as u64;
+    if !map_page_frame(frame, PAGE_FRAME_VA, true, MEMORY_REGION) {
+        return Err(b"mapping the shared page");
+    }
+    if send_cap(
+        STACK,
+        frame,
+        rights::READ | rights::WRITE,
+        req(OP_ATTACH_PAGE_FRAME, SID),
+    ) < 0
+    {
+        return Err(b"handing the stack the shared page");
+    }
+    if call(STACK, req(OP_OPEN_TCP, SID), 0).0 != REP_OK {
+        return Err(b"opening a socket");
+    }
+    for (i, &b) in ECHO_PEER_IP.iter().enumerate() {
+        WINDOW.w8(OFF_DST_IP + i as u64, b);
+    }
+    WINDOW.w16(OFF_DST_PORT, ECHO_PEER_PORT);
+    if call(STACK, req(OP_CONNECT, SID), 0).0 != CONNECT_ESTABLISHED {
+        let _ = call(STACK, req(OP_CLOSE, SID), 0);
+        return Err(b"connecting");
+    }
+    for (i, &b) in MSG.iter().enumerate() {
+        WINDOW.w8(OFF_PAYLOAD + i as u64, b);
+    }
+    if call(STACK, req(OP_SEND, SID), MSG.len() as u64).0 != MSG.len() as u64 {
+        let _ = call(STACK, req(OP_CLOSE, SID), 0);
+        return Err(b"sending");
+    }
+    let (n, _) = call(STACK, req(OP_RECV, SID), 0);
+    // Closed before the answer is judged, so a failed exchange still gives the socket back.
+    let _ = call(STACK, req(OP_CLOSE, SID), 0);
+    if n == REP_ERR || n == 0 {
+        return Err(b"receiving");
+    }
+    Ok(n as usize)
+}
+
+/// `10.0.2.9:7777`, rendered from the constants rather than spelled, so the line printed is the
+/// address that was dialled.
+fn render_peer(out: &mut [u8; 24]) -> usize {
+    let mut n = 0;
+    for (i, &octet) in ECHO_PEER_IP.iter().enumerate() {
+        if i > 0 {
+            out[n] = b'.';
+            n += 1;
+        }
+        n += decimal(octet as u64, &mut out[n..]);
+    }
+    out[n] = b':';
+    n += 1;
+    n + decimal(ECHO_PEER_PORT as u64, &mut out[n..])
+}
+
+/// Write `v` in decimal at the front of `out`; the digit count.
+fn decimal(mut v: u64, out: &mut [u8]) -> usize {
+    let mut digits = [0u8; 20];
+    let mut k = 0;
+    loop {
+        digits[k] = b'0' + (v % 10) as u8;
+        k += 1;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for i in 0..k {
+        out[i] = digits[k - 1 - i];
+    }
+    k
+}
+
+/// Print the pieces as one stream and end it, then exit.
+fn finish(pieces: &[&[u8]]) -> ! {
+    for piece in pieces {
+        let mut rest = *piece;
+        while !rest.is_empty() {
+            let (w0, w1, w2, n) = byte_sink_protocol::pack(rest);
+            send(OUT, w0, w1, w2);
+            rest = &rest[n..];
+        }
+    }
+    send(OUT, byte_sink_protocol::eof(), 0, 0);
+    exit();
+}
+
+user_mode_runtime::panic_handler!();

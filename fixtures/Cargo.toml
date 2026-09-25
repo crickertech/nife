@@ -33,6 +33,24 @@ path = "src/memory_grant_depleter.rs"
 test = false
 bench = false
 
+# The network echo client (milestone 590 (the booted system starts its network stack)): the
+# prompt's proof that the booted system has
+# a network. Connects to the QEMU runners' echo peer through the `net_stack` the progenitor built
+# and prints what came back.
+[[bin]]
+name = "network_echo_client"
+path = "src/network_echo_client.rs"
+test = false
+bench = false
+
+# The unreachable network witness (milestone 590, provisional): declares no network, tries to use
+# one anyway, and prints the kernel's refusal. The negative control for the echo client.
+[[bin]]
+name = "unreachable_network_witness"
+path = "src/unreachable_network_witness.rs"
+test = false
+bench = false
+
 # The interrupt_heeder (DECISIONS §24): a long-running job that heeds the cooperative ^C,
 # polling a shared flag between work units and exiting cleanly when the shell sets it. The
 # cooperative interrupt tier.

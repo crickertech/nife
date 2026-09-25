@@ -446,6 +446,31 @@ programs! {
         ///
         /// Name: provisional.
         Top { id: 13, name: "top" },
+        /// **Reach the network from the prompt** (milestone 590 (the booted system starts its
+        /// network stack),
+        /// `fixtures/src/network_echo_client.rs`): open a TCP connection to the QEMU runners'
+        /// echo peer (10.0.2.9:7777, `helpers/qemu-runner-aarch64.sh`'s `guestfwd`), send a
+        /// fixed line, and print what came back.
+        ///
+        /// The only program in this table that declares [`Manifest::network`], and a fixture rather
+        /// than a tool: the echo peer exists only inside a QEMU runner, so the program is the proof
+        /// that a person at a booted system's prompt can reach the network through the stack the
+        /// progenitor built, and nothing more. The package client milestone 198 (a package manager)
+        /// needs is the first real tool that will declare the same field.
+        ///
+        /// Name: provisional.
+        NetworkEchoClient { id: 14, name: "network_echo_client" },
+        /// **Try to reach the network without declaring it, and say what the kernel answered**
+        /// (milestone 590 (provisional), `fixtures/src/unreachable_network_witness.rs`).
+        ///
+        /// The negative control for [`Prog::NetworkEchoClient`], and the reason it is a program
+        /// rather than a sentence: its manifest declares nothing, it `CALL`s [`NETWORK_SLOT`] with a
+        /// real socket-contract request anyway, and prints the error. A progenitor that endowed the
+        /// network to every child rather than to the declaring one would turn its line from a
+        /// refusal into a reply. `unwritable_clock_witness`'s shape, one authority over.
+        ///
+        /// Name: provisional.
+        UnreachableNetworkWitness { id: 15, name: "unreachable_network_witness" },
     }
 }
 
@@ -473,6 +498,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             Prog::MemoryGrantDepleter => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -492,6 +518,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // The two interrupt demonstrators. Both run until interrupted, take no argument and no
             // memory grant, and report through the shared job frame rather than the result endpoint
@@ -514,6 +541,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             Prog::InterruptIgnorer => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -529,6 +557,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // `date` declares an empty grant expression, and that is the interesting part: its
             // authority (a read-only mapping of the clock page) is not something the command line
@@ -573,6 +602,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **The first program endowed a directory**, and the first with options. It takes no
             // integer and no memory: what it needs is the authority to take a name out of the
@@ -602,6 +632,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **The consumer**, and the only program that declares an input. Everything else about
             // it is empty: no argument, no memory, no file, no directory, no options. What it does
@@ -626,6 +657,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
@@ -651,6 +683,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **`ps`: a stream out, a domain in, and nothing else** (milestone 126).
             //
@@ -679,6 +712,7 @@ impl Prog {
                 domain: true,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **`pgrep`: `ps`'s manifest, field for field, and the sameness is the claim.**
             //
@@ -710,6 +744,7 @@ impl Prog {
                 domain: true,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **`top`: `ps`'s manifest a second time**, and here the sameness is a fact to
             // weigh rather than a claim being made. `pgrep`'s identity with `ps` is the point of
@@ -737,6 +772,7 @@ impl Prog {
                 domain: true,
                 config: false,
                 entropy: false,
+                network: false,
             },
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
@@ -755,6 +791,7 @@ impl Prog {
                 domain: false,
                 config: true,
                 entropy: false,
+                network: false,
             },
             // **`least_authority_demo`'s manifest, not `date`'s.** `uptime` reads `user_mode_runtime::monotonic_nanos`,
             // which is granted to every process unconditionally, so there is no capability here to
@@ -776,6 +813,47 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: false,
+                network: false,
+            },
+            // **The one program in this table that declares the network** (milestone 590
+            // (provisional)). `uuid`'s block one service over, with one difference: a socket client
+            // mints the page it trades bytes with the stack through, so it needs a budget to mint
+            // it from, and that is `--mem` rather than something the network grant carries. Four
+            // pages is the frame and the page tables to map it; sixteen is generous for a program
+            // that maps one page.
+            Prog::NetworkEchoClient => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Required { min: 4, max: 16 },
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: false,
+                entropy: false,
+                network: true,
+            },
+            // **Declares nothing, deliberately**: `uptime`'s manifest, field for field. The program
+            // exists to be the child the progenitor must not hand the network to.
+            Prog::UnreachableNetworkWitness => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: false,
+                entropy: false,
+                network: false,
             },
             // **The one program in this table that declares the entropy service** (milestone 111).
             // `printenv`'s block one authority over, and `ps`'s output shape: every designated
@@ -805,6 +883,7 @@ impl Prog {
                 domain: false,
                 config: false,
                 entropy: true,
+                network: false,
             },
         }
     }
@@ -953,6 +1032,16 @@ pub const DOMAIN_SLOT: u64 = 7;
 /// answers `abi::Error::NoSuchSlot`, which `entropy_protocol::delivered` reads as `None` rather than
 /// as a count.
 pub const ENTROPY_SLOT: u64 = 9;
+
+/// **The capability table slot a client view of the network stack lands in** (milestone 590
+/// (provisional)), for the programs that declare [`Manifest::network`].
+///
+/// Ten, one past [`ENTROPY_SLOT`], for that constant's reasons: a named slot rather than the next
+/// free one, above the shell's own seven positional capabilities, and far below
+/// `abi::fault::FAULT_EP_SLOT`. A program spawned without the declaration holds an empty slot here,
+/// and its first `CALL` answers `abi::Error::NoSuchSlot`; `unreachable_network_witness` is the
+/// program that shows it at the prompt.
+pub const NETWORK_SLOT: u64 = 10;
 
 /// A program's expectation about the integer argument (`least_authority_demo 9`'s `9`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1145,6 +1234,27 @@ pub struct Manifest {
     /// source would make a program's dependence on randomness invisible, which is the one property
     /// the service was built to have (DECISIONS §44).
     pub entropy: bool,
+    /// **Endowed a client view of the network stack** (milestone 590 (provisional), the booted
+    /// system starts its network stack; `crates/socket_protocol`, `components/src/net_stack.rs`).
+    ///
+    /// [`entropy`](Manifest::entropy)'s shape exactly, one service over: an endpoint the progenitor
+    /// holds because it built the service, placed at [`NETWORK_SLOT`] carrying `WRITE` for a child
+    /// that declares it, and at no slot for one that does not. A network is not a name a person
+    /// types, so nothing on the command line can ask for it; the declaration is the whole of who
+    /// may reach the network from this prompt, and `caps` prints it before anything runs.
+    ///
+    /// `WRITE` is the right to `CALL` the socket contract. It is not `READ` (which would let a
+    /// client take another client's request off the endpoint) and not `GRANT` (which would let it
+    /// hand the network to anything it spawns). **What it does not narrow is the stack's own socket
+    /// namespace**: `socket_protocol` names a socket by a small integer every client shares, so two
+    /// declaring programs alive at once can each operate the other's sockets. That is the socket
+    /// contract's limitation rather than this grant's, and it is recorded in milestone 590's block
+    /// rather than papered over here. No inbound authority rides with it: the stack the progenitor
+    /// builds holds `socket_protocol::NO_LISTEN_GRANT`, so a declaring program can connect out and
+    /// cannot listen.
+    ///
+    /// **Provisional field name.**
+    pub network: bool,
 }
 
 /// A parsed command line. The shell dispatches on this; only [`Command::Run`] carries a grant
@@ -3286,6 +3396,7 @@ mod tests {
         domain: false,
         config: false,
         entropy: false,
+        network: false,
     };
 
     /// The writable twin: a program that is endowed a file it may write.
@@ -3312,6 +3423,7 @@ mod tests {
         domain: false,
         config: false,
         entropy: false,
+        network: false,
     };
 
     /// A shell that WAS granted a directory to narrow, standing at its root.
@@ -4215,6 +4327,7 @@ mod tests {
         domain: false,
         config: false,
         entropy: false,
+        network: false,
     };
 
     /// Plan one stage against an explicit manifest, with the operators' answer folded in.
