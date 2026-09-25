@@ -130,9 +130,10 @@ fn compile_one(manifest_dir: &Path, clang: &Path, flags: &[&str], source: &str, 
         // GOT indirection that a statically linked, fixed-address image has no use for.
         .arg("-fno-pic")
         // No stack protector: `__stack_chk_fail` and `__stack_chk_guard` are libc symbols, and
-        // tier two of the libc question (notes/std.md) is "a handful of symbols we chose", not
-        // "whatever the compiler decided to reference". Turning the feature off is honest; shimming
-        // its runtime would be pretending we have one.
+        // tier two of the libc question (design/roadmap/36-foreign-component.md records the three
+        // tiers; notes/c-seam.md applies them) is "a handful of symbols we chose", not "whatever
+        // the compiler decided to reference". Turning the feature off is honest; shimming its
+        // runtime would be pretending we have one.
         .arg("-fno-stack-protector")
         .args(["-Os", "-std=c11", "-Wall", "-Wextra", "-Werror"])
         .arg("-c")
