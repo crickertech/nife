@@ -94,7 +94,8 @@ under `design/` and so is not a lane's either.
 - **Two present-tense descriptions of a fixed bug**, in `kernel/src/user/sink_tests.rs`, moved to the
   past tense they were always describing: *"there `init` **is** the hello binary"* is no longer true
   and was never meant to outlive the fix it explains.
-- **One section left whole with a note added above it.** `notes/pipes.md`'s *"A correction: there are
+- **One section left whole with a note added above it.** `notes/pipes/second-stream.md`'s *"A
+  correction: there are
   two inits"* is the correction it records, so it stays; a dated parenthetical now says 266 made it
   one, because a reader arriving at that heading would otherwise leave believing there are two.
 - **`crates/system_initializer`'s `Name:` block gained calef's refusal**, which is the other half of
@@ -170,7 +171,8 @@ deliberately, so that a rename moves one set of words and not two.
   a reader who greps `no building budget for init` or `a minimal init: the system builder` finds the
   note and not the code. Each says so where it sits.
 - **The captured transcripts in `notes/trusted-init.md` still read `init:`**, unchanged from 266's
-  own `BUGS`, and so do the fenced diagrams in `notes/pipes.md`, whose column alignment is the
+  own `BUGS`, and so do the fenced diagrams in `notes/pipes.md` and its appendices, whose column
+  alignment is the
   meaning.
 - **This was not gated by a boot.** `script/test` and `cargo build` were run; `script/swish-check`
   needs a QEMU this container does not have, and CI is what runs it. The change is comments and

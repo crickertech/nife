@@ -255,7 +255,8 @@ applied, stated so it can be disagreed with:
   deliberate exception"*.
 - **A record of what was true on a date does not change.** This is the `cred`-to-`credentialer`
   precedent from the same week, and the reason is that rewriting it makes the record lie. Milestone
-  22's title is *trusted init*; `notes/pipes.md`'s section heading *"A correction: there are two
+  22's title is *trusted init*; `notes/pipes/second-stream.md`'s section heading *"A correction:
+  there are two
   inits"* is the correction it records; `notes/trusted-init.md` carries captured boot transcripts
   whose bytes are evidence.
 - **A file a developer may not edit does not change**, and that is a larger share of the 748 than any

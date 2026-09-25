@@ -474,7 +474,8 @@ const INITRD_VA: u64 = 0x2000_0000;
 /// 48 KiB of address space per child, which is nothing next to a page table.
 ///
 /// `kernel::user::pipeline_service`'s `SHELL_EXTRA_STACK` must stay level with this: a test wiring
-/// with less headroom than the boot wiring finds faults the boot does not have (notes/pipes.md).
+/// with less headroom than the boot wiring finds faults the boot does not have
+/// (notes/pipes/the-boot.md).
 /// The kernel cannot depend on this crate (it would drag `user_mode_runtime`'s EL0 syscall stubs in), so that
 /// one is still a number in two places, and this is the one it follows.
 pub const CHILD_STACK_PAGES: u64 = 12;
