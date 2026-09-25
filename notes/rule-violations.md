@@ -122,9 +122,10 @@ $ echo $?
   once sat past threshold is `resolved`, see "What changed, 2026-08-25" above), but the reason not
   to wire it in stays live for the next rule that crosses three strikes: doing so automatically
   would fail every lane's pull request over a decision that belongs to an architect or the
-  integrator, the same failure mode DECISIONS §61 warns about for an ordinary lint ("adding a lint
-  is a commitment to fix every existing violation first"). Whether and when to wire this in for a
-  *future* crossing is itself an open decision, named here rather than made.
+  integrator, the same failure mode DECISIONS §61 (a lint is adopted on evidence from this tree)
+  warns about for an ordinary lint ("adding a lint is a commitment to fix every existing violation
+  first"). Whether and when to wire this in for a *future* crossing is itself an open decision,
+  named here rather than made.
 
 - **"The rule" is matched by exact text, not by meaning.** Two rows describing the same rule in
   different words are counted as two different rules. A human curating the table has to normalize

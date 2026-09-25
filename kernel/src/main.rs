@@ -2520,7 +2520,8 @@ fn print_machine_description(boot_info_pointer: usize) {
     // printed, which is the claim a ladder rung should make. A header would only mean the block
     // started.
     //
-    // **Wording provisional** (milestone 268): a line two programs agree on is an architect's under
+    // **Wording provisional** (milestone 268 (every architecture boots the same way)): a line two
+    // programs agree on is an architect's under
     // AGENTS.md's *move fast on what can be undone* tenet, and a lane ships one and says so rather
     // than waiting.
     println!(

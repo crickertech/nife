@@ -199,7 +199,7 @@ The boot leg is CI's.
   two-way split is coarse rather than wrong: 39's own definition of a component is the shippable
   unit, which `wc` is. 395 carries the list, the cost (about an hour, measured by doing the same
   work at four times the scale) and the three things a decision has to settle. Numbered on
-  2026-09-19 by milestone 433's drain of the pile.
+  2026-09-19 by milestone 433 (drain the proposal pile to zero).
 - **Recorded.** `notes/user-proofs.md`'s BUGS: `fixtures` is not a row in `script/verify`'s crate
   table, because it carries no Kani harness and a row with none fails the way that file's own
   comment describes. So a harness added to a fixture would run nowhere and nothing would say so,

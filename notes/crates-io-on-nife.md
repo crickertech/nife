@@ -49,8 +49,8 @@ script/crate-probes --no-backend     # the same fifty without entropy_backend
 script/crate-probes --keep           # leave the generated probe crates and their build logs
 ```
 
-**PROVISIONAL NAME** (milestone 64, 2026-08-18): script names are an architect's and this one is not
-ratified.
+**PROVISIONAL NAME** (milestone 64 (enough `std` to run somebody else's crate), 2026-08-18): script
+names are an architect's and this one is not ratified.
 
 It takes the account-wide `nife-dev` link (it calls `cargo xtask std-src`) and it needs the network,
 so it is not a CI gate and `script/test` does not run it. It builds for aarch64 only, deliberately:

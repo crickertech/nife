@@ -3,8 +3,8 @@
 **Status: PROPOSED 2026-09-25.** Raised by the `maintainer/architect-role-census` lane, which swept
 the tree for sentences assuming calef is the only architect (calef, 2026-09-25 UTC: *"I want to
 strike all assumptions from the tree that I am the only architect so that when we have another we
-need not scour."*) and was asked to add a lint that stops new ones, only if it could be made precise.
-It could not, yet. **Name provisional**: this file's stem is a lane's coinage.
+need not scour."*) and was asked to add a lint that stops new ones, only if it could be made
+precise. It could not, yet. **Name provisional**: this file's stem is a lane's coinage.
 
 **Gate: NONE.** A lint in `script/lint` is reversible in AGENTS.md's sense: nothing outside this
 repository reads it.

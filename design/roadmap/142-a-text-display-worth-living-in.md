@@ -52,8 +52,8 @@ rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
-milestone 141). See "What is an architect's, separated from what is blocking" below, unchanged by
-this pass.
+milestone 141 (a palette worth looking at)). See "What is an architect's, separated from what is
+blocking" below, unchanged by this pass.
 
 §102 ("A Frame names a run of pages") is built and consumed, `Object::PageFrame` now carrying the
 page count: the scanout was first grown to 1280x720 (900 page frames, one capability instead of

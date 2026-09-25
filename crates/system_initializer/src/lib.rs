@@ -1401,7 +1401,8 @@ pub fn boot(
     // # BUGS
     //
     // **Unverified against a real boot.** `second_dir` is `None` at every shipped entry point
-    // (DECISIONS §126: what the subtree should be is an architect's call), so this branch has never
+    // (DECISIONS §126 (a real, single, moving `cwd`): what the subtree should be is an architect's
+    // call), so this branch has never
     // run
     // under `script/swish-check`, which is the only thing in the tree that runs a real progenitor.
     // `build_caretaker` retypes two more objects into *this process's* capability table right

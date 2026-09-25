@@ -86,8 +86,8 @@ about the **record**. A settled name can be `unrecorded` (nobody wrote down why 
 
 `script/names --provisional` lists them and they sort first in `--unratified`, because a name its
 own author called wrong is the shortest conversation an architect can have. This page told newcomers
-the opposite until §89: run 2 of the stranger test wrote the word AGENTS.md asked for and got a red
-gate, which is what raised the decision.
+the opposite until §89 (`provisional` becomes the fourth provenance state): run 2 of the stranger
+test wrote the word AGENTS.md asked for and got a red gate, which is what raised the decision.
 
 ### 3. A `[[bin]]` block in that package's `Cargo.toml`
 

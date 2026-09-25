@@ -580,8 +580,9 @@ address space) reads as safe; too conservative and the exercise reduces to renam
 comments without moving the count, the exact "relocates unsafe... hides it behind a [wrapper]"
 anti-pattern this block's own text refuses. **Left as a named follow-on, not attempted here**: the
 next lane's job is not "wrap `invoke`," it is "decide, method by method, which of the 18-plus
-obligations are real, the same reading milestone 112 already did for the four SAFETY comments that
-discharged onto nobody" -- and only then does a mechanical wrapping pass become safe to write.
+obligations are real, the same reading milestone 112 (the SAFETY comments that bind nobody) already
+did for the four SAFETY comments that discharged onto nobody" -- and only then does a mechanical
+wrapping pass become safe to write.
 
 **A realistic floor for `user/`, as this milestone's own BUGS section asked the first lane to
 report rather than pick a target here.** The `invoke` cluster is the whole question: it is 123 of

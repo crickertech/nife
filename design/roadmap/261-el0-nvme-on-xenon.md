@@ -18,7 +18,8 @@ contracts routinely."* Designed so option 4 can be added later without reshaping
 choice between them settled by measurement rather than argument.
 
 **Not reopened here**: whether a new `Object` variant is minted, and whether a validator ships with
-it. §86 says plainly those are an architect's, and they are option 4's questions, not 2a's.
+it. §86 (whether an NVMe driver can leave the kernel) says plainly those are an architect's, and
+they are option 4's questions, not 2a's.
 
 ## One premise of §86 has changed, and it matters to this milestone
 

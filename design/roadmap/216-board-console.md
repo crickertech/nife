@@ -188,9 +188,10 @@ as built serves every read-only use, and 218 is the thing to do first either way
   provisional, as a lane's names are, and `script/names --unratified` is the worklist.
 - **Milestone 324.** Whether `script/board-console`
   should ever be able to write to the serial port at all, and if so whether that is this tool with
-  an explicit mode or a second tool. It is an architect's call. Milestone 218 may remove the need by
-  fixing autoboot, in which case the answer is no; while it is open, a bench session facing a board
-  that will not boot has no sanctioned way to type at it.
+  an explicit mode or a second tool. It is an architect's call. Milestone 218 (a human typing four
+  commands into U-Boot) may remove the need by fixing autoboot, in which case the answer is no;
+  while it is open, a bench session facing a board that will not boot has no sanctioned way to type
+  at it.
 - **Milestone 324.** Whether argon
   (aarch64) and xenon (x86_64) get this console with a board profile or a tool each. Same behaviour,
   different banners and a different boot sequence, and the choice is an architect's. Until it is

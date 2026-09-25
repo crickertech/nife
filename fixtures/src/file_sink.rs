@@ -81,7 +81,8 @@
 //!
 //! That the tree spells one translating adapter `terminal_sink_caretaker` and this one not is a real
 //! inconsistency in what `caretaker` means. It is an architect's to settle rather than this file's,
-//! and it has a home: milestone 413, design/roadmap/413-what-a-caretaker-is-when-it-translates.md.
+//! and it has a home: milestone 413 (what a `caretaker` is),
+//! design/roadmap/413-what-a-caretaker-is-when-it-translates.md.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

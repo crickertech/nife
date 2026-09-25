@@ -145,8 +145,8 @@ milestone:
   observe the window at all"*. **It already exists.** `a_revoked_holder_faults_on_its_next_port_write`
   became that observer the moment the substrate under it worked, without being written for it.
 
-None of which is this lane's call to make: §153 is an architect's, and the above is evidence for it
-rather than an answer to it.
+None of which is this lane's call to make: §153 (how a two-core x86_64 test earns its place) is an
+architect's, and the above is evidence for it rather than an answer to it.
 
 ## BUGS
 

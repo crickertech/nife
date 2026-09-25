@@ -120,7 +120,7 @@ service, and because a fork should not be settled by discovering an option late.
 - **It prices nothing about a timer service itself**, only whether one can hold a timer. If the
   answer is yes on all three, the service is still unbuilt, unpriced, and unnamed.
 - **The fourth shape is a syscall-surface addition** whatever its size, so it is an architect's
-  under §10 and this spike may only measure it.
+  under §10 (process model) and this spike may only measure it.
 - **Milestone 151 is unbuilt**, so every option here that composes with a notification composes with
   something that does not exist yet, and the spike should say what it assumes about it.
 
@@ -182,9 +182,9 @@ is 1,152 bytes in a 4,096-byte page, 2,944 spare), the walk shares the cached ea
 tick still costs one comparison. Applied to the real consumer, `soak.rs`'s six-line yield loop
 becomes one call and the kernel builds clean with `--features soak`.
 
-**Whether that consumer should be served is an architect's**, under §101's carve-out and milestone
-106's own "this stays owed against a kernel-side consumer appearing". This block only says what it
-costs.
+**Whether that consumer should be served is an architect's**, under the carve-out in §101
+(notification objects) and milestone 106's own "this stays owed against a kernel-side consumer
+appearing". This block only says what it costs.
 
 ## Follow-on
 

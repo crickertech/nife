@@ -58,8 +58,9 @@ process it holds a second directory capability at all (`_start`'s three `START` 
 spoken for), and both real init entry points still pass `second_dir: None`. That gap is 154's, not
 this lane's to close: it is a spawn-protocol wire decision 154 itself declined to make "under this
 lane's time pressure," and what the second directory should even *be* is an architect's boot-time
-policy call (DECISIONS §126 already made the harder judgment call next to it, the real single moving
-cwd, without answering this one). This lane did not invent an answer to either.
+policy call (DECISIONS §126 (a real, single, moving `cwd`) already made the harder judgment call
+next to it, the real single moving cwd, without answering this one). This lane did not invent an
+answer to either.
 
 `ln`'s symlink half is retired from "still to do" rather than built as a separate command: DECISIONS
 §50 already settled that symlinks-as-stored-paths are superseded by `bind`, not implemented beside

@@ -345,7 +345,8 @@ did not ask it.
 ## What serving a kernel thread would cost, measured
 
 **This does not decide whether the kernel thread should be served**, which is an architect's under
-§101's carve-out and is milestone 106's to reopen. It says what it would cost, because a spike that
+the carve-out in §101 (notification objects), and reopening it belongs to milestone 106 (a wait
+that ends on either the interrupt or the deadline). It says what it would cost, because a spike that
 noticed the question and left it unpriced sends the decision back for a second round.
 
 **The consumer is real and it is in the tree.** `kernel/src/soak.rs`'s supervisor, whose own `BUGS`
@@ -509,6 +510,8 @@ The fourth shape signals **a notification**, and notification objects are
 - **The scaffold is gone.** The variant, the `abi::timer` module, the retype arm, the dispatch bodies,
   the expiry table and the tick hook were built to obtain the numbers and deleted. Rebuilding them is
   an hour; shipping them would have settled a syscall-surface fork by accident, which is what
-  milestone 106's lane refused to do and what §10 and §16 reserve to an architect.
+  milestone 106's lane refused to do and what §10 (process model) and §16 (object revocation)
+  reserve to an architect.
 - **`Timer`, `Timer::ARM` and `Timer::CANCEL` are the milestone block's provisional coinages**, minted
-  so the measurement could exist. Names are an architect's (§75).
+  so the measurement could exist. Names are an architect's (§75 (directories under `design/` and
+  `notes/` carry provenance)).

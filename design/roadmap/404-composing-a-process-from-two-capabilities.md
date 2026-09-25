@@ -83,8 +83,8 @@ saying it that precisely is what makes option (a) below look as small as it is.
 that reaches the whole sequence: same two capabilities, same fixture, more verdict bits. It becomes a
 host-unrunnable QEMU test like the one it already is, on both architectures, asserted on every pull
 request, which is where `builder` never was. The cost is that the fixture's name stops describing it
-and names are an architect's, and that milestone 19b's clean "nothing can run in the built space"
-reading is gone.
+and names are an architect's, and that the clean "nothing can run in the built space" reading of
+milestone 19b (run a real workload) is gone.
 
 **(b) A new fixture that composes a child from two capabilities and nothing else**, leaving 19b's
 alone. Honest about being a second thing; costs one more program in every archive, and this tree has

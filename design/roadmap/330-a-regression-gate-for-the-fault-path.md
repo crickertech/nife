@@ -14,12 +14,13 @@ class milestone 333 collects.
 **Gate: NONE.** A lane could start this today. The reasoning that produced `DECISION` is sound as
 far as it goes (a new program is a new name, and names are an architect's) and it does not reach a
 gate, because a name has never been a blocker in this tree. `design/naming.md`, which DECISIONS §155
-made the rule, says it in one sentence: a new crate, program or module *"ships a **provisional**
-name, says so in its report, and expects it to change"*. AGENTS.md says the same thing from the
-other side, that `script/names --unratified` is a worklist rather than a wall *"precisely so that an
-unratified name never blocks anyone's build"*, and milestone 115's gate takes `unrecorded` as a
-truthful answer for the same reason. So the lane ships `faulter` or whatever it proposes, marks it
-provisional, and calef ratifies or replaces it on the worklist afterwards.
+(the naming conventions move out of the constitution) made the rule, says it in one sentence: a new
+crate, program or module *"ships a **provisional** name, says so in its report, and expects it to
+change"*. AGENTS.md says the same thing from the other side, that `script/names --unratified` is a
+worklist rather than a wall *"precisely so that an unratified name never blocks anyone's build"*,
+and the gate of milestone 115 (the names that were ratified) takes `unrecorded` as a truthful answer
+for the same reason. So the lane ships `faulter` or whatever it proposes, marks it provisional, and
+calef ratifies or replaces it on the worklist afterwards.
 
 **The token was `DECISION` from 2026-09-03 to 2026-09-19**, carried across unchanged when milestone
 433 promoted this from the proposal pile, and it is corrected here rather than quietly because of

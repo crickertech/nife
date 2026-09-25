@@ -239,7 +239,8 @@ if [ -n "$NIFE_DISK" ]; then
 fi
 
 # **NIFE_PCIE_ROOT_PORT puts the NVMe controller behind a PCIe root port** instead of directly on
-# the root complex (milestone 320; the name is PROVISIONAL, a lane's to propose and an
+# the root complex (milestone 320 (every PCI bus the machine has, not just bus zero); the name is
+# PROVISIONAL, a lane's to propose and an
 # architect's to ratify). Unset, nothing changes and every existing boot gets the flat `q35` it
 # always had.
 #

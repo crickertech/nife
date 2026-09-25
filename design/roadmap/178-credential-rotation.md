@@ -7,10 +7,12 @@ calef expects a person to do with a new system is set their own. Nothing in this
 
 **Gate: DECISION.** Where a proof-gated rotation verb lives is a `credential_protocol` wire change two
 programs must agree on, and the options below are close enough in cost that the choice is an
-architect's rather than a lane's. It is [§168](../decisions/168-where-a-rotation-verb-lives.md)
-(where a proof-gated credential rotation verb lives), written up 2026-09-19 by milestone 435's lane,
-which found this gate naming no decision while "The design question this needs answered" below was
-addressed to one person.
+architect's rather than a lane's. It is §168 (where a proof-gated credential rotation verb lives),
+in
+[`design/decisions/168-where-a-rotation-verb-lives.md`](../decisions/168-where-a-rotation-verb-lives.md),
+written up 2026-09-19 by the lane of milestone 435 (forty-five milestones are gated on a decision
+nobody wrote down), which found this gate naming no decision while "The design question this needs
+answered" below was addressed to one person.
 
 ## What this is, in brief
 

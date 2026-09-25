@@ -283,7 +283,8 @@ mode including M-mode firmware, x86_64 counts ring 0 and 3, and aarch64 counts E
 provisional `PMCCFILTR_EL0`. Two things here are an architect's and both are facts that leave the
 machine: what `PMCCFILTR_EL0` counts, because a count excluding the kernel is not comparable to
 seL4's and one including it is not comparable to a userspace-only profile, and what a program calls
-the cycle-counter read and what it promises. §19 makes the first a parity gap in the one subsystem
-whose entire purpose is cross-machine comparison, and milestone 25's `sel4bench` needs it. Nothing
-can be settled on Apple silicon: the PMU is not architected state a hypervisor must present, so the
-machine that decides it is argon, with a person at it.
+the cycle-counter read and what it promises. §19 (architectural parity is a tenet) makes the first a
+parity gap in the one subsystem whose entire purpose is cross-machine comparison, and the
+`sel4bench` of milestone 25 (cross-OS performance comparison) needs it. Nothing can be settled on
+Apple silicon: the PMU is not architected state a hypervisor must present, so the machine that
+decides it is argon, with a person at it.

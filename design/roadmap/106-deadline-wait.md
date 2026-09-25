@@ -7,8 +7,8 @@ for calef before it is a task**, and it is the same fork **milestone 51** alread
 **Gate: MILESTONE 263.** The three-shape fork below is **not being decided**, which is an
 architect's answer of 2026-09-05 rather than a deferral by neglect. **The timed wait should be
 served from a userspace timer service signalling a notification**, which is
-[§101](../decisions/101-notification-objects.md)'s own anticipated shape and how seL4 does it, so
-none of the three kernel shapes has to be lived with.
+[§101 (notification objects)](../decisions/101-notification-objects.md)'s own anticipated shape and
+how seL4 does it, so none of the three kernel shapes has to be lived with.
 
 **All four consumers this block names are userspace**, and §101's carve-out for a kernel timed wait
 names kernel needs (a watchdog, a scheduling deadline, an in-kernel retransmit) of which the tree has

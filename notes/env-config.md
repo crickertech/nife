@@ -2,7 +2,7 @@
 
 Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `environment_protocol` (a
 provisional name; naming crates is an architect's call, per AGENTS.md); the decision is DECISIONS
-§111.
+§111 (inert configuration is a read-only page).
 
 ## What this is
 

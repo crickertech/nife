@@ -1,7 +1,7 @@
 # The multi-tasking workload benchmark, and how to take its number
 
-*(Milestone 168. Names in this page are **provisional**, per the naming tenet; an architect names
-things.)*
+*(Milestone 168 (a multi-tasking workload benchmark). Names in this page are **provisional**, per
+the naming tenet; an architect names things.)*
 
 **This page was written before any boot and has since been used for five.** It was written on
 2026-09-04 with the board powered off; five radon boots on 2026-09-16 followed its procedure and

@@ -949,7 +949,8 @@ pub mod dir {
     /// permission suffices to set the current time; only the owner may set an arbitrary one) and
     /// the one DECISIONS §43 already draws between reading the wall clock and setting it.
     ///
-    /// Name provisional (milestone 47's mtime lane, 2026-08-24, DECISIONS §112); an architect's to
+    /// Name provisional (milestone 47's mtime lane, 2026-08-24, DECISIONS §112 (`touch`'s two
+    /// behaviors need two rights)); an architect's to
     /// ratify. Candidates considered and set aside: `BACKDATE` (the capability also permits a
     /// *future* value, so a name for lying only backward would be narrower than what it grants),
     /// `RETIME` (read as "change the pace of something" as readily as "reassign its recorded

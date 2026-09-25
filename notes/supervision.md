@@ -238,5 +238,6 @@ other side.
   **Not fixed here because the fix is a choice, not a correction.** Requiring `WRITE` at `START`
   would make the rights mean something and would refuse every current caller, since they all place
   `READ`; requiring `READ` would encode the accident. Deciding which right a supervision placement
-  should demand is a syscall-surface question and belongs to an architect (§16, §26). Until then,
-  read the `READ` in `supervision_protocol` as arbitrary and the deletion as the mechanism.
+  should demand is a syscall-surface question and belongs to an architect (§16 (object revocation),
+  §26 (the fault endpoint)). Until then, read the `READ` in `supervision_protocol` as arbitrary and
+  the deletion as the mechanism.

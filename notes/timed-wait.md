@@ -1,8 +1,8 @@
 # What a timed wait costs
 
 *(Written 2026-08-17, for milestone 106's fork. This note prices a design and does not build one:
-nothing here adds a syscall, and the fork between milestone 51's three candidate shapes is an
-architect's and stays open.)*
+nothing here adds a syscall, and the fork between the three candidate shapes of milestone 51
+(wall-clock time) is an architect's and stays open.)*
 
 Milestone 106's block says a deadline in the blocked state "means the scheduler carries a timer
 wheel or an ordered deadline list, which is scheduler work the kernel does not do today". That

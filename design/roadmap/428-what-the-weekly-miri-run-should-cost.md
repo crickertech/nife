@@ -9,8 +9,8 @@ until the merge queue lands it.)*
 and sampling the crates that dominate are `cfg(miri)` gates at the test site, the convention five
 crates in this tree already follow, and neither needs a ruling. Only the last step is an
 architect's, changing the weekly cadence or tightening `timeout-minutes`, and it is the cheapest
-step of the three. Nothing is blocked meanwhile: the job is green as of milestone 310 and finishes
-inside its current budget.
+step of the three. Nothing is blocked meanwhile: the job is green as of milestone 310 (the Miri leak
+check stays on) and finishes inside its current budget.
 
 **Premise re-checked 2026-09-19 and still true.**
 `.github/workflows/undefined-behavior-check.yml` still runs on `cron: "0 6 * * 1"` with

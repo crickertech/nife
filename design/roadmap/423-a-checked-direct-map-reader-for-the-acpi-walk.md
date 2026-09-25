@@ -7,8 +7,9 @@ half is actually for. *(Number provisional until the merge queue lands it.)*
 **Gate: DECISION.** The decision is
 [§192](../decisions/192-a-checked-direct-map-reader-for-the-acpi-walk.md) *(number provisional)*,
 written up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. It is a
-new accessor at a trust boundary, so its shape and its name are an architect's; §192 recommends on
-the shape, which is reversible, and proposes no name.
+new accessor at a trust boundary, so its shape and its name are an architect's; §192 (does the ACPI
+walk's direct-map read take a bound) recommends on the shape, which is reversible, and proposes no
+name.
 
 **Premise re-checked 2026-09-19 and still true, and this block subsumes milestone 431.**
 `kernel/src/arch/x86_64/machine.rs` is 847 lines with no bounded accessor: `read_acpi` still takes a
