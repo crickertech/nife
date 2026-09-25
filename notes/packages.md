@@ -169,7 +169,7 @@ Nothing on a target reads it yet, for the reason below.
 
 Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
 rolled back and removed. The first two are built. The rest wait on one question, written up with
-options and measured costs as DECISIONS §216 (how the shell names an installed program to the
+options and measured costs as DECISIONS §219 (how the shell names an installed program to the
 spawner): when a person types the name of an installed program, what travels to the process that
 builds it. The shell names programs by an id from a closed enum, and an installed program has none.
 Every answer is a change the shell and the progenitor agree on, so it is calef's.
@@ -202,7 +202,7 @@ in the kernel's test harness. Milestone 590 (the booted system starts its networ
   starts.
 - `uptime` is also in the image, so the package the tests fetch is not a program the image
   lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
-  criterion, and they wait on §216.
+  criterion, and they wait on §219.
 - The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).

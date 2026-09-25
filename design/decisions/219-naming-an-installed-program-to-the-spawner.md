@@ -3,7 +3,7 @@ status: PROPOSED
 raised: 2026-09-24
 ---
 
-# 216. How the shell names an installed program to the spawner
+# 219. How the shell names an installed program to the spawner
 
 Raised 2026-09-24 by milestone 198 (a package manager, and the trivial install that makes a second
 customer possible)'s rung 3a consumer lane (`milestone/198-rung-3a-consumer`), which built the fetch

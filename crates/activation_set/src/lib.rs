@@ -3,7 +3,7 @@
 //! DECISIONS §208 (installing a package is granting it, and the activation set is versioned) ruled
 //! that installing *records that a package exists*, and that **the table of entries is versioned**
 //! so a set can be selected and rolled back as a whole. This crate is that table's logic, pure and
-//! host-tested, for whichever process DECISIONS §216 (how the shell names an installed program to
+//! host-tested, for whichever process DECISIONS §219 (how the shell names an installed program to
 //! the spawner) ends up giving it to. Nothing on a target reads it yet.
 //!
 //! # The shape, and why it is this one
@@ -19,7 +19,7 @@
 //! **An entry is `measured_boot`'s manifest line with one column added**: `<program> <package>
 //! <digest>`, where `<package>` is the package's `name-version-architecture` stem. The progenitor
 //! already parses the two-column form to decide what may run, so this adds a column to a parser it
-//! trusts rather than a second format on its path. §216 records this as a recommendation, not a
+//! trusts rather than a second format on its path. §219 records this as a recommendation, not a
 //! ruling.
 //!
 //! **Strict, because this table decides what may be spawned.** A malformed line makes the whole
