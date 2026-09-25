@@ -16,7 +16,7 @@ table, whose directory-grant spawn already peaks at fifteen.
 `BootEndowment` carries no network device. Every network test in the tree (DHCP, UDP, TCP, the
 inbound listener, and rung 3a's package fetch) starts `net_stack` from the kernel test harness
 (`kernel/src/user/virtio_service.rs`, `start_net_stack`). So a person at the prompt has no program
-that can reach the network at all, whatever DECISIONS §215 (how the shell names an installed program
+that can reach the network at all, whatever DECISIONS §216 (how the shell names an installed program
 to the spawner) decides.
 
 ## The shape an answer probably has, and why it is not decided here
@@ -37,7 +37,7 @@ a lane's call:
 ## Exit criterion
 
 At the prompt of a booted aarch64 system under QEMU, a program whose manifest asks for the network
-fetches rung 3a's package from `scripts/package-http-peer` and prints its verdict; one without the
+fetches rung 3a's package from `helpers/package-http-peer` and prints its verdict; one without the
 flag is refused the capability. riscv64 as the twin; x86_64 has no NIC under QEMU today (its runner
 attaches no `-netdev`), which is a scope note until milestone 494 (a driver for the network card a
 PC actually has).

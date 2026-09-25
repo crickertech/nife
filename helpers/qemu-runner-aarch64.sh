@@ -359,7 +359,7 @@ fi
 # is its own network, so both NICs can use the same virtual address without conflict.
 GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
 # **The package source** (milestone 198 (a package manager) rung 3a), on the echo peer's terms: 10.0.2.9:8080 is a
-# fresh `scripts/package-http-peer` per connection, speaking HTTP/1.0 on the connection and serving
+# fresh `helpers/package-http-peer` per connection, speaking HTTP/1.0 on the connection and serving
 # `target/packages/`, which the archive build fills. A real HTTP exchange with a host process, and
 # still nothing that binds a host port or outlives QEMU. The path is absolute because slirp runs the
 # command from QEMU's working directory, and it must contain no space or comma, because `$NET` is

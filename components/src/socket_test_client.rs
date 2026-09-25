@@ -579,7 +579,7 @@ const CATALOGUE_VA: u64 = 0x0000_0000_00C0_0000;
 /// is the refusal the tampered fetch must produce. Distinct from `OK` and from every stage failure,
 /// so a test asserting a refusal cannot be satisfied by a broken fetch.
 pub const DIGEST_REFUSED: u64 = 3;
-/// The package source the runners put at 10.0.2.9:8080 (`scripts/package-http-peer`).
+/// The package source the runners put at 10.0.2.9:8080 (`helpers/package-http-peer`).
 const PACKAGE_IP: [u8; 4] = [10, 0, 2, 9];
 const PACKAGE_PORT: u16 = 8080;
 

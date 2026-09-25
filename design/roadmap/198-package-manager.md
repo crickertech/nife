@@ -13,10 +13,10 @@ measurement table, a host process serves the package over plain HTTP, and `net_s
 accepts it only by the image's digest and refuses a copy with one byte flipped, on aarch64 and
 riscv64. §208 (installing a package is granting it)'s versioned table is built as host-tested logic
 (`crates/activation_set`). **Installing, running, rebooting, rolling back and removing wait on
-§215 (how the shell names an installed program to the spawner)**, a fork for calef.
+§216 (how the shell names an installed program to the spawner)**, a fork for calef.
 
 **Gate: DECISION.** Rung 3a's remaining half waits on
-[§215](../decisions/215-naming-an-installed-program-to-the-spawner.md) (how the shell names an
+[§216](../decisions/216-naming-an-installed-program-to-the-spawner.md) (how the shell names an
 installed program to the spawner), proposed 2026-09-24 by the lane that built fetch and verify: every
 answer is a change the shell and the progenitor agree on. The line read `NONE` for part of
 2026-09-24, between the step that found it stale and the lane that found the next fork. The three forks this gate named until then are all
@@ -134,7 +134,7 @@ claim about PCs, and each rung's last exit criterion is that second machine.
 | **1d. A PC that is not xenon** | Nothing new if 1a to 1c hold | The same stick on one fleet machine reaches `$` at its own keyboard and monitor | 243's fleet; [a-stick-that-boots-with-secure-boot-on.md](500-a-stick-that-boots-with-secure-boot-on.md) (new) for machines whose owner will not turn Secure Boot off |
 | **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [milestone 421 (the block roster cannot name an NVMe)](421-a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
 | **2b. Installed onto xenon's disk** | The bench half | The 2a sequence on xenon's Micron 2450, photographed, stick removed before the second boot | 261 (PARTIAL: the disk wipe, calef's, then one bench boot) |
-| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). **Fetch and verify BUILT 2026-09-24** (the image's catalogue, `scripts/package-http-peer`, `crates/http_response`, and one QEMU test per ISA, genuine accepted and tampered refused, on aarch64 and riscv64; x86_64 has no network under QEMU). Install, run, reboot, roll back and remove wait on §215; `crates/activation_set` is the table they will use. It needs no TLS, since §195's digest is what decides whether bytes may run |
+| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). **Fetch and verify BUILT 2026-09-24** (the image's catalogue, `helpers/package-http-peer`, `crates/http_response`, and one QEMU test per ISA, genuine accepted and tampered refused, on aarch64 and riscv64; x86_64 has no network under QEMU). Install, run, reboot, roll back and remove wait on §216; `crates/activation_set` is the table they will use. It needs no TLS, since §195's digest is what decides whether bytes may run |
 | **3b. The network card xenon has** | An Intel I219 (`e1000e` family) driver in 261's shape | Under QEMU `-device e1000e` behind `intel-iommu`, milestone 30 (the network stack as a confined component)'s DHCP and TCP gates pass through the new driver; on xenon, a lease from the house router and a measured transfer | [a-driver-for-the-network-card-a-pc-actually-has.md](494-a-driver-for-the-network-card-a-pc-actually-has.md) (new) |
 | **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [milestone 384](384-a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [DECISIONS §196](../decisions/196-nife-carries-tls-and-builds-the-provider.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
 | **4. The web page** | A published release and a page | A stranger with a PC, a USB stick and no prior knowledge follows the page to rung 3c's result; the stranger harness (`notes/stranger-test.md`) runs against the **download**, not the build | calef's act; the preconditions below |
@@ -234,11 +234,11 @@ calef's acts are named there rather than here.
 
 - **Decision.** Rung 3a after "verified by digest": install, run, survive a reboot, roll back,
   remove. ~~It waits on the activation ruling above.~~ §208 ruled that on 2026-09-23; the 2026-09-24
-  consumer lane built fetch and verify and stopped at the next fork, written up as DECISIONS §215
+  consumer lane built fetch and verify and stopped at the next fork, written up as DECISIONS §216
   (how the shell names an installed program to the spawner). **Milestone 507 (installing a package: mutate, compose, or widen)'s stated blocker was
   half stale**: the progenitor has kept the file service since milestone 31 (a capability shell) phase 3, so it can read
   an installed program; nothing can ask it for one. The fork:
-  `design/decisions/215-naming-an-installed-program-to-the-spawner.md`.
+  `design/decisions/216-naming-an-installed-program-to-the-spawner.md`.
 - **Proposed.** The virtio device table never reuses a slot, so this lane's test took its tenth
   bump (`MAX_DEVICES` to 34) with the fetches folded into one spawn.
   `design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`.
@@ -319,12 +319,12 @@ install, and he wants both **early, to make our own lives easier**. That makes p
 is vacant partly because a second customer could not be accepted if one appeared. The early half
 is what earns it, since the builders pay for its absence today, hand-wiring per program what a
 package would install once (milestone 40 already ships "installed by the package that owns it",
-against no package). Gate: DECISION on §215, the fork that stops rung 3a after "verified"; the
+against no package). Gate: DECISION on §216, the fork that stops rung 3a after "verified"; the
 format, activation and trust forks are ruled (§197, §208, §195); `MILESTONE 23` was dropped by calef on 2026-09-19 because it closed a
 loop, which §156 (what the package manager waits on) records. **Rescoped 2026-09-19 under §157**
 into four rungs, each shipping on its own, and **rung 3a's producer half is built** (2026-09-23:
 the one archive file §197 ruled a package is, and `cargo xtask package`, which turns a reviewed
-recipe into one; fetch and verify followed on 2026-09-24, and installing waits on §215 (how the
+recipe into one; fetch and verify followed on 2026-09-24, and installing waits on §216 (how the
 shell names an installed program to the spawner)): a stick reaching a prompt on a PC (1a on xenon over serial
 needs nothing new; the screen and the USB keyboard, milestone 242, are the rest), that system
 installed onto the disk (a new installer proposal plus milestone 261's bench step), growing by

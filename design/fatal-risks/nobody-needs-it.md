@@ -48,7 +48,7 @@ The evidence today, counted rather than characterised, and it points one way.
   what do they run) is `NOT-STARTED`. It is gated on milestone 198 (a package manager, and the
   trivial install that makes a second customer possible). Its gate read `DECISION` until
   2026-09-24; the three forks were ruled by 2026-09-23: §195 (a reviewed recipe vouches for a
-  package), §197 (a package is one archive file) and §208. It reads `DECISION` again, on §215,
+  package), §197 (a package is one archive file) and §208. It reads `DECISION` again, on §216,
   since the fetch-and-verify lane of the same day found the next fork.
   The project has no instrument that could observe a user if one appeared.
 - The one published argument that addresses this says it goes badly, and it is cited below.
@@ -62,7 +62,7 @@ installs (calef's precondition: no third parties until a package manager and a t
 exist). It will not install until milestone 198 lands. Since §208 (installing is granting) ruled
 the last of its forks on 2026-09-23, 198 waited on work for a day: rung 3a's consumer half, which
 fetches, verifies, installs and removes a package on a running system. The lane that built it got
-through fetch and verify (2026-09-24) and stopped at a narrower fork, §215 (how the shell names an
+through fetch and verify (2026-09-24) and stopped at a narrower fork, §216 (how the shell names an
 installed program to the spawner). It is calef's because the shell and the progenitor must agree
 on the answer. Milestone 530 ruled on 2026-09-21 that the customer path stays vacant, and is blocked rather
 than empty. It refused the closest candidate, a measurement appliance for this project's own

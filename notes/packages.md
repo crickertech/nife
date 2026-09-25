@@ -126,7 +126,7 @@ Built 2026-09-24 by the rung 3a consumer lane. Three pieces, each doing one thin
   "the image's measured table becomes the first source" taken literally, and it is why plain HTTP
   is enough on this rung: the digest the client checks against never crossed the network. It also
   means the producer runs end to end on every build, which this note's BUGS said nothing did.
-- **A host on the network serves it.** `scripts/package-http-peer` is a `guestfwd` peer at
+- **A host on the network serves it.** `helpers/package-http-peer` is a `guestfwd` peer at
   10.0.2.9:8080 in both QEMU runners, started by slirp once per connection with the connection on
   its standard input and output, exactly as the TCP echo peer at 10.0.2.9:7777 is a `/bin/cat`. A
   real HTTP/1.0 exchange with a real host process, and nothing binds a port on the machine or
@@ -169,7 +169,7 @@ generation. Its test `a_rollback_restores_the_whole_set` is the property calef a
 
 Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
 rolled back and removed. The first two are built. The rest wait on one question, written up with
-options and measured costs as **DECISIONS §215 (how the shell names an installed program to the
+options and measured costs as **DECISIONS §216 (how the shell names an installed program to the
 spawner)**: when a person types the name of an installed program, what travels to the process that
 builds it. The shell names programs by an id from a closed enum, and an installed program has none.
 Every answer is a change the shell and the progenitor agree on, so it is calef's.
@@ -202,7 +202,7 @@ builds no `net_stack`, so the fetch above runs only in the kernel's test harness
   starts.
 - **`uptime` is also in the image**, so the package the tests fetch is not a program the image
   lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
-  criterion, and they wait on §215.
+  criterion, and they wait on §216.
 - **The package peer is a `guestfwd` process, not a server on a LAN.** It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).

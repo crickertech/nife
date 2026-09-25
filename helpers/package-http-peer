@@ -2,7 +2,7 @@
 """The host a package is fetched from in rung 3a's tests (milestone 198 (a package manager)).
 
 QEMU's slirp runs this once per connection to 10.0.2.9:8080 (a `guestfwd` in
-scripts/qemu-runner-{aarch64,riscv64}.sh), with the connection on stdin and
+helpers/qemu-runner-{aarch64,riscv64}.sh), with the connection on stdin and
 stdout, the same way the TCP echo peer at 10.0.2.9:7777 is a `/bin/cat`. So it
 is a real HTTP/1.0 exchange with a real host process, and nothing binds a port
 on the developer's machine or outlives QEMU.

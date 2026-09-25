@@ -141,7 +141,7 @@
 //! the file service** (milestone 31 (a capability shell) phase 3, 2026-08-17): this sentence said it gave that away as
 //! soon as the shell held it, and DECISIONS §208 (installing a package is granting it) and milestone 507 (installing a package: mutate, compose, or widen) repeated it as the reason the
 //! spawner cannot read an installed program. It can; see "The filesystem stays" in `boot`, and
-//! DECISIONS §215 (how the shell names an installed program to the spawner) for what that changes. The proof is a negative control taken from inside the process and
+//! DECISIONS §216 (how the shell names an installed program to the spawner) for what that changes. The proof is a negative control taken from inside the process and
 //! printed at the prompt, exactly the shape `root_supervisor` uses: after the delete, `RETYPE` and
 //! `RETYPE_OBJ` on that slot must answer `NoSuchSlot` (there is nothing there) rather than
 //! `NotPermitted` (there is, and you may not).
