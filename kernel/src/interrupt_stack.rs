@@ -13,7 +13,7 @@
 //! interrupted thread for one preemption: trap frame, dispatch, the interrupt controller's claim,
 //! the tick, and the scheduler. Milestone 124's interim fix grew the stack from 16 KiB to 24 KiB
 //! with that measurement in hand and said in the same breath that the structural fix was **to bound
-//! the cost rather than to pay it**. This is that fix. See notes/stack.md.
+//! the cost rather than to pay it**. This is that fix. See notes/stack/interrupt-stack.md.
 //!
 //! # The shape
 //!

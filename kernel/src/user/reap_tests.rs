@@ -65,7 +65,8 @@ fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
 ///
 /// Until 2026-08-17 it did not refuse, and freed the stack instead: four CI panics over five days,
 /// every one reported as `*** KERNEL STACK OVERFLOW ***` with no stack overflowing. See
-/// notes/stack.md, "a kernel stack freed under its owner", and milestone 124's block.
+/// notes/stack/kernel-stack-freed-under-its-owner.md, and the block of milestone 124 (a thread is
+/// born where it lives).
 ///
 /// A test that means "this reap is refused for good" keeps calling [`reap`] and asserting on the
 /// answer; this is only for the ones that mean "this reap succeeds".

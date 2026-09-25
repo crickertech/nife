@@ -26,7 +26,7 @@
 # **9536 bytes on aarch64 and 9168 on riscv64**, the graph is acyclic (no recursion), and **no
 # function with a frame over the 4096-byte guard page is reachable from a thread stack entry point
 # at all** on either ISA. So those faults were not stack depth, and milestone 124's fix does cover
-# every path that reaches a thread stack. See notes/stack.md.
+# every path that reaches a thread stack. See notes/stack/guard-page-faults-2026-08-16.md.
 #
 # **Do not compare the per-root chains against milestone 84's watermark**, which two drafts of this
 # header did and got wrong twice. The watermark measures whatever was on the stack, nested trap

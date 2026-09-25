@@ -1685,7 +1685,8 @@ def _longest_markdown_line():
     the margin.
 
     It is here because this gate's own author spent it. Documenting the counted-claims check in
-    notes/scripts.md's `script/lint` row, which IS the longest line, took it to 2108 and broke a
+    notes/scripts.md's `script/lint` row (in notes/scripts/build-test-and-gate.md since 2026-09-25),
+    which IS the longest line, took it to 2108 and broke a
     `documentation` render test whose message pointed three hundred lines away at unrelated text. Bytes
     rather than characters, matching what LINE_MAX bounds.
     """
