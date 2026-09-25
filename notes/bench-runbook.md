@@ -26,8 +26,10 @@ written down. One card and one power-on can settle work on two fatal risks:
 
 - **Fatal risk 5** (it cannot be made reliable on multicore, and the bugs appear only on silicon).
   Milestone 225 (run the soak on radon, argon and xenon) is the run; milestones 219, 221 and 216
-  built the workload, the cross-core hook and the console that watches it. **This is the risk that
-  has already fired once, on this machine.**
+  built the workload, the cross-core hook and the console that watches it. This entry used to say
+  the risk had already fired once on this machine; that reading was retracted on 2026-08-15
+  (`notes/visionfive2.md`, fifth bench stop), and every result goes into
+  `notes/multicore-defect-curve.md`.
 - **Fatal risk 6** (a capability-confined userspace driver cannot drive real hardware at real speed).
   Milestone 159 (a real hardware entropy source: the JH7110's TRNG) is written, host-tested and has
   never touched silicon. It is the tree's only confined driver for a real non-virtio device.
