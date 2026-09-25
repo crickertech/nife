@@ -50,10 +50,29 @@ pub(crate) fn esp_dir() -> std::path::PathBuf {
 ///   what OVMF finds with no configuration. Installing to the machine's own ESP with a boot entry
 ///   of its own (`efibootmgr`'s job on Linux) is not done here, and is what a machine that boots
 ///   nife by default would need.
+///
+/// `--features <list>` builds the kernel with those cargo features, the one way to put a
+/// non-default kernel on xenon's stick. Written by the watchdog soak's lane (pull request #1301, a
+/// wedged kernel resets itself) for `--features watchdog_soak_test`, and landed by milestone 563 (a
+/// seal check that reads bytes cannot see a check that was dropped), the change that made a soak
+/// kernel seal at all. Any kernel feature works the same way; one whose boot enters no archive
+/// program through `trust::require_program` or the hand-over will still be refused as `NOT SEALED`.
 pub(crate) fn uefi_image() -> bool {
-    let Some(kernel) = uefi_kernel() else {
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    let features = match args.as_slice() {
+        [] => None,
+        [flag, list] if flag == "--features" => Some(list.as_str()),
+        _ => {
+            eprintln!("usage: cargo xtask uefi-image [--features <kernel features>]");
+            return false;
+        }
+    };
+    let Some(kernel) = uefi_kernel(features) else {
         return false;
     };
+    if let Some(list) = features {
+        eprintln!("uefi-image: this image's kernel was built with --features {list}");
+    }
 
     uefi_stage(
         &kernel,
@@ -67,7 +86,7 @@ pub(crate) fn uefi_image() -> bool {
 /// inside requires, returning the kernel's path. Split out of [`uefi_image`] by milestone 445 so
 /// that the screen gate can stage the same kernel behind a differently-built loader without
 /// duplicating that order, which is the one thing here nobody may get wrong.
-pub(crate) fn uefi_kernel() -> Option<String> {
+pub(crate) fn uefi_kernel(features: Option<&str>) -> Option<String> {
     // **The archive FIRST, then the kernel, and the order is load-bearing.** Packing the archive
     // regenerates `target/init-measure-x86_64.txt`, the manifest `kernel/build.rs` compiles in as
     // the measured-boot trust root. Kernel-first builds a kernel vouching for the PREVIOUS archive,
@@ -87,7 +106,11 @@ pub(crate) fn uefi_kernel() -> Option<String> {
     //
     // `initrd_x86` builds `components`, never the kernel, so the dependency runs one way only and
     // this order is the safe one as well as the correct one.
-    if !initrd_x86() || !cargo_profiled(&["build", "-p", "kernel", "--target", X86_TARGET]) {
+    let mut build = vec!["build", "-p", "kernel", "--target", X86_TARGET];
+    if let Some(list) = features {
+        build.extend(["--features", list]);
+    }
+    if !initrd_x86() || !cargo_profiled(&build) {
         return None;
     }
     Some(
@@ -247,7 +270,7 @@ pub(crate) fn uefi_stage(
 pub(crate) fn uefi_boot() -> bool {
     // **The shipping kernel behind a loader built with `screen_hold`** (milestone 445), staged
     // somewhere no bench procedure names. See [`uefi_screen_esp_dir`].
-    let Some(kernel) = uefi_kernel() else {
+    let Some(kernel) = uefi_kernel(None) else {
         return false;
     };
     if !uefi_stage(

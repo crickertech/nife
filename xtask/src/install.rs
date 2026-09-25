@@ -161,7 +161,7 @@ pub(crate) fn prepare() -> bool {
     }
     // `uefi_kernel` packs the archive first and then builds the kernel, which is the order the
     // measured-boot seal requires; see its own comment.
-    let Some(kernel) = uefi_kernel() else {
+    let Some(kernel) = uefi_kernel(None) else {
         return false;
     };
     if !uefi_stage(
