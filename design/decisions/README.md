@@ -62,8 +62,8 @@ ratified_by: calef
 | `ratified_by` | a GitHub username | `status` is `DECIDED` or `AMENDED` |
 | `superseded_by` | a section number | `status` is `SUPERSEDED` |
 
-The schema is calef's, ratified 2026-09-23, and a lane does not extend it. Keys are snake_case,
-values uppercase, dates UTC like every other date in this tree.
+The schema was ratified 2026-09-23 (calef); a lane does not extend it. Keys are snake_case,
+values uppercase, dates UTC like every date in this tree.
 
 This was `**Status: DECIDED.**` in prose until milestone 582 (a decision's status becomes a field,
 and the index becomes generated). Two failures came from reading a field out of a sentence. A file
@@ -84,7 +84,7 @@ them. There is no gap between the commit and when it was raised."* The split com
 2026-08-04, dates nothing here. The block for milestone 582 (a decision's status becomes a field,
 and the index becomes generated) has the counts and the three decisions whose prose says otherwise.
 
-`ratified_by` is `calef` throughout, on his ruling of 2026-09-24: he is the only ratifier to date.
+`ratified_by` names an architect listed in [`ARCHITECTS.md`](../../ARCHITECTS.md).
 
 | Status | Means |
 |---|---|
@@ -98,7 +98,7 @@ of the opening paragraph would otherwise miss, and §26 is the sharpest: its fir
 "not yet built" while three blocks below it record milestone 22 building it. Nothing flagged that,
 because a decision had no status to contradict.
 
-**A decision waiting on calef is `PROPOSED`, and it lives here rather than in a queue of its own.**
+**A decision waiting on an architect is `PROPOSED`, and lives here, not in a queue of its own.**
 `design/open-decisions.md` was that queue for one day, and it existed for a good reason: a decision
 that lives only in a conversation's scrollback is in the medium milestone 94 was written to abolish.
 But a proposal is the same object one lifecycle step before `DECIDED`, with the same shape (what is
@@ -325,6 +325,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 213 | DECIDED | [Writing standards: three countable rules, one review rule, and a ratchet](213-writing-standards.md) |
 | 214 | DECIDED | [The Team plan buys runner concurrency, and merge throughput is no longer third](214-the-team-plan-buys-runner-concurrency.md) |
 | 215 | DECIDED | [The second RISC-V machine is a rented Scaleway Elastic Metal RV1](215-the-second-risc-v-machine-is-a-scaleway-rv1.md) |
+| 217 | DECIDED | [Every architect holds the whole role](217-every-architect-holds-the-whole-role.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
