@@ -30,6 +30,7 @@ members = [
     "crates/login_protocol",
     "crates/nifefs",
     "crates/package_archive",
+    "crates/http_response",
     "crates/direct_memory_access_validator",
     "crates/device_tree_blob",
     "crates/elf",
