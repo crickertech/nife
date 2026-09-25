@@ -277,6 +277,42 @@ fn a_span_maps_exactly_its_pages_on_every_format() {
     a_span_maps_exactly_its_pages::<Ia32e>();
 }
 
+/// **A block needs both addresses aligned, not either.** When the virtual and physical addresses
+/// sit at different offsets within a 2 MiB region, no leaf in the span can be a block, however
+/// long it is: a 2 MiB leaf at a misaligned `va` faults, and at a misaligned `pa` the hardware
+/// (or the format's mask) maps a different 2 MiB than the one granted. Milestone 326 (turn a mutation score upward)
+/// (2026-09-24): `map_span` computing either address at the wrong offset survived every test,
+/// because every span tested so far had the two at the same offset.
+fn skewed_spans_are_mapped_in_pages<F: PageFormat>() {
+    for (va, pa) in [(VA + PAGE_SIZE, PA), (VA, PA + PAGE_SIZE)] {
+        let len = 2 * MIB2;
+        let pool = Pool::new(16);
+        let mut m = pool.mapper::<F>(Half::Low);
+        m.map_span(va, pa, len, Flags::kernel_data(), PageSize::Size1GiB)
+            .unwrap();
+        for off in (0..len).step_by(PAGE_SIZE as usize) {
+            assert_eq!(
+                m.translate(va + off),
+                Some((pa + off, Flags::kernel_data())),
+                "va {va:#x} pa {pa:#x} offset {off:#x}"
+            );
+        }
+        // A page, not a block, at the one place a block could have started on either side.
+        for off in [0, MIB2 - PAGE_SIZE] {
+            let (_, flush) = m.unmap(va + off).unwrap();
+            // SAFETY: never installed.
+            unsafe { flush.assume_no_stale_entry() };
+        }
+    }
+}
+
+#[test]
+fn skewed_spans_are_mapped_in_pages_on_every_format() {
+    skewed_spans_are_mapped_in_pages::<Aarch64>();
+    skewed_spans_are_mapped_in_pages::<Sv39>();
+    skewed_spans_are_mapped_in_pages::<Ia32e>();
+}
+
 /// **`largest` is a ceiling the span honours**: a 1 GiB-aligned gigabyte mapped with a 2 MiB
 /// ceiling is 512 blocks under one table, not one 1 GiB leaf. This is the path an x86 without
 /// `Page1GB` takes.

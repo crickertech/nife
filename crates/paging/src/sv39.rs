@@ -199,6 +199,18 @@ mod tests {
             );
         }
     }
+
+    /// **Any one of R, W and X makes an entry a leaf.** Every walk above the bottom level asks
+    /// this before it descends, so an entry it misreads as a pointer is a megapage whose data is
+    /// walked as though it were a page table. Milestone 326 (turn a mutation score upward), 2026-09-24: no test asked it about a
+    /// leaf at all.
+    #[test]
+    fn any_permission_bit_makes_a_leaf_and_none_makes_a_pointer() {
+        for bits in [R, W, X, R | W, R | X] {
+            assert!(Sv39::is_block(V | bits), "{bits:#x}");
+        }
+        assert!(!Sv39::is_block(Sv39::table_entry(0x8020_0000)));
+    }
 }
 
 /// Machine-checked proofs of the Sv39 format, mirroring the aarch64 module's. The shared `Mapper`
