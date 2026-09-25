@@ -5,7 +5,7 @@ and, in `notes/trusted-init.md`, recorded two questions it deliberately did not 
 "calef's call, not a thing to slip in". **This block's job is to state them precisely enough to be
 decided, not to pick.** Both are kernel-surface changes; one is also a rights-model change.
 
-**Gate: DECISION.** **One of the two halves was already decided when this block was written, and
+**Gate: DECISION §164.** **One of the two halves was already decided when this block was written, and
 that is recorded here rather than quietly fixed.** Fork one (whether reclamation and construction
 are separable rights) is [§32](../decisions/32-reap-without-build.md) (a supervisor may collect a
 corpse without being able to build one), decided 2026-07-29, six days before this block was raised,
@@ -13,7 +13,7 @@ and shipped as `abi::rendezvous::REAP`, whose authorization is the supervision r
 than the rights bit this block proposes. So the block restated a settled question as open, and a
 gate saying `DECISION` for an answered reason spends calef's attention on a decision he has made.
 What remains is fork two, whether a tid becomes a handle, which is
-[§164](../decisions/164-resolving-a-tid-a-supervisor-holds.md) (whether the kernel resolves a tid it
+§164 (whether the kernel resolves a tid it
 already sent), written up 2026-09-19 by milestone 435's lane. Both were recorded in
 notes/trusted-init.md as "calef's call, not a thing to slip in", and fork two still is.
 

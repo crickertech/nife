@@ -5,8 +5,8 @@
 which had been `ROLE_FILE` inside a three-role binary and so had never needed a name of its own.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§189](../decisions/189-what-a-caretaker-is-when-it-translates.md) *(number provisional)*, written
+**Gate: DECISION §189.** The decision is
+§189 (which of two definitions `caretaker` carries, and what the translating shape is called), written
 up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
 records why the three sections a reader might stop at do not answer this one: §92 decides a
 caretaker's *lifetime*, §56 assumes definition A rather than choosing it, and §106 takes the

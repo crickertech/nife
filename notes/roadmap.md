@@ -164,7 +164,8 @@ paragraph directly under its status, and `script/roadmap` fails on a file that d
 | Token | Means |
 |---|---|
 | `NONE` | A lane could start today. No decision is owed and no dependency is missing. |
-| `DECISION` | Waits on calef. The prose says which decision, and cites `design/open-decisions.md` where an entry exists. |
+| `DECISION` | Waits on calef, on a fork nobody has written up yet. The prose says which. |
+| `DECISION §<n>` | Waits on a `PROPOSED` section, and fails `--check` once it is ruled. |
 | `HARDWARE` | Waits on a machine **or on somebody sitting at one**: the VisionFive 2, the milestone 87 (the x86_64 bare-metal machine) x86 box, a rented instance, a real PMU. See below: an arrived board does not discharge this gate. |
 | `MILESTONE <n>` | Waits on work this roadmap already tracks, named by number. |
 
@@ -184,13 +185,12 @@ not here" and "the board is here and this needs your hands" are the same answer 
 this"* and a different answer to *"what would change it"*. Where the second applies, say what a person
 has to do, so a reader can tell an idle milestone from a blocked one.
 
-Four rules make it mechanical rather than decorative. A gate may name **more than one** token
-(`**Gate: MILESTONE 75, HARDWARE.**`), because milestone 74 (cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64) genuinely waits on both. `NONE` stands
-alone, since it is a claim that nothing stands in the way. Every gate owes **prose after the token**
-saying what and why, which is what stops `DECISION` from becoming a shrug. And a `MILESTONE <n>` gate
-must resolve to a row that is **not `BUILT`**, so the day a milestone lands, every gate still pointing
-at it fails the build rather than quietly going stale; that is the same drift the status check exists
-to catch, one level out.
+Four rules make it mechanical. A gate may name **more than one** token
+(`**Gate: MILESTONE 75, HARDWARE.**`), because milestone 74 (cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64) waits on both. `NONE` stands
+alone. Every gate owes **prose after the token** saying what and why, which stops `DECISION` from
+becoming a shrug. And a `MILESTONE <n>` gate must name a row that is **not `BUILT`**, and a
+`DECISION §<n>` gate a section still `PROPOSED`, so a gate pointing at finished work fails the build
+rather than quietly going stale.
 
 **It lives in the file on purpose.** A gate is an argument (which fork, whose machine, which
 milestone and why), so it wants the paragraph the block gives it, and the roadmap split already

@@ -39,7 +39,7 @@ _SLUG = re.compile(r"[a-z][a-z0-9-]*\.md")
 _STATUS = re.compile(r"\*\*Status: PROPOSED (\d{4}-\d{2}-\d{2})\.\*\*")
 
 _TITLE = re.compile(r"# [^0-9]")
-_GATE = re.compile(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)")
+_GATE = re.compile(r"\*\*Gate: ([A-Z0-9§, ]+)\.\*\* (\S)")
 
 # What a proposal can be wrong about, as tokens rather than sentences, because the callers say it
 # differently: `script/roadmap` prints a paragraph telling a lane how to fix the file, and

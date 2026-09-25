@@ -5,10 +5,10 @@ filed 2026-09-17 by the milestone 261 lane (the EL0 NVMe server), which closed t
 waiting on and deliberately did not take the work, because the work is a wire shape and that is the
 expensive category. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** calef, 2026-09-19, correcting the token this block carried on promotion. The
+**Gate: DECISION §193.** calef, 2026-09-19, correcting the token this block carried on promotion. The
 hardware is not the constraint and never was: QEMU's NVMe is attached on every leg of all three
 runners already (`NIFE_NVME`), and the surveyor's two clients run there today. What stops a lane is
-[§193](../decisions/193-nvme-in-the-block-roster.md), written up on 2026-09-19 when calef asked
+§193 (what a block-roster entry calls an NVMe disk, and whether it carries more than virtio does), written up on 2026-09-19 when calef asked
 whether this gate had a decision behind it and the answer was no: the ask lived only in this block's
 own *What is needed from calef* section, one rung above a chat message. It is the expensive category
 rather than a preference:

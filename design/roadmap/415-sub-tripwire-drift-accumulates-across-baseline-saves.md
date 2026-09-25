@@ -6,8 +6,8 @@ item 4 is refused. Promoted from the proposal
 which calef asked for after PR #886 found a regression that had hidden under the 10% threshold.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§190](../decisions/190-what-a-baseline-save-must-record.md) *(number provisional)*, written up
+**Gate: DECISION §190.** The decision is
+§190 (must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. Items 2 and 3 change
 how `cargo xtask bench --save` behaves and what a save is obliged to record, which is a workflow
 calef owns.
