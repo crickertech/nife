@@ -1085,9 +1085,10 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 /// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
-/// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
-/// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way. The
-/// program's own name is overdue and is calef's; see that file's `BUGS`.
+/// Name: provisional (milestone 266 (one progenitor, on all three architectures)): a constant
+/// rather than a program, but it is the name a reader meets at eight call sites, and
+/// `kernel::user::tests` already spelled it this way. The program's own name is overdue and is
+/// calef's; see that file's `BUGS`.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const HELLO_ENTRY: &str = "hello";
 
@@ -1680,7 +1681,7 @@ fn x86_build_child(
 /// And then both regions are destroyed and the frame count is compared, because a userspace that
 /// leaks its processes is not one.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 #[cfg(target_arch = "x86_64")]
 pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
     let before = crate::memory::free_page_frames();

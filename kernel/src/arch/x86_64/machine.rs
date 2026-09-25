@@ -956,7 +956,7 @@ const INTEL_VENDOR: u32 = 0x8086;
 ///   2026-09-04 on QEMU 11.1.1 under PVH *and* under OVMF), so under emulation this is always
 ///   `None` and the firmware memory map is the only source. See [`super::mmu::memory_mapped_io_window`].
 ///
-/// **Name provisional**: calef names the functions, and this one was minted by a lane. It is the
+/// Name: provisional. calef names the functions, and this one was minted by a lane. It is the
 /// register's own expansion spelled out (`TOLUD` is "top of low usable DRAM"), on the same
 /// reasoning that keeps `elf` and `pci` spelled the way the field already spells them.
 ///

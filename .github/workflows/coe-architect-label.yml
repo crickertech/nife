@@ -91,6 +91,21 @@ name: coe architect label
 #     each candidate from that list. The compare call is gone, and cause 2's `diverged` case with
 #     it. Replayed against #1194's 20:20 event (no label) and #1166 (label) before merging.
 
+#  4. **Six more wrong labels after cause 3's fix merged**, 2026-09-24 21:34 to 21:49 UTC, on
+#     #1230, #1244, #1246, #1249, #1254 and #1255. Each run logged "diffing this push only", cause
+#     3's removed wording: a `pull_request` run takes this file from the pull request's head, so a
+#     branch cut before #1248 kept running the old copy until it was rebased onto a `main` that had
+#     the fix. #1249's run is the example (head e7ff791a, which lacks #1248's merge): it labelled
+#     for `notes/corrections/README.md`, which `main` had gained. Nothing in this file can reach
+#     a branch that does not contain it, so that half is recorded, not fixed. The other half is
+#     fixed: candidates from the PR's file list must also be absent at the merge base of the base
+#     branch and the event's head, read from the event's own SHAs rather than from GitHub's cached
+#     list. Proved 2026-09-25 by simulated events: this step's script, extracted and run locally
+#     with each event's env (base ref set to `main`'s SHA at the event's time) and real read-only
+#     `gh api` calls, except that a `gh` stub fed the file list the old diff produced. #1166's
+#     opening labels. #1194's 20:20 rebase and #1249's 21:49 rebase do not, and #1194's does not
+#     with `before` removed either, so the merge-base check alone rejects `main`'s record.
+
 on:
   # `synchronize` needs `before`/`after` from the event payload (see the detection step), which is
   # why this does not also listen for `labeled`/`unlabeled`/`ready_for_review` the way
@@ -149,7 +164,7 @@ jobs:
       #     and a removed label stays removed, while a push that adds a second correction to the
       #     same PR is still caught.
       #
-      # **This took three tries, all recorded in BUGS.** The `synchronize` path never ran (cause 1);
+      # **This took four tries, all recorded in BUGS.** The `synchronize` path never ran (cause 1);
       # once it ran it read `compare/BEFORE...AFTER`, which a rebase makes lie in two directions:
       # it re-reported this PR's own old file as added (cause 2), and it reported a file `main`
       # had just gained as this PR's (cause 3, #1194). Reading only the PR's own diff removes both.
@@ -162,6 +177,10 @@ jobs:
           EVENT_NAME: ${{ github.event.action }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.event.after }}
+          # The head this event is about and the branch it merges into. `after` is empty on
+          # `opened` and `reopened`, so the merge-base question below asks with `head.sha`.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           # COE_DIR tracks decision 210 (a correction of error, and its action items are
           # decisions, proposals or milestones; see this file's header), which is UNRATIFIED as of
@@ -203,6 +222,31 @@ jobs:
           fi
 
           matches="$(printf '%s\n' "$files" | grep -E "$COE_RECORD" || true)"
+
+          # **A record the base branch already had at the merge base is never this PR's** (cause
+          # 4 in BUGS). The pulls/files list should already exclude it, since it is base...head,
+          # but that list is GitHub's cached view of the pull request. This asks the same question
+          # from the event's own head: the merge base of BASE_REF and HEAD_SHA, and each candidate
+          # must be absent there. If the merge base cannot be read, the list stands alone, which
+          # is the behaviour before this check existed.
+          if [ -n "$matches" ] && [ -n "$HEAD_SHA" ] && [ -n "$BASE_REF" ]; then
+            if mb="$(gh api "repos/$REPO/compare/$BASE_REF...$HEAD_SHA?per_page=1" \
+                  --jq '.merge_base_commit.sha' 2>&1)" && [ -n "$mb" ]; then
+              echo "coe-label: merge base of $BASE_REF and $HEAD_SHA is $mb"
+              kept=""
+              while IFS= read -r candidate; do
+                [ -z "$candidate" ] && continue
+                if gh api "repos/$REPO/contents/$candidate?ref=$mb" >/dev/null 2>&1; then
+                  echo "coe-label: $candidate is already on $BASE_REF at the merge base; not this PR's"
+                else
+                  kept="$(printf '%s\n%s' "$kept" "$candidate")"
+                fi
+              done < <(printf '%s\n' "$matches")
+              matches="$(printf '%s\n' "$kept" | sed '/^$/d')"
+            else
+              echo "coe-label: could not read the merge base ($mb); using the PR's file list alone" >&2
+            fi
+          fi
 
           # On a `synchronize`, a file the PR adds is only NEW if it did not exist before this
           # push; otherwise every push would re-add a label a human removed (requirement 1). So

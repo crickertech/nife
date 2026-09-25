@@ -427,7 +427,7 @@ pub mod survey {
         /// [`PLACEMENT`] is strictly less than this, which is the comparison that makes the
         /// magnitude concrete rather than adjectival.
         ///
-        /// Name provisional: calef names public items.
+        /// Name: provisional. calef names public items.
         pub const CPU_TIME: u64 = 2;
 
         /// **Whether this kernel answers a record.** The one enumeration of the selector space, so

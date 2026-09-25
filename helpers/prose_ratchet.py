@@ -172,6 +172,21 @@ SENTENCE_END = re.compile(r'[.!?][*_)\]"\'\u201d\u2019]*\s+(?=[A-Za-z0-9`"*\'\u2
 GENERATED_TABLES = {'## The decisions'}
 
 
+def without_generated_tables(text):
+    """`text` minus the rows of every table in GENERATED_TABLES. `script/metrics` counts through it,
+    so the prose-budget graph and this gate agree on what a generated table is."""
+    out, generated = [], False
+    for line in text.split('\n'):
+        if line.strip() in GENERATED_TABLES:
+            generated = True
+        elif generated and (not line.strip() or TABLE_ROW.match(line)):
+            continue
+        else:
+            generated = False
+        out.append(line)
+    return '\n'.join(out)
+
+
 def prose_lines(text):
     """(line, in_code) for the text with frontmatter and comments removed. Code lines are dropped."""
     text = FRONTMATTER.sub('', text)
@@ -305,6 +320,19 @@ def exceptions(text):
             problem = 'gives no `Reason:`'
         found[m.group(1)] = problem
     return found
+
+
+def granted_words(text):
+    """The word count a `prose-budget` exception marker records, or None.
+
+    Milestone 586's design note: the marker's number is the grant, and a file past it has grown
+    without a grant. It is the first number before `words` in the marker, compared with the whole
+    file's `wc -w`, marker included, because that is how every marker in the tree was measured.
+    """
+    text = CODE_SPAN.sub('', re.sub(r'^\s*(```|~~~).*?^\s*\1', '', text, flags=re.S | re.M))
+    m = re.search(r'<!--\s*prose-budget:\s*exception\.(.*?)-->', text, re.S)
+    n = re.search(r'([\d,]+)\s+words\b', m.group(1)) if m else None
+    return int(n.group(1).replace(',', '')) if n else None
 
 
 def median(xs):
@@ -512,6 +540,10 @@ def check():
             if problem:
                 bad.append(f'{path}: its {family} exception {problem}. An exception has to say '
                            f'when it was granted and why, or it reads as a design')
+        grant = granted_words(text)
+        if grant is not None and len(text.split()) > grant:
+            bad.append(f'{path}: {len(text.split()):,} words (wc -w) against the {grant:,} its '
+                       f'prose-budget exception grants. Cut it back; raising the grant is calef\'s')
         m = measure(text)
         now_over = over(m)
         if not now_over:
@@ -611,6 +643,9 @@ def selftest():
             m['longest'], m['bold_lead'] + m['bold_inline']) == (0, 0)),
     ]
     failed = [name for name, text, ok in cases if not ok(measure(text))]
+    grant = '<!-- prose-budget: exception. 1,234 words against a 3,000-word cap. 2026-09-24. Reason: x -->'
+    if granted_words(grant) != 1234 or granted_words('`' + grant + '`') is not None:
+        failed.append('the marker\'s granted word count')
     exc_ok = exceptions('<!-- prose-budget: exception. 2026-09-24. Reason: x -->')
     exc_bad = exceptions('<!-- writing-standards: exception. because -->')
     if exceptions('Spell it `<!-- prose-budget: exception. x -->` in prose.'):

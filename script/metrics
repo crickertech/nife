@@ -1147,8 +1147,7 @@ def harnesses(tree):
 # The prose budget: 3,000 words of main body per document, with appendices under the same cap.
 # calef ratified it on 2026-09-23 (UTC) and asked for a graph in the same breath, because a ratchet
 # nobody plots is a rule that holds for months with nobody able to say whether the tree is gaining
-# ground or losing it. Its decision section is proposed in pull request #1187 and has no number
-# minted yet, so nothing here cites one; when it lands, this comment gets the citation.
+# ground or losing it. The decision is §212 (a prose budget).
 #
 # Two series rather than one, and they answer different questions. The excess above the cap is the
 # DEBT: how many words would have to move into appendices for the tree to meet its own rule. The
@@ -1156,9 +1155,9 @@ def harnesses(tree):
 # splitting one book and move the count not at all, and the pair is what shows that.
 #
 # Every document is counted, one carrying a marked exception included. The exception mechanism
-# belongs to the gate, which is a different milestone and does not exist yet, and a graph that
-# subtracted exempted documents would hide the debt rather than measure it. When the gate arrives it
-# wants its own column for what it excuses; it does not get to edit this one.
+# belongs to the gate, milestone 586 (a prose ratchet in lint), and a graph that subtracted exempted
+# documents would hide the debt rather than measure it. If the gate wants a column for what it
+# excuses, that is its own column; it does not get to edit this one.
 #
 # The scope is `helpers/prose_ratchet.py`'s, shared with the gate so the two cannot drift
 # (milestone 586 (a prose ratchet in lint) moved it there): every `.md` directly under
@@ -1187,13 +1186,17 @@ def prose_budget(tree):
     this keeps the ratified definition so the series is not restated a second time. An appendix is
     its own document under the same cap, which is what the ruling intends.
 
+    The one thing both skip is a generated table (`prose_ratchet.GENERATED_TABLES`, the decisions
+    index today), since nobody can cut words a script writes. That steps the series down from
+    2026W39, by the index's words.
+
     Read from each week's own revision, unlike the cost columns: a week's prose debt is a property
     of that week's tree and git can answer for it, so `--backfill` restates the whole history.
     """
     excess = 0
     over = 0
     for _path, text in _prose_documents(tree):
-        words = len(text.split())
+        words = len(prose_ratchet.without_generated_tables(text).split())
         if words > PROSE_CAP:
             over += 1
             excess += words - PROSE_CAP

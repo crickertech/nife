@@ -1161,7 +1161,7 @@ pub fn runner(tests: &[&dyn Testable]) {
 /// arithmetic happens to be visible, and it can no longer be masked by somebody else freeing the
 /// same number of frames in the same window.
 ///
-/// **Name provisional** (this lane; calef names the interfaces).
+/// Name: provisional (this lane; calef names the interfaces).
 pub struct RegionRun {
     base: u64,
     pages: u64,

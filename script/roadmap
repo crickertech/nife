@@ -396,8 +396,29 @@ def blocks_of(lines):
     return out
 
 
-for fname in sorted(os.listdir(d)):
+def is_appendix_dir(fname, is_dir, entries):
+    """True for a §212 appendix directory: a directory named after a block file beside it.
+
+    §212 (a prose budget) sites a long document's appendices in a sibling directory named after
+    it, so `47-navigation-and-naming/` sits beside `47-navigation-and-naming.md`. Its files are
+    appendices, not blocks, and are not scanned as blocks; the prose ratchet's orphan check is what
+    watches them. A directory named after no block is still an error, since nothing else lives here.
+    """
+    return is_dir and FNAME.fullmatch(fname + ".md") is not None and fname + ".md" in entries
+
+
+# The rule's selftest, run every time because it is four lines and a wrong answer either fails
+# every split or lets any directory in.
+assert is_appendix_dir("47-navigation-and-naming", True, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("47-navigation-and-naming", False, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("48-no-such-block", True, {"47-navigation-and-naming.md"})
+assert not is_appendix_dir("notes", True, {"notes.md"})
+
+entries = set(os.listdir(d))
+for fname in sorted(entries):
     if fname == "README.md" or fname == PROPOSED_DIR:
+        continue
+    if is_appendix_dir(fname, os.path.isdir(os.path.join(d, fname)), entries):
         continue
     m = FNAME.fullmatch(fname)
     if not m:

@@ -142,6 +142,9 @@ mostly load-bearing contrast, and they are this tree's actual idiom (*a fact rat
 Rule 3 fails every document in the tree, so a cliff would be 994 instant failures and a migration
 project nobody wants. The gate sits at rung 2 of the `AGENTS.md` ladder, a check that fails loudly,
 and it is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), shared with §212's.
+#1230 built it on 2026-09-24 as `helpers/prose_ratchet.py`, run by `script/lint`. The milestone
+is PARTIAL: one week of baseline-churn measurement remains. It holds bold as two counts rather than
+as density, and [its block](../roadmap/586-a-prose-ratchet-in-lint.md) says why.
 
 - A document's median sentence length, longest sentence and bold density may not rise. That is the
   shape of the unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall

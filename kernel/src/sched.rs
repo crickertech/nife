@@ -969,7 +969,8 @@ pub fn steals_served() -> u64 {
 /// caller and it is here for the first one's exact reason, that a workload number taken on real
 /// silicon is uninterpretable without the arrangement that produced it.
 ///
-/// Name provisional (milestone 240): calef names public items.
+/// Name: provisional (milestone 240 (the soak reports what happened and not where)): calef names
+/// public items.
 #[cfg(any(feature = "soak_test", feature = "job_mix"))]
 pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(ThreadId, usize)> {
     let target = pick_spawn_target();
@@ -989,7 +990,7 @@ pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(
 /// and a thread that has died is not in the table at all; a reader who needs to tell those apart
 /// has [`dump_threads`], and a census that guessed between them would be inventing a placement.
 ///
-/// Name provisional (milestone 240): calef names public items.
+/// Name: provisional (milestone 240): calef names public items.
 #[cfg(feature = "soak_test")]
 pub fn last_cpus(ids: &[ThreadId], out: &mut [u8]) {
     let mut guard = IPC_TABLES.lock();

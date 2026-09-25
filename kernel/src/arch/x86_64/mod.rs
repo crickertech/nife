@@ -128,8 +128,9 @@ const IA32_GS_BASE: u32 = 0xC000_0101;
 /// Read a model-specific register. `rdmsr` returns the value split across `edx:eax`, with the
 /// register number in `ecx`.
 ///
-/// **Name provisional** (milestone 161): calef names public functions (AGENTS.md, milestone 160),
-/// and this one was minted by a lane.
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): calef names public functions
+/// (AGENTS.md, milestone 160 (review the public function names across the kernel's dependency
+/// crates)), and this one was minted by a lane.
 ///
 /// # Safety
 /// `msr` must be a register this CPU implements. Reading one it does not is a general protection
@@ -152,7 +153,7 @@ pub unsafe fn read_msr(msr: u32) -> u64 {
 
 /// Write a model-specific register. The counterpart of [`read_msr`], with the same split.
 ///
-/// **Name provisional** (milestone 161).
+/// Name: provisional (milestone 161).
 ///
 /// # Safety
 /// `msr` must be one this CPU implements, and `value` must be legal for it. An MSR write is one of

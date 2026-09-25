@@ -85,7 +85,8 @@ its proposal's option 1 is what this milestone built:
 - **Proposed.** `design/roadmap/proposals/riscv64-code-the-prover-can-already-compile.md`.
   Extending the proof-only module past `iommu.rs` (`context.rs` compiles today, `irq.rs` has eight
   resolve errors) and the two larger options, `asm!` wrappers and a native riscv64 Kani, stay
-  there with their costs. About 94% of `arch/riscv64/` is still reached by nothing.
+  there with their costs. About 91% of `arch/riscv64/` is still reached by nothing (564 of 6,083
+  lines; 94% was from a doubled total, corrected 2026-09-25).
 - **Recorded.** `notes/kernel-proofs/riscv64-from-an-aarch64-host.md`, linked from
   notes/kernel-proofs.md's stub-list item 8. In the proof-only module `crate::arch` is aarch64's,
   so only code that never calls through it is proved, and `script/lint` check 5b is its gate. Its

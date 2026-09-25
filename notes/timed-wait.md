@@ -353,7 +353,6 @@ Milestone 106's block, milestone 103's block and `notes/pipes.md` all cite the t
 exactly the failure `CLAUDE.md` warns about ("`script/decisions --check` verifies that a cited `§N`
 resolves to *some* section, never that it resolves to the right one, so a well-formed wrong citation
 is invisible to it") and the collision `MEMORY.md` records between `§N` and milestone N as two
-numbering schemes. Only 106's block is corrected here, because that is this lane's file;
-`design/roadmap/103-interrupt-watch-stops-spinning.md:50` and `notes/pipes.md:656` still carry it and
-belong to whoever owns them next. `design/decisions/43-clock-authority.md:107` gets it right, saying
+numbering schemes. This lane corrected 106's block; #1291 fixed `notes/pipes.md` and #1296 fixed
+103's, both 2026-09-25. `design/decisions/43-clock-authority.md:107` gets it right, saying
 "the milestone block's fork".

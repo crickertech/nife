@@ -393,7 +393,7 @@ pub struct Thread {
     /// range: `cpu_set`'s header has the VisionFive 2 boot this distinction cost three boots to
     /// diagnose.
     ///
-    /// Name provisional: calef names public items.
+    /// Name: provisional. calef names public items.
     pub placement: u8,
 
     /// **The saved general-purpose state of this thread**: one stack pointer.

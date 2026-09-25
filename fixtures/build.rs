@@ -130,9 +130,10 @@ fn compile_one(manifest_dir: &Path, clang: &Path, flags: &[&str], source: &str, 
         // GOT indirection that a statically linked, fixed-address image has no use for.
         .arg("-fno-pic")
         // No stack protector: `__stack_chk_fail` and `__stack_chk_guard` are libc symbols, and
-        // tier two of the libc question (notes/std.md) is "a handful of symbols we chose", not
-        // "whatever the compiler decided to reference". Turning the feature off is honest; shimming
-        // its runtime would be pretending we have one.
+        // tier two of the libc question (design/roadmap/36-foreign-component.md records the three
+        // tiers; notes/c-seam.md applies them) is "a handful of symbols we chose", not "whatever
+        // the compiler decided to reference". Turning the feature off is honest; shimming its
+        // runtime would be pretending we have one.
         .arg("-fno-stack-protector")
         .args(["-Os", "-std=c11", "-Wall", "-Wextra", "-Werror"])
         .arg("-c")
@@ -205,9 +206,9 @@ fn resolve_clang() -> Option<PathBuf> {
 /// Does this clang have the AArch64, RISC-V *and* X86 backends registered? `-print-targets` answers
 /// without compiling anything, and a clang that cannot be run at all simply fails the check.
 ///
-/// Name provisional (milestone 161): it was `has_both_backends` when there were two, and "both" is
-/// a word with an arity in it, which is the smallest possible version of a name going stale. calef
-/// names functions (AGENTS.md, extended 2026-08-23).
+/// Name: provisional (milestone 161 (the `x86_64` kernel port)): it was `has_both_backends` when
+/// there were two, and "both" is a word with an arity in it, which is the smallest possible version
+/// of a name going stale. calef names functions (AGENTS.md, extended 2026-08-23).
 fn has_every_backend(clang: &Path) -> bool {
     let Ok(out) = Command::new(clang).arg("-print-targets").output() else {
         return false;

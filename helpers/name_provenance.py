@@ -362,7 +362,9 @@ ITEM_KINDS = {"fn": "function", "const": "constant", "static": "constant", "stru
 # An ad-hoc marker: a doc line that opens by calling itself a provisional name in bold, which is
 # how lanes wrote it before this grammar reached items. It reads as a record to a person and is
 # invisible to the worklist, which is the exact failure `strays` exists for, one level along.
-AD_HOC = re.compile(r"^\*\*Provisional names?\b")
+# `Name provisional`, with or without emphasis, joined it on 2026-09-25: 54 doc lines opened that
+# way, including two above a ratified block they contradicted, and all were converted the same day.
+AD_HOC = re.compile(r"^(?:\*\*Provisional names?\b|[*_]*Name provisional\b)")
 
 
 def attached(lines, i):
@@ -397,7 +399,7 @@ def rust_items(text):
     Yields dicts: `line` (1-based, of the header), `what` (function, constant, type, module, macro,
     field, variant) and `name`, or `None` for both when the run documents nothing the parse can
     name; `block` (as `block()` reads it, or None); `strays` (as `strays()` reports them, against
-    the run alone); `ad_hoc` (line numbers of bold `Provisional name` openers).
+    the run alone); `ad_hoc` (line numbers of `**Provisional name` or `Name provisional` openers).
     """
     lines = text.split("\n")
     i = 0

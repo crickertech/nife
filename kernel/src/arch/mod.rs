@@ -66,7 +66,7 @@ pub use x86_64::*;
 /// grepped for. Milestone 268's machine-description summary line prints it, so `board_console` can
 /// say which of the three answered without keeping three copies of three spellings.
 ///
-/// Name provisional (milestone 268).
+/// Name: provisional (milestone 268 (every architecture boots the same way)).
 #[cfg(target_arch = "aarch64")]
 // The machine description and the boot self-test are the only callers, and both are
 // `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench

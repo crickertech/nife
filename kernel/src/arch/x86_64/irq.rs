@@ -160,7 +160,7 @@ pub const TIMER_VECTOR: u8 = 0x20;
 /// 0x21, immediately after the timer and well below [`GSI_VECTOR_BASE`], so the local APIC's own
 /// sources stay grouped in 0x20..0x2f the way [`gsi_vector`]'s comment promises.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4): calef names public items.
+/// Name: provisional (milestone 161, roadmap item 4): calef names public items.
 pub const RESCHEDULE_VECTOR: u8 = 0x21;
 
 /// **The vector `raise_self_interrupt` uses for the scheduler's own interrupt-delivery tests.**
@@ -169,11 +169,11 @@ pub const RESCHEDULE_VECTOR: u8 = 0x21;
 /// to be one: see [`raise_self_interrupt`] for why x86 cannot use its console UART the way RISC-V
 /// does, and why a self-IPI is the honest analog of aarch64's software-generated interrupt.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub const SELF_TEST_VECTOR: u8 = 0x22;
 /// A second test vector, so two tests cannot see each other's routes (aarch64's two SGIs).
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub const SELF_TEST_VECTOR_B: u8 = 0x23;
 
 /// LVT bit 16: masked. Set on every entry at reset, which is why an unmasked entry is a deliberate
@@ -912,7 +912,7 @@ fn wait_for_ipi_delivery() {
 /// a version of this that wrote them the other way round would send to whoever the previous IPI
 /// named, which is a bug that only appears once there is a second CPU to get it wrong about.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub fn send_ipi(dest_apic_id: u8, vector: u8) {
     wait_for_ipi_delivery();
     write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
@@ -934,7 +934,7 @@ pub fn send_ipi(dest_apic_id: u8, vector: u8) {
 /// (`Acpi::isa_irqs[4]`) and unwired, and asserting a device this port has no driver for would prove
 /// less than this does while being able to fail for reasons unrelated to the kernel.
 ///
-/// **Name provisional** (milestone 161, roadmap item 4).
+/// Name: provisional (milestone 161, roadmap item 4).
 pub fn raise_self_interrupt(vector: u8) {
     wait_for_ipi_delivery();
     // No destination word: the `self` shorthand tells the APIC to ignore it, and writing one would
@@ -979,7 +979,7 @@ pub fn send_reschedule(target_cpu: usize) {
 /// No acknowledgement is written by the receiver's local APIC: an NMI sets no in-service bit, so
 /// there is no EOI to owe, unlike every vector [`send_ipi`] delivers.
 ///
-/// **Name provisional** (milestone 161's SMP item): calef names public items.
+/// Name: provisional (milestone 161's SMP item): calef names public items.
 pub fn send_nmi(dest_apic_id: u8) {
     wait_for_ipi_delivery();
     write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);

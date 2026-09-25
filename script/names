@@ -365,7 +365,7 @@ def rust_records():
         if rel.startswith(("vendor/", "patches/")):
             continue
         text = open(os.path.join(root, rel), errors="replace").read()
-        if "Name:" not in text and "Provisional name" not in text:
+        if "Name:" not in text and "Provisional name" not in text and "Name provisional" not in text:
             continue
         for it in name_provenance.rust_items(text):
             for number, line, why in it["strays"]:

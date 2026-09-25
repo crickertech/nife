@@ -1328,20 +1328,34 @@ echo "script docs: every script documented, every README reference resolves"
 # reinvented: this directory's headers discuss `cargo xtask` constantly. Stripping backticked spans
 # is what keeps `script/lint` (whose only hit is a sentence inside a Python heredoc) and
 # `script/board-netboot` out, correctly, without either of them needing an exemption.
+#
+# BUGS: the token is textual, so an argv built indirectly still escapes it: `CARGO = "cargo"` then
+# `[CARGO, "xtask"]`, or `"xtask"` appended to a list built elsewhere. No entry point does that
+# today; the literal-list form is the one `script/falsifications` used, and it is caught.
 echo "==> the project's QEMU is on PATH"
 python3 - <<'QEMUEOF' || exit 1
 import pathlib
 import re
 import sys
 
-TOKEN = re.compile(r"cargo\s+xtask\b|qemu-system-|helpers/qemu-")
+# The second alternative is the argv-list form, `["cargo", "xtask", ...]`, which a Python entry
+# point builds for `subprocess`. It was missing until 2026-09-25, when `script/falsifications` ran
+# `cargo xtask test` that way without the fragment and this check passed it (PR #1283).
+TOKEN = re.compile(
+    r"cargo\s+xtask\b"
+    r"""|['"]cargo['"]\s*,\s*['"]xtask['"]"""
+    r"|qemu-system-|helpers/qemu-"
+)
 FRAGMENT = "helpers/qemu-path.sh"
 
 def callable_body(path):
     """The file with full-line comments and backticked prose removed."""
     text = path.read_text(errors="replace")
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
-    return re.sub(r"`[^`]*`", "", "\n".join(lines))
+    # A span stops at a newline. Unbounded, one stray backtick paired with the next across dozens of
+    # lines and erased real calls between them, which is the other half of why PR #1283 found
+    # `script/falsifications` unchecked.
+    return re.sub(r"`[^`\n]*`", "", "\n".join(lines))
 
 
 def token_body(path):

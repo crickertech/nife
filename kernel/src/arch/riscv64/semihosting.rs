@@ -149,7 +149,8 @@ fn sbi_system_reset(reset_type: usize) -> isize {
 /// `sifive_test` device, the machine resets, and `-kernel` is loaded again. That is what
 /// `script/soak-test --reboot --arch riscv64` proves.
 ///
-/// Name provisional (milestone 249): calef names public items.
+/// Name: provisional (milestone 249 (the boot lottery is sampled by a person walking to the
+/// board)): calef names public items.
 #[cfg(feature = "reboot_soak_test")]
 pub fn reboot(marker: &str) {
     crate::println!(
