@@ -75,7 +75,7 @@ Because the failure was invisible and expensive. The region was not leaked in an
 could see: the refusal was correct at each individual call, and only the *repetition* was wrong.
 The cost showed up two layers away as a boot that ran out of contiguous frames and blamed
 whichever test happened to spawn last, which misled three milestones before it was measured
-(notes/frames.md and notes/net.md carry the receipts, and the measurement is the durable half:
+(notes/frames.md and notes/net/memory-and-reclamation.md carry the receipts, and the measurement is the durable half:
 free frames at boot's end went from 216 to 15,305, longest contiguous run from 117 to 14,080).
 
 ## BUGS

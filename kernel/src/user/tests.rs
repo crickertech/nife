@@ -1623,7 +1623,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
 /// resolver client and reports `NO_ANSWER` if the host never replied, which we print and skip: a
 /// committed gate must not depend on somebody's router. What still fails loudly is a response
 /// that arrives and is *wrong* (not our transaction id, or not a response), because that would be
-/// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net.md.
+/// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net/the-outbound-gates.md.
 // RISC-V twin: `riscv_virtio_tests::a_client_resolves_a_real_dns_name_when_the_host_resolver_answers`. Gated here rather than run twice: that
 // module drives the same property on the other instruction set, through the same `block_driver` and
 // `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
@@ -1911,7 +1911,7 @@ fn std_net_runs_over_the_socket_contract() {
 ///
 /// **Two connections, and the second is the load-bearing one.** A listener that accepts once and
 /// goes deaf would pass a one-round gate and is precisely what a file server cannot use; the re-arm
-/// happens inside `ACCEPT` (notes/net.md) and nothing but a second `accept()` proves it.
+/// happens inside `ACCEPT` (notes/net/the-inbound-half.md) and nothing but a second `accept()` proves it.
 ///
 /// **The refusals ride in this same spawn rather than in a test of their own**, which is the
 /// machine's call and not a preference: a net test spends minutes in `net_stack`'s userspace

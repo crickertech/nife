@@ -332,7 +332,7 @@ breaks the package's coverage claim and says so.
 
 **Decided (calef, 2026-08-23): no `sysctl`.** Same ruling as `pkill`'s decline above, one layer
 over -- authority stays with whoever already holds a resource, never centralized into a generic
-tool -- and the same shape `notes/net.md` already built favorably (`announce 80` written to
+tool -- and the same shape `notes/net/prior-art-and-the-contract.md` already built favorably (`announce 80` written to
 `/net/tcp/clone`, Plan 9's per-resource `ctl` file over a global panel). `procps` ships without
 `sysctl`; the coverage gap is recorded rather than glossed over, same as `pkill`'s absence.
 

@@ -124,7 +124,7 @@ The records this file cites by number:
 - `net` is bound, but with recorded gaps. `TcpStream`, `TcpListener` and outbound `UdpSocket` work.
   The honest Unsupported list is an accepted connection's peer address (the contract's `ACCEPT`
   reply carries no peer, so it reads `0.0.0.0:0`; reporting it is a wire change and a fork, see
-  notes/net.md). Non-blocking mode and read/write timeouts are on it (the contract is blocking-only,
+  notes/net/std-tcp-listener.md). Non-blocking mode and read/write timeouts are on it (the contract is blocking-only,
   no poll verb). So is DNS via `lookup_host` (no resolver rides the contract, so `ToSocketAddrs`
   handles numeric addresses only, and a program that wants DNS does it as a plain UDP query, as the
   demo does). So is IPv6 (net_stack is IPv4-only), and so are `peek` / socket duplication /

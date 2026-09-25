@@ -276,7 +276,7 @@ silence for a clean bill.
   (`BRK`) on its bounded `accept`. That is the shape the hypothesis at the top of this page
   predicts, a connection handed to the hand-written listener's socket after its last round, now seen
   four times rather than inferred. It is not fixed here: the prober holds connections on purpose
-  (`xtask/src/inbound.rs`), and changing that is the work notes/net.md says to read first.
+  (`xtask/src/inbound.rs`), and changing that is the work notes/net/the-inbound-check.md says to read first.
 - **One failure ends the suite, on both legs.** The custom test framework does not unwind, so a
   panicking test is the end of the run under TCG too; what differs here is only the exit. The scanout
   and inbound checks still report afterwards and can fail because the guest never reached their

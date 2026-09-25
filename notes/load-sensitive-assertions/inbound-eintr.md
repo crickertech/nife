@@ -2,7 +2,7 @@
 
 *(An appendix of [notes/load-sensitive-assertions.md](../load-sensitive-assertions.md), which holds
 the register and the rules. Written by the `fix/inbound-check-flake` lane, pull request #1244. The
-check's longer history is the inbound BUGS section of [notes/net.md](../net.md).)*
+check's longer history is [notes/net/the-inbound-check.md](../net/the-inbound-check.md).)*
 
 ## The reds
 
@@ -19,7 +19,7 @@ against a floor of 3. Each trace had the same shape:
 ```
 
 Two held connections ended in `read-failed`, which is the read loop's catch-all for an error it does
-not name. notes/net.md already had the mechanism for what follows. Dropping a connection does not
+not name. notes/net/the-inbound-half.md already had the mechanism for what follows. Dropping a connection does not
 take back the payload already written, because slirp delivers it when the guest next polls. The
 guest then serves a round into a socket nobody holds.
 

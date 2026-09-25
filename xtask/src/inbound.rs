@@ -52,7 +52,7 @@ const INBOUND_OFFERED: usize = 4;
 /// teardown race is ruled out by timing, and it does not reproduce on macOS because CI is
 /// `ubuntu-24.04-arm` and this is an emulator-timing failure. It also left the prober's transcript
 /// printing on green runs, so the next red one has a known-good shape to be read against. The whole
-/// finding is in notes/net.md; read it before touching this number. This constant makes the gate
+/// finding is in notes/net/the-inbound-check.md; read it before touching this number. This constant makes the gate
 /// robust to losing one round without letting it claim less than it proves.
 const INBOUND_REQUIRED: usize = 3;
 
@@ -144,7 +144,7 @@ impl InboundProber {
                 eprintln!("inbound check ({arch}) FAILED: {reason}");
                 eprintln!(
                     "  A host process connecting to the guest is the one thing no in-guest test can \
-                     stage. See notes/net.md."
+                     stage. See notes/net/the-inbound-half.md."
                 );
                 false
             }
@@ -250,7 +250,7 @@ fn probe_inbound(
                 Err(e) => {
                     last = format!("reading the guest's answer failed: {e}");
                     // Kept on the event, not only in `last`, which is printed on a red run alone.
-                    // notes/net.md: a green run's `read-failed` once threw away the one fact that
+                    // notes/net/the-inbound-check.md: a green run's `read-failed` once threw away the one fact that
                     // would have named it.
                     error = Some(format!("{:?}, os error {:?}", e.kind(), e.raw_os_error()));
                     outcome = match e.kind() {
@@ -303,7 +303,7 @@ fn probe_inbound(
              clusters and a missing round means the host lost one that the guest served, and the \
              outcome beside it names how. ONE cluster means a whole listener never ran: look for \
              `(no virtio-net device attached; skipping)` in the transcript, which is the only way \
-             either guest test passes without offering its two. See notes/net.md.",
+             either guest test passes without offering its two. See notes/net/the-inbound-check.md.",
             trace.attempts,
             trace.summary(),
         ))
@@ -319,7 +319,7 @@ fn probe_inbound(
 /// errno said `Interrupted, os error 4`. Dropping the connection there does not take back the
 /// payload already written: slirp still delivers it when the guest next polls, the guest serves a
 /// round into a socket nobody holds, and two of those in one boot is "2 of 4" and a red leg. See
-/// notes/net.md.
+/// notes/net/the-inbound-half.md.
 fn read_error_is_not_yet(kind: std::io::ErrorKind) -> bool {
     use std::io::ErrorKind;
     matches!(

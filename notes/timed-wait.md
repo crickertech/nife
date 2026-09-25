@@ -258,7 +258,7 @@ between the three shapes or the three data structures.
 **Error bars.** This is *derived* from measured primitives rather than measured end to end: the icount
 figures are the tree's own gated baselines and the ns figures are its own HVF medians, but no run was
 made that counted `SYS_YIELD` calls during a real retransmit backoff. The direction is not in doubt
-(the spin is a hot loop at 100% of a hart, which `notes/net.md` and `testing.rs` both already record),
+(the spin is a hot loop at 100% of a hart, which `notes/net/the-outbound-gates.md` and `testing.rs` both already record),
 and the magnitude is uncertain by about one order of magnitude, which is where the "10^5 to 10^7"
 range comes from rather than a single number.
 
