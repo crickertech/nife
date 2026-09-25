@@ -11,6 +11,12 @@ sequencing was to let milestone 64 measure first so a real crate's demands could
 scope. **That measurement has landed and it did its job**, so the gate it was waiting for is
 discharged rather than merely aged.
 
+<!-- prose-budget: exception. 17,386 words (wc -w, this marker included) against a 3,000-word
+     cap. Ratified by calef on 2026-09-25 (UTC), who ruled that this block is not split. Reason:
+     large and rarely referenced; the maintainer counted 7 files linking it that day. Roadmap blocks
+     as a class stay under the cap, per §212 (a prose budget), which refused a class exemption.
+     Marker syntax is PROVISIONAL until the prose-budget gate exists. -->
+
 **Absolute paths were built 2026-08-18** (`milestone/47-namespace`), the first piece of the namespace
 half and the one the other three lean on: **`/` is the root of your own namespace**, Plan 9's answer,
 in the shell and in the `std` PAL together so that one fork was answered once.
