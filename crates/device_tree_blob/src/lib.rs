@@ -569,6 +569,38 @@ impl<'a> DeviceTreeBlob<'a> {
         compat: &[u8],
         name: &[u8],
     ) -> Result<Option<&'a [u8]>, Error> {
+        self.prop_compatible_up(compat, name, 0)
+    }
+
+    /// The raw bytes of property `name` on the **parent** of the first node whose `compatible`
+    /// list contains `compat`. `Ok(None)` when no such node exists, or its parent has no such
+    /// property.
+    ///
+    /// Milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write), provisional, is the motivating case: a PMIC is described as a child of the
+    /// I2C bus it sits on, and the bus's `clocks` and `resets` are what a kernel must turn on before
+    /// firmware can reach the PMIC. The child is the node with a binding worth matching (the bus
+    /// is one of seven identical `snps,designware-i2c` controllers); the answer lives one level
+    /// up. The same walk as [`node_prop_compatible`](Self::node_prop_compatible), answering from
+    /// the parent's slot, which is already filled when the child closes because the DTB format
+    /// puts every property of a node before its first subnode.
+    ///
+    /// Name provisional (milestone 592): calef names public functions.
+    pub fn parent_prop_compatible(
+        &self,
+        compat: &[u8],
+        name: &[u8],
+    ) -> Result<Option<&'a [u8]>, Error> {
+        self.prop_compatible_up(compat, name, 1)
+    }
+
+    /// The shared walk behind the two `*_prop_compatible` reads: property `name` on the node `up`
+    /// levels above the first node matching `compat` (0 for the node itself, 1 for its parent).
+    fn prop_compatible_up(
+        &self,
+        compat: &[u8],
+        name: &[u8],
+        up: usize,
+    ) -> Result<Option<&'a [u8]>, Error> {
         const MAX_DEPTH: usize = 16;
         // Per open node: where `name`'s value sits, and whether `compatible` matched.
         let mut found = [None::<(usize, usize)>; MAX_DEPTH];
@@ -597,7 +629,8 @@ impl<'a> DeviceTreeBlob<'a> {
                     // node past MAX_DEPTH was never tracked, so it cannot answer (the same refusal
                     // node_reg records: not finding is honest, misreporting is not).
                     if (2..MAX_DEPTH).contains(&depth) && matched[depth] {
-                        return match found[depth] {
+                        // `depth >= 2` and `up <= 1` keep this at the root or below it.
+                        return match found[depth - up] {
                             Some((value_at, len)) => self
                                 .bytes
                                 .get(value_at..value_at + len)
