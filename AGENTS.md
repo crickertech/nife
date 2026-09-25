@@ -1,30 +1,26 @@
 # Working on nife
 
-<!-- prose-budget: exception. 6,279 words (wc -w, this marker included) against a 3,000-word
-     cap. Ratified by calef on 2026-09-24 (UTC) at 5,873 words; the cuts he ruled that day, and
-     principle 2 taking #1198's text under his ruling on numbers, moved it here. Reason: this file
-     is nothing but rules, every reason having moved to design/tenets/, and the imperatives alone
-     do not fit the cap; rules were not cut to make them fit. Marker syntax is PROVISIONAL until
-     the prose-budget gate exists. -->
+<!-- prose-budget: exception. 6,097 words (wc -w, this marker included) against a 3,000-word cap.
+     Ratified by calef on 2026-09-24 (UTC) at 5,873 words; the cuts he ruled that day, and principle
+     2 taking #1198's text under his ruling on numbers, moved it to 6,279, and the seven cuts he
+     ruled on 2026-09-25 (UTC) moved it here. Reason: this file is nothing but rules, every reason
+     having moved to design/tenets/, and the imperatives alone do not fit the cap; rules were not
+     cut to make them fit. Marker syntax is PROVISIONAL until the prose-budget gate exists. -->
 
-*This file is `AGENTS.md`, the cross-tool convention; `CLAUDE.md` is a symlink to it so Claude Code
-keeps finding it, and the in-tree citations of "CLAUDE.md" resolve through that symlink. It
-addresses any competent agent. The architect is calef. Two renames and one pivot sit behind the old
-names a reader will meet in older records:
-[design/tenets/project-history.md](design/tenets/project-history.md). Every reason, measurement and
-anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from the rule it
-explains; a reader who only needs to act never has to open one. This file is a **ratified exception
-to the 3,000-word prose budget**, at 6,279 words (calef, 2026-09-24, UTC), because what is left
-after that move is rules, and rules were not cut to fit a cap.*
+*The architect is calef. Two renames and one pivot sit behind the old names a reader will meet in
+older records: [design/tenets/project-history.md](design/tenets/project-history.md). Every reason,
+measurement and anecdote behind a rule here lives in [design/tenets/](design/tenets/), linked from
+the rule it explains. This file is a **ratified exception to the 3,000-word prose budget**, at
+6,097 words (calef, 2026-09-24, UTC), because what is left after that move is rules, and rules were
+not cut to fit a cap.*
 
 ## What this project is
 
 A capability microkernel for aarch64, in Rust, built from the first instruction. **It is a
-demonstration OS**, DECISIONS §14 (the project's direction): a verified-Rust capability microkernel
-that runs real workloads, built to stand next to Linux, macOS, and seL4 on the primitives that
-define an OS and win where a minimal kernel should. calef (Chris Alef) is an experienced software
-engineer and engineering leader; on this project he is the architect and reviewer, not the
-line-by-line builder.
+demonstration OS**: a verified-Rust capability microkernel that runs real workloads, built to stand
+next to Linux, macOS, and seL4 on the primitives that define an OS and win where a minimal kernel
+should. calef (Chris Alef) is an experienced software engineer and engineering leader; on this
+project he is the architect and reviewer, not the line-by-line builder.
 
 That should drive your judgment calls. A complete, correct, well-documented, benchmarked milestone
 is the goal. Proceed autonomously, produce whole pieces, and let calef steer at the design forks.
@@ -77,10 +73,7 @@ is marketing:
   nine misrecorded. Take the count as a scale, never as a claim about correctness.
 - **What makes it work is not speed.** It is the gates, the proofs, the honest `BUGS` sections and
   the review discipline. The same method without them produces a great deal of code that nobody can
-  trust, faster. Every failure recorded in this file is evidence for that: the lane that squashed
-  against `origin/main` and staged four other lanes' files, the blind `sed` that rewrote the row
-  recording a name's refusal, the three agents that clobbered work with `git reset --hard` in one
-  day.
+  trust, faster. Every failure recorded in this file is evidence for that.
 - **The bottleneck moves, and pretending otherwise wastes the method.** On 2026-08-04 the constraint
   stopped being how fast lanes could produce and became how fast one merge queue could land, and
   eleven lanes made that worse rather than better.
@@ -127,17 +120,14 @@ no artifact anyone can read. When you notice it, move up a rung.
 
 ## We are all owners: see a problem, drive it to an owner, and if none, own it
 
-calef, 2026-09-23: *"We are all owners here so let's make certain we don't let things fall through
-the cracks if we see a problem drive it to the appropriate owner first and if there isn't one then
-own it."* Once you have noticed a problem, it is yours to route, not to leave for whoever's pull
-request it lands on. Noticing is not owning until the problem has an owner.
+Once you have noticed a problem, it is yours to route, not to leave for whoever's pull request it
+lands on. Noticing is not owning until the problem has an owner.
 
-And owning is not recording. calef, 2026-09-23, after a defect was reported, not fixed: *"Rather
-than raise it as a concern, wouldn't it make sense to address it? That's Bias for Action."* Apply
-*move fast on what can be undone*'s test to the fix: cheap and reversible, fix it now and the record
-is a byproduct; on that tenet's irreversible list, write it up and stop. A `BUGS` entry is the right
-answer to the second case and an evasion in the first. Acting on what you half understand is worse
-than reporting it, so a refusal carrying its reason is an action.
+And owning is not recording. Apply *move fast on what can be undone*'s test to the fix: cheap and
+reversible, fix it now and the record is a byproduct; on that tenet's irreversible list, write it up
+and stop. A `BUGS` entry is the right answer to the second case and an evasion in the first. Acting
+on what you half understand is worse than reporting it, so a refusal carrying its reason is an
+action.
 
 ## Measure first, then decide
 
@@ -262,11 +252,10 @@ wants a lane of its own.
 
 ### What bounds lane count, and the three ceilings
 
-Lane count is set against the collision surface, not against queue depth (calef, 2026-08-16,
-overturning his own 2026-08-04 delegation on measured evidence). Throughput is measured in merged
-work. The question to ask before launching is not "how deep is the queue" but "what files will this
-lane touch, and who else is in them". The measurement that overturned the old rule, and the three
-ceilings below, are in [design/tenets/lane-count.md](design/tenets/lane-count.md).
+Lane count is set against the collision surface, not against queue depth. Throughput is measured in
+merged work. The question to ask before launching is not "how deep is the queue" but "what files
+will this lane touch, and who else is in them". The measurement that overturned the old rule, and
+the three ceilings below, are in [design/tenets/lane-count.md](design/tenets/lane-count.md).
 
 - Disjoint subsystems: launch freely. Four is a reasonable working number, not a ceiling.
 - Two lanes in the test-wiring hotspot (`kernel/src/user/tests.rs`, the QEMU runners,
