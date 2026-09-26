@@ -53,7 +53,8 @@ What the hardware is and how the kernel meets it: read these before any kernel c
 - [aarch64 page tables](page-tables.md): the descriptor format the MMU walks, and its traps.
 - [The higher-half kernel](higher-half.md): why the kernel lives in TTBR1, and how it boots.
 - [Tearing down an address space](teardown.md): how the kernel reclaims a dead address space's frames.
-- [Memory regions: the kernel stops allocating](memory-regions.md): processes spend pages from their own memory capability.
+- [Memory regions: the kernel stops allocating](memory-regions.md): processes spend their own memory capability.
+- [A refused split](region-split-on-a-full-table.md): PROPOSED.
 - [PageFrame capabilities](frames.md): shared memory a process owns, maps and delegates.
 - [ASIDs: tagged address spaces](address-space-identifiers.md): per-space TLB tags so context switches flush nothing.
 - [The RISC-V TLB shootdown](riscv-tlb-shootdown.md): cross-hart ASID flush via SBI RFENCE, replacing full flushes.
