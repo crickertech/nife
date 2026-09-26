@@ -11,7 +11,7 @@
 //! |---|---|---|
 //! | `r` | `r` | runnable threads over every core, sampled at each core's last tick |
 //! | `b` | absent | no thread here sleeps uninterruptibly on I/O: the drivers are userspace programs |
-//! | `swpd`, `si`, `so` | absent | the kernel has no swap; a swap proposal is in flight |
+//! | `swpd`, `si`, `so` | absent | nife refuses paging out for now (calef, 2026-09-26, pull request #1356), so a zero would say swap exists and is empty |
 //! | `free` | `free` | the machine statistics page, KiB |
 //! | `buff`, `cache` | `total` instead | the kernel keeps no buffer or page cache to report |
 //! | `bi`, `bo` | absent | block I/O happens in userspace drivers the kernel does not count |

@@ -34,8 +34,9 @@
 //!
 //! - No `shared`, `buff/cache` or `available` columns: the kernel has no page cache and no shared
 //!   memory accounting to report, so `available` would only repeat `free`.
-//! - No swap line. The kernel has no swap; a proposal is in flight (§225 says a swap line would take
-//!   the same two-line shape).
+//! - No `Swap:` line, and not a line of zeroes. nife refuses paging out for now (calef,
+//!   2026-09-26, the refusal in pull request #1356), and a zero would say swap exists and is
+//!   empty. If the refusal is ever lifted, §225 says the line takes the same two-row shape.
 //! - `Yours:` counts `free` itself, since it is one of the jobs carved from the budget, the way `ps`
 //!   lists itself.
 //! - The two lines are read at slightly different moments, and neither is a snapshot of the other.

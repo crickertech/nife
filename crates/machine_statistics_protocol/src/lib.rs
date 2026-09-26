@@ -63,8 +63,9 @@
 //!   paths to one counter was not worth a `vmstat` column. So `vmstat` prints `us` and `sy` as one.
 //! - The run queue is sampled once per tick per core, so it is up to one tick stale, and a core
 //!   that has stopped ticking (a parked core) keeps its last sample.
-//! - There is no swap, no page cache and no block I/O counter here, because the kernel has none of
-//!   them to count: the filesystem and the block driver are userspace programs.
+//! - There is no swap counter, because nife refuses paging out for now (pull request #1356). There
+//!   is no page cache or block I/O counter either, because the kernel has none of them to count:
+//!   the filesystem and the block driver are userspace programs.
 //!
 //! Name: provisional, minted 2026-09-26 by milestone 126's `free` lane, for the crate and for "the
 //! machine statistics page". §225 called it the machine memory page; it carries the scheduler's

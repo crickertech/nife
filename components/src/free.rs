@@ -28,8 +28,8 @@
 //!
 //! # BUGS
 //!
-//! `crates/free`'s, all of them: no cache or swap columns because the kernel has neither, and
-//! `Yours:` counts `free` itself.
+//! `crates/free`'s, all of them: no cache columns because the kernel keeps none, no `Swap:` line
+//! because nife refuses paging out (pull request #1356), and `Yours:` counts `free` itself.
 //!
 //! Name: provisional, milestone 126's `free` lane, 2026-09-26.
 
