@@ -4,9 +4,11 @@
 proposal `a-frame-per-filesystem-client-channel`, which milestone 47 (navigation and naming)'s lane
 wrote on `milestone/47-navigation` (#1343). The work was first named as case A of
 `notes/shared-page-audit.md` by milestone 43 (a second security audit) and never got a number.
-The witness was built 2026-09-26 by the same lane and reproduces the defect; the wiring waits on the
-decision below. *(Number and title provisional: the integrator mints the number at merge, and the
-title is a draft until an architect names it.)*
+calef ruled option A (badged endpoints) on 2026-09-26; the same lane built the kernel mechanism, the
+file server's K windows, the kernel-harness pool, and the witness that proves isolation on all three
+architectures. What is left is the production progenitor's pool, which has a design question of its
+own and its own gate; see "What is left". *(Number and title provisional: the integrator mints the
+number at merge, and the title is a draft until an architect names it.)*
 
 **Gate: DECISION.** Ruled 2026-09-26 (option A, badged endpoints); see the status paragraph. The proposal said NONE, "a wiring change inside the tree". Reading the server
 says otherwise: the file server receives on one endpoint, learns nothing about its caller, and reads
@@ -30,25 +32,36 @@ two honest clients active at once overwrite each other; `notes/pipes/the-file-en
 shell writes a `>` file itself rather than letting a second process do it. Today every path keeps
 one FS client active at a time. The set grant at the prompt would not.
 
+## What is built (2026-09-26, option A)
+
+calef ruled option A: a server tells its clients apart by a badge the kernel delivers.
+
+- **The kernel mechanism.** A capability's badge rides on `Object::Rendezvous(id, badge)` (no size
+  growth; `Cap` stays 32 bytes). `abi::rendezvous::BADGE` (method 7, provisional) mints a badged
+  copy of an endpoint, GRANT-gated, set once. `RECV_CAP` returns the sender's badge in x3, carried
+  in the delivered mailbox's word 3, which was already stored as a zero on the CALL and SEND_CAP
+  fastpaths, so the only added instruction is `set_arg(3)` on the RECV_CAP return.
+  `crates/user_mode_runtime` gains `badge` and `recv_cap_badged`.
+- **The file server's K windows.** `filesystem_protocol::fs::CLIENT_WINDOWS` (8, provisional) staging
+  windows; `redoxfs_server` reads window `badge` per request. Window 0 is the unbadged default, so
+  single-client paths are unchanged.
+- **The kernel-harness pool.** `fs_service` allocates the K frames once, maps them into the server,
+  and hands them out with `claim_window`/`release_window` (release zeroes the frame: the take-back
+  half). The witness gives each client its own window and a badged endpoint, so the two map
+  different frames; its assertion flipped from substitution to isolation. It exercises both shapes:
+  the victim mints its own badge, and the attacker is handed a pre-badged endpoint.
+
 ## What is left
 
-- PROPOSED: how the server tells channels apart. Options A (badged endpoints), B (the kernel
-  moves the server's window to the caller's frame) and C (private client frames plus a staging
-  token, no kernel change), with costs, in `notes/a-frame-per-filesystem-client-channel.md`.
-  calef's call; it blocks everything below except the witness.
-- BUILT: the witness. Two live clients on one file service, one rewriting the other's name
-  mid-request, on every architecture `script/test` boots
-  (`kernel/src/user/fs_shared_page_tests.rs`, the two `fs_test_client` roles it drives, and
-  `fs_service::start_shared_frame_witness`). It forces the interleaving with a handshake rather than
-  a race, so it reproduces deterministically, and it asserts the substitution the shared frame
-  permits. The day the wiring below lands, that assertion must invert to expect isolation, which is
-  what makes this test the gate on the fix. The live defect it reproduces is recorded in
-  `redoxfs_server`'s `BUGS`.
-- The wiring, in the shape the ruling picks: a channel allocated where each chain is built
-  (`fs_service`'s `spawn_fs_client`, `start_granted*`, `narrow_dir`, `start_std*`, the sinks; the
-  progenitor's `build_caretaker` and the shell's grant) instead of one memoised per service.
-  `wait_for_caretaker`'s ordering hazard goes with it, since a caretaker's staging page would be
-  reachable only by its own chain.
+- **The production progenitor's pool.** `crates/system_initializer` still hands every client
+  `BootEndowment::fs_page`, window 0, so the shell and its caretakers share one window on a real
+  boot. The fix is proven in the harness but not yet wired into the progenitor, and this is the piece
+  the set grant at the prompt actually needs. It carries a design question of its own. The progenitor
+  cannot hold a frame capability per window without blowing its 24-slot capability table
+  (DECISIONS §102, which calef has ruled on before). So how it addresses K windows wants deciding
+  first: a wider table, an untyped it retypes per client, or mapping by physical address. It is gated
+  by `script/swish-check` (which boots the real progenitor), not `script/test`, so it is a separate,
+  carefully validated piece rather than more of this one.
 
 ## What it costs
 
@@ -65,17 +78,18 @@ prerequisite. A ruling on option A would also decide option 1 of the proposal
 
 ## Follow-on
 
-- **Done.** The witness, `kernel/src/user/fs_shared_page_tests.rs`, with its two `fs_test_client`
-  roles and `fs_service::start_shared_frame_witness`. It reproduces the defect on all three
-  architectures.
-- **Recorded.** The live defect it reproduces is in `redoxfs_server`'s module `BUGS`, beside the
-  file channel it is a property of.
+- **Done.** The kernel badge mechanism (`BADGE`, the badge on `RECV_CAP`), the file server's K
+  windows, the kernel-harness window pool, and the witness that proves isolation on all three
+  architectures. See "What is built".
+- **Recorded.** The residue is in `redoxfs_server`'s module `BUGS`: the production progenitor still
+  hands its clients window 0, so on a real boot they share one window until the progenitor pool
+  lands.
 - **Decision.** calef ruled option A (badged endpoint capabilities) on 2026-09-26; a maintainer is
-  recording it under `design/decisions/`. The gate above is answered.
-- **Outstanding.** The badged-endpoint build: a `BADGE` method (provisional) to mint a badged
-  endpoint, the badge as a fourth `RECV_CAP` return value, the file server's K windows, and the
-  progenitor's pool of (badged endpoint, frame) pairs taken back at reap. Checked 2026-09-26: the
-  witness is built and the decision is ruled, so this is the only piece left before BUILT.
+  recording it under `design/decisions/`. The syscall-surface fork is answered.
+- **Outstanding.** The production progenitor's per-client pool (see "What is left"), with its own
+  design question (how the progenitor addresses K windows within its 24-slot table, §102) and its
+  own gate (`script/swish-check`). Checked 2026-09-26: the harness proves the mechanism; this is the
+  boot-path application of it, which the set grant at the prompt needs.
 
 ## Index row
 
