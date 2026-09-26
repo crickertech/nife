@@ -157,7 +157,7 @@ pub fn retype_object_page(region: u64, kind: ObjectKind) -> Option<u64> {
     Some(phys)
 }
 
-/// **One figure of a region's spending, for `MemoryRegion::USAGE`** (milestone 126, DECISIONS §225
+/// **One figure of a region's spending, for `MemoryRegion::USAGE`** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)
 /// part 1). `record` is an `abi::usage` selector the caller has already checked with
 /// `abi::usage::is_known`; `None` for a dead region.
 pub fn usage_record(region: u64, record: u64) -> Option<u64> {

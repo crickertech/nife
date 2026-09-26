@@ -87,7 +87,7 @@ const GRANTS: BootEndowment = BootEndowment {
     // or this, never both. Past the network card's floor (slot 15) for the reason every group above
     // gives.
     entropy_ep: 16,
-    // The machine statistics page (milestone 126, DECISIONS §225), granted on every boot, past the
+    // The machine statistics page (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)), granted on every boot, past the
     // entropy slot.
     machine_page: 17,
     // Nothing. Since milestone 166 the boot loader is not shared with milestone 19d's test roles on

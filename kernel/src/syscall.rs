@@ -257,7 +257,7 @@ pub(crate) fn invoke(
                 rendezvous_reap(ep, a0)
             }
 
-            // **Read one entry of the domain this endpoint supervises** (milestone 126). The view
+            // **Read one entry of the domain this endpoint supervises** (milestone 126 (the `procps` package)). The view
             // half of what REAP is the control half of, and scoped by the same relationship, so a
             // supervisor sees exactly the children whose deaths would arrive here.
             //
@@ -417,7 +417,7 @@ pub(crate) fn invoke(
                 }
                 memory_region_destroy(region)
             }
-            // What the region was spent on (milestone 126's `free`, DECISIONS §225 part 1). Under
+            // What the region was spent on (milestone 126's `free`, DECISIONS §225 (`free` sees the machine and your share) part 1). Under
             // `ENUMERATE` alone, `address_space::LIST`'s rule one object type over: learning what
             // a budget went to is not the authority to spend it. An unknown record is refused
             // before the region is looked up, `SURVEY`'s order.

@@ -1,4 +1,4 @@
-//! **The machine statistics page, the kernel's half** (milestone 126, DECISIONS §225 part 2).
+//! **The machine statistics page, the kernel's half** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share) part 2).
 //!
 //! One frame holding the machine-wide counters `free`, `vmstat` and `top` read: the free frame
 //! count, and per core the busy and idle ticks, the context switches, the interrupts and the run

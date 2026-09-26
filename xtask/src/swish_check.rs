@@ -347,7 +347,7 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
     // `caps` claims to print a process's whole authority, so a config page endowed and not printed
     // would make that claim false.
     line(0, "caps printenv", &["cap 1  frame     config"]),
-    // **`ps`, at the real prompt** (milestone 126). The listing itself: a header, and at least the
+    // **`ps`, at the real prompt** (milestone 126 (the `procps` package)). The listing itself: a header, and at least the
     // row for `ps` itself, which is a member of the domain the progenitor spawned it into. Asserting the
     // header rather than a tid is deliberate: a tid is a generational name that moves with how many
     // jobs ran before it, and a gate that pinned one would be pinning the boot's history.

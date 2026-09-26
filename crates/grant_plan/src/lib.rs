@@ -310,7 +310,7 @@ programs! {
         ///
         /// Name: provisional.
         Mdr { id: 7, name: "mdr" },
-        /// **List the processes in the supervision domain it was spawned into** (milestone 126,
+        /// **List the processes in the supervision domain it was spawned into** (milestone 126 (the `procps` package),
         /// `components/src/ps.rs`, notes/process-view.md).
         ///
         /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
@@ -489,7 +489,7 @@ programs! {
         /// that manifest will say.
         StdExerciser { id: 16, name: "std_exerciser" },
         /// **How much memory the machine has, and how much of this prompt's budget is spent**
-        /// (milestone 126, DECISIONS §225, `components/src/free.rs`, `crates/free`).
+        /// (milestone 126, DECISIONS §225 (`free` sees the machine and your share), `components/src/free.rs`, `crates/free`).
         ///
         /// Two grants, and they are the ruling's two lines. [`Manifest::machine`] is the machine
         /// statistics page, which owner policy grants by default and can withhold; [`Manifest::share`]
@@ -510,7 +510,7 @@ programs! {
         /// **Where this prompt's job budget went, by kind of kernel object** (milestone 126,
         /// DECISIONS §225, `components/src/slabtop.rs`, `crates/slabtop`).
         ///
-        /// Upstream `slabtop` lists the kernel's slab caches. This kernel has none (milestone 14
+        /// Upstream `slabtop` lists the kernel's slab caches. This kernel has none (milestone 14 (kernel objects from untyped)
         /// removed its heap and slab); kernel objects are carved from regions their holders own,
         /// so §225 turned the question into `MemoryRegion::USAGE` asked per object type. It holds
         /// the budget view alone, which is why it is not `free`: it does not see the machine.

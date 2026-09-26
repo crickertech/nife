@@ -1,4 +1,4 @@
-//! **`free`: the machine's memory, and this prompt's share of it** (milestone 126, DECISIONS §225
+//! **`free`: the machine's memory, and this prompt's share of it** (milestone 126 (the `procps` package), DECISIONS §225
 //! (`free` sees the machine and your share)).
 //!
 //! The program's logic, lifted out so it runs on the host; `components/src/free.rs` is the two

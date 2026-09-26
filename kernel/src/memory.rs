@@ -419,7 +419,7 @@ pub fn alloc() -> Option<PageFrame> {
     frame
 }
 
-/// **The free count, for the machine statistics page** (milestone 126, DECISIONS §225), written by
+/// **The free count, for the machine statistics page** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)), written by
 /// whoever just changed it and under the same lock, so the page never shows a count the allocator
 /// never had. Three stores; the allocator already keeps both numbers.
 fn publish_counts(allocator: &PageFrameAllocator<'_>) {

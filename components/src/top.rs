@@ -26,7 +26,7 @@
 //! | 0 | the output sink, `WRITE` | where the summary and the table go |
 //! | 7 | the process domain, `ENUMERATE` | the supervision endpoint whose members it may **name** |
 //! | 8 | the diagnostics sink, `WRITE` | where a refusal goes, so `>` cannot swallow it |
-//! | 11 | the machine statistics page, `READ`, mapped read-only | the machine line under the summary, which is what became of `tload` (milestone 126, DECISIONS §225) |
+//! | 11 | the machine statistics page, `READ`, mapped read-only | the machine line under the summary, which is what became of `tload` (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)) |
 //!
 //! No clock, and that is worth stating because a `top` looks like it needs one: the uptime in the
 //! summary is `user_mode_runtime::monotonic_nanos`, the ambient counter every process holds

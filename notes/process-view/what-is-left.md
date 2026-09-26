@@ -169,7 +169,7 @@ So `pidwait` needs a new kernel primitive, which is the syscall surface. Options
 | 1 | A method on the supervision endpoint that blocks until a named member has exited, gated by a new right below `ENUMERATE` | a new right bit and a method; the kernel needs a queue of exit-watchers beside the supervisor's death message. A holder can still test a guessed tid for membership, one bit per call, but cannot list. Refuses the caller's own tid |
 | 2 | The same method under `ENUMERATE` | refused by §226's own reason: it is `pgrep`'s authority |
 | 3 | A per-child exit capability the spawner retains and hands on | Fuchsia's shape, recalled rather than re-read: a process handle with a wait right. Capability-exact, but it cannot compose with `pgrep`'s output, which is bytes, not capabilities |
-| 4 | Notification objects (§101, decided and unbuilt), signalled by the supervisor on each death | builds §101 first, and `pidwait` would still need a way to tell which tid died without `ENUMERATE` |
+| 4 | Notification objects (§101 (notification objects), decided and unbuilt), signalled by the supervisor on each death | builds §101 first, and `pidwait` would still need a way to tell which tid died without `ENUMERATE` |
 
 Every option blocks in the kernel, so none needs milestone 106's timed wait. Nothing about
 `pidwait` is built until one is chosen. The input side (reading tids from a pipe) is small and

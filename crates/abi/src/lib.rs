@@ -734,7 +734,7 @@ pub mod memory_region {
     pub const DESTROY: u64 = 4;
 
     /// `invoke(cap, USAGE, record, _, _)` -> pages. **How much of this region has been spent, and
-    /// on what** (milestone 126, DECISIONS §225 part 1: `free`'s "yours" line, and `slabtop`
+    /// on what** (milestone 126, DECISIONS §225 (`free` sees the machine and your share) part 1: `free`'s "yours" line, and `slabtop`
     /// asked per object type). `record` is one of [`usage`](super::usage)'s selectors; the answer
     /// is a page count in x0.
     ///

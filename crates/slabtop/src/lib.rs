@@ -1,4 +1,4 @@
-//! **`slabtop`: where this prompt's job budget went, by kind of kernel object** (milestone 126,
+//! **`slabtop`: where this prompt's job budget went, by kind of kernel object** (milestone 126 (the `procps` package),
 //! DECISIONS §225 (`free` sees the machine and your share)).
 //!
 //! Upstream `slabtop` ranks the kernel's slab caches by the memory each holds. This kernel has no
@@ -29,7 +29,7 @@
 //! - The counts say where pages went, not what is alive: a region's pages are spent until the
 //!   region is reclaimed, so a job that ended and was reaped leaves nothing, and a thread that died
 //!   inside a live job still counts.
-//! - It does not refresh, for `vmstat`'s reason (milestone 106).
+//! - It does not refresh, for `vmstat`'s reason (milestone 106 (a wait that ends on either the interrupt or the deadline)).
 //! - It counts `slabtop` itself, which is one of the jobs.
 //! - The breakdown need not sum to the pages spent: a job region's unspent pages are spent from the
 //!   budget's point of view and on nothing from the job's.

@@ -1,5 +1,5 @@
 //! **The machine statistics page: how the box is doing, held as a capability rather than ambient**
-//! (milestone 126, DECISIONS §225 (`free` sees the machine and your share) part 2).
+//! (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share) part 2).
 //!
 //! One read-only page the kernel keeps its machine-wide counters in: physical frames, and per core
 //! the ticks spent busy and idle, the context switches, the interrupts taken and the run queue.

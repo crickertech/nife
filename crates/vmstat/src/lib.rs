@@ -1,4 +1,4 @@
-//! **`vmstat`: the machine's counters since boot** (milestone 126, DECISIONS §225 (`free` sees the
+//! **`vmstat`: the machine's counters since boot** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the
 //! machine and your share)).
 //!
 //! The program's logic, lifted out so it runs on the host; `components/src/vmstat.rs` reads the
@@ -31,7 +31,7 @@
 //!
 //! # BUGS
 //!
-//! - No interval and no count: this kernel has no timed wait (milestone 106), so a repeating
+//! - No interval and no count: this kernel has no timed wait (milestone 106 (a wait that ends on either the interrupt or the deadline)), so a repeating
 //!   `vmstat` would be a yield-spin that counted itself as the busiest thing on the machine, the
 //!   finding that cut `watch`.
 //! - `busy` is `us` and `sy` together; see the table.

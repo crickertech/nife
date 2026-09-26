@@ -1475,7 +1475,7 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
         // milestone, and notes/process-view.md's `BUGS` carries the disposition.
         out(b"                              outside this domain but that it exists\n");
     }
-    // **The machine, and this prompt's share of it** (milestone 126, DECISIONS §225). Two rows
+    // **The machine, and this prompt's share of it** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)). Two rows
     // because they are two grants and one can be held without the other: `vmstat` sees the machine
     // and not the budget, `slabtop` the budget and not the machine, `free` both. The first says the
     // owner's switch exists, because a person reading `caps free` on a machine whose owner withheld

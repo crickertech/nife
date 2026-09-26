@@ -110,7 +110,7 @@ struct Region {
     /// parent being committed for its whole lifetime.
     children: u32,
     /// **What the watermark was spent on**, one count per [`ObjectKind`] plus plain frames, and
-    /// the pages currently carved into live children (milestone 126, §225 part 1: `free`'s "yours"
+    /// the pages currently carved into live children (milestone 126 (the `procps` package), §225 (`free` sees the machine and your share) part 1: `free`'s "yours"
     /// line and `slabtop` per object type). Pure bookkeeping beside the watermark: no decision in
     /// this module reads it, so it cannot become the read half of a claim.
     spent: Spent,

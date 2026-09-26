@@ -1,4 +1,4 @@
-//! **What `free`, `vmstat` and `slabtop` read, proved in the kernel** (milestone 126, DECISIONS
+//! **What `free`, `vmstat` and `slabtop` read, proved in the kernel** (milestone 126 (the `procps` package), DECISIONS
 //! §225 (`free` sees the machine and your share)).
 //!
 //! Two mechanisms, and each is tested where it could be wrong. `MemoryRegion::USAGE` is a method

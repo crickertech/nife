@@ -1,4 +1,4 @@
-//! **`free`: the machine's memory, and this prompt's share of it** (milestone 126, DECISIONS §225
+//! **`free`: the machine's memory, and this prompt's share of it** (milestone 126 (the `procps` package), DECISIONS §225
 //! (`free` sees the machine and your share), `crates/free`).
 //!
 //! Two reads and two sinks. The machine line reads the machine statistics page the progenitor
@@ -34,8 +34,8 @@
 //! Name: provisional, milestone 126's `free` lane, 2026-09-26.
 
 #![no_std]
-// Program entry points, not the crates/ library surface milestone 68's ratchet tracks (DECISIONS
-// §107 (`missing_docs` moves to `workspace.lints.rust`)).
+// Program entry points, not the crates/ library surface the ratchet of milestone 68 (code-quality
+// gates: one lint policy) tracks (DECISIONS §107 (`missing_docs` moves to `workspace.lints.rust`)).
 #![allow(missing_docs)]
 #![no_main]
 

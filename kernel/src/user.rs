@@ -2206,7 +2206,7 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         .expect("insert the instruction entropy service");
         assert_eq!(s16, 16);
     }
-    // **The machine statistics page** (slot 17, milestone 126, DECISIONS §225 part 2), the
+    // **The machine statistics page** (slot 17, milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share) part 2), the
     // config page's shape: a frame the kernel keeps its machine-wide counters in, granted
     // unconditionally so its slot never moves, and `READ | GRANT` so the progenitor can map it
     // read-only into a child that declares `machine` and can let nobody write it. Past the

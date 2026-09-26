@@ -72,7 +72,7 @@
 //!         // (provisional)): empty whenever the virtio-rng trio is granted, and on a CPU with no
 //!         // such instruction, which is every riscv64 part.
 //!         entropy_ep: 18,
-//!         // The machine statistics page (milestone 126): granted on every boot, so always
+//!         // The machine statistics page (milestone 126 (the `procps` package)): granted on every boot, so always
 //!         // this slot.
 //!         machine_page: 19,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
@@ -500,7 +500,7 @@ pub struct BootEndowment {
     ///
     /// Name: provisional, lane `milestone/595-x86-std`, 2026-09-26. `fs_ep`'s shape, one service over.
     pub entropy_ep: u64,
-    /// **The machine statistics page** (milestone 126, DECISIONS §225 part 2): a `PageFrame`
+    /// **The machine statistics page** (milestone 126, DECISIONS §225 (`free` sees the machine and your share) part 2): a `PageFrame`
     /// capability with `READ | GRANT` to the frame the kernel keeps its machine-wide counters in
     /// (`crates/machine_statistics_protocol`). Granted unconditionally, like
     /// [`config_page`](BootEndowment::config_page), so its slot never moves. [`boot`] maps it into

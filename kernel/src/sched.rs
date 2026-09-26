@@ -492,7 +492,7 @@ impl Threads {
     }
 
     /// Every live TCB from slot `from` onward, with its slot index, for a **resumable** sweep
-    /// (`rendezvous::SURVEY`, milestone 126). The slot is the caller's cursor; see
+    /// (`rendezvous::SURVEY`, milestone 126 (the `procps` package)). The slot is the caller's cursor; see
     /// `generational_table::Table::iter_from` for why a position would not do.
     fn iter_from(&self, from: usize) -> impl Iterator<Item = (usize, &Thread)> + '_ {
         // SAFETY: as `iter_mut`, and shared rather than exclusive: each stored pointer is a
@@ -1292,7 +1292,7 @@ pub fn init() {
     // was invisible on the third.
     crate::arch::fp::init();
 
-    // **The machine statistics page, before the first thread** (milestone 126, DECISIONS §225),
+    // **The machine statistics page, before the first thread** (milestone 126, DECISIONS §225 (`free` sees the machine and your share)),
     // for `fp::init`'s reason: this is where threads begin, so it is where the counters that watch
     // them begin, on all three architectures through the one function each boot path calls.
     crate::machine_statistics::publish();
