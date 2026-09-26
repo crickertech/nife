@@ -1,11 +1,14 @@
 //! **The shared-frame witness** (milestone 599 (a frame per filesystem client channel), provisional).
 //!
-//! Finding 1 of `notes/shared-page-audit.md`: the FS server shares one read-write staging frame
-//! with every client a boot wires, so what keeps two clients apart is which of them is blocked, not
-//! what each can map. The audit called the escape latent because, in the wiring on `main`, the
-//! parties are never runnable at once on the frame. This test builds the wiring the audit named as
-//! the one that makes it live, the wiring the set grant at the prompt (`rm *.txt`) would create: two
-//! clients that both map the one frame read-write at the same time.
+//! Finding 1 of `notes/shared-page-audit.md`: the FS server shared one read-write staging frame
+//! with every client a boot wired, so what kept two clients apart was which of them was blocked, not
+//! what each could map. This test builds two live clients on one file service, one rewriting the
+//! frame the other staged its name in, and asserts the outcome. **Since milestone 599 gave each
+//! client its own channel window** (keyed by the badge on its endpoint capability), the two map
+//! different frames, so it now asserts isolation: the attacker's write cannot reach the victim's
+//! window, and the victim's request resolves the name it staged. Before the fix this same witness
+//! reproduced the substitution (`SHARED_SUBSTITUTED`); the assertion flipped when the fix landed,
+//! which is what made this test the gate on it.
 //!
 //! One module for both ISAs, for `dir_capability_tests`'s reason: nothing here is
 //! architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running on
@@ -68,9 +71,10 @@ fn a_second_client_substitutes_the_name_the_file_server_resolves() {
     );
     assert_eq!(
         verdict,
-        fixture::SHARED_SUBSTITUTED,
-        "the victim read the file it named ({verdict:#x}), so the shared frame no longer lets one \
-         client substitute another's name. If milestone 599 has landed and each client now has its \
-         own channel, invert this assertion to expect SHARED_ISOLATED.",
+        fixture::SHARED_ISOLATED,
+        "the victim read the attacker's file ({verdict:#x}), so a second client on the service \
+         substituted the name the server resolved for the victim's call. Milestone 599 gives each \
+         client its own channel window keyed by the endpoint's badge, so this must be \
+         SHARED_ISOLATED: the two clients map different frames and neither can reach the other's.",
     );
 }

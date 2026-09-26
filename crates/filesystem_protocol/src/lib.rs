@@ -829,6 +829,22 @@ pub mod fs {
     /// `bench/transfer-size-sweep.sh` uses to measure a before against an after on one harness.
     pub const TRANSFER_MAX: usize = TRANSFER_PAGES * super::PAGE;
 
+    /// **How many client channels one file service keeps side by side** (milestone 599 (a frame per
+    /// filesystem client channel), provisional). Each channel is its own [`TRANSFER_MAX`]-byte
+    /// staging window, backed by its own frame, so two clients no longer share one page: the file
+    /// server maps `CLIENT_WINDOWS` windows and picks window `badge` for each request
+    /// (`abi::rendezvous::BADGE`), and the wiring hands each client its own frame and a badged
+    /// endpoint naming its window. Window 0 is the unbadged default, so a single-client boot path is
+    /// unchanged.
+    ///
+    /// **This bounds the number of file clients a boot can run at once**, which is the capacity
+    /// that used to be "however many the shared frame could be corrupted across". Eight is a
+    /// provisional value: it covers the heaviest path this tree wires today (a shell, a set-grant
+    /// caretaker, a `>` file caretaker, and headroom) and costs the server `CLIENT_WINDOWS *
+    /// TRANSFER_MAX` = 512 KiB of mapped frames. The production value is a capacity decision; a
+    /// lane ships this one and says so. See `notes/a-frame-per-filesystem-client-channel.md`.
+    pub const CLIENT_WINDOWS: usize = 8;
+
     /// The largest length or offset that fits the packing below (40 bits). Far above
     /// [`TRANSFER_MAX`], so the bit-packing has never been what bounds a transfer; the bound only
     /// guards the packing itself, and [`TRANSFER_MAX`] is what bounds a payload.

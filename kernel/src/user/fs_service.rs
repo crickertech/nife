@@ -1,5 +1,7 @@
 use super::*;
-use crate::cap::{Rights, irq_cap, memory_region_cap, rendezvous_cap, virtio_cap};
+use crate::cap::{
+    Rights, irq_cap, memory_region_cap, rendezvous_cap, rendezvous_cap_badged, virtio_cap,
+};
 use crate::sched::RendezvousId;
 
 /// The block server's role in the driver binary (must match `fixtures/src/hello.rs`,
@@ -205,6 +207,62 @@ static WIRED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::n
 static FILE_EP: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 static FILE_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
+/// **How many client channels this service keeps side by side** (milestone 599, provisional),
+/// straight from the contract so this wiring and the server agree. Window 0 is [`FILE_SHARED`], the
+/// unbadged default every legacy single-client path maps; windows 1.. are the pool [`claim_window`]
+/// hands out, one per additional live client, each its own frame and its own badge.
+const CLIENT_WINDOWS: usize = filesystem_protocol::fs::CLIENT_WINDOWS;
+
+/// The physical base of each window's [`FILE_PAGES`]-frame run. `WINDOWS[0]` is [`FILE_SHARED`];
+/// the rest are allocated once when the service is wired and mapped into the FS server. Plain
+/// atomics for [`WIRED`]'s reason: the only writer is the boot/test thread.
+static WINDOWS: [core::sync::atomic::AtomicU64; CLIENT_WINDOWS] =
+    [const { core::sync::atomic::AtomicU64::new(0) }; CLIENT_WINDOWS];
+
+/// Which windows are handed out. Bit `w` set means window `w` is claimed; bit 0 is set from wiring,
+/// because window 0 is the default rather than a claimable channel. A `u64` bitmap because
+/// [`CLIENT_WINDOWS`] is far under 64; [`claim_window`] and [`release_window`] are the only writers.
+static WINDOW_TAKEN: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+
+/// **Claim a free client-channel window** (milestone 599): returns its index (always `>= 1`, since
+/// window 0 is the default) and the physical base of its frame run, or `None` when all
+/// [`CLIENT_WINDOWS`] are in use, which is this service's live-client ceiling. The badge a client is
+/// granted IS its window index, so the FS server reads the right frame for its request.
+#[cfg_attr(not(test), allow(dead_code))]
+fn claim_window() -> Option<(u64, u64)> {
+    use core::sync::atomic::Ordering;
+    for w in 1..CLIENT_WINDOWS {
+        let bit = 1u64 << w;
+        if WINDOW_TAKEN.fetch_or(bit, Ordering::Relaxed) & bit == 0 {
+            return Some((w as u64, WINDOWS[w].load(Ordering::Relaxed)));
+        }
+    }
+    None
+}
+
+/// **Return a window to the pool** (milestone 599), the take-back half of [`claim_window`]. The
+/// frame is not freed (it stays mapped in the FS server for the life of the service); it is zeroed
+/// so no client's staging survives into the next client that claims the slot, which is the same
+/// "no stale RAM across a share" rule [`file_channel`] applies at allocation.
+#[cfg_attr(not(test), allow(dead_code))]
+fn release_window(w: u64) {
+    use core::sync::atomic::Ordering;
+    let phys = WINDOWS[w as usize].load(Ordering::Relaxed);
+    if phys != 0 {
+        // SAFETY: a frame this module allocated and still owns, via the direct map; FILE_PAGES
+        // frames of FRAME_SIZE bytes, reachable and mapped only into the FS server and whatever
+        // client last held this window (now gone).
+        unsafe {
+            core::ptr::write_bytes(
+                mmu::phys_to_virt(phys) as *mut u8,
+                0,
+                FILE_PAGES * FRAME_SIZE as usize,
+            );
+        }
+    }
+    WINDOW_TAKEN.fetch_and(!(1u64 << w), Ordering::Relaxed);
+}
+
 /// The wired service: the file-service endpoint clients `CALL`, the physical frame they share
 /// with the FS server, and (only on the call that did the wiring) the block server's and FS
 /// server's readiness endpoints.
@@ -266,7 +324,15 @@ fn wire_servers(
         None if crate::virtio::find_block_device_n(0).is_none() => nvme_disk()?,
         None => return None,
     };
+    // Window 0 is the default channel every legacy single-client path maps; windows 1.. are the
+    // pool `claim_window` hands out, one frame each, all mapped into the FS server (milestone 599).
     let file_shared = file_channel();
+    WINDOWS[0].store(file_shared, core::sync::atomic::Ordering::Relaxed);
+    for w in 1..CLIENT_WINDOWS {
+        WINDOWS[w].store(file_channel(), core::sync::atomic::Ordering::Relaxed);
+    }
+    // Window 0 is the default, not a claimable channel: mark it taken so `claim_window` skips it.
+    WINDOW_TAKEN.store(1, core::sync::atomic::Ordering::Relaxed);
     let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
     let ready = crate::sched::create_rendezvous(); // FS server WRITE -> the kernel test RECVs
     spawn_fs_server(
@@ -280,6 +346,8 @@ fn wire_servers(
             ready,
             budget_pages: FS_BUDGET_PAGES,
             crash: (0, 0, 0),
+            // The main service maps every pool window; a client's badge picks which one it reads.
+            extra_windows: CLIENT_WINDOWS - 1,
         },
     );
     Some((blk_ready, ready, file_ep, file_shared))
@@ -421,6 +489,11 @@ struct FsServer {
     /// reach the platter)`. All zero disables it, which is every FS server but the crash test's
     /// first one. See `redoxfs_server/src/bin/redoxfs_server.rs`.
     crash: (u64, u64, u64),
+    /// **How many pool windows beyond window 0 this server maps** (milestone 599). The main service
+    /// maps all of [`CLIENT_WINDOWS`] (so `CLIENT_WINDOWS - 1` extra), so a badged client's request
+    /// lands in its own frame; the crash-test servers serve one client and map 0 extra, keeping
+    /// their footprint and their disks separate from the pool.
+    extra_windows: usize,
 }
 
 /// Spawn one FS server: a heap budget, the block-service endpoint (client side), the
@@ -449,9 +522,18 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
             va: 0,
             phys: 0,
             flags: Flags::user_data(),
-        }; BLK_PAGES + FILE_PAGES + FS_STACK_PAGES as usize];
+        };
+            BLK_PAGES + CLIENT_WINDOWS * FILE_PAGES + FS_STACK_PAGES as usize];
         let n0 = map_channel(&mut maps, BLK_PAGE_FS, cfg.blk_shared, BLK_PAGES);
-        let n = n0 + map_channel(&mut maps[n0..], FILE_PAGE_FS, cfg.file_shared, FILE_PAGES);
+        // Window 0 is `file_shared`; windows 1..=extra_windows come from the pool (milestone 599),
+        // each mapped `FILE_PAGES` above the last so the server's `window_base(badge)` addresses
+        // them. `extra_windows` is 0 for a single-client server, which maps just window 0 as before.
+        let mut n = n0 + map_channel(&mut maps[n0..], FILE_PAGE_FS, cfg.file_shared, FILE_PAGES);
+        for w in 1..=cfg.extra_windows {
+            let phys = WINDOWS[w].load(core::sync::atomic::Ordering::Relaxed);
+            let va = FILE_PAGE_FS + w as u64 * FILE_PAGES as u64 * FRAME_SIZE;
+            n += map_channel(&mut maps[n..], va, phys, FILE_PAGES);
+        }
         for (i, &phys) in stack.iter().enumerate() {
             maps[n + i] = Mapping {
                 va: super::USER_STACK_VA - (i as u64 + 1) * FRAME_SIZE,
@@ -572,6 +654,7 @@ pub fn start_crash(
             // bytes. The first write is acknowledged and must survive; the second is the one the
             // property is about.
             crash: (2, 1, 2048),
+            extra_windows: 0, // a single-client crash service maps only window 0 (milestone 599)
         },
     );
 
@@ -612,6 +695,7 @@ pub fn recover_crash(
             ready,
             budget_pages: CRASH_BUDGET_PAGES,
             crash: (0, 0, 0), // this one is not armed: it is the one that has to survive
+            extra_windows: 0, // single-client crash service (milestone 599)
         },
     );
     let report = spawn_fs_client(client_image, file_ep, file_shared, 4, 0, 0, 0);
@@ -1231,20 +1315,24 @@ pub fn start_granted_set(
 /// **Wire two live clients on one file service, for the shared-frame witness** (milestone 599 (a
 /// frame per filesystem client channel), provisional).
 ///
-/// This is the wiring finding 1 of `notes/shared-page-audit.md` describes as latent and the set
-/// grant at the prompt would make live: two clients that both map the FS server's one staging frame
-/// read-write at the same time. Both `fs_test_client` roles (`ROLE_SHARE_VICTIM`,
-/// `ROLE_SHARE_ATTACKER` in `fixtures/src/fs_test_client.rs`) share `file_shared`, and a **sync
-/// endpoint** lets them hand off deterministically so the witness does not depend on a race landing.
+/// This is the wiring finding 1 of `notes/shared-page-audit.md` describes: two live clients on one
+/// file service, one rewriting the frame the other staged its name in. **After milestone 599 each
+/// client claims its own pool window** ([`claim_window`]) and a badged endpoint naming it, so the
+/// two map different frames and the file server reads each request from its caller's own window. The
+/// attacker's write to its own window can no longer reach the victim's, which is the isolation the
+/// witness now asserts. A **sync endpoint** sequences them deterministically so the test does not
+/// depend on a race landing.
 ///
-/// The victim holds the FS-service endpoint and calls it; the attacker holds it too but never calls
-/// it, because sharing the frame is the whole of what makes it a second writer. Each holds the sync
-/// endpoint `READ|WRITE` (both `SEND` and `RECV`), and its own report endpoint at the same slot, so
-/// both roles read one slot layout: FILE at 0, REPORT at 1, SYNC at 2.
+/// Both `fs_test_client` roles (`ROLE_SHARE_VICTIM`, `ROLE_SHARE_ATTACKER`) read one slot layout:
+/// FILE at 0 (a badged view of the FS-service endpoint), REPORT at 1, SYNC at 2, and each maps its
+/// own window's frame at `FILE_VA_CLIENT`. The victim calls the server; the attacker only writes its
+/// frame and hands off, because holding a frame the service maps is the whole of what made a second
+/// writer dangerous before the fix.
 ///
 /// Returns `(readiness, victim_report)`: the service's readiness sentinels if this call wired it,
 /// and the endpoint the victim reports its verdict on. The attacker never reports; it signals the
-/// victim and exits.
+/// victim and exits. `None` when no RedoxFS disk is attached, or when the pool has no free window
+/// (which cannot happen with two clients against [`CLIENT_WINDOWS`] of at least three).
 ///
 /// Provisional name (this lane's coinage); an architect names functions.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -1255,22 +1343,31 @@ pub fn start_shared_frame_witness(
     victim_role: u64,
     attacker_role: u64,
 ) -> Option<(Readiness, RendezvousId)> {
-    let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
+    let (file_ep, _file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let sync = crate::sched::create_rendezvous();
     let victim_report = crate::sched::create_rendezvous();
     let attacker_report = crate::sched::create_rendezvous();
 
-    // Spawn a witness client sharing the one file frame. Its whole slot layout is FILE=0, REPORT=1,
-    // SYNC=2, mapped against `file_shared` at `FILE_VA_CLIENT`. `sync` is granted `READ|WRITE` so a
-    // role can both `SEND` and `RECV` on it.
-    let spawn_witness = move |role: u64, report: RendezvousId| {
+    // The service must be serving before either client calls: the FS server is parked in its
+    // readiness SEND until this drains it, so a victim that called first would block forever. The
+    // test binds `_readiness` and never drains it again (milestone 599).
+    wait_for_service(readiness);
+    // A window per client: its own frame, and a badge equal to its window index, so the server
+    // reads each request from the caller's own frame.
+    let (victim_win, victim_phys) = claim_window()?;
+    let (attacker_win, attacker_phys) = claim_window()?;
+
+    // Spawn a witness client. Slot layout FILE=0 (a badged endpoint naming this client's window),
+    // REPORT=1, SYNC=2 (`READ|WRITE` so a role can both `SEND` and `RECV`). It maps its own window's
+    // frame at `FILE_VA_CLIENT`.
+    let spawn_witness = move |role: u64, report: RendezvousId, badge: u64, phys: u64| {
         crate::sched::spawn(move || {
             let mut maps = [Mapping {
                 va: 0,
                 phys: 0,
                 flags: Flags::user_data(),
             }; FILE_PAGES];
-            let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
+            let n = map_channel(&mut maps, FILE_VA_CLIENT, phys, FILE_PAGES);
             run(
                 client_image,
                 Spawn {
@@ -1278,8 +1375,10 @@ pub fn start_shared_frame_witness(
                     arg1: 0,
                     arg2: 0,
                     grants: &[
-                        rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
-                        rendezvous_cap(report, Rights::WRITE),  // slot 1: report to the kernel
+                        // A badged view of the FS endpoint: the kernel delivers `badge` to the
+                        // server's RECV_CAP, which picks this client's window.
+                        rendezvous_cap_badged(file_ep, Rights::WRITE, badge),
+                        rendezvous_cap(report, Rights::WRITE), // slot 1: report to the kernel
                         rendezvous_cap(sync, Rights::READ.union(Rights::WRITE)), // slot 2: handshake
                     ],
                     maps: &maps[..n],
@@ -1292,8 +1391,8 @@ pub fn start_shared_frame_witness(
     // The victim first, so it is parked in its first `SEND` on the sync endpoint before the attacker
     // runs; the attacker's first act is a `RECV` on the same endpoint, so the order they start in
     // does not change the handshake, but starting the victim first keeps the ordering obvious.
-    spawn_witness(victim_role, victim_report);
-    spawn_witness(attacker_role, attacker_report);
+    spawn_witness(victim_role, victim_report, victim_win, victim_phys);
+    spawn_witness(attacker_role, attacker_report, attacker_win, attacker_phys);
 
     Some((readiness, victim_report))
 }
