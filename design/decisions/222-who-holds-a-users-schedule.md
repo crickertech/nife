@@ -1,5 +1,5 @@
 ---
-status: DECIDED
+status: AMENDED
 raised: 2026-09-26
 decided: 2026-09-26
 ratified_by: calef
@@ -33,6 +33,59 @@ the table. `REPLACE` is still a provisional name.
 
 The handler can be built now, with the kernel test harness standing in as registrar. Connecting a
 real session still waits on milestone 152 (durable delegation).
+
+## Amended 2026-09-26: a per-user session process supervises the timetable
+
+calef, 2026-09-26 (recorded 16:56 UTC): *"152: S1, the per-user session process."*
+
+The ruling above has the durable session spawn and supervise the timetable, and assumes a running
+thing to do it. The lane for milestone 152 (durable delegation) found none exists. Supervising means
+holding the timetable's supervision endpoint and blocking on it, and a process has one wait point.
+Its options are in `notes/durable-delegation.md` on pull request #1347.
+
+The ruling, S1: `login` builds a per-user session process from the session budget. That process
+builds the timetable, hands out its `REPLACE` endpoint, and blocks on the supervision endpoint.
+`login` keeps two capabilities per durable identity:
+
+- the budget, for the reattach probe and for the cascade of §108 (disabling a user's login
+  credentials kills their durable session);
+- the `REPLACE` endpoint, handed back to a client that reattaches.
+
+The cost is one more process per scheduling user, beside its timetable. It blocks rather than
+yields, so it costs memory and no CPU.
+
+Refused:
+
+- S2, `login` supervises. It blocks on its front door and would never read a report.
+- S3, the client or the shell supervises. It exits at disconnect, which is the problem being solved.
+- S4, nobody supervises live. A dead timetable would silently stop the user's jobs.
+
+### When `login` builds it
+
+calef, 2026-09-26 (recorded 17:41 UTC): *"L2"*. The session process is built only on request,
+and `login` is unchanged for a session without a schedule. A session with one outlives logout,
+because the session process is a live child of its budget and §16 (object revocation) refuses to
+destroy a parent with a live child.
+
+The build deviates from the wording calef was shown, which had a new request word on `login`'s
+private channel after `OK`. `login` cannot wait for a word after `OK` unless every existing client
+sends one. So the lane made the request the login itself: `SCHEDULE` is a login request that also
+builds the session process, and its reply announces the `REPLACE` endpoint as a following
+capability (`SCHEDULE_FOLLOWS`), the way `RUN_UNVOUCHED_FOLLOWS` announces one in
+`crates/login_protocol`. The substance of the ruling is unchanged. The build is draft pull request
+#1377 (`milestone/152-session`).
+
+Refused:
+
+- L1, build it at every login. Every past user keeps a session process and an empty timetable
+  alive, logout becomes a detach, and ending a session needs a new request of its own.
+- L3, build it when the stored schedule is non-empty. The first registration still needs L2's
+  request, so L3 is L2 plus a special case.
+
+`SCHEDULE` and `SCHEDULE_FOLLOWS` are provisional wire values, and their names are not ratified.
+
+The program's name is not ratified, and whatever a lane ships is provisional. The `REPLACE` handler
+does not wait on this program; connecting a real session does.
 
 The rest of this file is the section as it stood before the ruling.
 
