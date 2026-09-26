@@ -38,6 +38,15 @@ the components are not services:
 tree has to a `/bin`. Milestone 395's own block corrects two earlier figures here: `watch` was cut
 by milestone 281 and `doc` was ratified as `mdr`.
 
+*(Dated note, 2026-09-26, decisions-hygiene lane, recounted against `main` at `508333ebe`.)* The
+figures above have moved and the premise has not. `components/Cargo.toml` now carries 50
+`[[bin]]` entries and `fixtures/Cargo.toml` 43. Two of the new components belong in the table
+above: `top` (look at the running system, 2026-09-21) and `installer` (an operator tool, 2026-09-21),
+which makes seventeen that are not services. `grant_plan`'s program table now resolves ten of
+them by name, the nine above plus `top`. The third new component, `framebuffer_driver`, is a driver,
+and `audit_sink` became `login_audit_receiver` (calef's 2026-09-13 ruling, performed 2026-09-24).
+`tools/` still holds only `redoxfs_host`.
+
 ## What this tree already does in the analogous case
 
 **§39 defines the vocabulary and does not force this.** A **component** is the shippable unit, a
