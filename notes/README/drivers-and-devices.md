@@ -1,0 +1,16 @@
+# Notes index: Drivers and devices
+
+Part of [the notes index](../README.md), which says how to add a line.
+
+- [virtio-blk, driven from userspace](../virtio.md): a block device driven from EL0 with DMA.
+- [PCIe, and driving a disk over it](../pcie.md): the PCIe transport, with the kernel as firmware.
+- [Scoping a PCIe transport](../pcie-transport-scope.md): the pre-build scope for PCIe and virtio-pci.
+- [NVMe: the first non-virtio disk](../non-volatile-memory-express.md): an NVMe driver confined by the IOMMU alone.
+- [Fatal risk 6's bench evening on xenon](../risk-6-bench-evening.md): the confined NVMe driver's preflight, throughput boot and outcomes.
+- [Confining DMA without an IOMMU](../dma.md): kernel validation of every descriptor a driver submits.
+- [Confining DMA with an IOMMU](../iommu.md): hardware DMA confinement with SMMUv3 and the RISC-V IOMMU.
+- [Block devices: what is attached, and what holding one means](../block-devices.md).
+- [A machine with no serial port](../serial-less-output.md): screen output for machines without a UART.
+- [The framebuffer contract](../framebuffer-contract.md): how a confined client gets pixels onto a screen.
+- [The compositor](../compositor.md): one screen shared among clients that distrust each other.
+- [Glyphs, the VT engine, and input](../glyphs.md): the font, VT engine and keyboard behind on-screen text.
