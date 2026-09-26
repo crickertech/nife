@@ -150,7 +150,7 @@ const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 7] = [
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 83] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -675,6 +675,44 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 83] = [
         "interrupt_ignorer",
         &["^C again: tearing the job down.", "its memory reclaimed"],
     ),
+    // **A `std` program, spawned by the progenitor rather than by the kernel's test harness**
+    // (milestone 595 (provisional)). Until this, every `std` program that ran on nife was built by
+    // `kernel/src/user/std_service.rs`, and the progenitor had never produced a child in the layout
+    // nife's `std` reads (`crates/std_runtime_protocol`): eight fixed slots, three shared pages,
+    // thirty-two stack pages. The preview first, because it is where a person learns the slots
+    // moved, and slot 0 is not even the same kind of object as a native child's.
+    (
+        "caps std_exerciser",
+        &[
+            "cap 0  untyped   heap.",
+            "cap 1  endpoint  result   stdout and stderr",
+            "cap 5  frame     clock",
+            "cap 6  endpoint  entropy  WRITE",
+            "cap 7  frame     config",
+        ],
+    ),
+    // **Every phrase is a slot or a page landing where `std` looks for it**, which is why the
+    // transcript is the test: the program asserts rather than prints wherever the answer is not
+    // deterministic, and panics (a fault this gate fails on) when one is missing. `vec sum` is the
+    // heap at slot 0; that anything prints at all is stdout at slot 1; the two `honestly
+    // unsupported` lines are slots 4 and 2 left empty, so there is no ambient filesystem or network
+    // to fall back on; `wall clock ok` is slot 5 and the page at `CLOCK_PAGE`; `entropy ok` is slot
+    // 6; `config seeded` is slot 7 and the page at `CONFIG_PAGE`, read before `main`; and the last
+    // line is `process::exit` reaching the supervisor as an exit rather than a fault. The stack is
+    // the one thing with no phrase of its own: too little of it is a fault partway through.
+    (
+        "std_exerciser",
+        &[
+            "hello from std on nife",
+            "vec sum 149985000",
+            "fs honestly unsupported",
+            "net honestly unsupported",
+            "wall clock ok",
+            "entropy ok",
+            "config seeded",
+            "exiting through process::exit",
+        ],
+    ),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
@@ -714,6 +752,14 @@ fn swish_check_omits(arch: &str, line: &str) -> Option<&'static str> {
         "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
             "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
              found on virtio-mmio only, and q35 has none)",
+        ),
+        // `std_exerciser` asserts that two draws from `std::random::SystemRng` differ, and a
+        // `std` program with an empty entropy slot panics there rather than inventing bytes. The
+        // line would test the same missing device the four `uuid` lines above cannot, and fail as
+        // a fault. `caps std_exerciser` stays: it is a preview and needs no device.
+        "std_exerciser" => Some(
+            "x86_64 has no entropy service at the prompt (the `uuid` lines' reason), and \
+             std_exerciser's transcript asserts two draws from it",
         ),
         // The same shape one device over (milestone 590 (provisional)): the kernel grants the
         // progenitor a NIC only from a virtio-mmio slot, and the x86_64 runner attaches no
@@ -1084,6 +1130,30 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
 
     let riscv = arch == "riscv64";
     let x86 = arch == "x86_64";
+    // **`std_exerciser` is in this boot's archive only if it was built** (milestone 595
+    // (provisional)): `cargo xtask std-exerciser` compiles it against the `nife-dev` toolchain, which
+    // `script/test` runs and a bare `script/swish-check` does not. Without it the progenitor has no
+    // image and the line would answer "could not spawn", which is a fact about this checkout rather
+    // than the boot, so the line is skipped and says why. **Not in CI**, where `test` always builds
+    // it first: a missing image there means the build broke, and skipping would hide exactly that.
+    let std_built = crate::farm::std_exerciser_elf(&format!("{arch}-unknown-nife")).exists();
+    // Said once per leg, on the first boot: the second boot types no `std` line.
+    if fresh && !std_built && !x86 {
+        if std::env::var_os("CI").is_some() {
+            eprintln!(
+                "swish-check ({arch}): no std_exerciser was built for this architecture, and in CI \
+                 `test` builds it first; refusing to skip its line"
+            );
+            return false;
+        }
+        eprintln!(
+            "swish-check ({arch}): skipping `std_exerciser`: it is not built here (`cargo xtask \
+             std-exerciser` builds it; `script/test` runs that)"
+        );
+    }
+    let skipped = |line: &str| {
+        swish_check_omits(arch, line).is_some() || (line == "std_exerciser" && !std_built)
+    };
     eprintln!();
     eprintln!(
         "--- swish-check ({arch}): boot {} and type at the prompt ---",
@@ -1354,7 +1424,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
             if !ready {
                 break;
             }
-            if swish_check_omits(arch, line).is_some() {
+            if skipped(line) {
                 continue;
             }
             if !wait_for_prompt(line_secs) {
@@ -1439,7 +1509,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         // truncated.
         let mut cursor = 0usize;
         for &(line, want) in script {
-            if swish_check_omits(arch, line).is_some() {
+            if skipped(line) {
                 continue;
             }
             match swish_check_answer(&transcript, cursor, line) {
@@ -1584,7 +1654,15 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         // those landed without this count, and this corrects it. A refused image is not a job. The
         // two supervised lines (`interrupt_heeder`, `interrupt_ignorer`) are not counted either: a
         // supervised job is built from the shell's own untyped, not from the progenitor's pool.
-        let jobs = if x86 { "twenty" } else { "twenty-six" };
+        // Milestone 595 (provisional) added one on the other two legs, `std_exerciser`, when it
+        // was built; x86_64 omits it with the `uuid` lines.
+        let jobs = if x86 {
+            "twenty"
+        } else if std_built {
+            "twenty-seven"
+        } else {
+            "twenty-six"
+        };
         if x86 {
             let omitted: Vec<&str> = script
                 .iter()
@@ -1600,6 +1678,11 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
                 omitted,
             );
         }
+        let std_ran = if std_built && !x86 {
+            ", one of them a `std` program built in the layout nife's `std` reads"
+        } else {
+            ""
+        };
         let network = if x86 {
             "refused the network to a program that did not declare it, "
         } else {
@@ -1618,8 +1701,8 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, {network}stopped a \
              supervised job with ^C and tore down one that ignored it, and ran \
-             {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
-             budget away"
+             {jobs} jobs through the progenitor's bounded job pool after the progenitor gave its \
+             construction budget away{std_ran}"
         );
         return true;
     }

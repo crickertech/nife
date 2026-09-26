@@ -1223,7 +1223,32 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     out(b"  ");
     out(e.prog.name().as_bytes());
     out(b" would grant the new process, and nothing else:\n");
-    out(b"    cap 0  endpoint  result   report its answer back\n");
+    // **A `std` program's slots are fixed by its runtime, not by the order they are listed in**
+    // (milestone 595 (provisional), `crates/std_runtime_protocol`). The same grants land somewhere
+    // else, and slot 0 is not even the same kind of object, so a preview that printed the native
+    // positions for one would be describing a child the progenitor does not build.
+    let std = e.prog.manifest().runtime == grant_plan::Runtime::Std;
+    let cap = |n: u64, out: &mut dyn FnMut(&[u8])| {
+        out(b"    cap ");
+        write_num(n, out);
+        out(if n < 10 {
+            b"  ".as_slice()
+        } else {
+            b" ".as_slice()
+        });
+    };
+    if std {
+        cap(std_runtime_protocol::MEMORY_REGION_SLOT, out);
+        out(b"untyped   heap. the ");
+        write_num(grant_plan::STD_REGION_PAGES, out);
+        out(b"-page region it is built in, less the\n");
+        out(b"                              build; from the progenitor's job pool, not this\n");
+        out(b"                              shell's budget, and all of it goes back at exit\n");
+        cap(std_runtime_protocol::STDOUT_SLOT, out);
+        out(b"endpoint  result   stdout and stderr, both\n");
+    } else {
+        out(b"    cap 0  endpoint  result   report its answer back\n");
+    }
     if e.mem_pages > 0 {
         out(b"    cap 1  untyped   ");
         write_num(e.mem_pages, out);
@@ -1248,7 +1273,15 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     // the load-bearing half, because typing that option is what widens the capability from "may
     // take a name out of this directory" to "may walk everything under it".
     if let Some(g) = e.dir {
-        out(b"    cap 2  endpoint  dir      ");
+        cap(
+            if std {
+                std_runtime_protocol::FS_DIR_SLOT
+            } else {
+                2
+            },
+            out,
+        );
+        out(b"endpoint  dir      ");
         let mut buf = [0u8; nav::RENDER_MAX];
         let n = g.dir.render(&mut buf);
         out(&buf[..n]);
@@ -1271,7 +1304,15 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     // The row says *read-only* because that is the entire reason `date` cannot set the time
     // (DECISIONS §43): there is no flag it could pass and no method it could call.
     if e.prog.manifest().clock {
-        out(b"    cap 1  frame     clock    read-only. it can read the time and not set it,\n");
+        cap(
+            if std {
+                std_runtime_protocol::CLOCK_SLOT
+            } else {
+                1
+            },
+            out,
+        );
+        out(b"frame     clock    read-only. it can read the time and not set it,\n");
         out(b"                              and no token on the line could have asked for more\n");
     }
     // **The inert-configuration page, `clock`'s twin** (milestone 47, DECISIONS §111). No token on
@@ -1282,7 +1323,15 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     // the progenitor's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
     // and-naming.md's environment section for what remains.
     if e.prog.manifest().config {
-        out(b"    cap 1  frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
+        cap(
+            if std {
+                std_runtime_protocol::CONFIG_SLOT
+            } else {
+                1
+            },
+            out,
+        );
+        out(b"frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
         out(
             b"                              defaults; nothing here can change what a shell hands\n",
         );
@@ -1300,7 +1349,15 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     // which the service holds and nothing else does), and it holds no `GRANT`, so it cannot pass
     // randomness on to anything at all.
     if e.prog.manifest().entropy {
-        out(b"    cap 9  endpoint  entropy  WRITE. it may ask the entropy service for random\n");
+        cap(
+            if std {
+                std_runtime_protocol::ENTROPY_SLOT
+            } else {
+                grant_plan::ENTROPY_SLOT
+            },
+            out,
+        );
+        out(b"endpoint  entropy  WRITE. it may ask the entropy service for random\n");
         out(
             b"                              bytes, and nothing else: it cannot reach the device,\n",
         );
@@ -2191,20 +2248,56 @@ mod tests {
     }
 
     #[test]
-    fn exactly_one_program_declares_entropy() {
+    fn exactly_two_programs_declare_entropy() {
         // The manifest table is the whole of who may draw random bytes at this prompt, so a count
-        // of it is a claim worth gating rather than a tautology: a second program declaring
-        // `entropy` without anybody deciding to is exactly the drift toward ambient authority
-        // DECISIONS §44 exists to prevent, and it would otherwise be visible only to whoever read
-        // the diff.
+        // of it is a claim worth gating rather than a tautology: a program declaring `entropy`
+        // without anybody deciding to is exactly the drift toward ambient authority DECISIONS §44 (entropy is a capability)
+        // exists to prevent, and it would otherwise be visible only to whoever read the diff.
+        //
+        // **The second was decided in milestone 595 (provisional)**: `std_exerciser` asserts that
+        // two draws from `std::random::SystemRng` differ, which is `std`'s randomness working at
+        // the slot `std_runtime_protocol` fixes, and that is half of what the program is at the
+        // prompt to prove. A `std` program that does not declare it still runs; its `SystemRng`
+        // panics rather than inventing bytes, and its `HashMap` seeds best-effort.
         let mut declared = 0;
         for &p in Prog::ALL {
             if p.manifest().entropy {
-                assert_eq!(p, Prog::Uuid, "{} declares entropy", p.name());
+                assert!(
+                    matches!(p, Prog::Uuid | Prog::StdExerciser),
+                    "{} declares entropy",
+                    p.name()
+                );
                 declared += 1;
             }
         }
-        assert_eq!(declared, 1);
+        assert_eq!(declared, 2);
+    }
+
+    /// **`caps` names the slots the progenitor will use, and for a `std` program those are
+    /// `std_runtime_protocol`'s** (milestone 595 (provisional)). A preview printing the native
+    /// positions would put the output at slot 0, where a `std` child holds its heap.
+    #[test]
+    fn a_std_program_previews_its_fixed_slots() {
+        let s = shown(|o| write_preview(&endowment(Prog::StdExerciser), o));
+        assert!(
+            s.contains("cap 0  untyped   heap. the 384-page region"),
+            "{s}"
+        );
+        assert!(
+            s.contains("cap 1  endpoint  result   stdout and stderr"),
+            "{s}"
+        );
+        assert!(s.contains("cap 5  frame     clock"), "{s}");
+        assert!(s.contains("cap 6  endpoint  entropy  WRITE"), "{s}");
+        assert!(s.contains("cap 7  frame     config"), "{s}");
+        assert!(!s.contains("cap 0  endpoint"), "{s}");
+        // And a native program's rows did not move.
+        let u = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        assert!(
+            u.contains("cap 0  endpoint  result   report its answer back"),
+            "{u}"
+        );
+        assert!(u.contains("cap 9  endpoint  entropy  WRITE"), "{u}");
     }
 
     #[test]

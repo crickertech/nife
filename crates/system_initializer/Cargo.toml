@@ -38,6 +38,9 @@ byte_sink_protocol = { version = "0.1.0", path = "../byte_sink_protocol" }
 # The userspace ELF loader, and the fault slot that makes a child born supervised. One loader in the
 # tree since milestone 96; this crate is one of its two callers.
 supervision_protocol = { version = "0.1.0", path = "../supervision_protocol" }
+# The std runtime contract (milestone 595 (provisional)): the slots and pages the spawn service
+# places a `std` child's capabilities at. Constants only, no dependencies.
+std_runtime_protocol = { version = "0.1.0", path = "../std_runtime_protocol" }
 user_mode_runtime = { version = "0.1.0", path = "../user_mode_runtime" }
 # The login service's spawn contract (milestone 233), for exactly two constants: the addresses this
 # crate maps `fs_subtree_caretaker`'s image and the measurement table at before starting `login`.

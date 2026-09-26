@@ -921,6 +921,7 @@ dependencies = [
  "filesystem_protocol",
  "glob",
  "grant_plan",
+ "std_runtime_protocol",
 ]
 
 [[package]]
@@ -964,6 +965,7 @@ dependencies = [
  "nifefs",
  "package_archive",
  "socket_protocol",
+ "std_runtime_protocol",
  "supervision_protocol",
  "user_mode_runtime",
 ]

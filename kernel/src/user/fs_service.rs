@@ -48,7 +48,7 @@ const BLK_PAGE_FS: u64 = 0x5000_0000; // FS server's block region (redoxfs_serve
 const FILE_PAGE_FS: u64 = BLK_PAGE_FS + (BLK_PAGES as u64) * FRAME_SIZE;
 const FILE_VA_CLIENT: u64 = 0x0000_0000_0060_0000; // client's file page (fs_test_client.rs FILE_VA)
 
-/// A std program's half of the same agreement (notes/abi.md §4, notes/std.md): the slot the PAL
+/// A std program's half of the same agreement (notes/abi.md section 4, notes/std.md): the slot the PAL
 /// looks for the FS-service endpoint in, and the VA it expects the shared file page at. Read from
 /// `std_runtime_protocol`, which the std PAL has generated into it, so the two cannot drift. A std
 /// program's slot layout differs from the hand-written client's because std already owes slots 0

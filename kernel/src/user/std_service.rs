@@ -29,15 +29,16 @@ const CLOCK_PAGE_STD: u64 = std_runtime_protocol::CLOCK_PAGE;
 const CLOCK_SLOT: u64 = std_runtime_protocol::CLOCK_SLOT;
 
 /// Where the loader maps the inert-configuration page for a std program (milestone 47's
-/// environment-variable fork, DECISIONS §111), and its slot, from `std_runtime_protocol`. Clear of
-/// the clock page above and of the FS contract's shared page (`fs_service::FS_CLIENT_PAGE_VA`,
-/// `0x0060_0000`, which this spawn does not use).
+/// environment-variable fork, DECISIONS §111 (inert configuration is a read-only page)), and its
+/// slot, from `std_runtime_protocol`. Clear of the clock page above and of the FS contract's shared
+/// page (`fs_service::FS_CLIENT_PAGE_VA`, `0x0060_0000`, which this spawn does not use).
 const CONFIG_PAGE_STD: u64 = std_runtime_protocol::CONFIG_PAGE;
 const CONFIG_SLOT: u64 = std_runtime_protocol::CONFIG_SLOT;
 
-/// The entropy service's request endpoint (milestone 56), at `std_runtime_protocol`'s slot. **An
-/// endpoint, and no mapping**: unlike the clock, whose read authority IS a page, randomness is
-/// obtained by asking, so the whole grant is one endpoint that names no device.
+/// The entropy service's request endpoint (milestone 56 (secrets, credentials, and the entropy to
+/// make them safe)), at `std_runtime_protocol`'s slot. **An endpoint, and no mapping**: unlike the
+/// clock, whose read authority IS a page, randomness is obtained by asking, so the whole grant is
+/// one endpoint that names no device.
 const ENTROPY_SLOT: u64 = std_runtime_protocol::ENTROPY_SLOT;
 
 /// **Which entropy backend a std program's `SystemRng` is served from.** The program cannot tell:

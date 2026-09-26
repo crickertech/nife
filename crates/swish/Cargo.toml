@@ -23,6 +23,11 @@ workspace = true
 # what a line means and this decides what the user is told about it.
 grant_plan = { version = "0.1.0", path = "../grant_plan" }
 
+# The slot a `std` program finds each authority in (milestone 595 (provisional)), so `caps` names
+# the slots the progenitor will actually use for one rather than the native positions. Constants
+# only, no dependencies.
+std_runtime_protocol = { version = "0.1.0", path = "../std_runtime_protocol" }
+
 # `dir::explain`, the filesystem's half of a refusal. `grant_plan` deliberately keeps this a dev
 # dependency so a command line can be checked without linking the filesystem contract; the shell
 # links it either way, because `Say::Failed` carries an errno that only `filesystem_protocol` can put a sentence

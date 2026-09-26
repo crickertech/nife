@@ -1,7 +1,7 @@
 //! **The std runtime contract**: where a `std` program on nife finds each authority it was given.
 //!
-//! Name: provisional. Introduced 2026-09-25 by milestone 595 (provisional: the shell runs a `std`
-//! program), which needed the progenitor to build a child in this layout and found the numbers
+//! Name: provisional. Introduced 2026-09-25 by milestone 595 (provisional), in which the shell runs
+//! a `std` program. It needed the progenitor to build a child in this layout and found the numbers
 //! written three times: in the std PAL's `rt.rs`, and twice in the kernel test harness. The
 //! `_protocol` suffix follows `environment_protocol` and `clock_protocol`, the contracts the same
 //! PAL already reads; the stem says which runtime. Expect calef to rename it.
@@ -88,11 +88,16 @@ pub const HEAP_MAX: u64 = 256 * 1024 * 1024;
 /// twelve. std's startup, its formatting machinery and its collections use far more stack than a
 /// hand-written `no_std` program, and the failure mode of too little is a fault in code nobody
 /// here wrote. Thirty-two is what the kernel test harness has mapped under every std program since
-/// milestone 27 (plus the one page its own `run` maps), so it is the number every std program on
+/// milestone 27 (Rust `std` on the native ABI), plus the one page its own `run` maps, so it is the number every std program on
 /// nife has been proven under, rather than a measurement of any one of them.
 ///
 /// Name: provisional.
 pub const STACK_PAGES: u64 = 32;
+
+// The stack grows down from `0x50_0000` and the image starts at `0x40_0000`, so the stack may not
+// take that whole megabyte: a stack sized into the image would map over code. At compile time, so
+// the PAL this file is generated into checks it too.
+const _: () = assert!(STACK_PAGES > 0 && STACK_PAGES * 4096 < 0x50_0000 - 0x40_0000);
 
 #[cfg(test)]
 mod tests {
@@ -143,13 +148,5 @@ mod tests {
         }
         assert_eq!(HEAP_BASE % PAGE, 0);
         assert_eq!(HEAP_MAX % PAGE, 0);
-    }
-
-    /// The stack grows down from `0x50_0000` and the image starts at `0x40_0000`, so the stack may
-    /// not take more than that megabyte. A stack sized into the image would map over code.
-    #[test]
-    fn the_stack_fits_below_the_stack_top_and_above_the_image() {
-        assert!(STACK_PAGES > 0);
-        assert!(STACK_PAGES * PAGE < 0x50_0000 - 0x40_0000);
     }
 }
