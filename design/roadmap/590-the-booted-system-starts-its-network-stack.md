@@ -99,7 +99,7 @@ move is milestone 198's, and needs no new mechanism from this one.
   no unmap.
 - x86_64 has no network. The kernel grants a NIC only from a virtio-mmio slot, and the x86_64
   runner attaches no `-netdev`. `swish-check`'s x86_64 leg omits the two echo runs, with that
-  reason in `swish_check_x86_omits`; the preview and the witness still run there.
+  reason in `swish_check_omits(arch, line)`; the preview and the witness still run there.
 - A socket client pays for its own page with `--mem 4`. The network grant carries no memory,
   deliberately; a person has to type the budget.
 
@@ -112,8 +112,9 @@ move is milestone 198's, and needs no new mechanism from this one.
 - **Recorded.** The package client's move to the prompt is milestone 198's, in this block's section
   on it. The DHCP wait and the DMA view are in `crates/system_initializer`'s BUGS. The MMIO NIC with
   no IOMMU is at `kernel::user::boot_virtio_net_device`, and the last capability slot at
-  `kernel::cap::CAPABILITY_TABLE_SLOTS`. x86_64's missing NIC is in `swish_check_x86_omits`, and
-  milestone 494 (a driver for the network card a PC actually has) closes it.
+  `kernel::cap::CAPABILITY_TABLE_SLOTS`. x86_64's missing NIC is in
+  `swish_check_omits(arch, line)`, and milestone 494 (a driver for the network card a PC actually
+  has) closes it.
 
 ## Index row
 
