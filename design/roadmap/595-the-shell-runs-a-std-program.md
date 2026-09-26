@@ -8,9 +8,10 @@ names it.)* The progenitor's `std` layout was built on 2026-09-26 by lane
 `the-x86-64-progenitor-serves-entropy-from-rdseed` and built the same day by lane
 `milestone/595-x86-std`. See "What is built" below.
 
-**Gate: DECISION §170, DECISION §171.** Two open forks each stop a different step between a typed
-line and a running `rg`, and both are calef's. A third, §219, was ruled on 2026-09-26. The sections
-below say which step each one stops.
+**Gate: DECISION §170, MILESTONE 206.** One open fork and one unbuilt milestone each stop a
+different step between a typed line and a running `rg`. §170 is calef's. §171 and §219 were ruled
+on 2026-09-26, and §171's answer is built by milestone 206. The sections below say which step each
+one stops.
 
 ## The gap, checked 2026-09-25
 
@@ -159,7 +160,8 @@ figure, which is what the proposal predicted. The x86_64 gauge line is still sta
   lines, and every option needs it. Deciding which bytes become capabilities is per program:
   `ripgrep` 14.1.1 has 104 flags. This milestone needs the first half and the decision on the
   second.
-- Milestone 206 (a program image has under 896 KiB), and §171 (where a program image starts).
+- Milestone 206 (a program image has under 896 KiB), which builds §171 (where a program image
+  starts), ruled 2026-09-26 as option D: a written address-space map the constants derive from.
   The image meets its own stack there, and `rg`'s `.text` is 1.37 MiB. The harness relinks `rg` at
   `0x100_0000` to get past it. A spawn from the shell cannot rely on that trick.
 
@@ -237,8 +239,8 @@ A boot test, `shell_runs_std_tests.rs` (provisional name), drives a scripted she
   unwired network half are in `crates/system_initializer/src/lib.rs`, in `StdLayout`'s BUGS.
 - **Outstanding.** Everything past the layout. A `std` program the shell names by §219's option D,
   its arguments (§170), and an image over 896 KiB (§171 and milestone 206) are what `rg` needs.
-  Checked against this block's "What it waits on" section on 2026-09-26: §170 and §171 are still
-  open, and nothing builds option D yet.
+  Checked against this block's "What it waits on" section on 2026-09-26: §170 is still open,
+  §171 was ruled that day and milestone 206 builds it, and nothing builds §219's option D yet.
 
 - **Milestone 198.** An installed program cannot yet declare `runtime: Std`. Pull request #1320 built §219's
   option D, and it endows every vouched image with one fixed manifest,
@@ -253,5 +255,5 @@ A boot test, `shell_runs_std_tests.rs` (provisional name), drives a scripted she
 The shell cannot launch a `std` program: all 16 programs `swish` can name are native, and `ripgrep`
 runs only from the kernel test harness. This makes `rg needle docs` work at the prompt, confined to
 the granted directories, on all three architectures. It builds on §219's option D for naming and
-waits on §170 for arguments and §171 for image size, and it unblocks milestone 121's remaining items and milestone
+waits on §170 for arguments and milestone 206 (a program image has under 896 KiB) for image size, and it unblocks milestone 121's remaining items and milestone
 123's demonstration.
