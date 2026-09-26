@@ -851,11 +851,13 @@ peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real b
 correction above does not change that until a boot proves the driver reaches bytes: a node found is
 not a device driven.
 
-## The eight-hour soak, 2026-09-25 (milestone 225), and the first bench session run from a lane
+## The eight-hour soak, 2026-09-25, and the first bench session run from a lane
 
-**What ran.** Milestone 219's (the boot tour ends and the kernel halts, so there is nothing to
-soak) workload with milestone 221's (the soak never crosses cores, so build the hook that makes it)
-tick route, built by `script/board-image --soak --tftp` at `9e879f1e7` and netbooted from patagonia.
+Milestone 225 (run the soak on radon, argon and xenon), on radon.
+
+**What ran.** The workload of milestone 219 (the boot tour ends and the kernel halts, so there is
+nothing to soak), with the tick route of milestone 221 (the soak never crosses cores, so build the
+hook that makes it), built by `script/board-image --soak --tftp` at `9e879f1e7` and netbooted from patagonia.
 Power-on about 01:02 UTC by calef on plug 2; `script/board-console --for 490m --until none` watched
 it to the deadline and exited 0. The log is `bench/radon-2026-09-25/soak-8h.log`. This was the
 first bench session a developer lane ran rather than a maintainer, and `briefs/bench-session.md`
