@@ -150,7 +150,7 @@ const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 7] = [
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 81] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 83] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -653,8 +653,40 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 81] = [
         "unreachable_network_witness",
         &["network: refused (no capability at slot 10)"],
     ),
+    // **A supervised job, interrupted**, under DECISIONS §24 (interrupting the foreground
+    // process), and these two are the only lines this gate presses `^C` for (see
+    // [`SWISH_CHECK_INTERRUPTED`]). Neither was typed here
+    // until 2026-09-25, and in that time the first supervised job of every boot failed with `could
+    // not map the job frame`, because the shell mapped its job frame over its own terminal page.
+    // The heeder is the cooperative tier: one `^C`, and the job reports it stopped. It goes first
+    // because it is the first supervised job of the boot, which is the one that failed.
+    (
+        "interrupt_heeder",
+        &[
+            "^C interrupts it.",
+            "the job caught the interrupt and stopped cleanly after",
+        ],
+    ),
+    // The forcible tier: the ignorer never looks at the flag, so the grace timeout escalates one
+    // `^C` to a `DESTROY` of the region the shell built it from, which force-kills its live thread
+    // (DECISIONS §16 (object revocation), as amended). A shell whose teardown was refused says so
+    // instead.
+    (
+        "interrupt_ignorer",
+        &["^C again: tearing the job down.", "its memory reclaimed"],
+    ),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
+
+/// **The lines after which this gate presses `^C`**, once the shell has said the job is running.
+/// Each runs until interrupted, so without the keystroke the prompt never comes back. A program
+/// here is also one `every_spawnable_program_has_a_swish_check_line` would otherwise have to excuse.
+const SWISH_CHECK_INTERRUPTED: [&str; 2] = ["interrupt_heeder", "interrupt_ignorer"];
+
+/// What the shell prints once a supervised job is running and watched. Pressing `^C` before it
+/// would still be counted (the shell's watermark catches an early one), but after it is the case a
+/// person types, so it is the one this gate proves.
+const SWISH_CHECK_RUNNING: &str = "^C interrupts it.";
 
 /// **The lines a leg does not type, each with the reason** (milestone 182 (`x86_64`'s own
 /// interactive-boot entry point), under the rule
@@ -1344,6 +1376,20 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
                 failed.push(format!("the prompt never echoed `{line}`"));
                 break;
             }
+            if SWISH_CHECK_INTERRUPTED.contains(&line) {
+                if !wait_after(at, SWISH_CHECK_RUNNING, line_secs) {
+                    failed.push(format!(
+                        "`{line}` never said it was running under supervision ({SWISH_CHECK_RUNNING:?})"
+                    ));
+                    break;
+                }
+                // ETX, the byte a terminal sends for `^C`, with no newline: the line editor acts on
+                // it the moment it arrives.
+                if stdin.write_all(&[0x03]).is_err() || stdin.flush().is_err() {
+                    failed.push(format!("could not press ^C under `{line}`"));
+                    break;
+                }
+            }
         }
         // One more, for the last line: every other answer is bounded by the next line's wait, and
         // the last one has no next line. Without this the transcript is read while the final
@@ -1535,7 +1581,9 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         // [`swish_check_omits`]. Milestone 590 added three jobs on the other two legs (the two
         // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness). Milestone
         // 198 rung 3a added two on each (the installed `uptime` and `greeting` runs); the first of
-        // those landed without this count, and this corrects it. A refused image is not a job.
+        // those landed without this count, and this corrects it. A refused image is not a job. The
+        // two supervised lines (`interrupt_heeder`, `interrupt_ignorer`) are not counted either: a
+        // supervised job is built from the shell's own untyped, not from the progenitor's pool.
         let jobs = if x86 { "twenty" } else { "twenty-six" };
         if x86 {
             let omitted: Vec<&str> = script
@@ -1568,7 +1616,8 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
              designated, named a file whose name has a space in it, searched an installed \
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
-             a && past a command that succeeded and not past one it refused, {network}and ran \
+             a && past a command that succeeded and not past one it refused, {network}stopped a \
+             supervised job with ^C and tore down one that ignored it, and ran \
              {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );
@@ -2065,9 +2114,10 @@ $ outlaw
 
     #[test]
     fn every_spawnable_program_has_a_swish_check_line() {
-        // Programs a transcript cannot drive, each with the reason. Both run until interrupted,
-        // and this gate types lines; it has no way to send `^C`.
-        const UNSCRIPTED: [&str; 2] = ["interrupt_heeder", "interrupt_ignorer"];
+        // Programs a transcript cannot drive, each with the reason. Empty since 2026-09-25, when
+        // `SWISH_CHECK_INTERRUPTED` taught this gate to press `^C` and the two supervised
+        // demonstrators left this list.
+        const UNSCRIPTED: [&str; 0] = [];
         for p in grant_plan::Prog::ALL {
             let name = p.name();
             let scripted = SWISH_CHECK_SCRIPT

@@ -3276,11 +3276,59 @@ const PAGE: u64 = 4096;
 /// `interrupt_heeder` and `interrupt_ignorer` are tiny; this is generous. DESTROY returns these
 /// pages to our budget.
 const JOB_UNTYPED_PAGES: u64 = 32;
-/// Where we map a supervised job's shared frame in our own space. It advances per job, because there
-/// is no unmap syscall: each job gets a fresh window and the old mapping is simply left behind (one
-/// page of address space, and one frame from our budget, is the honest per-job cost).
+/// Where the wiring maps this shell's clock page read-only: `crates/system_initializer`'s
+/// `SH_CLOCK_VA`, which must match. Nothing here reads through it by address; it is named so that
+/// [`JOBFRAME_WINDOWS`] can be proven clear of it.
+const SH_CLOCK_VA: u64 = 0x0000_0000_00d0_0000;
+
+/// The range a supervised job's shared frame is mapped into, in our own space, one page per job.
+///
+/// **This range used to start at `0x00c0_0000`, which is [`OUT_VA`]**, and nothing said so. The two
+/// agreed until 2026-08-01 (`abb44b67f`), when `OUT_VA` moved off [`FS_VA`] onto the job frames'
+/// first page. From then on the first supervised job of every boot printed `could not map the job
+/// frame` (the page was already mapped), and the second worked only because the cursor had advanced
+/// past the collision on the way to failing. `script/swish-check` scripted no supervised job, so
+/// nothing ran it for eight weeks. The assertion below is what now holds the range apart from every
+/// fixed window this shell has, and the `interrupt_heeder` line in that script is what runs it.
+///
+/// 16 MiB up is clear of the program image (`0x40_0000`), its stack (down from
+/// `supervision_protocol::CHILD_STACK_VA`), all four fixed windows and the image window at 64 MiB, and a whole 2 MiB-aligned
+/// table's worth of pages sits under it, so the first job costs one page-table page and the next
+/// 511 cost none.
+const JOBFRAME_WINDOWS: core::ops::Range<u64> = 0x0000_0000_0100_0000..0x0000_0000_0120_0000;
+
+// Every fixed window this shell maps, and the job frames' range, are disjoint. A window added to
+// the shell belongs in this list.
+const _: () = {
+    let fixed: [(u64, u64); 5] = [
+        (OUT_VA, PAGE),
+        (LINE_VA, PAGE),
+        (FS_VA, filesystem_protocol::PAGE as u64),
+        (SH_CLOCK_VA, PAGE),
+        // The primer page and the image window above it (DECISIONS §219 option D).
+        (
+            IMAGE_PRIMER_VA,
+            IMAGE_VA - IMAGE_PRIMER_VA + spawnproto::IMAGE_MAX_PAGES * PAGE,
+        ),
+    ];
+    let mut i = 0;
+    while i < fixed.len() {
+        let (va, len) = fixed[i];
+        assert!(
+            va + len <= JOBFRAME_WINDOWS.start || va >= JOBFRAME_WINDOWS.end,
+            "a supervised job's frame window overlaps one of the shell's fixed windows"
+        );
+        i += 1;
+    }
+    assert!(JOBFRAME_WINDOWS.start >= supervision_protocol::CHILD_STACK_VA);
+};
+
+/// The next job frame's address. It advances per job, because there is no unmap syscall: each job
+/// gets a fresh window and the old mapping is simply left behind (one page of address space, and one
+/// frame from our budget, is the honest per-job cost). Past [`JOBFRAME_WINDOWS`]'s end a job is
+/// refused rather than mapped over whatever lies beyond it.
 static SH_JOBFRAME_NEXT: core::sync::atomic::AtomicU64 =
-    core::sync::atomic::AtomicU64::new(0x0000_0000_00c0_0000);
+    core::sync::atomic::AtomicU64::new(JOBFRAME_WINDOWS.start);
 
 /// The terminal's `^C` count we have already accounted for. A watermark, not a per-job baseline, and
 /// that distinction is load-bearing: a `^C` typed the instant after `run interrupt_heeder` is
@@ -3311,6 +3359,13 @@ fn spawn_interruptible(e: Endowment) {
 
     // Map the shared frame into our own space so we can signal the job and read its status.
     let va = SH_JOBFRAME_NEXT.fetch_add(PAGE, core::sync::atomic::Ordering::Relaxed);
+    if !JOBFRAME_WINDOWS.contains(&va) {
+        cap_delete(job_fr);
+        cap_delete(job_ut);
+        failed();
+        print(b"  this shell has run as many supervised jobs as it has room to watch\n");
+        return;
+    }
     if !map_page_frame(job_fr, va) {
         cap_delete(job_fr);
         cap_delete(job_ut);
@@ -3458,17 +3513,32 @@ fn forcible(job_ut: u64) {
     }
 }
 
+/// How long [`reclaim`] keeps retrying before it reports a refusal: a hundred of the kernel's 10 ms
+/// timeslices. A force-killed thread is converted to a corpse at its own core's next preemption
+/// (notes/object-revocation.md, "DESTROY force-kills a runaway"), so the wait that matters is one
+/// timeslice, and a bound on time says that where a bound on attempts cannot.
+const RECLAIM_PATIENCE_NS: u64 = 1_000_000_000;
+
 /// Reclaim the job's region, retrying because a cooperatively-exiting child may still be finishing
-/// its last instruction (DESTROY refuses while a thread is live). Returns whether it succeeded.
+/// its last instruction, and a force-killed one is still resident until its core's next tick
+/// (DESTROY refuses while a thread is live). Returns whether it succeeded.
+///
+/// **Bounded by time, not by a count of 256 attempts, since 2026-09-25.** A yield returns at once
+/// when this core has nothing else to run, so 256 of them could all land inside the one timeslice
+/// the killed runaway still had on another core. Measured at a real prompt on aarch64: two of six
+/// `interrupt_ignorer` teardowns printed "teardown refused", and each refusal also leaked the job's
+/// pages from this shell's budget, which ran out on the seventh job.
 fn reclaim(job_ut: u64) -> bool {
-    for _ in 0..256 {
-        // DESTROY reclaims the region or refuses (a live thread, pre-amendment).
+    let start = monotonic_nanos();
+    loop {
         if destroy_region(job_ut) == 0 {
             return true;
         }
+        if monotonic_nanos().wrapping_sub(start) > RECLAIM_PATIENCE_NS {
+            return false;
+        }
         yield_now();
     }
-    false
 }
 
 /// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
