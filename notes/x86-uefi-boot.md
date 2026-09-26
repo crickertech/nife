@@ -236,6 +236,7 @@ none of it is ours to take.
 $ cargo xtask uefi-image                       # kernel + archive + loader, staged at target/esp
 $ helpers/qemu-uefi-x86_64.sh target/esp       # boot it under OVMF
 $ cargo xtask uefi-boot                        # the same pair, plus the assertions
+$ cargo xtask uefi-image --features soak_test  # a non-default kernel for the stick (notes/soak.md)
 ```
 
 **`uefi-boot` stages its own copy at `target/esp-screen`, and that one is not for a stick.**

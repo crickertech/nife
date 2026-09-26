@@ -173,7 +173,12 @@ pub fn run() -> ! {
     let groups = topology_groups(cores);
     let callers = CALLERS_PER_GROUP;
 
-    let Some(image) = user::program("soaker") else {
+    // Measured through the chain an ordinary boot's progenitor runs, because this boot has none
+    // (milestone 563 (a seal check that reads bytes cannot see a check that was dropped)): a soak
+    // card is left running unattended for hours, the last kind of boot that should enter bytes
+    // nobody checked, and using the trust root is what keeps it in the image for `uefi_loader`'s
+    // seal and `script/card-check` to find.
+    let Some(image) = crate::trust::require_program("soaker") else {
         println!("soak-test: FAILED: no 'soaker' program in the initrd archive; nothing to run");
         arch::halt();
     };
