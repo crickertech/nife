@@ -23,24 +23,23 @@ pub const NO_STD_EXERCISER: &str = "no std_exerciser in this archive: it is buil
                                     whatever packed this archive did not build it first (`cargo \
                                     xtask std-exerciser`, which `script/test` runs)";
 
-/// Where the loader maps the clock page for a std program. Must match the std PAL's
-/// `rt::CLOCK_PAGE`, and the slot must match its `rt::CLOCK_SLOT`.
-const CLOCK_PAGE_STD: u64 = 0x1200_0000;
-const CLOCK_SLOT: u64 = 5;
+/// Where the loader maps the clock page for a std program, and the slot it grants the page in.
+/// From `std_runtime_protocol`, which the std PAL's `rt` re-exports, so they cannot drift.
+const CLOCK_PAGE_STD: u64 = std_runtime_protocol::CLOCK_PAGE;
+const CLOCK_SLOT: u64 = std_runtime_protocol::CLOCK_SLOT;
 
 /// Where the loader maps the inert-configuration page for a std program (milestone 47's
-/// environment-variable fork, DECISIONS §111). Must match the std PAL's `rt::CONFIG_PAGE`, and
-/// the slot must match its `rt::CONFIG_SLOT`. Clear of the clock page above and of the FS
-/// contract's shared page (`fs_service::FS_CLIENT_PAGE_VA`, `0x0060_0000`, which this spawn does
-/// not use).
-const CONFIG_PAGE_STD: u64 = 0x1300_0000;
-const CONFIG_SLOT: u64 = 7;
+/// environment-variable fork, DECISIONS §111 (inert configuration is a read-only page)), and its
+/// slot, from `std_runtime_protocol`. Clear of the clock page above and of the FS contract's shared
+/// page (`fs_service::FS_CLIENT_PAGE_VA`, `0x0060_0000`, which this spawn does not use).
+const CONFIG_PAGE_STD: u64 = std_runtime_protocol::CONFIG_PAGE;
+const CONFIG_SLOT: u64 = std_runtime_protocol::CONFIG_SLOT;
 
-/// The entropy service's request endpoint (milestone 56). Must match the std PAL's
-/// `rt::ENTROPY_SLOT`. **An endpoint, and no mapping**: unlike the clock, whose read authority
-/// IS a page, randomness is obtained by asking, so the whole grant is one endpoint that names
-/// no device.
-const ENTROPY_SLOT: u64 = 6;
+/// The entropy service's request endpoint (milestone 56 (secrets, credentials, and the entropy to
+/// make them safe)), at `std_runtime_protocol`'s slot. **An endpoint, and no mapping**: unlike the
+/// clock, whose read authority IS a page, randomness is obtained by asking, so the whole grant is
+/// one endpoint that names no device.
+const ENTROPY_SLOT: u64 = std_runtime_protocol::ENTROPY_SLOT;
 
 /// **Which entropy backend a std program's `SystemRng` is served from.** The program cannot tell:
 /// its slot 6 names an endpoint either way (DECISIONS §44), which is why this is a spawner's choice
@@ -62,9 +61,11 @@ const STD_ENTROPY_BUS: entropy_service::Bus = entropy_service::Bus::Mmio;
 pub const BUDGET_PAGES: u64 = 256;
 
 /// std's startup, formatting machinery, and collection code use far more stack than a
-/// hand-written `no_std` worker. `load` maps one stack page; map 32 more below it (128 KiB
-/// total), generous so a stack-depth surprise is not what a first std bring-up debugs.
-const EXTRA_STACK_PAGES: u64 = 32;
+/// hand-written `no_std` worker. `load` maps one stack page; map `std_runtime_protocol::STACK_PAGES`
+/// (32) more below it, generous so a stack-depth surprise is not what a first std bring-up debugs.
+/// The progenitor maps exactly that many and not the one extra, because its loader has no `load`
+/// page of its own to add.
+const EXTRA_STACK_PAGES: u64 = std_runtime_protocol::STACK_PAGES;
 
 /// Wire a std program and hand back the endpoint it prints on **and the thread it runs as**.
 ///

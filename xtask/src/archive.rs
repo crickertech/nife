@@ -228,6 +228,26 @@ fn bin_names(manifest: &str) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// **Archive entries packed from outside `components/` and `fixtures/`**, each present only when its
+/// own build ran (see the `initrd_*` functions). Hoisted out of the one test that used to hold it
+/// (milestone 595 (provisional)), because [`check_declared_programs`] now needs the same list.
+const BUILT_ELSEWHERE: [&str; 5] = [
+    "redoxfs_server",
+    "mkfs",
+    "std_exerciser",
+    "rg",
+    "cryptography_exerciser",
+];
+
+/// **A `std` program the shell can spawn, built by its own workspace rather than a `[[bin]]`**
+/// (milestone 595 (provisional)). `grant_plan::Prog::StdExerciser` is the first: it is compiled with
+/// `-Zbuild-std` against the `nife-dev` toolchain (`cargo xtask std-exerciser`) and packed iff that
+/// ran, so the `[[bin]]` rule cannot apply to it. Both halves are required, so a native `Prog`
+/// with no binary still fails, and so does a `std` one nothing here packs.
+fn is_std_built_elsewhere(p: grant_plan::Prog) -> bool {
+    p.manifest().runtime == grant_plan::Runtime::Std && BUILT_ELSEWHERE.contains(&p.name())
+}
+
 /// **What the declared list must agree with, checked every time an archive is packed.**
 ///
 /// - It is not empty and it holds `progenitor`, so a scanner that stopped finding blocks fails
@@ -254,7 +274,7 @@ fn check_declared_programs(names: &[String]) -> Result<(), String> {
         return Err(format!("`{}` is declared by two [[bin]] blocks", w[0]));
     }
     for p in grant_plan::Prog::ALL {
-        if !has(p.name()) {
+        if !has(p.name()) && !is_std_built_elsewhere(*p) {
             return Err(format!(
                 "grant_plan declares `{}` spawnable from the shell, and no [[bin]] in {} builds it",
                 p.name(),
@@ -731,7 +751,11 @@ mod tests {
         // find `progenitor`, and would pack a third of the system.
         assert!(names.len() > 60, "only {} programs declared", names.len());
         for p in grant_plan::Prog::ALL {
-            assert!(names.iter().any(|n| n == p.name()), "{}", p.name());
+            assert!(
+                names.iter().any(|n| n == p.name()) || is_std_built_elsewhere(*p),
+                "{}",
+                p.name()
+            );
         }
     }
 
@@ -748,15 +772,6 @@ mod tests {
     /// matching fails here rather than passing on nothing.
     #[test]
     fn every_program_the_tree_loads_by_name_is_declared() {
-        // Archive entries packed from outside `components/` and `fixtures/`, each present only
-        // when its own build ran (see the `initrd_*` functions).
-        const BUILT_ELSEWHERE: [&str; 5] = [
-            "redoxfs_server",
-            "mkfs",
-            "std_exerciser",
-            "rg",
-            "cryptography_exerciser",
-        ];
         let declared = declared_programs().unwrap_or_else(|e| panic!("{e}"));
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap().flatten() {

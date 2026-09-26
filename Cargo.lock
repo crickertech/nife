@@ -570,6 +570,7 @@ dependencies = [
  "soak_page",
  "socket_protocol",
  "spin",
+ "std_runtime_protocol",
  "thread_wake_handshake",
  "tock-registers",
  "video_terminal",
@@ -877,6 +878,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "std_runtime_protocol"
+version = "0.1.0"
+
+[[package]]
 name = "stick_maker"
 version = "0.1.0"
 dependencies = [
@@ -916,6 +921,7 @@ dependencies = [
  "filesystem_protocol",
  "glob",
  "grant_plan",
+ "std_runtime_protocol",
 ]
 
 [[package]]
@@ -959,6 +965,7 @@ dependencies = [
  "nifefs",
  "package_archive",
  "socket_protocol",
+ "std_runtime_protocol",
  "supervision_protocol",
  "user_mode_runtime",
 ]

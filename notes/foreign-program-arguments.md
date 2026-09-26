@@ -169,7 +169,10 @@ separate channel.
 - The shell cannot spawn a std program at all. All 16 `grant_plan::Prog` entries are native, and
   `ripgrep` runs only from the kernel test harness (`fs_service::start_std_full`). Every option
   inherits this gap. The demonstration at the prompt that milestone 121 (`ripgrep` on nife) wants
-  needs it closed. Proposed to the maintainer as a milestone of its own.
+  needs it closed. Proposed to the maintainer as a milestone of its own. *Partly closed
+  2026-09-26 by milestone 595 (provisional), in which the shell runs a `std` program: the
+  progenitor builds `std`'s layout and `std_exerciser` runs from the prompt. `rg` still cannot,
+  because it needs arguments, which is the subject of this note.*
 - gitoxide has not been built for a nife target. Its argument path was read from source, not run.
 - The counts are source counts from one release of each program. `ripgrep`'s flag count was taken
   with a script over `impl Flag for` blocks, and gitoxide's by matching field declarations. Either

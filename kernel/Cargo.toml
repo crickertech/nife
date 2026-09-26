@@ -49,6 +49,10 @@ clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }
 # std program the same way it does the clock page, so no party has its own copy of the layout or
 # the validated domains.
 environment_protocol = { version = "0.1.0", path = "../crates/environment_protocol" }
+# The std runtime contract (milestone 595 (provisional)): the slot numbers and page addresses the
+# kernel-side std wiring (`user::std_service`, `user::fs_service`) builds a std program with. The
+# progenitor builds std children from the same crate, and the std PAL has it generated in.
+std_runtime_protocol = { version = "0.1.0", path = "../crates/std_runtime_protocol" }
 # The x86_64 timebase page (milestone 161's `cntfrq` follow-up). The kernel writes the calibrated
 # TSC rate into a frame once, at boot, and `kernel::user::load` maps it read-only into every
 # x86_64 process; `user_mode_runtime::cntfrq` is the reader, through this same crate, so neither side keeps

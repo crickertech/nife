@@ -1,9 +1,10 @@
 # 595. The shell runs a `std` program, and `rg pattern` works at the prompt
 
-**Status: NOT-STARTED.** Minted 2026-09-25 by the maintainer's lane `maintainer/shell-runs-std`, from
+**Status: PARTIAL.** Minted 2026-09-25 by the maintainer's lane `maintainer/shell-runs-std`, from
 the gap #1314 recorded in `notes/foreign-program-arguments.md`'s `BUGS` section. *(Number and title
 provisional: the integrator mints the number at merge, and the title is a draft until an architect
-names it.)*
+names it.)* The progenitor's `std` layout was built on 2026-09-26 by lane
+`milestone/595-std-layout`. See "What is built" below.
 
 **Gate: DECISION §170, DECISION §171.** Two open forks each stop a different step between a typed
 line and a running `rg`, and both are calef's. A third, §219, was ruled on 2026-09-26. The sections
@@ -33,6 +34,43 @@ From the prompt, `rg needle docs` runs confined to the directories the line gran
 matches. A path outside the grant is not found, because nothing names it. This holds on aarch64,
 riscv64 and x86_64 per DECISIONS §19 (architectural parity is a tenet), or a scope note says which
 architecture is missing and why.
+
+## What is built (2026-09-26, lane `milestone/595-std-layout`)
+
+The progenitor builds a `std` child, and `std_exerciser` runs from the prompt. Proven by two
+`script/swish-check` lines on aarch64 and riscv64, through the real `crates/system_initializer`
+rather than the kernel's harness:
+
+- `caps std_exerciser` prints the slots a `std` child gets, which are not a native child's. The
+  heap's budget is at 0, stdout at 1, the clock at 5, entropy at 6, the configuration page at 7.
+- `std_exerciser` prints its offline transcript. Each asserted phrase is a slot or a page landing
+  where `std` reads it: the heap at 0 is `vec sum`, the empty slots 4 and 2 are the two `honestly
+  unsupported` lines, and so on down to `config seeded`. When one is missing the program panics,
+  and the gate fails on the fault. The line's comment in `xtask/src/swish_check.rs` maps each
+  phrase to its slot.
+
+What it took:
+
+- `crates/std_runtime_protocol` (provisional name): the eight fixed slots, the three shared
+  pages' addresses and the 32 stack pages, in one crate. It is generated verbatim into the PAL as
+  `runtimeproto`, which `rt.rs` now re-exports, and the kernel harness reads it too. Before this
+  the numbers were written three times; the progenitor would have been a fourth.
+- `grant_plan::Manifest::runtime` (provisional), `Runtime::Native` or `Runtime::Std`, and
+  `Prog::StdExerciser` at wire id 16. The field is where a package's manifest will say the same
+  thing under §219's option D. The enum variant is an archive program named the old way, and it
+  decides nothing about D.
+- `system_initializer::StdLayout` (provisional): the same decisions `spawn_service` already
+  makes (which output, which directory, which of the manifest's pages), placed at `std`'s slots.
+  A directory grant goes to slot 4 with the file page at `0x1100_0000`, though no manifest asks
+  for one yet (see BUGS).
+- One region per `std` job, which is also its heap: `grant_plan::STD_REGION_PAGES`, 384. A heap
+  split off the job's region would stop `job_undertaker` reclaiming it (`SPLIT` pins a region
+  until its children are destroyed), and a heap beside it would be a region nothing reclaims. The
+  job pool grew by one such region.
+- `caps` prints `std`'s slots for a `std` program. A `grant_plan` test,
+  `a_std_program_declares_only_what_the_std_layout_can_hold`, refuses a `std` manifest that asks
+  for anything the progenitor would plan and not deliver: a file, an input, `--mem`, a domain, a
+  second stream or the network.
 
 ## What it waits on
 
@@ -90,10 +128,50 @@ A boot test, `shell_runs_std_tests.rs` (provisional name), drives a scripted she
 
 ## BUGS
 
+- x86_64 omits the `std_exerciser` line, for the four `uuid` lines' reason: the progenitor on
+  x86_64 builds no entropy service, and `std_exerciser` asserts two draws from one. `caps
+  std_exerciser` runs there. The layout code is the same on all three architectures; what x86_64
+  lacks is a device the progenitor can serve randomness from. Proposed milestone (provisional):
+  the x86_64 progenitor builds its entropy service from `RDSEED`, which `components/src/entropy.rs`
+  already serves in `MODE_INSTRUCTION` and the kernel harness already uses. It is not done here
+  because building entropy on x86_64 also turns on the login stack there, which gates on it.
+- A `std` child holds `WRITE` on the region it is built in, because that region is its heap. A
+  program that `SPLIT`s it pins it, and `job_undertaker` can then never reclaim it: one region
+  lost from the pool until reboot. nife's `std` never splits (its allocator only `MAP`s), so this
+  takes a program written to do it. Closing it needs a right that allows `MAP` and not `SPLIT`,
+  which is a syscall-surface question.
+- The directory half of the layout is built and unproven at the prompt. No `std` manifest
+  declares a directory, because which word on a line becomes a `std` program's directory is the
+  designation half of §170.
+- The network half is not wired. Slots 2 and 3 exist in the contract; the progenitor does not
+  mint the socket frames' budget slot 3 needs, so a `std` manifest may not declare the network yet.
+- `STD_REGION_PAGES` is the harness's number, not a measurement. 256 pages of heap is what
+  every `std` program here has been proven under; `rg` over a real tree needs more, and a budget a
+  person sizes at the prompt is an argument, which is §170's.
+
 - The CI half proves the mechanism with a program this project wrote. Only the second half answers
   risk 1, and it runs only on a machine that built `rg`.
 - Designation stays open. Until §170 rules, nothing says whether `docs` on the line becomes a
   capability because the shell guessed it is a path or because `rg`'s manifest said so.
+
+## Follow-on
+
+- **Proposed.** x86_64's missing entropy service, which is why its leg omits the `std_exerciser`
+  line: `design/roadmap/proposals/the-x86-64-progenitor-serves-entropy-from-rdseed.md`.
+- **Recorded.** A `std` child's `WRITE` on its own region, the unexercised directory half and the
+  unwired network half are in `crates/system_initializer/src/lib.rs`, in `StdLayout`'s BUGS.
+- **Outstanding.** Everything past the layout. A `std` program the shell names by §219's option D,
+  its arguments (§170), and an image over 896 KiB (§171 and milestone 206) are what `rg` needs.
+  Checked against this block's "What it waits on" section on 2026-09-26: §170 and §171 are still
+  open, and nothing builds option D yet.
+
+- **Milestone 198.** An installed program cannot yet declare `runtime: Std`. Pull request #1320 built §219's
+  option D, and it endows every vouched image with one fixed manifest,
+  `grant_plan::INSTALLED_MANIFEST_OF`, which is `uptime`'s, because no manifest travels with a
+  package yet (§197 (a package is one archive file) leaves that open). The progenitor also sizes an
+  image's region before the bytes arrive, at a native job's 40 pages, where a `std` child needs
+  `STD_REGION_PAGES`. Both change when a package carries its own manifest, which is more than one
+  line, so it is not wired here. Checked 2026-09-26 against `crates/system_initializer`'s image path.
 
 ## Index row
 

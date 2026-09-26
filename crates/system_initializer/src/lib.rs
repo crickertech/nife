@@ -617,7 +617,13 @@ const SECOND_DIR_CARETAKER_PAGES: u64 = JOB_REGION_PAGES;
 /// deliberately small: the whole claim of this increment is that a *bounded* budget is enough once
 /// the regions come back, so a budget nobody could exhaust would prove nothing. `script/swish-check`
 /// runs thirteen jobs through it, so widening this silently retires that gate.
-pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
+///
+/// **Plus one `std` program's region** (milestone 595 (provisional)), so a `std` job has room of its
+/// own rather than needing every native job before it reclaimed first: it is nearly ten native
+/// regions' worth ([`grant_plan::STD_REGION_PAGES`]), and a pool of 240 would fit it only when
+/// empty. The ratchet above still holds at 624 pages: `script/swish-check` runs more than twenty
+/// jobs, which is well past what the pool could hold without the regions coming back.
+pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6 + grant_plan::STD_REGION_PAGES;
 
 /// Where the progenitor maps the shell's output frame in **its own** address space, to print the one line it
 /// ever prints (the dropped-authority negative control). Well clear of the progenitor's segments, its stack,
@@ -2525,13 +2531,23 @@ fn spawn_service(
             // built out of the **same** region as the program it serves. That is DECISIONS §92's
             // decision and §40's mechanism: a child's resources come from its supervisor's region,
             // so one reclaim ends both and the caretaker cannot outlive the grant it carries.
+            //
+            // **A `std` program's region is bigger, because it is also the heap** (milestone 595
+            // (provisional)); see [`grant_plan::STD_REGION_PAGES`] for why one region rather than
+            // two. It covers a caretaker as well, so a directory grant does not change its size.
+            // An image request never takes this arm: its manifest is
+            // `grant_plan::INSTALLED_MANIFEST_OF`'s, which is native, and its region is sized to the
+            // image before the frames arrive (milestone 595's block, Follow-on).
+            let std_layout = prog.is_some_and(|p| p.manifest().runtime == grant_plan::Runtime::Std);
             let region = if wiring.image {
                 // Split before the frames were taken; see `image_region` above.
                 image_region
             } else {
                 memory_region_split(
                     jobs_ut,
-                    if wiring.dir {
+                    if std_layout {
+                        grant_plan::STD_REGION_PAGES
+                    } else if wiring.dir {
                         DIR_JOB_REGION_PAGES
                     } else {
                         JOB_REGION_PAGES
@@ -2729,7 +2745,40 @@ fn spawn_service(
             } else {
                 &[]
             };
+            // **The std layout** (milestone 595 (provisional)): the same authorities, placed where
+            // nife's `std` reads them instead of in order. Computed here, beside the native arrays it
+            // replaces, so both shapes read from the one set of decisions above (which output, which
+            // directory, whether the manifest declared a clock).
+            let std_parts = match (std_layout, region) {
+                (true, Some(r)) => Some(StdLayout::new(
+                    r,
+                    out,
+                    narrowed.map(|ep| (ep, fs.map_or(0, |f| f.page))),
+                    wants_clock.then_some(clock_page),
+                    wants_config.then_some(config_page),
+                    entropy.filter(|_| wants_entropy),
+                )),
+                _ => None,
+            };
             let built = match (elf.filter(|_| !dir_failed), region) {
+                (Some(e), Some(r)) if std_layout => std_parts.as_ref().and_then(|l| {
+                    build_child(
+                        own_ut,
+                        r,
+                        e,
+                        &ChildEndowment {
+                            caps: &l.caps,
+                            placed: l.placed(),
+                            maps: l.maps(),
+                            // Born supervised exactly as a native job is, so `job_undertaker`
+                            // collects it and the region comes back.
+                            fault: Some(screen.unwrap_or(deaths)),
+                            stack_pages: std_runtime_protocol::STACK_PAGES,
+                            ..ChildEndowment::new(Retention::Nothing)
+                        },
+                    )
+                    .ok()
+                }),
                 (Some(e), Some(r)) => {
                     // Born supervised: `deaths` goes in the reserved fault slot, where `START` reads
                     // it and clears it, so the job cannot forge messages on its own death channel.
@@ -2775,7 +2824,13 @@ fn spawn_service(
                     // words** rather than with an integer, which is `rm`'s shape: a spec carrying
                     // the options and two words of name (`filesystem_protocol::grant`). The progenitor forwards what the
                     // shell packed and reads none of it; see `spawnproto::GRANT_WORDS`.
+                    //
+                    // **A `std` program is started with nothing in its argument registers**: nife's
+                    // `_start` ignores all three, and `rm`'s grant words would mean nothing to it.
+                    // How a `std` program is told what to do is DECISIONS §170 (how a foreign program
+                    // is told what to do), which is open.
                     let (a0, a1, a2) = match grant {
+                        _ if std_layout => (0, 0, 0),
                         Some((_, child)) => child,
                         None => (0, arg, 0),
                     };
@@ -2845,6 +2900,111 @@ fn spawn_service(
 // The thin shapes over the ABI. The loader itself is `supervision_protocol`'s, which is the tree's
 // only one since milestone 96.
 // -------------------------------------------------------------------------------------------
+
+/// **A `std` child's endowment, placed where nife's `std` reads it** (milestone 595 (provisional)).
+///
+/// The progenitor's native spawn fills a child's capability table from slot 0 in a documented order,
+/// output first. nife's `std` fixes a slot per authority instead (`crates/std_runtime_protocol`), and
+/// the two disagree about slot 0 itself: a native child's output is a `std` child's heap budget. So
+/// a `std` program built the native way takes its stdout endpoint for an allocator and dies on its
+/// first `println!`. This is the other shape, built from the same decisions [`spawn_service`] has
+/// already made (which output, which directory, which of the manifest's pages).
+///
+/// - slot 0: the job's own region, narrowed to `WRITE`, as the heap's budget. See
+///   [`grant_plan::STD_REGION_PAGES`] for why it is the same region the child is built from.
+/// - slot 1: the output, exactly the capability a native child would get at slot 0.
+/// - slot 4 and a page at `FS_PAGE`: the caretaker's narrowed endpoint, if the line granted a
+///   directory. The same frame the caretaker and the file server map, at the `std` address.
+/// - slot 5 and a read-only page at `CLOCK_PAGE`, slot 7 and one at `CONFIG_PAGE`: the manifest's
+///   clock and configuration pages.
+/// - slot 6: the entropy service, `WRITE`, if the manifest declared it and this boot built one.
+///
+/// Slots 2 and 3, the network, stay empty: `grant_plan`'s
+/// `a_std_program_declares_only_what_the_std_layout_can_hold` keeps any `std` manifest from asking.
+///
+/// Name: provisional.
+///
+/// # BUGS
+///
+/// - **The child holds `WRITE` on the region it is built in**, because that region is its heap
+///   (`grant_plan::STD_REGION_PAGES` says why one region). `WRITE` on a region is also `SPLIT`,
+///   and a region that has been split cannot be destroyed until its children are, so a program
+///   that splits its own heap pins its job region: `job_undertaker` never reclaims it, and the
+///   pool is one region smaller until reboot. nife's `std` never splits (its allocator only
+///   `MAP`s), so this takes a program written to do it. Closing it needs a right that allows `MAP`
+///   and not `SPLIT`, which is the syscall surface and an architect's call.
+/// - **The directory half is built and never exercised at the prompt.** No `std` manifest declares
+///   a directory yet, because which word on a line becomes a `std` program's directory is the
+///   designation half of DECISIONS §170 (how a foreign program is told what to do). The kernel
+///   harness proves the same slot and page from its side (`fs_service::start_std_full`).
+/// - **The network half is not wired.** The progenitor would have to mint slot 3's socket-frame
+///   budget as well as place slot 2, and nothing needs it yet.
+struct StdLayout {
+    caps: [(u64, u64); 2],
+    placed: [(u64, u64, u64); 4],
+    placed_n: usize,
+    maps: [(u64, u64, u64); 3],
+    maps_n: usize,
+}
+
+// `caps` lands in order from slot 0, so the two in-order slots must be 0 and 1. Checked here rather
+// than assumed, because the contract crate could renumber them and this would build a child whose
+// heap and output were swapped.
+const _: () = assert!(
+    std_runtime_protocol::MEMORY_REGION_SLOT == 0 && std_runtime_protocol::STDOUT_SLOT == 1
+);
+
+impl StdLayout {
+    fn new(
+        region: u64,
+        out: (u64, u64),
+        dir: Option<(u64, u64)>,
+        clock: Option<u64>,
+        config: Option<u64>,
+        entropy: Option<u64>,
+    ) -> Self {
+        use std_runtime_protocol as rt;
+        let mut l = StdLayout {
+            caps: [(region, abi::rights::WRITE), out],
+            placed: [(0, 0, 0); 4],
+            placed_n: 0,
+            maps: [(0, 0, 0); 3],
+            maps_n: 0,
+        };
+        let place = |l: &mut StdLayout, slot: u64, cap: u64, rights: u64| {
+            l.placed[l.placed_n] = (slot, cap, rights);
+            l.placed_n += 1;
+        };
+        let map = |l: &mut StdLayout, va: u64, cap: u64, mode: u64| {
+            l.maps[l.maps_n] = (va, cap, mode);
+            l.maps_n += 1;
+        };
+        if let Some((ep, page)) = dir {
+            place(&mut l, rt::FS_DIR_SLOT, ep, abi::rights::WRITE);
+            map(&mut l, rt::FS_PAGE, page, abi::address_space::MAP_RW);
+        }
+        if let Some(page) = clock {
+            place(&mut l, rt::CLOCK_SLOT, page, abi::rights::READ);
+            map(&mut l, rt::CLOCK_PAGE, page, abi::address_space::MAP_RO);
+        }
+        if let Some(ep) = entropy {
+            place(&mut l, rt::ENTROPY_SLOT, ep, abi::rights::WRITE);
+        }
+        if let Some(page) = config {
+            place(&mut l, rt::CONFIG_SLOT, page, abi::rights::READ);
+            map(&mut l, rt::CONFIG_PAGE, page, abi::address_space::MAP_RO);
+        }
+        l
+    }
+
+    fn placed(&self) -> &[(u64, u64, u64)] {
+        &self.placed[..self.placed_n]
+    }
+
+    fn maps(&self) -> &[(u64, u64, u64)] {
+        &self.maps[..self.maps_n]
+    }
+}
 
 /// **Build a `fs_subtree_caretaker` for one directory grant and hand back the narrowed endpoint**
 /// (milestone 31 phase 3, DECISIONS §92).

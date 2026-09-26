@@ -72,43 +72,17 @@
 //! Programs that never allocate, print, open a socket, or open a file never touch the slots they
 //! do not use.
 
-pub const MEMORY_REGION_SLOT: u64 = 0;
-pub const STDOUT_SLOT: u64 = 1;
-pub const STACK_SLOT: u64 = 2;
-pub const NET_MEMORY_REGION_SLOT: u64 = 3;
-pub const FS_DIR_SLOT: u64 = 4;
-pub const CLOCK_SLOT: u64 = 5;
-pub const ENTROPY_SLOT: u64 = 6;
-pub const CONFIG_SLOT: u64 = 7;
-
-/// Where the loader maps the clock page a std program reads wall-clock time out of: one frame,
-/// **read-only**, carrying the offset the clock service publishes (`clock_protocol`'s layout). Clear
-/// of the program image (0x40_0000), its stack, the net PAL's per-socket frames (0x1000_0000
-/// upward), the FS page (0x1100_0000), and the heap (0x4000_0000). The kernel-side wiring maps the
-/// same physical frame the clock service holds read/write; see `clock_service` in kernel/src/user.rs.
-pub const CLOCK_PAGE: u64 = 0x1200_0000;
-
-/// Where the loader maps the inert-configuration page a std program reads `TZ`/`LANG`/`TERM`
-/// out of: one frame, **read-only**, `environment_protocol`'s layout, assembled once before this program
-/// existed. Clear of the program image, its stack, the net PAL's per-socket frames, the FS page,
-/// the clock page above, and the heap. The kernel-side wiring maps the same physical frame it
-/// assembled the page into; see `std_service` in `kernel/src/user.rs`.
-pub const CONFIG_PAGE: u64 = 0x1300_0000;
-
-/// Where the loader maps the page a std program shares with its FS server: 4096 bytes, one file
-/// block, carrying a name out on `OPEN` and file bytes both ways on `READ`/`WRITE`. Clear of the
-/// program image (0x40_0000), its stack (below 0x50_0000), the net PAL's per-socket frames
-/// (0x1000_0000 upward, one page per socket id), and the heap (0x4000_0000). The kernel-side
-/// wiring maps the same physical frame the FS server holds; see `fs_service` in kernel/src/user.rs.
-pub const FS_PAGE: u64 = 0x1100_0000;
-
-/// Where the heap lives: 1 GiB, clear of the program image (0x40_0000), stacks, shared pages,
-/// and the initrd window (0x2000_0000). Same value as `user_mode_runtime::heap::DEFAULT_BASE`.
-pub const HEAP_BASE: u64 = 0x4000_0000;
-
-/// The heap's growth cap. Generous because the untyped budget is the real, per-program limit
-/// (`memory_region::MAP` returns OutOfMemory when it is spent); this only bounds the VA range.
-pub const HEAP_MAX: u64 = 256 * 1024 * 1024;
+// **The numbers themselves live in `crates/std_runtime_protocol`** (milestone 595 (provisional)),
+// generated into this PAL as `runtimeproto` by `cargo xtask std-src`. They were written here, and
+// again twice in the kernel test harness, until the progenitor became a fourth place that had to
+// agree; now all of them read one file. The three pages are clear of the program image
+// (0x40_0000), its stack (below 0x50_0000), the net PAL's per-socket frames (0x1000_0000 upward,
+// one page per socket id), the initrd window (0x2000_0000) and the heap (0x4000_0000), and that
+// crate's tests check the parts of that a test can.
+pub use super::runtimeproto::{
+    CLOCK_PAGE, CLOCK_SLOT, CONFIG_PAGE, CONFIG_SLOT, ENTROPY_SLOT, FS_DIR_SLOT, FS_PAGE, HEAP_BASE,
+    HEAP_MAX, MEMORY_REGION_SLOT, NET_MEMORY_REGION_SLOT, STACK_SLOT, STDOUT_SLOT,
+};
 
 use super::abi;
 

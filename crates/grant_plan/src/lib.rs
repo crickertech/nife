@@ -471,6 +471,23 @@ programs! {
         ///
         /// Name: provisional.
         UnreachableNetworkWitness { id: 15, name: "unreachable_network_witness" },
+        /// **The `std` demonstration program, spawned from the prompt** (milestone 595
+        /// (provisional), the shell runs a `std` program). `std_exerciser/src/main.rs`, built with
+        /// `-Zbuild-std` against nife's patched standard library rather than as a `[[bin]]` in
+        /// `components/` or `fixtures/`, which is why it is in an archive only when `cargo xtask
+        /// std-exerciser` ran first (`script/test` does).
+        ///
+        /// The first program this table names whose [`Manifest::runtime`] is [`Runtime::Std`], and
+        /// that is its whole reason to be here: it is how the progenitor's std layout is proven at
+        /// the real prompt. Its transcript asserts the heap, the wall clock, randomness and the
+        /// configuration page each arrived at the slot `std_runtime_protocol` fixes, so a layout
+        /// that put one in the wrong place fails a line rather than printing something plausible.
+        ///
+        /// **Named through this enum as an archive program, which settles nothing about §219 (how
+        /// the shell names an installed program to the spawner)**, decided 2026-09-26 as option D.
+        /// A program that arrives by option D carries its own manifest, and this field is what
+        /// that manifest will say.
+        StdExerciser { id: 16, name: "std_exerciser" },
     }
 }
 
@@ -499,6 +516,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             Prog::MemoryGrantDepleter => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -519,6 +537,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // The two interrupt demonstrators. Both run until interrupted, take no argument and no
             // memory grant, and report through the shared job frame rather than the result endpoint
@@ -542,6 +561,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             Prog::InterruptIgnorer => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -558,6 +578,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // `date` declares an empty grant expression, and that is the interesting part: its
             // authority (a read-only mapping of the clock page) is not something the command line
@@ -603,6 +624,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The first program endowed a directory**, and the first with options. It takes no
             // integer and no memory: what it needs is the authority to take a name out of the
@@ -633,6 +655,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The consumer**, and the only program that declares an input. Everything else about
             // it is empty: no argument, no memory, no file, no directory, no options. What it does
@@ -658,6 +681,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
@@ -684,6 +708,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **`ps`: a stream out, a domain in, and nothing else** (milestone 126).
             //
@@ -713,6 +738,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **`pgrep`: `ps`'s manifest, field for field, and the sameness is the claim.**
             //
@@ -745,6 +771,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **`top`: `ps`'s manifest a second time**, and here the sameness is a fact to
             // weigh rather than a claim being made. `pgrep`'s identity with `ps` is the point of
@@ -773,6 +800,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
@@ -792,6 +820,7 @@ impl Prog {
                 config: true,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **`least_authority_demo`'s manifest, not `date`'s.** `uptime` reads `user_mode_runtime::monotonic_nanos`,
             // which is granted to every process unconditionally, so there is no capability here to
@@ -814,6 +843,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The one program in this table that declares the network** (milestone 590
             // (provisional)). `uuid`'s block one service over, with one difference: a socket client
@@ -836,6 +866,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: true,
+                runtime: Runtime::Native,
             },
             // **Declares nothing, deliberately**: `uptime`'s manifest, field for field. The program
             // exists to be the child the progenitor must not hand the network to.
@@ -854,6 +885,7 @@ impl Prog {
                 config: false,
                 entropy: false,
                 network: false,
+                runtime: Runtime::Native,
             },
             // **The one program in this table that declares the entropy service** (milestone 111).
             // `printenv`'s block one authority over, and `ps`'s output shape: every designated
@@ -884,6 +916,34 @@ impl Prog {
                 config: false,
                 entropy: true,
                 network: false,
+                runtime: Runtime::Native,
+            },
+            Prog::StdExerciser => Manifest {
+                // Nothing on the line: how a `std` program is told what to do is DECISIONS §170 (how a foreign program is
+                // told what to do),
+                // which is open, and `std::env::args()` yields nothing on nife until it rules.
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                // No directory either. Which word on a line becomes a `std` program's directory
+                // is the designation half of §170, so this program is spawned holding none and
+                // runs its offline transcript, which is also the one that asserts the most slots.
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                // std's `stdout` and `stderr` both send on `std_runtime_protocol::STDOUT_SLOT` in
+                // the sink framing, so the program is one byte stream and `>` and `|` work on it.
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                // The three `std` needs to answer `SystemTime::now()`, `SystemRng` and
+                // `env::var("TZ")` rather than refuse them, and the three its transcript asserts.
+                clock: true,
+                domain: false,
+                config: true,
+                entropy: true,
+                network: false,
+                runtime: Runtime::Std,
             },
         }
     }
@@ -1274,7 +1334,61 @@ pub struct Manifest {
     ///
     /// **Provisional field name.**
     pub network: bool,
+    /// **Which runtime contract the program was built against**, and so where it expects each
+    /// capability to be (milestone 595 (provisional)). See [`Runtime`].
+    ///
+    /// Not an authority, and so not a row in `caps`: the same grants land in different slots. It
+    /// is here because the progenitor has to know it before it builds the child, and the manifest
+    /// is the one declaration that travels with a program, whether it comes from the archive or,
+    /// under DECISIONS §219's option D, from a package.
+    ///
+    /// **Provisional field name.**
+    pub runtime: Runtime,
 }
+
+/// **Where a program expects its capabilities**: in the order its spawner lists them, or at the
+/// slots nife's `std` fixes (milestone 595 (provisional)).
+///
+/// A native program reads its capabilities by position, and the progenitor fills them from slot 0
+/// upward in the order `spawn_service` documents. A `std` program cannot: the code reading its
+/// slots is the standard library, written once for every program, so each authority has a fixed
+/// slot and an empty slot means "not given" (`crates/std_runtime_protocol`). The two layouts
+/// disagree about slot 0 (the output, or the heap's budget), so a `std` program built in the native
+/// layout would take its stdout endpoint for an allocator and fail on its first `println!`.
+///
+/// Name: provisional, as are both variants.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Runtime {
+    /// Capabilities in order, the output first. Every program in `components/` and `fixtures/`.
+    Native,
+    /// `std_runtime_protocol`'s eight fixed slots, its three shared pages, and a heap carved from
+    /// [`STD_REGION_PAGES`]. A program built with `-Zbuild-std` for a `*-unknown-nife`
+    /// target.
+    Std,
+}
+
+/// **The region the progenitor builds a `std` program in, and then hands it as its heap**, in pages
+/// (milestone 595 (provisional)). The shell prints it in `caps` and the progenitor spends it, so it
+/// is here, where both read it.
+///
+/// **One region, not a heap beside a job**, and the reason is the reap rather than tidiness. A
+/// region that has been `SPLIT` cannot be `DESTROY`ed until its children are, so a heap split off
+/// the job's region would stop `job_undertaker` reclaiming the job; and a heap split off the pool
+/// beside it would be a second region nothing reclaims at all. So the child's address space, image,
+/// stack and TCB come out of this region first, and the same region, narrowed to `WRITE`, is the
+/// budget at `std_runtime_protocol::MEMORY_REGION_SLOT` its allocator maps from. Its heap is what
+/// the build left, and one reclaim returns all of it.
+///
+/// Sized as the 256 pages of heap the kernel test harness has given every `std` program since
+/// milestone 27 (Rust `std` on the native ABI), `BUDGET_PAGES` in `kernel/src/user/std_service.rs`, which is the budget
+/// `std_exerciser`'s transcript is proven under, plus 128 for the build: about 40 pages of image,
+/// 32 of stack, the page tables for the windows a `std` child touches, and a caretaker if a
+/// directory grant rides along. It is not a measurement of any program's high-water mark, and it is
+/// nowhere near what `rg` over a real tree needs; a budget a person can size at the prompt is an
+/// argument, which is DECISIONS §170's.
+///
+/// Name: provisional.
+pub const STD_REGION_PAGES: u64 = 256 + 128;
 
 /// A parsed command line. The shell dispatches on this; only [`Command::Run`] carries a grant
 /// expression that must be planned against a manifest.
@@ -3515,6 +3629,7 @@ mod tests {
         config: false,
         entropy: false,
         network: false,
+        runtime: Runtime::Native,
     };
 
     /// The writable twin: a program that is endowed a file it may write.
@@ -3542,6 +3657,7 @@ mod tests {
         config: false,
         entropy: false,
         network: false,
+        runtime: Runtime::Native,
     };
 
     /// A shell that WAS granted a directory to narrow, standing at its root.
@@ -4446,6 +4562,7 @@ mod tests {
         config: false,
         entropy: false,
         network: false,
+        runtime: Runtime::Native,
     };
 
     /// Plan one stage against an explicit manifest, with the operators' answer folded in.
@@ -5176,6 +5293,59 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A `std` program declares only what the progenitor can place in the std layout**
+    /// (milestone 595 (provisional)). `std_runtime_protocol` fixes eight slots, and the progenitor's
+    /// std spawn fills the heap, the output, the clock, the configuration page, entropy and a
+    /// directory. Everything else a manifest can ask for has no slot there or is not wired yet:
+    ///
+    /// - a file or an input stream: the contract has no slot for either (std's stdin is unbuilt);
+    /// - `--mem`: slot 0 is already the heap, and the progenitor's, not the shell's;
+    /// - a process domain: native `DOMAIN_SLOT` is 7, which in the std layout is the config page;
+    /// - a second output stream: native `DIAGNOSTICS_SLOT` is 8, past the fixed eight;
+    /// - the network: slots 2 and 3 exist, but the progenitor does not yet mint the socket frames'
+    ///   budget slot 3 needs, so a declaring program would hold half a network.
+    ///
+    /// The shell would plan any of these and the progenitor would silently not deliver it, so
+    /// this is the gate: a manifest cannot declare one without failing here first.
+    #[test]
+    fn a_std_program_declares_only_what_the_std_layout_can_hold() {
+        let mut std_programs = 0;
+        for &p in Prog::ALL {
+            let m = p.manifest();
+            if m.runtime != Runtime::Std {
+                continue;
+            }
+            std_programs += 1;
+            let name = p.name();
+            assert_eq!(
+                m.file,
+                FileSpec::Forbidden,
+                "{name}: no std slot carries a file"
+            );
+            assert_eq!(
+                m.input,
+                InputSpec::Forbidden,
+                "{name}: no std slot carries an input"
+            );
+            assert_eq!(m.mem, MemSpec::Forbidden, "{name}: slot 0 is the heap");
+            assert!(
+                !m.domain,
+                "{name}: DOMAIN_SLOT is the config page's in the std layout"
+            );
+            assert!(
+                !m.network,
+                "{name}: the progenitor mints no socket budget yet"
+            );
+            assert!(!m.interruptible, "{name}: no std slot carries a job frame");
+            assert_eq!(
+                m.output,
+                OutputSpec::Bytes,
+                "{name}: std's output is one byte stream"
+            );
+        }
+        assert!(std_programs > 0, "a sweep over nothing proves nothing");
     }
 
     /// **No manifest declares both a file and an input** (milestone 150). Both take a bare name on

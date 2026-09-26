@@ -76,6 +76,9 @@ not restated: `abi.rs` is generated verbatim from `crates/abi` by `std-src`, so 
 drift. Likewise `user_mode_heap.rs` from `crates/user_mode_heap` (the host-tested heap algorithm is the only heap
 algorithm), `netproto.rs` from `crates/socket_protocol/src/lib.rs`, and `fsproto.rs` from `crates/filesystem_protocol`: every
 wire format the PAL speaks has exactly one definition, and it lives with the server that answers it.
+The slot numbers and page addresses themselves (`rt::FS_DIR_SLOT`, `rt::CLOCK_PAGE` and the rest)
+come the same way, as `runtimeproto.rs` from `crates/std_runtime_protocol`, since milestone 595
+(provisional) made the progenitor a loader of `std` programs too.
 
 ## The toolchain: build-std against a patched rust-src
 
