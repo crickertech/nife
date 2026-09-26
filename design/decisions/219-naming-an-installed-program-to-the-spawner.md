@@ -10,92 +10,222 @@ customer possible)'s rung 3a consumer lane (`milestone/198-rung-3a-consumer`), w
 and the digest check and stopped here. *(Section number provisional until the merge queue lands it.
 Written by a lane, on the maintainer's instruction to write this fork up rather than invent it.)*
 
+Amended 2026-09-26 (UTC) on calef's question: *"What approach allows a developer to build on
+nife and then run what they build? What about running a script they write?"* A, B and C each answer
+only "run something installed". Option D, and the sections it touched, were added by the maintainer
+to answer both.
+
 ## What is being decided
 
 §208 (installing a package is granting it, and the activation set is versioned) ruled that
 installing makes a package's digest and manifest *spawnable*. It also named the cost: "naming a
 program that was not there at boot is a change two programs agree on." This section is that change.
-One question: when a person types the name of an installed program, what travels from the shell to
-the process that builds it?
+One question: when a person runs a program the boot image did not carry, what travels from the shell
+to the process that builds it? The program may be installed, or it may be one they just built.
 
 Today a closed enum answers it. The shell resolves a name through `grant_plan::Prog` and sends its
 integer id as word 0 of a `spawnproto` request (`crates/grant_plan/src/spawnproto.rs`). The
 progenitor indexes `progs[p.id()]`, a table it filled once at boot from the measured archive
 (`crates/system_initializer/src/lib.rs`, `spawn_service`). An installed program has no variant, no
-id, and no row.
+id, and no row. Neither does a binary a developer just linked.
 
-## Is the premise true? Two corrections to the record first
+## Is the premise true? Three corrections to the record first
 
 - The progenitor keeps the file service for the life of the boot. §208 and milestone 507
   (installing a package: mutate, compose, or widen what can be spawned) both say "the spawner gives
   the file service away", and `system_initializer`'s module documentation says so too. The code
-  stopped doing that in milestone 31 (a capability shell) phase 3 (2026-08-17), which kept `WRITE | GRANT` on the RedoxFS
-  service so the progenitor could build `fs_subtree_caretaker`s (`Channels.fs`, and the comment
-  "**The filesystem stays**"). So the spawner *can* read an installed program today. What it cannot
-  do is be asked for one. That makes 507's "hard part" half a fact and half stale, and it is why the
-  fork below is about naming rather than reach.
+  stopped doing that in milestone 31 (a capability shell) phase 3 (2026-08-17). It kept
+  `WRITE | GRANT` on the RedoxFS service so the progenitor could build `fs_subtree_caretaker`s
+  (`Channels.fs`, and the comment "The filesystem stays"). So the spawner *can* read an
+  installed program today. What it cannot do is be asked for one.
 - `PROG_COUNT` is 14, not 13. Both earlier records quote 13.
+- The slot figure this section first quoted, fifteen of sixteen, is stale. The table is 24 slots
+  and the measured peak is 23 of 24 since milestone 590 (the booted system starts its network
+  stack), in #1290, `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED`.
+
+## What the tree has to carry bytes, measured
+
+Can a file capability or a memory object carry an executable? The tree answers both halves.
+
+- There is no file capability to pass. A RedoxFS file handle is an integer local to one
+  session with the file server (`filesystem_protocol::fs::OPEN` returns it). The only file-shaped
+  capability is a `fs_subtree_caretaker` endpoint, and only the progenitor can build one. The
+  shell's file-service endpoint carries no `GRANT`, which is exactly why `DIR_BIT` carries data
+  rather than a capability.
+- There is no multi-page memory object either. The kernel's object types are the rendezvous,
+  the address space, the thread and the one-page `PageFrame` (`crates/abi`, `objtype` and
+  `page_frame`). Nothing like Fuchsia's VMO exists. An executable of N pages is N frame
+  capabilities, and a `SEND_CAP` carries one.
+- `build_child` needs a parsed `elf::Elf` over bytes in the builder's own address space
+  (`crates/supervision_protocol`). It copies every segment page into a fresh frame from the build
+  untyped (`fill_and_map`), mapped through a scratch VA that is never reused. So the builder must be
+  able to read the bytes. It never maps the source pages into the child.
+
+So "pass the file" reduces to one of two shapes. The shell can name a file and let the progenitor
+read it with its own authority, which is A with a path. Or the shell can read the bytes into frames
+from its own budget and delegate the frames. D is the second.
 
 ## The options
 
 | | What travels | Who builds the process | Wire change | Measured cost |
 |---|---|---|---|---|
-| **A. A name on the spawn request** | A new `spawnproto` flag (`NAME_BIT`, provisional) saying "two more `SEND`s carry a name of at most 32 bytes" | The progenitor: it looks the name up in the activation table on RedoxFS, reads the package with the file service it already holds, re-checks the member digest, and builds with `build_child` as for any program | Yes: the shell and the progenitor | No new capability slot at rest or at peak (the file service is already one of the fifteen). Reading `uptime` costs 22 pages (89,168 bytes stripped) while it builds, against `INIT_OWN_PAGES` = 128 and a job region of 40 |
-| **B. A launcher in the sealed namespace** | Nothing new: `package` (provisional) is one more `Prog` row, declared the way milestone 150 (adding a program should not need eight hand-maintained lists) declares every row | The launcher, from bytes it read, with a `--mem` grant, as `login` builds sessions (milestone 233 (`login` dies on every boot)) | No | No argument vector exists (milestone 205 (how a foreign program is told what to do)), so the shell cannot tell the launcher which package: the integer argument would have to be an index. The child gets at most what the launcher holds, so an installed program's authority is capped by one manifest, not its own. Its death goes to the launcher, not to `job_undertaker`, and `^C` and pipelines would need re-plumbing through it |
-| **C. Ids assigned at install** | The same integer word, now `>= PROG_COUNT` for an installed program | The progenitor, indexing the activation table | Shape unchanged, meaning changed | The shell must read the activation table to resolve a name, which it does not hold today. An id means a different program after a rollback, so a spawn in flight across a rollback runs whatever the new set put there. Milestone 150 pinned the shipped wire ids, and this reuses their space |
+| **A. A name on the spawn request** | A new `spawnproto` flag (`NAME_BIT`, provisional) saying "two more `SEND`s carry a name of at most 32 bytes" | The progenitor. It looks the name up in the activation table on RedoxFS and reads the package with the file service it already holds. It re-checks the member digest and builds with `build_child` as for any program | Yes: the shell and the progenitor | No new permanent slot (the file service is already held). Reading `uptime` costs 22 pages (89,168 bytes stripped), two 64 KiB file reads. The progenitor pays, against `INIT_OWN_PAGES` = 128 and a job region of 40 |
+| **B. A launcher in the sealed namespace** | Nothing new: `package` (provisional) is one more `Prog` row, declared the way milestone 150 (adding a program should not need eight hand-maintained lists) declares every row | The launcher, from bytes it read, with a `--mem` grant, as `login` builds sessions (milestone 233 (`login` dies on every boot)) | No | No argument vector exists (milestone 205 (how a foreign program is told what to do)), so the shell cannot say which package. The child gets at most what the launcher holds, so one manifest caps every installed program. Deaths go to the launcher, not `job_undertaker`, so `^C` and pipelines need re-plumbing |
+| **C. Ids assigned at install** | The same integer word, now `>= PROG_COUNT` for an installed program | The progenitor, indexing the activation table | Shape unchanged, meaning changed | The shell must read the activation table to resolve a name. An id means a different program after a rollback, so a spawn in flight across one runs whatever the new set put there. It reuses the wire ids milestone 150 pinned |
+| **D. The executable's bytes, as frames the caller owns** | A new flag (`IMAGE_BIT`, provisional) on word 2; word 0 carries the byte length instead of a program id. One `SEND_CAP` per page follows, then the grants as today | The progenitor. It maps each frame through `build_child`'s never-reused scratch VA and deletes the capability before taking the next. It hashes its own copy and looks the digest up. A hit is vouched, with that entry's manifest. A miss is unvouched, with only what the caller delegated | Yes: one bit and a new meaning for word 0 | One transient slot per frame, none permanent. The caller pays the staging pages (22 for `uptime`). One message per page, so 22 more `SEND_CAP`s for `uptime` than A's two `SEND`s. The child is built from the caller's job untyped, as an interruptible job already is |
+
+**A becomes a lookup in front of D.** Under D the shell resolves a name to a package, reads the
+member into frames, and sends the frames. No name crosses the wire and no id does either. The
+progenitor recognises an installed program by its digest in the activation set, so C's rollback race
+cannot happen: a digest cannot mean a different program.
+
+## How D serves the developer, and the script
+
+A developer's build. The developer links a binary into their own directory, then runs it by
+path. The shell reads it through the file service it already holds, into frames split from its own
+budget, and sends them with whatever the line grants: output, input, a directory, `--mem`. The
+digest is in no table, so the child runs with exactly those grants and nothing the progenitor holds.
+The same request is what a build tool needs to run a test binary it just linked. So D is the shape
+milestone 172 (a capability-native subprocess) needs before `cargo` can hold a spawn endpoint. A
+needs a caller that knows names in the progenitor's table. D needs only bytes and grants the caller
+already holds.
+
+A script. An interpreter is a program like any other, vouched or not, and the script is its
+input. The tree already has the grant for that: `FileSpec::Required { writable: false }`, one
+read-only file named on the line (`grant_plan`). So `interp build.nsh` works once an interpreter
+exists, and the script's authority is the interpreter's, narrowed by the line. What it cannot yet do
+is hear its own arguments: `build.nsh release` needs a string, and the ABI carries one `u64` and a
+flag mask (§170 (how a foreign program is told what to do), PROPOSED). Milestone 205 must provide
+strings in some form for any script to take a parameter.
+
+`#!` belongs in the shell. Resolving `#!/pkg/interp` means reading text and looking up a name.
+In the spawner that puts a parser and a name table inside the process that decides what runs, and it
+turns D back into A. In the shell it is a read of the first line, then an ordinary run of the
+interpreter with the script as its file grant. Plan 9 and Linux do it in `exec` because `exec` takes
+a path. D takes bytes, so there is no path for the spawner to follow. Redox's `relibc` already parses
+`#!` in userspace.
+
+## Authority: what an unvouched child may hold
+
+The progenitor endows five things from a program's own manifest rather than from the line: the
+clock page, the process domain, the configuration page, entropy and the network (`wants_clock`
+through `wants_network` in `spawn_service`). Under D those come only from a manifest the progenitor
+found by digest. An unvouched binary's own declaration is self-asserted and confers nothing.
+
+**Never, for unvouched bytes:** the process domain (it shows every process), the network, entropy,
+the file service itself, or anything else from the progenitor's own table. The clock and the
+configuration page are read-only and harmless to read; whether they are the exception is calef's
+call. A developer who needs the network for their build vouches for it first (§195 (a reviewed recipe vouches for a package), clause 3).
+
+`grant_plan` gains a manifest for "no manifest": output, input, one optional directory and `--mem`,
+and nothing else. The shell binds a D line against it, so `caps ./a.out` previews exactly what will
+be delegated. It adds one row, `provenance: unvouched (digest <hex>)`, or the source that vouched.
+The shell can compute that preview itself, since it read the bytes. The progenitor's own hash is
+what enforces it, because the caller keeps write access to its frames and could change them after
+hashing. That is why the progenitor hashes its copy, not the frames.
+
+Milestone 202 (every confinement test is a ritual until somebody breaks the confinement)
+gains one claim, stated and falsified in its
+shape: an unvouched child holds no capability the caller did not delegate. `unreachable_network_witness`
+(program id 15) is the fixture's shape: the new test runs its probe for all five manifest grants. It must go red when
+one of them is granted.
+
+## Vouched, unvouched, and the trust root
+
+The kernel's trust root does not change. It vouches for the progenitor and the measurement table,
+and nothing about D touches either. Milestone 104 (the measurement continues past init)'s rule
+changes: "the progenitor runs nothing it cannot vouch for" becomes "the progenitor grants nothing of its own
+to what it cannot vouch for". That is a published claim, so it is the irreversible part of D.
+
+Three ways to hold the gate, and this is where the evidence points rather than a recommendation:
+
+- **D1. Vouch, then run.** The developer records the digest in the owner's table first (§195
+  clause 3, already ruled) and D refuses anything not found. Milestone 104's rule survives
+  unchanged. Every rebuild needs a vouch, which is friction on every edit, compile and run.
+- **D2. A capability to run unvouched bytes.** The progenitor accepts a miss only from a caller that
+  delegates a run-unvouched capability the owner gave its session. This is Fuchsia's shape:
+  `zx_vmo_replace_as_executable` needs a `vmex` resource, and `fuchsia.kernel.VmexResource` routes
+  it like any capability. The authority to run new code is then visible in `caps`.
+- **D3. Always allowed, with only the caller's grants.** Genode's and Redox's posture. Redox's own
+  source calls its execute check advisory. Simplest, and it leaves no record that new code ran.
+
+The evidence points to D2. It is the only one of the three that makes running new code an
+authority someone holds, which is this system's whole claim about everything else.
+
+## Prior art, read 2026-09-26
+
+- Fuchsia, `fuchsia.dev/reference/fidl/fuchsia.process`. `LaunchInfo.executable` is a VMO handle,
+  and the child gets exactly the arguments, namespace entries and handles the caller staged
+  (`AddArgs`, `AddNames`, `AddHandles`). D is this shape, with frames standing in for a VMO.
+- Fuchsia, `concepts/process/program_loading`. The loader needs `ZX_RIGHT_EXECUTE` on the VMO, and a
+  `#!` interpreter is looked up through the loader service. Also
+  `reference/syscalls/vmo_replace_as_executable` and `job_set_policy`
+  (`ZX_POL_AMBIENT_MARK_VMO_EXEC`), which are D2's precedent.
+- Genode Foundations 23.05, "Read-only memory (ROM)" and "The init component": a binary is a ROM
+  dataspace routed like any session. `fs_rom`'s README and Sculpt's `depot_deploy/child.h` show a
+  downloaded package reaching init as a ROM served from the depot. How a user-built component is
+  launched was not found on a page read.
+- Plan 9 `exec(2)`, `9p.io/magic/man2html/2/exec`: `exec` takes a file name, and a `#!` interpreter
+  receives the file's name. Whether the kernel or a library parses it was not confirmed.
+- Redox, `relibc/src/platform/redox/exec.rs` and `redox-rt/src/proc.rs`: exec runs in userspace
+  and takes a path or an open file (`Executable::InFd`).
+- Linux, `execveat(2)` with `AT_EMPTY_PATH` executes an open file, and its `BUGS` records that a
+  script run that way either fails or leaks the descriptor into the script.
 
 ## The seven questions
 
 1. What else was considered, and why did each lose? Nothing loses yet, because this is the
-   syscall-adjacent kind of fork AGENTS.md says to give options on. What each costs is above. B's
-   argument problem is the sharpest: it cannot be built well until milestone 205 lands, and it
-   builds a second spawner beside the progenitor, which §208 argued against when it chose one
-   authority over two.
-2. What does the tree already do? Two analogues point different ways. `DIR_BIT` is A's exact
-   shape: data too big for a word, carried by "expect two more `SEND`s". Milestone 47 (navigation
-   and naming)'s `PATH` lane priced `NAME_BIT` in those words and stopped because it was a wire
-   change. `login` is B's shape: a program that builds processes from a blob it was handed.
-3. Prior art outside the tree. Recalled, not re-read this session, and marked so: Fuchsia
-   resolves components by URL string at the resolver (A's shape). Plan 9's `exec` takes a path in
-   the caller's namespace (A, with the namespace as the table). Genode's Sculpt routes a downloaded
-   component through a runtime configuration (B-like, one launcher). Milestone 507's own table read
-   the Fuchsia and Sculpt pages and cited them.
-4. Is the premise true? Checked above. It moved: reach was the stated blocker and it is not one.
-5. What does each cost, measured? The table's last column. The slot count is from the comment
-   beside `spawn_dir_grant` (peak fifteen of sixteen). The page counts are
-   `system_initializer`'s constants and `cargo xtask package packages/uptime.recipe` on 2026-09-24.
-6. How reversible, and who has acted on it? Nobody outside this repository has a shell or a
-   progenitor, and both ship in one image, so any of the three can be changed by one image. That is
-   less expensive than an external wire format. It is still one: every future shell and every
-   future spawner is written against it, and a third-party shell is what milestone 39 (repository structure for a loosely-coupled OS)'s split
-   exists to allow.
-7. Would we still choose it if all three cost the same? Not asked of a winner, because none is
-   named. If calef picks A, the non-effort case is §208's own: one authority builds processes and
-   vouches for them, and installing widens what that authority may be asked for.
+   syscall-adjacent kind of fork AGENTS.md says to give options on. B's argument problem is the
+   sharpest: it cannot be built well until milestone 205 lands, and it builds a second spawner,
+   which §208 argued against. A and C serve installed programs only. D serves all three cases.
+2. What does the tree already do? `DIR_BIT` is A's exact shape, data too big for a word. Milestone
+   47 (navigation and naming)'s `PATH` lane priced `NAME_BIT` in those words and stopped at the wire
+   change. `login` is B's shape. D's nearest analogue is the interruptible job, which already builds
+   a child from an untyped the shell delegated. What D adds is the bytes.
+3. Prior art outside the tree. Above, read this session. Fuchsia is D's shape. Genode routes a
+   binary like any other session, which is A with the router as the table.
+4. Is the premise true? Checked above, three times. Reach was not the blocker. And "pass a file
+   capability" was not available, because no such capability exists.
+5. What does each cost, measured? The table. D's line count is not measured, because nothing is
+   built. Its parts are a flag, a receive loop that maps and deletes, a hash the progenitor already
+   computes at boot, and a lookup. The one-slot claim follows from receiving one frame at a time
+   before the build takes its own slots. `script/swish-check`'s peak-slot line is what would confirm
+   it.
+6. How reversible, and who has acted on it? The wire is ours alone: the shell and the progenitor
+   ship in one image. It is still a contract every future shell is written against, and milestone
+   39 (repository structure for a loosely-coupled OS)'s split exists to allow a third-party one.
+   D2's capability and the restated milestone 104 rule are published claims, and those are the
+   irreversible parts.
+7. Would we still choose it at equal cost? For D, yes. It keeps names out of the spawner, where
+   milestone 31 (a capability shell: designation is authorization) gives designation to the
+   person at the prompt. It charges the caller for the pages, as
+   the rest of this kernel does. And it serves an installed program, a fresh build and a script with
+   one request instead of three. None of that is about effort.
 
-## The two questions A would bring with it
+## The two questions A would bring with it, and D inherits
 
 Both are reversible until something outside this repository reads them, so each carries a
-recommendation. They are not blocking on their own; they block only after A.
+recommendation. They block only after A or D.
 
 - The activation table's shape. Recommended: text, one `<name> <package stem> <digest>` line per
   active program, a file per generation plus a one-line `current` naming the generation. That is
-  `measured_boot`'s manifest shape with one column added, which is what the progenitor already
-  parses, and it makes rollback rewriting one line. A binary table would be a second parser on the
-  progenitor's path for no measured gain.
-- Where a program's manifest travels. Still §197 (a package is one archive file)'s open question,
-  unanswered here. Rung 3a's `uptime` needs only an output sink, so a first cut can refuse any
-  installed program whose manifest asks for more than `Prog::Uptime`'s, and say so in a `BUGS`
-  section, rather than answer §197 by accident.
+  `measured_boot`'s manifest shape with one column added, which the progenitor already parses.
+  Under D the progenitor looks entries up by digest rather than name, from the same file.
+- Where a program's manifest travels. Still §197 (a package is one archive file)'s open question.
+  Under D both sides need it: the shell to bind the line, the progenitor to endow. A first cut can
+  refuse an installed program whose manifest asks for more than `Prog::Uptime`'s, with a `BUGS`
+  entry, rather than answer §197 by accident.
 
 ## What is blocked, and what happens if calef says no
 
 **Blocked until answered**: installing, running, surviving a reboot, rolling back and removing,
-which is all of rung 3a after "verified by digest". The fetch and the check are built and gated
-(notes/packages.md). A "no" to all three leaves nife able to verify a package it cannot run, which is
-milestone 507's "no to all three" outcome one step later: rung 3 stops, and with it fatal risk 8's
-only route to a verdict.
+which is all of rung 3a after "verified by digest". Running anything a developer builds on nife is
+blocked on D or something like it, and so is milestone 172's subprocess primitive. The fetch and the
+check are built and gated (notes/packages.md). A "no" to all four leaves nife able to verify a
+package it cannot run: rung 3 stops, and with it fatal risk 8's only route to a verdict.
 
-**Blocked independently, and not this section's**: the booted system had no network when this was
-written, because the progenitor never built `net_stack`. Milestone 590 (the booted system starts
-its network stack) closed that, in `design/roadmap/590-the-booted-system-starts-its-network-stack.md`.
+Separately, D's gate (D1, D2 or D3) is calef's alone, because it restates milestone 104's rule.
+Scripts also wait on §170 for string arguments, whichever option wins here.
+
+Blocked independently, and closed: the booted system had no network when this was written.
+Milestone 590 (the booted system starts its network stack) closed that.
