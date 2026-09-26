@@ -75,11 +75,11 @@ K = roadmap_block.VALUE
 NONE, UNWRITTEN, YES, NO = K["none"], K["unwritten"], K["yes"], K["no"]
 
 # ---- read by hand, 2026-09-26 -------------------------------------------------------------------
-# The 34 HARDWARE gates, as (machine_requirements, specific_machine, needs_person). A machine
-# requirement is a capability any host with it satisfies (radon satisfies "riscv64 silicon"; it is
-# not the requirement). A specific machine is named only where one machine is the point, with the
-# reason. needs_person is §207's field that earns the section: the board is here and somebody has
-# to be at it, which is most of these.
+# The 35 HARDWARE gates (34 on 2026-09-26, and 593 minted that day), as (machine_requirements,
+# specific_machine, needs_person). A machine requirement is a capability any host with it satisfies
+# (radon satisfies "riscv64 silicon"; it is not the requirement). A specific machine is named only
+# where one machine is the point, with the reason. needs_person is §207's field that earns the
+# section: the board is here and somebody has to be at it, which is most of these.
 HARDWARE = {
     16: ("riscv64 silicon", NONE, YES),
     25: ("aarch64 silicon; PMU cycle counter",
@@ -118,6 +118,7 @@ HARDWARE = {
     524: ("an x86_64 CPU reporting invariant TSC", NONE, YES),
     558: ("aarch64, riscv64 and x86_64 silicon", NONE, YES),
     592: (NONE, "radon (the fault is in radon's own OpenSBI and PMIC)", YES),
+    593: ("riscv64 and aarch64 silicon with a hardware watchdog", NONE, YES),
     594: ("x86_64 silicon with two VT-d units and RMRRs", NONE, YES),
 }
 # SUPERSEDED, and what answered each: milestones, or a section where a ruling did it, as §177
@@ -135,6 +136,7 @@ PROMOTED_FROM = {
     441: "a-program-that-makes-the-stick",
     541: "map-new-times-a-window-too-short-to-mean-anything",
     592: "radons-reboot-dies-in-opensbis-pmic-write",
+    598: "a-nightly-bump-restamps-the-floors-it-proves-it-did-not-move",
 }
 # The commits that created files for milestones that already existed elsewhere: milestone 76's
 # split of design/roadmap.md, and the backfill of 1 to 11 from DECISIONS.md's first table. Neither

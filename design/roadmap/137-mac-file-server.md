@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-08-18
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 137. The share as a Mac file server, which is not the same workload as the backup target
 
-**Status: NOT-STARTED.** **The subject was removed on 2026-08-30** with the SMB implementation
+**The subject was removed on 2026-08-30** with the SMB implementation
 (notes/smb.md): this block is entirely about what a Mac's Finder wants from an SMB share, and there
 is no SMB server. Nothing in it is buildable, and unlike milestone 131 no part of it generalizes:
 named streams, resource forks and Apple's directory-enumeration extensions are SMB surface and
 nothing else here wants them. **Retiring this block is calef's call**; the status word is unchanged
 because the vocabulary has no word for it.
 
-**Gate: DECISION.** The first thing this milestone needs is the choice §99 deferred rather than
+The first thing this milestone needs is the choice §99 deferred rather than
 refused: where Apple metadata lands, given that this is the workload that actually wants it.
 Options 2, 3 and 4 are priced in §99 with their costs measured; the lane that takes this block
 should read them before proposing anything new, and the `:` fix below travels with whichever wins.
@@ -16,7 +25,6 @@ The analysis below is kept because it is right and was expensive to get: §99's 
 Machine backup is a sparse bundle and never touches Apple's metadata surface is what let milestone
 55 stop looking blocked on work it never needed, and that reasoning would be worth re-reading by
 anyone who builds a file server here again.
-
 
 **In brief.** A Mac using this share the way a person uses a file server: Finder metadata, resource
 forks, named streams, and the directory-enumeration extensions that make a Finder window feel like a

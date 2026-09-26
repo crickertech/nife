@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 126, 448
+---
 # 455. `kill`, `pkill`, `skill` and `snice`: the signalling stratum of `procps`
 
-**Status: REFUSED.** Refused by milestone 126 (design/roadmap/126-who-else-is-running.md), and
+Refused by milestone 126 (design/roadmap/126-who-else-is-running.md), and
 recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

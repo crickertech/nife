@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-20
+---
 # 442. A crypto provider `rustls` can use on all three bare-metal targets
 
-**Status: BUILT** (2026-09-20), except clause 3, which is repriced into a proposal rather than
+Built (2026-09-20), except clause 3, which is repriced into a proposal rather than
 carried; see `## Follow-on`.
 Minted 2026-09-19 by the maintainer, from calef's ruling in DECISIONS §196 (nife carries TLS: `rustls` for the protocol, and a crypto provider we make work),
 which is [design/decisions/196-nife-carries-tls-and-builds-the-provider.md](../decisions/196-nife-carries-tls-and-builds-the-provider.md).
@@ -173,8 +178,6 @@ makes a recipe's digest decide what may run and a digest is checkable over any t
   cost, and two certificate encodings that fail closed.
 
 ## Index row
-
-**Built:** 2026-09-20
 
 §196's stock-target table said no crypto provider built on any nife target; re-measured against
 this tree's own target specifications, the blockers were a `getrandom` major `entropy_backend` did

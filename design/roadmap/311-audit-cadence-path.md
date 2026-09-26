@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 311. The audit cadence tripwire, and the month of correct alarms nobody acted on
 
-**Status: BUILT 2026-09-17.** Minted by the maintainer after `script/cadence-check` (milestone 238)
+Minted by the maintainer after `script/cadence-check` (milestone 238)
 reported `audit cadence` as a workflow with no successful run. Built by a lane on
 `milestone/311-audit-cadence-path`.
 *(Number provisional until the merge queue lands it.)*
@@ -187,8 +192,6 @@ edits are marked as such in it, and they are named in the Follow-on below.
   The edit is marked as this lane's inside that block.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `.github/workflows/audit-cadence.yml` is milestone 92's tripwire and sits on `design/fatal-risks.md`
 risk 7's path; it had never once succeeded, and `script/cadence-check` reported it. The stale path

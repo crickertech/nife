@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-08-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 160. Review the public function names across the kernel's dependency crates
 
-**Status: NOT-STARTED.** Minted 2026-08-23, from calef asking to extend this session's crate-naming
+Minted 2026-08-23, from calef asking to extend this session's crate-naming
 review one level down: *"Let's create a milestone to review the pub fns for the kernel crates."*
 Follows directly from milestones 158 (build DECISIONS §113's kernel object renames) and the four
 crate-rename lanes minted the same day (`names/isa-machine-discovery`,
 `names/kernel-core-primitives`, `names/display-crates`, `names/protocol-crates`), which finished the
 crate-level pass across everything the kernel depends on.
 
-**Gate: NONE.** calef asked for this milestone directly in conversation; there is no fork to decide,
+calef asked for this milestone directly in conversation; there is no fork to decide,
 only a large amount of one-at-a-time review work, the same shape milestone 115's naming discipline
 already uses.
 

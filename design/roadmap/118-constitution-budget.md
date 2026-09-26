@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 118. CLAUDE.md has a budget, and the rules that get violated move up the ladder
 
-**Status: PARTIAL.** Minted 2026-08-05 by calef, who
+Minted 2026-08-05 by calef, who
 noticed the file had gotten huge and asked what that costs. Two lanes have run: #309 took the audit,
 and a second (2026-08-18) verified it and produced an applicable cut. **The cut is proposed, not
 applied**, because a developer may not edit `AGENTS.md`; the integrator applies it. A third lane
@@ -8,7 +17,7 @@ applied**, because a developer may not edit `AGENTS.md`; the integrator applies 
 2026-08-22" below. The split is the one piece left, and it is untouched for the same reason the cut
 is only proposed: it requires editing `AGENTS.md`.
 
-**Gate: NONE.** Nothing stops the split from starting; it only needs an `AGENTS.md` edit no
+Nothing stops the split from starting; it only needs an `AGENTS.md` edit no
 developer lane can make, which is calef's or the integrator's to pick up.
 
 **The size measurement is no longer hand-entered.** Until 2026-08-22 it was `wc -lwc AGENTS.md`,

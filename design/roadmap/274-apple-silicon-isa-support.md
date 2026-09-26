@@ -1,12 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 274. Apple Silicon's own core is untested, and not for the reason first recorded
 
-**Status: NOT-STARTED.** Minted 2026-09-10 by calef, from a question about `neoverse-n2`.
+Minted 2026-09-10 by calef, from a question about `neoverse-n2`.
 **Corrected the same day**, after calef asked what the fix would actually be for this Mac: the
 maintainer's first answer rested on a run that never used HVF at all, and the real HVF run, taken to
 answer the follow-up honestly, found a different and larger blocker. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: NONE.** Measurement, not a design fork.
+Measurement, not a design fork.
 
 ## The correction, first, because it is the reason this block reads the way it does
 

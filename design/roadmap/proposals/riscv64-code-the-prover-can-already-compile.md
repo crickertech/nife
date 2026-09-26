@@ -1,12 +1,21 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Some of `arch/riscv64/` compiles under Kani on an aarch64 host today, and the tree says none can
 
-**Status: PROPOSED 2026-09-24.** Raised by the lane `lane/price-kani-kernel-reach` (pull request
+Raised by the lane `lane/price-kani-kernel-reach` (pull request
 #1276), briefed to price closing `design/fatal-risks.md` risk 2 (the proofs prove trivia) on the
 premise that `cargo kani` has never compiled the kernel. The premise was false, and the measurement
 that replaced it found a wall that is lower than the tree records. *(Slug provisional; naming is
 calef's.)*
 
-**Gate: NONE.** Option 1 below is reversible code and one harness. Risk 2's colour is not asked
+Option 1 below is reversible code and one harness. Risk 2's colour is not asked
 about here: that is `design/fatal-risks.md`, calef's file, and milestone 536 (two records still say
 the prover cannot see `kernel/src`) already holds that decision.
 

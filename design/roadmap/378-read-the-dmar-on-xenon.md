@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: xenon (its own ACPI DMAR table is what is read)
+needs_person: yes
+---
 # 378. Read the DMAR, because a firmware checkbox is not an IOMMU
 
-**Status: PARTIAL.** Filed as a proposal on 2026-09-04 by the lane that transcribed xenon's firmware
+Filed as a proposal on 2026-09-04 by the lane that transcribed xenon's firmware
 into notes/xenon-firmware.md; promoted by milestone 433 on 2026-09-19, when the tree was read
 against it. **Most of what this asks for was built by two other milestones while it sat in the
 pile**, and what is left is smaller and sharper than the file describes.
 
-**Gate: HARDWARE.** Of the second kind: the machine exists and somebody has to be at it. The one
+Of the second kind: the machine exists and somebody has to be at it. The one
 thing left that cannot be done on patagonia is reading the `iommu` line off a xenon boot, which is
 one boot of a stick that already exists. The other two outstanding items below need no board at
 all, which is the case notes/roadmap.md describes as a startable piece behind a gated

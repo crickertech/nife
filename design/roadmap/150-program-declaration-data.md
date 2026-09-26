@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-22
+built: 2026-09-19
+---
 # 150. Adding a program should not need eight hand-maintained lists
 
-**Status: BUILT 2026-09-19** (PR #968). A program is declared once: its `[[bin]]` block, plus one
+Built 2026-09-19 (PR #968). A program is declared once: its `[[bin]]` block, plus one
 `programs!` row in `crates/grant_plan` if the shell can spawn it. Everything else is generated from
 those or checked against them. The after count is measured, by adding and removing a scratch
 program (`triple`) and booting it at both prompts; the before count is read off the base tree
@@ -224,8 +229,6 @@ milestone 117's handoff."
   it and it has one.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Built 2026-09-19: a program is its `[[bin]]` block (packed into all three archives from `Cargo.toml`)
 plus, if the shell spawns it, one `programs!` row generating `Prog`'s bookkeeping; host tests catch

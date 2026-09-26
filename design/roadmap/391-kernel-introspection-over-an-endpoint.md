@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-09
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 391. Kernel introspection over an endpoint, rather than one syscall per fact
 
-**Status: NOT-STARTED.** Filed 2026-09-09 as an unnumbered proposal, raised by calef in conversation
+Filed 2026-09-09 as an unnumbered proposal, raised by calef in conversation
 while deciding how `swish` reaches a console on x86_64; numbered 2026-09-19 by milestone 433's drain
 of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**: nothing has
 answered the fork. `design/decisions/149-kernel-served-console-endpoint.md` still refuses to settle
@@ -9,7 +18,7 @@ it against, is still `NOT-STARTED`. So this block keeps the sequencing it was wr
 becomes a `design/decisions/` section when 269 is taken, not before.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** This is a design fork about the kernel's shape, not work to schedule.
+This is a design fork about the kernel's shape, not work to schedule.
 **The decision it waits on is [§149](../decisions/149-kernel-served-console-endpoint.md)**, cited
 here on 2026-09-19 by milestone 435's slice-c lane, which found this gate naming no section. §149 is
 `DECIDED` and what it decided about *this* question is to refuse it: it separated the console case

@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 149. A common HPC benchmark suite, in Rust, on nife and on Linux
 
-**Status: NOT-STARTED.** Minted 2026-08-21 by calef, from the differentiation question milestones
+Minted 2026-08-21 by calef, from the differentiation question milestones
 147 and 148 also came from: what would make the HPC comparison concrete rather than aspirational.
 Those two milestones are new capability-shaped ideas nobody else can offer; this one is the opposite
 kind of value and just as necessary: **run the benchmarks an HPC reader already recognizes**, in
 the same language on both sides, on the same hardware, so a number means something the moment it is
 read rather than needing this project's own vocabulary explained first.
 
-**Gate: NONE.** Two of the three suites below already exist as real, published Rust ports with no
+Two of the three suites below already exist as real, published Rust ports with no
 nife-specific work required to obtain them. The gate is picking which kernels to port to nife's PAL
 (milestone 64's question, asked per-benchmark) and running them, not designing anything new.
 

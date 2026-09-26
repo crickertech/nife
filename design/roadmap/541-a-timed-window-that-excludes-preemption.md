@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+promoted_from: map-new-times-a-window-too-short-to-mean-anything
+---
 # 541. A timed window that excludes preemption
 
-**Status: BUILT 2026-09-21.** *(Number provisional until the merge queue lands it.)*
+*(Number provisional until the merge queue lands it.)*
 
 **Promoted from a proposal on calef's instruction of 2026-09-21**, which was to promote the
 `map_new` proposal and launch a lane on it. It was written the same day as
@@ -190,8 +196,6 @@ change that the footprint gate failed on, which is the argument for having both.
   architectures are measured, and the three baselines are saved on calef's ruling.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 A benchmark row whose window is 2.5% of a scheduler tick period does not measure what its name
 says; it measures whether a timer interrupt happened to land in it, and reports the answer as a

@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: 171
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 206. A program image has under 896 KiB, and the failure names an overlap rather than a size
 
-**Status: NOT-STARTED.** Minted 2026-08-31 from milestone 121's (`ripgrep`: enumeration as a
+Minted 2026-08-31 from milestone 121's (`ripgrep`: enumeration as a
 capability) lane, which hit it the hard way. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §171.** `USER_STACK_VA` is a constant several programs reason about, so moving it is a
+`USER_STACK_VA` is a constant several programs reason about, so moving it is a
 change two programs agree on, which AGENTS.md puts in the expensive category. It is
 §171 (where a program image starts, and where
 the stack goes), written up 2026-09-19 by milestone 435's lane, which re-measured the spread: the

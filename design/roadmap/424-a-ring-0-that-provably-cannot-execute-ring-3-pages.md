@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: a-ring-0-that-provably-cannot-execute-ring-3-pages
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 424. A ring 0 that provably cannot execute ring-3 pages, and SMAP with a number
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `a-ring-0-that-provably-cannot-execute-ring-3-pages`, filed 2026-09-17 from milestone 313's security
 audit (findings 3 and 6). *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Nothing has to land first; the SMAP half owes a syscall-path measurement before it
+Nothing has to land first; the SMAP half owes a syscall-path measurement before it
 ships, and that measurement is part of the work rather than a precondition on starting it.
 
 **Premise re-checked 2026-09-19 and still true, both halves.** `CR4.SMEP` is set and says so at boot

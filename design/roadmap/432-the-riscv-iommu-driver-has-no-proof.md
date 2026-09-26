@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-18
+built: 2026-09-25
+promoted_from: the-riscv-iommu-driver-has-no-proof
+---
 # 432. The RISC-V IOMMU driver has no counterpart to the SMMU's proofs
 
-**Status: BUILT 2026-09-25.** Two harnesses in `kernel/src/arch/riscv64/iommu.rs`, both
+Two harnesses in `kernel/src/arch/riscv64/iommu.rs`, both
 falsified, proved from an aarch64 host; "What was built" below. Promoted from the proposal
 `the-riscv-iommu-driver-has-no-proof`, filed 2026-09-18 from the confirmation pass of milestone 322
 (one machine matrix for three architectures), which went looking for an unexercised IOMMU
@@ -97,8 +103,6 @@ its proposal's option 1 is what this milestone built:
   cannot see `kernel/src`) already holds the correction of that record.
 
 ## Index row
-
-**Built:** 2026-09-25
 
 `arch/aarch64/iommu.rs` carries two Kani harnesses over its entry-building arithmetic, both
 falsified before they were believed, one of them replayable in `kernel/falsifications/`. The RISC-V

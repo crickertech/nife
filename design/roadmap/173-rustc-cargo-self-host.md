@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: 172
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 173. `rustc`/`cargo`/LLVM natively on nife: full local self-hosting
 
-**Status: NOT-STARTED.** Minted 2026-08-25, the third of four self-hosting milestones, and the big
+Minted 2026-08-25, the third of four self-hosting milestones, and the big
 one. Sized by research before being minted rather than guessed at: the blocker is not what it first
 looks like.
 
-**Gate: MILESTONE 172.** [Milestone 172](172-capability-native-subprocess.md)'s capability-native
+[Milestone 172](172-capability-native-subprocess.md)'s capability-native
 subprocess primitive is a hard prerequisite, not a convenience: `cargo` spawns `rustc` once per
 compilation unit as its whole build model (verified via `rustc_driver`'s own use inside `clippy` and
 `miri`, which still spawn a driver process per crate through

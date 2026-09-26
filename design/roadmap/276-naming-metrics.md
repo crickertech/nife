@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-11
+built: 2026-09-11
+---
 # 276. The dashboard counts milestones and decisions by status, and names not at all
 
-**Status: BUILT** 2026-09-11. Minted the same day by calef, from asking whether the metrics
+Built 2026-09-11. Minted the same day by calef, from asking whether the metrics
 dashboard carried naming data and finding it does not. *(Number provisional until the merge queue
 lands it; milestone 275 is in flight ahead of it.)*
 
@@ -167,8 +172,6 @@ name is the mechanism working rather than failing, and the note that the band wo
   entry now says what closed it and when.
 
 ## Index row
-
-**Built:** 2026-09-11
 
 calef, 2026-09-11. 101 of 205 names unratified and nothing shows whether that is climbing or
 falling, where milestones get seven status columns and decisions six. Five naming columns and a

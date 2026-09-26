@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: a-stack-gate-that-fires-only-on-a-filtered-run
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 425. A stack gate that fires only on a filtered run
 
-**Status: NOT-STARTED.** Promoted from the proposal `a-stack-gate-that-fires-only-on-a-filtered-run`,
+Promoted from the proposal `a-stack-gate-that-fires-only-on-a-filtered-run`,
 filed 2026-09-17 from milestone 313's security audit while gating (finding 7), outside its lens.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is a measurement to explain and then either a limit to move with a reason or a
+It is a measurement to explain and then either a limit to move with a reason or a
 chain to shorten.
 
 **Premise re-checked 2026-09-19 and still true on the record side.** `kernel/src/stack.rs` still

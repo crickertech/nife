@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 331. A thread is published `Dead` while it is still executing on its own kernel stack
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 124's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `crates/thread_wake_handshake`'s `RunState` has six variants (`Embryo`, `Ready`, `Running`,
 `Blocked`, `Finished`, `Dead`) and none of them is `Departing`; `depart()` in `kernel/src/sched.rs` still publishes `Dead`, and the window is still
 guarded rather than closed, by `region_reap_verdict(state, on_cpu)` refusing while `on_cpu` is set.
 The crate is still the one loom searches.
 
-**Gate: NONE.** No decision is owed and nothing else is missing. It touches the death protocol and
+No decision is owed and nothing else is missing. It touches the death protocol and
 `RunState` in `crates/wake_handshake`, where loom searches the transitions, so it wants a lane with
 the loom search in its gate rather than a hotfix on somebody's way past.
 

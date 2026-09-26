@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 343. Source comments that lead with a machine name instead of the hardware
 
-**Status: PARTIAL.** Filed 2026-09-03 as an unnumbered proposal from DECISIONS §143 (a machine's
+Filed 2026-09-03 as an unnumbered proposal from DECISIONS §143 (a machine's
 name is not a hardware fact, and source comments should say the hardware), decided the same day;
 numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and most of it has been done,
 by nobody in particular.** Ten of the twelve uses are now in §143's shape and two are not. Both
@@ -13,7 +22,7 @@ machines are named**", so a stranger who meets `radon` has a route. `crates/mult
 went with the crate on 2026-09-15. What is left is two of the nine that gloss the name but lead with
 it, listed under `## Follow-on`.
 
-**Gate: NONE.** Two comments, which is what is left of the twelve.
+Two comments, which is what is left of the twelve.
 
 **The inventory as filed on 2026-09-03**, kept because it is the account of how the twelve were
 classified and because it is what the remaining two are measured against. §143 decided that a source

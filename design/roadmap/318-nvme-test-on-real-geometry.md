@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 318. The NVMe boot test on real geometry
 
-**Status: BUILT 2026-09-17.** Built by a lane on `milestone/318-nvme-test-on-real-geometry`.
+Built by a lane on `milestone/318-nvme-test-on-real-geometry`.
 *(Number provisional until the merge queue lands it.)*
 
 `kernel/src/user/non_volatile_memory_express_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end` is
@@ -159,8 +164,6 @@ this tree does not have.
   IDENTIFY was misparsed, but it is no longer what turns the test red.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `a_confined_el0_process_serves_the_block_interface_end_to_end` is milestone 261's proof and fatal
 risk 6's decisive experiment, it passed under QEMU, and **four of its assertions were written

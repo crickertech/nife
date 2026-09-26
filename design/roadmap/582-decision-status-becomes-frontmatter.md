@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-23
+built: 2026-09-23
+---
 # 582. A decision's status becomes a field, and the index becomes generated
 
-**Status: BUILT.** Raised by calef on 2026-09-23: *"I wonder if the key values should be front
+Raised by calef on 2026-09-23: *"I wonder if the key values should be front
 matter instead."* He ratified the schema the same day. *(Number provisional until the merge queue
 lands it. The brief said 580, which was taken on `main` at this lane's base commit `bfc91c8d2` by
 `580-nobody-reads-branches.md`. This lane then took 581 and collided with another lane that could
@@ -147,8 +152,6 @@ it offers an escape a lane can reach for instead of doing two `git log` calls, s
 required-when rules are hard failures. That is rung one where the ledger was rung two.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 A decision's status stops being a sentence a regex has to guess at and becomes a field, and
 `design/decisions/README.md` stops being hand-maintained, which deletes the additive-index conflict

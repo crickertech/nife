@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-13
+---
 # 280. `uefi_loader` at 15% and `documentation` at 52% are unexplained holes in the published score
 
-**Status: BUILT.** Written by the milestone 247 sweep as a proposal on 2026-09-03, from
+Written by the milestone 247 sweep as a proposal on 2026-09-03, from
 milestone 238's block. **Promoted out of the proposal queue on 2026-09-13 by calef**, who asked what
 would progress fatal risk 3: this is step three of four, and the only one that can be worked before a
 clean sweep exists. Built the same day on `milestone/280-unexplained-mutation-scores`. *(Number
@@ -177,8 +182,6 @@ it."*
   unrecognisable in the census: `uefi_loader` 100%, `documentation` 95.4%.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Written by the milestone 247 sweep 2026-09-03, promoted 2026-09-13 by calef while working out what
 progresses fatal risk 3. `uefi_loader` was answered on 2026-09-04 and the promotion did not

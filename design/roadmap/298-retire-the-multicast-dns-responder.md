@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-15
+built: 2026-09-15
+---
 # 298. Retire the multicast DNS responder and its two crates, which advertised a goal that is gone
 
-**Status: BUILT 2026-09-15.** Minted 2026-09-15 by the maintainer on **calef's ruling of the same day:
+Minted 2026-09-15 by the maintainer on **calef's ruling of the same day:
 *"Retire all three."*** *(Number provisional until the merge queue lands it.)*
 
 ## How it came up, because it came up as a naming question
@@ -102,8 +107,6 @@ it.
   `design/roadmap/384-a-name-resolver-and-who-holds-it.md`, milestone 384 since 2026-09-19.
 
 ## Index row
-
-**Built:** 2026-09-15
 
 Retired the multicast DNS responder and its two crates on calef's 2026-09-15 ruling. They advertised
 Time Machine and an SMB share, both removed on 2026-08-30, nothing but tests ran them, and no live

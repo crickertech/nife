@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: one-home-for-the-trap-on-false-helper
+milestone_dependencies: none
+decision_dependencies: 188
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 408. One home for `fn check(ok: bool)`, which nine programs now write out by hand
 
-**Status: NOT-STARTED.** Promoted from the proposal `one-home-for-the-trap-on-false-helper`, filed
+Promoted from the proposal `one-home-for-the-trap-on-false-helper`, filed
 2026-09-14 by milestone 291's lane, which added seven of the nine copies and said so rather than
 leaving the count to be re-derived. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §188.** The decision is
+The decision is
 §188 (what the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. The obvious home is
 `crates/user_rt`, and a public function name there is calef's (AGENTS.md, "calef names the crates,

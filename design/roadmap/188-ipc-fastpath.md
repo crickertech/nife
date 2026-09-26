@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-28
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 188. The IPC fastpath: the gate measures a shape userspace does not use, and three cheaper cuts come before a hand-written path
 
-**Status: PARTIAL 2026-09-04.** Phases 1 to 3 are built and measured; phase 4 is calef's and is
+Partial as of 2026-09-04. Phases 1 to 3 are built and measured; phase 4 is calef's and is
 untouched. The results are in "What phases 1 to 3 measured" below, and they change the
 recommendation's arithmetic without changing its conclusion. Minted 2026-08-28, calef, out of the lane that gated the fastpath footprint
 on the third architecture (pull request #574). The provisional framing he gave it was *"a
@@ -10,7 +19,7 @@ does: the gate that says we are over target is measuring an IPC shape that essen
 program in this tree performs, and the largest single item it reports on aarch64 is a symbol of
 which 94% is never fetched.
 
-**Gate: DECISION.** Phase 4 only; phases 1 to 3 were a lane's own call, needed nobody, and are done.
+Phase 4 only; phases 1 to 3 were a lane's own call, needed nobody, and are done.
 **The decision is [§95](../decisions/95-a-proven-ipc-fastpath.md) (a hand-written IPC fastpath, and
 whether it can stay proven), and this gate did not cite it until 2026-09-19.** It is `DECIDED`, and
 what calef decided is *"don't decide yet"*, in two tiers: the eligibility predicate and its proof in

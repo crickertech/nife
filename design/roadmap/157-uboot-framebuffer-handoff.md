@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-08-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: a board booted by U-Boot with a display attached
+specific_machine: none
+needs_person: yes
+---
 # 157. Real display output on the board: U-Boot's `simple-framebuffer` handoff
 
-**Status: NOT-STARTED.** Minted 2026-08-23, from calef thinking through what it would take to boot
+Minted 2026-08-23, from calef thinking through what it would take to boot
 directly into the terminal display on real hardware. The plan already exists, recorded in
 [the display ladder](../display-ladder.md)'s rung five (struck 2026-07-28) but never turned into a
 milestone: *"The board's standalone-display story is the DC8200 framebuffer path instead: U-Boot's
 `simple-framebuffer` handoff first (zero display code), a mode-setting driver only if ever needed,
 serial input until a USB HID milestone earns its own number."*
 
-**Gate: HARDWARE.** In milestone 53's sense: the board is on the desk and this needs hands on it.
+In milestone 53's sense: the board is on the desk and this needs hands on it.
 The device-tree parsing and the driver's own logic can be written and host-tested without silicon,
 but the handoff itself (does U-Boot actually hand over the buffer this milestone assumes, at the
 address and format it claims) can only be verified by booting the real board.

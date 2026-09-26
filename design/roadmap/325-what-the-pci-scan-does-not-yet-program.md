@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 325. Four things the PCI scan reads and does not yet program, each found by a different lane
 
-**Status: NOT-STARTED.** Minted 2026-09-18 by calef, promoting a cluster rather than its members:
+Minted 2026-09-18 by calef, promoting a cluster rather than its members:
 four proposals from four lanes, all in the discovery-and-enumeration seam. *(Number provisional until
 the merge queue lands it.)*
 
-**Gate: NONE.** Every part is reachable from a machine this project already runs: QEMU's `q35` with
+Every part is reachable from a machine this project already runs: QEMU's `q35` with
 `-device intel-iommu` for parts 1 and 4, `NIFE_PCIE_ROOT_PORT=1` on the x86_64 runner for part 2, and
 a boot line rather than hardware for part 3. No decision is owed on any of them.
 

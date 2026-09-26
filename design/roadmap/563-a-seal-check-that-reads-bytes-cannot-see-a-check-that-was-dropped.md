@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-25
+promoted_from: a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped
+---
 # 563. A seal check that reads bytes cannot see a check that was dropped
 
-**Status: BUILT 2026-09-25.** The number is **provisional**: the integrator mints it at merge.
+The number is **provisional**: the integrator mints it at merge.
 Promoted from the proposal `a-seal-check-that-reads-bytes-cannot-see-a-check-that-was-dropped` on
 2026-09-22, filed 2026-09-21. Raised by the lane of milestone 523 (moving the job-mix supervisor
 into userspace, and the five permissions it turns out to need), which was launched because
@@ -127,8 +133,6 @@ plan). This proposal is the plan half; the trigger for promoting it is a second 
 to the same message, or anyone wanting option B's guarantee for an unattended card.
 
 ## Index row
-
-**Built:** 2026-09-25
 
 A `soak`, `job_mix` or `bench` kernel replaced the hand-over, so it never called the measured-boot refusal and the linker dropped its trust root. Every such card read `NOT SEALED` though its pair came from one build, and ran whatever archive sat beside it. xenon's stick, whose loader refuses an unsealed pair at build time, could not carry a soak kernel at all. Those boots now measure each program they enter through the progenitor's own chain (`trust::require_program`), so the trust root is in the image because it is used. A soak stick for xenon builds and boots under OVMF, and radon's soak card reads `SEALED`.
 

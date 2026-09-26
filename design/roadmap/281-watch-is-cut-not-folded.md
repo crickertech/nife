@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 281. `watch` holds exactly what `ps` holds, so it is nothing
 
-**Status: BUILT.** Minted 2026-09-13 by calef, from his own question while ratifying `watch`'s name:
+Minted 2026-09-13 by calef, from his own question while ratifying `watch`'s name:
 should the refresh behaviour just be a command option for `ps` instead of a program? Reshaped the
 same day, by calef again, once the answer to that question made a better one available: *"We can cut
 `ps` with the `watch` and simplify."* Built on `milestone/281-watch-is-cut-not-folded`. *(Number
@@ -154,8 +159,6 @@ from the flag.
   a spin-yield site and is likewise not a lane's to edit. Both are in this block's own `BUGS`.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Minted 2026-09-13 by calef from his own question while ratifying `watch`'s name, and reshaped by
 him the same day: *"We can cut `ps` with the `watch` and simplify."* The measurement that decides

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-07-29
+---
 # 32. A real filesystem: RedoxFS behind a capability FS server
-
-**Status: BUILT.**
 
 **In brief.** A write-capable block path, an FS-server **component** whose handles are capabilities from birth (open-by-path exists only INSIDE the server, relative to a granted directory cap), and **RedoxFS** as the on-disk engine, ported behind its own `Disk` trait over blk IPC
 
@@ -91,7 +94,5 @@ hand off across a live swap, the hardest handoff case yet named), 27 (`std::fs`)
   could have stopped existing, and every future bump re-applies them by hand.
 
 ## Index row
-
-**Built:** 2026-07-29
 
 the flagship userspace-reuse story: a real filesystem we did not write, confined

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-07-30
+---
 # 46. Rename the components for what they are, and write down the naming rules
-
-**Status: BUILT.**
 
 **Built 2026-07-30, both ISAs.** Five renames in one mechanical commit: `netd` → `net_stack`,
 `compd` → `compositor`, `gpud` → `display`, `termd` → `line_editor`, and the crate `crates/linedisc` →
@@ -84,8 +87,6 @@ arrival, or a checker that is red on arrival.
   like a daemon is not its problem.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 a name is a claim, and `-d` claims something we rejected; conventions that matter get a checker,
 not a paragraph

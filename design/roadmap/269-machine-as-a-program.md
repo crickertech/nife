@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-09
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 269. `machine` at the prompt: ask what this computer is without rebooting it
 
-**Status: NOT-STARTED.** Minted 2026-09-09 by calef, in the same conversation as milestone 268:
+Minted 2026-09-09 by calef, in the same conversation as milestone 268:
 *"If we can get every OS to boot to swish, then we can run machine to get the unified display of
 each machine."* *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Milestone 268 builds the kernel-side description and settles what questions it
+Milestone 268 builds the kernel-side description and settles what questions it
 answers. This puts the same answers behind a program.
 
 **Depends on 268 and on every architecture reaching a prompt** (milestone 182 for x86_64).

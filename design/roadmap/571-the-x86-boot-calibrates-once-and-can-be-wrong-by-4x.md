@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 571. The x86 boot calibrates the TSC once, and can be wrong by 4x
 
-**Status: BUILT** 2026-09-21. The boot times several 10 ms PIT windows instead of one, keeps the
+Built 2026-09-21. The boot times several 10 ms PIT windows instead of one, keeps the
 smallest, stops as soon as two of them agree, and prints the worst beside the chosen one so a
 calibration the host fought is visible rather than silently confident.
 *(Renumbered from the lane's provisional 526 on 2026-09-22: a concurrently merged lane had taken
@@ -217,8 +222,6 @@ about everything except what another file would do to it.
   `BUGS` is the place a reader would look first and is left for whoever next touches that file.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 The x86 boot measured the TSC against a single 10 ms PIT window and stored the result for the life
 of the boot, and that number was wrong by up to **+1153%** against a counter known to tick at

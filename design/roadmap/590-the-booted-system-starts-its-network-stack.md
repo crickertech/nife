@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-24
+built: 2026-09-24
+promoted_from: the-booted-system-has-no-network
+---
 # 590. The booted system starts its network stack
 
-**Status: BUILT.** *(Number provisional: minted by the lane, to be confirmed at merge.)* Promoted
+*(Number provisional: minted by the lane, to be confirmed at merge.)* Promoted
 from the proposal `the-booted-system-has-no-network`, filed 2026-09-24 by the rung 3a consumer lane
 of milestone 198 (a package manager, and the trivial install that makes a second customer
 possible). That lane found its package fetch could run only inside the kernel's test harness. Built
@@ -117,8 +123,6 @@ move is milestone 198's, and needs no new mechanism from this one.
   has) closes it.
 
 ## Index row
-
-**Built:** 2026-09-24
 
 The progenitor builds `net_stack` from a NIC the kernel grants it, and a program declaring `network`
 is endowed its endpoint at slot 10. `swish-check` reaches the runners' echo peer from the prompt on

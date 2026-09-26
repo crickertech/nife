@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-23
+---
 # 302. A baseline records what it was saved against, and a stale one fails loudly
 
-**Status: BUILT.** Corrected 2026-09-23 from `NOT-STARTED`, which it had been since promotion
+Corrected 2026-09-23 from `NOT-STARTED`, which it had been since promotion
 while two of its three items were already in the tree. Promoted 2026-09-16 from
 `design/roadmap/proposals/a-toolchain-bump-that-leaves-the-baselines-stale.md`, which was Decision 2
 of the finding milestone 299's lane surfaced (originally
@@ -161,10 +166,7 @@ failure with nobody in the loop at all.
   than trusting a human to eyeball a percentage, and also the argument that the mechanized floor is
   only as portable as the runner that saved it.
 
-
 ## Index row
-
-**Built:** 2026-09-23
 
 `bench/baseline-<arch>.txt` records what its numbers mean relative to QEMU and says nothing about the
 toolchain, so nothing can tell a baseline that is stale for the current nightly from one that is

@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-30
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 190. ext4, read and write: a Rust implementation with libext2fs as the host-side oracle
 
-**Status: NOT-STARTED.** Minted 2026-08-30 by calef, from a session that costed the entire option
+Minted 2026-08-30 by calef, from a session that costed the entire option
 space before any code was written. *(Number provisional until the merge queue lands it, per
 AGENTS.md's rule that anything global to the tree stays provisional until the queue arbitrates.)*
 
-**Gate: NONE.** Phase 1 needs nothing that does not exist, which is what the gate records. Phases 3
+Phase 1 needs nothing that does not exist, which is what the gate records. Phases 3
 and 4 carry forks named below, and phase 4's is a real one; a single gate on the front of an arc this
 long would block the part that is buildable today.
 

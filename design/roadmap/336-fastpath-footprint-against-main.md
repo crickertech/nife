@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 336. Should the fastpath footprint gate compare against `main` instead of a stored baseline
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 237's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 the build is still owed.** DECISIONS §144 answered the question on 2026-09-04 (both shapes, with the
 ceiling at 16 KiB on `max(ipc_send_recv, ipc_call_reply) + syscall_entry`) and nothing has been built
@@ -9,7 +18,7 @@ against it: `script/fastpath-footprint` still compares against `bench/fastpath-a
 `main` and no absolute ceiling anywhere in the script. The reasoning below is kept as the record of
 what §144 was deciding between.
 
-**Gate: NONE.** **Answered by DECISIONS §144 on 2026-09-04: both, with the ceiling at 16 KiB.** What
+**Answered by DECISIONS §144 on 2026-09-04: both, with the ceiling at 16 KiB.** What
 remains is building it, and the two designs no longer share no code, because the delta half replaces
 the baseline files and the ceiling half is new. The question below is kept for its reasoning.
 

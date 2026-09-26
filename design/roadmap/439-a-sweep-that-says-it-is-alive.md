@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 439. A job-mix sweep goes quiet for a whole subrun, so a wedge timer has to guess
 
-**Status: NOT-STARTED.** Minted 2026-09-19 by the integrator, from milestone 324's parts 2 and 3
+Minted 2026-09-19 by the integrator, from milestone 324's parts 2 and 3
 lane, which built the sweep recogniser and found the limitation it could not fix from where it
 stood. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is a `println!` from a timer in the supervisor, and the marker it prints is
+It is a `println!` from a timer in the supervisor, and the marker it prints is
 already a shared constant. Nothing here is anybody's decision.
 
 ## The problem, and it is a comparison the tool cannot make

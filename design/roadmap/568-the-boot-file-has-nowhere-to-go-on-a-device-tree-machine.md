@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: the-boot-file-has-nowhere-to-go-on-a-device-tree-machine
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 568. The boot file has nowhere to go on a device-tree machine
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-boot-file-has-nowhere-to-go-on-a-device-tree-machine` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-boot-file-has-nowhere-to-go-on-a-device-tree-machine` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which built the install on `x86_64` and
 threaded the gap through the other two architectures as `None` rather than leaving it implied.
 
-**Gate: NONE.** The loader half needs no decision: `/chosen` is where a boot loader already tells
+The loader half needs no decision: `/chosen` is where a boot loader already tells
 this kernel where the archive is, and adding a second pair of properties is the same act twice.
 
 ## What is missing

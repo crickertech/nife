@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-05
+built: 2026-09-19
+---
 # 117. The stranger test: could someone build this and understand it without asking
 
-**Status: BUILT 2026-09-19.** Run 6 went on 2026-09-19 and its findings have homes;
+Run 6 went on 2026-09-19 and its findings have homes;
 `script/apropos` is placed where a newcomer meets it; `script/names` counts its worklist one way.
 See `## Run 6 and the three outstanding items, 2026-09-19` below for what that does and does not
 settle, and in particular that the cadence has never actually fired.
@@ -441,7 +446,6 @@ with a falsifiable instance attached.
    watches, debriefs, scores and writes up the run, which is the larger half. Quoting it without
    that caveat under-prices a run by more than half, and this block had already done so twice.
 
-
 ## The cadence lane, 2026-08-18
 
 **Status stays `PARTIAL`, and for the first time the reason is not "nothing schedules a run".**
@@ -698,8 +702,6 @@ the milestone should say so wherever it reports a number.
   duplicated fact rather than by re-copying it, so neither sentence can rot a third time.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 The third principle says a newcomer must succeed without asking anyone, and nothing held it. An
 agent with no context is handed the repository and nothing else; its questions are the deliverable

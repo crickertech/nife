@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 396. An apt QEMU that is installed and then shadowed
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 287, which found it
+Filed 2026-09-13 as an unnumbered proposal by milestone 287, which found it
 while making `script/bootstrap` finish on a stock Linux box and did not take it because the evidence
 stops short of the claim; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **`script/bootstrap` was re-read on 2026-09-19 and the premise is intact.** Its Linux branch still
@@ -11,7 +20,7 @@ still shadowed for the life of the checkout. The only change to the file since t
 documentation path, in `9dc04b0` on 2026-09-18. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: NONE.** Nothing here needs calef. It needs four gate runs on a Linux box with the packages
+Nothing here needs calef. It needs four gate runs on a Linux box with the packages
 absent, listed below, and a lane can do all four.
 
 ## In brief

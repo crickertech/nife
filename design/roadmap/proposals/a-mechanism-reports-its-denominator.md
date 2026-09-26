@@ -1,13 +1,21 @@
+---
+status: PROPOSED
+raised: 2026-09-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A mechanism that reports clean says over how many units, and zero is loud
 
-**Status: PROPOSED 2026-09-23.**
 `a-mechanism-reports-its-denominator`: ratified 2026-09-23 (calef, reviewing
 `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md` on pull request #1166). Raised by
 `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, whose fifth why reaches a habit
 rather than a bug and whose action items must resolve to something under §210 (a correction of
 error, and its action items are decisions, proposals or milestones).
 
-**Gate: NONE.** No hardware, no other milestone, no decision owed. This is work nobody has taken.
+No hardware, no other milestone, no decision owed. This is work nobody has taken.
 
 ## The claim
 

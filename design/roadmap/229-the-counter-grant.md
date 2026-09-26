@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 229. Build the cycle-counter grant DECISIONS 139 decided
 
-**Status: BUILT 2026-09-02.** Minted 2026-09-02 by the maintainer, the moment calef finished answering
+Minted 2026-09-02 by the maintainer, the moment calef finished answering
 DECISIONS 139 (who may read the cycle counter, and by what authority). *(Number provisional until
 the merge queue lands it.)*
 
@@ -217,8 +222,6 @@ not an error. That skip is DECISIONS 139 part 3 showing up in a test rather than
   `cycle_counter_grantable` and `sched::grant_cycle_counter`.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 the kernel half is complete and the syscall method is deliberately not minted: a grant on the TCB,
 written at the context switch beside the address-space root, aarch64 `PMUSERENR_EL0.CR` cached,

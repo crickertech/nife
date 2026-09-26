@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 333. The same stale claim, in the code and the notes, where no roadmap gate reads it
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 252 sweep;
+Filed 2026-09-03 as an unnumbered proposal by the milestone 252 sweep;
 numbered 2026-09-19 by milestone 433. **Premise re-checked item by item on 2026-09-19: eight of the
 ten still stand, one is closed, and one could not be confirmed.** Still wrong today:
 `crates/capability/src/lib.rs:98` (the `ENUMERATE` rustdoc's "when `pmap` is built", and `crates/pmap`
@@ -16,7 +25,7 @@ carries it under "Fork: a process display name" with a recommendation rather tha
 `notes/process-view.md` may be right and the sweep's reading of 126 may be the error. A lane taking
 this re-reads that one rather than trusting either record.
 
-**Gate: NONE.** Every item is a comment or a note, each one verifiable by reading the file beside
+Every item is a comment or a note, each one verifiable by reading the file beside
 it.
 
 **In brief.** Milestone 252 swept 22 `PARTIAL` blocks and corrected them. **The blocks were rarely

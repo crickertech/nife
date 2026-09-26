@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: there-is-no-way-back-from-the-stick
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 572. There is no way back from the stick: an installed disk is never offered an install again
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `there-is-no-way-back-from-the-stick` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `there-is-no-way-back-from-the-stick` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which introduced the rule this proposal
 is about and found the case that makes it a defect rather than a choice.
 
-**Gate: NONE.** It is a second question asked by `kernel/src/user/install_service.rs`, which holds no
+It is a second question asked by `kernel/src/user/install_service.rs`, which holds no
 disk and decides nothing a ruling has to cover.
 
 ## The rule, and why it exists

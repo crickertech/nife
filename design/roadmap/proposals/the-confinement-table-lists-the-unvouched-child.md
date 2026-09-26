@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-26
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # The confinement table lists the unvouched child
 
-**Status: PROPOSED 2026-09-26.** Raised by milestone 198 (a package manager) rung 3a's D2 lane,
+Raised by milestone 198 (a package manager) rung 3a's D2 lane,
 which built and falsified the claim milestone 202 (every confinement test is a ritual until
 somebody breaks the confinement) was owed and could not add its row. Name provisional.
 
-**Gate: NONE.** An editing pass on one note, reversible, and a maintainer's to run.
+An editing pass on one note, reversible, and a maintainer's to run.
 
 The claim: an unvouched child holds no capability its caller did not delegate, beyond the clock
 and configuration pages (§219 (how the shell names an installed program to the spawner), gate D2).

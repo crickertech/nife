@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 75. Who may read the cycle counter, and by what authority
 
-**Status: NOT-STARTED.** Carved out of milestone 74 on 2026-08-03, at calef's direction, because it
+Carved out of milestone 74 on 2026-08-03, at calef's direction, because it
 is a decision rather than a driver and it should not be settled inside a benchmarking milestone by a
 bullet point.
 
-**Gate: NONE.** Since 2026-09-02, and the block said `DECISION` for seventeen days after that.
+Since 2026-09-02, and the block said `DECISION` for seventeen days after that.
 The question was *whether to open `PMCCNTR_EL0` (and `scounteren`'s cycle bit) to EL0 at ~160x the
 resolution of the counter DECISIONS §10 already excepted, or to make the read a capability*, and
 [§139](../decisions/139-cycle-counter-authority.md) answered it, under a title identical to this

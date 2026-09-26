@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: installing-a-package-mutates-or-composes
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 507. Installing a package: mutate shared directories, compose a view, or only widen what can be spawned
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `installing-a-package-mutates-or-composes`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Written by milestone 198 (a package manager, and the trivial install)'s scoping lane (`milestone/198-package-manager-scoping`). Shaped as a
 `design/decisions/` section for the integrator to mint.
 
-**Gate: NONE.** **The fork was answered on 2026-09-23: calef chose A3, with rollback**, recorded as
+**The fork was answered on 2026-09-23: calef chose A3, with rollback**, recorded as
 §208 (installing a package is granting it, and the activation set is versioned), at
 [design/decisions/208-installing-is-granting.md](../decisions/208-installing-is-granting.md). Installing records
 that a package exists, its digest and manifest become spawnable, its data is a read-only directory a

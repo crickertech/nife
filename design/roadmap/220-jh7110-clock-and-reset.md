@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-04
+---
 # 220. This kernel drives no clock or reset controller, and the first real device will need one
 
-**Status: BUILT 2026-09-04.** Minted 2026-09-01 by the maintainer, from milestone 159's (a real hardware
+Minted 2026-09-01 by the maintainer, from milestone 159's (a real hardware
 entropy source: the JH7110's TRNG) lane, which named it as the most likely reason its own first
 bench boot will fail. *(Number provisional until the merge queue lands it.)*
 
@@ -182,8 +187,6 @@ split than NVMe was:
   domains and their hundreds of clocks are untouched and unmodelled.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 Linux's JH7110 TRNG driver takes two clocks and a reset line before touching a register; nife has
 never programmed either. **The premise stopped being a prediction on 2026-09-04**: radon's TRNG

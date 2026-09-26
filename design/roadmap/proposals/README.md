@@ -19,27 +19,35 @@ the roadmap here without coordinating with any other lane.**
 
 ## What a file here looks like
 
-`<slug>.md`, lowercase and hyphenated, no number. Inside, the same three things a numbered block
-opens with, checked by `script/roadmap --check`:
+`<slug>.md`, lowercase and hyphenated, no number. Inside, the frontmatter a numbered block opens
+with, `status: PROPOSED` and the date it was written as `raised`, checked by `script/roadmap --check`:
 
 ```
+---
+status: PROPOSED
+raised: <YYYY-MM-DD>
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A title, with no milestone number in it
 
-**Status: PROPOSED <YYYY-MM-DD>.** Who raised it and what they were doing at the time.
-
-**Gate: NONE.** Or DECISION, HARDWARE, or MILESTONE <n>, and why.
+Who raised it and what they were doing at the time.
 ```
 
-The date is not decoration. A proposal nobody promotes is the same burial in a new place, and age is
+`notes/roadmap.md` says what each dependency field means.
+
+`raised` is not decoration. A proposal nobody promotes is the same burial in a new place, and age is
 the only tell a script has.
 
 ## What happens to one
 
 **Promotion is how a proposal reaches any disposition at all**, including being refused or found
 moot: this directory carries exactly one status by design, so nothing can be retired in place. An
-integrator gives it a number, `git mv`s it up a directory, and the numbered block's status paragraph
-says it was `promoted from the proposal <slug>`, which is the phrasing `helpers/roadmap_proposals.py`
-matches. The block that named the work updates its `**Proposed.**` bullet to `**Milestone N.**`, so
+integrator gives it a number, `git mv`s it up a directory, sets its `status`, and adds
+`promoted_from: <slug>`, which `script/roadmap --check` holds to the rule that the proposal is gone. The block that named the work updates its `**Proposed.**` bullet to `**Milestone N.**`, so
 neither record orphans the other.
 
 **A proposal is not a promise to build.** It is a claim that somebody found something real and wrote

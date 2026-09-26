@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-03
+---
 # 236. Three derivations are copied between scripts, and nothing notices when they drift
 
-**Status: BUILT.** Minted 2026-09-02 by calef, from milestone 234's (the project's own numbers,
+Minted 2026-09-02 by calef, from milestone 234's (the project's own numbers,
 one row per ISO week) lane, which had to copy them to do its job. Built 2026-09-03; what was
 actually decided, and what the block deliberately left open, is at the bottom.
 
@@ -147,7 +152,5 @@ diff.
   is written down beside it.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 two lifted into `helpers/rust_source.py`; the harness count cannot be one definition and `script/lint` compares all three instead

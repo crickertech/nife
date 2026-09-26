@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-13
+---
 # 5. The GIC and the timer: the kernel is preemptible
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `809d856` (2026-07-13): a 100 Hz
 tick, and a timer interrupt that can land between any two instructions, which is the moment the
@@ -25,7 +28,5 @@ All 52 kernel tests ran preemptibly from this commit on.
 - **None.**
 
 ## Index row
-
-**Built:** 2026-07-13
 
 the preemption source, and the locking discipline becomes load-bearing

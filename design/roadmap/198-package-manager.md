@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-30
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 198. A package manager, and the trivial install that makes a second customer possible
 
-**Status: PARTIAL.** Minted 2026-08-30 by calef. *(Number provisional until the merge queue
+Minted 2026-08-30 by calef. *(Number provisional until the merge queue
 lands it.)* Rung 3a's producer half was built 2026-09-23 on
 `milestone/198-the-next-rung`: the one archive file §197 ruled a package is
 (`crates/package_archive`, written and read by one definition), `cargo xtask package` turning a
@@ -17,7 +26,7 @@ session holding the run-unvouched capability runs bytes nobody vouched for. §22
 the owner's console) followed: `vouch`, promoted from the proposal vouch-for-a-local-build, and
 the owner's list of who may run new code. notes/packages.md has the account.
 
-**Gate: NONE.** [§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
+[§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
 shell names an installed program to the spawner) was decided 2026-09-26 (UTC): option D with gate
 D2, all built. The first cut took §219's two open
 recommendations provisionally (the table's shape, and where a manifest travels, §197). Every earlier fork is ruled:

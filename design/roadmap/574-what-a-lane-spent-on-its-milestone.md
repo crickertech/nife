@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: what-a-lane-spent-on-its-milestone
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 574. What a lane spent on its milestone, joined from the branch it worked on
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `what-a-lane-spent-on-its-milestone` on 2026-09-22, filed 2026-09-21. Filed by `milestone/519-cost-inputs` from what milestone 519 (what
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `what-a-lane-spent-on-its-milestone` on 2026-09-22, filed 2026-09-21. Filed by `milestone/519-cost-inputs` from what milestone 519 (what
 this project costs, tracked where it cannot rot) found while building the weekly cost columns.
 *(Number and slug provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It was filed gated on milestone 519 (what this project costs, tracked where it
+It was filed gated on milestone 519 (what this project costs, tracked where it
 cannot rot), which is BUILT, so the capture it needs exists. The deadline in the proposal stands
 as a fact rather than as a gate: this join can only ever be made over weeks somebody already
 captured.

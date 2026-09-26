@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-12
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 278. Two modules are fenced out of the prover by a `Cargo.toml`, not by what they do
 
-**Status: NOT-STARTED.** Minted 2026-09-12 by calef, out of the naming review of `crates/user_rt`
+Minted 2026-09-12 by calef, out of the naming review of `crates/user_rt`
 (milestone 115's unratified worklist). The question that produced it was not a naming question:
 "what does `user_rt` do", then "should it be one program". Neither, but the measurement taken to
 answer them found this. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** A packaging change. Nothing here is a design fork, and it is reversible: the modules
+A packaging change. Nothing here is a design fork, and it is reversible: the modules
 move back by moving the files back.
 
 **In brief.** `crates/user_rt` is excluded from the host pass, from coverage, from mutation and from

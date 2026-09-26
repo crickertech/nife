@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-22
+built: 2026-07-22
+---
 # 13. Capability revocation + untyped reclamation
-
-**Status: BUILT.**
 
 **In brief.** Unmap a page from every holder; reclaim a region safely. **Built (frame scope), §13.**
 
@@ -41,7 +44,5 @@ until revocation lands.** This milestone is that work, and the precondition is w
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-07-22
 
 safe teardown, a TCB property

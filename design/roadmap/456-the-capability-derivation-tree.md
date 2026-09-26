@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 13, 14, 26, 448
+---
 # 456. The capability derivation tree, and subtree-granular revocation
 
-**Status: REFUSED.** Refused by milestone 13 (design/roadmap/13-capability-revocation.md), milestone
+Refused by milestone 13 (design/roadmap/13-capability-revocation.md), milestone
 14 (design/roadmap/14-kernel-objects-from-untyped.md),
 milestone 26 (design/roadmap/26-object-revocation.md), and recorded there on 2026-09-03. Backfilled here on
 2026-09-20 by milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal

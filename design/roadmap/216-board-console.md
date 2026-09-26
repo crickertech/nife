@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-01
+---
 # 216. Nothing in this tree can read a board, so every hardware milestone waits on a person
 
-**Status: BUILT** 2026-09-01. Minted the same day by the maintainer, from calef wiring the
+Built 2026-09-01. Minted the same day by the maintainer, from calef wiring the
 VisionFive 2 as a remote target and the gap becoming concrete the same hour.
 
 **What was built.** `script/board-console` (name provisional), over `cargo xtask board-console`
@@ -198,8 +203,6 @@ as built serves every read-only use, and 218 is the thing to do first either way
   for one board out of three.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 `script/board-console` (name provisional) opens the port at 115200 8N1, logs every byte to a file
 that is never optional, recognises the boot sequence, and returns a different exit status for each

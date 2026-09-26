@@ -1,12 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: 171
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 174. nife as a thin development client: edit and commit locally, build on a remote service
 
-**Status: NOT-STARTED.** Minted 2026-08-25, the fourth of four self-hosting milestones, and the
+Minted 2026-08-25, the fourth of four self-hosting milestones, and the
 nearer-term alternative to [milestone 173](173-rustc-cargo-self-host.md)'s full local self-hosting.
 Named explicitly during the same research that sized 173: "daily driver" does not have to mean
 100% local compilation, and this path reaches it without either
 [milestone 172](172-capability-native-subprocess.md)'s new primitive or an LLVM port.
 
-**Gate: MILESTONE 171.** [Milestone 171](171-git-core-userspace.md)'s git core is the structural
+[Milestone 171](171-git-core-userspace.md)'s git core is the structural
 precondition: there has to be something to commit and send before a remote-build protocol matters.
 [Milestone 169](169-kilo-editor.md)/[170](170-nano-editor.md)'s editor work is not a hard gate the
 same way, since a first cut of this milestone could in principle pair with an editor running

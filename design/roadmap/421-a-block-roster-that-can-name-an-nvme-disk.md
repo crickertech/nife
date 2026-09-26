@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: a-block-roster-that-can-name-an-nvme-disk
+milestone_dependencies: none
+decision_dependencies: 193
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 421. The block roster cannot name an NVMe disk, and the reason it could not has just gone away
 
-**Status: NOT-STARTED.** Promoted from the proposal `a-block-roster-that-can-name-an-nvme-disk`,
+Promoted from the proposal `a-block-roster-that-can-name-an-nvme-disk`,
 filed 2026-09-17 by the milestone 261 lane (the EL0 NVMe server), which closed the question this was
 waiting on and deliberately did not take the work, because the work is a wire shape and that is the
 expensive category. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §193.** calef, 2026-09-19, correcting the token this block carried on promotion. The
+calef, 2026-09-19, correcting the token this block carried on promotion. The
 hardware is not the constraint and never was: QEMU's NVMe is attached on every leg of all three
 runners already (`NIFE_NVME`), and the surveyor's two clients run there today. What stops a lane is
 §193 (what a block-roster entry calls an NVMe disk, and whether it carries more than virtio does), written up on 2026-09-19 when calef asked

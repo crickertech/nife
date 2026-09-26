@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-08-31
+---
 # 204. A pushed lane branch with no draft pull request is a claim nobody can see
 
-**Status: BUILT** (2026-08-31). Minted 2026-08-31 by calef, after two lanes in one session pushed
+Built (2026-08-31). Minted 2026-08-31 by calef, after two lanes in one session pushed
 their branches and never opened the draft pull request their briefs named as the first act. *(Number
 provisional until the merge queue lands it.)*
 
@@ -125,8 +130,6 @@ missing claim.
   request has nowhere to be told.
 
 ## Index row
-
-**Built:** 2026-08-31
 
 Minted by calef on 2026-08-31, after two lanes in one session pushed `milestone/*` branches and
 never opened the draft pull request their briefs named as the first act. §90 says the draft **is**

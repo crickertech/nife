@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 286. One enumeration of the checks that gate a pull request
 
-**Status: BUILT 2026-09-13.** Minted 2026-09-13 by calef, from a maintainer review of the two
+Minted 2026-09-13 by calef, from a maintainer review of the two
 places the gating set was written down. *(Number provisional until the merge queue lands it.)*
 
 `script/gates` is retired. `script/ci-build` carries one table of every check a pull request must
@@ -165,8 +170,6 @@ now records that it asserted the opposite for a month.
   carried it, and it had moved to the roadmap index, since retired. Corrected in place.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Minted 2026-09-13 by calef. The gating set was written down twice, in `script/gates` and in `.github/workflows/ci.yml`, with nothing comparing them; `ci.yml` carried three prose comments
 explaining why a check was not in the other list. Six places described the local set and four were

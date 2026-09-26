@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-23
+promoted_from: two-core-bench-is-a-different-instrument
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 585. Two cores is not a different number for the x86_64 bench, it is a different instrument
 
-**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+*(Number minted at promotion.)* Promoted from the proposal
 `two-core-bench-is-a-different-instrument`, filed 2026-09-23, on calef's instruction of 2026-09-24
 to promote the proposals. The text below is the proposal's own, unedited except for this paragraph
 and the `## Index row` section: the argument is its author's and promotion is not the moment to
@@ -9,7 +19,7 @@ failure on milestone 315 (a port revoke that reaches every core). The evidence i
 `notes/benchmarks/x86-instruments.md`, the 2026-09-23 section; this block is the work that evidence
 leaves behind.
 
-**Gate: NONE.** No syscall surface, no dependency, no hardware.
+No syscall surface, no dependency, no hardware.
 
 ## What happened
 

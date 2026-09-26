@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-19
+---
 # 223. Read a card and say whether its kernel and archive match, before the power cycle
 
-**Status: BUILT.** 2026-09-19, on `milestone/223-card-check-before-boot`. Minted 2026-09-02 by the
+Built 2026-09-19, on `milestone/223-card-check-before-boot`. Minted 2026-09-02 by the
 maintainer, from the lane for milestone 218 (every boot of the VisionFive 2 needs a human typing
 four commands into U-Boot), which named it while closing milestone 217 (the card carries a kernel and an
 archive from different builds). *(Number provisional until the merge queue lands it.)*
@@ -123,8 +128,6 @@ the pair is *made* rather than copied:
 - **Names are provisional**: `sealed_pair`, `cargo xtask card-check`, `script/card-check`.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 `script/card-check <mounted card>` answers the board's own question on the host: it hashes every
 archive entry the kernel may enter and looks for that digest in the kernel image's compiled-in trust

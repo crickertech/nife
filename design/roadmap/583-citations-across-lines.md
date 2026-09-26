@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-24
+built: 2026-09-24
+---
 # 583. `script/citations` could not see a citation a line break split, or a lettered milestone
 
-**Status: BUILT, 2026-09-24.** The number is **provisional**: the integrator mints it at merge. `main`'s highest was 580 when this branch was cut, with 581 and 582 claimed by open pull requests.
+Built, 2026-09-24. The number is **provisional**: the integrator mints it at merge. `main`'s highest was 580 when this branch was cut, with 581 and 582 claimed by open pull requests.
 
 ## The defect, which is the worst shape a gate has
 
@@ -61,7 +66,5 @@ Eighteen sites needed a correction, three were correct path citations the backti
 - **Recorded.** The letter-insensitive gloss key, the two-newline limit, and the wider pre-filter are in this block's `BUGS` section, beside the gate they constrain.
 
 ## Index row
-
-**Built:** 2026-09-24
 
 `script/citations` stopped seeing a citation whenever a paragraph reflowed the line break between the number and its `(`, and never saw a lettered milestone at all, because the candidate pre-filter's pattern had no letter in it. Both failures were silent: the gate stayed green while its coverage dropped, which cost three lanes a CI round trip each in one week and left `design/decisions/26-fault-endpoint.md` unscanned for its whole life. The scanner now reads across one line break, the pre-filter accepts a line that ends in a citation and a lettered number, a closing `**` no longer hides the `(` behind it, a lettered record with a file of its own is glossed against that file, and a backticked path is recognised as a path. Ninety-one citations became visible, twenty-one of them ungrounded and all twenty-one fixed. `script/citations --selftest` runs in `script/lint` ahead of `--check`, because a green check looks the same whether the scanner works or has quietly stopped seeing a shape.

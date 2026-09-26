@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-23
+promoted_from: the-census-blamed-a-pull-request-that-added-four
+---
 # 512. The census blamed one pull request for 55 survivors it did not write
 
-**Status: BUILT 2026-09-23.** *(Number provisional until the merge queue lands it.)* Promoted from
+*(Number provisional until the merge queue lands it.)* Promoted from
 the proposal `the-census-blamed-a-pull-request-that-added-four`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The paragraph below this one
 is the proposal's own, unedited: the argument is its author's and promotion was not the moment to
@@ -76,8 +82,6 @@ that says the date out loud.
   build.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 `design/fatal-risks.md` blamed milestone 319 (the crate that parses firmware)'s pull request for
 55 of `machine_discovery`'s survivors it did not write: 73 already existed, from `script/mutation

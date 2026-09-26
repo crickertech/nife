@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-20
+---
 # 447. A thread's vector registers are its own
 
-**Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, on calef opening **Route 2** of
+Built 2026-09-20. Minted 2026-09-20 by the maintainer, on calef opening **Route 2** of
 milestone 164 (x86_64 userspace can't build `aes`: no SSE, no scalar fallback), whose
 [block](164-x86-64-fs-server-aes.md) refused that route and priced it, after a conversation about
 why SSE is switched off. *(Number provisional until the merge queue lands it.)*
@@ -445,8 +450,6 @@ are measurements rather than arguments, and neither needs this decision made fir
   decoding seven major opcodes plus the compressed forms, to answer a question one retry answers.
 
 ## Index row
-
-**Built:** 2026-09-20
 
 Milestone 164's refused Route 2, reopened by calef. The kernel saved no FP or vector state anywhere,
 which is why every target in `targets/` is soft-float as **a correctness requirement** rather than a

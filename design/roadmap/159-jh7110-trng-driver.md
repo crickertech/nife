@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-23
+built: 2026-09-04
+---
 # 159. A real hardware entropy source: the JH7110's TRNG
 
-**Status: BUILT 2026-09-04.** Minted 2026-08-23, surfaced while investigating milestone 49's boot-wiring
+Minted 2026-08-23, surfaced while investigating milestone 49's boot-wiring
 fork (DECISIONS §120): the entropy service (milestone 56, `BUILT`) only has a virtio-rng backend,
 which exists in QEMU and not on the VisionFive 2 the tree already boots (milestone 16a). Checked
 before minting: the StarFive JH7110's TRNG is already named as the real-hardware candidate in two
@@ -481,8 +486,6 @@ is revisited with a real customer, the answer can be "real hardware entropy," no
 virtio-rng."
 
 ## Index row
-
-**Built:** 2026-09-04
 
 Surfaced while investigating milestone 49's boot-wiring fork (DECISIONS §120): the entropy service
 (milestone 56) only has a virtio-rng backend, which does not exist on real silicon. **A confined

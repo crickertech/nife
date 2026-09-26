@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 249, 448
+---
 # 477. A power-cycled boot series over radon's smart plug
 
-**Status: REFUSED.** Refused by
+Refused by
 milestone 249 (design/roadmap/249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md), and recorded
 there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a

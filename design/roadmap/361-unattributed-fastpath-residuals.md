@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-03
+superseded_by: 188
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 361. The riscv64 and x86_64 fastpath residuals are unattributed, so their baselines cannot be re-saved
 
-**Status: SUPERSEDED.** 2026-09-19, by milestone 188's phases 1 to 3, which re-measured and
+Superseded 2026-09-19, by milestone 188's phases 1 to 3, which re-measured and
 re-recorded all three baselines on 2026-09-04 (pull request #732). Filed as a proposal on
 2026-09-03 by the milestone 247 sweep, from milestone 237's block, and re-measured by the pull
 request #716 lane on 2026-09-04. Checked on 2026-09-19: the numbers this file is written against no
@@ -13,7 +23,7 @@ and 6639 this file asks to bisect. The bisect was never performed and cannot now
 against those numbers. What remains of the concern is the standing one milestone 237 owns, that a
 baseline can move with nobody attributing it, and 237's block is where it lives.
 
-**Gate: NONE.** The measurement runs on the dev machine under emulation, the tooling
+The measurement runs on the dev machine under emulation, the tooling
 (`script/fastpath-footprint`) exists, and bisecting a size delta needs no hardware and no decision.
 
 **In brief.** `script/fastpath-footprint` compares the IPC fastpath's code size against a stored

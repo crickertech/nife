@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-23
+promoted_from: a-port-revoke-that-reaches-every-core
+---
 # 315. A port revoke that reaches every core
 
-**Status: BUILT 2026-09-23.** Built by a lane on `milestone/315-port-revocation-two-core`. Promoted
+Built by a lane on `milestone/315-port-revocation-two-core`. Promoted
 from `design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md` by calef on 2026-09-17, the
 day milestone 313 (the security audit that was due since August) raised it as finding 4.
 *(Number provisional until the merge queue lands it.)*
@@ -144,8 +150,6 @@ been verified by hand and gated by nothing.
   more of the same evidence without being the dedicated measurement 412 asks for.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 `PortRange::REVOKE` cleared the capability table and the cached grants but reset the TSS I/O bitmap
 on the revoker's core only, which was the whole machine when DECISIONS §152 recorded it and stopped

@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-09-17
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: xenon (whether the walk finds its Micron drive is the question)
+needs_person: yes
+---
 # 320. Every PCI bus the machine has, not just bus zero
 
-**Status: PARTIAL 2026-09-17.** Built and gated under QEMU; **unconfirmed on xenon**, which is the
+Partial as of 2026-09-17. Built and gated under QEMU; **unconfirmed on xenon**, which is the
 machine it exists for and the one nobody can boot from a lane. Minted 2026-09-17 by the maintainer,
 from `design/roadmap/proposals/a-kernel-that-maps-one-pci-bus.md`, which this block replaces and
 which carries the full argument. *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** The walk was writable and testable without hardware and is built and gated under
+The walk was writable and testable without hardware and is built and gated under
 QEMU. What remains is a xenon boot: whether it finds the Micron is a question only that machine
 answers.
 

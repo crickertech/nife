@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 389. Getting nife hosts onto the tailnet, which mostly does not need nife
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal after calef asked whether a
+Filed 2026-09-05 as an unnumbered proposal after calef asked whether a
 milestone covered Tailscale; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **Premise re-read against the tree on 2026-09-19 and still true**: nothing in this repository
 implements or depends on `tailscale`, `wireguard`, `headscale`, `curve25519` or `chacha20`, and the
@@ -10,7 +19,7 @@ hazard, in `xtask/src/main.rs`, milestone 257's block, `notes/visionfive2.md` an
 resolver (milestone 384) and no TLS (milestone 387). *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: NONE.** The reason is the finding rather than a formality: the near-term answer needs no
+The reason is the finding rather than a formality: the near-term answer needs no
 nife work at all, so nothing here waits on anybody.
 
 ## This question came from the lab, which almost none of them do

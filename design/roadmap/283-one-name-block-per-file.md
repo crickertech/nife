@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 283. One provenance block per file, in the spelling the parse reads
 
-**Status: BUILT** 2026-09-13. Minted the same day by the maintainer, from being one message away
+Built 2026-09-13. Minted the same day by the maintainer, from being one message away
 from asking calef to ratify `serial_driver` a second time. He had ratified it on 2026-09-08.
 *(Number provisional until the merge queue lands it.)*
 
@@ -161,8 +166,6 @@ right reason.
   gate's own failure message.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Minted 2026-09-13 by the maintainer, one message from asking calef to ratify `serial_driver` a
 second time; he ratified it 2026-09-08, and `job_mix_task` 2026-09-05. A stale `Name: provisional`

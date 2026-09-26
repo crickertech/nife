@@ -1,9 +1,18 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Triage the crates the 2026-09-21 mutation census measured for the first time
 
-**Status: PROPOSED 2026-09-24.** Raised by the lane that condensed `notes/mutation-testing.md`
+Raised by the lane that condensed `notes/mutation-testing.md`
 (#1209), while recording the 2026-09-21 census, whose run no one had captured.
 
-**Gate: NONE.** The census is recorded in `notes/project-metrics/mutation-census.csv`, and the work
+The census is recorded in `notes/project-metrics/mutation-census.csv`, and the work
 is milestone 326 (nobody has been assigned to turn a mutation score upward)'s method applied to new
 crates.
 

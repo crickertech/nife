@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 248. A placement can only be drawn, never constructed, so the strongest finding on this machine rests on two boots
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from milestone 240's (the soak reports what
+Minted 2026-09-03 by calef, from milestone 240's (the soak reports what
 happened and not where, so an eightfold difference cannot be explained) handoff and the two censused
 boots that followed it. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Milestone 240 is merged and already knows where every worker is.
+Milestone 240 is merged and already knows where every worker is.
 
 **In brief.** On 2026-09-03 the soak on radon produced a **fifteenfold** throughput spread from one
 card and one build, and milestone 240's census explained it. The explanation makes a count the

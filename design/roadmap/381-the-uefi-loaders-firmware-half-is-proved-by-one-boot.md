@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 381. The UEFI loader's firmware half is proved by one boot and nothing else
 
-**Status: NOT-STARTED.** Filed 2026-09-04 as an unnumbered proposal by the
+Filed 2026-09-04 as an unnumbered proposal by the
 `maintainer/uefi-loader-mutants` lane, from that crate's own mutation score; numbered 2026-09-19 by
 milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and
 still true**: `uefi_loader/src/main.rs` is still 790 lines, `.cargo/mutants.toml` still names it in
@@ -9,7 +18,7 @@ the exclusion list with the `required-features = ["uefi"]` reason beside it, and
 all still in that one file with nothing on the host executing a line of them.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Lifting pure logic out of a binary into the library beside it is the move this crate
+Lifting pure logic out of a binary into the library beside it is the move this crate
 already made once, so nothing here is owed to calef; what the work owes is a measurement first, and
 it is allowed to come back saying no. Found by the `maintainer/uefi-loader-mutants` lane while making
 that crate's published score honest.

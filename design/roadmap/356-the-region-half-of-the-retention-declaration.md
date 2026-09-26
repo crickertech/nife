@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 356. Retention declares the thread capability and says nothing about the region
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the
+Filed as a proposal on 2026-09-03 by the
 `maintainer/spawn-retention-field` lane, while building DECISIONS §142's answer; promoted by
 milestone 433 on 2026-09-19. Premise checked against the tree that day and unchanged:
 `crates/supervision_protocol/src/lib.rs` still declares `Retention` with exactly two variants
@@ -9,7 +18,7 @@ milestone 433 on 2026-09-19. Premise checked against the tree that day and uncha
 DECIDED since 2026-09-03 with nothing added about the region. The three spawn paths this file names
 as disagreeing still disagree.
 
-**Gate: DECISION.** What a spawner keeps of a child's *region* is a convention with the same shape
+What a spawner keeps of a child's *region* is a convention with the same shape
 as §142's, and §40 (there is no reaper of last resort) already records the open question this would
 answer. It is calef's call whether the declaration widens, and it should not widen on a lane's
 initiative: the field is read by every spawn path in the tree.

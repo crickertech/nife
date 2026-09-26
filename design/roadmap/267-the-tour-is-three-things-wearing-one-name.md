@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-09
+built: 2026-09-13
+---
 # 267. The milestone tour is three things wearing one name, and only one of them belongs in the kernel
 
-**Status: BUILT** 2026-09-13. Minted 2026-09-09 by calef, from one question: *"Does the milestone
+Built 2026-09-13. Minted 2026-09-09 by calef, from one question: *"Does the milestone
 tour need to be part of the build at all? Can the milestone tour just be a userspace program that we
 run if we want the milestone tour?"* Built on `milestone/267-tour-split`. The split, the remainder
 list and the measurement are below and all three stand.
@@ -301,8 +306,6 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   BUGS section above and beside the code in `kernel/src/main.rs`.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 calef, 2026-09-09. The machine description is diagnostics and must always print, xenon proved that
 with no serial console; the narrative is a demo that could be a program; the remainder needs

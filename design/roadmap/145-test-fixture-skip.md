@@ -1,8 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 145. A test that needs hardware the boot doesn't have can say so
 
-**Status: NOT-STARTED.**
-
-**Gate: NONE.** Minted provisionally by calef on 2026-08-21, during milestone 16a's bench session;
+Minted provisionally by calef on 2026-08-21, during milestone 16a's bench session;
 the integrator should confirm the number at merge.
 
 ## What this is

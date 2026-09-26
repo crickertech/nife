@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: an-x86-64-input-driver-that-never-lets-the-core-idle
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 505. An x86_64 input driver that never lets the core idle
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `an-x86-64-input-driver-that-never-lets-the-core-idle`, filed 2026-09-19, on calef's
 instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the
 proposal's own, unedited except for this paragraph: the argument is its author's and promotion is
@@ -8,7 +18,7 @@ not the moment to improve it. Found by milestone 182 (x86_64's own interactive-b
 x86_64 leg. Milestone 299 recorded x86_64's polling input driver as a latency and CPU limitation;
 this is the measurement that says it is more than that.
 
-**Gate: NONE.** As far as the lane could see, nothing gates it. The `Irq` capability, `irq_wait`/`irq_ack` and the
+As far as the lane could see, nothing gates it. The `Irq` capability, `irq_wait`/`irq_ack` and the
 input driver's interrupt-driven arm all exist on aarch64 and riscv64, and milestone 299's follow-on
 names what x86_64 lacks: delivering a device line (COM1's legacy IRQ 4, through the IO APIC) to a
 userspace waiter, where today the kernel delivers only self-directed vectors to a driver. If that

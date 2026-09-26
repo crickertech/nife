@@ -1,15 +1,18 @@
+---
+status: BUILT
+raised: 2026-09-24
+built: 2026-09-26
+promoted_from: the-roadmap-blocks-get-frontmatter-too
+---
 # 596. The roadmap blocks get frontmatter too
 
-**Status: IN-PROGRESS.** On `milestone/596-roadmap-frontmatter`, promoted from the proposal
+Promoted from the proposal
 `the-roadmap-blocks-get-frontmatter-too` on calef's ruling of 2026-09-26 (UTC): *"Roadmaps should
 shift from bolder sections to front matter. We did a trial and it seems to be working. So let's
 roll it out."* The trial is milestone 582 (a decision's status becomes a field, and the index
 becomes generated). The number is provisional; 595 was the highest claimed when this lane cut its
-branch, and the integrator mints it at merge. This is the last block written in the old form.
-
-**Gate: DECISION.** The schema is an architect's call, because key names are a format several
-scripts agree on. Phase 1 below counts what the migration faces and proposes the schema; nothing
-migrates until it is answered.
+branch, and the integrator mints it at merge. It was the last block written in the old form, and
+the switch it built converted it with the rest.
 
 ## What the proposal said, kept
 
@@ -72,7 +75,7 @@ tree), and three that read old revisions, `script/catch-up`, `script/citations -
 nothing. The three history readers must keep their prose parser permanently, because the blobs they
 read predate the flip. `script/catch-up` already does exactly this for decisions since 582.
 
-## The proposed schema
+## The schema, as proposed and then ratified
 
 Flat `key: value` lines, as 582's parser requires: no nesting, and a list is one comma-separated
 value. Keys snake_case, values uppercase where they are a vocabulary, dates UTC.
@@ -137,28 +140,24 @@ out of the working tree, and #1311 was not counting them. Without #1311's exempt
 figure would be 10,846. Most of what remains exempt is the 1,535 `## Follow-on` and `## Revisit`
 tags, which this schema leaves as prose.
 
-## Decisions owed to an architect
+## The decisions, as calef ruled them
 
-1. **Ruled.** calef, 2026-09-26 (UTC): *"Do the dependency fields now."* The block carries the five
-   dependency fields of §207 (the roadmap is a graph) as keys, and `Gate:` retires with no interim
-   `gate` key.
-2. Ratify the key names in the table, including the snake_case forms of §207's labels?
-3. Bare `DECISION` names no section in 41 blocks. May `decision_dependencies` say `unwritten`, listed
-   by a worklist mode? Recommended: yes. Writing 41 sections is not this milestone.
-4. Is `raised` required on every block, dated as 582 dated sections? Recommended: yes. It costs
-   tracing 87 blocks into `design/roadmap.md` history.
-5. A `branch` key for `IN-PROGRESS`, though 582 refused one? Recommended: yes, for the reason above.
-6. Do proposals take the same frontmatter, with `status: PROPOSED`? Recommended: yes, so promotion
-   is a `git mv` and two key edits.
-7. Is `refused_by` a list copied from today's regex? Recommended: yes. The phase 1 recommendation
-   that `superseded_by` be one number, as 582's is, was wrong, and reading the ten showed it. Four
-   name several milestones (577 names three), and milestone 350 (the comment ratio AGENTS.md quotes
-   is wrong) was answered by a decision, §177 (whether AGENTS.md quotes measured numbers at all). So
-   it is a list, and a `§N` is legal in it.
+Seven were owed. calef answered the first on 2026-09-26 (UTC), *"Do the dependency fields now"*:
+the block carries the five dependency fields of §207 (the roadmap is a graph) as keys, and `Gate:`
+retires with no interim key. He answered the other six the same day, *"Yes to all"*:
 
-Questions 2 to 7 are built provisionally on the recommendations above, with every key name in one
-table (`KEY` in `helpers/roadmap_block.py`), so a ratified rename is one line. No block has been
-migrated, so a rename changes no file in the tree.
+- the key names in the schema table, snake_case forms of §207's labels included;
+- `decision_dependencies: unwritten` for the 41 blocks whose gate named no section;
+- `raised` on every block, from the block's own text, else git;
+- a `branch` key for `IN-PROGRESS`, though 582 refused one;
+- one format for proposals, with `status: PROPOSED`;
+- `superseded_by` and `refused_by` as lists that may name a `§N`.
+
+The last one corrected phase 1's recommendation that `superseded_by` be one number, as 582's is.
+Reading the ten showed four naming several milestones, and milestone 350 (the comment ratio
+AGENTS.md quotes is wrong) answered by a decision, §177 (whether AGENTS.md quotes measured numbers at
+all). Key names are not in `script/names`' scope, so the ratification is recorded here and in
+`helpers/roadmap_block.py`, where they are spelled.
 
 ## Steps 1 and 2: built
 
@@ -205,6 +204,27 @@ rows, every one a median, and raised no other column. The word count a prose-bud
 held to now leaves frontmatter out, as the main-body count already did. No exception in the tree
 moves today, because none sits on a file with frontmatter; after the switch, milestone 139 (drive
 down unsafe) and milestone 47 (navigation and naming) are the two it keeps under their grants.
+
+## Step 3: the switch
+
+One commit ran `script/roadmap --migrate` over 584 blocks and 18 proposals and turned on the refusal
+of the old form, with `notes/roadmap.md`, both READMEs and case 8 of `briefs/rebase-onto-main.md`
+rewritten to match. It was enqueued when nothing ahead of it in the queue touched
+`design/roadmap/`. The bold touch rule #1311 added to the prose ratchet would otherwise have held
+every one of those blocks to 4 bold per 1,000 words, though nobody edited their prose. So a block
+whose only change is the switch is not touched, by the same `without_fields` comparison the rest of
+this uses. That was this lane's call, and it is reversible.
+
+## Follow-on
+
+- **Recorded.** `script/roadmap --unmodelled` lists the finished blocks with no dependency fields.
+  Their gates were cleared as their dependencies landed, and nothing in the block can recover them;
+  §207 left that backfill lazy, and this milestone did not do it.
+- **Recorded.** Bare `DECISION` became `decision_dependencies: unwritten` on 41 blocks, each a fork
+  nobody has written up. The limitation is recorded in `notes/roadmap.md`.
+- **Recorded.** `helpers/roadmap_migrate.py` holds the hand-read tables, and a block that gains a
+  `HARDWARE` gate or a `SUPERSEDED` status on a branch after 2026-09-26 is refused by name. Its
+  `BUGS` section says so, and it goes away once no branch in flight predates the switch.
 
 ## Index row
 

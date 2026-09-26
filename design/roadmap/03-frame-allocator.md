@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-13
+---
 # 3. Hand out physical memory, and detect a smashed stack
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `ba47a27` (2026-07-13), written up in
 `097ef52` ("including the two hours it cost"), with the initrd reservation and the bitmap's
@@ -32,7 +35,5 @@ enforced in `e85802d` rather than merely written down.
   milestone 5 is where it stopped being a hypothesis.
 
 ## Index row
-
-**Built:** 2026-07-13
 
 where RAM actually comes from, and the allocator allocates itself first

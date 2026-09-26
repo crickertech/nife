@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-16
+---
 # 92. Security audits as a mechanism: cadence, docs, and findings that become milestones
 
-**Status: BUILT** 2026-08-16. `design/audit-reports/` exists with its index, its §75 provenance
+Built 2026-08-16. `design/audit-reports/` exists with its index, its §75 provenance
 line, and the disposition rule where an audit lane will read it; `script/audits` is the tripwire,
 computing overdue from §74's rules against counts it derives from the tree rather than from prose.
 Milestone 93 reuses all of it by adding one row per kind, which is why the thresholds live in the
@@ -79,8 +84,6 @@ proof of coverage, which is the same honest limit the cpu matrix records about f
   audit good. The lens list is a prompt, not a proof of coverage.
 
 ## Index row
-
-**Built:** 2026-08-16
 
 One audit happened and milestone 43 asks for a second; this is the machine that makes them
 routine. A recorded cadence with a drift-style overdue tripwire, a lens rotation, docs

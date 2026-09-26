@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-12
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 393. Four files each record which crates cannot compile for the host, and one of them derives it
 
-**Status: NOT-STARTED.** Filed 2026-09-12 as an unnumbered proposal from milestone 278's block,
+Filed 2026-09-12 as an unnumbered proposal from milestone 278's block,
 which touches all four lists and would have made it five; numbered 2026-09-19 by milestone 433's
 drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true, all
 four still present**: `script/lint` carries `--exclude user_mode_runtime` and its siblings by hand
@@ -11,7 +20,7 @@ in two clippy invocations (lines 41 and 120) *and* derives the same set for its 
 script/coverage's exclusions". One place derives it and the rest restate it, which is the whole
 block. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** `script/lint` already derives the set for its own check, so the hard half exists;
+`script/lint` already derives the set for its own check, so the hard half exists;
 what is missing is the other three consuming that derivation instead of restating it.
 
 **In brief.** A crate that reaches `crates/user_mode_runtime` cannot compile for the host, because `svc` and

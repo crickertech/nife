@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 525. A bad upgrade cannot brick the machine: two boot slots, tries and priority
 
-**Status: BUILT.** *(Number provisional until the merge queue lands it; 524 onward is contested
+*(Number provisional until the merge queue lands it; 524 onward is contested
 between branches in flight.)* Built 2026-09-21 by the lane `abboot/tries-and-priority`, on calef's
 ruling of the same day: *"Yes, write the tries and priority attributes in 2b."*
 
@@ -166,8 +171,6 @@ collected once here because a roadmap block is what somebody reads before decidi
   disk wipe, which is calef's hands rather than a lane's.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 An installed machine keeps two copies of its boot image and the state that chooses between them in
 GPT attribute bits the UEFI specification reserves to the owner of the partition type, which is why

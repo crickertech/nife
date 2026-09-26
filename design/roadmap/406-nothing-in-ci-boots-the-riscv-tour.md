@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: 186
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 406. Nothing on a pull request boots the riscv64 tour, so its userspace step is unasserted
 
-**Status: NOT-STARTED**, and **the title's claim is no longer true as written**, which is the first
+Not started, and **the title's claim is no longer true as written**, which is the first
 thing a reader needs. Filed 2026-09-14 as an unnumbered proposal by milestone 289's lane; numbered
 2026-09-19 by milestone 433's drain of the proposal pile, with the premise re-read the same day.
 **What closed, and it closed within hours of this being written**: `script/boot-check` was added by
@@ -21,7 +30,7 @@ milestone 286, its work now being `script/ci-build`'s table, which is where `boo
 `script/soak` is `script/soak-test` since milestone 297.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §186.** The decision is
+The decision is
 §186 (where a riscv64 tour-boot check runs, what it asserts, and what it is called), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. **That lane judged
 the gate and not the title**: the title's claim is false as written, the status paragraph above says

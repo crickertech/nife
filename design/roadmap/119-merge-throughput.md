@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-05
+built: 2026-08-16
+---
 # 119. The merge queue is the bottleneck, and the long pole is one prover
 
-**Status: BUILT** 2026-08-16. The after-median exists, which is this block's own definition of
+Built 2026-08-16. The after-median exists, which is this block's own definition of
 done, measured over eighteen queued landings rather than one sample: "land this" to merged fell
 from a **17.0-minute** median (n=29, before the queue) to **12.3** (n=17), merges per elapsed hour
 rose from 0.97 to 1.76, and red runs on `main` went from 2 of 120 to 0 of 30. The sharpest single
@@ -149,8 +154,6 @@ shape, which is why it is named here rather than deferred.
   lane.
 
 ## Index row
-
-**Built:** 2026-08-16
 
 Ten pull requests landing one at a time under the up-to-date rule, and a merge cycle is the Kani
 job plus noise: 28 to 36 minutes against six for the next slowest. Scoping is already pulled and

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 359. The proof-scope predicate runs the whole suite for changes that cannot reach a harness
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
 milestone 119's block; promoted by milestone 433 on 2026-09-19. Read against `script/verify` that
 day and the two open cases are both still open: the attribution loop still ends
 `needed.append((f, "not attributable to a crate; runs by default"))` with no classification for a
@@ -8,7 +17,7 @@ binary file, and the header still lists `Cargo.lock` among the paths it cannot a
 comment beside `cargo metadata` explaining that registry packages have no file a diff can name. The
 third blind spot stays fixed: `script/` and `scripts/` are both recognised, commented in place.
 
-**Gate: NONE.** The predicate is one Python block inside `script/verify`, it has no dependency on
+The predicate is one Python block inside `script/verify`, it has no dependency on
 any other milestone, and a change to it is exercised by the wiring it lives in.
 
 **In brief.** `script/verify --affected-since <base>` decides whether a pull request needs the Kani

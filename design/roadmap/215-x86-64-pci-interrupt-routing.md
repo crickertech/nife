@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-01
+---
 # 215. A PCI function's interrupt reaches nothing on x86_64, so no userspace driver can run there
 
-**Status: BUILT 2026-09-01.** Minted 2026-09-01 by milestone 164's lane, which built the disk
+Minted 2026-09-01 by milestone 164's lane, which built the disk
 wiring, ran it, watched it wedge, and reverted it.
 
 It was minted with no hardware gate, on the grounds that QEMU's `q35` reproduces all of it, and
@@ -194,8 +199,6 @@ arriving on a machine whose firmware turns it on.
   block the same day.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 A userspace driver now reads a file off a `virtio-blk-pci` disk on x86_64 and writes a block back,
 with the completion arriving as an **MSI-X** message the device writes straight to the local APIC. **MSI-X, and the INTx refusal is the valuable half**: reading ACPI's `_PRT` needs an AML

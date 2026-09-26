@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-14
+built: 2026-08-16
+---
 # 125. A number in the prose is a claim, and nothing re-derives it
 
-**Status: BUILT** (2026-08-16). Minted 2026-08-14 by calef, after asking whether the tree needed a
+Built (2026-08-16). Minted 2026-08-14 by calef, after asking whether the tree needed a
 milestone to audit its documentation for outdated content. It does not, quite: the audit is the wrong
 shape for the class of staleness that actually recurs, and this is the right one.
 
@@ -149,8 +154,6 @@ answers**, in the same words the prose uses.
   not edit that file. The workaround and the next tranche are both in that note.
 
 ## Index row
-
-**Built:** 2026-08-16
 
 Three claimed counts tested against the tree on 2026-08-14 and all three wrong: 23 shell scripts
 against 36, 107 harnesses against 110, and CLAUDE.md's 112 disagreeing with both. §39 says a name

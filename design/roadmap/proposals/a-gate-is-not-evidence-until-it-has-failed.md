@@ -1,6 +1,14 @@
+---
+status: PROPOSED
+raised: 2026-09-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A gate is not evidence until somebody has watched it fail
 
-**Status: PROPOSED 2026-09-23.**
 `a-gate-is-not-evidence-until-it-has-failed`: ratified 2026-09-23 (calef, reviewing
 `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md` on pull request #1166). **It may
 belong inside `design/roadmap/proposals/a-mechanism-reports-its-denominator.md` rather than standing
@@ -8,7 +16,7 @@ on its own**, since both come out of the same correction and the same fifth why.
 call, and ratifying the name does not settle it. Raised by `notes/corrections/2026-09-23-the-sweep-that-swept-nothing.md`, which asked
 whether the failing workflow was ever tested when it was deployed. It was not.
 
-**Gate: NONE.** No hardware, no other milestone, no decision owed.
+No hardware, no other milestone, no decision owed.
 
 ## The argument, which this tree has already made once
 

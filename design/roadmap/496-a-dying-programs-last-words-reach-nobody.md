@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: a-dying-programs-last-words-reach-nobody
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 496. A dying program's last words reach nobody
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-dying-programs-last-words-reach-nobody`, filed 2026-09-20, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
@@ -8,7 +18,7 @@ it. Written by the lane for milestone 442 (a crypto provider `rustls` can use on
 metal targets), which lost most of a day to this and then found that the thing it was chasing did
 not exist.
 
-**Gate: NONE.** Everything needed to reproduce it is in the tree.
+Everything needed to reproduce it is in the tree.
 
 ## The correction this file exists to record
 

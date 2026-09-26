@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-08-31
+---
 # 197. `user/` and `xtask` are out of reach of the prover, for exactly the reason the kernel was
 
-**Status: BUILT 2026-08-31**, the `user/` half; `xtask` is refused with an argument, and the timer
+Built 2026-08-31, the `user/` half; `xtask` is refused with an argument, and the timer
 seam below is untouched and still a fork. Minted 2026-08-30 from milestone 193's (put `kernel/src`
 within reach of the prover) lane. notes/user-proofs.md is the record. *(Number provisional until the
 merge queue lands it.)*
@@ -146,8 +151,6 @@ half of the same observation and is untouched.
   is a property proved over code that nothing runs.
 
 ## Index row
-
-**Built:** 2026-08-31
 
 The `user/` half is built (2026-08-31): `user` is in `script/verify`'s table, with the binaries
 carrying harnesses derived from the tree rather than listed, and two falsified properties over `printenv`'s bounded append cost 2.4 seconds. **The block's premise was half wrong and the lane

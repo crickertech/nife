@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-08-18
+---
 # 38. Filesystem throughput, and the comparison (DECISIONS §34, condition 2; extends 21/25)
 
-**Status: BUILT.** 2026-08-18, aarch64 under HVF. Four phases (sequential and random read and
+Built 2026-08-18, aarch64 under HVF. Four phases (sequential and random read and
 write) through the confined FS server, against ext4 on Linux at a matched virtualization tier and
 APFS on macOS natively, plus the raw virtio-blk floor both filesystems stand on. The instrument is
 `kernel/src/bench.rs`'s `fs_throughput` and `fs_test_client`'s throughput role; the comparisons are
@@ -32,7 +37,5 @@ designed, and it is a `BUGS` entry in notes/fs-server.md with the two shapes a f
   architecture adds, and the note carries the share it accounts for before and after 138.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 "primary filesystem" invites a comparison we cannot currently make

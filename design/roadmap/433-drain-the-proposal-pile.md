@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 433. Drain the proposal pile to zero, and keep it there
 
-**Status: BUILT** 2026-09-19, in one evening by four lanes. All 106 files are numbered milestones
+Built 2026-09-19, in one evening by four lanes. All 106 files are numbered milestones
 and `design/roadmap/proposals/` is empty.
 
 **Empty, not abolished, and the difference took a round trip to establish.** The maintainer read
@@ -330,8 +335,6 @@ done here.
   354 is about a mutant that never built, and 418 is about a constant `cargo mutants` cannot mutate.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 The `design/roadmap/proposals/` directory was a number-assignment queue, ratified 2026-09-03 on the
 argument that the collision is in the number rather than the authority. It reached 106 files and

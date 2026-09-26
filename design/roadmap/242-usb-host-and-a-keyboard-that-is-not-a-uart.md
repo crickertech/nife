@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 242. USB host and HID, because on commodity hardware the keyboard is not a UART
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from asking how nife reaches hardware that has
+Minted 2026-09-03 by calef, from asking how nife reaches hardware that has
 no serial port. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Nothing external blocks it. It is large, and it is currently hiding inside another
+Nothing external blocks it. It is large, and it is currently hiding inside another
 milestone's word.
 
 **In brief.** Milestone 192 (a keyboard on real silicon: the input half of every graphical story,

@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+promoted_from: a-program-that-makes-the-stick
+---
 # 441. The program that makes the stick: one download per host, a boot for every architecture
 
-**Status: BUILT.** 2026-09-19, on `milestone/the-program-that-makes-the-stick`. *(Number provisional
+Built 2026-09-19, on `milestone/the-program-that-makes-the-stick`. *(Number provisional
 until the merge queue lands it.)* Promoted from the proposal *A program that makes the stick*, which
 this block replaces and which was deleted in the same change; DECISIONS §157 cites that path,
 which is milestone 436's class and is left to it. **Built and proved under QEMU and on file-backed
@@ -109,8 +115,6 @@ much as for this. radon's RAM does contain the riscv64 kernel's `0x8020_0000`.
   names `stick_maker-<os>-<cpu>`, and `NIFE.TXT`.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 The first rung of §157's trivial install: `stick_maker`, one program per host with every
 architecture's boot file inside it, which finds removable disks by the removable-media bit (the

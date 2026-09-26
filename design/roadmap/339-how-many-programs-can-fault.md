@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 339. Count how many of the tree's programs can fault under a shell
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 235's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** No note in `notes/` carries the survey or a count, and nothing in the tree lists which
 programs have a reachable fault. The program count has moved since the proposal was written:
 milestone 291 split `fixtures/src/hello.rs`'s thirty-one roles into programs on 2026-09-14, so
 whoever takes this re-derives the denominator rather than quoting 68.
 
-**Gate: NONE.** Nothing is owed and nothing is missing. It is a survey of code already in the tree,
+Nothing is owed and nothing is missing. It is a survey of code already in the tree,
 and a lane could start it today.
 
 **In brief.** Milestone 235 fixed a shell that hangs forever when a spawned command traps. Nobody

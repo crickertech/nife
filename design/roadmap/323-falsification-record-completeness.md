@@ -1,10 +1,19 @@
+---
+status: PARTIAL
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 323. The falsification record is incomplete in five ways, and each was found by a different lane
 
-**Status: PARTIAL.** Minted 2026-09-18 by calef, promoting a cluster rather than its members:
+Minted 2026-09-18 by calef, promoting a cluster rather than its members:
 five proposals, written by five lanes between 2026-09-03 and 2026-09-17, are all about the same
 record. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It was `DECISION` on parts 4 and 5 when this block was minted. Both were reviewed
+It was `DECISION` on parts 4 and 5 when this block was minted. Both were reviewed
 with calef on 2026-09-18 and 2026-09-19, and **both turned out to be already answered by the tree**,
 which is the finding at the bottom of this block rather than a footnote to it. A lane can take every
 part today.

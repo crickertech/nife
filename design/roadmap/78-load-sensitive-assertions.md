@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-17
+---
 # 78. The load-sensitive assertions, and the three that measure the wrong thing
 
-**Status: BUILT** (2026-08-17). Raised 2026-08-03 after a day in which five distinct assertions
+Built (2026-08-17). Raised 2026-08-03 after a day in which five distinct assertions
 failed on pull requests that changed no executable code, two of them documentation only. Milestone 72
 fixed the one that was a real bug. What followed was a family rather than one problem, and it took
 five rounds and an instrument.
@@ -171,7 +176,6 @@ notes/load-sensitive-assertions.md; the status is PARTIAL, and the section below
 section. `script/icount` is the answer, notes/instruction-clock.md is its note, and the sixth round
 in notes/load-sensitive-assertions.md is the record of building it.)*
 
-
 The timer twins were rebuilt rather than widened, and the rebuild is the model this milestone asked
 for: both tests now assert the **law** directly, that over a window in which `MISSED_TICKS` did not
 move, the deadline advanced by exactly one interval per delivered tick. The deadline is read back
@@ -264,8 +268,6 @@ claims are. And the scope note's remaining sites are still unaudited, for the si
   principle.
 
 ## Index row
-
-**Built:** 2026-08-17
 
 **Seven** distinct failures in one day on PRs that changed no code, two of them documentation
 only, and one reproduces off CI. Three reported a NEGATIVE discrepancy, so they were not

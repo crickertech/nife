@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-07-28
+---
 # 28. A solid terminal: the line discipline as a component
-
-**Status: BUILT.**
 
 **In brief.** Line editing, history, ANSI in/out, control characters, and a written terminal contract, as a **swappable userspace component** between the input/console drivers and applications; Ctrl-C as a capability-routed interrupt to the foreground process, not a Unix signal. **Built, §21**: `line_editor` on both ISAs, a sans-IO engine (20 host tests), the contract in notes/terminal-contract.md, `shell_service` retired for userspace init; Ctrl-C routing **built** (two-tier, DECISIONS §24 amendment): a shared-flag cooperative tier and an `Untyped::DESTROY` forcible tier, shell-held, proven on both ISAs with `heeder`/`spinner`; the shell learns of `^C` through `line_editor`'s `OP_INTRCOUNT`
 
@@ -35,7 +38,5 @@ counter-design. **Effort: 1 lane** (measured: it took one).
   is 29's work.
 
 ## Index row
-
-**Built:** 2026-07-28
 
 a terminal with real behaviour, which 27's stdio semantics need

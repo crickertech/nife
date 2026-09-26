@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-08-03
+milestone_dependencies: 24
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 77. `crates/paging`: a module per ISA, a type per page-table configuration
 
-**Status: NOT-STARTED**, and deliberately **waiting for a trigger**. Split out of milestone 73 on
+Not started, and deliberately **waiting for a trigger**. Split out of milestone 73 on
 2026-08-03 once it stopped being a rename.
 
-**Gate: MILESTONE 24.** Deliberately waiting for a trigger rather than for a lane: the second
+Deliberately waiting for a trigger rather than for a lane: the second
 aarch64 page-table configuration is what names the axis, and the block refuses to guess between a
 granule change and a VA-width change. Milestone 24's Virtualization.framework board is the named
 candidate (Apple Silicon's 16 KiB granule); milestone 88's server shapes could supply it instead.

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-19
+---
 # 382. Three of AIM7's job categories are missing from the multi-tasking workload
 
-**Status: BUILT** 2026-09-19, by milestone 168's own lane, in a different session and on the same
+Built 2026-09-19, by milestone 168's own lane, in a different session and on the same
 day this block was numbered. Two of the three categories landed: the job mix gained **page mapping**
 and **process creation**, which are the two the argument below actually rested on. The third, the
 disk-file category, is deliberately still absent and has its own proposal; see `## Follow-on`.
@@ -67,8 +72,6 @@ stake is how much weight a flat curve can carry.
   Recorded in milestone 168's `BUGS`, where a reader meets the instrument.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 `crates/job_mix` keeps AIM7's four methodological properties and stands in for its categories with
 five jobs: a compute grind, a working-set walk, a null syscall, a yield burst and an IPC round trip.

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 349. Sample `compositor`'s five remaining full-screen sweeps under Miri
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 238's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds exactly.** `crates/compositor/src/lib.rs` still has six `for y in 0..SCREEN_H` full-screen
 sweeps (lines 888, 949, 1029, 1076, 1122 and 1141) and exactly one of them strides:
@@ -8,7 +17,7 @@ sweeps (lines 888, 949, 1029, 1076, 1122 and 1141) and exactly one of them strid
 The other five are untouched, and `.github/workflows/undefined-behavior-check.yml` still carries
 `timeout-minutes: 240`, so the budget is still a ceiling nobody has pushed against.
 
-**Gate: NONE.** The pattern already exists in four crates, the one worked example in `compositor`
+The pattern already exists in four crates, the one worked example in `compositor`
 itself is measured, and nothing external blocks it.
 
 **In brief.** `script/undefined-behavior-check` runs the test suite under Miri, which is roughly

@@ -1,13 +1,22 @@
+---
+status: PARTIAL
+raised: 2026-09-02
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: aarch64, riscv64 and x86_64 silicon
+specific_machine: none
+needs_person: yes
+---
 # 225. Run the soak on radon, argon and xenon, which is the only place its answer means anything
 
-**Status: PARTIAL** (2026-09-25). radon has run it, clean, for 8 h 09 m; argon and xenon have
+Partial as of (2026-09-25). radon has run it, clean, for 8 h 09 m; argon and xenon have
 not. `PARTIAL` rather than `BUILT` because the block names three machines and one is done. Minted
 2026-09-02 by the maintainer, carrying forward the follow-on that
 milestones 219 (the boot tour ends and the kernel halts, so there is nothing to soak) and 221 (the
 soak never crosses cores, so build the hook that makes it) both proposed. *(Number provisional until
 the merge queue lands it.)*
 
-**Gate: HARDWARE.** In milestone 53's sense: the boards are on the desk and this needs hands on
+In milestone 53's sense: the boards are on the desk and this needs hands on
 them. Nothing else blocks, and nothing more can be built for it.
 
 **In brief.** Fatal risk 5's entire premise is that the defects appear only on silicon, **and as of

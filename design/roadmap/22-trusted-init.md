@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-25
+built: 2026-08-04
+---
 # 22. Trusted init: verify it, and shrink what a broken one can do
-
-**Status: BUILT.**
 
 **In brief.** Measured/secure boot that checks init before running it; reduce init's authority so a compromise is bounded
 
@@ -127,7 +130,5 @@ that restart policy wants to be a rich userspace thing, not a kernel reflex).
   Proof buys safety, supervision buys availability, and init's failure mode is availability.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 closes the thesis's own soft spot: init is the privileged *unverified* component

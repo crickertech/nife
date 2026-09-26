@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-13
+---
 # 4. MMU on: page tables, the kernel heap, the high half
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). The one early milestone that landed as named
 steps rather than one commit, all on 2026-07-13:
@@ -30,7 +33,5 @@ whole host core, the finding CLAUDE.md still carries.
   hazard, phase or fork open.
 
 ## Index row
-
-**Built:** 2026-07-13
 
 virtual memory with W^X and a guard page; the heap milestone 14 later removed on purpose

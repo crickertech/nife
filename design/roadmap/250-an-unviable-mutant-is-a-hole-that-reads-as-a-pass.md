@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 250. An unviable mutant is a hole in the measurement that reads as a pass
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from milestone 246's (measured boot's refusal
+Minted 2026-09-03 by calef, from milestone 246's (measured boot's refusal
 path is tested by nothing, and one mutant turns it off) handoff. *(Number provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** `cargo mutants --list` already reports what this needs.
+`cargo mutants --list` already reports what this needs.
 
 **In brief.** Milestone 246 moved measured boot's refusal decision into `measured_boot::verdict` and
 tested it. Then it found something nobody was looking for: **`cargo mutants` had never mutated that

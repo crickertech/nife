@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 517. What fraction of survivor growth arrives on lines a pull request touched
 
-**Status: BUILT** 2026-09-21 (all dates UTC; the measurements ran through the evening of
+Built 2026-09-21 (all dates UTC; the measurements ran through the evening of
 2026-09-20 UTC and the block landed just after midnight). Minted provisionally by the maintainer after calef asked for the
 number milestone 438 (would a diff-scoped mutation check have caught the 55) named as his to ask
 rather than a lane's to answer. *(Number provisional until the merge queue lands it.)*
@@ -327,8 +332,6 @@ follow-on.
   an exclusion with a reason, or a recorded gap, and a count of survivors is not a count of defects.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 Milestone 438 ended at the measurement that refused a diff-scoped gate and named the one nobody had:
 what share of the mutation corpus's survivor growth arrives on lines a pull request touched. It is

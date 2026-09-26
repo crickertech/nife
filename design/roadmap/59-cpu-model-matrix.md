@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-01
+---
 # 59. The CPU-model matrix: stop testing against one generous emulator
 
-**Status: BUILT (2026-08-01).** `script/cpu-matrix` runs the riscv64 suite against `rv64`,
+Built (2026-08-01). `script/cpu-matrix` runs the riscv64 suite against `rv64`,
 `sifive-u54`, `rva22s64`, `rva23s64` and `thead-c906`; **211 tests pass on every one**, so the cheap
 experiment below came out the reassuring way and "we are already portable to the board's ISA" is now
 measured rather than predicted. `script/test` grew `--arch` and `--cpu`, both defaulting to today's
@@ -81,8 +86,6 @@ lands (~2026-08-21).
   is the absence of one class of failure rather than a portable kernel.
 
 ## Index row
-
-**Built:** 2026-08-01
 
 `-cpu rv64` enables nearly every ratified extension; the board is an RV64GC U74. `script/cpu-matrix` runs the riscv64 suite across five models and all 211 tests pass on every one,
 so we are already portable to the board's ISA. The ASID test written *for* the board is the gap no

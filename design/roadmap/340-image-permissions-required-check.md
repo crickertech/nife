@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 340. `script/image-permissions` reports and does not gate, because it is not in the ruleset
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 208's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `script/image-permissions` is a `local` row in `script/ci-build`'s table and has a job of
 its own in `.github/workflows/ci.yml`, and `notes/check-inventory.md`'s row for it still answers
 **no** under required. So it still reports and does not gate, and the one checkbox is still
 unflipped.
 
-**Gate: DECISION.** The decision is [§97](../decisions/97-advisory-checks.md), which this block
+The decision is [§97](../decisions/97-advisory-checks.md), which this block
 did not cite until 2026-09-19. It is one checkbox in the repository's merge queue ruleset, and only
 calef can flip it: it is a GitHub setting rather than a file in this tree, so no lane and no pull
 request can carry the change. There is nothing to build and nothing to review; the whole item is an

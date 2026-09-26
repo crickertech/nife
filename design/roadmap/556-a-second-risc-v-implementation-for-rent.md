@@ -1,8 +1,19 @@
+---
+status: SUPERSEDED
+raised: 2026-09-20
+promoted_from: a-second-risc-v-implementation-for-rent
+superseded_by: 89
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 556. A second RISC-V implementation, for €16 a month
 
-**Status: SUPERSEDED.** 2026-09-25, by milestone 89 (Scaleway EM-RV1: a second RISC-V implementation, rented), which made the same proposal on 2026-08-03 and now carries the port plan, after calef ruled to rent the machine (§215 (the second RISC-V machine is a rented Scaleway Elastic Metal RV1)). Nothing below was lost: the offer is re-read in §215, the port's distance is measured in milestone 89, and this block's two exits (a vendor blob, a 0% SLA) are milestone 89's BUGS and §215's open questions. *(This file was renumbered on 2026-09-22 from 527 to 556 because a concurrently merged lane had taken 527.)* Promoted from the proposal `a-second-risc-v-implementation-for-rent`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph.
+Superseded 2026-09-25, by milestone 89 (Scaleway EM-RV1: a second RISC-V implementation, rented), which made the same proposal on 2026-08-03 and now carries the port plan, after calef ruled to rent the machine (§215 (the second RISC-V machine is a rented Scaleway Elastic Metal RV1)). Nothing below was lost: the offer is re-read in §215, the port's distance is measured in milestone 89, and this block's two exits (a vendor blob, a 0% SLA) are milestone 89's BUGS and §215's open questions. *(This file was renumbered on 2026-09-22 from 527 to 556 because a concurrently merged lane had taken 527.)* Promoted from the proposal `a-second-risc-v-implementation-for-rent`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph.
 
-**Gate: NONE.** As filed: everything the port needs is in this tree, and the machine can be rented by the hour. Milestone 89's gate is HARDWARE.
+As filed: everything the port needs is in this tree, and the machine can be rented by the hour. Milestone 89's gate is HARDWARE.
 
 ## What is rentable
 

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 252. A `PARTIAL` block claims work is remaining and nobody re-reads it
 
-**Status: BUILT** on 2026-09-03. Minted the same evening milestone 247 shipped, by calef, after a
+Built on 2026-09-03. Minted the same evening milestone 247 shipped, by calef, after a
 `PARTIAL` block was found describing as remaining two things the tree had finished. Built the same
 day: all 22 `PARTIAL` blocks swept and answered, `Outstanding.` added to the vocabulary, and
 `script/roadmap --check` extended to refuse a `PARTIAL` block with no section.
@@ -142,8 +147,6 @@ That call is calef's, so the block says so rather than moving.
   vocabulary moved when the roadmap index was retired on 2026-09-21.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree
 disproved, and every one of the 22 blocks carried at least one**

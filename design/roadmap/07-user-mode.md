@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-14
+---
 # 7. User mode: EL0, capabilities, the ELF loader, and IPC
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). The densest citation target in the tree (79
 references when the backfill was written), and the one early milestone whose outcome is a
@@ -34,7 +37,5 @@ reserved it for; the capability table and address-space work it plausibly named 
   history rather than in the code.
 
 ## Index row
-
-**Built:** 2026-07-14
 
 the actual OS boundary, and the §10 decision made deliberately at the parked decision point

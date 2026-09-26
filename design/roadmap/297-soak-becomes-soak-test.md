@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+---
 # 297. `soak` becomes `soak-test`
 
-**Status: BUILT** 2026-09-14. *(Number provisional until the merge queue lands it.)*
+Built 2026-09-14. *(Number provisional until the merge queue lands it.)*
 
 **calef was shown `script/soak` for ratification and ruled `soak-test`.** The maintainer had
 recommended keeping `soak`, and this block records that argument because it was a real one and the
@@ -183,7 +188,5 @@ Those magnitudes are a Linux container under TCG and are not comparable with any
   landed yet, so it will cite a spelling that changed under it; noted for whoever lands it.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 calef was shown `script/soak` and ruled `soak-test`, against a maintainer recommendation to keep it; the losing argument is recorded on the script because it was a real one (`soak` is the field's term as a noun, it composed into `reboot_soak`, and the rename costs 52 feature-gate sites). Four domains moved together, each by its own rule: `script/soak-test`, `cargo xtask soak-test`, the features `soak_test` and `reboot_soak_test`, and the three console markers `soak-test:` / `soak-test-census:` / `soak-test-reboot:`, the last following calef's same-day ruling that a marker takes the spelling of the **command** a reader typed. `reboot_soak_test` because the head noun is `soak`. **The brief's premise about the captures was false and the correction is the useful half**: both pre-rename QEMU captures are unrepeatable in time rather than in hardware (one is pre-221 and carries the `crossings=21, wakes=0` tripwire; the other is one draw of the placement lottery), so they are left byte-identical and respelled at read time by one documented function, the parser keeps a single spelling unlike milestone 295's, and a **third capture was taken** under the new command so the live vocabulary is proved against a machine. Six names that spell the *workload* rather than the command were deliberately left (`soak_page`, `soaker`, `kernel/src/soak.rs`, `notes/soak.md`, `Stage::Soak`, `--soak`) and the seam is in `BUGS`.

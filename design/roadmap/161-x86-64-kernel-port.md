@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-23
+built: 2026-09-19
+---
 # 161. The x86_64 kernel port: bring up the HAL's third architecture
 
-**Status: BUILT 2026-09-19.** The four items the 2026-09-03 follow-on left open were closed by the
+The four items the 2026-09-03 follow-on left open were closed by the
 lane on `milestone/161-x86-64-port-remainder`; see "Closing the follow-on (2026-09-19)" below the
 follow-on list. What remains is recorded where a reader meets it rather than held here: the
 two-core runner default belongs to milestone 315 (DECISIONS §153), and whether to set `CR4.PGE`
@@ -88,7 +93,6 @@ the stress points, not the mechanism.
 Architectural parity (DECISIONS §19) reaching all three declared targets rather than two. Milestone
 25's `sel4bench` cross-OS comparison, once real x86 hardware (87) is behind it, gets a third
 comparison point.
-
 
 ## What was built (2026-08-23, plus steps 9 through 12 on 2026-08-24)
 
@@ -802,8 +806,6 @@ are closed, and DECISIONS §153 makes the flip milestone 315's closing step, aft
 broadcast makes `a_revoked_holder_faults_on_its_next_port_write` reliable at two cores.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Splits real work out of milestone 20's stale text: DECISIONS §19 declared x86_64 a target,
 milestone 20's own "Deliverable, in two parts" named it, but 20 is BUILT for the HAL split and

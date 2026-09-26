@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-25
+built: 2026-08-25
+---
 # 176. The x86_64 discovery seam's wide half: COM1's IRQ and a CMOS RTC
 
-**Status: BUILT.** Minted 2026-08-25, from milestone 161's own item 0, "the wide half is
+Minted 2026-08-25, from milestone 161's own item 0, "the wide half is
 still owed and should be its own milestone." Re-scoped fresh against the current tree rather than
 carried over from 161's own text, which turned out to describe a partly stale state. Piece 1 built
 the same day (below); piece 2 was sized, found to need a decision
@@ -81,7 +86,6 @@ client correctly refuses to reach the network without a nonce source, the same r
 
 Piece 1 is complete and independent of this.
 
-
 ## Follow-on
 
 - **Decision.** `design/decisions/121-port-io-capability.md` holds the question that decided piece
@@ -104,8 +108,6 @@ Piece 1 is complete and independent of this.
   the RNG among its devices, so the work is there rather than in two places.
 
 ## Index row
-
-**Built:** 2026-08-25
 
 Milestone 161's own item 0, re-scoped fresh: two of the four windows its text named (the interrupt
 controller, PCI) turned out to already be built, checked directly against the tree. **Piece 1

@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-25
+promoted_from: the-unreachable-kernel-claim-is-three-weeks-stale
+---
 # 536. Two records still say the prover cannot see `kernel/src`, and it has been able to since 2026-08-30
 
-**Status: BUILT.** Built 2026-09-25 (UTC) by the maintainer, under calef's ruling of that day
+Built 2026-09-25 (UTC) by the maintainer, under calef's ruling of that day
 recorded as §216 (fatal-risk facts are correctable, and verdicts are the architect's). Risk
 2's stale sentence and size are corrected in `design/fatal-risks.md`, its appendix
 `design/fatal-risks/proofs-and-their-reach.md`, and `notes/proof-retrospective.md`, each correction
@@ -86,8 +92,6 @@ verifier would extend the reach and found that it stops at the same boundary.
   and he ruled the same day to keep AMBER and reword the red half.
 
 ## Index row
-
-**Built:** 2026-09-25
 
 Risk 2 said `cargo kani` never compiles the kernel for three weeks after milestone 193 made it
 compile. The fatal-risks entry, its appendix and `notes/proof-retrospective.md` now state the reach

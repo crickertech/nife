@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-23
+---
 # 62. Tests that assert on time: make a red run mean something
 
-**Status: BUILT (2026-08-23).** Raised 2026-08-01, from evidence rather than from taste. The token
+Built (2026-08-23). Raised 2026-08-01, from evidence rather than from taste. The token
 read `NOT-STARTED` until 2026-08-17, by which point most of what this block asks for had been built
 **by other lanes**, chiefly milestone 78's four rounds and milestone 50's shell work, and nobody came
 back to this file. That is why it went PARTIAL rather than NOT-STARTED, and stayed PARTIAL rather
@@ -344,8 +349,6 @@ assertions) but how many are mechanical and how many need a rethink is not.
   unmeasured, so there was nothing left for the change to buy.
 
 ## Index row
-
-**Built:** 2026-08-23
 
 ~19 bounded spins (`for _ in 0..N { yield_now() }`) and wall-clock assertions flake under load.
 Four separate lanes and the integrator hit them on 2026-08-01; the CPU matrix multiplies the

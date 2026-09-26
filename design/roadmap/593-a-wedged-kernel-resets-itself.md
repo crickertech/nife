@@ -1,13 +1,23 @@
+---
+status: PARTIAL
+raised: 2026-09-25
+promoted_from: a-wedged-kernel-resets-itself
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: riscv64 and aarch64 silicon with a hardware watchdog
+specific_machine: none
+needs_person: yes
+---
 # 593. A wedged kernel resets itself, through a watchdog that does not need asking
 
-**Status: PARTIAL.** Promoted from the proposal `a-wedged-kernel-resets-itself` on 2026-09-25, and
+Promoted from the proposal `a-wedged-kernel-resets-itself` on 2026-09-25, and
 its first step built the same day on `milestone/593-a-wedged-kernel-resets-itself`. *(Number
 provisional until the merge queue lands it.)* The proposal was raised by the lane that brought
 milestone 249 (the boot lottery is sampled by a person walking to the board)'s reboot to all three
 architectures. That milestone resets a kernel that is working and chooses to. A kernel that has
 wedged cannot call `arch::reboot`, and a wedge is what the soak (milestones 219 and 225) looks for.
 
-**Gate: HARDWARE.** xenon's step is built and proven under QEMU; what is left needs a person at a
+xenon's step is built and proven under QEMU; what is left needs a person at a
 board. radon's and argon's steps have no QEMU model to prove them on, and argon also waits on its
 first nife boot.
 

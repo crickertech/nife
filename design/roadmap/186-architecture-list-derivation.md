@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-28
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 186. Derive the architecture list, and close what it does not reach
 
-**Status: PARTIAL 2026-09-23.** Seven of the sweep's eleven silent gaps closed, three were already
+Partial as of 2026-09-23. Seven of the sweep's eleven silent gaps closed, three were already
 closed by other lanes before this one looked (findings 3, 6 and 11, which is the reason this block
 now says to re-check a row before acting on it), one is milestone 187's, and one is left open with
 its reason below. Phase 1 and phase 2 are done; phase 3 has one item left. Minted 2026-08-28, on calef's question against the sweep in pull request
@@ -8,7 +17,7 @@ its reason below. Phase 1 and phase 2 are done; phase 3 has one item left. Minte
 sweep is `notes/architecture-list-sweep.md` and **it is this milestone's worklist**; this block
 says what "done" means and in what order, and does not restate the table.
 
-**Gate: NONE.** No design fork. The recommendation is argued and priced in the note, the tree
+No design fork. The recommendation is argued and priced in the note, the tree
 already holds every mechanism it proposes, and every part of it is reversible.
 
 ## The finding, in one paragraph
@@ -164,7 +173,6 @@ that does the wrong thing on an architecture is not something to schedule.
 Phase 1 is an hour. Phase 2 is a day, most of it in converting the four `case` blocks and checking
 that each caller still behaves. Phase 3 is unbounded on its own terms and bounded by this
 milestone's scope note: the widenings are small, and what they find is somebody else's lane.
-
 
 ## What was done, 2026-09-23
 

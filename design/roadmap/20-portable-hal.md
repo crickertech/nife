@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-30
+---
 # 20. A portable HAL, proven on a second architecture
 
-**Status: BUILT** for the HAL split and RISC-V, which is this milestone's actual scope per its own
+Built for the HAL split and RISC-V, which is this milestone's actual scope per its own
 title (**a second** architecture, singular). **The x86_64 half of the "Deliverable, in two parts"
 below was never tracked as open work and is split out to milestone 161** (the x86_64 kernel port:
 bring up the HAL's third architecture). Checked directly on 2026-08-23: `kernel/src/arch/` holds
@@ -75,8 +80,6 @@ precedent.
   syscall layer.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 the "portable verified core" claim, for the HAL split and RISC-V; x86_64 split out to milestone
 161

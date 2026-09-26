@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 405. The nine `INIT` roles, and the archive entry `spawn_hello` picks
 
-**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 291's lane, which
+Filed 2026-09-14 as an unnumbered proposal by milestone 291's lane, which
 split twenty-two of `fixtures/src/hello.rs`'s thirty-one roles into programs and stopped at these
 nine on purpose; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise
 re-read against the tree on 2026-09-19 and still true, to the constant**: `fixtures/src/hello.rs`
@@ -17,7 +26,7 @@ first: after the split the six parents are programs with their own names and the
 so the rename would be a naming decision spent on an interim.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** *(Cleared 2026-09-19 by milestone 268's own lane, because `script/roadmap` refuses
+*(Cleared 2026-09-19 by milestone 268's own lane, because `script/roadmap` refuses
 a gate on a BUILT milestone and 268 is now one. The reason it existed is kept: that lane was
 rebuilding the boot sequence on all three architectures while 291 ran, and the change proposed here
 is in `kernel::user::spawn_hello`. Two lanes in that function is the collision this tree already

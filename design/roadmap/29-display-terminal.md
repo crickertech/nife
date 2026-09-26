@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-07-30
+---
 # 29. A display terminal: framebuffer, virtio-gpu, and a foreign component
 
-**Status: BUILT.** Its font increment is **BLOCKED**: see below.
+Its font increment is **BLOCKED**: see below.
 
 **The font increment is blocked on the capability model, not on the font** (2026-08-19).
 `design/decisions/100-the-terminal-font.md` chose gohufont-14, which is 8x14, and calef chose to
@@ -92,7 +97,5 @@ a reach in the 24 spirit. **Effort: 2 lanes** (measured: first pixels, then glyp
   rebuilding the three-witness proof structure, not the rendering.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 the first pixels the demonstrator ever puts on a screen, and then the first letters

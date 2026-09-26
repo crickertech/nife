@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-12
+---
 # 277. Bound what one mutant may allocate, so a runaway kills the mutant and not the machine
 
-**Status: BUILT** (2026-09-12). Written by the milestone 247 sweep as a proposal on 2026-09-03, from
+Built (2026-09-12). Written by the milestone 247 sweep as a proposal on 2026-09-03, from
 milestone 238's block. **Promoted out of the proposal queue on 2026-09-11 by calef**, who asked for the
 oldest thing in the proposal queue: it was in the founding batch of 46 written the day the proposals
 mechanism was ratified, and it had sat eight days while the workflow it repairs failed every
@@ -141,8 +146,6 @@ header keeps saying so.
   proposal rather than fixed in a memory-bound lane.
 
 ## Index row
-
-**Built:** 2026-09-12
 
 Promoted from the proposal queue 2026-09-11 by calef, the oldest thing in it. One mutant goes 1.4
 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside a per-mutant timeout

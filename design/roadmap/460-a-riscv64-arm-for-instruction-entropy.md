@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 162, 448
+---
 # 460. A riscv64 arm for the CPU-instruction entropy source
 
-**Status: REFUSED.** Refused by milestone 162 (design/roadmap/162-cpu-instruction-entropy.md), and
+Refused by milestone 162 (design/roadmap/162-cpu-instruction-entropy.md), and
 recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

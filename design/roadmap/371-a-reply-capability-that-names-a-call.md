@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 371. A reply capability names a thread, so only a sweep keeps it from answering the wrong call
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 254 lane, out of the
+Filed as a proposal on 2026-09-04 by the milestone 254 lane, out of the
 hazard that milestone shipped a mitigation for rather than a fix; promoted by milestone 433 on
 2026-09-19. Read against the tree that day and unchanged: `kernel/src/cap.rs` still declares
 `Reply(crate::thread::ThreadId)` and `reply_cap` still mints it from a thread name alone, so
@@ -8,7 +17,7 @@ hazard that milestone shipped a mitigation for rather than a fix; promoted by mi
 property continues to be held by `strand_reply_caller`'s sweep, which is what this file says: the
 hazard is closed, and it is closed at rung two.
 
-**Gate: NONE.** No decision is owed. It changes `Object::Reply`'s payload, which is kernel-internal
+No decision is owed. It changes `Object::Reply`'s payload, which is kernel-internal
 (the capability is minted by the kernel, never forged and never delegated, so no wire format and no
 user program agrees on its shape), and it wants a lane that can also state the new invariant as a
 Kani property.

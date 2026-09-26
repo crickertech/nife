@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-17
+built: 2026-08-17
+---
 # 130. The copy that outlived its reason: one trap instruction, forty-eight sites
 
-**Status: BUILT** 2026-08-17, merged as #284. Raised the same day from a code-smell survey calef
+Built 2026-08-17, merged as #284. Raised the same day from a code-smell survey calef
 asked for. Two of the four findings were built; the other two were investigated and deliberately
 not built, and for those the investigation is the deliverable rather than a gap.
 
@@ -194,7 +199,6 @@ for, a grep found that **nothing consumes it except the check that enforces it**
 retire all of it except `milestone/N-` (the one prefix §90's roadmap-block check actually reads) is
 separate work.
 
-
 ## Follow-on
 
 - **Decision.** `design/decisions/94-what-may-live-in-a-library.md` is the section this block's
@@ -228,8 +232,6 @@ separate work.
   that `design/decisions/77-branch-prefixes.md` still describes the enforced allowlist as current.
 
 ## Index row
-
-**Built:** 2026-08-17
 
 A code-smell survey calef asked for, and the honest headline is that the tree is clean: eleven
 TODO-shaped markers across 155,000 lines and thirty-six `#[allow]`s against one lint table. Four

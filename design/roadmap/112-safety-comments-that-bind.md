@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-05
+---
 # 112. The SAFETY comments that bind nobody
 
-**Status: BUILT** 2026-08-05 (pull request #120, merge `4904cce0`). Raised 2026-08-04 by milestone
+Built 2026-08-05 (pull request #120, merge `4904cce0`). Raised 2026-08-04 by milestone
 82's lane, which set out to burn down `unsafe fn` violations, found **zero** of them, and reported this
 instead. Recorded in `notes/unsafe-obligations.md`'s BUGS. It is a change to the kernel's soundness
 surface, which is why 82 deliberately did not take it on a lint milestone. The status read
@@ -103,8 +108,6 @@ tree), not an assumption to start from.
   third of them. Converting a site moves it into that category rather than out of it.
 
 ## Index row
-
-**Built:** 2026-08-05
 
 Four safe fns discharge an obligation onto "the caller" that their signatures impose on no one, so
 both unsafe lints are satisfied and any safe code may call them. `riscv64::write_satp` is also an

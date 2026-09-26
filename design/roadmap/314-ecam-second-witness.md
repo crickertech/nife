@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 314. The x86_64 ECAM second witness stops reading as a defect on real hardware
 
-**Status: BUILT 2026-09-17.** Built by a lane on `milestone/314-ecam-second-witness`.
+Built by a lane on `milestone/314-ecam-second-witness`.
 *(Number provisional until the merge queue lands it.)*
 
 On 2026-09-17 xenon, a Dell OptiPlex 7050, booted nife for the first time and printed:
@@ -111,8 +116,6 @@ authority than it was entitled to.
   DECISIONS §43 for symmetry's sake, which is worse than the asymmetry.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 xenon's first boot printed `pcie ecam 0xf0000000, buses 0..=127 (mmu::PCI_ECAM_PHYS says
 0xb0000000)` and a maintainer carried it to calef as a defect. It was not one: `PCI_ECAM_PHYS` is a

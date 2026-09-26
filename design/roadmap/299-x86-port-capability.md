@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-15
+built: 2026-09-15
+---
 # 299. The x86 port-range capability: the serial console becomes a userspace driver
 
-**Status: BUILT.** 2026-09-15. Minted the same day by calef, who reversed DECISIONS §121 and ruled
+Built 2026-09-15. Minted the same day by calef, who reversed DECISIONS §121 and ruled
 option 1, the port-range capability, straight rather than sequencing through §149's kernel thread.
 *(Number provisional until the merge queue lands it.)*
 
@@ -117,8 +122,6 @@ architectures, no scope note.
   QEMU `q35`; the prompt and the shell banner are in the transcript above the hand-over line.
 
 ## Index row
-
-**Built:** 2026-09-15
 
 The x86 port-range capability. DECISIONS §121 was reversed 2026-09-15 once the serial console became
 the customer it had assumed away (a prompt on every architecture, headless x86 driven over serial).

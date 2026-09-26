@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-04
+---
 # 85. Mutation testing over the host crates
 
-**Status: BUILT** 2026-08-04 (PR #76). Raised 2026-08-03, same survey as 79.
+Built 2026-08-04 (PR #76). Raised 2026-08-03, same survey as 79.
 
 Everything below was done and is on `main`: `script/mutation`, a run of **5,551 mutants over 38 host
 crates** (92.4% of the viable ones killed), every one of the 391 survivors triaged with a ledger
@@ -31,8 +36,6 @@ new survivor deserves to fail something.
   `design/fatal-risks.md` risk 3 reading green on a number nothing was refreshing.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 Coverage reports what ran; cargo-mutants reports whether a test would notice a change, which is
 the claim the suite actually makes. A weekly, time-boxed job with a recorded baseline, not a PR

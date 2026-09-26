@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: the-documentation-sweep-the-worklist-already-ranks
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 427. The documentation sweep the worklist already ranks
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `the-documentation-sweep-the-worklist-already-ranks`, filed 2026-09-17 by milestone 311 alongside
 its security sibling; the same repaired tripwire reported both. *(Number provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** `script/audits --worklist` runs today and needs nothing built.
+`script/audits --worklist` runs today and needs nothing built.
 
 **Premise re-checked 2026-09-19: still due, more overdue, and the sibling is gone.**
 `script/audits --due` still names `documentation`, last swept 2026-08-17, now at +122 milestones

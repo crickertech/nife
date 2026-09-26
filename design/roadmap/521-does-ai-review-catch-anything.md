@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-22
+---
 # 521. Does an AI review of a pull request catch anything the gates and the maintainer do not
 
-**Status: BUILT.** Minted 2026-09-21 by calef, who asked for an experiment rather than an
+Minted 2026-09-21 by calef, who asked for an experiment rather than an
 opinion. *(Number provisional until the merge queue lands it.)*
 
 ## The question, stated so it can come back no
@@ -185,8 +190,6 @@ passed the defect and invented concerns on the clean one, in the same pair of ru
   the experiment would be the lane grading its own result.
 
 ## Index row
-
-**Built:** 2026-09-22
 
 An experiment rather than an opinion: whether an AI review catches defects the gates and the
 maintainer miss, scored against defects whose introducing commits are known, with the false-positive

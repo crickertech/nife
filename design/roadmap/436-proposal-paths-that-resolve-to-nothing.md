@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 436. Forty citations of a proposal path that now resolve to nothing
 
-**Status: NOT-STARTED.** Minted 2026-09-19 by milestone 434's lane, which found the citations while
+Minted 2026-09-19 by milestone 434's lane, which found the citations while
 retiring the token and deliberately did not fix them. **It minted this as 435 and the integrator
 renumbered it to 436 at merge**, because a concurrently-running maintainer session had minted 435 for
 a different sweep from a commit this lane's base predates. That is the collision the rule adopted the
@@ -9,7 +18,7 @@ the older number stands, so a block already collecting citations never renumbers
 `git mv` and four lines of `sed`, which is the measured answer to whether provisional numbering is
 affordable. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Every one of them is a path in a file already in this tree, and the hard half is
+Every one of them is a path in a file already in this tree, and the hard half is
 reading rather than deciding.
 
 ## What is broken

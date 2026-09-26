@@ -1,6 +1,16 @@
+---
+status: PARTIAL
+raised: 2026-09-25
+promoted_from: the-x86-64-progenitor-serves-entropy-from-rdseed
+milestone_dependencies: none
+decision_dependencies: 170, 171
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 595. The shell runs a `std` program, and `rg pattern` works at the prompt
 
-**Status: PARTIAL.** Minted 2026-09-25 by the maintainer's lane `maintainer/shell-runs-std`, from
+Minted 2026-09-25 by the maintainer's lane `maintainer/shell-runs-std`, from
 the gap #1314 recorded in `notes/foreign-program-arguments.md`'s `BUGS` section. *(Number and title
 provisional: the integrator mints the number at merge, and the title is a draft until an architect
 names it.)* The progenitor's `std` layout was built on 2026-09-26 by lane
@@ -8,7 +18,7 @@ names it.)* The progenitor's `std` layout was built on 2026-09-26 by lane
 `the-x86-64-progenitor-serves-entropy-from-rdseed` and built the same day by lane
 `milestone/595-x86-std`. See "What is built" below.
 
-**Gate: DECISION §170, DECISION §171.** Two open forks each stop a different step between a typed
+Two open forks each stop a different step between a typed
 line and a running `rg`, and both are calef's. A third, §219, was ruled on 2026-09-26. The sections
 below say which step each one stops.
 

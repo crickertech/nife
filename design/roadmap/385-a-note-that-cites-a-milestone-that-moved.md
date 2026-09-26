@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-05
+built: 2026-09-23
+---
 # 385. When a milestone's status flips, tell the lane which notes cite it
 
-**Status: BUILT 2026-09-23.** Filed 2026-09-05 as an unnumbered proposal, written after six "is there a
+Filed 2026-09-05 as an unnumbered proposal, written after six "is there a
 milestone for X" questions in one evening turned up four things wrong on `main` rather than four
 things missing; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read
 against the tree on 2026-09-19 and still true**: `script/citations` still takes `--check` and
@@ -218,8 +223,6 @@ milestone 433 (drain the proposal pile to zero, and keep it there) at 108 citing
   unbuilt too.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 Six "is there a milestone for X" questions in one evening turned up four things wrong on `main`
 rather than four things missing, all the same shape: prose that was true when written and went

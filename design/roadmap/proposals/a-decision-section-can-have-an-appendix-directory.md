@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-26
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A decision section can have an appendix directory
 
-**Status: PROPOSED 2026-09-26.** Raised by the `proposal/signed-builds` lane (#1325). It was writing
+Raised by the `proposal/signed-builds` lane (#1325). It was writing
 §220 (a vendor signs, a developer self-signs, and trusting a key is scoped) and had been told to put
 overflow in an appendix directory named after the section.
 
-**Gate: NONE.** A change to one regular expression in `script/decisions` and to what it treats as a
+A change to one regular expression in `script/decisions` and to what it treats as a
 decision file. It touches no syscall surface, wire format or dependency.
 
 ## The finding

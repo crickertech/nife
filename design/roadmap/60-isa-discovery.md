@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-03
+---
 # 60. ISA discovery: read the machine instead of assuming it
 
-**Status: BUILT, both ISAs.** The gap found while answering milestone 59's question was that
+Built, both ISAs. The gap found while answering milestone 59's question was that
 **nothing in the tree read the ISA**: no `riscv,isa`, no `riscv,isa-extensions`, no `mmu-type`, and
 on aarch64 only the one `ID_AA64MMFR0_EL1.PARange` field `TCR_EL1.IPS` needs. One `Isa` record per
 architecture now, in [`crates/machine_discovery`](../../crates/machine_discovery) with the kernel halves in
@@ -103,8 +108,6 @@ in 2019 and an older string simply does not list them. `m`, `a` and `c` are what
   and the rule is that the machine wins when the two disagree.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 one `Isa` record per ISA, built at boot, printed at boot, in `crates/machine_discovery`. RISC-V
 parses the device tree (there is no `CPUID`) and keeps its `satp.ASID` probe; aarch64 decodes `MIDR_EL1` and `ID_AA64MMFR*`, because ARM never removed the CPU's self-description. **Four call

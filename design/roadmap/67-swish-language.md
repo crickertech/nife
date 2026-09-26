@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-02
+built: 2026-08-04
+---
 # 67. `swish` the language: quoting, sequencing, and exit status
 
-**Status: BUILT.** Raised 2026-08-02 from measuring `swish` against a minimal POSIX shell; built
+Raised 2026-08-02 from measuring `swish` against a minimal POSIX shell; built
 2026-08-04 in three commits (`eca4da2f` quoting, `b20bfc3b` sequencing and exit status, `9155d647`
 the boot gate and the note), and the record did not catch up for twelve days. Closed 2026-08-16 on
 the tree's own evidence rather than on a report: `crates/grant_plan/src/word.rs`,
@@ -100,8 +105,6 @@ nearly all of it is proven in milliseconds without an emulator.
   look consistent to a consistency check.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 quoting was an authority gap rather than a convenience, and it closed: a name with a space can be
 granted, and a quoted pattern **narrows** to one name where a bare one designates a set. `;`, `&&`

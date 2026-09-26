@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 355. Four crates were lifted so loom could search them, and nothing checks that the callers still call it
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
 milestone 136's block; promoted by milestone 433 on 2026-09-19. The premise was checked against the
 tree that day and holds, with one correction the reader needs. `script/lint`'s caller pin names
 `crates/memory_regions` and nothing else, so four of the five loom-searched crates are still
@@ -9,7 +18,7 @@ below are the old ones: `steal_request` is `crates/work_steal_slot`, `wake_hands
 `crates/thread_wake_handshake`, `canary_gate` is `crates/memory_corruption_canary_gate`, and
 `clock_proto` is `crates/clock_protocol`. `script/interleaving-check` searches all five.
 
-**Gate: NONE.** Milestone 136 built the mechanism for one crate and it works, so the pattern to
+Milestone 136 built the mechanism for one crate and it works, so the pattern to
 copy is in the tree. The block declines to choose between copying it four times and generalising
 it, and that choice is a lane's to make and recommend, not calef's: it is reversible, it is
 internal to `script/lint`, and nothing outside this repository acts on it.

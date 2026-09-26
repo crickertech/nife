@@ -1,8 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: riscv64 silicon with a RISC-V IOMMU (v1.0 or later)
+specific_machine: none
+needs_person: no
+---
 # 143. Silicon IOMMU: carrying 16b's driver to a board that ships the ratified spec
 
-**Status: NOT-STARTED.**
-
-**Gate: HARDWARE.** The VisionFive 2 (JH7110, 2022-era silicon) predates the ratified RISC-V IOMMU
+The VisionFive 2 (JH7110, 2022-era silicon) predates the ratified RISC-V IOMMU
 specification (v1.0.1, ratified 2024) and has no IOMMU at all. This milestone is the carry-over step
 that 16b's block always recorded as "a hardware fact nobody can schedule."
 

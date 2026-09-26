@@ -1,10 +1,19 @@
+---
+status: PARTIAL
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: radon (the boot lottery being sampled is radon's)
+needs_person: yes
+---
 # 249. The boot lottery is sampled by a person walking to the board, so nine draws is a whole evening
 
-**Status: PARTIAL.** Minted 2026-09-03 by calef, who asked during the boot series whether the soak
+Minted 2026-09-03 by calef, who asked during the boot series whether the soak
 could reboot itself, and built the same day on `milestone/249-self-rebooting-soak`. *(Number
 provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** It is the second kind the roadmap README distinguishes: the board is here and
+It is the second kind the roadmap README distinguishes: the board is here and
 **this needs a person at it**. The mechanism, the escape and the reader are built and are green on
 what a host can gate; radon's first answer, from 2026-09-04, is recorded below. See *What was
 built, with the board powered off* below, and notes/soak.md's procedure, whose first four steps are the ones a lane cannot take.

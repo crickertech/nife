@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 238. Two scheduled checks have never once succeeded, and one of them is a fatal risk's refresh
 
-**Status: BUILT 2026-09-03.** Minted the same day by calef, from milestone 232's (audit every check
+Minted the same day by calef, from milestone 232's (audit every check
 against two questions: does anything run it, and does it block) findings, on the argument that
 fixing the mechanism beats rewording the risk it holds up. *(Number provisional until the merge
 queue lands it.)*
@@ -283,8 +288,6 @@ ship under a feedback loop that slow.
   scores, so the published number has two unexplained holes in it.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 four mutation runs, four failures, zero reports, while fatal risk 3 rests partly on the claim that
 the weekly workflow publishes one

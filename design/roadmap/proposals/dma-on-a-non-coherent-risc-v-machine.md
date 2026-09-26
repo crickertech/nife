@@ -1,9 +1,18 @@
+---
+status: PROPOSED
+raised: 2026-09-25
+milestone_dependencies: 89
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # DMA on a non-coherent RISC-V machine
 
-**Status: PROPOSED 2026-09-25.** Raised by the lane that measured milestone 89 (Scaleway EM-RV1: a
+Raised by the lane that measured milestone 89 (Scaleway EM-RV1: a
 second RISC-V implementation, rented)'s distance. Name provisional, this file's slug only.
 
-**Gate: MILESTONE 89.** Nothing can exercise it until nife boots on a TH1520, and no DMA driver is
+Nothing can exercise it until nife boots on a TH1520, and no DMA driver is
 needed for that machine's first light.
 
 ## What is true today

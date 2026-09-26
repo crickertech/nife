@@ -1,13 +1,23 @@
+---
+status: PARTIAL
+raised: 2026-09-24
+promoted_from: radons-reboot-dies-in-opensbis-pmic-write
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: radon (the fault is in radon's own OpenSBI and PMIC)
+needs_person: yes
+---
 # 592. radon's cold reboot dies in OpenSBI's PMIC write, and the kernel sets that write up
 
-**Status: PARTIAL.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal radons-reboot-dies-in-opensbis-pmic-write, filed 2026-09-24 by the lane that brought
 milestone 249 (the boot lottery is sampled by a person walking to the board)'s reboot to aarch64
 and `x86_64`. Option A was built on 2026-09-25 on `milestone/592-radon-pmic-bus`: before the
 rebooting soak's SBI SRST call, a JH7110 kernel ungates I2C5's clock and releases I2C5's reset.
 It is green on everything a host and QEMU can gate. It has not run on radon.
 
-**Gate: HARDWARE.** One bench boot of radon decides it, and the procedure below says what each
+One bench boot of radon decides it, and the procedure below says what each
 outcome means before it runs. Option C (new firmware) stays calef's call and is not touched here.
 
 ## What happens

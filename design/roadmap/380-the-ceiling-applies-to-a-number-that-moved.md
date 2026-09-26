@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-04
+---
 # 380. DECISIONS §144's ceiling names two terms and milestone 188 changed both
 
-**Status: BUILT 2026-09-04.** Filed as a proposal that day by the milestone 188 lane, and folded
+Filed as a proposal that day by the milestone 188 lane, and folded
 into the decision the same day by whoever held §144, which is exactly what it asked for and is why
 it was written as a proposal rather than as an edit. Promoted by milestone 433 on 2026-09-19, when
 `design/decisions/144-fastpath-footprint-ceiling.md` was read against it. That section now states
@@ -74,8 +79,6 @@ finding by accident.
   by a correction to what is being summed, and only calef raises it.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 DECISIONS §144 set a 16 KiB ceiling "on the sum of `ipc_fastpath` and `syscall_entry`" and milestone
 188 changed both terms the same day: the gate now reports two IPC shapes and keeps the worse of

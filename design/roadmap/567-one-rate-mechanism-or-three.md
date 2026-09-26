@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: one-rate-mechanism-or-three
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 567. One mechanism for the counter rate, or three
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `one-rate-mechanism-or-three` on 2026-09-22, filed 2026-09-21. Raised by the `cntfrq` lane, which built the riscv64 half and was
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `one-rate-mechanism-or-three` on 2026-09-22, filed 2026-09-21. Raised by the `cntfrq` lane, which built the riscv64 half and was
 told to price this rather than decide it.
 
-**Gate: DECISION.** The page's address is a fixed virtual address every process on an architecture
+The page's address is a fixed virtual address every process on an architecture
 would inherit, which puts it in *anything two programs agree on*.
 
 ## The state after the riscv64 work

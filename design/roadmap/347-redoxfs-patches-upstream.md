@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: yes
+---
 # 347. Offer the two RedoxFS patches upstream
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 32's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `patches/` still holds exactly `redoxfs-no-std-vec-import.patch` and
 `redoxfs-no-std-create-uuid.patch` beside its README, which still opens by saying each exists to be
@@ -8,7 +17,7 @@ upstreamed and still describes the submission route in the future tense (*"fork 
 gitlab.redox-os.org, `git am` this file on a branch, push, open the MR"*). No merge request is
 recorded anywhere in the tree.
 
-**Gate: DECISION, HARDWARE.** DECISION because a merge request is a fact that leaves the machine
+DECISION because a merge request is a fact that leaves the machine
 under this project's name, which AGENTS.md puts in the irreversible column. HARDWARE in its second
 sense, the one the roadmap README names: no board is involved, but a person with an account on
 gitlab.redox-os.org has to fork, push and open the request, and no lane can do that.

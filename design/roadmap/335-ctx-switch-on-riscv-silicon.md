@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: riscv64 silicon with an ASID-tagged TLB
+specific_machine: none
+needs_person: yes
+---
 # 335. The ctx_switch number on real RISC-V silicon
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 58's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `bench/baseline-riscv64.txt` still carries `ctx_switch 495050 5000` from QEMU and no
 radon run exists: none of `bench/radon-2026-09-04`, `bench/radon-2026-09-05` or
 `bench/radon-2026-09-16` has a `ctx_switch` row. `notes/riscv-tlb-shootdown.md` line 189 also still
 says the VisionFive 2 "has not arrived", which stopped being true on 2026-08-14.
 
-**Gate: HARDWARE.** Only a core with a genuinely ASID-tagged TLB can charge the right price, which
+Only a core with a genuinely ASID-tagged TLB can charge the right price, which
 means radon, the VisionFive 2, with a person at the bench rig. That has been the whole of it since
 2026-09-16 at the latest, and the second token came off on 2026-09-19.
 

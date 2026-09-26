@@ -1,8 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-07-30
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 34. GPU acceleration via virtio-gpu 3D (the display ladder's rung four)
 
-**Status: NOT-STARTED.**
-
-**Gate: NONE.** The block prices it as a mountain and says it reopens the parked competitor
+The block prices it as a mountain and says it reopens the parked competitor
 question; that question is decided, not merely open. [DECISIONS
 §131](../decisions/131-hold-at-rung-two.md) (calef, 2026-08-26): hold at the display ladder's rung
 two until something useful is built and proven on text mode. This is not an unresolved fork

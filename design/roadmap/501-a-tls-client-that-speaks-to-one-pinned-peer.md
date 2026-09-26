@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: a-tls-client-that-speaks-to-one-pinned-peer
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 501. A TLS client that speaks to one pinned peer
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-tls-client-that-speaks-to-one-pinned-peer`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
@@ -8,7 +18,7 @@ it. Written by the lane for milestone 442 (a crypto provider `rustls` can use on
 metal targets), which carried that block's clauses 1 and 2 and repriced this one out of it rather
 than leaving it unnamed.
 
-**Gate: DECISION.** Which provider the client is built on is calef's, stated under "The decision
+Which provider the client is built on is calef's, stated under "The decision
 this leaves" in 442's block. The handshake code is the same either way, so a lane could start
 against either and rewire; naming the gate is honest about the fact that it would be building on a
 crate nobody has agreed to take.

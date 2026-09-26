@@ -1,11 +1,22 @@
+---
+status: SUPERSEDED
+raised: 2026-09-18
+promoted_from: the-acpi-walk-is-reachable-and-unproved
+superseded_by: 319, 423
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 431. The ACPI walk is reachable by the prover for the first time, and proved by nothing
 
-**Status: SUPERSEDED.** 2026-09-19, by milestone 319 and milestone 423. Promoted from the proposal
+Superseded 2026-09-19, by milestone 319 and milestone 423. Promoted from the proposal
 `the-acpi-walk-is-reachable-and-unproved`, filed 2026-09-18, split out of milestone 304's
 `## Follow-on` because the proposal 304 was promoted from had been discharged and the work it
 carried had no home. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** A lane can start by reading the seam and proposing where it falls. Nothing has to
+A lane can start by reading the seam and proposing where it falls. Nothing has to
 build or boot first, and the decision it reaches is a lane's own: where to cut a proof boundary is
 reversible, and no wire format, name or syscall is on the other side of it.
 

@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 209. A session starts in a fit state, or says which part is not
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, after a day in which the machine slept twice and
+Minted 2026-08-31 by calef, after a day in which the machine slept twice and
 killed two lanes mid-response, the `launchd` watchers were found unloaded, and the toolchain link
 pointed into a worktree about to be pruned. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Every check it makes is a command that already exists; what is missing is anything
+Every check it makes is a command that already exists; what is missing is anything
 that runs them together and says which one is false.
 
 **In brief.** Several things must be true for work to proceed safely, and each is currently checked

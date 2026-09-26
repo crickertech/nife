@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-08-31
+---
 # 194. Build §134: the falsification record, its lint, and the sweep that replays it
 
-**Status: BUILT 2026-08-31.** Minted 2026-08-30. DECISIONS §134 (a harness carries a
+Minted 2026-08-30. DECISIONS §134 (a harness carries a
 machine-replayable falsification record, or it is not evidence) was decided the same day and had no
 tracked work, which is the state AGENTS.md says a finding may never be left in. All five increments
 landed: the record and its two-directional lint, `script/falsifications`, the weekly sweep, the
@@ -73,8 +78,6 @@ to a fraction, so it comes before any code.
   is worse than none because it certifies.
 
 ## Index row
-
-**Built:** 2026-08-31
 
 DECISIONS §134 was decided 2026-08-30 and had no tracked work, which is the state a finding may
 never be left in. All five increments landed 2026-08-31: the record and its two-directional lint, `script/falsifications`, the weekly sweep that applies each diff and requires red, the per-PR half

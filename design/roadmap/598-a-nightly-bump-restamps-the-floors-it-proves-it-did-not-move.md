@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-26
+built: 2026-09-26
+promoted_from: a-nightly-bump-restamps-the-floors-it-proves-it-did-not-move
+---
 # 598. A nightly bump restamps the icount floors when it proves it did not move them
 
-**Status: BUILT.** 2026-09-26. *(Number provisional: minted by the lane, to be confirmed at merge.)*
+Built 2026-09-26. *(Number provisional: minted by the lane, to be confirmed at merge.)*
 Promoted on 2026-09-26 from the proposal `a-nightly-bump-restamps-the-floors-it-proves-it-did-not-move`,
 which the lane `lane/bump-baselines` filed the same day on #1336 after being briefed to stop the
 daily toolchain bump needing a person. calef ruled on it the same day, and this lane built it.
@@ -158,8 +164,6 @@ below rather than tuned away.
   owns that.
 
 ## Index row
-
-**Built:** 2026-09-26
 
 The daily nightly bump carries the icount floors across by itself when an A/B of the two compilers
 on one runner proves no row moved 0.5% (2% cumulative). It rewrites only the stamp and never a

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-14
+built: 2026-07-15
+---
 # 11. Untyped memory, and the number that proves the kernel stops allocating
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). The one early milestone that was not in the
 first commit's plan: `491f23d` (2026-07-14) added it to the table as "§10's deferred axis. The
@@ -29,7 +32,5 @@ removing the kernel heap outright.
   in its closing line.
 
 ## Index row
-
-**Built:** 2026-07-15
 
 a process cannot make the kernel allocate, so it cannot exhaust it

@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 245. A soak cannot tell a flat run from a productive one, so its duration is guesswork
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from the duration question asked of the first
+Minted 2026-09-03 by calef, from the duration question asked of the first
 radon soaks and answered from the literature in notes/soak.md. *(Number provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** Milestone 240 (the soak reports what happened and not where, so an eightfold
+Milestone 240 (the soak reports what happened and not where, so an eightfold
 difference cannot be explained) built the placement instrument this would histogram, and it is
 merged.
 

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-18
+built: 2026-08-18
+---
 # 132. The fast path's footprint, and a gate so Mach's mistake cannot happen quietly
 
-**Status: BUILT** 2026-08-18. Raised the same day, from calef: *"We need a fast path footprint to
+Built 2026-08-18. Raised the same day, from calef: *"We need a fast path footprint to
 compete with our benchmarks. Then we need a means to monitor it over time so that we don't introduce
 Mach-scale performance issues on our benchmark hardware."* Both halves are the deliverable, and the
 second half is the one that lasts.
@@ -140,8 +145,6 @@ tens of cycles instead of a trip to DRAM, rather than not costing anything.
   call.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 Liedtke's actual finding is that Mach's IPC was slow because the hot path evicted the
 application's working set, so the user paid the miss after the syscall returned where no latency

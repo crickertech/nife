@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-15
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 129. Scheduled execution: a cron whose every entry is a grant
 
-**Status: PARTIAL.** Minted 2026-08-15 at calef's request, from the observation that the
+Minted 2026-08-15 at calef's request, from the observation that the
 customer path wants it: a backup server owes housekeeping on a schedule (snapshot thinning,
 scrub passes, log rotation) even though the Mac initiates the backups themselves. Nothing else
 on the roadmap runs anything on a schedule.
 
-**Gate: NONE.** It stays `NONE` rather than moving to `DECISION`, which is worth a sentence because
+It stays `NONE` rather than moving to `DECISION`, which is worth a sentence because
 the temptation was there. Every ingredient existed as predicted: §43's clock authority and
 `clock_protocol`, the spawn machinery and program manifests (milestone 31's grant expressions), and
 supervision (§40) for what happens when a scheduled child dies. No new syscall surface was needed.

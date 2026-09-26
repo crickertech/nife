@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-01
+---
 # 61. The caretakers: one verb table, and names that say what you get
 
-**Status: BUILT, both ISAs.** Three pieces, three commits, in the order below.
+Built, both ISAs. Three pieces, three commits, in the order below.
 
 **In brief.** The **rename** first, because these files were being touched anyway: `fwarden` ->
 `fs_file_caretaker`, `dwarden` -> `fs_subtree_caretaker`, `swarden` -> `fs_nameset_caretaker`,
@@ -295,8 +300,6 @@ work.
   the caretaker exists to attenuate.
 
 ## Index row
-
-**Built:** 2026-08-01
 
 **built, both ISAs.** The rename landed first (532 tokens, not four filenames); `fs_proto::verb`
 is one row per opcode and a verb with no row is a compile error; all three caretakers forward the

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: 185
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 404. Composing a process from two capabilities is proved for two verbs and no more
 
-**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 295's lane, while
+Filed 2026-09-14 as an unnumbered proposal by milestone 295's lane, while
 performing calef's ruling to retire `components/src/builder.rs`; numbered 2026-09-19 by milestone
 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**:
 `fixtures/src/address_space_witness.rs` still holds exactly two capabilities and still stops where
@@ -12,7 +21,7 @@ milestone 265. **The gate token was `DESIGN`, which is not in the roadmap's gate
 `DECISION`, which is what it meant, and the prose below is unchanged.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §185.** The decision is
+The decision is
 §185 (what carries the claim that userspace composes a process from an authority you can count on one hand),
 written up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. (This
 block's status paragraph already records one token correction, from `DESIGN`, which is not in the

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 83. A mechanical rule-1 lint
 
-**Status: BUILT.** Raised 2026-08-03, same survey as 79, which found the violation.
+Raised 2026-08-03, same survey as 79, which found the violation.
 
 CLAUDE.md's first rule, all architecture-specific code under `kernel/src/arch/`, is what makes the
 x86_64 port a new directory instead of a diff across every file, and it is enforced by discipline
@@ -30,8 +35,6 @@ while.
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 CLAUDE.md's first rule (architecture-specific code lives under `arch/`) is enforced by nothing,
 and one violation exists today: `user/tests.rs` reads `SPSel` by raw `asm!`. `script/lint` learns

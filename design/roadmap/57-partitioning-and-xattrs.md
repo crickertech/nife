@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-08-03
+---
 # 57. Partitioning and formatting a real drive, and extended attributes
-
-**Status: BUILT.**
 
 **In brief.** calef's router setup is `parted` then `mkfs.ext4` then three mounted partitions. Plus
 the xattr gap milestone 55 surfaced. **Nearly all of this is testable in QEMU against virtio-blk with
@@ -73,7 +76,6 @@ the same file, so "the file and its metadata land together" is decided rather th
 forwarding, so a program behind a per-file grant could not reach its file's attributes. **Milestone
 61 closed it**, and found the general defect underneath: nothing made a caretaker and the contract
 agree, so a whole contract addition reached none of them and nothing failed.
-
 
 - **Extend the on-disk format.** Correct, and atomic by construction since the metadata rides
   RedoxFS's own copy-on-write transaction. The cost is that §34 chose RedoxFS partly for being
@@ -286,7 +288,6 @@ same size:
 **Effort: not estimated.** The GPT crate turned out to be about one lane on the history-calibrated
 scale, and so did the block-device lane.
 
-
 ## Follow-on
 
 - **Milestone 61.** The caretakers (`fs_file_caretaker`, `fs_subtree_caretaker`,
@@ -346,8 +347,6 @@ scale, and so did the block-device lane.
   written before that landed.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 you cannot find a partition without reading the table, and all of it is testable in QEMU before
 the board lands. Built: the host recovery tool (`ls`/`cat`/`extract`/`xattr`), `crates/globally_unique_identifier_partition_table`, the **extended-attribute layer**, and (2026-08-03) **reading a real table on the target** plus **block-device enumeration**, which is a read-only roster page. What is left is the **write**

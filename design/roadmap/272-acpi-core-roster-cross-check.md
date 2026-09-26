@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 272. Give x86_64's core roster the independent re-read the other two architectures already have
 
-**Status: NOT-STARTED.** Minted 2026-09-10 by calef, from the live skip inventory.
+Minted 2026-09-10 by calef, from the live skip inventory.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Not a design fork. ACPI's MADT is already parsed to build the roster
+Not a design fork. ACPI's MADT is already parsed to build the roster
 (`kernel/src/arch/x86_64/machine.rs`); this adds a second, independent walk of the same table to
 check the first against, the same shape the other two architectures already have against their
 device tree.

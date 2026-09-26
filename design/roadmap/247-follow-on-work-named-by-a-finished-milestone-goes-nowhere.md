@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 247. Follow-on work named by a finished milestone goes nowhere, and this is the third time
 
-**Status: BUILT** on 2026-09-03. Minted the same day by calef, after milestone 244 named work that
+Built on 2026-09-03. Minted the same day by calef, after milestone 244 named work that
 would have been buried had he not asked for it by name. Landed as pull request #692: the
 `## Follow-on` section, its dispositions, the sweep of all 139 finished blocks, and
 `design/roadmap/proposals/`.
@@ -167,8 +172,6 @@ this milestone's own failure mode arriving through this milestone's own mechanis
   sweep's five proposed milestones.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it
 became a milestone

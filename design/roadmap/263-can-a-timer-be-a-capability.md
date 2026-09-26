@@ -1,11 +1,20 @@
+---
+status: RECORDED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 263. Can a userspace process hold a timer, on all three architectures?
 
-**Status: RECORDED.** Answered 2026-09-05, the day it was minted. Minted by calef as a spike under
+Answered 2026-09-05, the day it was minted. Minted by calef as a spike under
 his decision that a timed wait should be served by a userspace timer service rather than by a new
 kernel blocking primitive. Nothing was built and nothing is decided: the deliverable is
 `notes/timer-capability.md` and this block. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Reading three specifications and pricing one kernel addition. No hardware, no
+Reading three specifications and pricing one kernel addition. No hardware, no
 decision waiting.
 
 ## The answer

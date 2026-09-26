@@ -1,11 +1,14 @@
+---
+status: REMOVED
+raised: 2026-07-31
+---
 # 55. Time Machine: SMB3 with Apple's extensions, and mDNS
 
-**Status: REMOVED 2026-08-30.** The premise was retired the same day. calef decided to remove
+Removed 2026-08-30. The premise was retired the same day. calef decided to remove
 the SMB implementation: the customer this milestone existed for backs up with borg over SSH on
 cordoba, so journey 2 is retired and there is no Time Machine target to finish. The status word is
 the vocabulary's closest fit rather than the right one; there is no word for "retired", and minting
 one is calef's.
-
 
 **What is built and stays**: the **discovery half** (pull request #246, 2026-08-16), a responder
 program that binds UDP 5353 through a grant, announces `_smb._tcp`, `_adisk._tcp` and
@@ -26,7 +29,6 @@ work: `filesystem_proto`'s `STATFS`, `SYNC` and `RENAME`, and the block server's
 
 *Everything below this line is the block as it stood before the retirement, kept because it records
 decisions and measurements rather than plans.*
-
 
 **The `AAPL` create context and the Time Machine flag landed 2026-08-17** (pull request #292), which
 is the piece macOS refuses the share without. `crates/smb_proto` grew the create-context chain

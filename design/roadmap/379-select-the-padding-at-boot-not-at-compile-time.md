@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 379. Select E3's padding at boot rather than at compile time, so the experiment is one binary
 
-**Status: NOT-STARTED.** Named by calef on 2026-09-04 while planning the first E3 bench session, on
+Named by calef on 2026-09-04 while planning the first E3 bench session, on
 learning it wanted two cards and he has one; promoted by milestone 433 on 2026-09-19. Checked
 against the tree that day: `fastpath_pad` is still a Cargo feature (`kernel/Cargo.toml`) with no
 runtime selector anywhere, so E3's two arms are still two binaries. The session this was written to
 spare went ahead in the expensive shape on 2026-09-04, six card rewrites to interleave six boots,
 which is milestone 375, so the cost this names is now measured rather than predicted.
 
-**Gate: NONE.** The mechanism it would copy shipped the same week.
+The mechanism it would copy shipped the same week.
 
 **What the work is.** `fastpath_pad` is a Cargo feature, so E3's padded and un-padded arms are **two
 different kernels**. The comparison therefore rests on trusting that two builds differ only where

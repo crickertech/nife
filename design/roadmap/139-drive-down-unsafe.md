@@ -1,10 +1,19 @@
+---
+status: PARTIAL
+raised: 2026-08-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 139. Drive the unsafe count down, and cinch the ratchet behind it
 
-**Status: PARTIAL.** Minted 2026-08-18 by calef, immediately after folding the unsafe census into
+Minted 2026-08-18 by calef, immediately after folding the unsafe census into
 milestone 134: *"Can we also create a milestone to drive down the unsafe metrics and cinch up the
 ratchet?"*
 
-**Gate: NONE.** Milestone 134's instrument (the census and the ceiling relation in `script/lint`)
+Milestone 134's instrument (the census and the ceiling relation in `script/lint`)
 has existed and been live all along; this milestone spent it for its first real reduction below.
 
 <!-- prose-budget: exception. 13,846 words (wc -w, this marker included) against a 3,000-word

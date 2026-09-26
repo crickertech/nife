@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 388. An acronym sweep the tree can do at once
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 264, which asked
+Filed 2026-09-05 as an unnumbered proposal by milestone 264, which asked
 the acronym question of sixty names and deliberately answered none of them; numbered 2026-09-19 by
 milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19.** The
 table below is already history rather than a worklist, and says so: all four rows were ruled by
@@ -13,7 +22,7 @@ five names the 2026-09-05 rule deratified, three are still live crates carrying 
 recorded refusal apiece (`dtb`, `gpt`, `ipc`); `dma` and `asid` are no longer names
 `script/names` sees. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** calef names things, and this is a list of names. **The rule behind the gate is
+calef names things, and this is a list of names. **The rule behind the gate is
 [§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md)**, cited here from
 2026-09-19; the block argued from it throughout and never named it.
 

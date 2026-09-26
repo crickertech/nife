@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 386. A provenance token that agrees with its own prose
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 264, whose largest
+Filed 2026-09-05 as an unnumbered proposal by milestone 264, whose largest
 single finding was that a third of its worklist was this bug rather than missing research; numbered
 2026-09-19 by milestone 433's drain of the proposal pile. **The premise has decayed and the block is
 still real work, which is a distinction worth keeping.** The *instances* are gone: on 2026-09-05,
@@ -15,7 +24,7 @@ tool's four kinds (crate, program, script, package): `crates/documentation/src/r
 2026-08-18 and not put to calef`, which is the contradiction exactly, in a function-level block
 `script/names` does not read. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It reads the tree.
+It reads the tree.
 
 ## The bug it would have caught
 

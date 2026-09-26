@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: what-a-trusted-component-costs
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 537. What a trusted component costs, in the only currency that travels
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-a-trusted-component-costs`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about how cost per
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-a-trusted-component-costs`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about how cost per
 trusted component would be measured and to what accuracy.
 
-**Gate: NONE.** Everything it needs is already produced and thrown away.
+Everything it needs is already produced and thrown away.
 
 ## Why this is worth measuring at all
 

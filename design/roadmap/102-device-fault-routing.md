@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-04
+milestone_dependencies: none
+decision_dependencies: 163
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 102. What a confined device's fault reaches
 
-**Status: NOT-STARTED.** Raised 2026-08-04 from a sweep for work named in prose and owned by
+Raised 2026-08-04 from a sweep for work named in prose and owned by
 nobody. This is the clearest instance of the shape: three separate documents defer to "a
 fault-handling milestone" that has never existed.
 
-**Gate: DECISION §163.** What a production kernel does when a confined device faults is a fork with
+What a production kernel does when a confined device faults is a fork with
 three answers and different politics (print and continue, fault the driver process, disable the
 device), and the block argues for the second without taking it. The small half, clearing the
 overflow bit on drain, needs no decision and has a witness in milestone 29's flood, and should not

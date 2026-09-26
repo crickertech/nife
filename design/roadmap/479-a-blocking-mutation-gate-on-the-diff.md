@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 438, 448
+---
 # 479. A blocking `--in-diff` mutation gate
 
-**Status: REFUSED.** Refused by milestone 438 (design/roadmap/438-a-mutation-gate-on-the-diff.md),
+Refused by milestone 438 (design/roadmap/438-a-mutation-gate-on-the-diff.md),
 and recorded there on 2026-09-19. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

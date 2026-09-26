@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-08
+built: 2026-09-08
+---
 # 266. One progenitor, on all three architectures, and `init` stops being a role
 
-**Status: BUILT** 2026-09-08. Minted the same day by calef, who refused the guard rail that had been
+Built 2026-09-08. Minted the same day by calef, who refused the guard rail that had been
 quoted at him: *"init still isn't a good name even though it comes with history. This is the first process."*
 *(Number provisional until the merge queue lands it.)*
 
@@ -339,8 +344,6 @@ applied, stated so it can be disagreed with:
   disagree about in a milestone whose whole point was that they should not.
 
 ## Index row
-
-**Built:** 2026-09-08
 
 calef, 2026-09-08: one program, not a relabelling. Three stand behind one archive entry today, and
 the alias layer is already self-contradictory. aarch64's first process is a role bolted inside a

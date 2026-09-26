@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-08-31
+---
 # 202. Every confinement test is a ritual until somebody breaks the confinement and watches it fail
 
-**Status: BUILT 2026-08-31.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7,
+Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7,
 which its own `BUGS` recorded as unowned and needing framing before a lane. *(Number provisional
 until the merge queue lands it.)*
 
@@ -166,8 +171,6 @@ prediction down is what made it checkable.
   (`design/roadmap/proposals/the-confinement-table-lists-the-unvouched-child.md`).
 
 ## Index row
-
-**Built:** 2026-08-31
 
 Scopes risk 7. A passing confinement test is consistent with two worlds: the component was
 stopped, or it never reached the address and the assertion is decorative. Nothing distinguishes

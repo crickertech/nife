@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 273. Port `ipc_thread_scaling` and `app_displacement` to x86_64, or record why not
 
-**Status: NOT-STARTED.** Minted 2026-09-10 by calef, from the live skip inventory.
+Minted 2026-09-10 by calef, from the live skip inventory.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Not a design fork; these are two existing benchmark functions gated
+Not a design fork; these are two existing benchmark functions gated
 `#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]` in `kernel/src/bench.rs`, and this
 is either extending the `cfg` to x86_64 or recording a reason the extension does not apply.
 

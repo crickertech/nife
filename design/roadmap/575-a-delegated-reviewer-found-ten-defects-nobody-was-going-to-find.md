@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-22
+promoted_from: a-delegated-reviewer-found-ten-defects-nobody-was-going-to-find
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 575. A delegated reviewer found ten defects in a diff a human had passed as clean
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-delegated-reviewer-found-ten-defects-nobody-was-going-to-find` on 2026-09-22, filed 2026-09-22. Raised by the experiment in milestone 521 (does an AI review of a
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-delegated-reviewer-found-ten-defects-nobody-was-going-to-find` on 2026-09-22, filed 2026-09-22. Raised by the experiment in milestone 521 (does an AI review of a
 pull request catch anything the gates and the maintainer do not), as work its own run turned up and
 could not do. The findings, and the check of each against the file, are in
 `notes/delegated-review/README.md`.
 
-**Gate: NONE.** Every correction is in Markdown that already exists.
+Every correction is in Markdown that already exists.
 
 ## What was found
 

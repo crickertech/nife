@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: which-qemu-a-red-post-run-check-was-run-under
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 414. A red post-run check does not say which emulator produced it
 
-**Status: NOT-STARTED.** Promoted from the proposal `which-qemu-a-red-post-run-check-was-run-under`,
+Promoted from the proposal `which-qemu-a-red-post-run-check-was-run-under`,
 filed 2026-09-14 by milestone 288 while establishing that a red kernel leg was the environment
 rather than its change, on a box that happens to have two QEMUs installed. *(Number provisional
 until the merge queue lands it.)*
 
-**Gate: NONE.** A lane can close this. It is a line of output, and the question underneath it is
+A lane can close this. It is a line of output, and the question underneath it is
 where the version is read rather than whether to print it.
 
 **Premise re-checked 2026-09-19 and still true.** Nothing in `xtask/src/main.rs` prints an emulator

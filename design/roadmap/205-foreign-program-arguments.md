@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: 170
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 205. How a foreign program is told what to do
 
-**Status: NOT-STARTED.** Minted 2026-08-31 from milestone 121's (`ripgrep`: enumeration as a
+Minted 2026-08-31 from milestone 121's (`ripgrep`: enumeration as a
 capability) lane. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §170.** Every future program is written against the answer, which puts it in AGENTS.md's
+Every future program is written against the answer, which puts it in AGENTS.md's
 irreversible category alongside the syscall surface, so this arrives as options rather than a
 recommendation. It is §170 (how a
 foreign program is told what to do), written up 2026-09-19 by milestone 435's lane, which also

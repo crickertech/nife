@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-09-01
+---
 # 211. A harness that states its property through the function under test cannot see that function break
 
-**Status: BUILT.** Minted 2026-08-31 after the pattern was found twice in two days, by two
+Minted 2026-08-31 after the pattern was found twice in two days, by two
 different lanes, in two different crates. Swept 2026-09-01: **146 harnesses read, 11 measured
 blind, all 11 rewritten, and each now carries a machine-replayable record of the defect its old
 phrasing could not see.** The result and its method are in notes/falsification.md, under "The
@@ -141,8 +146,6 @@ implementation back at itself.
   nobody has broken it the right way yet.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 Scopes `design/fatal-risks.md` risk 2, are the proofs load-bearing. **146 harnesses read, 11
 measured blind**, and measured is the word: for each one the pre-211 phrasing was run against a

@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: what-a-caretaker-is-when-it-translates
+milestone_dependencies: none
+decision_dependencies: 189
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 413. What a `caretaker` is, when the thing it holds is not the thing it hands out
 
-**Status: NOT-STARTED.** Promoted from the proposal `what-a-caretaker-is-when-it-translates`, filed
+Promoted from the proposal `what-a-caretaker-is-when-it-translates`, filed
 2026-09-14 by the milestone 292 lane while naming the program that puts a file behind a byte sink,
 which had been `ROLE_FILE` inside a three-role binary and so had never needed a name of its own.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §189.** The decision is
+The decision is
 §189 (which of two definitions `caretaker` carries, and what the translating shape is called), written
 up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
 records why the three sections a reader might stop at do not answer this one: §92 decides a

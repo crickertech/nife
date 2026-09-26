@@ -1,12 +1,21 @@
+---
+status: PARTIAL
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 353. The aarch64 half of milestone 74: two decisions left, now that the counter runs
 
-**Status: PARTIAL.** Filed 2026-09-03 as an unnumbered proposal by the
+Filed 2026-09-03 as an unnumbered proposal by the
 `milestone/74-cycle-counters-riscv` lane, numbered 2026-09-19 by milestone 433, and **the work it
 described was built the same day** by the `milestone/74-cycle-counters-aarch64` lane: `PMCR_EL0.E`
 and `PMCNTENSET_EL0.C` are written, so `PMCCNTR_EL0` is no longer a stopped counter. What is left
 is not code. It is two rulings, and they are what this block now holds.
 
-**Gate: DECISION.** Nothing is blocked from building. What is blocked is **publishing**: no aarch64
+Nothing is blocked from building. What is blocked is **publishing**: no aarch64
 cycle figure should be quoted until decision A is made, and no program should read the counter
 through a shared function until decision B is.
 

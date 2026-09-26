@@ -29,74 +29,61 @@
 # document, and nothing writes it to a file.
 #
 # What is checked, and which defect each check answers:
-#   - the status vocabulary, in each file's own Status line. The index-versus-file comparison (the
-#     milestone-69 class) is gone because it cannot fail any more: the block is the only record
-#     there is, which is rung one where that check was rung two;
-#   - **every non-lettered block carries one `## Index row` section**: an optional
-#     `**Built:** <ISO date>` line and exactly one summary paragraph, which are the two facts
-#     nothing else in the block states. BUILT must carry a date, REMOVED may, every other status
-#     must not. The heading keeps the name milestone 294 gave it although the index it was named
-#     for is retired: renaming it would touch every block in this directory, and a name is calef's;
-#   - each file holds exactly one milestone: one H1, on line 1, whose number matches the filename
-#     (the filed-under-an-essay class, and the appended-past-the-closer class);
+#   - **every block opens with frontmatter**, which is its only record of its status, its dates
+#     and its dependencies (milestone 596 (the roadmap blocks get frontmatter too); calef ratified
+#     the schema 2026-09-26 UTC). The keys, their vocabularies and what each status requires are in
+#     helpers/roadmap_block.py and notes/roadmap.md. Before 596 each was a bold line in the prose,
+#     read by regex; a block still in that form fails with the `--migrate` command that converts it,
+#     and a field-shaped line in a block's opening prose fails as a second copy of its key;
+#   - **every non-lettered block carries one `## Index row` section** holding exactly one summary
+#     paragraph, the one fact nothing else in the block states. The heading keeps the name
+#     milestone 294 gave it although the index it was named for is retired: renaming it would touch
+#     every block in this directory, and a name is calef's;
+#   - each file holds exactly one milestone: one H1, first after the frontmatter, whose number
+#     matches the filename (the filed-under-an-essay class, and the appended-past-the-closer class);
 #   - two files claiming one milestone number is fatal, for the reason script/decisions records: as
 #     two files it would merge clean and silently where one file makes it a visible text conflict;
-#   - **`IN-PROGRESS` names its branch, and that branch has not already merged.** Added 2026-08-17,
-#     after a sweep found that ALL SIX `IN-PROGRESS` rows were false: four had MERGED (one thirteen
-#     days earlier) and two named no branch at all. This is the only token in the vocabulary whose
+#   - **`IN-PROGRESS` carries a `branch`, and that branch has not already merged.** Added
+#     2026-08-17, after a sweep found that ALL SIX `IN-PROGRESS` rows were false: four had MERGED
+#     (one thirteen days earlier) and two named no branch at all. This is the only status whose
 #     definition is mechanically checkable, "active work on a branch right now", and it was the only
-#     one that rotted: nine `NOT-STARTED` blocks audited the same day were all honest. The check is
-#     LOCAL, using merge-commit subjects rather than `git ls-remote`, which is deliberate: the remote
-#     needs network in a gate that otherwise only reads files, and a deleted branch cannot tell a
-#     merged lane from a dead one where a merge commit is proof. It costs nothing when no milestone
-#     is `IN-PROGRESS`, because then there is no subprocess to run;
+#     one that rotted. The check is LOCAL, using merge-commit subjects rather than `git ls-remote`:
+#     the remote needs network in a gate that otherwise only reads files, and a deleted branch
+#     cannot tell a merged lane from a dead one where a merge commit is proof;
 #   - **every REFUSED block carries one `## Revisit` section**, whose bullets open `**Condition.**`,
 #     `**Nothing.**` or `**Unstated.**`; see milestone 448 (a refusal gets a number). REFUSED is "considered and deliberately not
 #     taken", and the whole reason it is a status rather than a bullet in somebody's block is that a
 #     status can be made to owe something. What it owes is the condition that would change it. The
 #     check proves the condition is PRESENT and can prove nothing else about it: see BUGS;
-#   - the **readiness classification**, which is the `Gate:` line every non-BUILT milestone file
-#     carries directly under its status. It answers "what stops a lane from starting this", the
-#     question that used to be answered by asking calef, and it lives in the milestone's own file so
-#     it cannot drift away from the work the way a separate list would. `NONE` means a lane could
-#     start today; `DECISION`, `HARDWARE` and `MILESTONE N` name what it waits on, and a gate may
-#     name more than one. A `MILESTONE N` gate must resolve to a row and must not be BUILT, so the
-#     day a milestone lands, every gate still pointing at it fails the build instead of quietly
-#     staying stale. A BUILT file may not carry a gate at all, for the same reason;
-#   - a `DECISION §N` gate is the same rule for the other kind of wait (milestone 591 (a ruling
-#     should make the gate it answers fail until someone updates it)). It must name a section in
-#     design/decisions/, and that section's frontmatter must still say `PROPOSED`: the day calef
-#     rules, every gate waiting on it fails until someone reads the block and says what is left. Bare
-#     `DECISION` stays legal for a fork nobody has written up, and is checked for nothing, because it
-#     names nothing. Found 2026-09-23: milestone 198 (a package manager, and the trivial install that
-#     makes a second customer possible) sat a day behind a fork §208 (installing a package is
-#     granting it, and the activation set is versioned) had already ruled;
+#   - the **dependency fields** of §207 (the roadmap is a graph, and the block says so in fields a
+#     script can walk), which answer "what stops a lane from starting this" and replaced the
+#     `Gate:` line on 2026-09-26. Every reference must resolve, and **none is ever stale**: a
+#     dependency stays true after its target lands, and whether it still blocks is computed from
+#     the target's own status. The gate this replaced failed the build the day its target landed,
+#     which obliged an edit in a block nobody in that lane was reading (§207's argument, and the
+#     forced edit milestone 591 (a ruling should make the gate it answers fail until someone updates
+#     it) added for decisions). `decision_dependencies: unwritten` is a fork nobody has written up;
 #   - every `milestone N` citation TREE-WIDE resolves to a block (vendor/ and patches/ excluded:
 #     other people's text). The old gate checked only the roadmap's own prose, so ~1,988 citations in
 #     code comments were validated by nothing. A citation to a milestone that never existed is drift,
 #     and failing the build on it is the point: the docs are versioned with the code so they cannot
 #     describe a system that does not exist.
 #
-# **Two forms, until milestone 596's switch** (the roadmap blocks get frontmatter too; calef,
-# 2026-09-26 UTC). A block may open with frontmatter holding its status, dates and the five
-# dependency fields of §207 (the roadmap is a graph, and the block says so in fields a script can
-# walk), or be in the prose form every check above describes. The frontmatter form is checked for
-# what each key requires and forbids, may not restate a field in its prose, and never clears a
-# dependency: whether one still blocks is computed from its target's status, so the stale-gate
-# failures above do not apply to it. `--migrate [FILE...]` rewrites the prose form
-# (helpers/roadmap_migrate.py), and `--unmodelled` lists the blocks with no dependency fields. The
-# key names are provisional and spelled once, in helpers/roadmap_block.py.
+# `--migrate [FILE...]` rewrites a block from the old prose form (helpers/roadmap_migrate.py), which
+# is what a lane runs on a block it wrote before the switch. `--unmodelled` lists the blocks with no
+# dependency fields: a finished block from before the switch has none, because the gate it had was
+# cleared when its dependencies landed and cannot be recovered from the block.
 #
 # Deliberately NOT checked: whether a
 # citation that resolves points where its author meant (well-formed-but-wrong is invisible here, the
 # same blind spot CLAUDE.md records for §N citations; check by content after any renumber).
 #
 # Lettered milestones (20a) are addenda: the file needs its base milestone to exist, but carries no
-# row of its own, and therefore no status line and no `## Index row` section.
+# row of its own, and therefore no frontmatter and no `## Index row` section.
 #
 # With no arguments it prints the normalized status report, statuses first and gates after it.
-# `--ready` prints only the milestones a lane could start today (gate `NONE`, status `NOT-STARTED` or
-# `PARTIAL`), which is the query the maintainer actually makes. `--unclaimed` prints the follow-on
+# `--ready` prints only the milestones a lane could start today (nothing it depends on is open, no
+# machine or person is needed, status `NOT-STARTED` or `PARTIAL`), which is the query the maintainer actually makes. `--unclaimed` prints the follow-on
 # work a finished milestone named that nobody has taken, `--proposed` the unnumbered proposals oldest
 # first, and `--outstanding` what a PARTIAL milestone still says is left (milestone 252, and the
 # question calef had to ask by hand about milestone 16 (real hardware, IOMMU-backed driver
@@ -253,16 +240,16 @@ VOCAB = ["BUILT", "REMOVED", "SUPERSEDED", "PARTIAL", "IN-PROGRESS", "NOT-STARTE
 # nothing else, so promotion is how a proposal reaches a disposition at all.
 DATED = ("BUILT", "REMOVED")
 
-# The statuses that carry no `**Gate:**` line. A gate answers "what stops a lane from starting
-# this", and on a REFUSED block the status word has already answered it: what stops a lane is the
-# refusal. A gate beside it would be a second answer to a settled question, and the only gate that
-# would not read as a lie is `DECISION`, which would then say `--ready` should offer it the moment
-# calef rules, when what a ruling produces is a new milestone rather than this one waking up.
+# The statuses that need not carry dependency fields (they carried no `**Gate:**` line before
+# milestone 596). The fields answer "what stops a lane from starting this", and on a REFUSED block
+# the status word has already answered it: what stops a lane is the refusal. A dependency beside it
+# would be a second answer to a settled question, and would say `--ready` should offer it the
+# moment the dependency resolves, when what a changed mind produces is a new milestone rather than
+# this one waking up.
 #
-# **A REFUSED block carries no `**Built:**` line either**, and the date it WAS refused goes in the
-# status line's prose, the way SUPERSEDED already writes `**Status: SUPERSEDED.** 2026-09-15, by
-# milestone 166` -- that is, milestone 166 (one boot loader). The Built column means the date a
-# milestone turned BUILT; a refusal date in it
+# **A REFUSED block carries no `built` either**, and the date it WAS refused goes in its prose, the
+# way a SUPERSEDED block writes "Superseded 2026-09-15, by milestone 166 (one boot loader)". The
+# Built column means the date a milestone turned BUILT; a refusal date in it
 # would be a lie in the field whose entire job is not lying, which is the correction this gate made
 # to its own minting on 2026-08-30 when it tried to demand a date from milestone 55 (Time Machine:
 # SMB3 with Apple's extensions, and mDNS).
@@ -279,12 +266,6 @@ NOGATE = DATED + ("REFUSED",)
 # said otherwise for weeks and calef asking what was left is what caught it.
 ANSWERS = DATED + ("PARTIAL",)
 
-# The readiness vocabulary. `NONE` is a claim that nothing stands in the way, so it stands alone;
-# the others name a gate and may be combined (milestone 74 waits on a decision AND on silicon).
-# `MILESTONE` always takes a number; `DECISION` may take a section (`DECISION §160` (what a subshell
-# copies)), one token per section, so a gate waiting on two forks says `DECISION §160, DECISION §161`
-# (which subset counts as running Vaultwarden) and loses one when one is ruled.
-GATE_VOCAB = ["NONE", "DECISION", "HARDWARE", "MILESTONE"]
 # A milestone a lane may pick up: nothing gates it, and the status does not already say to leave it
 # alone (BUILT is done, IN-PROGRESS has somebody on it, OPTIONAL and RECORDED are deliberately off
 # the work list).
@@ -373,15 +354,9 @@ INDEX_HEADING = "## Index row"
 REVISIT_HEADING = "## Revisit"
 # The pattern lives in helpers/roadmap_block.py, beside every other field token this script reads.
 REVISIT = roadmap_block.REVISIT
-# `**Built:** <ISO>`, the Built column, kept as a field rather than read out of the status
-# sentence: 129 of 288 blocks stated the date in prose or not at all, in eight spellings.
-BUILT_LINE = re.compile(r"\*\*Built:\*\* (\d{4}-\d{2}-\d{2})")
 ids = {}
 milestones = {}
 gates = {}
-gate_specs = []
-# (milestone, token) for every `DECISION §N` gate, checked against design/decisions/ below.
-decision_specs = []
 # slug -> the numbered file whose status paragraph says it was promoted from that proposal.
 # Checked against the pile below, once both have been read.
 promoted = {}
@@ -434,18 +409,19 @@ assert not is_appendix_dir("48-no-such-block", True, {"47-navigation-and-naming.
 assert not is_appendix_dir("notes", True, {"notes.md"})
 
 # ---- the frontmatter form (milestone 596) -------------------------------------
-# calef, 2026-09-26 (UTC): the roadmap follows milestone 582 (a decision's status becomes a field, and
-# the index becomes generated) onto frontmatter, and carries the five dependency fields of §207 (the roadmap is a graph, and the
-# block says so in fields a script can walk) as keys, retiring `**Gate:**`.
-# The schema, its provisional key names and its value words live in `helpers/roadmap_block.py`,
-# spelled once. What is checked here is what each key requires and forbids.
+# calef, 2026-09-26 (UTC): the roadmap follows milestone 582 (a decision's status becomes a field,
+# and the index becomes generated) onto frontmatter, and carries the five dependency fields of §207
+# (the roadmap is a graph, and the block says so in fields a script can walk) as keys, retiring
+# `**Gate:**`. The schema, its key names (ratified by calef the same day) and its value words live
+# in `helpers/roadmap_block.py`, spelled once. What is checked here is what each key requires and
+# forbids.
 #
-# **A dependency is never cleared** (§207). A `MILESTONE N` gate fails the day N turns BUILT, which
-# obliges an edit in a block nobody in that lane is reading; a `milestone_dependencies` entry stays
-# true forever, and whether it still blocks is computed below from N's own status. The same holds
-# for a decision: a section that is ruled resolves the dependency, and nothing has to be edited for
-# that to be so, which retires milestone 591's (a ruling should make the gate it answers fail until
-# someone updates it) forced edit for every block in this form.
+# **A dependency is never cleared** (§207). The `MILESTONE N` gate this replaced failed the day N
+# turned BUILT, which obliged an edit in a block nobody in that lane was reading; a
+# `milestone_dependencies` entry stays true forever, and whether it still blocks is computed below
+# from N's own status. The same holds for a decision: a section that is ruled resolves the
+# dependency, and nothing has to be edited for that to be so, which retires the forced edit of
+# milestone 591 (a ruling should make the gate it answers fail until someone updates it).
 BRANCH = re.compile(r"[a-z][a-z0-9]*(?:/[A-Za-z0-9._-]+)+")
 SLUG = re.compile(r"[a-z][a-z0-9-]*")
 HOST_AND_REASON = re.compile(r"[a-z][a-z0-9-]* \(.{8,}\)")
@@ -517,8 +493,9 @@ def check_fields(fname, num, status, f):
         else:
             field_refs.append((num, fname, "superseded_by", tok))
     for tok in roadmap_block.tokens(f.get("refused_by")):
-        if not tok.isdigit():
-            problems.append(f"{fname}: refused_by names {tok!r}, which is not a milestone number")
+        if not re.fullmatch(r"§?\d+", tok):
+            problems.append(f"{fname}: refused_by names {tok!r}, which is neither a milestone "
+                            f"number nor a section (§N)")
         else:
             field_refs.append((num, fname, "refused_by", tok))
 
@@ -583,19 +560,25 @@ for fname in sorted(entries):
     ids[mid] = fname
 
     raw = open(os.path.join(d, fname)).read().split("\n")
-    # ---- two forms, until milestone 596's switch ---------------------------------------------
-    # A block is frontmatter (`---` on line 1, the fields, `---`, then the H1) or the prose form
-    # every block had before 596. Both are legal until the switch lands; after it, the prose form
-    # is refused. `lines` is the body either way, so everything below reads the H1 at lines[0], and
-    # `off` puts a reported line number back where it is in the file.
+    # ---- the frontmatter, which is the record (milestone 596) ---------------------------------
+    # A block opens with `---`, its fields, `---`, then the H1. The prose form every block had
+    # before 596 is refused, with the command that converts it: a lane that crossed the switch on
+    # a branch takes its own side of the block and runs it (briefs/rebase-onto-main.md). `lines` is
+    # the body, so everything below reads the H1 at lines[0], and `off` puts a reported line number
+    # back where it is in the file. A lettered addendum (20a) carries no fields and no frontmatter.
     fields, off, fm_problems = roadmap_block.frontmatter(raw)
     for n, p in fm_problems:
         problems.append(f"{fname}:{n}: {p}")
-    lines = raw[off:] if fields is not None else raw
+    if fields is None and not letter:
+        problems.append(f"{fname}: no frontmatter. A block opens with '---', its fields one per "
+                        f"line, and '---' (helpers/roadmap_block.py has the schema). A block in "
+                        f"the old prose form converts with `script/roadmap --migrate "
+                        f"design/roadmap/{fname}`")
+        continue
+    lines = raw[off:] if fields is not None else raw  # the addendum has no frontmatter
     h = re.match(rf"# ({num}{letter})\. (\S.*)$", lines[0] if lines else "")
     if not h:
-        where = "the line after the frontmatter" if fields is not None else "line 1"
-        problems.append(f"{fname}: {where} must be '# {mid}. <title>' "
+        problems.append(f"{fname}: the line after the frontmatter must be '# {mid}. <title>' "
                         f"(found {(lines[0] if lines else '')[:40]!r})")
     fence = False
     for n, l in enumerate(lines[1:], start=2 + off):
@@ -614,31 +597,24 @@ for fname in sorted(entries):
         # A lettered addendum (20a) takes no index row, so it has no status and no `## Index row`.
         continue
 
-    if fields is not None:
-        # The frontmatter is the record, so a field-shaped line in the prose is a second copy of
-        # it: the defect 582 removed from design/decisions/ (see `script/decisions`' RESTATED).
-        # Anchored at the start of a line, so prose ABOUT a status line still reads as prose.
-        fence = False
-        for n, l in enumerate(lines, start=1 + off):
-            if l.lstrip().startswith("```"):
-                fence = not fence
-            elif not fence and RESTATED.match(l):
-                problems.append(f"{fname}:{n}: {l[:24]!r} restates a field this block's "
-                                f"frontmatter holds, and a second copy is the one that stops "
-                                f"being updated")
-        status = fields.get("status")
-        if not status:
-            problems.append(f"{fname}: no 'status' key, which is the one field every block "
-                            f"carries")
-            continue
-    else:
-        first = next((l for l in lines[1:] if l.strip()), "")
-        sm = re.match(r"\*\*Status: ([A-Z-]+)\b", first)
-        if not sm:
-            problems.append(f"{fname}: the first line after the title must be '**Status: <token>'"
-                            f" (found {first[:40]!r})")
-            continue
-        status = sm.group(1)
+    # The frontmatter is the record, so a field-shaped line in the block's opening prose is a
+    # second copy of it: the defect 582 removed from design/decisions/ (see `script/decisions`'
+    # RESTATED). Only the opening, above the first `## ` section: a phase further down that opens
+    # "**Status: BUILT.**" about itself is prose about part of the work, not a copy of the block's
+    # status. Milestone 236 (three derivations are copied between scripts) has one.
+    fence = False
+    for n, l in enumerate(lines, start=1 + off):
+        if l.startswith("## "):
+            break
+        if l.lstrip().startswith("```"):
+            fence = not fence
+        elif not fence and RESTATED.match(l):
+            problems.append(f"{fname}:{n}: {l[:24]!r} restates a field this block's frontmatter "
+                            f"holds, and a second copy is the one that stops being updated")
+    status = fields.get("status")
+    if not status:
+        problems.append(f"{fname}: no 'status' key, which is the one field every block carries")
+        continue
     if status not in VOCAB:
         problems.append(f"{fname}: status {status!r} is not in the vocabulary "
                         f"({', '.join(VOCAB)})")
@@ -647,17 +623,11 @@ for fname in sorted(entries):
     # A block that says it was promoted from a proposal owes that proposal its disposition; see
     # `helpers/roadmap_proposals.py` for why the citation is a slug and not a path. Collected here
     # and checked against the pile after it is read.
-    if fields is not None:
-        check_fields(fname, num, status, fields)
-        if status == "REFUSED":
-            refused_by[num] = {int(x) for x in roadmap_block.tokens(fields.get("refused_by"))
-                               if x.isdigit()}
-        slug = fields.get("promoted_from")
-    else:
-        status_para = next(iter(blocks_of(lines[1:])), "")
-        if status == "REFUSED":
-            refused_by[num] = {int(m) for m in re.findall(r"[Mm]ilestone (\d+)", status_para)}
-        slug = roadmap_proposals.promoted_from(status_para)
+    check_fields(fname, num, status, fields)
+    if status == "REFUSED":
+        refused_by[num] = {int(x) for x in roadmap_block.tokens(fields.get("refused_by"))
+                           if x.isdigit()}
+    slug = fields.get("promoted_from")
     if slug:
         promoted[slug] = fname
 
@@ -684,18 +654,11 @@ for fname in sorted(entries):
             f"paragraph saying why this milestone matters")
     else:
         paras = blocks_of(section(lines, INDEX_HEADING))
-        if fields is not None:
-            # The date is the frontmatter's; a `**Built:**` line here was refused above as a copy.
-            built = fields.get("built", "")
-            if paras and paras[0].startswith("**Built:"):
-                paras = paras[1:]
-        elif paras and paras[0].startswith("**Built:"):
-            bm = BUILT_LINE.fullmatch(paras[0])
-            if not bm:
-                problems.append(f"{fname}: '{INDEX_HEADING}' opens {paras[0][:48]!r}, which is not "
-                                f"'**Built:** <YYYY-MM-DD>'. Dates in this tree are UTC")
-            else:
-                built = bm.group(1)
+        # The date is the frontmatter's. A `**Built:**` line here is a copy of it.
+        built = fields.get("built", "")
+        if paras and paras[0].startswith("**Built:"):
+            problems.append(f"{fname}: '{INDEX_HEADING}' opens with a '**Built:**' line, a copy "
+                            f"of the 'built' key; the section is the one-paragraph summary alone")
             paras = paras[1:]
         if not paras:
             problems.append(f"{fname}: '{INDEX_HEADING}' carries no summary. It is the table's "
@@ -710,10 +673,8 @@ for fname in sorted(entries):
         # a date; REMOVED may (54 was BUILT on one, 55 never was, and inventing one would be a lie
         # in the field whose whole job is not lying); every other status must not.
         if status == "BUILT" and not built:
-            where = ("a 'built' key in its frontmatter" if fields is not None else
-                     f"a '**Built:** <YYYY-MM-DD>' line under '{INDEX_HEADING}'")
-            problems.append(f"{fname}: BUILT with no {where}. It is the date the milestone turned "
-                            f"BUILT, and the index's Built column is generated from it")
+            problems.append(f"{fname}: BUILT with no 'built' key. It is the date the milestone "
+                            f"turned BUILT, and the index's Built column is generated from it")
         elif status not in DATED and built:
             problems.append(f"{fname}: status is {status} and '{INDEX_HEADING}' carries "
                             f"'**Built:** {built}'. It is the date a milestone turned BUILT and "
@@ -790,92 +751,8 @@ for fname in sorted(entries):
     # Naming the branch is what makes the claim falsifiable at all, which is why it is required
     # rather than encouraged. Two of the six named no branch, and that alone is the defect: a
     # status saying somebody is working on this, with nothing a reader can look up, is prose.
-    if status == "IN-PROGRESS" and fields is not None:
-        if fields.get("branch"):
-            in_progress_branches.append((num, fname, fields["branch"]))
-    elif status == "IN-PROGRESS":
-        para = []
-        for l in lines[1:]:
-            if not l.strip():
-                if para:
-                    break
-                continue
-            para.append(l)
-        claimed = re.findall(r"`([a-z][a-z0-9]*(?:/[A-Za-z0-9._-]+)+)`", " ".join(para))
-        if not claimed:
-            problems.append(f"milestone {num}: IN-PROGRESS names no branch. The token means "
-                            f"'active work on a branch right now', so it must name the branch "
-                            f"in backticks; a claim with nothing to look up cannot be checked "
-                            f"and was false all six times it was made")
-        else:
-            for b in claimed:
-                in_progress_branches.append((num, fname, b))
-
-    # ---- the gate line -------------------------------------------------------
-    # It sits in the paragraph directly under the status, so a reader meets "where do we stand" and
-    # "what stops a start" together, and a new milestone cannot be filed without answering both.
-    if fields is not None:
-        # The frontmatter form answers with §207's fields, checked in check_fields and resolved
-        # below once every block's status is known. A `**Gate:` line was refused above as a copy.
-        continue
-    stray = [n for n, l in enumerate(lines, start=1) if l.startswith("**Gate:")]
-    if status in NOGATE:
-        for n in stray:
-            problems.append(f"{fname}:{n}: a {status} milestone carries a gate, which can "
-                            f"only be stale: nothing gates work that is finished, nothing "
-                            f"gates work that has been deleted, and what stops a REFUSED "
-                            f"milestone is the refusal, which its status has already said")
-        continue
-
-    # Paragraph 1 is the title, paragraph 2 the status, paragraph 3 the gate.
-    paras = blocks_of(lines)
-    gate_para = paras[2] if len(paras) > 2 else ""
-    gm = re.match(r"\*\*Gate: ([A-Z0-9§, ]+)\.\*\* (\S)", gate_para)
-    if not gm:
-        problems.append(f"{fname}: the paragraph under the status must be "
-                        f"'**Gate: <spec>.** <why>', where <spec> is NONE, or DECISION, "
-                        f"DECISION §<n>, HARDWARE and MILESTONE <n> in any combination "
-                        f"(found {gate_para[:48]!r})")
-        continue
-    if len(stray) > 1:
-        problems.append(f"{fname}: {len(stray)} gate lines; one milestone has one gate, and a "
-                        f"second one is the copy that stops being updated")
-
-    spec = gm.group(1).split(", ")
-    seen = []
-    for token in spec:
-        kind = token.split(" ")[0]
-        if kind not in GATE_VOCAB:
-            problems.append(f"milestone {num}: gate {token!r} is not in the vocabulary "
-                            f"({', '.join(GATE_VOCAB)})")
-            continue
-        if token in seen:
-            problems.append(f"milestone {num}: gate {token!r} is named twice")
-        seen.append(token)
-        if kind == "NONE" and len(spec) > 1:
-            problems.append(f"milestone {num}: gate NONE says nothing stands in the way, so it "
-                            f"cannot sit beside {', '.join(t for t in spec if t != 'NONE')}")
-        if kind == "MILESTONE":
-            gate_specs.append((num, token))
-        if kind == "DECISION" and token != "DECISION":
-            decision_specs.append((num, token))
-    gates[num] = seen
-
-# A `MILESTONE <n>` gate resolves against the BLOCKS rather than the table, which is what lets a
-# lane gate on a milestone whose own block it can see and whose row is minted at merge.
-for num, token in gate_specs:
-    mn = re.fullmatch(r"MILESTONE (\d+)", token)
-    if not mn:
-        problems.append(f"milestone {num}: gate {token!r} must name a number "
-                        f"(MILESTONE 64), because a gate nobody can look up is prose")
-    elif int(mn.group(1)) not in milestones:
-        problems.append(f"milestone {num}: gate {token!r} names no milestone in design/roadmap/")
-    elif int(mn.group(1)) == num:
-        problems.append(f"milestone {num}: gate {token!r} names itself")
-    elif milestones[int(mn.group(1))]["status"] == "BUILT":
-        problems.append(f"milestone {num}: gate {token!r} is stale, because milestone "
-                        f"{mn.group(1)} is BUILT and no longer gates anything")
-
+    if status == "IN-PROGRESS" and fields.get("branch"):
+        in_progress_branches.append((num, fname, fields["branch"]))
 
 def decision_statuses():
     """Section number -> the `status:` its frontmatter holds. script/decisions owns the schema and
@@ -894,21 +771,7 @@ def decision_statuses():
     return out
 
 
-# A `DECISION §N` gate is stale the moment §N is anything but PROPOSED: DECIDED and AMENDED answered
-# it, and SUPERSEDED means another section did. Any of the three leaves the block's gate a claim the
-# tree has already contradicted, which is the milestone-198 failure this check exists for.
-section_status = decision_statuses() if (decision_specs or field_refs) else {}
-for num, token in decision_specs:
-    dm = re.fullmatch(r"DECISION §(\d+)", token)
-    if not dm:
-        problems.append(f"milestone {num}: gate {token!r} must be bare DECISION or name one "
-                        f"section (DECISION §160), because a gate nobody can look up is prose")
-    elif int(dm.group(1)) not in section_status:
-        problems.append(f"milestone {num}: gate {token!r} names no section in design/decisions/")
-    elif section_status[int(dm.group(1))] != "PROPOSED":
-        problems.append(f"milestone {num}: gate {token!r} is stale, because §{dm.group(1)} is "
-                        f"{section_status[int(dm.group(1))]}. Read the block, say what the ruling "
-                        f"left, and set the gate to what still stops a start")
+section_status = decision_statuses()
 
 # ---- what a frontmatter block's fields point at, and whether it is blocked -------------------
 # Every reference must resolve; none is ever stale. Blocked-ness is computed here, from each
@@ -1028,43 +891,23 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
                         f"unpromoted proposal has none (found {plines[0][:40]!r})")
         continue
     pfields, _, _ = roadmap_block.frontmatter(plines)
-    if pfields is not None and problem in (roadmap_proposals.NO_STATUS, roadmap_proposals.NO_GATE):
+    if pfields is None:
+        problems.append(f"{rel}: no frontmatter. A proposal carries the numbered block's, with "
+                        f"'status: PROPOSED', the date it was written as 'raised', and all five "
+                        f"dependency fields; one in the old prose form converts with "
+                        f"`script/roadmap --migrate design/roadmap/{rel}`")
+        continue
+    if problem in (roadmap_proposals.NO_STATUS, roadmap_proposals.NO_GATE):
         problems.append(f"{rel}: a proposal's frontmatter carries 'status: PROPOSED', the date it "
                         f"was written as 'raised', and all five of §207's dependency fields. The "
                         f"date is what makes the pile measurable, and a proposal a lane cannot "
                         f"start is worth as little as a milestone a lane cannot start")
         continue
-    if pfields is not None:
-        check_fields(rel, None, "PROPOSED", pfields)
-    if problem == roadmap_proposals.NO_STATUS:
-        first = next((l for l in plines[1:] if l.strip()), "")
-        problems.append(f"{rel}: the line under the title must be "
-                        f"'**Status: PROPOSED <YYYY-MM-DD>.**'. The date is what makes the pile "
-                        f"measurable: a proposal nobody promotes is the same burial in a new "
-                        f"place, and age is the only tell a script has (found {first[:40]!r})")
-        continue
-    if problem == roadmap_proposals.NO_GATE:
-        paras, cur = [], []
-        for l in plines:
-            if l.strip():
-                cur.append(l)
-            elif cur:
-                paras.append(cur)
-                cur = []
-        if cur:
-            paras.append(cur)
-        gate_para = " ".join(paras[2]) if len(paras) > 2 else ""
-        problems.append(f"{rel}: the paragraph under the status must be "
-                        f"'**Gate: <spec>.** <why>', the same as any unbuilt milestone: a proposal "
-                        f"a lane cannot start is worth as little as a milestone a lane cannot "
-                        f"start (found {gate_para[:48]!r})")
-        continue
+    check_fields(rel, None, "PROPOSED", pfields)
     proposals.append((when, rel, title))
 # A proposal's fields were checked as it was read, after the numbered blocks' references resolved,
 # so its own references resolve here.
 if any(r[0] is None for r in field_refs):
-    if not section_status:
-        section_status = decision_statuses()
     resolve(r for r in field_refs if r[0] is None)
 
 # **A promoted proposal leaves the pile, and that is the only disposition it has.** calef, 2026-09-15,

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-09-23
+built: 2026-09-23
+---
 # 581. One metrics file per measure, so a new measure is a new file
-
-**Status: BUILT.**
 
 The number is provisional: the integrator mints it at merge. 580 was the highest in the tree when
 this lane cut its branch. The file name and every name this block invents are provisional too.
@@ -173,8 +176,6 @@ answer today.
   header the other wrote. Neither branch was touched by this lane.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 `notes/project-metrics/weekly.csv` was 58 columns wide, so every branch that added a measure
 rewrote the same header and the same eleven data lines, and two branches adding measures with

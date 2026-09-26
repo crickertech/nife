@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 342. The kernel and the `console` server drive one UART from two address spaces, and nothing arbitrates
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 230's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** Nothing in `design/decisions/` answers it: §149 (may the kernel answer on an endpoint)
 decided how a program *reaches* a console server and was itself dissolved by §121's reopening, which
@@ -8,7 +17,7 @@ is a different question. `script/swish-check`'s own `BUGS` still describes the i
 defect in the system rather than in the script, and milestone 243's `BUGS` still records that it "has
 its own home", which is this block.
 
-**Gate: DECISION.** Where the kernel's own output goes once userspace owns the console is a design
+Where the kernel's own output goes once userspace owns the console is a design
 fork rather than a bug to fix, and it is calef's. The options are genuinely different systems, not
 variations on one, and the choice binds every architecture and every future console consumer.
 

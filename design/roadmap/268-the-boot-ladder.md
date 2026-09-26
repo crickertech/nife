@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-09
+built: 2026-09-19
+---
 # 268. Every architecture boots the same way: describe the machine, test yourself, hand over
 
-**Status: BUILT.** 2026-09-19. Minted 2026-09-09 by calef, from the parity review that followed
+Built 2026-09-19. Minted 2026-09-09 by calef, from the parity review that followed
 milestone 267 (the tour is three things wearing one name) and its measurement. *(Number
 provisional until the merge queue lands it.)* Every rung below the last one landed 2026-09-14; the
 top rung's own gate landed 2026-09-19, once x86_64 could reach a prompt. See "Third pass".
@@ -568,8 +573,6 @@ written down as one.
   `SelfTest`.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 calef, 2026-09-09. Parity is the demonstrator's claim (§19) and three boot arms had quietly
 diverged: `machine.rs` on one architecture, `self_test` on two, a `Stage::Tour` marker reachable

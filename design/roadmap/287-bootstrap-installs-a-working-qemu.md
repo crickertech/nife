@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 287. `script/bootstrap` installs a working QEMU on Linux, instead of printing how to
 
-**Status: BUILT** 2026-09-13. Minted by the maintainer after reproducing the whole failure on a
+Built 2026-09-13. Minted by the maintainer after reproducing the whole failure on a
 stock Ubuntu box. *(Number provisional until the merge queue lands it.)*
 
 **This is AGENTS.md's third principle failing, and the tell is that the fix for it had already been
@@ -231,8 +236,6 @@ half is fixed and proven, and a different wall is standing behind it.
   own machine, and no gate in this repository runs on macOS.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Minted 2026-09-13 after reproducing the whole failure on a stock Ubuntu box. Milestone 117's
 stranger run found `script/setup` could not complete on cold Linux; the remedy applied was a

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 285. `user_` meant a person in three hundred places, so the two crates that meant a privilege level took a longer prefix
 
-**Status: BUILT** 2026-09-13. calef ratified `crates/user_rt` to `crates/user_mode_runtime` and
+Built 2026-09-13. calef ratified `crates/user_rt` to `crates/user_mode_runtime` and
 `crates/user_heap` to `crates/user_mode_heap` the same day, working the unratified worklist, and
 ruled the prefix itself in the same breath. *(Number provisional until the merge queue lands it.)*
 
@@ -142,8 +147,6 @@ blind; the sets were listed, read, and then edited, which is what caught the rec
   one `cargo build` means by default.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 calef ratified `crates/user_rt` to `crates/user_mode_runtime` and `crates/user_heap` to `crates/user_mode_heap` on 2026-09-13, and ruled the prefix itself in the same breath, which is
 why both moved together. `rt` was an abbreviation with no owner outside this tree, the `cred_proto`/`credential_proto` case again; `user_` was the harder half, because `git grep -oiw`

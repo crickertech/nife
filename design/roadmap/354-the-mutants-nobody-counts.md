@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-03
+superseded_by: 250
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 354. An unviable mutant is a hole in the measurement that reads as a pass
 
-**Status: SUPERSEDED.** 2026-09-19, by milestone 250, which carries the same title and more of the
+Superseded 2026-09-19, by milestone 250, which carries the same title and more of the
 argument. Filed as a proposal on 2026-09-03 by the milestone 246 lane. Checked on 2026-09-19:
 milestone 250 was minted by calef on the day this file was written, before
 `design/roadmap/proposals/` existed, and its block holds every part of this one (the `Verdict`
@@ -12,7 +22,7 @@ Milestone 326, which triages the 2026-09-14 census's 771 survivors, is a differe
 not cover this one: a survivor is a mutant that ran, and the subject here is a mutant that never
 built.
 
-**Gate: NONE.** `cargo mutants --list` already reports what this needs, and no run is required to
+`cargo mutants --list` already reports what this needs, and no run is required to
 get the count.
 
 **What the work is.** `cargo mutants` scores a mutant it cannot build as **unviable**, and nothing in

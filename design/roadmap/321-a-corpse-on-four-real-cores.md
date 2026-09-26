@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-09-17
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: four-core x86_64 silicon
+specific_machine: none
+needs_person: yes
+---
 # 321. A corpse that did not park, on four real cores
 
-**Status: PARTIAL.** Minted 2026-09-17 by the maintainer, from
+Minted 2026-09-17 by the maintainer, from
 `design/roadmap/proposals/a-corpse-that-did-not-park-on-four-real-cores.md`, which this block
 replaces. *(Number provisional until the merge queue lands it.)* Worked 2026-09-17: the transcript
 now separates all three readings, and the failure did not reproduce on anything patagonia can run.
 
-**Gate: HARDWARE.** This line used to say `NONE`, on the reasoning that investigating needs no
+This line used to say `NONE`, on the reasoning that investigating needs no
 hardware and that *whether reproducing does* was the first thing to find out and was itself the
 finding. **That question is now answered, and the answer is yes**, so the gate moves: see "What the
 reproduction attempt established" below. The investigating half is done and is what this block

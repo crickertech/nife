@@ -1,11 +1,20 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Twelve `DECISION` gates cite only sections that are already ruled
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 591 (a ruling should make the gate it answers
+Raised by milestone 591 (a ruling should make the gate it answers
 fail until someone updates it), whose lane converted 27 `DECISION` gates to `DECISION §N` and could
 not convert these twelve: every section each one cites is `DECIDED` or `AMENDED`, so the new token
 would fail the day it was written. **Name provisional**: this file's stem is a lane's coinage.
 
-**Gate: NONE.** Each fix is prose in one roadmap block, reversible in AGENTS.md's sense. A block that
+Each fix is prose in one roadmap block, reversible in AGENTS.md's sense. A block that
 turns out to hold a fork nobody has written up gets a `PROPOSED` section, and that one needs calef.
 
 ## The twelve

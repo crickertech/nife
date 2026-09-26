@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+---
 # 288. Host tests that assume the host is aarch64
 
-**Status: BUILT** 2026-09-14. Minted by the maintainer 2026-09-14, promoting the proposal milestone
+Built 2026-09-14. Minted by the maintainer 2026-09-14, promoting the proposal milestone
 277 wrote 2026-09-12, which a second lane re-found 2026-09-13 from the other side of the same wall
 and filed again. *(Number provisional until the merge queue lands it.)*
 
@@ -231,8 +236,6 @@ cuts both ways here, and the honest statement is that the aarch64 and riscv64 ho
   worth seeing, and is what `script/roadmap`'s pile is for.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 Minted 2026-09-14 by the maintainer, promoting a proposal two lanes filed eight days apart
 (milestone 277 on 2026-09-12, and a second lane on 2026-09-13) after `cargo test -p elf` failed 20

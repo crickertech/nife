@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 140. Mount a drive this system did not create
 
-**Status: NOT-STARTED.** Minted 2026-08-18 by calef, correcting a question the tree had been asking
+Minted 2026-08-18 by calef, correcting a question the tree had been asking
 too narrowly. Milestone 138's work had turned into "is RedoxFS the right store", and that was the
 wrong frame: *"The requirement set isn't just recovery on another computer. It is using a drive
 constructed and previously attached to another OS."*
 
-**Gate: NONE.** The first increment needs nothing that does not exist, and the sequencing argument
+The first increment needs nothing that does not exist, and the sequencing argument
 below says which increment that is.
 
 **In brief.** An operating system mounts media it did not format. This one cannot. `fs_server` is

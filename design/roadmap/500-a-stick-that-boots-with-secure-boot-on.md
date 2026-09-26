@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: a-stick-that-boots-with-secure-boot-on
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 500. A stick that boots with Secure Boot on, or a page that says how to turn it off
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-stick-that-boots-with-secure-boot-on`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
@@ -8,7 +18,7 @@ it. Found by milestone 198 (a package manager, and the trivial install)'s rungs 
 rung 1 of the trivial install DECISIONS §157 (a trivial install is a web page,) defines. §157's own measurement of the x86 row says
 "Secure Boot off"; nothing owns what a stranger does about it.
 
-**Gate: DECISION.** Signing is a fact that leaves the machine (a key trusted by other people's
+Signing is a fact that leaves the machine (a key trusted by other people's
 firmware), which is AGENTS.md's irreversible category. **Options, no winner.**
 
 ## The gap

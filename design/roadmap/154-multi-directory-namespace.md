@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 154. A process that holds two directory capabilities
 
-**Status: PARTIAL.** Minted 2026-08-23, proposed independently by two milestones that converge
+Minted 2026-08-23, proposed independently by two milestones that converge
 on the same gap: milestone 47's `bind` ("It is blocked on a second grant") and milestone 64's
 `File::open` fork ("tier two, anything that traverses, needs a namespace to resolve *against*, and
 that is 47's unbuilt half"). Both name the identical missing primitive; this gives it one home
@@ -16,7 +25,7 @@ can construct and deliver a second, disjoint directory capability at boot; and
 end to end into a live, real, second-grant interactive shell yet; each increment's own caveats
 say exactly why.
 
-**Gate: NONE.** Nothing here is a design fork; §50 already decided namespace composition over
+Nothing here is a design fork; §50 already decided namespace composition over
 stored paths, and 47's absolute-paths work already proved the resolver lives in the client's
 runtime (built 2026-08-18). What's missing is mechanical: nothing in the system today grants a
 *second* directory capability to one process.

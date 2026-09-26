@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 80, 448
+---
 # 487. `script/interleaving-check` as a gate
 
-**Status: REFUSED.** Refused by milestone 80 (design/roadmap/80-loom.md), and recorded there on
+Refused by milestone 80 (design/roadmap/80-loom.md), and recorded there on
 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

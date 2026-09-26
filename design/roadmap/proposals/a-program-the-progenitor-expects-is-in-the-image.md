@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A program the progenitor expects is in the image, or the build says so
 
-**Status: PROPOSED 2026-09-24.** This was raised by the `maintainer/audit-sink-rename` lane (#1228),
+This was raised by the `maintainer/audit-sink-rename` lane (#1228),
 which renamed `audit_sink` to `login_audit_receiver`. The file's name is provisional;
 `design/naming.md` is the rule.
 
-**Gate: NONE.** Either option below is a host-side check or a transcript assertion. Neither touches
+Either option below is a host-side check or a transcript assertion. Neither touches
 the syscall surface, a wire format or a dependency.
 
 ## The finding

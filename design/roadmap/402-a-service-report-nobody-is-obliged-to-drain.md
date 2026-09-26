@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 402. A service report nobody is obliged to drain
 
-**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 290, which hit one
+Filed 2026-09-14 as an unnumbered proposal by milestone 290, which hit one
 instance, fixed that instance, and proposed the general remedy rather than pretending one caller was
 the problem; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read
 against the tree on 2026-09-19 and still true**: `kernel/src/user/entropy_service.rs`'s `ensure`
@@ -11,7 +20,7 @@ later one, the announcement is still a blocking send, and dropping the `Wiring` 
 any of which can become the first caller when a filter changes what runs.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** A lane can close this. It is kernel-side test wiring with no syscall surface, no wire
+A lane can close this. It is kernel-side test wiring with no syscall surface, no wire
 format and no new name.
 
 ## The trap

@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: 242
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 369. A gate can read a serial-less machine's screen only under QEMU, and the fleet is not virtual
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 243 lane, from its own
+Filed as a proposal on 2026-09-04 by the milestone 243 lane, from its own
 block's second problem; promoted by milestone 433 on 2026-09-19. Checked that day: the gate it names
 is still QEMU-only, since `xtask`'s screen check reads a `screendump` PPM from QEMU's monitor and
 there is nothing else that can read a serial-less machine, and the milestone this waits on is
 unmoved. Milestone 242 (USB host and HID) is still `NOT-STARTED` with `Gate: NONE`, so the gate line
 below is still true and still points at work nobody has started.
 
-**Gate: MILESTONE 242.** The mechanism this needs is a write to the boot medium, and the boot medium
+The mechanism this needs is a write to the boot medium, and the boot medium
 on every machine in the fleet is a USB mass-storage device nife cannot yet talk to. Milestone 242 is
 USB host and HID; the host controller is the half this waits on.
 

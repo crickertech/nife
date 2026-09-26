@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-05
+built: 2026-09-14
+---
 # 265. `_proto` is a truncation, and it collides with the other word it could be short for
 
-**Status: BUILT** 2026-09-14. Minted 2026-09-05 by calef, on being shown `timebase_proto` for
+Built 2026-09-14. Minted 2026-09-05 by calef, on being shown `timebase_proto` for
 ratification: *"I think `_proto` was lazy on my part. It should have been `_protocol` globally to
 differentiate from prototype."* *(Number provisional until the merge queue lands it.)*
 
@@ -295,7 +300,5 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
   held.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 calef, 2026-09-05: it was lazy and should have been `_protocol` globally. `proto` is equally short for `prototype`, which this tree uses for a real thing, and design/naming.md already refuses truncation. **The block's own numbers were wrong and are corrected in it**: 15 crates, not 14 (`capability_demo_proto` arrived with milestone 291 after it was written), across 424 files, not 349. Five stems calef ruled on 2026-09-13 travelled in the same pass rather than renaming the same files twice, and the block's table listed four: `timebase_proto`'s provenance records him ruling `counter_frequency_proto` that day **and refusing `timebase_protocol`**, the name a lane working from the table alone would have created. `mdns_config` and `mdns_responder` moved with their protocol's stem. The sweep took five records it should not have (a refusal, two accounts of what the 2026-08-23 renames produced, the 2026-07-30 four-ways account in four crates, and `socket_proto`'s ratification), all restored by enumerating the diff, and `script/lint`'s `crates/*proto` glob would have gone blind rather than red. `login_protocol` keeps a stem calef has not ruled and will move a second time, accepted knowingly

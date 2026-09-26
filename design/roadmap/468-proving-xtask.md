@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 197, 448
+---
 # 468. Proving `xtask`
 
-**Status: REFUSED.** Refused by milestone 197 (design/roadmap/197-user-and-xtask-proofs.md), and
+Refused by milestone 197 (design/roadmap/197-user-and-xtask-proofs.md), and
 recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

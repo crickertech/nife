@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: name-a-customer
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 530. Name a customer, or admit the ranking function has nothing to rank
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `name-a-customer`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about what nife
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `name-a-customer`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer, from calef's question about what nife
 would have to be to change anyone else's behaviour, and from the fact that every honest answer began
 with "a customer".
 
-**Gate: DECISION.** Nobody but calef can name one, and no lane can substitute for it.
+Nobody but calef can name one, and no lane can substitute for it.
 
 ## The hole this names
 

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-02
+built: 2026-08-02
+---
 # 69. Split `kernel/src/user.rs` by service
 
-**Status: BUILT (2026-08-02), both ISAs.** Raised 2026-08-02, from a question about whether
+Built (2026-08-02), both ISAs. Raised 2026-08-02, from a question about whether
 thousand-line files are an antipattern in Rust. The general answer is no, and this file is the
 exception that proves why.
 
@@ -66,8 +71,6 @@ leaving `user.rs` as the wiring that names them.
 - **None.**
 
 ## Index row
-
-**Built:** 2026-08-02
 
 15,499 lines and **46 top-level modules** in one file: a dozen `*_service` modules and ~34 test
 modules. The split is nearly free because the boundaries are already `mod` blocks, so moving one

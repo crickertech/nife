@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-04
+---
 # 256. x86_64 places PCI BARs in a hardcoded window, and on xenon that window is RAM
 
-**Status: BUILT** on 2026-09-04. Minted the same day by calef, from
+Built on 2026-09-04. Minted the same day by calef, from
 `design/roadmap/256-a-bar-window-the-machine-agreed-to.md` (written 2026-09-03 by the
 milestone 247 sweep, out of milestone 165's Follow-on), on the evening xenon proved it from the
 bench. *(Number provisional until the merge queue lands it.)*
@@ -224,8 +229,6 @@ the disagreement message naming both numbers. `script/test` passes on all three 
   is a proposal and not a milestone.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 milestone 165 predicted it on 2026-09-02 and xenon confirmed it on 2026-09-04: `PCI_BAR_PHYS` was
 q35's hole checked once at `-m 256M`, and a 16 GiB machine's RAM runs through it. The constant is

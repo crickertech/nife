@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 71. The thread-start fault: a user thread dispatched with `sepc` = 0
 
-**Status: BUILT (2026-08-03), both ISAs.** Found, proved on the machine, and fixed. It was **frame placement**,
+Built (2026-08-03), both ISAs. Found, proved on the machine, and fixed. It was **frame placement**,
 which is where this entry said to look first, and the mechanism is exact rather than plausible:
 `current_sp()` is a real call at opt-level 0, so it returned `sp - 16` and put the frame at
 `sp - 304` while `trap.s` builds an S-mode trap frame at `sp - 288`. Sixteen bytes apart, so the user
@@ -89,7 +94,6 @@ three different tests on three different CPU models, and only one of them announ
 fault; the other two were a frame-leak wait and the lost-wakeup watchdog, which are what this bug
 looks like when the guard does not happen to catch it first.
 
-
 ## Follow-on
 
 - **Milestone 72.** The hang on `reclaim_frees_a_started_then_exited_childs_regions` is not this
@@ -103,8 +107,6 @@ looks like when the guard does not happen to catch it first.
   widening a deadline or re-running.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 Frame placement, as this entry guessed. RISC-V put the frame 16 bytes under where `trap.s` builds
 an S-mode frame, so any interrupt in the window rewrote it and the user `sp` read the trap frame's

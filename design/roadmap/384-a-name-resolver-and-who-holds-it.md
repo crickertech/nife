@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 384. Nothing here resolves a hostname, and in a capability system the resolver is a grant
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after asking whether a
+Filed 2026-09-05 as an unnumbered proposal, written after asking whether a
 milestone covered `curl` or `wget`; numbered 2026-09-19 by milestone 433's drain of the proposal
 pile. **Premise re-read against the tree on 2026-09-19 and still true**, with one path correction:
 the `smoltcp` 0.14 dependency moved from `user/Cargo.toml` to `components/Cargo.toml` when milestone
@@ -11,7 +20,7 @@ it: milestone 298 retired the multicast DNS responder on 2026-09-15, and its blo
 proposal as the reason the link-local responder was not the answer here.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** `smoltcp` already ships the socket; enabling it is a feature flag and a program.
+`smoltcp` already ships the socket; enabling it is a feature flag and a program.
 
 ## The gap, measured
 

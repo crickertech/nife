@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+---
 # 290. `components/src/ntp.rs` is three programs wearing one name
 
-**Status: BUILT** 2026-09-14. calef ruled the split and named all three while working the unratified
+Built 2026-09-14. calef ruled the split and named all three while working the unratified
 worklist. *(Number provisional until the merge queue lands it.)*
 
 One binary dispatched three roles on `arg0` (`ROLE_CLIENT`, `ROLE_SERVER`, `ROLE_PROBE_CLOCK`) and
@@ -251,7 +256,5 @@ three new names ratified and carrying eight refusals between them.
   at all rather than something wrong.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 Minted 2026-09-14 when calef, working the unratified worklist, ruled the split and named all three: `network_time_client` in `components/`, `network_time_test_server` and `unwritable_clock_witness` in `fixtures/`. One binary dispatched three roles on `arg0` and justified it as keeping the initrd's directory small, which is implementation convenience and ranks below everything else. The interesting half is the argument that looked load-bearing and was false: the docs claimed the clock-page probe had to be the *same binary* as the client, and the fault is caused by the capability set rather than the code. What keeps the witness honest is that one function endows both and takes the image as a parameter. `an_ntp_client_holds_no_writable_clock_page` asserts exactly what it asserted before; one line changed, the image. Milestone 265's `ntp`-stays-`ntp` exception is overtaken and is left for the maintainer rather than edited from a lane.

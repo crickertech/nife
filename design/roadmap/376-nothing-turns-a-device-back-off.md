@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 376. Nothing turns a device back off
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 220 lane, which wrote
+Filed as a proposal on 2026-09-04 by the milestone 220 lane, which wrote
 the first code in this tree that turns a device on and deliberately did not write its inverse;
 promoted by milestone 433 on 2026-09-19. Checked against the tree that day and nothing has moved:
 `crates/jh7110_clock_and_reset` exposes `discover`, the offset and mask arithmetic, and the two
@@ -9,7 +18,7 @@ asserts a reset, and `kernel/src/drivers/jh7110_clock_and_reset.rs` still offers
 decision the gate names is unanswered: nothing in `design/decisions/` takes up who may turn a device
 off.
 
-**Gate: DECISION.** The mechanism is small; who is allowed to hold it is calef's, because the
+The mechanism is small; who is allowed to hold it is calef's, because the
 answer decides whether a capability variant appears on the syscall surface (§10, §16).
 
 **What the work is.** `crates/jh7110_clock_and_reset` can enable a clock and release a reset. It cannot gate a

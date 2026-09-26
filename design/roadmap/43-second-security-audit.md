@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-08-15
+---
 # 43. A second security audit, with a different lens
 
-**Status: BUILT.** In two passes, and the record lagged the tree both times (§76's shape, the
+In two passes, and the record lagged the tree both times (§76's shape, the
 third instance found in one week). The headline lens, time-of-check to time-of-use across the
 shared pages, was executed and merged 2026-08-04: notes/shared-page-audit.md, seven findings,
 their fixes cited as milestone 43 across the tree, while this status sat at NOT-STARTED for
@@ -27,7 +32,5 @@ the unsafe census) are each a whole audit and belong to §74's cadence, not to t
   the NVMe kernel driver turning two device-written completion fields into a kernel panic.
 
 ## Index row
-
-**Built:** 2026-08-15
 
 the attack surface roughly doubled after the first audit was written

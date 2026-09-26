@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-20
+---
 # 446. The naming worklist says what it covers, and stops saying what it used to
 
-**Status: BUILT 2026-09-20.** *(Number provisional until the merge queue lands it.)*
+*(Number provisional until the merge queue lands it.)*
 
 **This milestone exists because of a false premise, and the premise is the interesting part.**
 A lane on milestone 442 (a crypto provider `rustls` can use on all three bare-metal targets)
@@ -133,8 +138,6 @@ in `script/lint` already catches.
   argument for why a grep would be worse than the note.
 
 ## Index row
-
-**Built:** 2026-09-20
 
 A lane reported that `script/names` could not see root-level workspaces, calef asked for a lane to
 fix it, and the maintainer ran the tool first: the hole had been closed a month earlier by the

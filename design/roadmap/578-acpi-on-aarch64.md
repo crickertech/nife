@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 578. An ACPI discovery path for aarch64, because every server machine has one
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted
+The number is **provisional**: the integrator mints it at merge. Promoted
 2026-09-23 on calef's ruling, from the proposal the rented-metal pricing lane filed on PR #1152:
 *an ACPI discovery path for aarch64, so a machine that describes itself with ACPI rather than a
 device tree can boot nife.* The file name and every name this block invents are provisional too.
 
-**Gate: NONE.** A lane can start today, on this laptop, with no account and no board. The failure
+A lane can start today, on this laptop, with no account and no board. The failure
 this milestone fixes reproduces under QEMU by changing one flag, and the first two items below are
 host-tested table parsing. One item inside this block does reach a fork that is calef's, and it is
 named as such where it sits rather than gating the whole thing.

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 234. The project's own numbers, one row per ISO week
 
-**Status: BUILT 2026-09-02.** Asked for by calef the same day, built in one lane, and minted after the
+Asked for by calef the same day, built in one lane, and minted after the
 fact because the work was small enough to outrun its own block. *(Number provisional until the merge
 queue lands it.)*
 
@@ -98,8 +103,6 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
   make; this page flags the staleness and cannot fix it.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 `notes/register-of-measures.md` opens by saying this tree measures a great deal and remembers
 almost none of it

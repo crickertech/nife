@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 366. A block site that writes `Blocked` by hand opts out of teardown, silently
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 133 lane, from that
+Filed as a proposal on 2026-09-04 by the milestone 133 lane, from that
 milestone's block; promoted by milestone 433 on 2026-09-19. Read against the tree that day and
 nothing has moved: `crates/thread_wake_handshake/src/lib.rs` still declares `pub state: RunState`
 and `pub wait_on: Option<W>` as two fields that must agree, `park` is still the only thing that
@@ -9,7 +18,7 @@ pairs `Blocked` with a recorded wait, which is nothing at all on a release board
 check names `RunState::Blocked`, and the grep the rung-two option asks for comes back clean today,
 so the check would pass on the tree as it stands.
 
-**Gate: NONE.** No decision is owed. It is a lint or a type change in
+No decision is owed. It is a lint or a type change in
 `crates/thread_wake_handshake` plus its callers in `kernel/src/sched.rs`, and it wants a lane rather
 than a hotfix because the interesting half is deciding which rung of the ladder it can reach.
 

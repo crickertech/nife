@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: 146
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 258. Archive and compression: `tar` and zlib, because `git` cannot read its own objects without them
 
-**Status: NOT-STARTED.** Minted 2026-09-05 by calef, on finding that no milestone, proposal or line
+Minted 2026-09-05 by calef, on finding that no milestone, proposal or line
 of code in this tree covered archive or compression of any kind. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION §146.** For half of it. `tar` is nobody's call but a lane's and can start today. The
+For half of it. `tar` is nobody's call but a lane's and can start today. The
 compressor's write-or-take question is §146 (archive and compression: which pieces we write, which we take, and which we refuse),
 which is `PROPOSED` and calef's, because taking a dependency is a decision under
 [§46](../decisions/46-dependency-rule.md). **A lane may build the whole of part 1 and must stop at

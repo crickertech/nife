@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-24
+built: 2026-09-24
+promoted_from: ci-arch-split
+---
 # 587. Most CI jobs do not need an arm64 host, and the arm64 queue is where the wait is
 
-**Status: BUILT, 2026-09-24** (pull request #1249). *(Number minted at promotion.)* Promoted from the proposal
+Built, 2026-09-24 (pull request #1249). *(Number minted at promotion.)* Promoted from the proposal
 `ci-arch-split`, filed 2026-09-24 by the `maintainer/ci-arch-split` lane, which the maintainer
 briefed after three merge-group builds waited over an hour at 19:05 UTC with 13 jobs running, all
 of them `ubuntu-24.04-arm`. **calef ruled option B on 2026-09-24** (*"Yes, proceed with B"*), below
@@ -270,7 +276,5 @@ rather than bought) already names "merge throughput" as one of the three things 
   section's question stays open; the maintainer should tell whoever holds it.
 
 ## Index row
-
-**Built:** 2026-09-24
 
 On 2026-09-24 arm64 hosted runners were the bottleneck, not the 60-job cap: ~20 jobs ran while 150+ waited. One measured x86_64 run of every job matched arm64's results, so 15 of 18 jobs move to `ubuntu-24.04`, the two SMP QEMU jobs and the arch falsification replay stay on arm64, and a one-minute aarch64 kernel proof keeps `arch/aarch64/` proved.

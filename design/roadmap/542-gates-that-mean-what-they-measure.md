@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 542. Gates that stopped meaning what they measure: both inputs to an icount number recorded, and a footprint reported against its budget
 
-**Status: BUILT 2026-09-21.** *(Renumbered from 541 by the integrator on 2026-09-21: 541 had already been minted for the `map_new` window while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 524 to 540 were
+*(Renumbered from 541 by the integrator on 2026-09-21: 541 had already been minted for the `map_new` window while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 524 to 540 were
 claimed on in-flight branches when this was written.)*
 
 calef, 2026-09-21: *"Do the bump-time mechanism. Do the footprint gate."* Two rulings, and they are
@@ -228,8 +233,6 @@ would fail on the day it was written and be turned off on the next.
   so until somebody re-records deliberately. Re-recording was out of scope here.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 Two gates had stopped making claims about this kernel, and one of them for two reasons. The icount floors in `bench/baseline-*.txt`
 are revalued by any toolchain bump, which happened unremarked on 2026-09-15 and eroded most of the

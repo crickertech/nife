@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-14
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 126. The `procps` package: who else is running, and who is allowed to ask
 
-**Status: PARTIAL.** Minted 2026-08-14 by calef, from a design conversation about what ambient
+Minted 2026-08-14 by calef, from a design conversation about what ambient
 authority utilities become on this system. **Scoped to the whole package by calef the same day**, for
 consistency with milestone 123's approach to popular packages: the corpus is chosen by an external
 ordering and taken in the units that ordering uses, which is packages rather than programs we like.
 
-**Gate: NONE.** As of 2026-08-23, both forks this gate pointed at are decided: `pmap`'s
+As of 2026-08-23, both forks this gate pointed at are decided: `pmap`'s
 `ENUMERATE`-on-address-space extension is **yes** (DECISIONS §114), and `sysctl` is **declined**
 (DECISIONS §115), each subsystem's own service carrying its own tuning instead. What remains is
 real unbuilt work rather than anything waiting on calef, except where this lane (2026-08-26)

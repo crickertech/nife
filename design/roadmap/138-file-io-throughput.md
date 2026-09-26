@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-18
+built: 2026-08-22
+---
 # 138. Close the read gap: a 4 KiB request must stop moving 128 KiB
 
-**Status: BUILT.** All four steps are **built and measured**. Step 1 (2026-08-18): the record level
+All four steps are **built and measured**. Step 1 (2026-08-18): the record level
 is 1, a 4 KiB read is **5.13x** faster and a 4 KiB write **3.01x**, and the per-request residual it
 leaves is **206 us on a read (72% of it) and 690 us on a write (87%)**. Step 3 (2026-08-19), taken
 before step 2 because that residual said to: a request carries **64 KiB**, a sequential write is
@@ -593,8 +598,6 @@ measurements rather than asserted, and this is the measurement that most weakens
   design. Until someone does, the residual stays a frontier described in prose.
 
 ## Index row
-
-**Built:** 2026-08-22
 
 Minted by calef on 2026-08-18 from milestone 38's measurement. Every 4 KiB file request moved 128
 KiB in both directions, and that single term was the whole remaining gap: the confined-server tax

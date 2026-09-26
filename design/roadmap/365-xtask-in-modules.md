@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-19
+---
 # 365. `xtask/src/main.rs` is 6,785 lines with no module structure
 
-**Status: BUILT** 2026-09-19, on a board thin enough to take it: no other lane running and two pull
+Built 2026-09-19, on a board thin enough to take it: no other lane running and two pull
 requests armed. Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from milestone 130's
 block; promoted by milestone 433 on 2026-09-19 and taken the same day. The file was **11,124 lines**
 when the lane cut its branch, not the 6,785 the title names and not the 10,680 the promotion
@@ -182,8 +187,6 @@ into the module the code now lives in rather than to merge line by line.
   configuration with no `cfg`-gated early park.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 `xtask/src/main.rs` was one file with no module structure, 6,785 lines when this was filed on
 2026-09-03 and 11,124 when the lane took it on 2026-09-19. It is now 19 modules plus a 294-line

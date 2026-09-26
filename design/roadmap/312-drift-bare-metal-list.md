@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 312. `script/drift`'s lists are derived, because the second copy drifted exactly like the first
 
-**Status: BUILT 2026-09-17.** Built by a lane on `milestone/312-drift-bare-metal-list`.
+Built by a lane on `milestone/312-drift-bare-metal-list`.
 *(Number provisional until the merge queue lands it.)*
 
 **This is the second occurrence of a defect `script/drift`'s own header describes**, which is the
@@ -190,8 +195,6 @@ the first in eighteen days able to say anything at all.
   seven more places the same list is spelled out by hand.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `.github/workflows/toolchain-drift.yml` had failed every daily run since 2026-09-01 and could report
 nothing about upstream, which is **the second occurrence of the defect `script/drift`'s own header

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-07-30
+---
 # 37. Prove RedoxFS's crash consistency (DECISIONS §34, condition 1)
-
-**Status: BUILT.**
 
 **Built 2026-07-30, both ISAs. §34's condition 1 is met, and the claim it earns is narrower and
 sharper than the one it replaces** (DECISIONS §34's amendment carries the full statement).
@@ -38,7 +41,5 @@ process** mounts what it left behind through the same block server and reads the
   74 refusals and the zero silently-wrong count measure.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 decides whether §34's "primary filesystem" label is earned

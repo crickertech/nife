@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: 187
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 407. One definition of the numbers a kernel test and its program agree on
 
-**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 293's lane, which
+Filed 2026-09-14 as an unnumbered proposal by milestone 293's lane, which
 reduced one instance of this and then measured the rest of it; numbered 2026-09-19 by milestone
 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true,
 and the tree's counter-example is still in it**: `kernel/src/user/live_swap_tests.rs` still
@@ -15,7 +24,7 @@ with the 19 pairs and 76 names below, and what it establishes is that the shape 
 is now `network_time_client` and its siblings. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: DECISION §187.** It is §187 (one crate)
+It is §187 (one crate)
 *(number
 provisional)*, written up 2026-09-19 by milestone 435's slice-c lane because this gate named no
 section. The sweep itself is mechanical and a lane could start it today. What it cannot

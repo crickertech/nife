@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: the-boards-screen-under-uefi
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 511. The boards' screen comes from the firmware, not from a `ramfb`
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `the-boards-screen-under-uefi`, filed 2026-09-19, on calef's instruction of 2026-09-20 to
 give every proposal on `main` a number. The text below is the proposal's own, unedited except for
 this paragraph: the argument is its author's and promotion is not the moment to improve it. Found by
@@ -9,7 +19,7 @@ milestone 243's lane while closing that block's two Outstanding items, and filed
 and riscv64 boot files, so on those architectures there is now a firmware stage that has already lit
 a display.
 
-**Gate: NONE.** Everything is in this tree; the only outside dependency is a machine to try it on,
+Everything is in this tree; the only outside dependency is a machine to try it on,
 and QEMU with the board firmwares is enough to start.
 
 **In brief.** Milestone 243 (a machine with no serial port) gave aarch64 and riscv64 a screen

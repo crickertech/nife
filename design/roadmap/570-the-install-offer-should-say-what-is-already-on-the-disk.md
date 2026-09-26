@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: the-install-offer-should-say-what-is-already-on-the-disk
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 570. The install offer should say what is already on the disk
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-install-offer-should-say-what-is-already-on-the-disk` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-install-offer-should-say-what-is-already-on-the-disk` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which built the offer and recorded this
 in `install_service`'s `BUGS` on the way past.
 
-**Gate: NONE.** The program already exists and already holds exactly the right authority; what is
+The program already exists and already holds exactly the right authority; what is
 missing is one spawn and one sentence.
 
 ## What the question does not say

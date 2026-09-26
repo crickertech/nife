@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: a-sweep-for-specification-fields-that-are-one-less
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 426. A sweep for specification fields that are stored one less than their value
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `a-sweep-for-specification-fields-that-are-one-less`, filed 2026-09-17 by milestone 319, which met
 this shape twice in one crate, broken once and correct once, with nothing at either site saying
 which. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is a `git grep` and a reading, not a mechanism.
+It is a `git grep` and a reading, not a mechanism.
 
 **Premise re-checked 2026-09-19 by running the sweep's own grep, and it has candidates.**
 `git grep -in 'one less than\|minus one\|zero means one' -- crates/ kernel/` returns 17 hits.

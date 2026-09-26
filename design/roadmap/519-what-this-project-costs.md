@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 519. What this project costs, tracked where it cannot rot
 
-**Status: BUILT** 2026-09-21. Minted 2026-09-21 by calef, from a conversation about what nife would
+Built 2026-09-21. Minted 2026-09-21 by calef, from a conversation about what nife would
 have to be to change anyone else's behaviour. Every honest answer began with a cost number this tree
 cannot state. *(Number provisional until the merge queue lands it.)*
 
@@ -186,8 +191,6 @@ dishonest version.
   this must not become` above and carried into the page's prose where a reader meets the figures.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 The method is half this project's claim, and a method's result is a cost; this tree measures only
 scale, and the inputs that would answer it are discarded weekly.

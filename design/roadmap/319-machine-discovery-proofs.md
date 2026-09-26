@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 319. The crate that parses firmware had no proofs, and three of its first ones were false
 
-**Status: BUILT 2026-09-17.** *(Number provisional until the merge queue lands it.)*
+*(Number provisional until the merge queue lands it.)*
 
 ## The premise, measured
 
@@ -242,8 +247,6 @@ in a tracked form:
    `unfalsified` and says so. Four patches is an afternoon.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 4,072 lines that parse firmware the system did not write had no proofs at all and no row in
 `script/verify`'s table, the day after xenon made those bytes a real Dell's rather than QEMU's;

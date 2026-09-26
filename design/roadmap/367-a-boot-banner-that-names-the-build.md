@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 367. A boot banner that names the build, so two cards cannot be confused for one
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane,
+Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane,
 writing the bench procedure for milestone 134's E3; promoted by milestone 433 on 2026-09-19. Checked
 against the tree that day and both halves still hold. `script/board-image` still echoes
 `features: ...` at build time (line 253), which is the rung-four mitigation this file describes, and
@@ -8,7 +17,7 @@ against the tree that day and both halves still hold. `script/board-image` still
 initrd and the rest with no line naming the feature set, so nothing about which build booted reaches
 the capture.
 
-**Gate: NONE.** Small, and it makes a class of wasted bench session impossible rather than unlikely.
+Small, and it makes a class of wasted bench session impossible rather than unlikely.
 
 ## In brief
 

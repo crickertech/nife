@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-08-31
+---
 # 210. No kernel test can be run by name, so one falsification costs a whole suite
 
-**Status: BUILT** (2026-08-31). Minted 2026-08-31 from milestone 202's (falsify the confinement claims)
+Built (2026-08-31). Minted 2026-08-31 from milestone 202's (falsify the confinement claims)
 lane, which paid the cost twenty-five times. *(Number provisional until the merge queue lands it.)*
 `cargo xtask test --test <substring>` filters the kernel suite; the filter is baked into the test
 binary by `kernel/build.rs` and read by `kernel/src/testing.rs`'s runner. See notes/scripts.md.
@@ -89,8 +94,6 @@ cheap, which is worth knowing before anybody promises a fast inner loop.
   202 have no replay mechanism until it is done.
 
 ## Index row
-
-**Built:** 2026-08-31
 
 Minted from milestone 202's lane, which paid the cost twenty-five times. `kernel/src/testing.rs`'s
 runner takes no filter and `cargo xtask test` parses only `--arch`, `--cpu` and `--hvf`, so one

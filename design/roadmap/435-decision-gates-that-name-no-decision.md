@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 435. Forty-five milestones are gated on a decision nobody wrote down
 
-**Status: BUILT** 2026-09-19, in one evening by three lanes. All forty-five blocks were read, and
+Built 2026-09-19, in one evening by three lanes. All forty-five blocks were read, and
 every one of them resolved to one of the three outcomes: 33 decisions written up as
 [§160](../decisions/160-what-a-subshell-copies.md) to
 [§192](../decisions/192-a-checked-direct-map-reader-for-the-acpi-walk.md), 6 blocks that already had a
@@ -247,8 +252,6 @@ the promoted quarter rather than as a prediction for the other 21.
   merge, and it did.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Fifty-eight milestones carry a `DECISION` gate and forty-five of them name no decision anywhere a
 reader can open, so the ask exists only as a paragraph inside the block, addressed to one person.

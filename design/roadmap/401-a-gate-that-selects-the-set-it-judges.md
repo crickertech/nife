@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-23
+---
 # 401. A gate that selects the set it judges can pass by checking nothing
 
-**Status: BUILT** 2026-09-23. Filed 2026-09-14 as an unnumbered proposal by milestone 265 (`_proto` is a truncation), which
+Built 2026-09-23. Filed 2026-09-14 as an unnumbered proposal by milestone 265 (`_proto` is a truncation), which
 broke one and caught it by hand rather than by anything red; numbered 2026-09-19 by milestone 433 (drain the proposal pile), whose
 drain of the proposal pile. *(Number provisional until the merge queue lands it.)*
 
@@ -97,9 +102,6 @@ distinction, finder against selector, is the thing a lint for this could not mak
   else.
 
 ## Index row
-
-**Built:** 2026-09-23
-
 
 Several gates pick the things they judge with a pattern and then judge them, so when the pattern
 stops matching the loop body never runs and the gate reports clean. **The instance this block was

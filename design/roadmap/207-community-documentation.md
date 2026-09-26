@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 207. The four things GitHub asks for, and which of them this project actually wants
 
-**Status: PARTIAL.** Minted 2026-08-31 by calef, from GitHub's Community Standards checklist. The
+Minted 2026-08-31 by calef, from GitHub's Community Standards checklist. The
 pull request template and the issue templates shipped the same day; the code of conduct and the
 content-reports setting are calef's and remain open. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: NONE.** **This carried `DECISION` until 2026-09-19 and both things it named had been done
+**This carried `DECISION` until 2026-09-19 and both things it named had been done
 for weeks, which is recorded here rather than silently fixed.** The gate said two policy questions
 were open: who a code of conduct names as its enforcement contact, and the content-reports setting.
 `CODE_OF_CONDUCT.md` shipped on 2026-08-31 (commit `7ffa8f3b`) with an enforcement section naming an

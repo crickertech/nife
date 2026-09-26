@@ -1,8 +1,12 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 114. Split `DECISIONS.md`, and give a decision a status
 
-**Status: BUILT (2026-08-04, the day after it was raised; the postscript records what the numbers turned out to be).** Raised 2026-08-04 by calef, asking whether decisions should be managed the
+Built (2026-08-04, the day after it was raised; the postscript records what the numbers turned out to be). Raised 2026-08-04 by calef, asking whether decisions should be managed the
 way milestones now are: a directory, an index, one document each, and a status.
-
 
 **Measured against the case that justified milestone 76**, because the argument is the same argument
 and the numbers should have to carry it:
@@ -111,8 +115,6 @@ document.
   that rebuilt the original file byte-for-byte from the split tree alone.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 The same case milestone 76 made, with nearly the same numbers: 5,320 lines, 71 sections, 2,017 `§N` citations, 126 commits in ten days, and three section-number collisions in one day already on
 the record. Adds two things the roadmap split did not need: a status, so supersession is a checked

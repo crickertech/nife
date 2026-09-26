@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 167. Handing a computed page to a userspace-built child: closing the x86_64 timebase page's delegation gap
 
-**Status: NOT-STARTED.** Minted 2026-08-25, from a gap PR #476 (milestone 161's `cntfrq` follow-up,
+Minted 2026-08-25, from a gap PR #476 (milestone 161's `cntfrq` follow-up,
 DECISIONS §121-adjacent but not that decision itself) found and documented rather than closed: a
 process built through the userspace ELF loader (`crates/supervision_protocol::build_child_space`)
 cannot reach the real x86_64 timebase page that a kernel-built process gets automatically.
 
-**Gate: NONE.** No hardware dependency; this is capability plumbing.
+No hardware dependency; this is capability plumbing.
 
 ## Why the kernel-built path works
 

@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: the-census-writes-its-own-row
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 532. The mutation census should write its own row, rather than a person remembering to
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-census-writes-its-own-row`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Written by milestone 518 (a census that cannot be attributed is a
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-census-writes-its-own-row`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Written by milestone 518 (a census that cannot be attributed is a
 number nobody can act on)'s lane, from the gap its own `BUGS` section names: the record it built is
 rung three of AGENTS.md's ladder, a thing somebody has to remember, and the tenet says to move up a
 rung when you notice that shape.
 
-**Gate: DECISION.** `.github/workflows/mutation.yml` has `permissions: contents: read` today, and
+`.github/workflows/mutation.yml` has `permissions: contents: read` today, and
 every workflow in this tree makes that same least-privilege choice deliberately. Changing it for one
 job is calef's call, not a lane's.
 

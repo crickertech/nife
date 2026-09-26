@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 383. A gate for a backticked in-tree path that does not resolve
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 259's notes sweep,
+Filed 2026-09-05 as an unnumbered proposal by milestone 259's notes sweep,
 which spent more than half its corrections on this one shape; numbered 2026-09-19 by milestone 433's
 drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**:
 `script/lint`'s markdown section still checks relative link targets and the `notes/README.md` index
@@ -11,7 +20,7 @@ where it used to claim a checker would be 100% false positives, and it now rests
 false-positive *rate* rather than on perfection. This block is the proposal that the rate is
 enumerable. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It reads the tree and needs nothing.
+It reads the tree and needs nothing.
 
 ## In brief
 

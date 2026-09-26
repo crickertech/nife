@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 148. A noise bound, not a noise measurement
 
-**Status: NOT-STARTED.** Minted 2026-08-21 by calef, from the same HPC-differentiation question as
+Minted 2026-08-21 by calef, from the same HPC-differentiation question as
 milestone 147. Every HPC center already measures operating-system noise with FTQ/FWQ-style
 microbenchmarks (Fixed Time Quantum / Fixed Work Quantum: sample how much work a tight loop
 completes per fixed interval, and read the jitter in the histogram). None of the general-purpose
@@ -8,7 +17,7 @@ kernels those benchmarks run against can turn a good histogram into a proof, bec
 and interrupt paths are not verified and their source of possible preemption is not exhaustively
 enumerable by a reader.
 
-**Gate: NONE.** The first increment needs nothing that does not exist: milestone 51's clock service
+The first increment needs nothing that does not exist: milestone 51's clock service
 is enough to port FTQ today, on both boards, with no PMU and no new kernel surface. The *bound*
 argument that follows the measurement is where this milestone earns its number, and it needs no
 decision to start either: it needs the kernel's own preemption sources enumerated, which is reading

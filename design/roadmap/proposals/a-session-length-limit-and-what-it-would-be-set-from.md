@@ -1,12 +1,21 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A session length limit, and what it would be set from
 
-**Status: PROPOSED 2026-09-24.** Raised by calef on 2026-09-24, after a measurement across this
+Raised by calef on 2026-09-24, after a measurement across this
 project's session records showed that **98% of every token spent is a cache read** and **0.1% is
 output**: a turn costs roughly the size of its context, not the size of its thought. He asked the
 question this file exists to answer: *"How do we set a checkpoint to re-evaluate that will not be
 forgotten?"* The lane that built the measurement wrote this block.
 
-**Gate: DECISION.** The threshold is calef's, and it is deliberately not being chosen yet.
+The threshold is calef's, and it is deliberately not being chosen yet.
 `AGENTS.md`'s *measure first, then decide* rules that a threshold set before the data exists is no
 better than one chosen under attachment, and on the day this was raised there was one measurement,
 which is not a distribution. **The trigger is enough weeks of per-turn context to show a

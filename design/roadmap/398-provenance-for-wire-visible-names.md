@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: 182
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 398. Provenance for the names two programs agree on
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal, found by milestone 283's gate
+Filed 2026-09-13 as an unnumbered proposal, found by milestone 283's gate
 firing on a record nobody knew was there; numbered 2026-09-19 by milestone 433's drain of the
 proposal pile. **Premise re-read against the tree on 2026-09-19 and still true.**
 `crates/measured_boot/src/lib.rs` still carries the record on `PROGRAM_MEASUREMENTS`, saying in its
@@ -14,7 +23,7 @@ has a first answer**: `pub const <NAME>: &str` matches **77** times across `crat
 since not every one of the 77 is agreed between two binaries.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §182.** The decision is
+The decision is
 §182 (is a string two binaries agree on a name for `script/names`' purposes, or is it data?), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. What counts as a
 surface is a scope question, and scope decides how large the worklist calef is handed becomes.

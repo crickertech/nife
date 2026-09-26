@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-25
+built: 2026-09-13
+---
 # 175. Split `user/`: `components/` for services, `fixtures/` for test and benchmark programs
 
-**Status: BUILT 2026-09-13.** Minted 2026-08-25, from calef asking when nife development should split
+Minted 2026-08-25, from calef asking when nife development should split
 into different repositories. [Milestone 39](39-repository-structure.md)'s own analysis already
 answered the bigger question (monorepo now, distribution as a separate manifest repo later, gated
 on milestone 23 forcing it, and 23's residual piece was declined for want of a customer rather than
@@ -232,7 +237,6 @@ The boot leg is CI's.
 
 ## Why it matters
 
-
 Directly: ends the crate-is-both-a-program-collection-and-a-library problem 39 named, so a component
 can express "I need this dependency but not that one" without handing it to all 65 siblings, and
 milestone 39's own §10/§46 packaging observations (the manifest and measured-boot hash are already
@@ -252,8 +256,6 @@ still-module shared code gets lifted into its own crate as part of this move or 
 matching how `virtio`/`socket_proto`/`supervision_proto` were each lifted separately under Rule 7.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Milestone 39's own "cheap first move, which commits to none of the four options", performed. 74
 files split 49/23 (plus `net_stack`'s two `#[path]` modules) by one question: **would a

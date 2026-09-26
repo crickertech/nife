@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-07-30
+---
 # 41. Dead code: triage the suppressions, and un-blindfold the gate
-
-**Status: BUILT.**
 
 **In brief.** Triage all **79** `allow(dead_code)`/`allow(unused)` suppressions in the tree, delete what is dead, and replace the module-wide ones with per-item allows that carry a reason. Three distinct classes, only one of which is tidying. (1) **The gate is blindfolded over 5,831 lines**: six files carry module-wide `#![allow(dead_code)]`, including `sched.rs` (3,166 lines) and `arch/aarch64/mmu.rs` (1,275), so `-D warnings` cannot see dead code in the two largest and most security-relevant files in the kernel. (2) **Suppressions whose own comments name milestones that have since shipped**, e.g. `cpu.rs`'s "by the scheduler in step 3" and `smp.rs`'s "by spawn's placement policy" (both landed as §28), `cap.rs`'s "in 9b", `interrupts.rs`'s "milestone 5's first non-test caller", and two in `mmu.rs` pointing at milestone 8's in-kernel console, which §21 moved to userspace. Each is either now-used (delete the attribute) or genuinely dead (delete the code); either way the comment is false. (3) **Superseded demo payloads** in `user.rs`, which say so themselves ("7c handed the demo over to the real ELF"). Ends with a lint gate refusing new module-wide suppressions, the same shape as the conflict-marker and roadmap checks
 
@@ -133,7 +136,5 @@ it when no other lane is open, or accept the rebases. **Effort: 1 lane estimated
   spawns out of.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 a `-D warnings` gate with holes in a third of the kernel is not a gate

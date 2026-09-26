@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 554. A good upgrade sticks: what marks a trial boot successful
 
-**Status: BUILT.** *(Renumbered from 543 by the integrator on 2026-09-22: the maintainer minted 543 for a promoted proposal while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 542 is the highest claimed
+*(Renumbered from 543 by the integrator on 2026-09-22: the maintainer minted 543 for a promoted proposal while this lane was running, which is the collision AGENTS.md predicts for anything global to the tree. Number provisional until the merge queue lands it; 542 is the highest claimed
 on a branch in flight.)* Built 2026-09-21 by the lane `abboot/confirm-a-trial-boot`, on calef's
 launch of the proposal `design/roadmap/proposals/nothing-marks-a-trial-boot-successful.md` the same
 day. **Based on the rung 2b branch `abboot/tries-and-priority`, which is not on `main` yet**, so its
@@ -176,8 +181,6 @@ separate QEMU processes with nothing between them but the disk.
   was held on this block and is no longer held on it.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 A running machine can now say that its boot worked, so an upgrade that comes up is kept instead of
 being abandoned when its tries run out. The chooser writes the slot number onto the kernel's command

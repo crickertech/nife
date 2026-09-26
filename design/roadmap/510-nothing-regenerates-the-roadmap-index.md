@@ -1,6 +1,12 @@
+---
+status: REFUSED
+raised: 2026-09-19
+promoted_from: nothing-regenerates-the-roadmap-index
+refused_by: 443
+---
 # 510. Regenerating the index is nobody's job
 
-**Status: REFUSED 2026-09-21.** *(Number provisional until the merge queue lands it.)* **Retired
+Refused 2026-09-21. *(Number provisional until the merge queue lands it.)* **Retired
 unbuilt**: calef deleted the artifact this milestone existed to keep current, ruling that the index
 table was no longer worth building. The staleness this block describes was real, and it is now
 **unrepresentable** rather than fixed, which is the strongest way for a problem to end. REFUSED
@@ -11,7 +17,6 @@ proposal `nothing-regenerates-the-roadmap-index`, filed 2026-09-19, on calef's i
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Filed by milestone 443 (lanes wait on each other for three)'s lane, which took every gate off the generated index and found the last
 thing holding it together is a sentence.
-
 
 ## What is left after 443
 

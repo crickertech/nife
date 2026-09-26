@@ -1,8 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-07-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 23. A capability-routed component OS with live replacement
 
-**Status: PARTIAL.**
-
-**Gate: NONE.** **State handoff was ruled on 2026-09-23 and is no longer declined**
+**State handoff was ruled on 2026-09-23 and is no longer declined**
 ([DECISIONS §209](../decisions/209-state-handoff-is-an-opaque-blob-and-it-is-optional.md), state handoff is an opaque blob over a granted frame, and it is optional).
 The transport is the shape §116 (live component state handoff is declined, for want of a customer) sketched and did not commit to: an **opaque blob over a granted
 shared `Frame`** for state, **`GRANT`** for capabilities. **Handoff is optional**, declared in the

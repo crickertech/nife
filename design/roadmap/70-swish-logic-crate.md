@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-02
+built: 2026-08-02
+---
 # 70. `swish`'s remaining logic in a crate, host-testable like its siblings
 
-**Status: BUILT.** Raised 2026-08-02, and **the finding that prompted it was wrong**, which is
+Raised 2026-08-02, and **the finding that prompted it was wrong**, which is
 worth recording because the corrected version is a smaller and more honest milestone.
 
 `crates/swish` holds the shell's logic and `components/src/swish.rs` keeps the IO, which took 354 lines out
@@ -80,8 +85,6 @@ person to touch these scripts finds them.
   number citing it.
 
 ## Index row
-
-**Built:** 2026-08-02
 
 `coremark`, `line_editor` and `compositor` are each a crate holding the logic plus a program
 holding the IO. `swish` is the largest program that is not, so its dispatch, endowment preview and

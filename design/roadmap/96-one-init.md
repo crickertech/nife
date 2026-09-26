@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 96. One init: the spawn service written twice
 
-**Status: BUILT** 2026-08-04 (PR #93). Raised 2026-08-04 by milestone 50's closure lane, which found it the
+Built 2026-08-04 (PR #93). Raised 2026-08-04 by milestone 50's closure lane, which found it the
 expensive way.
 
 **The finding.** There are two inits. `user::initrd()` loads `"init"`, which on aarch64 is
@@ -41,8 +46,6 @@ cannot be ambiguous between two changes.
   its own peak and print it, so the wall is measured rather than met.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 aarch64 boots `hello.rs`'s init role and riscv64 boots `system_initializer`, with ~140
 near-identical lines of spawn service in each. A fix landing in one and not the other presents as

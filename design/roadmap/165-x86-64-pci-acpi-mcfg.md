@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-24
+built: 2026-09-02
+---
 # 165. x86_64 PCI enumeration: wire `kernel/src/pci.rs` to ACPI's MCFG
 
-**Status: BUILT 2026-09-02.** Was PARTIAL from 2026-08-24 until then; the three things it owed are
+Was PARTIAL from 2026-08-24 until then; the three things it owed are
 either built elsewhere (PCI interrupt routing by milestone 215, VT-d by milestone 161's item 6) or
 closed below (a real BAR placement, now measured under real firmware). Minted 2026-08-24, provisional number pending the integrator (mint against the
 current index at merge; two other numbers in this neighborhood were already taken by open pull
@@ -271,8 +276,6 @@ proven here is the handoff below: the suite does not run under real firmware, on
   days earlier and is why the boot needed no second attempt to diagnose.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 Scoped as a parallel check on whether x86_64 reaches a real-hardware data point for DECISIONS §86
 faster than a from-scratch JH7110 PCIe driver would. Wires `memory::pci_regions()` from ACPI's

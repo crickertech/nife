@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 357. `NOT-STARTED` is the third status that can be false, and milestone 75 is the proof
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 252 sweep; promoted by
+Filed as a proposal on 2026-09-03 by the milestone 252 sweep; promoted by
 milestone 433 on 2026-09-19. Both halves checked against the tree that day and both still hold.
 `design/roadmap/75-cycle-counter-authority.md` still reads `NOT-STARTED` with `Gate: DECISION`,
 though DECISIONS §139 answered that decision on 2026-09-02 and milestone 74's own gate line now
@@ -10,7 +19,7 @@ below has moved: `SUPERSEDED` was minted on 2026-09-15, so the uncovered statuse
 rather than the three the title claims (`NOT-STARTED`, `IN-PROGRESS`, `OPTIONAL`, `RECORDED`,
 `SUPERSEDED`), and `IN-PROGRESS` keeps the one mechanical check it was given on 2026-08-17.
 
-**Gate: NONE.** Fixing milestone 75's status is a paragraph and a word, and the design question
+Fixing milestone 75's status is a paragraph and a word, and the design question
 behind it is answerable by reading `script/roadmap` and the four uncovered statuses.
 
 **In brief.** Milestone 247 gated `BUILT` and `REMOVED`; milestone 252 gated `PARTIAL`. Three

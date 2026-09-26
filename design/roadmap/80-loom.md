@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-13
+---
 # 80. Loom: the hand-rolled atomic protocols, model-checked
 
-**Status: BUILT** 2026-08-13 (pull request #123, merge `49a0a892`). Raised 2026-08-03, same survey as
+Built 2026-08-13 (pull request #123, merge `49a0a892`). Raised 2026-08-03, same survey as
 79. The status read `IN-PROGRESS since 2026-08-04, a developer holds it on milestone/80-loom` for four
 days after that merge; found 2026-08-17 by the status-accuracy sweep. §76's defect class.
 
@@ -68,8 +73,6 @@ the complementary leg: real silicon executing the real orderings, unsearched but
   compile for the host, and the interrupt-routing lottery, which lives under `arch/`.
 
 ## Index row
-
-**Built:** 2026-08-13
 
 TCG explores almost none of the orderings real silicon will, so an acquire/release mistake passes
 every gate this tree has and first appears on hardware. The board lands ~2026-08-21. One protocol

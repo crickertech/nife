@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: the-trusted-core-has-no-size
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 535. The trusted core has no size, and the tree cannot say how big it is
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-trusted-core-has-no-size`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/redleaf-comparison` from the RedLeaf and
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `the-trusted-core-has-no-size`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/redleaf-comparison` from the RedLeaf and
 Tock-founding-paper reading (`notes/redleaf.md`, `notes/trusted-base.md`). *(Number and slug
 provisional until the merge queue lands it.)*
 
-**Gate: NONE.** One note, one `script/metrics` column, and a cross-reference. No hardware, no
+One note, one `script/metrics` column, and a cross-reference. No hardware, no
 decision, no syscall surface. **One sentence inside it is calef's**: any published claim about how
 small this kernel's trusted base is, relative to anyone else's, is a fact that leaves the machine.
 Produce the number and the method; leave the comparison for ratification.

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-01
+---
 # 219. The boot tour ends and the kernel halts, so there is nothing to soak
 
-**Status: BUILT** (2026-09-01). Minted the same day by the maintainer, after radon booted under
+Built (2026-09-01). Minted the same day by the maintainer, after radon booted under
 script control and the gap became obvious: everything needed for a sustained run exists except a
 workload that lasts. *(Number provisional until the merge queue lands it.)*
 
@@ -206,8 +211,6 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   A crossing count of zero says so out loud, and a single-core soak is not a multicore soak.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 `--features soak` replaces the halt at the end of the boot tour with user-mode IPC workers and a
 supervisor that beats every five seconds, on all three architectures. The workload is a user

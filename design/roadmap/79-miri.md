@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 79. Miri over the host crates
 
-**Status: BUILT.** Raised 2026-08-03, from a survey of what analysis the tree runs against what
+Raised 2026-08-03, from a survey of what analysis the tree runs against what
 it could. Milestones 79 to 85 all come from that survey.
 
 This project's method is pure logic in host-testable crates, and Miri interprets exactly those tests
@@ -41,8 +46,6 @@ not per-PR. `-Zmiri-strict-provenance` is a later ratchet to consider once the d
   every change would buy a check that already runs against the same tests once a week.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 The method is pure logic in host-testable crates, and Miri checks exactly those tests for the
 undefined behaviour Kani is not asked about and fuzzing cannot see. The pinned nightly already

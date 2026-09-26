@@ -1,8 +1,17 @@
+---
+status: PARTIAL
+raised: 2026-08-13
+milestone_dependencies: 205
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 121. `ripgrep` on nife: enumeration as a capability, and what the walk costs
 
-**Status: PARTIAL.** Minted 2026-08-13 by calef.
+Minted 2026-08-13 by calef.
 
-**Gate: MILESTONE 205.** (MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT; what stops every
+(MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT; what stops every
 outstanding item below is 205, a way to hand a foreign program its arguments.) 64 measured the
 crates.io surface and bound `read_dir`. The second half of
 this gate was `MILESTONE 122`, which landed on 2026-08-18: `std` now holds a directory handle and a

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-16
+---
 # 307. Which assertion actually fires when a confinement claim is broken
 
-**Status: BUILT.** 2026-09-16. Minted 2026-09-16 by the maintainer. *(Number provisional until the
+Built 2026-09-16. Minted 2026-09-16 by the maintainer. *(Number provisional until the
 merge queue lands it.)*
 
 ## Why this exists
@@ -168,7 +173,5 @@ enough to confirm that there is no excuse for leaving one unconfirmed.
   assertion as the only live one, four weeks after milestone 211 made it the dead one.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 Milestone 305 found two cases where the assertion a reader would quote is not the assertion doing the work and predicted a sweep would find more; this is that sweep, over all 26 rows of `notes/confinement-claims.md`. **The finding is a second proof that could not fail**, and it is a Kani harness rather than a kernel test, which is where nobody was looking: `no_vtd_entry_ever_sets_a_reserved_bit` stated all three assertions *and* its `assume` through the three constants the encoder builds its entry out of, so `(pa & M) | bits` setting no bit outside `M | R | W` held for every value of `M`. Widening `VTD_ADDR_MASK` over bits a VT-d entry really reserves left it **SUCCESSFUL, 0 of 45 failed**, while every translated DMA would fault as broken hardware. The tree had recorded the opposite forty lines away, citing this harness as the example of avoiding that exact trap. Fixed, measured both ways, and the shape found six more times: 17 rows fire as advertised, 8 have a quotable assertion that cannot run, 1 was answered by refusing to look.

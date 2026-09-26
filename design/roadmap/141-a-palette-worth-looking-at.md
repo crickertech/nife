@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 141. A palette worth looking at, and a gate that lets it be one
 
-**Status: NOT-STARTED.** Minted 2026-08-19 by calef, on seeing that the terminal's colours were
+Minted 2026-08-19 by calef, on seeing that the terminal's colours were
 chosen as a test instrument: *"can we have an option at some point to make it pretty and not just
 good for tests?"*
 
-**Gate: NONE.** The first piece is a check nobody has written, and it needs no decision.
+The first piece is a check nobody has written, and it needs no decision.
 
 **In brief.** The sixteen-colour palette in `crates/video_terminal` was picked so that a corrupted
 pixel is a detectably wrong colour rather than a different legal one. That is a good reason and it

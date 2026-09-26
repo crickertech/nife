@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: a-driver-for-the-network-card-a-pc-actually-has
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 494. A driver for the network card a PC actually has
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-driver-for-the-network-card-a-pc-actually-has`, filed 2026-09-19, on calef's instruction
 of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own,
 unedited except for this paragraph: the argument is its author's and promotion is not the moment to
@@ -8,7 +18,7 @@ improve it. Written by milestone 198 (a package manager, and the trivial install
 rung 3 of the trivial install DECISIONS §157 (a trivial install is a web page,) defines: packages over the internet need a network
 card, and the only one nife can drive is virtio-net, which no physical machine has.
 
-**Gate: NONE.** The driver is written and tested under QEMU, which emulates the family xenon has.
+The driver is written and tested under QEMU, which emulates the family xenon has.
 The bench half needs xenon powered, which is the same attended boot milestone 261 needs.
 
 ## Which card xenon has, and the tree disagreed with itself

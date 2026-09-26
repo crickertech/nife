@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-22
+---
 # 68. Code-quality gates: one lint policy, and the lints that lost
 
-**Status: BUILT.** The lint policy landed 2026-08-02. The doc-example half **closed 2026-08-17**;
+The lint policy landed 2026-08-02. The doc-example half **closed 2026-08-17**;
 the `missing_docs` half's open policy question is **decided 2026-08-22 (DECISIONS §107): opt-out,
 workspace-wide.** The worklist itself (401 items across 32 crates on 2026-08-17, closed to 235 across
 7 crates by a 2026-08-22 follow-up lane) is not required to reach zero for BUILT; it is an ordinary
@@ -164,8 +169,6 @@ first, then the comment, then the block.
   whose examples can rot unnoticed inside the gate milestone 68 exists to be.
 
 ## Index row
-
-**Built:** 2026-08-22
 
 Import order, `[workspace.lints]`, dependency direction, unused dependencies, spelling. Three
 lints were adopted, measured and **removed** on the evidence. `undocumented_unsafe_blocks` is now

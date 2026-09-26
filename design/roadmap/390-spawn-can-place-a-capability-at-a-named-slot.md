@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 390. The kernel's own spawn cannot put a capability at the slot a manifest names
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 111's lane, which
+Filed 2026-09-05 as an unnumbered proposal by milestone 111's lane, which
 hit this and worked around it; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **Premise re-read against the tree on 2026-09-19 and still true, to the digit**: `kernel::user::Spawn`
 in `kernel/src/user.rs` still carries `arg0`, `arg1`, `arg2`, `grants` and `maps` and no `placed`,
@@ -10,7 +19,7 @@ exactly 91 `Spawn { .. }` literals in `kernel/`. The three named slots are still
 builder this would mirror is still `supervision_protocol`'s `placed: &'a [(u64, u64, u64)]` loop.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The mechanism already exists one layer up
+The mechanism already exists one layer up
 (`supervision_protocol::ChildEndowment::placed`) and the kernel side is a field and a loop. What needs
 deciding is whether the 91 `Spawn { .. }` literals get a `..Spawn::new()` idiom or an added field,
 which is a taste call inside the kernel and not a design fork.

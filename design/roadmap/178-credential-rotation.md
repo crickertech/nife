@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-26
+milestone_dependencies: none
+decision_dependencies: 168
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 178. A credential a user can change, without reopening the whole store
 
-**Status: NOT-STARTED.** Minted 2026-08-26, calef, while deciding how a real interactive boot's
+Minted 2026-08-26, calef, while deciding how a real interactive boot's
 demo credential is provisioned (§120's amendment, milestone 49's login-boot-wiring piece): the boot
 now generates a fresh password each boot and prints it before the prompt, and the first thing
 calef expects a person to do with a new system is set their own. Nothing in this tree lets them.
 
-**Gate: DECISION §168.** Where a proof-gated rotation verb lives is a `credential_protocol` wire change two
+Where a proof-gated rotation verb lives is a `credential_protocol` wire change two
 programs must agree on, and the options below are close enough in cost that the choice is calef's
 rather than a lane's. It is
 §168 (where a proof-gated credential rotation

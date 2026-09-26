@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-program-that-asks-the-cpu-dies-without-saying-so
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 555. A program that asks the CPU dies without saying so
 
-**Status: NOT-STARTED.** *(This file was renumbered on 2026-09-22 from 525 to 555 because a concurrently merged lane had taken 525.)* Promoted from the proposal `a-program-that-asks-the-cpu-dies-without-saying-so`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer from two milestones' findings in the same
+*(This file was renumbered on 2026-09-22 from 525 to 555 because a concurrently merged lane had taken 525.)* Promoted from the proposal `a-program-that-asks-the-cpu-dies-without-saying-so`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the maintainer from two milestones' findings in the same
 week, and filed rather than launched because the third option below is a decision about what a
 program may assume about its machine.
 
-**Gate: DECISION.** The diagnostic half needs no ruling and could start today; the state half is
+The diagnostic half needs no ruling and could start today; the state half is
 calef's.
 
 ## The failure, as it actually presents
