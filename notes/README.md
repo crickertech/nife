@@ -2,8 +2,8 @@
 
 *Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` stays: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing. (This said `elf` and `dtb` until 2026-09-19, when DECISIONS §154 expanded `dtb` to `device_tree_blob`; `notes` is an ordinary English word and was never an acronym, so §154 does not reach it.)*
 
-Running glossary for nife. Written as concepts come up, not up front. If something in the code or
-the conversation does not make sense, it belongs here.
+Running glossary for nife, written as concepts come up. If something in the code or the
+conversation does not make sense, it belongs here.
 
 This page is an index: one line per note, saying what the note is. The detail lives in the note.
 `script/lint` fails if a `notes/*.md` file has no row here, so a new note adds its line in the
@@ -22,7 +22,7 @@ are a rule rather than a note, and live in [design/naming.md](../design/naming.m
 
 ## The machine
 
-What the hardware is and how the kernel meets it. These are the notes to read before any kernel code.
+What the hardware is and how the kernel meets it: read these before any kernel code.
 
 - [Registers](registers.md): the CPU's whole state; the most fundamental note.
 - [Harts and PEs](harts-and-pes.md): precise words for one instruction stream, not "core".
@@ -226,8 +226,9 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [The boot protocol](boot-protocol.md): the arm64 Image header that marks a kernel.
 - [The boot stick, and the program that makes it](boot-stick.md).
 - [What a nife package is, and what still cannot be done with one](packages.md).
+- [Who may write the activation set: a proposal](who-may-write-the-activation-set.md).
 - [Two boot slots, so a bad upgrade cannot brick the machine](boot-slots.md).
-- [Installing nife onto a disk](installing.md): a boot stick installing nife onto a disk.
+- [Installing nife onto a disk from a boot stick](installing.md).
 
 ## How the tree is run
 

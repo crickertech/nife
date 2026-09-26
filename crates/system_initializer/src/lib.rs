@@ -870,6 +870,19 @@ pub fn boot(
         .and_then(|b| core::str::from_utf8(b).ok())
         .unwrap_or("");
 
+    // **The image's package catalogue** (milestone 198 (a package manager) rung 3a's installer):
+    // what `package install` checks a package's digest against. Measured like a program, because
+    // it is an archive entry above the table, and read as the **empty** catalogue when the table
+    // refuses it or the archive has none, which vouches for no package: the same direction to be
+    // wrong in as the table's own rule above.
+    let catalogue = fs
+        .read(package_archive::CATALOGUE)
+        .filter(|bytes| {
+            measured_boot::verify_in_manifest(table, package_archive::CATALOGUE, bytes).is_ok()
+        })
+        .and_then(|b| core::str::from_utf8(b).ok())
+        .unwrap_or("");
+
     let con_elf = measured(&fs, table, "console");
     let in_elf = measured(&fs, table, "input");
     let td_elf = measured(&fs, table, "line_editor");
@@ -2174,6 +2187,7 @@ pub fn boot(
             // **The stack's client endpoint, if this boot built one** (milestone 590
             // (provisional)), `entropy`'s shape one service over.
             network: network.map(|(stack, _)| stack),
+            catalogue,
         },
         &progs,
         care_elf,
@@ -2259,6 +2273,11 @@ struct Channels {
     /// so. The shell holds none, for `entropy`'s reason: nothing it does as a builtin reaches the
     /// network.
     network: Option<u64>,
+    /// **The image's package catalogue**, measured (milestone 198 rung 3a's installer): one
+    /// `<stem> <digest>` line per package the image vouches for (`package_archive::CATALOGUE`).
+    /// Empty when the archive carried none or the table refused it, and then every
+    /// `package install` is refused as not catalogued.
+    catalogue: &'static str,
 }
 
 /// The file service, as the progenitor holds it for the life of the boot.
@@ -2308,11 +2327,31 @@ fn spawn_service(
         fs,
         entropy,
         network,
+        catalogue,
     } = c;
     // Whether the file page is mapped here yet, for the activation set (first image request).
     let mut fs_mapped = false;
     loop {
         let (w0, w1, w2) = recv(spawn_ep);
+        // **An edit to the activation set, not a spawn** (milestone 198 rung 3a's installer). Asked
+        // first, because under this bit no other bit of word 2 means anything.
+        if let Some(verb) = spawnproto::activation(w1, w2) {
+            let (status, live) = activate(
+                verb,
+                w0,
+                &Activating {
+                    spawn_ep,
+                    own_ut,
+                    jobs_ut,
+                    fs,
+                    catalogue,
+                },
+                &mut fs_mapped,
+            );
+            let (r0, r1, r2) = spawnproto::activation_reply(status, live);
+            send(result_ep, r0, r1, r2);
+            continue;
+        }
         let arg = spawnproto::arg(w1);
         let mem_pages = spawnproto::mem_pages(w2);
         let wiring = spawnproto::wiring(w2);
@@ -3144,68 +3183,448 @@ fn staged_image(len: u64) -> &'static [u8] {
 /// the reason `build_caretaker` gives: the shell is parked in its `RECV` on the result endpoint for
 /// the whole of a spawn, so nothing else is mid-request on it.
 fn vouched(bytes: &[u8], fs: Option<Fs>, own_ut: u64, fs_mapped: &mut bool) -> bool {
-    use filesystem_protocol::{dir, fs as op};
-    let Some(fs) = fs else { return false };
-    if !*fs_mapped {
-        // SAFETY: the syscall; read/write because names are written into this page.
-        *fs_mapped =
-            unsafe { invoke(fs.page, abi::page_frame::MAP, ACTIVATION_FS_VA, 1, own_ut) } == 0;
-        if !*fs_mapped {
-            return false;
-        }
-    }
-    let page = ACTIVATION_FS_VA as *mut u8;
-    let named = |verb: u64, handle: u64, name: &str, w1: u64| -> i64 {
-        // SAFETY: the page is mapped read/write above and a name is far shorter than a page.
-        unsafe { core::ptr::copy_nonoverlapping(name.as_ptr(), page, name.len()) };
-        call(fs.ep, op::req(verb, handle, name.len() as u64), w1).0 as i64
+    let Some(files) = FsCalls::map(fs, own_ut, fs_mapped) else {
+        return false;
     };
-    let read = |handle: u64, len: u64| -> Option<&'static str> {
-        let n = call(fs.ep, op::req(op::READ, handle, len), 0).0 as i64;
-        if n < 0 {
-            return None;
-        }
-        // SAFETY: the server wrote `n` bytes (at most `len`, at most a page) at the page's start.
-        let got = unsafe { core::slice::from_raw_parts(page as *const u8, n as usize) };
-        core::str::from_utf8(got).ok()
-    };
-    let close = |handle: i64| {
-        call(fs.ep, op::req(op::CLOSE, handle as u64, 0), 0);
-    };
-
     let digest = measured_boot::sha256(bytes);
-    let d = named(op::OPENDIR, op::ROOT, activation_set::DIRECTORY, dir::READ);
+    let d = files.named(
+        fs_op::OPENDIR,
+        fs_op::ROOT,
+        activation_set::DIRECTORY,
+        dir::READ,
+    );
     if d < 0 {
         return false;
     }
-    let c = named(op::OPEN, d as u64, activation_set::CURRENT, 0);
-    let generation = if c < 0 {
-        None
-    } else {
-        let g = read(c as u64, 16).and_then(activation_set::parse_current);
-        close(c);
-        g
+    let mut table = [0u8; PAGE_BYTES];
+    let hit = match files.live_generation(d as u64, &mut table) {
+        Ok((_, n)) => core::str::from_utf8(&table[..n]).is_ok_and(|table| {
+            matches!(activation_set::lookup_digest(table, &digest), Ok(Some(_)))
+        }),
+        Err(()) => false,
     };
-    let mut hit = false;
-    if let Some(number) = generation {
+    files.close(d);
+    hit
+}
+
+use filesystem_protocol::{dir, fs as fs_op};
+
+/// One page, the unit the file service trades bytes in, and the most a generation may hold.
+const PAGE_BYTES: usize = spawnproto::IMAGE_PAGE as usize;
+
+/// **The progenitor's calls on the file service**, through the page it maps at
+/// [`ACTIVATION_FS_VA`]. Shared by [`vouched`], which reads the activation set, and [`activate`],
+/// which writes it (milestone 198 rung 3a).
+///
+/// The page is the one the shell and every caretaker share with the server. That is sound for the
+/// reason `build_caretaker` gives: the shell is parked in its `RECV` on the result endpoint for the
+/// whole of a spawn or an activation, so nothing else is mid-request on it.
+struct FsCalls {
+    ep: u64,
+}
+
+impl FsCalls {
+    /// Map the file page here, once, on first use. `None` on a boot with no disk, or if the map
+    /// was refused.
+    fn map(fs: Option<Fs>, own_ut: u64, mapped: &mut bool) -> Option<Self> {
+        let fs = fs?;
+        if !*mapped {
+            // SAFETY: the syscall; read/write because names and data are written into this page.
+            *mapped =
+                unsafe { invoke(fs.page, abi::page_frame::MAP, ACTIVATION_FS_VA, 1, own_ut) } == 0;
+        }
+        mapped.then_some(Self { ep: fs.ep })
+    }
+
+    fn page() -> *mut u8 {
+        ACTIVATION_FS_VA as *mut u8
+    }
+
+    /// A name-taking verb: the name goes at the page's start, its length in the request.
+    fn named(&self, verb: u64, handle: u64, name: &str, w1: u64) -> i64 {
+        let len = name.len().min(PAGE_BYTES);
+        // SAFETY: the page is mapped read/write (`map`) and `len` is at most a page.
+        unsafe { core::ptr::copy_nonoverlapping(name.as_ptr(), Self::page(), len) };
+        call(self.ep, fs_op::req(verb, handle, len as u64), w1).0 as i64
+    }
+
+    fn close(&self, handle: i64) {
+        call(self.ep, fs_op::req(fs_op::CLOSE, handle as u64, 0), 0);
+    }
+
+    /// Read a file from offset 0 into `out`, up to `out.len()` bytes (at most a page). `None` on an
+    /// error.
+    fn read(&self, handle: u64, out: &mut [u8]) -> Option<usize> {
+        let want = out.len().min(PAGE_BYTES);
+        let n = call(self.ep, fs_op::req(fs_op::READ, handle, want as u64), 0).0 as i64;
+        if n < 0 {
+            return None;
+        }
+        let n = (n as usize).min(want);
+        // SAFETY: the server wrote `n` bytes (at most `want`, at most a page) at the page's start.
+        unsafe { core::ptr::copy_nonoverlapping(Self::page(), out.as_mut_ptr(), n) };
+        Some(n)
+    }
+
+    /// Replace a file's contents with `bytes`, a page at a time. `false` at the first short or
+    /// refused write.
+    fn replace(&self, handle: u64, bytes: &[u8]) -> bool {
+        if call(self.ep, fs_op::req(fs_op::TRUNCATE, handle, 0), 0).0 as i64 != 0 {
+            return false;
+        }
+        for (i, chunk) in bytes.chunks(PAGE_BYTES).enumerate() {
+            // SAFETY: the page is mapped read/write and a chunk is at most a page.
+            unsafe { core::ptr::copy_nonoverlapping(chunk.as_ptr(), Self::page(), chunk.len()) };
+            let at = (i * PAGE_BYTES) as u64;
+            let n = call(
+                self.ep,
+                fs_op::req(fs_op::WRITE, handle, chunk.len() as u64),
+                at,
+            )
+            .0 as i64;
+            if n != chunk.len() as i64 {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Open `name` in `parent` for writing, creating it if it is not there.
+    fn open_or_create(&self, parent: u64, name: &str) -> i64 {
+        let h = self.named(fs_op::OPEN, parent, name, 0);
+        if h >= 0 {
+            h
+        } else {
+            self.named(fs_op::CREATE, parent, name, 0)
+        }
+    }
+
+    /// Descend into `name` in `parent` with every right, making it if it is not there.
+    fn directory(&self, parent: u64, name: &str) -> i64 {
+        let h = self.named(fs_op::OPENDIR, parent, name, dir::ALL);
+        if h >= 0 {
+            h
+        } else {
+            self.named(fs_op::MKDIR, parent, name, dir::ALL)
+        }
+    }
+
+    /// Whether generation `number` has a file in the activation directory.
+    fn generation_exists(&self, act: u64, number: u32) -> bool {
         let mut name = [0u8; 10];
-        let t = named(
-            op::OPEN,
-            d as u64,
+        let h = self.named(
+            fs_op::OPEN,
+            act,
             activation_set::generation_name(number, &mut name),
             0,
         );
-        if t >= 0 {
-            // A page and not a byte more: a generation longer than that ends mid-line, which reads
-            // as malformed, which vouches for nothing. `activation_set`'s BUGS: forty entries fit.
-            hit = read(t as u64, spawnproto::IMAGE_PAGE).is_some_and(|table| {
-                matches!(activation_set::lookup_digest(table, &digest), Ok(Some(_)))
-            });
-            close(t);
+        if h >= 0 {
+            self.close(h);
+        }
+        h >= 0
+    }
+
+    /// **The live generation**: its number and its table, read into `out`. `(0, 0)` when there is
+    /// no `current` at all, which is a disk nothing was ever installed on and vouches for nothing.
+    /// `Err` when there is a `current` and it, or the generation it names, cannot be read or is
+    /// larger than a page: a table that cannot be read vouches for nothing, and must not be
+    /// written over either.
+    fn live_generation(&self, act: u64, out: &mut [u8; PAGE_BYTES]) -> Result<(u32, usize), ()> {
+        let c = self.named(fs_op::OPEN, act, activation_set::CURRENT, 0);
+        if c < 0 {
+            return Ok((0, 0));
+        }
+        let mut line = [0u8; 16];
+        let got = self.read(c as u64, &mut line);
+        self.close(c);
+        let number = got
+            .and_then(|n| core::str::from_utf8(&line[..n]).ok())
+            .and_then(activation_set::parse_current)
+            .ok_or(())?;
+        let mut name = [0u8; 10];
+        let t = self.named(
+            fs_op::OPEN,
+            act,
+            activation_set::generation_name(number, &mut name),
+            0,
+        );
+        if t < 0 {
+            return Err(());
+        }
+        let n = self.read(t as u64, &mut out[..]);
+        self.close(t);
+        // A page and not a byte more: a generation that fills one may have been cut short, and a
+        // table that ends mid-line vouches for nothing. `activation_set`'s BUGS: forty entries fit.
+        match n {
+            Some(n) if n < PAGE_BYTES => Ok((number, n)),
+            _ => Err(()),
         }
     }
-    close(d);
-    hit
+
+    /// **Write generation `number` whole, then make it live, then make that durable.** The order
+    /// is the whole of the crash story: a generation file is never rewritten, `current` names only
+    /// a generation that was written completely, and the flip itself is a `RENAME` of a staged
+    /// `current` onto the real one, so a reader meets the old line or the new one and never half
+    /// of each. `table` is `None` for a rollback, whose generation already exists.
+    fn commit(&self, act: u64, number: u32, table: Option<&[u8]>) -> bool {
+        if let Some(table) = table {
+            let mut name = [0u8; 10];
+            let g = self.named(
+                fs_op::CREATE,
+                act,
+                activation_set::generation_name(number, &mut name),
+                0,
+            );
+            if g < 0 {
+                return false;
+            }
+            let written = self.replace(g as u64, table);
+            self.close(g);
+            if !written {
+                return false;
+            }
+        }
+        let mut line = [0u8; 16];
+        let Ok(n) = activation_set::format_current(number, &mut line) else {
+            return false;
+        };
+        let staged = self.open_or_create(act, activation_set::CURRENT_STAGED);
+        if staged < 0 {
+            return false;
+        }
+        let written = self.replace(staged as u64, &line[..n]);
+        self.close(staged);
+        if !written {
+            return false;
+        }
+        // RENAME: both names in the page, source first; the destination's handle and length ride
+        // in the second word.
+        let src = activation_set::CURRENT_STAGED.as_bytes();
+        let dst = activation_set::CURRENT.as_bytes();
+        // SAFETY: the page is mapped read/write and both names together are a few bytes.
+        unsafe {
+            core::ptr::copy_nonoverlapping(src.as_ptr(), Self::page(), src.len());
+            core::ptr::copy_nonoverlapping(dst.as_ptr(), Self::page().add(src.len()), dst.len());
+        }
+        let renamed = call(
+            self.ep,
+            fs_op::req(fs_op::RENAME, act, src.len() as u64),
+            fs_op::rename_dst(act, dst.len() as u64),
+        )
+        .0 as i64;
+        if renamed != 0 {
+            return false;
+        }
+        // Durable before the answer, because the answer is what a person acts on: "installed"
+        // followed by a power cut that forgets it would be the prompt saying something untrue.
+        // A device that cannot flush answers `EOPNOTSUPP`, and then the generation is written and
+        // live and only as durable as the device makes it; that is recorded, not refused.
+        call(self.ep, fs_op::req(fs_op::SYNC, fs_op::ROOT, 0), 0);
+        true
+    }
+}
+
+/// What [`activate`] needs from the spawn service, named so the call site says it.
+struct Activating {
+    spawn_ep: u64,
+    own_ut: u64,
+    jobs_ut: u64,
+    fs: Option<Fs>,
+    catalogue: &'static str,
+}
+
+/// **Serve one activation request** (milestone 198 (a package manager) rung 3a's installer,
+/// DECISIONS §208 (installing a package is granting it, and the activation set is versioned)).
+/// Returns the reply's status and the generation live afterwards.
+///
+/// - **Install**: the package's frames are staged exactly as an image's are ([`receive_image`]), so
+///   what is checked is this process's copy. `package_archive::installable` decides on the bytes:
+///   the image's catalogue must vouch for the whole file, and the member named after the package
+///   is the program. Its bytes go to `packages/<stem>/<program>`, a place per package version that
+///   is never rewritten with other bytes, and a new generation records the program's digest.
+/// - **Remove**: a new generation without the program. Its bytes stay where they are, so a rollback
+///   can bring it back; nothing collects them yet.
+/// - **Rollback**: `current` names the generation one below the live one. Nothing else is written.
+///
+/// Each of the three ends in [`FsCalls::commit`], so the only thing that ever changes what runs is
+/// one rename of `current`. **Who may do this** is the shell today, because it is the one holder of
+/// the spawn endpoint, and so is who may *write* `activation/` directly: see `notes/packages.md`'s
+/// BUGS and the proposal it links for the hole that leaves.
+fn activate(
+    verb: Option<spawnproto::Activation>,
+    w0: u64,
+    a: &Activating,
+    fs_mapped: &mut bool,
+) -> (spawnproto::ActivationStatus, u32) {
+    use spawnproto::{Activation, ActivationStatus as S};
+    // The request's own trailing messages come off the endpoint first, whatever happens next, so a
+    // refusal never leaves words behind that the next request would read as its own.
+    let staging = match verb {
+        Some(Activation::Install) => {
+            receive_image(a.spawn_ep, w0, a.own_ut, a.jobs_ut, true).map(|st| (st, w0))
+        }
+        _ => None,
+    };
+    let mut removed = [0u8; filesystem_protocol::grant::MAX_NAME];
+    let removed_len = if verb == Some(Activation::Remove) {
+        let (lo, hi, len) = recv(a.spawn_ep);
+        filesystem_protocol::grant::unpack_name(lo, hi, len as usize, &mut removed)
+    } else {
+        0
+    };
+
+    let outcome = (|| {
+        let Some(verb) = verb else {
+            return (S::Unknown, 0);
+        };
+        let Some(files) = FsCalls::map(a.fs, a.own_ut, fs_mapped) else {
+            return (S::StoreFailed, 0);
+        };
+        let act = files.directory(fs_op::ROOT, activation_set::DIRECTORY);
+        if act < 0 {
+            return (S::StoreFailed, 0);
+        }
+        let act_h = act as u64;
+        let mut old = [0u8; PAGE_BYTES];
+        let answer = match files.live_generation(act_h, &mut old) {
+            Err(()) => (S::StoreFailed, 0),
+            // A live table that is not text is a table nothing can edit, the same answer as one
+            // that cannot be read.
+            Ok((live, n)) => match core::str::from_utf8(&old[..n]) {
+                Ok(table) => edit(
+                    &files,
+                    act_h,
+                    verb,
+                    live,
+                    table,
+                    staging,
+                    a.catalogue,
+                    &removed[..removed_len],
+                ),
+                Err(_) => (S::StoreFailed, live),
+            },
+        };
+        files.close(act);
+        answer
+    })();
+
+    if let Some((st, _)) = staging {
+        supervision_protocol::memory_region_destroy(st);
+        cap_delete(st);
+    }
+    outcome
+}
+
+/// The part of [`activate`] that decides and writes, with the live generation already read.
+#[allow(clippy::too_many_arguments)]
+fn edit(
+    files: &FsCalls,
+    act: u64,
+    verb: spawnproto::Activation,
+    live: u32,
+    table: &str,
+    staging: Option<(u64, u64)>,
+    catalogue: &str,
+    removed: &[u8],
+) -> (spawnproto::ActivationStatus, u32) {
+    use spawnproto::{Activation, ActivationStatus as S};
+    // The next generation's number: the first one above the live generation with no file. After a
+    // rollback the numbers above the live one are taken, and a generation is never rewritten.
+    let next = || {
+        let mut m = live + 1;
+        while files.generation_exists(act, m) && m < u32::MAX {
+            m += 1;
+        }
+        m
+    };
+    let mut new = [0u8; PAGE_BYTES];
+    match verb {
+        Activation::Rollback => {
+            if live <= 1 {
+                return (S::NoEarlier, live);
+            }
+            let back = live - 1;
+            if !files.generation_exists(act, back) || !files.commit(act, back, None) {
+                return (S::StoreFailed, live);
+            }
+            (S::Done, back)
+        }
+        Activation::Remove => {
+            let Ok(program) = core::str::from_utf8(removed) else {
+                return (S::NotInstalled, live);
+            };
+            let n = match activation_set::without_entry(table, program, &mut new) {
+                Ok(n) => n,
+                Err(activation_set::Error::NotInstalled) => return (S::NotInstalled, live),
+                Err(_) => return (S::StoreFailed, live),
+            };
+            let m = next();
+            if !files.commit(act, m, Some(&new[..n])) {
+                return (S::StoreFailed, live);
+            }
+            (S::Done, m)
+        }
+        Activation::Install => {
+            let Some((_, len)) = staging else {
+                return (S::Unknown, live);
+            };
+            let bytes = staged_image(len);
+            let got = match package_archive::installable(catalogue, bytes) {
+                Ok(got) => got,
+                Err(package_archive::Refusal::NoProgram) => return (S::NoProgram, live),
+                Err(_) => return (S::NotCatalogued, live),
+            };
+            let mut stem = [0u8; package_archive::STEM_LEN];
+            let Ok(package) = package_archive::Package::parse(bytes) else {
+                return (S::NotCatalogued, live);
+            };
+            let stem = package.stem(&mut stem);
+            // The program's bytes, where a person can run them (DECISIONS §219 option D hashes
+            // whatever they run, so where they live is a convenience, not a trust decision).
+            let packages = files.directory(fs_op::ROOT, activation_set::PACKAGES);
+            if packages < 0 {
+                return (S::StoreFailed, live);
+            }
+            // `packages/<name>/<version>/<program>`: one component per field, because a prompt
+            // component is at most sixteen bytes and a stem is longer. The architecture is this
+            // machine's, and the stem the generation records still names it.
+            let name = files.directory(packages as u64, package.name());
+            let version = if name >= 0 {
+                files.directory(name as u64, package.version())
+            } else {
+                -1
+            };
+            let placed = version >= 0 && {
+                let f = files.open_or_create(version as u64, got.program);
+                let ok = f >= 0 && files.replace(f as u64, got.bytes);
+                if f >= 0 {
+                    files.close(f);
+                }
+                ok
+            };
+            for h in [version, name, packages] {
+                if h >= 0 {
+                    files.close(h);
+                }
+            }
+            if !placed {
+                return (S::StoreFailed, live);
+            }
+            let entry = activation_set::Entry {
+                program: got.program,
+                package: stem,
+                digest: got.digest,
+            };
+            let Ok(n) = activation_set::with_entry(table, &entry, &mut new) else {
+                return (S::StoreFailed, live);
+            };
+            let m = next();
+            if !files.commit(act, m, Some(&new[..n])) {
+                return (S::StoreFailed, live);
+            }
+            (S::Done, m)
+        }
+    }
 }
 
 fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {

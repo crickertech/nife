@@ -28,6 +28,10 @@ measured_boot = { version = "0.1.0", path = "../measured_boot" }
 # digest installed? §219 (how the shell names an installed program to the spawner) option D (milestone 198 (a package manager) rung 3a) looks every image request up in it. Pure
 # logic, and it brings only `measured_boot`, which is already here.
 activation_set = { version = "0.1.0", path = "../activation_set" }
+# The package format and the installer's decision on bytes (`package_archive::installable`), for
+# `package install` (milestone 198 rung 3a's installer): the progenitor checks a package against
+# the image's catalogue and takes its program member out. Pure logic, bringing only `measured_boot`.
+package_archive = { version = "0.1.0", path = "../package_archive" }
 # The sink contract, for the end-of-stream init sends on a child's behalf when the child was never
 # built and therefore cannot end its own second stream.
 byte_sink_protocol = { version = "0.1.0", path = "../byte_sink_protocol" }

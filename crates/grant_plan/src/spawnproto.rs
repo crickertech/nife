@@ -164,6 +164,119 @@ const DIR2_BIT: u64 = 1 << 38;
 /// Name: provisional (milestone 198 rung 3a, 2026-09-26), §219's own word for it.
 const IMAGE_BIT: u64 = 1 << 39;
 
+/// **Not a spawn: an edit to the activation set** (milestone 198 (a package manager) rung 3a's
+/// installer; DECISIONS §208 (installing a package is granting it, and the activation set is
+/// versioned)). When this bit is set the request asks the progenitor to install, remove or roll
+/// back, word 1 is an [`Activation`] verb, the rest of word 2 is zero, and the progenitor answers
+/// with exactly one message on the result endpoint: [`activation_reply`]'s two words.
+///
+/// **Why the progenitor serves it**, rather than an installer program: §208's argument for A3 was
+/// that "the supervisor that performs a live swap and the thing that decides which version is
+/// active are the same authority", and §219 already gave the progenitor the read half (it looks
+/// every image's digest up in the live generation). It holds the file service with `WRITE`, the
+/// image's catalogue in its archive, and the frame-staging path an image request built. An
+/// installer *program* would need all three delegated to it and an argument vector to be told
+/// which package, which does not exist (milestone 205 (how a foreign program is told what to do)).
+///
+/// What follows the request depends on the verb:
+///
+/// - For [`Activation::Install`], word 0 is the package file's length in bytes, and its frames follow
+///   exactly as an image's do (`IMAGE_BIT`: [`image_pages`] `SEND_CAP`s, each narrowed to `READ`).
+///   The progenitor copies them before it hashes, for the image path's reason.
+/// - For [`Activation::Remove`], one data message follows, the program's name packed the way a
+///   directory grant packs one (`filesystem_protocol::grant::pack_name`: two words, then the
+///   length). Opaque here for [`GRANT_WORDS`]'s reason.
+/// - For [`Activation::Rollback`], nothing follows.
+///
+/// Name: provisional (2026-09-26).
+const ACTIVATION_BIT: u64 = 1 << 40;
+
+/// **What an activation request asks for** (see `ACTIVATION_BIT`). Provisional names, like the
+/// bit's; the prompt spells them `package install`, `package remove` and `package rollback`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Activation {
+    /// Install the program of the package whose bytes follow: record its digest in a new
+    /// generation, place its bytes where a person can run them, and make that generation live.
+    Install = 1,
+    /// Write a new generation without the named program and make it live. Its bytes stay on
+    /// disk, which is what lets a rollback bring it back.
+    Remove = 2,
+    /// Make the generation numbered one below the live one live again. Nothing is rewritten.
+    Rollback = 3,
+}
+
+impl Activation {
+    fn from_word(w: u64) -> Option<Self> {
+        match w {
+            1 => Some(Self::Install),
+            2 => Some(Self::Remove),
+            3 => Some(Self::Rollback),
+            _ => None,
+        }
+    }
+}
+
+/// Build an activation request. `len` is the package's length for [`Activation::Install`] and
+/// ignored otherwise.
+pub fn activation_request(verb: Activation, len: u64) -> (u64, u64, u64) {
+    let w0 = if verb == Activation::Install { len } else { 0 };
+    (w0, verb as u64, ACTIVATION_BIT)
+}
+
+/// **The verb, if this request is an activation request at all.** The progenitor asks this first,
+/// before [`wiring`], because under `ACTIVATION_BIT` no other bit of word 2 means anything. A set
+/// bit with a verb this side does not know is `Some(None)`: the caller answers
+/// [`ActivationStatus::Unknown`] and reads nothing more.
+pub fn activation(w1: u64, w2: u64) -> Option<Option<Activation>> {
+    (w2 & ACTIVATION_BIT != 0).then(|| Activation::from_word(w1))
+}
+
+/// **How an activation request came out**: word 0 of the progenitor's one reply. Word 1 is the
+/// generation that is live afterwards, whatever the status, so a refusal still says what is in
+/// force. Provisional, like the verbs.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ActivationStatus {
+    /// Done: word 1 is the generation now live.
+    Done = 0,
+    /// The image's catalogue does not vouch for these bytes (DECISIONS §195 (a reviewed recipe vouches for a package)), or they are not a
+    /// package at all. Nothing was written.
+    NotCatalogued = 1,
+    /// A vouched package with no program the installer can find. Nothing was written.
+    NoProgram = 2,
+    /// [`Activation::Remove`] named a program the live generation does not have.
+    NotInstalled = 3,
+    /// [`Activation::Rollback`] from a generation with none below it.
+    NoEarlier = 4,
+    /// The file service refused a write, or this boot has none. What was written before the
+    /// failure is described in `notes/packages.md`: never a `current` naming a generation that
+    /// was not written whole.
+    StoreFailed = 5,
+    /// A verb this progenitor does not know, or a package larger than [`IMAGE_MAX_PAGES`].
+    Unknown = 6,
+}
+
+impl ActivationStatus {
+    /// The status a reply's word 0 carries, or [`ActivationStatus::Unknown`] for a word that is
+    /// none of them.
+    pub fn from_word(w: u64) -> Self {
+        match w {
+            0 => Self::Done,
+            1 => Self::NotCatalogued,
+            2 => Self::NoProgram,
+            3 => Self::NotInstalled,
+            4 => Self::NoEarlier,
+            5 => Self::StoreFailed,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// The progenitor's one reply to an activation request: the status and the generation live
+/// afterwards (0 when there is none).
+pub fn activation_reply(status: ActivationStatus, live: u32) -> (u64, u64, u64) {
+    (status as u64, u64::from(live), 0)
+}
+
 /// **The largest image `IMAGE_BIT` may carry, in pages** (256 KiB). A ceiling both sides read,
 /// so the shell refuses a larger file before it sends anything and the progenitor never stages more
 /// than its job pool can hold beside the child built from it. `uptime` is 22 pages stripped.
@@ -489,6 +602,56 @@ mod tests {
         assert_eq!(image_pages(4096), 1);
         assert_eq!(image_pages(4097), 2);
         assert_eq!(image_pages(0), 0);
+    }
+
+    /// **An activation request is told apart from every spawn by one bit, and its verbs and
+    /// statuses round-trip** (milestone 198 rung 3a). A spawn request with every wiring flag set is
+    /// still not an activation request, which is what keeps the progenitor from reading a spawn's
+    /// program id as a package length.
+    #[test]
+    fn an_activation_request_is_not_a_spawn_and_round_trips() {
+        let all = Wiring {
+            interruptible: true,
+            sink: true,
+            source: true,
+            diagnostics: true,
+            dir: true,
+            dir2: true,
+            screen: true,
+            image: true,
+        };
+        let (_, w1, w2) = request(3, 2, 64, all);
+        assert_eq!(activation(w1, w2), None);
+        for verb in [
+            Activation::Install,
+            Activation::Remove,
+            Activation::Rollback,
+        ] {
+            let (w0, w1, w2) = activation_request(verb, 90_491);
+            assert_eq!(activation(w1, w2), Some(Some(verb)));
+            assert_eq!(
+                w0,
+                if verb == Activation::Install {
+                    90_491
+                } else {
+                    0
+                }
+            );
+        }
+        assert_eq!(activation(9, ACTIVATION_BIT), Some(None));
+        for status in [
+            ActivationStatus::Done,
+            ActivationStatus::NotCatalogued,
+            ActivationStatus::NoProgram,
+            ActivationStatus::NotInstalled,
+            ActivationStatus::NoEarlier,
+            ActivationStatus::StoreFailed,
+            ActivationStatus::Unknown,
+        ] {
+            let (w0, w1, _) = activation_reply(status, 7);
+            assert_eq!(ActivationStatus::from_word(w0), status);
+            assert_eq!(w1, 7);
+        }
     }
 
     /// **`DIR2_BIT` follows [`DIR_BIT`]'s own precedent**: it is a second bit, not a count, and it
