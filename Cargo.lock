@@ -195,6 +195,7 @@ dependencies = [
  "environment_protocol",
  "file_allocation_table",
  "filesystem_protocol",
+ "free",
  "globally_unique_identifier_partition_table",
  "grant_plan",
  "graphics_protocol",
@@ -202,6 +203,7 @@ dependencies = [
  "jh7110_entropy",
  "line_editor",
  "login_protocol",
+ "machine_statistics_protocol",
  "measured_boot",
  "network_time_protocol",
  "nifefs",
@@ -211,6 +213,7 @@ dependencies = [
  "ps",
  "schedule_store",
  "screen_console",
+ "slabtop",
  "smoltcp",
  "socket_protocol",
  "supervision_protocol",
@@ -224,6 +227,7 @@ dependencies = [
  "user_mode_runtime",
  "video_terminal",
  "virtio",
+ "vmstat",
 ]
 
 [[package]]
@@ -413,6 +417,14 @@ dependencies = [
  "swap_protocol",
  "system_initializer",
  "user_mode_runtime",
+]
+
+[[package]]
+name = "free"
+version = "0.1.0"
+dependencies = [
+ "machine_statistics_protocol",
+ "page_frames",
 ]
 
 [[package]]
@@ -848,6 +860,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "slabtop"
+version = "0.1.0"
+dependencies = [
+ "page_frames",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1035,6 +1054,7 @@ name = "top"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "machine_statistics_protocol",
  "ps",
  "uptime",
 ]
@@ -1154,6 +1174,13 @@ dependencies = [
  "filesystem_protocol",
  "nifefs",
  "user_mode_runtime",
+]
+
+[[package]]
+name = "vmstat"
+version = "0.1.0"
+dependencies = [
+ "machine_statistics_protocol",
 ]
 
 [[package]]

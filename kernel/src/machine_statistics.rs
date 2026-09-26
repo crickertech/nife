@@ -42,7 +42,8 @@ static SINK: Sink = Sink([const { AtomicU64::new(0) }; WORDS]);
 
 /// The page's first word, as the kernel reaches it: the sink until [`publish`], then the frame's
 /// direct-map address.
-static PAGE: AtomicPtr<AtomicU64> = AtomicPtr::new(&SINK.0 as *const [AtomicU64; WORDS] as *mut AtomicU64);
+static PAGE: AtomicPtr<AtomicU64> =
+    AtomicPtr::new(&SINK.0 as *const [AtomicU64; WORDS] as *mut AtomicU64);
 
 /// The frame's physical address once published, for the one capability minted to it.
 static PHYS: AtomicU64 = AtomicU64::new(0);
@@ -111,7 +112,11 @@ pub fn interrupt() {
 #[inline]
 pub fn tick(idle: bool, runnable: u64) {
     mine(word::ONLINE).store(1, Ordering::Relaxed);
-    let spent = if idle { word::IDLE_TICKS } else { word::BUSY_TICKS };
+    let spent = if idle {
+        word::IDLE_TICKS
+    } else {
+        word::BUSY_TICKS
+    };
     mine(spent).fetch_add(1, Ordering::Relaxed);
     mine(word::INTERRUPTS).fetch_add(1, Ordering::Relaxed);
     mine(word::RUNNABLE).store(runnable, Ordering::Relaxed);

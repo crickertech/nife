@@ -3820,6 +3820,12 @@ mod cpu_time_tests;
 #[cfg(test)]
 mod pmap_tests;
 
+/// **`free`, `vmstat` and `slabtop`'s two sources** (milestone 126, DECISIONS §225):
+/// `MemoryRegion::USAGE` under `ENUMERATE` alone, refused to a spender and answering a viewer, and
+/// the machine statistics page recognized and moving. Arch-neutral, so every ISA runs it.
+#[cfg(test)]
+mod machine_statistics_tests;
+
 /// **Scheduled execution, where every entry is a grant** (milestone 129, notes/scheduled-execution.md).
 ///
 /// One module for both ISAs, like `dir_capability_tests`: nothing in it is architecture-specific, so

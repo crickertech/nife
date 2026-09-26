@@ -571,7 +571,8 @@ mod tests {
         t.retype_page(root).unwrap();
         t.retype_object_page(root, ObjectKind::Thread).unwrap();
         t.retype_object_page(root, ObjectKind::Thread).unwrap();
-        t.retype_object_page(root, ObjectKind::AddressSpace).unwrap();
+        t.retype_object_page(root, ObjectKind::AddressSpace)
+            .unwrap();
         t.unpin(root);
         let a = t.split(root, 4).unwrap();
         let _b = t.split(root, 2).unwrap();
@@ -581,14 +582,22 @@ mod tests {
         assert_eq!(used(PageUse::Object(ObjectKind::AddressSpace)), 1);
         assert_eq!(used(PageUse::Object(ObjectKind::Rendezvous)), 0);
         assert_eq!(used(PageUse::Children), 6);
-        assert_eq!(t.usage(root), Some((10, 16)), "every page is one of the above");
+        assert_eq!(
+            t.usage(root),
+            Some((10, 16)),
+            "every page is one of the above"
+        );
 
         // `a` is below `_b`, so its return leaves a hole: out of `Children`, still spent.
         let ca = t.claim_for_destroy(a).unwrap();
         t.return_to_parent(&ca);
         assert_eq!(t.spent(root, PageUse::Children), Some(2));
         assert_eq!(t.usage(root), Some((10, 16)));
-        assert_eq!(t.spent(a, PageUse::Frames), None, "a dead name answers nothing");
+        assert_eq!(
+            t.spent(a, PageUse::Frames),
+            None,
+            "a dead name answers nothing"
+        );
     }
 
     #[test]
@@ -598,15 +607,24 @@ mod tests {
         let job = t.split(budget, 16).unwrap();
         let grandchild = t.split(job, 4).unwrap();
         t.retype_object_page(job, ObjectKind::Thread).unwrap();
-        t.retype_object_page(grandchild, ObjectKind::Thread).unwrap();
+        t.retype_object_page(grandchild, ObjectKind::Thread)
+            .unwrap();
         t.retype_page(grandchild).unwrap();
         let unrelated = t.insert_root(0x1000, 8).unwrap();
         t.retype_object_page(unrelated, ObjectKind::Thread).unwrap();
 
         let thread = PageUse::Object(ObjectKind::Thread);
-        assert_eq!(t.spent(budget, thread), Some(2), "job and grandchild, not the stranger");
+        assert_eq!(
+            t.spent(budget, thread),
+            Some(2),
+            "job and grandchild, not the stranger"
+        );
         assert_eq!(t.spent(budget, PageUse::Frames), Some(1));
-        assert_eq!(t.spent(budget, PageUse::Children), Some(16), "direct children only");
+        assert_eq!(
+            t.spent(budget, PageUse::Children),
+            Some(16),
+            "direct children only"
+        );
         assert_eq!(t.spent(job, thread), Some(2));
         assert_eq!(t.spent(grandchild, thread), Some(1));
     }
@@ -699,7 +717,11 @@ mod tests {
         assert_eq!(t.usage(r), Some((2, 3)));
         // And it shares one budget with the plain retype rather than keeping its own.
         assert_eq!(t.retype_page(r), Some(0x42));
-        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), None, "exhausted, not an error");
+        assert_eq!(
+            t.retype_object_page(r, ObjectKind::Rendezvous),
+            None,
+            "exhausted, not an error"
+        );
     }
 
     #[test]

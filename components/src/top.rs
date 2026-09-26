@@ -26,6 +26,7 @@
 //! | 0 | the output sink, `WRITE` | where the summary and the table go |
 //! | 7 | the process domain, `ENUMERATE` | the supervision endpoint whose members it may **name** |
 //! | 8 | the diagnostics sink, `WRITE` | where a refusal goes, so `>` cannot swallow it |
+//! | 11 | the machine statistics page, `READ`, mapped read-only | the machine line under the summary, which is what became of `tload` (milestone 126, DECISIONS §225) |
 //!
 //! No clock, and that is worth stating because a `top` looks like it needs one: the uptime in the
 //! summary is `user_mode_runtime::monotonic_nanos`, the ambient counter every process holds
@@ -134,6 +135,18 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
         top::write_summary(found.rows(), monotonic_nanos(), &mut |bytes| {
             write_on(REPORT, bytes);
         });
+        // What became of `tload` (milestone 126, DECISIONS §225): the machine's run queue and busy
+        // share, from the machine statistics page when the owner granted it.
+        let machine = if is_granted(grant_plan::MACHINE_SLOT) {
+            // SAFETY: granted only alongside a read-only mapping of the same frame at `PAGE_VA`,
+            // which lives as long as this process (`system_initializer`'s spawn service).
+            unsafe {
+                machine_statistics_protocol::Snapshot::read(machine_statistics_protocol::PAGE_VA)
+            }
+        } else {
+            None
+        };
+        top::write_machine_line(machine.as_ref(), &mut |bytes| write_on(REPORT, bytes));
     }
     found.write_report(&mut |bytes| write_on(REPORT, bytes));
     send(REPORT, byte_sink_protocol::eof(), 0, 0);

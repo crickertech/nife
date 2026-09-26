@@ -2521,8 +2521,7 @@ fn try_create_rendezvous_from(region: u64) -> Result<RendezvousId, RendezvousFai
 
     // Rank: MEMORY_REGION (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
     // hold as the carve, so no destroy can race the page away (see retype_object_page).
-    let phys =
-        crate::memory_region::retype_object_page(
+    let phys = crate::memory_region::retype_object_page(
         region,
         crate::memory_region::ObjectKind::Rendezvous,
     )
