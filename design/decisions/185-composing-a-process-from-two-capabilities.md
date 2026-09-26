@@ -25,14 +25,16 @@ whether it should be carried at all.
 
 ## Is the premise true
 
-Checked 2026-09-19 in this worktree, and it is, on all three legs:
+Checked 2026-09-19 in this worktree, and it is, on all three legs. *(The two `tests.rs` line
+citations were re-pointed 2026-09-26 against `main` at `508333ebe` by the decisions-hygiene lane,
+from 3022 and 2706; both tests still assert what is described.)*
 
 - `fixtures/src/address_space_witness.rs` exists and holds the **same two capabilities**, retypes an
   address space, retypes a page frame, maps the frame into the space it built, and proves the kernel
-  enforces break-before-make inside it. `kernel/src/user/tests.rs:3022`
+  enforces break-before-make inside it. `kernel/src/user/tests.rs:3139`
   (`a_process_can_build_an_address_space_from_el0`) asserts the verdict on both architectures whose
   test kernel can load a user ELF, under `script/test`, on every pull request.
-- `kernel/src/user/tests.rs:2706` (`a_process_can_build_start_and_run_a_child_thread`) drives the
+- `kernel/src/user/tests.rs:2812` (`a_process_can_build_start_and_run_a_child_thread`) drives the
   whole sequence and the child runs and reports, on both architectures. It is a **kernel-side**
   test: it calls `memory_region::create`, `user_address_space_map`, `configure` and `start`
   directly, not through `ecall`/`svc` out of a granted budget.
