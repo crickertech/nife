@@ -43,6 +43,16 @@ explicitly has not chosen: *"It does not decide the format, the activation shape
 split."* AGENTS.md makes 198 a precondition on the ranking function itself, so this sits underneath
 the thing that makes a second customer possible.
 
+*(Dated note, 2026-09-26, decisions-hygiene lane.)* Milestone 198's half of this has since been
+answered, and not with a compressor. §197 (a package is one archive file) ruled the container on
+2026-09-20: one archive file per package, option C2. The lane that built it on 2026-09-23 wrote its
+own format, `crates/package_archive`, rather than taking `tar`, and stores members whole. Its BUGS
+section records "No compression" on purpose: a compressor is a second hostile-input parser on the
+same path, and the size cost is measured nowhere yet. §197 itself says nothing about compression;
+the answer is the built format's. So the package manager is no longer a consumer of anything below,
+and milestone 99 (`git`) is the only one left. The zstd entry's "if milestone 198 picks it" and
+"What this does not decide" are overtaken the same way.
+
 **Nothing needs bzip2, xz, 7z, or zip.** That is the whole of the evidence for those four and it is
 enough.
 
