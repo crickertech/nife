@@ -104,12 +104,12 @@ route is not closed. It is blocked on one I2C transaction that the kernel may be
 
 ## Proposals this work filed
 
-All are in `design/roadmap/proposals/`, with no number yet.
+Filed in `design/roadmap/proposals/`. Two have since been promoted to milestones.
 
 - `radons-reboot-dies-in-opensbis-pmic-write.md`, now milestone 592: bring I2C5 back up before
   SRST (built). Then a nife PMIC write, about 250 lines. Last, a firmware update, which is calef's
   call.
-- `a-wedged-kernel-resets-itself.md`: hardware watchdogs, so a wedged kernel resets itself. xenon's
-  TCO comes first, because q35 emulates it.
+- Milestone 593 (a wedged kernel resets itself), promoted from `a-wedged-kernel-resets-itself.md`:
+  hardware watchdogs. xenon's TCO is built and proven under q35; radon and argon follow.
 - `xenon-may-carry-amt.md`: remote power and serial over LAN, if xenon's factory option has AMT.
   It needs a firmware change and calef's network.

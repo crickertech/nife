@@ -46,7 +46,7 @@ them.)
 - AMT 11 carried INTEL-SA-00075 (the 2017 authentication bypass; recalled). Check the ME firmware
   version before AMT goes on any network.
 - It is xenon's alone. radon and argon have nothing like it, so it does not remove the case for
-  smart plugs (milestone 224 (nothing can power-cycle radon, so a hung soak needs a person)) or watchdogs (`a-wedged-kernel-resets-itself.md`).
+  smart plugs (milestone 224 (nothing can power-cycle radon, so a hung soak needs a person)) or watchdogs (milestone 593 (a wedged kernel resets itself)).
 
 Recommendation: press Ctrl-P at the next bench session. That costs nothing and changes nothing.
 Decide on the network after that, with the answer in hand.

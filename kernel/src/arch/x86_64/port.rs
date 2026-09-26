@@ -49,6 +49,31 @@ pub unsafe fn in8(port: u16) -> u8 {
     val
 }
 
+/// Write one 16-bit word to an I/O port. The Intel TCO watchdog's registers are 16 bits wide
+/// (`arch::x86_64::tco`), and a byte pair would not be the same access.
+///
+/// # Safety
+/// As [`out8`].
+#[cfg_attr(not(feature = "watchdog_soak_test"), allow(dead_code))]
+pub unsafe fn out16(port: u16, val: u16) {
+    // SAFETY: as `out8`.
+    unsafe { asm!("out dx, ax", in("dx") port, in("ax") val, options(nostack, preserves_flags)) };
+}
+
+/// Read one 16-bit word from an I/O port.
+///
+/// # Safety
+/// As [`out8`].
+#[cfg_attr(not(feature = "watchdog_soak_test"), allow(dead_code))]
+pub unsafe fn in16(port: u16) -> u16 {
+    let val: u16;
+    // SAFETY: as `out8`.
+    unsafe {
+        asm!("in ax, dx", out("ax") val, in("dx") port, options(nostack, preserves_flags));
+    };
+    val
+}
+
 /// Write one 32-bit word to an I/O port. Used by PCI configuration access through the legacy
 /// 0xcf8/0xcfc pair, which is 32-bit only (`arch::x86_64::machine::enable_pcie_ecam`).
 ///

@@ -464,6 +464,65 @@ jobs:
           name: cpu-matrix-logs
           path: target/cpu-matrix/
 
+  watchdog:
+    name: watchdog (x86_64 TCO reset under q35)
+    runs-on: ubuntu-24.04-arm
+    needs: gate
+    if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
+    # Two soaks that wait on the wall clock (about six minutes together) plus two kernel builds.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # **Milestone 593 (a wedged kernel resets itself), provisional number, and a NARROWER predicate
+      # than the other QEMU jobs, deliberately.** The other jobs use one shared rule for the reason
+      # `cpu-matrix` gives. This one costs a runner for six minutes of mostly waiting, and nothing
+      # outside these paths changes what it checks: the TCO driver, the soak that arms it, the harness
+      # that judges it, the runner that starts QEMU, and the kernel's features. Not a required check,
+      # so a skipped run posts nothing that blocks a merge. A push to `main` always runs it, so a
+      # predicate that was wrong about a path shows up one merge later rather than never.
+      - name: Does this change touch the watchdog?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then echo "needed=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          base="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          [ -n "$base" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          changed="$(git diff --name-only "$base" HEAD)"
+          if printf '%s\n' "$changed" | grep -qE '^(kernel/src/arch/x86_64/|kernel/src/soak\.rs|kernel/src/console\.rs|kernel/Cargo\.toml|xtask/src/soak\.rs|script/soak-test|helpers/qemu-runner-x86_64\.sh|\.qemu-version|\.github/workflows/ci\.yml)'; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "==> nothing the watchdog proof depends on changed"
+          fi
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.scope.outputs.needed == 'true'
+      - name: Cache QEMU
+        if: steps.scope.outputs.needed == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/nife-qemu
+          key: qemu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.qemu-version') }}
+      - name: Build QEMU if the cache missed
+        if: steps.scope.outputs.needed == 'true'
+        run: script/ci-qemu
+      - name: Put it on PATH
+        if: steps.scope.outputs.needed == 'true'
+        run: echo "$HOME/.cache/nife-qemu/bin" >> "$GITHUB_PATH"
+      - run: script/bootstrap
+        if: steps.scope.outputs.needed == 'true'
+      # The wedge first: it is the claim, and the healthy run is its control.
+      - run: script/ci-build watchdog-check
+        if: steps.scope.outputs.needed == 'true'
+      - name: Upload the soak logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: watchdog-logs
+          path: target/soak-test-*.log
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-24.04
