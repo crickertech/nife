@@ -1,0 +1,13 @@
+# Notes index: Build, boot and install
+
+Part of [the notes index](../README.md), which says how to add a line.
+
+- [LLVM](../llvm.md): how rustc and LLVM turn Rust into aarch64.
+- [Linker scripts](../linker-scripts.md): who places code, zeroes `.bss`, and sets the stack.
+- [ELF](../elf.md): the file format the kernel ships in.
+- [The boot protocol](../boot-protocol.md): the arm64 Image header that marks a kernel.
+- [The boot stick, and the program that makes it](../boot-stick.md).
+- [What a nife package is, and what still cannot be done with one](../packages.md).
+- [Who may write the activation set: a proposal](../who-may-write-the-activation-set.md).
+- [Two boot slots, so a bad upgrade cannot brick the machine](../boot-slots.md).
+- [Installing nife onto a disk from a boot stick](../installing.md).

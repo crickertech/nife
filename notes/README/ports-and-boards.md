@@ -1,0 +1,19 @@
+# Notes index: Ports and boards
+
+Part of [the notes index](../README.md), which says how to add a line.
+
+- [How portable kernels are written](../portability.md): what belongs in `arch/`, and why port early.
+- [Porting to RISC-V](../riscv-port.md): the second-architecture port and the `arch/` boundary it tested.
+- [Scoping RISC-V / aarch64 parity](../riscv-parity-scope.md): the RISC-V parity gaps, all now closed, with corrections.
+- [The RISC-V arch tests](../riscv-arch-tests.md): RISC-V twins of the aarch64 arch unit tests.
+- [RISC-V Summit Europe 2026, read for what it changes here](../riscv-summit-2026.md).
+- [Porting to x86_64](../x86-port.md): the third-architecture port, and what did not fit `arch/`.
+- [Booting x86_64 from real firmware](../x86-uefi-boot.md): the UEFI loader, and the bench procedure for xenon.
+- [xenon's firmware, page by page](../xenon-firmware.md): the OptiPlex 7050 setup UI, transcribed setting by setting. Name provisional.
+- [Where nife could actually run, and what the three bench machines are named](../target-hardware.md).
+- [The aarch64 board for the seL4 comparison](../aarch64-board-survey.md): choosing a board sel4bench really runs on.
+- [The VisionFive 2: first silicon](../visionfive2.md): radon's board facts, boot paths and bench runbook.
+- [Programming a clock and a reset line, for the first time](../jh7110-clock-and-reset.md).
+- [Reading a board, without a person watching it](../board-console.md): how `script/board-console` reads a board's serial boot unattended.
+- [The boot ladder](../boot-ladder.md): the boot markers every architecture prints, in order.
+- [What rented metal costs](../rented-metal.md): priced rented hardware for each architecture. Name provisional.

@@ -2714,8 +2714,8 @@ echo "==> markdown links and the notes index"
 #
 # 1. Relative links must resolve. Currently clean, so this is a REGRESSION GUARD: milestone 46 moved
 #    five things and could easily have broken a link, and the next rename might.
-# 2. Every notes/*.md must appear in notes/README.md, which CLAUDE.md requires and which had already
-#    drifted (notes/session-handoff.md).
+# 2. Every notes/*.md must appear in notes/README.md or an area page under notes/README/, which
+#    CLAUDE.md requires and which had already drifted (notes/session-handoff.md).
 #
 # Backticked repo paths are still deliberately NOT checked, but **the measurement that justified it
 # has rotted and the conclusion is weaker than it was.** Re-measured by milestone 93's first
@@ -2748,7 +2748,10 @@ for f in md:
         if not os.path.exists(os.path.normpath(os.path.join(base, target))):
             bad.append(f'{f} -> {target}')
 
-index = open('notes/README.md', errors='replace').read()
+# The index is notes/README.md plus its area pages under notes/README/, which is where its lines
+# moved when it reached §212's 3,000-word cap on 2026-09-26 (UTC). A note's line may be on either.
+index_pages = ['notes/README.md'] + sorted(glob.glob('notes/README/*.md'))
+index = ''.join(open(p, errors='replace').read() for p in index_pages)
 notes = sorted(glob.glob('notes/*.md'))
 if not md or not notes:
     sys.exit('lint: the markdown sweep selected nothing (no **/*.md, or no notes/*.md), so the '
@@ -2761,10 +2764,13 @@ if bad:
     for b in bad:
         print(f'  {b}', file=sys.stderr)
 if missing:
-    print('lint: notes/ files missing from notes/README.md:', file=sys.stderr)
+    print('lint: notes/ files missing from notes/README.md and its area pages in notes/README/:',
+          file=sys.stderr)
     for m in missing:
         print(f'  {m}', file=sys.stderr)
     print('Every note is indexed there (CLAUDE.md); an unindexed note is one nobody finds.',
+          file=sys.stderr)
+    print('Add a line to the notes/README/<area>.md page that fits; notes/README.md says how.',
           file=sys.stderr)
 if bad or missing:
     sys.exit(1)

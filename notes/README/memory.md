@@ -1,0 +1,15 @@
+# Notes index: Memory
+
+Part of [the notes index](../README.md), which says how to add a line.
+
+- [Physical memory](../physical-memory.md): the frame allocator, bitmap over free list.
+- [The MMU](../mmu.md): virtual addresses, page tables, the TLB and page faults.
+- [aarch64 page tables](../page-tables.md): the descriptor format the MMU walks, and its traps.
+- [The higher-half kernel](../higher-half.md): why the kernel lives in TTBR1, and how it boots.
+- [Tearing down an address space](../teardown.md): how the kernel reclaims a dead address space's frames.
+- [Memory regions: the kernel stops allocating](../memory-regions.md): processes spend pages from their own memory capability.
+- [PageFrame capabilities](../frames.md): shared memory a process owns, maps and delegates.
+- [ASIDs: tagged address spaces](../address-space-identifiers.md): per-space TLB tags so context switches flush nothing.
+- [The RISC-V TLB shootdown](../riscv-tlb-shootdown.md): cross-hart ASID flush via SBI RFENCE, replacing full flushes.
+- [The x86_64 TLB shootdown](../x86-tlb-shootdown.md): cross-core TLB invalidation on x86, done by NMI.
+- [The kernel's own budget](../kernel-budget.md): kernel stacks drawn from one fixed boot-carved region.
