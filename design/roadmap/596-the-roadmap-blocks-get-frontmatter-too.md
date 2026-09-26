@@ -182,27 +182,29 @@ Proved on a throwaway worktree migrated whole, 602 files:
 - `script/roadmap --index` and `--ready` are byte-identical before and after, and `--check` passes.
 - `script/catch-up` and `script/citations --moved` across the switch report no status change, and
   `script/metrics`' milestone and velocity series are unchanged.
-- `script/citations --ratchet` passes. It would not have: rewriting a status line makes it read as
-  added, and 160 citations on those lines had no gloss. The migrator writes one from the record's
-  own title, capped at seven words, which is the tier the checker grounds first.
+- `script/citations --ratchet`, `helpers/prose_ratchet.py --check` and the whole of `script/lint`
+  pass on the migrated tree.
 
-## What stops the switch (step 3): the prose ratchet
+## The prose ratchet re-measures a field token as syntax
 
-`helpers/prose_ratchet.py` fails 125 migrated blocks, and nothing about their prose got worse. It
-counts `**Status: BUILT.**` and a `**Gate: NONE.**` token as two-word sentences, so removing them
-raises the median sentence of 118 blocks over their baseline. The other seven are two longest
-sentences a gloss lengthened, and five word counts: three over a baseline row, and two over a
-prose-budget exception whose grant is counted with `wc -w`, which counts the frontmatter. The
-ratchet only lowers a baseline, so the switch cannot land as a script run until one of these is
-chosen:
+A first trial migration failed the prose ratchet on 125 blocks, none of whose prose got worse. It
+counted `**Status: BUILT.**` and `**Gate: NONE.**` as two-word sentences, so removing them raised 118
+medians. The maintainer ruled on 2026-09-26 (UTC) that the ratchet reads every field token
+`script/roadmap` parses as syntax, the principle #1311 applies to bold, and re-banks the rows that
+moves once, in the same change.
 
-1. The ratchet measures the prose-form field tokens as syntax rather than sentences, the argument
-   #1311 already made for parsed bold, and re-banks the affected rows once in that change.
-   Recommended: the measurement was wrong, and fixing it also stops an in-flight block in the old
-   form measuring differently from the same block migrated.
-2. The switch commit raises about 120 baseline rows as a recorded exception.
-3. Rewrite 116 blocks' sentences by hand. That changes prose which did not get worse to satisfy a
-   count, so I would not choose it at equal cost.
+So `helpers/roadmap_block.py` now holds the tokens (status, gate, `**Built:**`, and the Follow-on and
+Revisit bullet tags) and `without_fields`, the one rewrite the migrator performs. The prose ratchet
+measures a roadmap document through it, the migrator writes its output, and `script/citations
+--ratchet` treats a line that only lost a token as unchanged. The three agree by construction, so the
+migrator writes no glosses any more; the first trial's 160 were an artifact of the two disagreeing.
+
+`MEASURE` in the ratchet is now 2 and the baseline records it. A change that bumps it may raise the
+rows it moved, once, through `--remeasure`, and no other change may. That re-measured 158 roadmap
+rows, every one a median, and raised no other column. The word count a prose-budget exception is
+held to now leaves frontmatter out, as the main-body count already did. No exception in the tree
+moves today, because none sits on a file with frontmatter; after the switch, milestone 139 (drive
+down unsafe) and milestone 47 (navigation and naming) are the two it keeps under their grants.
 
 ## Index row
 
