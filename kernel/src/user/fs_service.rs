@@ -244,7 +244,13 @@ fn claim_window() -> Option<(u64, u64)> {
 /// frame is not freed (it stays mapped in the FS server for the life of the service); it is zeroed
 /// so no client's staging survives into the next client that claims the slot, which is the same
 /// "no stale RAM across a share" rule [`file_channel`] applies at allocation.
-#[cfg_attr(not(test), allow(dead_code))]
+///
+/// `allow(dead_code)` unconditionally, and it is the marked exception AGENTS.md's ladder allows: the
+/// caller is the production progenitor's reap, which is this milestone's outstanding piece (see the
+/// block's "What is left"). The harness witness claims windows and does not release them, because
+/// its clients run for the length of one test; the take-back is written here, beside its claim half,
+/// so the progenitor pool has the whole pool to build against rather than half of it.
+#[allow(dead_code)]
 fn release_window(w: u64) {
     use core::sync::atomic::Ordering;
     let phys = WINDOWS[w as usize].load(Ordering::Relaxed);
