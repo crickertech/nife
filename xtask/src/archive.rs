@@ -56,18 +56,39 @@ const PROGRAM_PACKAGES: [&str; 2] = ["components", "fixtures"];
 /// Refuses, rather than packing a partial archive, when a `[[bin]]` block has a shape
 /// [`bin_names`] does not understand, and when something else in the tree names a program no
 /// `[[bin]]` builds: see [`check_declared_programs`].
+///
+/// **Less the programs a package lists as `packaged_only`** (milestone 198 (a package manager)
+/// rung 3a): built like every other, packed by no archive, so they reach a machine only as a
+/// package. See [`packaged_only`].
 fn declared_programs() -> Result<&'static [String], String> {
     // Read once per `xtask` run: `test` packs three archives, and they must pack the same list.
     static DECLARED: std::sync::OnceLock<Result<Vec<String>, String>> = std::sync::OnceLock::new();
     let declared = DECLARED.get_or_init(|| {
         let mut names = Vec::new();
+        let mut absent = Vec::new();
         for package in PROGRAM_PACKAGES {
             let path = workspace_root().join(package).join("Cargo.toml");
             let text = std::fs::read_to_string(&path)
                 .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
             names.extend(bin_names(&text).map_err(|e| format!("{}: {e}", path.display()))?);
+            absent.extend(packaged_only(&text).map_err(|e| format!("{}: {e}", path.display()))?);
         }
         check_declared_programs(&names)?;
+        for name in &absent {
+            if !names.contains(name) {
+                return Err(format!(
+                    "`{name}` is packaged_only and no [[bin]] builds it"
+                ));
+            }
+            if grant_plan::Prog::ALL.iter().any(|p| p.name() == name)
+                || boot_programs().contains(&name.as_str())
+            {
+                return Err(format!(
+                    "`{name}` is packaged_only, and the shell or the boot needs it in the image"
+                ));
+            }
+        }
+        names.retain(|name| !absent.contains(name));
         Ok(names)
     });
     declared.as_deref().map_err(Clone::clone)
@@ -98,6 +119,49 @@ fn declared_program_blobs(
         }
     }
     Some(blobs)
+}
+
+/// **The programs a `Cargo.toml` says no boot image packs**: the `packaged_only` list under
+/// `[package.metadata.nife]`, which cargo ignores and this reads (milestone 198 (a package
+/// manager) rung 3a). Empty when there is no such table. Strict for [`bin_names`]' reason: a
+/// line in that table this does not understand is an error, because skipping it would pack a
+/// program that was meant to arrive only as a package.
+///
+/// One line, `packaged_only = ["a", "b"]`, is the whole of the shape it reads.
+fn packaged_only(manifest: &str) -> Result<Vec<String>, String> {
+    let mut inside = false;
+    let mut names = Vec::new();
+    for (i, raw) in manifest.lines().enumerate() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            inside = line == "[package.metadata.nife]";
+            continue;
+        }
+        if !inside || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let list = line
+            .strip_prefix("packaged_only")
+            .map(str::trim_start)
+            .and_then(|l| l.strip_prefix('='))
+            .map(str::trim)
+            .and_then(|l| l.strip_prefix('['))
+            .and_then(|l| l.strip_suffix(']'))
+            .ok_or_else(|| {
+                format!(
+                    "line {}: [package.metadata.nife] holds only `packaged_only = [\"name\", ...]`",
+                    i + 1
+                )
+            })?;
+        for item in list.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let name = item
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix('"'))
+                .ok_or_else(|| format!("line {}: `{item}` is not a quoted name", i + 1))?;
+            names.push(name.to_string());
+        }
+    }
+    Ok(names)
 }
 
 /// The `name` of every `[[bin]]` table in a `Cargo.toml`, in order.
@@ -631,6 +695,29 @@ mod tests {
 
         let nameless = "[[bin]]\npath = \"src/x.rs\"\n[[bin]]\nname = \"y\"\n";
         assert!(bin_names(nameless).unwrap_err().contains("no `name`"));
+    }
+
+    /// **`packaged_only` reads its one shape and refuses anything else in its table** (milestone
+    /// 198 rung 3a), and a manifest without the table packs everything.
+    #[test]
+    fn packaged_only_reads_its_list_and_refuses_what_it_does_not_understand() {
+        let manifest = "[[bin]]\nname = \"greeting\"\n\n[package.metadata.nife]\n# why\n\
+                        packaged_only = [\"greeting\", \"other\"]\n\n[dependencies]\n\
+                        packaged_only = \"not this table\"\n";
+        assert_eq!(packaged_only(manifest).unwrap(), ["greeting", "other"]);
+        assert!(packaged_only("[[bin]]\nname = \"x\"\n").unwrap().is_empty());
+        let stray = "[package.metadata.nife]\nsomething = 1\n";
+        assert!(
+            packaged_only(stray)
+                .unwrap_err()
+                .contains("only `packaged_only")
+        );
+        let bare = "[package.metadata.nife]\npackaged_only = [greeting]\n";
+        assert!(
+            packaged_only(bare)
+                .unwrap_err()
+                .contains("not a quoted name")
+        );
     }
 
     /// **The tree's own declaration reads, and agrees with everything that checks it** (milestone

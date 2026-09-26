@@ -187,6 +187,10 @@ const IMAGE_BIT: u64 = 1 << 39;
 ///   directory grant packs one (`filesystem_protocol::grant::pack_name`: two words, then the
 ///   length). Opaque here for [`GRANT_WORDS`]'s reason.
 /// - For [`Activation::Rollback`], nothing follows.
+/// - For [`Activation::Fetch`], the package's name follows as one data message, packed as
+///   [`Activation::Remove`]'s program name is. The progenitor finds the name's stem in the image's
+///   catalogue, fetches `<stem>.nifepkg` over the network stack it built at boot, and installs
+///   what arrived exactly as [`Activation::Install`] installs a file's bytes.
 ///
 /// Name: provisional (2026-09-26).
 const ACTIVATION_BIT: u64 = 1 << 40;
@@ -203,6 +207,15 @@ pub enum Activation {
     Remove = 2,
     /// Make the generation numbered one below the live one live again. Nothing is rewritten.
     Rollback = 3,
+    /// **Fetch the named package and install it** (milestone 198 rung 3a's fetch): the progenitor
+    /// reads the package from the package source over the network, not from the caller, so no
+    /// frames follow, only the name. Everything after the bytes arrive is [`Activation::Install`].
+    ///
+    /// The progenitor rather than a fetching program for the reason the installer is: a program
+    /// would need an argument vector to be told which package (milestone 205 (how a foreign
+    /// program is told what to do)). The cost is an HTTP reader (`http_response`) in the
+    /// progenitor; notes/packages.md weighs it.
+    Fetch = 4,
 }
 
 impl Activation {
@@ -211,6 +224,7 @@ impl Activation {
             1 => Some(Self::Install),
             2 => Some(Self::Remove),
             3 => Some(Self::Rollback),
+            4 => Some(Self::Fetch),
             _ => None,
         }
     }
@@ -253,6 +267,15 @@ pub enum ActivationStatus {
     StoreFailed = 5,
     /// A verb this progenitor does not know, or a package larger than [`IMAGE_MAX_PAGES`].
     Unknown = 6,
+    /// [`Activation::Fetch`] named a package the image's catalogue has no line for on this
+    /// architecture. Nothing was fetched: the catalogue is asked before the network is.
+    NoSuchPackage = 7,
+    /// [`Activation::Fetch`] on a boot whose progenitor built no network stack.
+    NoNetwork = 8,
+    /// [`Activation::Fetch`] could not get a whole package from the source: no connection, a
+    /// status other than 200, a response `http_response` refuses, a truncated body, or one larger
+    /// than [`IMAGE_MAX_PAGES`]. Nothing was installed.
+    FetchFailed = 9,
 }
 
 impl ActivationStatus {
@@ -266,6 +289,9 @@ impl ActivationStatus {
             3 => Self::NotInstalled,
             4 => Self::NoEarlier,
             5 => Self::StoreFailed,
+            7 => Self::NoSuchPackage,
+            8 => Self::NoNetwork,
+            9 => Self::FetchFailed,
             _ => Self::Unknown,
         }
     }
@@ -626,6 +652,7 @@ mod tests {
             Activation::Install,
             Activation::Remove,
             Activation::Rollback,
+            Activation::Fetch,
         ] {
             let (w0, w1, w2) = activation_request(verb, 90_491);
             assert_eq!(activation(w1, w2), Some(Some(verb)));
@@ -647,6 +674,9 @@ mod tests {
             ActivationStatus::NoEarlier,
             ActivationStatus::StoreFailed,
             ActivationStatus::Unknown,
+            ActivationStatus::NoSuchPackage,
+            ActivationStatus::NoNetwork,
+            ActivationStatus::FetchFailed,
         ] {
             let (w0, w1, _) = activation_reply(status, 7);
             assert_eq!(ActivationStatus::from_word(w0), status);

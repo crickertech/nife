@@ -8,7 +8,10 @@ is a real HTTP/1.0 exchange with a real host process, and nothing binds a port
 on the developer's machine or outlives QEMU.
 
 It serves `target/packages/`, which `cargo xtask`'s archive build fills from the
-recipes under `packages/`:
+recipes under `packages/`, or the directory `NIFE_PACKAGE_SOURCE` names when it
+is set. `script/swish-check` sets it (inherited through QEMU, which starts this
+per connection) to a directory it fills per architecture, so the gate decides
+what the booted system's `package install <name>` is served, lies included:
 
   GET /<name>.nifepkg            the package, byte for byte
   GET /tampered/<name>.nifepkg   the same package with one byte flipped halfway
@@ -24,7 +27,9 @@ import os
 import re
 import sys
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "target", "packages")
+ROOT = os.environ.get("NIFE_PACKAGE_SOURCE") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "target", "packages"
+)
 NAME = re.compile(rb"^[A-Za-z0-9._-]+\.nifepkg$")
 
 

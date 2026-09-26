@@ -194,6 +194,20 @@ pub(crate) const DOWNLOADED_PACKAGE: &str = "downloads/uptime.nifepkg";
 /// refuse before anything is written.
 pub(crate) const TAMPERED_PACKAGE: &str = "downloads/tampered.nifepkg";
 
+/// **`greeting`'s package, on the disk for the leg that cannot fetch it** (milestone 198 rung 3a):
+/// `x86_64` has no NIC, so its `script/swish-check` leg installs from here what the other two fetch.
+/// Written on every leg, typed only on `x86_64` (`swish_check_omits`).
+pub(crate) const DOWNLOADED_GREETING: &str = "downloads/greeting.nifepkg";
+
+/// **What the gate's package source serves this architecture** (milestone 198 rung 3a's fetch):
+/// `helpers/package-http-peer` reads `NIFE_PACKAGE_SOURCE`, and `script/swish-check` points it here,
+/// one directory per architecture so two legs never share one. It holds `greeting`'s package as the
+/// archive build wrote it, and `uptime`'s under its genuine name with the same tampering as
+/// [`TAMPERED_PACKAGE`]: a lying mirror, which the catalogue must catch.
+pub(crate) fn package_source_dir(architecture: &str) -> std::path::PathBuf {
+    workspace_root().join(format!("target/package-source-{architecture}"))
+}
+
 /// **And a real program that nothing installed**, for the refusal: `unreachable_network_witness`,
 /// stripped, which is in no activation generation. The witness rather than garbage bytes because
 /// the claim is that a *runnable* program is refused for being unvouched, and because it is the
@@ -269,6 +283,45 @@ fn stage_installed(architecture: &str) -> Result<String, String> {
     let unvouched = crate::inspect::read_stripped(&witness.display().to_string())
         .map_err(|e| format!("could not read {}: {e}", witness.display()))?;
 
+    // `greeting`, the package whose program no image carries: to the disk for x86_64, and to the
+    // gate's package source (with the lying `uptime`) for the legs that fetch.
+    let greeting_stem = format!("greeting-0.1.0-{architecture}");
+    let greeting_built = root.join(format!("target/packages/{greeting_stem}.nifepkg"));
+    let greeting = std::fs::read(&greeting_built).map_err(|e| {
+        format!(
+            "could not read {} (the archive build writes it): {e}",
+            greeting_built.display()
+        )
+    })?;
+    // **The claim the prompt cannot check: the image does not carry it.** `greeting` is no
+    // `grant_plan::Prog`, so its bare name is refused at the prompt whether or not the archive
+    // packs it, and only the archive can say. Read the archive this leg boots and refuse to seed
+    // if it has the program, since every greeting line after that would prove nothing.
+    let archive = match architecture {
+        "aarch64" => crate::archive::initrd_path(),
+        "riscv64" => crate::archive::riscv_initrd_path(),
+        _ => crate::archive::x86_initrd_path(),
+    };
+    let image = std::fs::read(&archive).map_err(|e| format!("could not read {archive}: {e}"))?;
+    let carried = nifefs::Fs::parse(&image)
+        .map_err(|e| format!("{archive} does not parse: {e:?}"))?
+        .read("greeting")
+        .is_some();
+    if carried {
+        return Err(format!(
+            "{archive} carries `greeting`, so installing it would prove nothing about a program \
+             the image lacks (is it still `packaged_only` in fixtures/Cargo.toml?)"
+        ));
+    }
+
+    let source = package_source_dir(architecture);
+    let _ = std::fs::remove_dir_all(&source);
+    std::fs::create_dir_all(&source).map_err(|e| format!("{}: {e}", source.display()))?;
+    std::fs::write(source.join(format!("{greeting_stem}.nifepkg")), &greeting)
+        .map_err(|e| format!("{}: {e}", source.display()))?;
+    std::fs::write(source.join(format!("{stem}.nifepkg")), &tampered)
+        .map_err(|e| format!("{}: {e}", source.display()))?;
+
     let tree = root.join("target/redoxfs-installed");
     let _ = std::fs::remove_dir_all(&tree);
     let write = |path: std::path::PathBuf, bytes: &[u8]| {
@@ -280,11 +333,14 @@ fn stage_installed(architecture: &str) -> Result<String, String> {
     write(tree.join(DOWNLOADED_PACKAGE), &package)?;
     write(tree.join(TAMPERED_PACKAGE), &tampered)?;
     write(tree.join(INSTALLED_UNVOUCHED), &unvouched)?;
+    write(tree.join(DOWNLOADED_GREETING), &greeting)?;
     eprintln!(
         "seed_installed ({architecture}): {stem} ({} bytes, digest {}) at {DOWNLOADED_PACKAGE}, \
-         a tampered copy, and an unvouched program; no activation set",
+         a tampered copy, {greeting_stem} at {DOWNLOADED_GREETING}, and an unvouched program; \
+         no activation set. The package source at {} serves {greeting_stem} and a lying {stem}",
         package.len(),
         String::from_utf8_lossy(&measured_boot::hex(&package_archive::sha256(&package))),
+        source.display(),
     );
     Ok(tree.display().to_string())
 }

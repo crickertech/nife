@@ -68,3 +68,21 @@ Prompt to prompt under TCG, at the gate's 100 ms polling grain: 0.73 s on aarch6
 x86_64 under OVMF for the genuine install, 0.3 s and 7.2 s for the refused one. These are the
 emulator's numbers, not the system's, and they are here so a regression by a factor is visible, not
 as a performance claim.
+
+## What fetching costs, measured 2026-09-26
+
+`package install greeting` against the gate's package source, from `script/swish-check`'s runs:
+
+| | aarch64 | riscv64 |
+|---|---|---|
+| Messages on the spawn endpoint | 2 `SEND`s (the request and the name) | 2 |
+| Package file | 82,715 bytes | 28,291 bytes |
+| Prompt to prompt under TCG | 1.28 s | 0.76 s |
+| Refused by the catalogue (`nosuch`) | 0.11 s, no connection | 0.11 s |
+| Refused by digest (the lying `uptime`) | 0.22 s | 0.22 s |
+| Progenitor capability peak | 23 of 24, unchanged | 23 of 24, unchanged |
+
+The fetch holds at most three capabilities of its own at once (the socket page's region, a page
+between its retype and its delete, and the staging region), the same as a file install's staging
+region, frame and page. The times are single runs at the gate's polling grain and are emulator
+numbers, like the table above.

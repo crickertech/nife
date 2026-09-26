@@ -326,6 +326,20 @@ pub mod fixture {
     pub const ECHO_PEER_IP: [u8; 4] = [10, 0, 2, 9];
     /// The echo peer's port; see [`ECHO_PEER_IP`].
     pub const ECHO_PEER_PORT: u16 = 7777;
+
+    /// **The runners' package source**: a `guestfwd` that runs `helpers/package-http-peer` once
+    /// per connection to `10.0.2.9:8080`, serving packages over HTTP/1.0 (milestone 198 (a package
+    /// manager) rung 3a). Two binaries dial it, the kernel harness's `socket_test_client` and the
+    /// progenitor's `package install <name>`, which is what put it here (rule 7). Only reachable
+    /// inside a QEMU runner: a booted system has no other package source yet, and that is
+    /// notes/packages.md's BUGS rather than a property of this address.
+    pub const PACKAGE_PEER_IP: [u8; 4] = [10, 0, 2, 9];
+    /// The package source's port; see [`PACKAGE_PEER_IP`]. The same number as [`DENIED_PORT`], and
+    /// unrelated to it: that is a port a *guest* may not listen on, this is one on a *host* the
+    /// guest dials.
+    pub const PACKAGE_PEER_PORT: u16 = 8080;
+    /// The `Host` header a request to the package source carries: [`PACKAGE_PEER_IP`], spelled.
+    pub const PACKAGE_PEER_HOST: &str = "10.0.2.9";
 }
 
 #[cfg(test)]

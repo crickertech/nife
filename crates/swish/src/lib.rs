@@ -806,6 +806,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );
     out(b"  package install <file>  install the program of a package this image vouches for\n");
+    out(b"  package install <name>  fetch it from the package source and install it\n");
     out(b"  package remove <prog>   a new generation without it; its bytes stay for rollback\n");
     out(b"  package rollback        make the generation before the live one live again\n");
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
@@ -918,6 +919,7 @@ pub fn write_activation(
     use spawnproto::ActivationStatus as S;
     let said: &[u8] = match (status, verb) {
         (S::Done, V::Install(_)) => b"  installed",
+        (S::Done, V::Fetch(_)) => b"  fetched and installed",
         (S::Done, V::Remove(_)) => b"  removed",
         (S::Done, _) => b"  rolled back",
         (S::NotCatalogued, _) => {
@@ -928,6 +930,11 @@ pub fn write_activation(
         (S::NoEarlier, _) => b"  refused: there is no generation before the live one",
         (S::StoreFailed, _) => b"  could not write the activation set",
         (S::Unknown, _) => b"  the progenitor could not take that request",
+        (S::NoSuchPackage, _) => {
+            b"  refused: this image's catalogue names no such package, so nothing was fetched"
+        }
+        (S::NoNetwork, _) => b"  this boot has no network to fetch a package over",
+        (S::FetchFailed, _) => b"  the package source did not send a whole package",
     };
     out(said);
     if live == 0 {
@@ -941,7 +948,7 @@ pub fn write_activation(
 
 /// What a malformed `package` line is answered with, sending nothing.
 pub const PACKAGE_USAGE: &[u8] =
-    b"  package install <file> | package remove <program> | package rollback\n";
+    b"  package install <file or name> | package remove <program> | package rollback\n";
 
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
@@ -1467,6 +1474,15 @@ mod tests {
         assert_eq!(
             shown(|o| write_activation(V::Install(b"x"), S::NotCatalogued, 0, o)),
             "  refused: this image's catalogue does not vouch for those bytes; nothing is installed\n"
+        );
+        assert_eq!(
+            shown(|o| write_activation(V::Fetch(b"greeting"), S::Done, 2, o)),
+            "  fetched and installed; generation 2 is live\n"
+        );
+        assert_eq!(
+            shown(|o| write_activation(V::Fetch(b"nosuch"), S::NoSuchPackage, 2, o)),
+            "  refused: this image's catalogue names no such package, so nothing was fetched; \
+             generation 2 is live\n"
         );
     }
 

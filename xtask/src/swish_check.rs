@@ -121,14 +121,26 @@ pub(crate) fn swish_check() -> bool {
 /// **What the second boot types** (milestone 198 (a package manager) rung 3a): the installed
 /// program still runs after a reboot, a removal makes it unrunnable without deleting it, and a
 /// rollback makes it runnable again. The disk is the only thing the first boot hands this one.
-const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 5] = [
+///
+/// `greeting` rides along (milestone 198 rung 3a's fetch): it was installed as generation 2, it
+/// runs after the reboot, and removing `uptime` leaves it running, because a generation drops one
+/// program and not its neighbours.
+const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 7] = [
     ("packages/uptime/0.1.0/uptime", &["up "]),
-    ("package remove uptime", &["removed; generation 2 is live"]),
+    (
+        "packages/greeting/0.1.0/greeting",
+        &["hello from a package this image never carried"],
+    ),
+    ("package remove uptime", &["removed; generation 3 is live"]),
     (
         "packages/uptime/0.1.0/uptime",
         &["refused: those bytes are not in the activation set"],
     ),
-    ("package rollback", &["rolled back; generation 1 is live"]),
+    (
+        "packages/greeting/0.1.0/greeting",
+        &["hello from a package this image never carried"],
+    ),
+    ("package rollback", &["rolled back; generation 2 is live"]),
     ("packages/uptime/0.1.0/uptime", &["up "]),
 ];
 
@@ -138,7 +150,7 @@ const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 5] = [
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 76] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 81] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -355,6 +367,46 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 76] = [
     (
         crate::disk::INSTALLED_UNVOUCHED,
         &["refused: those bytes are not in the activation set"],
+    ),
+    // **Fetching, refused before the network is touched**: the catalogue names no such package,
+    // so nothing is asked of the package source. Runs on all three legs, because x86_64's missing
+    // NIC is asked about only after the catalogue is.
+    (
+        "package install nosuch",
+        &[
+            "refused: this image's catalogue names no such package, so nothing was fetched; \
+             generation 1 is live",
+        ],
+    ),
+    // **A lying package source.** The gate serves this leg a copy of `uptime` whose program has one
+    // byte flipped and whose table of contents agrees (`disk::stage_installed`), under the genuine
+    // name: a whole, well-formed HTTP exchange of a well-formed package. Only the image's
+    // catalogue can refuse it, and nothing is written.
+    (
+        "package install uptime",
+        &["refused: this image's catalogue does not vouch for those bytes; generation 1 is live"],
+    ),
+    // **Fetched over the booted system's network and installed** (rung 3a's first gap): the
+    // progenitor finds `greeting`'s stem in the catalogue, fetches it from the gate's package
+    // source through the stack it built at boot, and installs what arrived as it installs a file.
+    (
+        "package install greeting",
+        &["fetched and installed; generation 2 is live"],
+    ),
+    // x86_64 has no NIC, so it installs the same package from the disk instead; the two legs that
+    // fetch omit this line ([`swish_check_omits`]). Either way generation 2 is the same table.
+    (
+        "package install downloads/greeting.nifepkg",
+        &["installed; generation 2 is live"],
+    ),
+    // **And it runs** (rung 3a's second gap): bytes no boot image carries, vouched only by the
+    // generation just written. The line it prints is its own; no program in the image prints it.
+    // That the image lacks `greeting` is checked on the host before the boot, by reading the
+    // archive (`disk::stage_installed`), because the prompt cannot tell: `greeting` is no
+    // `grant_plan::Prog`, so its bare name is refused whether or not the archive packs it.
+    (
+        "packages/greeting/0.1.0/greeting",
+        &["hello from a package this image never carried"],
     ),
     // **`uuid`, at the real prompt** (milestone 111), and this is the only gate that can run it.
     // The endowment is `crates/system_initializer`'s to make: the progenitor holds the entropy service's
@@ -604,13 +656,21 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 76] = [
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
-/// **The lines the `x86_64` leg does not type, each with the reason** (milestone 182, under the rule
+/// **The lines a leg does not type, each with the reason** (milestone 182 (`x86_64`'s own
+/// interactive-boot entry point), under the rule
 /// milestone 150 added: an omitted line carries a stated reason, or it is a gap nobody can see).
 ///
 /// A function over the line rather than a second table, so a line added to [`SWISH_CHECK_SCRIPT`]
-/// is typed on `x86_64` by default and an omission is the thing that has to be argued for. `None`
-/// means the line runs.
-fn swish_check_x86_omits(line: &str) -> Option<&'static str> {
+/// is typed on every leg by default and an omission is the thing that has to be argued for. `None`
+/// means the line runs. Every omission but one is `x86_64`'s; the one the other two legs make is
+/// the disk install that stands in, on `x86_64`, for a fetch they make over the network.
+fn swish_check_omits(arch: &str, line: &str) -> Option<&'static str> {
+    if arch != "x86_64" {
+        return (line == "package install downloads/greeting.nifepkg").then_some(
+            "this leg fetched the same package over the network the line before; x86_64 has no \
+             NIC, so it installs it from the disk instead",
+        );
+    }
     // `uuid` draws from the entropy service, and the progenitor builds that service only from a
     // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
     // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
@@ -628,10 +688,14 @@ fn swish_check_x86_omits(line: &str) -> Option<&'static str> {
         // `-netdev` at all until milestone 494 (a driver for the network card a PC actually has).
         // The preview and the witness stay: neither needs a device, and the witness's refusal is
         // the same on a boot with no stack as on one that has a stack and did not endow it.
-        "network_echo_client --mem 4" => Some(
-            "x86_64 has no NIC the progenitor can build a network stack from (virtio-net is found \
-             on virtio-mmio only, and the x86_64 runner attaches none)",
-        ),
+        // And the package source is reached over that network (milestone 198 rung 3a's fetch).
+        // `package install nosuch` stays: the catalogue refuses it before the network is asked.
+        "network_echo_client --mem 4" | "package install uptime" | "package install greeting" => {
+            Some(
+                "x86_64 has no NIC the progenitor can build a network stack from (virtio-net is \
+                 found on virtio-mmio only, and the x86_64 runner attaches none)",
+            )
+        }
         _ => None,
     }
 }
@@ -970,7 +1034,7 @@ fn boot_claim_complaint(
 ///   until something is typed. The leg waits for that report and then presses Enter once, so the
 ///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
 /// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
-///   mmio bus, so the progenitor builds no entropy service. [`swish_check_x86_omits`] names the
+///   mmio bus, so the progenitor builds no entropy service. [`swish_check_omits`] names the
 ///   lines that need one.
 fn swish_check_leg(arch: &str) -> bool {
     swish_check_boot(arch, &SWISH_CHECK_SCRIPT, true)
@@ -1084,6 +1148,13 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
     // IOMMU); the kernel grants the progenitor the mmio one and the other sits unclaimed.
     if !x86 {
         cmd.env("NIFE_NET", "1");
+        // **What the package source serves this leg** (milestone 198 rung 3a's fetch). The runner
+        // starts `helpers/package-http-peer` once per connection, and it inherits this through
+        // QEMU; `disk::stage_installed` filled the directory.
+        cmd.env(
+            "NIFE_PACKAGE_SOURCE",
+            crate::disk::package_source_dir(arch).display().to_string(),
+        );
     }
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
@@ -1251,7 +1322,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
             if !ready {
                 break;
             }
-            if x86 && swish_check_x86_omits(line).is_some() {
+            if swish_check_omits(arch, line).is_some() {
                 continue;
             }
             if !wait_for_prompt(line_secs) {
@@ -1322,7 +1393,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         // truncated.
         let mut cursor = 0usize;
         for &(line, want) in script {
-            if x86 && swish_check_x86_omits(line).is_some() {
+            if swish_check_omits(arch, line).is_some() {
                 continue;
             }
             match swish_check_answer(&transcript, cursor, line) {
@@ -1452,22 +1523,25 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
 
     if failed.is_empty() && !fresh {
         eprintln!(
-            "swish-check ({arch}): rebooted against the same disk, ran the package installed \
-             before the reboot, removed it, was refused it, rolled back, and ran it again"
+            "swish-check ({arch}): rebooted against the same disk, ran the two packages installed \
+             before the reboot, removed one and was refused it while the other still ran, rolled \
+             back, and ran it again"
         );
         return true;
     }
     if failed.is_empty() {
         // The six lines x86_64 omits are six jobs (two `uuid`s, the two `wc`s reading what they
         // wrote, and milestone 590's two `network_echo_client` runs); see
-        // [`swish_check_x86_omits`]. Milestone 590 added three jobs on the other two legs (the two
-        // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness).
-        let jobs = if x86 { "eighteen" } else { "twenty-four" };
+        // [`swish_check_omits`]. Milestone 590 added three jobs on the other two legs (the two
+        // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness). Milestone
+        // 198 rung 3a added two on each (the installed `uptime` and `greeting` runs); the first of
+        // those landed without this count, and this corrects it. A refused image is not a job.
+        let jobs = if x86 { "twenty" } else { "twenty-six" };
         if x86 {
             let omitted: Vec<&str> = script
                 .iter()
                 .map(|(line, _)| *line)
-                .filter(|line| swish_check_x86_omits(line).is_some())
+                .filter(|line| swish_check_omits(arch, line).is_some())
                 .collect();
             eprintln!(
                 "swish-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
@@ -1979,6 +2053,16 @@ $ outlaw
     /// transcript line somebody remembered to type, and three of thirteen had none. The check is a
     /// token match (the program's name as a whole word anywhere in a line), which is weaker than
     /// "the line ran it" and is enough to make forgetting loud.
+    /// **The `x86_64` install line names the file the seed writes** (milestone 198 rung 3a): the two
+    /// are spelled in two files, and a drift would make the line install nothing.
+    #[test]
+    fn the_greeting_install_line_names_the_seeded_file() {
+        let line = format!("package install {}", crate::disk::DOWNLOADED_GREETING);
+        assert!(SWISH_CHECK_SCRIPT.iter().any(|(l, _)| *l == line));
+        assert!(swish_check_omits("aarch64", &line).is_some());
+        assert!(swish_check_omits("x86_64", &line).is_none());
+    }
+
     #[test]
     fn every_spawnable_program_has_a_swish_check_line() {
         // Programs a transcript cannot drive, each with the reason. Both run until interrupted,

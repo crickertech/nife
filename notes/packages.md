@@ -5,7 +5,7 @@ rung 3a has two halves. This note is the producer half and the format both halve
 2026-09-23, and the first part of the consumer half, built 2026-09-24: a target fetches a package
 over plain HTTP and accepts it only by a digest its own image vouches for. Since 2026-09-26 an
 installed program runs by its bytes (DECISIONS §219 option D), and the target installs, removes and
-rolls back packages itself. What is still missing is in "Where this stops" below.
+rolls back packages itself, fetched by name. What is missing is in "Where this stops" below.
 
 ## The two decisions this is downstream of
 
@@ -241,12 +241,15 @@ once on aarch64:
 A first tampered copy that only flipped a byte stayed refused with the catalogue check skipped:
 the program's own digest caught it.
 
+## Fetching by name, and a program the image never carried
+
+`package install <name>` fetches over the network and installs, and `greeting`, which no archive
+packs, is what the gate fetches: [packages/fetching.md](packages/fetching.md).
+
 ## Where this stops
 
-Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
-rolled back and removed. Each is built, with three gaps. The fetch runs in the kernel's harness and
-the prompt's package arrives with the disk. The program is one the image also carries. And who may
-write `activation/` is an architect's call:
+Rung 3a's exit criterion (fetched, verified, installed, run, kept across a reboot, rolled back,
+removed) is met. Who may write `activation/` is an architect's call:
 [who-may-write-the-activation-set.md](who-may-write-the-activation-set.md). After that, §219's gate D2
 lets a miss run with only what the caller delegated, and milestone 202 (every confinement test is a
 ritual until somebody breaks the confinement)'s unvouched-child probe becomes testable;
@@ -274,8 +277,15 @@ ritual until somebody breaks the confinement)'s unvouched-child probe becomes te
 - Only a plain line runs an image. A path in a pipe or behind a redirection reaches the planner as
   a program name and is refused as "no such program", and `caps <path>` prints no `provenance:`
   row. `crates/grant_plan/src/spawnproto.rs`'s `BUGS` has the full list.
-- The package file is put on the disk by the host, standing in for a download: the booted
-  system's network reaches no package source.
+- The package source is compiled in: the runners' peer at 10.0.2.9:8080
+  (`socket_protocol::fixture`). A booted system outside QEMU has no source to fetch from, and §195's
+  per-source trust needs a way to name one.
+- The progenitor fetches on socket 5 by convention: every client of the stack shares its socket
+  numbers (milestone 590 (the booted system starts its network stack)'s BUGS). Another network
+  program can fail a fetch, not pass one; the digest decides.
+- The progenitor serves nothing else while it fetches, and a slow source makes the prompt wait.
+- An HTTP reader runs in the progenitor before the digest check (above). It is host-tested and has
+  no fuzz target.
 
 - **No compression.** `.hpkg` chunks its heap with zlib and `.apk` is three gzip streams; this
   stores members whole. The first packages are ELFs that were about to be written to a disk anyway,
@@ -285,16 +295,10 @@ ritual until somebody breaks the confinement)'s unvouched-child probe becomes te
 - The catalogue is one file in `target/` and one archive entry, not a repository index. The
   image's own source is the only source; §195's per-source trust needs a catalogue per source the
   owner opted into, and a way to add one.
-- The fetch runs only in the kernel's test harness, which plays the progenitor's part and maps
-  the catalogue into the client the way the progenitor hands `login` its blobs. The booted system
-  has no network (the proposal above).
-- x86_64 has no fetch test: its QEMU runner attaches no `-netdev`, and no x86 network test
-  exists. Milestone 494 (a driver for the network card a PC actually has) is where x86 networking
-  starts.
-- `uptime` is also in the image, so the package the tests fetch is not a program the image
-  lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
-  criterion. The installer's lines have the same limit: they install and run a copy of the image's
-  own `uptime`, which proves the path and not novelty. A program the image lacks is still owed.
+- x86_64 fetches nothing: its QEMU runner attaches no `-netdev`. It installs `greeting` from the
+  disk instead. Milestone 494 (a driver for the network card a PC actually has) is where x86
+  networking starts.
+- `greeting` proves the path, not a useful program: it prints one line, with `uptime`'s manifest.
 - The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).

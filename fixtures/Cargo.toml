@@ -51,6 +51,16 @@ path = "src/unreachable_network_witness.rs"
 test = false
 bench = false
 
+# The greeting (milestone 198 (a package manager) rung 3a, name provisional): a program no boot
+# image carries. It reaches a machine only as a package (`packages/greeting.recipe`), which is what
+# lets `script/swish-check` install and run something the image has never seen. Listed in
+# `packaged_only` below, so no archive packs it.
+[[bin]]
+name = "greeting"
+path = "src/greeting.rs"
+test = false
+bench = false
+
 # The interrupt_heeder (DECISIONS §24): a long-running job that heeds the cooperative ^C,
 # polling a shared flag between work units and exiting cleanly when the shell sets it. The
 # cooperative interrupt tier.
@@ -377,6 +387,14 @@ name = "current_cpu_reader"
 path = "src/current_cpu_reader.rs"
 test = false
 bench = false
+
+# **Programs this package builds that no boot image packs** (milestone 198 (a package manager)
+# rung 3a). `xtask`'s `declared_programs` reads this and leaves them out of all three archives; a
+# program here reaches a machine only as a package a recipe under `packages/` builds. It must also
+# be a `[[bin]]` above, and must not be a program the shell or the boot needs, and `xtask` refuses
+# the archive otherwise. Key name provisional.
+[package.metadata.nife]
+packaged_only = ["greeting"]
 
 [dependencies]
 abi = { version = "0.1.0", path = "../crates/abi" }
