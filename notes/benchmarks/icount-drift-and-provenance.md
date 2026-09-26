@@ -67,6 +67,15 @@ tracks the compiler by construction moves by exactly as much as a nightly moved 
 nightly that made this kernel slower would then report nothing, and catching that is most of what
 the tripwire is for.
 
+Restamping is allowed, and that half of the refusal is overturned (calef, 2026-09-26, milestone 598
+(a nightly bump restamps the floors it proves it did not move)). The refusal left a person
+re-recording three floors on every daily bump, and each of those saves said it could not separate the
+compiler from drift already on `main`. `cargo xtask bench --restamp` builds the same tree under the
+stamped nightly and the pin on one runner, which separates them exactly. When every row moved under
+0.5%, and under 2% compounded since the last `--save`, it rewrites the `# toolchain:` line and adds a
+`# why:` line carrying the measurement; otherwise it changes nothing and the bump stays red. No number
+moves, so the stamp now means the nightly the numbers were last proven valid for.
+
 Who re-records, and whether the bump then waits, changed on 2026-09-24. calef ruled:
 
 > Our default should be to merge and we should only block it if there is a compelling reason to.

@@ -117,7 +117,14 @@ echo
 # moved the kernel and report nothing, and catching precisely that is most of what the tripwire is
 # for. So the re-save stays a deliberate act, in this bump's own commit, by somebody who has read
 # the delta. `script/lint` refuses to pass until it happens.
-echo "==> One thing is left, and it is deliberately yours rather than this script's:"
+# The restamp is milestone 598 (a nightly bump restamps the floors it proves it did not move).
+echo "==> One thing is left: the icount floors. The scheduled workflow's restamp job carries them"
+echo "    across when it proves the compiler moved no row (calef, 2026-09-26). By hand, try that"
+echo "    first:"
+echo
+echo "        script/bench --restamp && script/bench --riscv --restamp && script/bench --x86 --restamp"
+echo
+echo "    and re-record any floor whose leg refuses, as below."
 echo
 echo "    The icount floors in bench/baseline-*.txt still name the OLD nightly. A new compiler"
 echo "    emits different instruction sequences, so those numbers have been revalued by a change"

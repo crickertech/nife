@@ -54,7 +54,10 @@ calling `semihosting::exit` there panics forever. Milestone 81 (an HVF leg) meas
   is the one bench feature allowed, because it changes how time is observed and not what is measured.
 - Each baseline records its nightly (`# toolchain:`, checked by `script/lint`), the QEMU that ran
   (`# qemu:`, checked by `--check`) and a `# why:` line (milestone 302 (a baseline records what it was saved against)). Auto-re-saving on a toolchain bump is refused (calef, 2026-09-21): such a floor could
-  never report a nightly that made the kernel slower.
+  never report a nightly that made the kernel slower. Restamping is not (calef, 2026-09-26, milestone 598 (a nightly bump restamps the floors it proves it did not move)).
+  The bump workflow rewrites only `# toolchain:` when an A/B of the two nightlies on one runner
+  moves no row by 0.5%, and none by 2% since the last save. The stamp now means "last proven valid
+  for".
 - An unexplained movement is investigated, never re-saved away. The 2026-08-15 riscv64 `map_new`
   +15.6% was one command from being blessed into the floor. See the
   [`map_new` episode](benchmarks/riscv-map-new-and-the-rfence-probe.md).

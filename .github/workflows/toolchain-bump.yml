@@ -5,9 +5,9 @@ name: toolchain bump
 #   1. PROPOSE (here): raise the pin, rebuild the std overlay as a fast sanity check, open a PR.
 #   2. VERIFY (the CI workflow, on that PR): both ISAs, the proofs, the benchmarks. The real gate
 #      stays the real gate; this job deliberately does not try to be it.
-#   3. ACCEPT (whoever picks it up, usually a maintainer session): re-record the icount floors on
-#      this branch, having read what moved, then let it merge. Nothing changes what the project
-#      compiles with until someone has read the delta.
+#   3. ACCEPT: the `restamp` job below carries the icount floors across the bump when it can prove
+#      the compiler did not move them; when it cannot, a person re-records them on this branch,
+#      having read what moved. Either way the merge drain then takes it like any green pull request.
 #
 # **The default is to merge** (calef, 2026-09-24: "Our default should be to merge and we should only
 # block it if there is a compelling reason to."). Once the floors are re-recorded and CI is green, the
@@ -25,11 +25,18 @@ name: toolchain bump
 # The ruling keeps the part of that which was load-bearing (somebody reads the delta and writes a
 # `--why`) and drops the rest (that the somebody had to be calef).
 #
-# **The floors are part of ACCEPT and not of PROPOSE, on purpose** (calef, 2026-09-21). A new
-# compiler emits different instruction sequences, so `bench/baseline-*.txt` is revalued by a bump
-# without any commit being responsible, and `script/lint` fails on this branch until the floors name
-# the new pin. Having this job re-save them would make the floors track the toolchain silently, and
-# a nightly that genuinely made this kernel slower would then never be visible.
+# **The floors: restamped when proven unmoved, never re-saved** (calef, 2026-09-26, overturning part
+# of his 2026-09-21 refusal; milestone 598 (a nightly bump restamps the floors it proves it did not
+# move)). A new compiler emits different instruction sequences, so a bump can revalue
+# `bench/baseline-*.txt` without any commit being responsible, and `script/lint` fails on this
+# branch until the floors name the new pin. Re-saving them here stays refused: floors that track the
+# compiler would hide a nightly that made this kernel slower. What changed is that the `restamp` job
+# builds the same tree under the old and the new nightly on one runner, and when every row moved
+# under 0.5% and under 2% cumulatively since the last person-made save, it rewrites only the
+# `# toolchain:` line and adds a `# why:` line with what it measured. The numbers never change, so a
+# slower nightly still spends tripwire headroom against numbers a person read. When the proof
+# fails, the branch stays red and the pull request body carries the table. From 2026-09-21 to
+# 2026-09-26 a person did this by hand on every bump (#1112, #1250, #1308, #1335).
 #
 # This job must never push to `main`. An unattended job that can change the toolchain every build in
 # the project uses is exactly the authority it should not have, and the 2026-07-30 incident is the
@@ -46,9 +53,18 @@ on:
     # 08:00 UTC, an hour after the drift check, so a red drift result is already visible when this runs.
     - cron: "0 8 * * *"
   workflow_dispatch:
+    inputs:
+      target:
+        # For proving the restamp on a branch: a dispatch on a branch other than `main` runs only
+        # the `restamp` job, against whatever nightly this names, and proposes nothing.
+        description: "Nightly to propose instead of today's (e.g. nightly-2026-09-25)"
+        required: false
+        default: ""
 
+# Per ref, so a proof dispatched on a branch cannot cancel the scheduled run on `main`, or the
+# other way round.
 concurrency:
-  group: toolchain-bump
+  group: toolchain-bump-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -56,8 +72,128 @@ permissions:
   pull-requests: write
 
 jobs:
+  # **Prove the floors survive the bump, or say which do not** (milestone 598 (a nightly bump
+  # restamps the floors it proves it did not move), calef 2026-09-26). Its own job, and not steps in
+  # `propose`, for two reasons. It needs the pinned QEMU, and CI's `bench` job already caches one
+  # for this runner under the same key, where the arm runner `propose` uses has none. And it names
+  # no environment, so it can be dispatched on a branch to prove it (the `automation` environment
+  # only deploys to `main`), which `propose` cannot.
+  #
+  # It fails, loudly, when any floor could not be restamped: that is the bump staying red, and the
+  # summary carries the table a person starts from. `propose` runs either way.
+  restamp:
+    name: restamp the icount floors (old vs new nightly, one runner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      verdict: ${{ steps.measure.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out the two nightlies
+        id: plan
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+        run: |
+          target="${INPUT_TARGET:-nightly-$(date -u +%Y-%m-%d)}"
+          current="$(awk -F'"' '/^channel/ {print $2}' rust-toolchain.toml)"
+          # The nightlies the floors were last proven for. Normally all three equal the pin.
+          stamped="$(sed -n 's/^# toolchain: *//p' bench/baseline-*.txt | sort -u | tr '\n' ' ')"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "stamped=$stamped" >> "$GITHUB_OUTPUT"
+          if [ "$current" = "$target" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Already pinned to $target; nothing to restamp."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Restamping floors stamped [$stamped] for $target"
+          fi
+
+      # Both compilers, because the A/B builds the same tree under each. A missing nightly is
+      # `propose`'s "nothing to propose today", so it is not a failure here either.
+      - name: Install both nightlies
+        id: install
+        if: steps.plan.outputs.skip == 'false'
+        continue-on-error: true
+        run: |
+          targets="$(awk -F'"' '/^targets *=/ {for (i = 2; i < NF; i += 2) printf "%s ", $i}' rust-toolchain.toml)"
+          for tc in ${{ steps.plan.outputs.stamped }} ${{ steps.plan.outputs.target }}; do
+            rustup toolchain install "$tc" --profile minimal --component rust-src,llvm-tools
+            # shellcheck disable=SC2086 # $targets is a deliberate word-split list.
+            rustup target add --toolchain "$tc" $targets
+          done
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.install.outcome == 'success'
+      # The same pinned QEMU, under the same cache key, as ci.yml's `bench` job; see the comment
+      # there for why the runner's packaged QEMU will not do.
+      - name: Cache QEMU
+        if: steps.install.outcome == 'success'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/nife-qemu
+          key: qemu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.qemu-version') }}
+      - name: Build QEMU if the cache missed
+        if: steps.install.outcome == 'success'
+        run: script/ci-qemu
+      - name: Put it on PATH
+        if: steps.install.outcome == 'success'
+        run: echo "$HOME/.cache/nife-qemu/bin" >> "$GITHUB_PATH"
+      - run: script/bootstrap
+        if: steps.install.outcome == 'success'
+
+      # `--restamp` writes no floor number. Each leg either rewrites its file's `# toolchain:` line
+      # and adds one `# why:` line, or leaves the file alone and exits non-zero; its report says
+      # which, with the table. See xtask/src/restamp.rs.
+      - name: Raise the pin and restamp each floor
+        id: measure
+        if: steps.install.outcome == 'success'
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+        run: |
+          sed -i "s|^channel = \".*\"|channel = \"$TARGET\"|" rust-toolchain.toml
+          out="$RUNNER_TEMP/restamp"
+          mkdir -p "$out"
+          : > "$out/report.md"
+          for leg in aarch64 riscv64 x86_64; do
+            case "$leg" in aarch64) flag="" ;; riscv64) flag="--riscv" ;; x86_64) flag="--x86" ;; esac
+            # shellcheck disable=SC2086 # $flag is empty for aarch64.
+            script/bench $flag --restamp --report "$out/$leg.md" || true
+            cat "$out/$leg.md" >> "$out/report.md" 2>/dev/null \
+              || echo "**$leg**: the restamp wrote no report; see this job's log." >> "$out/report.md"
+            printf '\n\n' >> "$out/report.md"
+          done
+          cp bench/baseline-*.txt "$out/"
+          # The same question `script/lint` asks, asked here so this job's colour is the answer.
+          red="$(grep -L "^# toolchain: $TARGET\$" bench/baseline-*.txt || true)"
+          if [ -z "$red" ]; then verdict=restamped; else verdict=refused; fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          { echo "## Restamp: $verdict"; echo; cat "$out/report.md"; } >> "$GITHUB_STEP_SUMMARY"
+          echo "verdict: $verdict"
+          [ -z "$red" ] || { echo "Still naming the old nightly, so the bump stays red:"; echo "$red"; }
+
+      - uses: actions/upload-artifact@v7
+        if: steps.measure.outcome == 'success'
+        with:
+          name: restamp
+          path: ${{ runner.temp }}/restamp/
+
+      - name: Fail if any floor still needs a person
+        if: steps.measure.outputs.verdict == 'refused'
+        run: |
+          echo "At least one floor could not be proven unmoved; the bump stays red until a person"
+          echo "re-records it with script/bench --save --why. The table is in this job's summary."
+          exit 1
+
   propose:
     name: propose a pin bump
+    # After `restamp`, whatever it concluded: a refused or broken restamp is exactly the case where
+    # the pull request most needs to exist. Never on a branch dispatch, which is a proof of the
+    # restamp and must not touch the real bump branch.
+    needs: restamp
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     # The App's secrets live in the `automation` environment (name provisional), whose deployment
     # branches are `main` only. A merge-group build runs on a `gh-readonly-queue/main/...` ref, which
     # is not `main`, so it cannot read them even if a pull request edits this workflow to name the
@@ -183,10 +319,11 @@ jobs:
 
       - name: Work out whether there is anything to do
         id: plan
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
         run: |
-          today="$(date -u +%Y-%m-%d)"
           current="$(awk -F'"' '/^channel/ {print $2}' rust-toolchain.toml)"
-          target="nightly-$today"
+          target="${INPUT_TARGET:-nightly-$(date -u +%Y-%m-%d)}"
           echo "current=$current" >> "$GITHUB_OUTPUT"
           echo "target=$target"   >> "$GITHUB_OUTPUT"
           if [ "$current" = "$target" ]; then
@@ -261,6 +398,16 @@ jobs:
       # untouched and broken, and this PR's own CI will be red. That red is not a defect in the PR,
       # it is the evidence. Draft, because it must not be merged as-is, and titled for the breakage
       # rather than for the bump.
+      # The `restamp` job's floors and report. Absent when it did not get as far as measuring (a
+      # missing nightly, an infrastructure failure), and the pull request body then says so.
+      - name: Fetch the restamp job's floors and report
+        if: steps.install.outcome == 'success' && steps.plan.outputs.skip == 'false' && needs.restamp.outputs.verdict != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: restamp
+          path: ${{ runner.temp }}/restamp
+
       - name: Open or update the pull request
         if: steps.install.outcome == 'success' && steps.plan.outputs.skip == 'false'
         env:
@@ -271,6 +418,9 @@ jobs:
           TARGET: ${{ steps.plan.outputs.target }}
           CURRENT: ${{ steps.plan.outputs.current }}
           BUILD: ${{ steps.build.outcome }}
+          VERDICT: ${{ needs.restamp.outputs.verdict }}
+          RESTAMP: ${{ runner.temp }}/restamp
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # AGENTS.md requires every agent-written pull request to open by saying whose voice it is
           # in. That sentence stops being true the day the App lands: the byline becomes
           # `<app>[bot]` rather than calef. So the sentence is computed rather than spelled, and
@@ -298,58 +448,80 @@ jobs:
 
           Proposed automatically. The std overlay builds clean against this nightly, which is the
           check that actually catches drift; everything else is this PR's own CI, which is the point
-          of proposing rather than applying.
+          of proposing rather than applying. The icount floors are the next commit on this branch
+          when the restamp job proved them unmoved, and a person's job when it did not."
 
-          NOT MERGEABLE AS-IS: the icount floors in bench/baseline-*.txt still name the old nightly,
-          and script/lint fails until they are re-recorded on this branch. That is deliberate. A
-          different compiler emits different instruction sequences, so those floors are revalued by
-          a change no commit is responsible for, and this job re-recording them for you would make
-          them track the toolchain silently.
+            # **The floors, from the `restamp` job** (milestone 598 (a nightly bump restamps the
+            # floors it proves it did not move)). Copied whatever the verdict: a refused leg's file
+            # is byte-identical to the one on `main`, so only restamped legs make a diff.
+            report="(the restamp job produced no report; see $RUN_URL)"
+            if [ -f "$RESTAMP/report.md" ]; then
+              report="$(cat "$RESTAMP/report.md")"
+              cp "$RESTAMP"/baseline-*.txt bench/
+              git add bench/baseline-*.txt
+              if ! git diff --cached --quiet; then
+                git commit -m "bench: restamp the icount floors for $TARGET, rows unchanged
 
-          Merging changes what every build in the project compiles with, so somebody reads the
-          delta and re-records the floors first. After that the default is to merge (calef,
-          2026-09-24); hold only for a compelling reason, listed in this workflow's header."
+          The restamp job built this tree under the old and the new nightly on one runner and
+          found every row of these floors moved less than 0.5%, and less than 2% since the last
+          person-made save (calef, 2026-09-26). It rewrote each file's # toolchain: line and added
+          a # why: line with the measured moves. No floor number changed. Run: $RUN_URL"
+              fi
+            fi
+
+            if [ "$VERDICT" = "restamped" ]; then
+              floors="**The icount floors were restamped, not re-saved.** The \`restamp\` job built this
+          tree under \`$CURRENT\` and \`$TARGET\` on one runner, and every row moved less than 0.5%, and
+          less than 2% since the last person-made save (calef, 2026-09-26; milestone 598 (a nightly
+          bump restamps the floors it proves it did not move)). It rewrote only each floor's
+          \`# toolchain:\` line and added a \`# why:\` line with what it measured. No number moved, so
+          a slower nightly still spends the tripwire's headroom against numbers a person read.
+          Nothing is left for a person to do here unless CI says otherwise.
+
+          <details><summary>What the restamp measured</summary>
+
+          $report
+
+          </details>"
+            else
+              floors="**\`script/lint\` on this branch WILL fail until a person re-records the floors the
+          restamp job could not carry.** It builds this tree under \`$CURRENT\` and \`$TARGET\` on one
+          runner and restamps a floor only when every row moved less than 0.5%, and less than 2%
+          since the last person-made save (calef, 2026-09-26). What it found, per floor:
+
+          $report
+
+          For each floor still naming \`$CURRENT\`, read the table above, then on this branch:
+
+          \`\`\`
+          script/bench --check                                  # or --riscv / --x86
+          script/bench --save --why \"$TARGET: <what moved>\"   # --why is required
+          \`\`\`
+
+          The table is the compiler's term alone, measured on one tree; \`--check\` also carries any
+          drift already on \`main\`. \`--why\` writes the account into the floor, beside the numbers
+          (milestone 302 (a baseline records what it was saved against)). Merge before the next
+          scheduled run: this branch is force-pushed daily, and a re-recorded floor on it does not
+          survive that."
+            fi
+
             body="$lane
 
           Raises \`rust-toolchain.toml\` from \`$CURRENT\` to \`$TARGET\`.
 
           The std overlay was rebuilt from a clean farm against this nightly and compiles, which is the
-          check that catches upstream drift. **Everything else is this PR's own CI**: both ISAs, the
-          Kani proofs, and the benchmark tripwire. That split is deliberate, so the proposing job never
-          has to be trusted as the gate.
+          check that catches upstream drift. Everything else is this PR's own CI: both ISAs, the Kani
+          proofs, and the benchmark tripwire. That split is deliberate, so the proposing job never has
+          to be trusted as the gate.
 
-          **\`script/lint\` on this branch WILL fail, and that failure is a step rather than a
-          defect.** The icount floors in \`bench/baseline-*.txt\` carry the nightly they were read
-          against, and this PR has raised the pin past it. icount counts guest instructions, so a new
-          compiler revalues every one of those numbers without a line of this repository changing.
-          On 2026-09-15 exactly that happened with nothing to catch it: the pin moved, the floors did
-          not, most of the tripwire's headroom went, and the tree was bumped again before anybody
-          acted.
+          $floors
 
-          The fix is three commands on this branch, in this PR, having **read the deltas first**.
-          \`--check\` compares against the floors, which also carry any drift already on \`main\`; to
-          see what the compiler alone moved, compare this PR's bench job with the merge-group bench
-          run of its base commit, which is the same tree on the old nightly:
-
-          \`\`\`
-          script/bench --check && script/bench --riscv --check && script/bench --x86 --check
-          script/bench --save --why \"nightly bump: <what moved>\"
-          script/bench --riscv --save --why \"...\" && script/bench --x86 --save --why \"...\"
-          \`\`\`
-
-          **This job deliberately does not do that for you.** A bump that re-recorded the floors as
-          part of raising the pin would make them track the compiler by construction, so a nightly
-          that genuinely made this kernel slower would move the floor by as much as it moved the
-          kernel and report nothing. \`--why\` is required and writes that account into the floor
-          itself, beside the numbers (milestone 302 (a baseline records what it was saved against)); say the same thing in the commit message.
-
-          **Then the default is to merge** (calef, 2026-09-24). Once the floors are re-recorded and CI
-          is green, the merge drain enqueues this like any other green pull request. Hold it with
+          **The default is to merge** (calef, 2026-09-24). Once the floors name \`$TARGET\` and CI is
+          green, the merge drain enqueues this like any other green pull request. Hold it with
           \`needs-architect\` and a \`## What I need from you\` comment only for a compelling reason:
           a changed proof or falsification result, a bench move beyond tolerance, a lint silenced
           only by a crate- or workspace-level allow, a changed test output, or a compile break too
-          large to fix small. Merge before the next scheduled run: this branch is force-pushed daily,
-          and a re-recorded floor on it does not survive that.
+          large to fix small.
 
           If CI here is red, upstream has moved away from us. Do not merge; the fix is a commit to this
           branch adding whatever the overlay now needs (usually a name in the \`pub use
