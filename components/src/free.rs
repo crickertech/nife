@@ -41,7 +41,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use free::{Machine, Share, ShareRefusal};
+use free::{MachineRefusal, Share, ShareRefusal};
 use machine_statistics_protocol::{PAGE_VA, Snapshot};
 use user_mode_runtime::{exit, invoke, is_granted, send};
 
@@ -56,17 +56,15 @@ static HAS_DIAG: AtomicBool = AtomicBool::new(false);
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     HAS_DIAG.store(is_granted(DIAG_SLOT), Ordering::Relaxed);
 
-    let machine = if !is_granted(MACHINE_SLOT) {
-        Machine::Withheld
-    } else {
+    let page = if is_granted(MACHINE_SLOT) {
         // SAFETY: the capability at `MACHINE_SLOT` is granted only alongside a read-only mapping of
         // the same frame at `PAGE_VA` (`system_initializer`'s spawn service does both from one
         // declaration), and that mapping lives as long as this process.
-        match unsafe { Snapshot::read(PAGE_VA) } {
-            Some(s) => Machine::Seen(s),
-            None => Machine::Unrecognized,
-        }
+        unsafe { Snapshot::read(PAGE_VA) }.ok_or(MachineRefusal::Unrecognized)
+    } else {
+        Err(MachineRefusal::Withheld)
     };
+    let machine = page.as_ref().map_err(|e| *e);
     let share = if !is_granted(SHARE_SLOT) {
         Err(ShareRefusal::NotHeld)
     } else {

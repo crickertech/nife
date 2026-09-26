@@ -86,6 +86,15 @@ pub const WORDS: usize = word::LINE * (1 + CPU_ID_BOUND);
 /// The page's size in bytes. Far under one frame, which is the unit it is mapped as.
 pub const PAGE_BYTES: usize = WORDS * 8;
 
+const _: () = assert!(
+    PAGE_BYTES <= 4096,
+    "the page must fit the frame it is mapped as"
+);
+const _: () = assert!(
+    PAGE_VA.is_multiple_of(4096),
+    "a mapping starts on a page boundary"
+);
+
 /// **Where a child that declares `machine` finds the page**, read-only. Inside the same 2 MiB as the
 /// clock (`0x00c0_0000`) and configuration (`0x00e0_0000`) pages, so it costs a spawn no new
 /// page-table frames (the measurement `current_cpu_protocol::PAGE_VA` records). Provisional.
@@ -294,11 +303,9 @@ mod tests {
     }
 
     #[test]
-    fn every_line_is_its_own_cache_line_and_the_page_fits_a_frame() {
+    fn every_line_is_its_own_cache_line() {
         assert_eq!(word::cpu(0), 8);
         assert_eq!(word::cpu(CPU_ID_BOUND - 1) + word::LINE, WORDS);
-        assert!(PAGE_BYTES <= 4096);
-        assert_eq!(PAGE_VA % 4096, 0);
     }
 
     #[test]

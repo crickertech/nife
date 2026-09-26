@@ -56,16 +56,17 @@ pub struct Share {
     pub committed: u64,
 }
 
-/// What one of the two reads found.
+/// Why there is no `Mem:` line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Machine {
-    /// The page, read.
-    Seen(Snapshot),
+pub enum MachineRefusal {
     /// No capability at the slot: the owner withheld it.
     Withheld,
     /// A capability, and a page without the magic.
     Unrecognized,
 }
+
+/// What the machine read found: the page, or why not.
+pub type Machine<'a> = Result<&'a Snapshot, MachineRefusal>;
 
 /// Why there is no `Yours:` line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,16 +80,16 @@ pub enum ShareRefusal {
 /// **The complaints, for the second stream**, one line each. Written before the report, under
 /// DECISIONS §67 (a program's second stream is a declaration)'s order.
 pub fn write_diagnostics(
-    machine: Machine,
+    machine: Machine<'_>,
     share: Result<Share, ShareRefusal>,
     out: &mut dyn FnMut(&[u8]),
 ) {
     match machine {
-        Machine::Seen(_) => {}
-        Machine::Withheld => {
+        Ok(_) => {}
+        Err(MachineRefusal::Withheld) => {
             out(b"free: the machine's owner has not granted the machine statistics page\n");
         }
-        Machine::Unrecognized => {
+        Err(MachineRefusal::Unrecognized) => {
             out(b"free: the machine statistics page is not one this program recognizes\n");
         }
     }
@@ -107,14 +108,11 @@ pub fn write_diagnostics(
 /// neither could, so `free > out.txt` on a machine that shows it nothing is an empty file rather
 /// than a header over no rows.
 pub fn write_report(
-    machine: Machine,
+    machine: Machine<'_>,
     share: Result<Share, ShareRefusal>,
     out: &mut dyn FnMut(&[u8]),
 ) {
-    let seen = match machine {
-        Machine::Seen(s) => Some(s),
-        _ => None,
-    };
+    let seen = machine.ok();
     if seen.is_none() && share.is_err() {
         return;
     }
@@ -181,15 +179,15 @@ mod tests {
 
     use super::*;
 
-    fn machine(total: u64, free: u64) -> Machine {
+    fn machine(total: u64, free: u64) -> Snapshot {
         let mut w = [0u64; WORDS];
         w[..word::LINE].copy_from_slice(&build_header(4096, 100));
         w[word::TOTAL_FRAMES] = total;
         w[word::FREE_FRAMES] = free;
-        Machine::Seen(Snapshot::from_words(&w).unwrap())
+        Snapshot::from_words(&w).unwrap()
     }
 
-    fn shown(m: Machine, s: Result<Share, ShareRefusal>) -> (String, String) {
+    fn shown(m: Machine<'_>, s: Result<Share, ShareRefusal>) -> (String, String) {
         let (mut out, mut diag) = (Vec::new(), Vec::new());
         write_diagnostics(m, s, &mut |b| diag.extend_from_slice(b));
         write_report(m, s, &mut |b| out.extend_from_slice(b));
@@ -202,7 +200,7 @@ mod tests {
     #[test]
     fn both_lines_read_as_upstream_free_does_plus_yours() {
         let (out, diag) = shown(
-            machine(32768, 27648),
+            Ok(&machine(32768, 27648)),
             Ok(Share {
                 pages: 512,
                 committed: 80,
@@ -221,7 +219,7 @@ mod tests {
     #[test]
     fn a_withheld_machine_page_is_a_sentence_and_not_a_machine_of_zero_bytes() {
         let (out, diag) = shown(
-            Machine::Withheld,
+            Err(MachineRefusal::Withheld),
             Ok(Share {
                 pages: 512,
                 committed: 80,
@@ -234,7 +232,10 @@ mod tests {
 
     #[test]
     fn nothing_readable_prints_no_table_at_all() {
-        let (out, diag) = shown(Machine::Unrecognized, Err(ShareRefusal::Refused(-3)));
+        let (out, diag) = shown(
+            Err(MachineRefusal::Unrecognized),
+            Err(ShareRefusal::Refused(-3)),
+        );
         assert_eq!(out, "");
         assert!(diag.contains("not one this program recognizes"), "{diag}");
         assert!(diag.contains("(error -3)"), "{diag}");
@@ -243,7 +244,7 @@ mod tests {
     #[test]
     fn a_budget_reporting_more_spent_than_held_does_not_underflow() {
         let (out, _) = shown(
-            Machine::Withheld,
+            Err(MachineRefusal::Withheld),
             Ok(Share {
                 pages: 4,
                 committed: 9,
