@@ -33,16 +33,16 @@ the symbolic inputs that trips an assertion or panics.
 The surprising part is that Kani checks "every input" without running every input. It does not loop
 over 2^64 values. It reasons about them symbolically.
 
-1. **Symbolic input.** `kani::any()` is not a random value. It is a placeholder standing for *all*
+1. Symbolic input. `kani::any()` is not a random value. It is a placeholder standing for *all*
    values at once, an unknown the tool carries as algebra.
-2. **The program becomes a formula.** Kani traces the harness over that unknown, turning each
+2. The program becomes a formula. Kani traces the harness over that unknown, turning each
    operation and branch into a logical constraint. In `index`, the `(va >> shift) & 0x1ff` becomes an
    expression in the *bits* of `va`, not a number, and the `assert!` becomes a claim about that
    expression.
-3. **A solver hunts for a counterexample.** The claim, negated, goes to a SAT/SMT solver whose one
+3. A solver hunts for a counterexample. The claim, negated, goes to a SAT/SMT solver whose one
    job is to answer "is there any assignment of these bits that makes this false?"
-   - **UNSATISFIABLE** = no such assignment exists = the property holds for every input. The proof.
-   - **SATISFIABLE** = here is an exact input that breaks it. A counterexample, printed for you.
+   - UNSATISFIABLE = no such assignment exists = the property holds for every input. The proof.
+   - SATISFIABLE = here is an exact input that breaks it. A counterexample, printed for you.
 
 That is why `paging` verified in ~12 milliseconds: it is not 2^64 executions, it is one algebra
 problem about the bits.
@@ -51,7 +51,7 @@ problem about the bits.
 
 A solver reasons completely about *fixed-size* things: a 64-bit integer, a four-level walk, a
 two-slot table. What it cannot swallow whole is an *unbounded* loop or an arbitrarily large
-structure, which would build an infinite formula. So Kani **bounds**: it unrolls loops to a limit and
+structure, which would build an infinite formula. So Kani bounds: it unrolls loops to a limit and
 gives structures concrete sizes.
 
 The `paging` and `capability` harnesses have no unbounded loops (the four levels are literally four), so
@@ -64,23 +64,23 @@ but only reasons up to the bound" is the whole trade.
 
 A proof is only as good as four things, and each is worth being blunt about:
 
-1. **It proves what you *asserted*, not what you *meant*.** A wrong assertion verifies happily and
+1. It proves what you *asserted*, not what you *meant*. A wrong assertion verifies happily and
    means nothing. The harness is the specification, so it must be read as carefully as the code it
    checks. This is the main failure mode, not solver bugs.
-2. **It covers only what the model captures.** Kani models Rust's semantics. It does not model the
+2. It covers only what the model captures. Kani models Rust's semantics. It does not model the
    hardware, and `unsafe` that breaks Rust's assumptions is outside it. That is exactly why we verify
    the pure-logic crates (`capability`, `paging`'s arithmetic) and not the `arch/` assembly: the model is
    faithful where there is no hardware and no `unsafe`. It is also why §14 promises a *small verified
-   TCB with an unverified layer beneath it*, not a proof of the whole machine. **Concurrency is the
-   sharpest edge of this limit**: every queue and endpoint proof here is single-threaded, and the
+   TCB with an unverified layer beneath it*, not a proof of the whole machine. Concurrency is the
+   sharpest edge of this limit: every queue and endpoint proof here is single-threaded, and the
    wake-before-switch-out race (notes/intrusive-queues.md) lived precisely in the SMP interleaving
    those proofs cannot see. Green harnesses and a real race coexisted; the flaky test found it.
 
-   **And there is a fourth edge of the same limit that is not about the model at all: the prover
+   And there is a fourth edge of the same limit that is not about the model at all: the prover
    compiles for the host, so it sees one architecture** (milestone 304). `kernel/src/arch/mod.rs`
    selects its subtree with `#[cfg(target_arch = ...)]`, which means a Kani run on an aarch64 box
    compiles `arch/aarch64/` and no line of the other two. This is worse than the `asm!` boundary
-   above rather than milder, because it is **silent**: an unsupported construct is reported, a
+   above rather than milder, because it is silent: an unsupported construct is reported, a
    `cfg`-excluded file produces no diagnostic of any kind, and the suite goes green faster. The
    `kernel` row is proved on aarch64, x86_64 and riscv64 for exactly this reason, riscv64 by a
    patched Kani (milestone 589 (Kani can prove riscv64 from the hosts we already have)). See
@@ -92,7 +92,7 @@ A proof is only as good as four things, and each is worth being blunt about:
    had no SAFETY comment: an unexamined assumption inside the thing that exists to examine
    assumptions. `script/lint` now compiles them all against a shim (`helpers/kani-lint-shim/`), which
    is a lint pass and not a second proof. See notes/unsafe-obligations.md.
-4. **The tool is trusted.** Kani, its CBMC backend, and the SAT solver could have bugs. They are
+4. The tool is trusted. Kani, its CBMC backend, and the SAT solver could have bugs. They are
    small and widely used, and the solver emits a checkable certificate, but it is a trust assumption.
    seL4 minimizes even its proof checker; we do not, and that is a stated limit.
 
@@ -121,7 +121,7 @@ Two in `crates/memory_regions/src/lib.rs`, the untyped-region accounting behind 
 | Harness | Property |
 |---|---|
 | `split_stays_within_budget_and_progresses` | a successful carve advances the watermark by exactly `want` without overflow and never past the parent's budget, and strictly progresses, so consecutive carves are disjoint runs within the parent |
-| `destroy_never_frees_a_child_to_the_allocator` | a pinned or parent region refuses; a **root** frees to the allocator; a **child** *never* does, its pages return to the parent. So a page reaches the allocator only through the one root that owns it, exactly once |
+| `destroy_never_frees_a_child_to_the_allocator` | a pinned or parent region refuses; a root frees to the allocator; a child *never* does, its pages return to the parent. So a page reaches the allocator only through the one root that owns it, exactly once |
 
 The second is the no-double-free crux, and the kernel (`untyped::split`, `untyped::destroy`) *calls*
 `memory_regions::split_new_watermark` and `memory_regions::destroy_outcome` rather than keeping a parallel copy, so
@@ -189,7 +189,7 @@ integration tests against a real QEMU device tree are unchanged, so the hardenin
 is the elf lesson reused: prove (and here, harden) the loopless leaves; the walk stays on the tests.
 
 Six in `crates/inter_process_communication/src/lib.rs`, the synchronous-rendezvous state machine (the decision core of
-`sched.rs`'s `Endpoint`, extracted as pure logic; **restated over the intrusive queues** at
+`sched.rs`'s `Endpoint`, extracted as pure logic; restated over the intrusive queues at
 milestone 14 phase A.3, so the rewire did not demote proved code back to argued code: the same
 six properties, now over real `intrusive::Fifo`s with TCB-shaped nodes, composing with the
 `Fifo`'s own FIFO proof below):
@@ -205,7 +205,7 @@ These are inductive-step proofs: assume a valid state, apply one operation, chec
 A non-empty queue is modeled with a single waiter (the decision and the invariant depend only on
 whether a queue is empty, never its length), which keeps the `VecDeque` reasoning tractable.
 
-**Phase 2 is done.** `kernel/src/sched.rs`'s six IPC functions no longer hand-roll the rendezvous
+Phase 2 is done. `kernel/src/sched.rs`'s six IPC functions no longer hand-roll the rendezvous
 branch six times; they call `inter_process_communication::Rendezvous<Thread>` (the same generic
 type, so the queues are the kernel's real endpoint state, not a model kept in sync) for the
 *decision*, and spend their own code only on the bookkeeping the queues cannot express: mailboxes,
@@ -215,20 +215,20 @@ unchanged, so the rewire is faithful: the kernel's IPC path *is* the proved logi
 parallel copy of it. This is the first place a proof reaches all the way into the running kernel
 rather than staying in a host crate.
 
-**Phase 3, the one-shot Reply, needed no rewire at all.** "One reply, to this caller, exactly once"
+Phase 3, the one-shot Reply, needed no rewire at all. "One reply, to this caller, exactly once"
 (DECISIONS §12) decomposes into three legs, and it is worth recording which kind of evidence each
 one rests on:
 
-1. **The endpoint forgets a collected caller**: `a_collected_sender_is_forgotten` in `crates/inter_process_communication`.
+1. The endpoint forgets a collected caller: `a_collected_sender_is_forgotten` in `crates/inter_process_communication`.
    A `CALL`er queues as a sender and blocks; the server's receive pops it destructively, so from
    that moment the kernel-minted Reply capability is the *only* name for the blocked caller
    anywhere in the system. (The caller is never in the receiver queue: `ipc_call` does not `recv`,
    and a blocked thread cannot run to enqueue itself again.)
-2. **Consume-on-use is final**: `a_deleted_capability_stays_deleted` and
+2. Consume-on-use is final: `a_deleted_capability_stays_deleted` and
    `delete_touches_only_its_slot` in `crates/capability`. The syscall layer deletes the Reply capability
    the instant it is invoked; the proofs say no table state exists in which the consumed slot can
    be invoked again, and consuming one caller's Reply cannot disturb another's.
-3. **The capability cannot be duplicated or delegated**: structural, not a harness. There is no
+3. The capability cannot be duplicated or delegated: structural, not a harness. There is no
    syscall that copies a capability within a capability table (`CapabilityTable::derive` is kernel-internal), and the
    only cap-moving syscall, `SEND_CAP`, requires `GRANT`, which `reply_cap` deliberately never
    mints. This leg lives in the shape of the syscall surface (§4: narrow and explicit), so it is
@@ -289,7 +289,7 @@ Whole-parse totality hit the same wall as ELF and `device_tree_blob` below (a on
 CBMC past 20 CPU-minutes), and was decomposed the same way; the module comment records what is
 deliberately unproved and why it is sound anyway.
 
-Four in `crates/pci/src/lib.rs`, the config-space decode the kernel runs on **device** input
+Four in `crates/pci/src/lib.rs`, the config-space decode the kernel runs on device input
 (a hostile or broken PCI function can answer the closures with anything):
 
 | Harness | Property |
@@ -304,7 +304,7 @@ Seven in `crates/direct_memory_access_validator/src/lib.rs`, the DMA-confinement
 system that was attacker-tested but never proved. It confines a userspace virtio driver's DMA: on
 every `NOTIFY` the kernel walks the driver's descriptors, refuses any whose buffer escapes the
 driver's granted region (or is indirect), and copies the validated ones into a kernel-private
-**shadow ring** the device reads, so the driver cannot touch what the device acts on. The logic was
+shadow ring the device reads, so the driver cannot touch what the device acts on. The logic was
 lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it) so it could be
 proved, the same Phase-2 move `memory_regions` and `inter_process_communication` made; the kernel's
 QEMU attacker suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged
@@ -314,15 +314,15 @@ and green, so the extraction is faithful.
 |---|---|
 | `in_region_is_sound` | the confinement predicate is sound and total: for every base/size/addr/len, if `is_in_region` accepts then `base <= addr` and `addr + len <= base + size` with no overflow (direction-agnostic, so it underwrites both TX device-reads and RX device-writes) |
 | `an_accepted_descriptor_is_confined` | for every descriptor bit pattern (flags fully symbolic, so the device-writable RX bit is covered) and every region, an accepted descriptor is not indirect and its whole buffer is in-region |
-| `validate_and_shadow_confines_every_chain` | **the main theorem**: over a fully symbolic driver descriptor table and region, no descriptor the walk copies into the shadow is ever out-of-region or indirect, so the device only ever reads confined descriptors. Symbolic-index-bounded, so it also proves the walk never reads or writes past a ring |
+| `validate_and_shadow_confines_every_chain` | the main theorem: over a fully symbolic driver descriptor table and region, no descriptor the walk copies into the shadow is ever out-of-region or indirect, so the device only ever reads confined descriptors. Symbolic-index-bounded, so it also proves the walk never reads or writes past a ring |
 | `an_oversized_batch_is_refused` | a batch claiming more than `qsize` new entries is refused before a single descriptor is read or written (the DoS bound on the outer loop; the memory closures panic if called) |
 | `a_descriptor_mutated_after_validation_cannot_reach_the_device` | the shadow ring closes the time-of-check/time-of-use race: after a validated copy, the driver aiming its own descriptor at any address cannot change what the device reads from the shadow |
-| `the_outer_walk_stays_inside_the_rings_and_terminates` | the loop that feeds the chain walk: for **every** `(from_idx, to_idx)` pair, wraparound included, every ring access lands inside its own ring and the loop terminates |
+| `the_outer_walk_stays_inside_the_rings_and_terminates` | the loop that feeds the chain walk: for every `(from_idx, to_idx)` pair, wraparound included, every ring access lands inside its own ring and the loop terminates |
 | `distinct_queues_occupy_disjoint_blocks` | multi-queue isolation (milestone 30): for any two distinct in-range queues, one queue's whole ring area ends before the other's block begins, and a queue's descriptor table ends before its own available ring begins |
 
 The main theorem proves the confinement core, `shadow_one_head`, which the write closure instruments
 so it asserts "in-region and not indirect" the instant each descriptor lands in the shadow. It is
-proved for **one** newly-published head, not the whole ring, and that is a decomposition, not a
+proved for one newly-published head, not the whole ring, and that is a decomposition, not a
 sample: the invariant is checked on *every* shadow write, and one head's chain already writes up to
 `qsize` fully symbolic descriptors, so the per-write property is quantified over arbitrary descriptor
 content and position; the outer loop only repeats that validated processing for each further head
@@ -338,12 +338,12 @@ with its justification:
 
 | Bound | Value | Why it is adequate |
 |---|---|---|
-| queue size (`QS`) | 8 | **It is the system's own bound, not a proof convenience.** `direct_memory_access_validator::LAYOUT_QSIZE` is the kernel's `QSIZE`, `setup_queue` refuses `num > QSIZE`, and the kernel now *aliases* the crate's constant rather than keeping a copy. So the proof is over the shipping configuration, and no larger ring can exist to be unproved. |
-| chain length | ≤ `qsize` = 8 | The walk is `for _ in 0..qsize`, and a chain cannot usefully be longer: there are only 8 descriptors, so any longer walk is revisiting one. A **cycle** is therefore covered rather than excluded: `next` is fully symbolic, so `0 → 1 → 0 → …` is among the proved inputs, and the loop bound is what makes it terminate instead of hanging. |
-| loop unrolling | `unwind(10)` / `unwind(11)` | One more than each loop can need, so Kani's *unwinding assertion* is part of the proof: if any input could drive a loop longer, verification fails. That turns the bound from an assumption into the **termination proof**. Checked by falsification: delete `validate_and_shadow`'s batch-size guard and the unwinding assertion fails at iteration 11. |
+| queue size (`QS`) | 8 | It is the system's own bound, not a proof convenience. `direct_memory_access_validator::LAYOUT_QSIZE` is the kernel's `QSIZE`, `setup_queue` refuses `num > QSIZE`, and the kernel now *aliases* the crate's constant rather than keeping a copy. So the proof is over the shipping configuration, and no larger ring can exist to be unproved. |
+| chain length | ≤ `qsize` = 8 | The walk is `for _ in 0..qsize`, and a chain cannot usefully be longer: there are only 8 descriptors, so any longer walk is revisiting one. A cycle is therefore covered rather than excluded: `next` is fully symbolic, so `0 → 1 → 0 → …` is among the proved inputs, and the loop bound is what makes it terminate instead of hanging. |
+| loop unrolling | `unwind(10)` / `unwind(11)` | One more than each loop can need, so Kani's *unwinding assertion* is part of the proof: if any input could drive a loop longer, verification fails. That turns the bound from an assumption into the termination proof. Checked by falsification: delete `validate_and_shadow`'s batch-size guard and the unwinding assertion fails at iteration 11. |
 | batch size | ≤ `qsize` | Proved as a property (`an_oversized_batch_is_refused`), not assumed: a claim of more than `qsize` new entries is refused before a single read. |
 | queue count | `MAX_QUEUES` = 2 | Compile-time asserted in the kernel (`MAX_QUEUES * RING_BLOCK <= FRAME_SIZE`, one shadow frame per device) and enforced at runtime (`setup_queue`/`notify` refuse `queue >= MAX_QUEUES`). |
-| region base/size, descriptor `addr`/`len`/`flags`/`next`, ring indices | **unbounded** | Fully symbolic `u64`/`u16`. Every attacker-controlled value is unconstrained, which is the point: the bounds above are all structural (how many slots a ring has), never a restriction on what an attacker may write into one. |
+| region base/size, descriptor `addr`/`len`/`flags`/`next`, ring indices | unbounded | Fully symbolic `u64`/`u16`. Every attacker-controlled value is unconstrained, which is the point: the bounds above are all structural (how many slots a ring has), never a restriction on what an attacker may write into one. |
 
 The one place the composition is an argument rather than a single harness, said plainly: "the whole
 batch is confined" follows from the per-head theorem, the per-write invariant, the outer-loop bound,
@@ -355,37 +355,37 @@ it is recorded for the same reason.
 
 A bound raises a question an assertion cannot answer. If the harness's assumptions turned out to be
 jointly unsatisfiable, or a bound quietly excluded the interesting shape, every assertion would pass
-and the harness would prove **nothing** while reporting `SUCCESSFUL`. This note has always named that
+and the harness would prove nothing while reporting `SUCCESSFUL`. This note has always named that
 as the main failure mode ("it proves what you asserted, not what you meant"), and until milestone 35
 the only defence was reading the harness carefully.
 
-`kani::cover!(condition)` inverts the question: it **fails when the condition is unreachable**. So it
+`kani::cover!(condition)` inverts the question: it fails when the condition is unreachable. So it
 turns "this harness really does exercise the case I claim" from a reading into a result. Milestone 35
 introduces it, with four cover properties where the risk was real:
 
-- `the_outer_walk_stays_inside_the_rings_and_terminates` covers that a **wrapped** batch (`to < from`)
+- `the_outer_walk_stays_inside_the_rings_and_terminates` covers that a wrapped batch (`to < from`)
   is reachable, that a wrapped batch is *walked to completion* rather than merely refused, that some
   batch is accepted (so the harness is not vacuously refusing everything), and that some batch is
   refused (so the guards are reachable). Without those, "wraparound is covered because `from` and `to`
   are unconstrained" would be an inference about the code rather than a checked fact.
-- the two domain harnesses that stack assumptions cover that a **multi-page** grant satisfies them, so
+- the two domain harnesses that stack assumptions cover that a multi-page grant satisfies them, so
   neither is quantifying over an empty set and neither has `i` pinned to zero.
 
-The cheap general rule this suggests: **any harness with more than a couple of `kani::assume`s, or any
+The cheap general rule this suggests: any harness with more than a couple of `kani::assume`s, or any
 harness whose interesting case is a corner of an unconstrained input, should carry a `cover!` for that
-case.** It costs no solver time worth measuring and it is the only thing that catches a vacuous proof.
+case. It costs no solver time worth measuring and it is the only thing that catches a vacuous proof.
 
 ### The IOMMU domain: proved where it can be, tested where it cannot
 
 Milestone 35's third item was to confirm the IOMMU domain builder
 (`paging::domain::build_identity_domain`, milestone 16b) has a *maps-exactly-the-grant* proof, the
 hardware sibling of the validator property (the device's DMA domain maps precisely the granted frames
-and nothing else). The first pass at the milestone **declined** it: the property is a `Mapper`
+and nothing else). The first pass at the milestone declined it: the property is a `Mapper`
 build-and-translate round trip (a symbolic IOVA walking a *built* four-level table), which is the
 BMC-over-real-memory wall this note already declined for the ELF parser and for `Mapper` itself.
 
 That was the right diagnosis of the wrong target, and the correction is on the record because it is
-this note's own rule being applied: **prefer refactoring the logic to shrinking the proof.** The
+this note's own rule being applied: prefer refactoring the logic to shrinking the proof. The
 domain is "an identity map over exactly the granted pages," and the *page set* is loopless arithmetic
 that needs no tables at all. Factored out (`grant_pages`, `grant_page`) it proves in a quarter of a
 second, and the builder now calls it instead of `map_range`'s unchecked `va + i * PAGE_SIZE`, so the
@@ -395,15 +395,15 @@ Six in `crates/paging/src/domain.rs`:
 
 | Harness | Property |
 |---|---|
-| `an_enumerated_page_lies_inside_the_grant` | **soundness, the security direction**: every page the domain maps is page-aligned and lies wholly inside a granted region, so no ungranted byte becomes device-reachable (and since IOVA == PA, no ungranted physical memory is translatable) |
-| `every_whole_page_of_the_grant_is_enumerated` | **completeness, the functional direction**: every whole page of a grant is mapped, proved *constructively* (the witness index is `(iova - base) / PAGE_SIZE`, so it says which iteration maps it) |
+| `an_enumerated_page_lies_inside_the_grant` | soundness, the security direction: every page the domain maps is page-aligned and lies wholly inside a granted region, so no ungranted byte becomes device-reachable (and since IOVA == PA, no ungranted physical memory is translatable) |
+| `every_whole_page_of_the_grant_is_enumerated` | completeness, the functional direction: every whole page of a grant is mapped, proved *constructively* (the witness index is `(iova - base) / PAGE_SIZE`, so it says which iteration maps it) |
 | `the_enumeration_is_injective` | no page is enumerated twice, so a legal grant cannot fail its own build against `AlreadyMapped` |
 | `the_grant_enumeration_is_total` | neither entry point panics or overflows, for any base, size, or index |
 | `a_page_index_below_the_count_always_resolves` | the builder's defensive `ok_or` is dead code, provably |
 | `a_grant_the_domain_cannot_express_is_refused` | the two inputs that could produce an over-map (an unaligned base, an end that wraps `u64`) are refused, so the builder maps nothing rather than something rounded |
 
-Completeness is there because without it the property is half a property: **a domain that mapped
-nothing at all would satisfy soundness perfectly** and confine the device by starving it, surfacing
+Completeness is there because without it the property is half a property: a domain that mapped
+nothing at all would satisfy soundness perfectly and confine the device by starving it, surfacing
 as a mysterious device fault rather than a refusal. Proving both directions is what makes
 "*exactly* the grant" mean what it says.
 
@@ -411,7 +411,7 @@ One proof covers **both** IOMMUs, which is the right shape for a §19 parity gat
 not depend on the page-table format, so the same harnesses underwrite the SMMUv3 (VMSAv8-64) domain
 on aarch64 and the RISC-V IOMMU (Sv39) domain on riscv. No second harness, no parity gap.
 
-**The residual, named rather than implied.** These prove the page set the builder *asks* the mapper
+The residual, named rather than implied. These prove the page set the builder *asks* the mapper
 for. They do not prove "`Mapper::map` writes exactly one leaf for the page it is told and touches
 nothing else". That is the build-and-translate round trip, and it stays on the wall. It is
 underwritten by the proved walk arithmetic (`distinct_pages_take_distinct_paths`, so an ungranted page
@@ -423,10 +423,10 @@ end-to-end attacker test in which the hardware faults an escaping DMA. So: the p
 the mapper writing it faithfully is tested and composed. That is the honest line, and it is a better
 line than the first pass drew.
 
-**Every one of these properties was falsified before it was believed.** Round the page count up and
+Every one of these properties was falsified before it was believed. Round the page count up and
 soundness fails; round it down and completeness fails while soundness correctly still holds (an
 under-map is safe); drop the wrap refusal and soundness fails. One falsification corrected a claim in
-the code: soundness rests on `grant_pages` **flooring**, not on `grant_page`'s partial-page guard,
+the code: soundness rests on `grant_pages` flooring, not on `grant_page`'s partial-page guard,
 which cannot fire for any index the builder passes. The comment there now says so, because a reader
 hardening the wrong line would have thought the guard was the load-bearing one.
 
@@ -435,16 +435,16 @@ hardening the wrong line would have thought the guard was the load-bearing one.
 This is the part to read before repeating "DMA confinement is proved," because said without it that
 sentence is wrong in a way that matters.
 
-**The proof is about descriptor chains.** `validate_and_shadow` sees the descriptors a driver
+The proof is about descriptor chains. `validate_and_shadow` sees the descriptors a driver
 publishes in a virtqueue, and the harnesses above quantify over every one of them. That is the whole
 address surface for a disk and for a NIC: every byte those devices touch is named by a descriptor the
 kernel validated and copied into a shadow the driver cannot reach.
 
 **It is not the whole address surface for a GPU.** Milestone 29 found this and DECISIONS §29 records
-it: virtio-gpu's *backing* addresses ride inside a `RESOURCE_ATTACH_BACKING` **command payload**, not
+it: virtio-gpu's *backing* addresses ride inside a `RESOURCE_ATTACH_BACKING` command payload, not
 in a descriptor. The kernel bounds the descriptor carrying that command, so the payload is in-region
 bytes; the addresses *inside* it are bytes the transport does not parse. The validator therefore
-**structurally cannot see them**, and no amount of proving it harder changes that: the addresses are
+structurally cannot see them, and no amount of proving it harder changes that: the addresses are
 not in its input. Teaching it to parse them would push virtio-gpu knowledge into the layer DECISIONS
 §18 keeps device-neutral, and would start a per-device arms race with the next device class that
 carries addresses in a payload.
@@ -453,22 +453,22 @@ So the two paths have genuinely different evidence, and conflating them is the e
 
 | Path | What confines it | Strength of the evidence |
 |---|---|---|
-| Addresses in **descriptors** (disk, NIC, and the GPU's own command ring) | the shadow-ring validator, plus the IOMMU where present | **machine-checked for every input** (`crates/direct_memory_access_validator`), plus end-to-end attacker tests on both ISAs and both transports |
-| Addresses in a **command payload** (virtio-gpu backings) | the IOMMU, and *only* the IOMMU | **the barrier's allow-list is proved exact; the hardware honouring it is attacker-tested.** `an_enumerated_page_lies_inside_the_grant` and `every_whole_page_of_the_grant_is_enumerated` prove the domain maps exactly the granted pages, which is the property that makes an out-of-grant payload address untranslatable; `the_iommu_refuses_the_gpu_a_framebuffer_outside_the_drivers_grant` then points a backing at a frame left out of the domain and asserts the IOMMU's fault queue recorded a fault there, on both ISAs |
+| Addresses in descriptors (disk, NIC, and the GPU's own command ring) | the shadow-ring validator, plus the IOMMU where present | machine-checked for every input (`crates/direct_memory_access_validator`), plus end-to-end attacker tests on both ISAs and both transports |
+| Addresses in a command payload (virtio-gpu backings) | the IOMMU, and *only* the IOMMU | the barrier's allow-list is proved exact; the hardware honouring it is attacker-tested. `an_enumerated_page_lies_inside_the_grant` and `every_whole_page_of_the_grant_is_enumerated` prove the domain maps exactly the granted pages, which is the property that makes an out-of-grant payload address untranslatable; `the_iommu_refuses_the_gpu_a_framebuffer_outside_the_drivers_grant` then points a backing at a frame left out of the domain and asserts the IOMMU's fault queue recorded a fault there, on both ISAs |
 
 The middle column of that second row is the one useful thing this milestone could prove about the payload
 path, and it is worth naming rather than leaving as a side effect of item 3. A payload-borne address is
-stopped by having **no translation in the device's domain**, so "the domain maps exactly the grant" is
+stopped by having no translation in the device's domain, so "the domain maps exactly the grant" is
 exactly the property that barrier rests on. Proving it moved the payload path from "tested end to end" to
 "the allow-list is proved exact, the hardware honouring it is tested end to end". A narrowing, not a
 closing: the transport still cannot see these addresses, and the enforcement is still the hardware's.
 
 And the consequence that made milestone 35 load-bearing in the first place cuts the other way here.
 The reason to prove the validator now, rather than later, is that **milestone 16a's board has no
-IOMMU** (the VisionFive 2; notes/target-hardware.md), so on first silicon the validator stops being
+IOMMU (the VisionFive 2; notes/target-hardware.md), so on first silicon the validator stops being
 defence in depth and becomes the sole DMA confinement. That argument works for the descriptor path
 precisely because the validator covers it. For the payload path it inverts: on a board with no IOMMU,
-**nothing covers it.** Not the validator (the addresses are not in its input), not the hardware (there
+nothing covers it. Not the validator (the addresses are not in its input), not the hardware (there
 is none). A display driver on the VisionFive 2 is therefore either *trusted* with all of physical
 memory, or the transport grows a virtio-gpu-aware check and pays the §18 cost knowingly. That is a
 decision for whoever sequences 16a; what this note owes them is that it is a decision and not an
@@ -483,13 +483,13 @@ than proved, and on a board without an IOMMU it does not exist.*
 
 `crates/paging` gained a second and third leaf size so the direct map stops costing 0.2% of RAM in
 page tables (560 KiB to 60 KiB on QEMU's 256 MiB x86 machine; 8,252 KiB to 64 KiB at 4 GiB). The
-proofs follow the domain builder's shape above: **the decision that makes a block safe is pulled out
-as loopless arithmetic and proved for every input**, and the walk that writes it stays tested.
+proofs follow the domain builder's shape above: the decision that makes a block safe is pulled out
+as loopless arithmetic and proved for every input, and the walk that writes it stays tested.
 
 | Harness | Property |
 |---|---|
-| `verification::a_chosen_leaf_is_aligned_and_inside_the_span` | **soundness**: every leaf `Mapper::map_span` writes is aligned at both ends, no larger than the caller allowed, and lies wholly inside what is left of the span, so blocks map no byte the equivalent pages would not |
-| `verification::the_chosen_leaf_is_the_largest_that_fits` | **completeness**: no fitting larger leaf is passed over; soundness alone is satisfied by always answering 4 KiB |
+| `verification::a_chosen_leaf_is_aligned_and_inside_the_span` | soundness: every leaf `Mapper::map_span` writes is aligned at both ends, no larger than the caller allowed, and lies wholly inside what is left of the span, so blocks map no byte the equivalent pages would not |
+| `verification::the_chosen_leaf_is_the_largest_that_fits` | completeness: no fitting larger leaf is passed over; soundness alone is satisfied by always answering 4 KiB |
 | `x86_64` / `aarch64` / `sv39` `::a_block_keeps_address_and_permissions_apart` | each format's block encoding, over every `u64` address and every `Flags` constructor: the address in its architectural field, nothing set below the block's alignment (reserved on x86, `RES0` on aarch64, a misaligned-superpage fault on Sv39), the format's block marker as a literal bit pattern, and the flags round-tripping; on x86 also W^X on the hardware bits |
 | `x86_64` / `aarch64` / `sv39` `::a_table_entry_is_never_a_block` | no table pointer ever reads as a block, so the walk never stops at a table or descends into a block |
 
@@ -497,14 +497,14 @@ Every assertion is spelled in literals, for milestone 211's and 307's reason. Th
 `replayable` records were swept red on 2026-09-19 (`script/falsifications --sweep paging`: 13 swept,
 0 survivors).
 
-**One lesson worth keeping, because it cost a quarter of an hour.** The first version of
+One lesson worth keeping, because it cost a quarter of an hour. The first version of
 `PageSize::largest_fitting` looped over the sizes and tested alignment with `%`. CBMC was still
 solving `the_chosen_leaf_is_the_largest_that_fits` after ten minutes; written as two `if`s and a mask
 test, it proves in 0.05 s. Both changes went in together, so which one mattered is not isolated; the
 harnesses themselves still use `%` (`is_multiple_of`) in their assumptions and prove in well under a
 second, which points at the loop.
 
-**The residual is the usual one**: the proofs cover the leaf choice and the encodings, not `Mapper`
+The residual is the usual one: the proofs cover the leaf choice and the encodings, not `Mapper`
 writing the block into a built table. That is tested on all three formats
 (`crates/paging/tests/blocks.rs`) and booted.
 
@@ -517,23 +517,23 @@ to be true, and the half that did not is the useful part of this entry.
 
 | Harness | Property |
 |---|---|
-| `the_calendar_algorithms_are_mutual_inverses` | **the central theorem**: for every one of the 3,652,425 days in the supported range, `civil_from_days` then `days_from_civil` returns the day it started from. The leap-year rules, the month lengths, the century exception and its exception all live inside those two functions, and a bijection cannot have them wrong in a way that cancels |
+| `the_calendar_algorithms_are_mutual_inverses` | the central theorem: for every one of the 3,652,425 days in the supported range, `civil_from_days` then `days_from_civil` returns the day it started from. The leap-year rules, the month lengths, the century exception and its exception all live inside those two functions, and a bijection cannot have them wrong in a way that cancels |
 | `a_day_number_always_decodes_to_a_real_date` | every day number decodes to a date that *exists*: month 1..=12, day within that month's length in that year, and the validating constructor accepts the result. This is what stops the bijection from being vacuous (a decoder that consistently invented February 30 would still be one) |
 | `every_real_date_survives_its_own_day_number` | the other direction, over fully symbolic year/month/day/hour/minute/second: every field combination the constructor accepts round-trips through its day number, and its timestamp lands inside the supported range |
 | `later_days_are_later_dates` | monotonicity: for any two days, the earlier decodes to a date that sorts earlier under the derived `Ord`. What makes `Format::Date` sortable text, and what rules out a boundary (month end, leap day, century) stepping the calendar backwards for one day |
-| `day_of_year_is_bounded_and_366_means_leap` | day of year is 1..=366, and 366 **iff** 31 December of a leap year |
+| `day_of_year_is_bounded_and_366_means_leap` | day of year is 1..=366, and 366 iff 31 December of a leap year |
 | `weekdays_advance_one_day_at_a_time` | consecutive days differ, the ISO number steps 1..=7 *in order*, and seven days on is the same weekday: the cycle, not merely the change |
 | `unix_to_civil_and_back_is_the_identity` | the seconds round trip, over a four-year window straddling the epoch (below) |
 | `every_format_is_ascii` | all five formats, for every representable date at every legal offset: within the fixed buffer, never truncated, every byte printable ASCII |
 | `the_unix_format_fits_any_i64` | the decimal writer fits any `i64`, `i64::MIN` included, in 20 bytes |
-| `parse_is_total_on_hostile_bytes` | the RFC 3339 parser never panics on **arbitrary bytes** at any length up to 26: no UTF-8 assumption, no ASCII assumption. A `date -s` argument and an NTP-adjacent exchange are both text this program did not write |
+| `parse_is_total_on_hostile_bytes` | the RFC 3339 parser never panics on arbitrary bytes at any length up to 26: no UTF-8 assumption, no ASCII assumption. A `date -s` argument and an NTP-adjacent exchange are both text this program did not write |
 | `rfc3339_output_parses_back_to_itself` | everything the crate prints, it reads back, for every representable `DateTime`: same instant *and* same offset (the equality is on the whole value, so an offset silently normalised away fails it) |
 
 ### The finding: the arithmetic is cheap and the `&str` boundary is not
 
 Two costs surprised us, in opposite directions from the guess.
 
-**A 64-bit division by 86,400 is the expensive part of a calendar.** The Hinnant algorithms round-trip
+A 64-bit division by 86,400 is the expensive part of a calendar. The Hinnant algorithms round-trip
 over the entire ten-thousand-year range in under a minute. Add one `div_euclid(86_400)` over a
 symbolic 64-bit timestamp and the *same* property does not finish in twenty minutes, or with kissat
 instead of CaDiCaL. That is not about calendars: a bit-blasted 64-bit divider with an unconstrained
@@ -542,7 +542,7 @@ dividend is close to the worst thing you can hand a CDCL solver, and the divisio
 the same harness at different widths: one day of timestamps 3s, four years 64s, the full range
 neither in twenty minutes nor with a different solver.
 
-So the harnesses are **factored along that seam** rather than bounded uniformly. The calendar half
+So the harnesses are factored along that seam rather than bounded uniformly. The calendar half
 (days to a date, and everything derived from a day number) is proved over the full range, unbounded
 below the type. The seconds half, which is the only place the expensive division appears, is proved
 over 1968-01-01 through 1971-12-31. That window is chosen, not convenient: the risk it carries is
@@ -554,21 +554,21 @@ checks that the first two are actually reachable inside it rather than argued to
 is stated in the crate: `from_unix` is `civil_from_days(secs.div_euclid(86_400))` plus a time of day,
 and `to_unix` is `days_from_civil(...) * 86_400` plus the same time of day, so the two halves join.
 
-**Iterating a slice whose length is symbolic costs more than the parser it wraps.** Three harnesses
+Iterating a slice whose length is symbolic costs more than the parser it wraps. Three harnesses
 originally went through `&str`, and each ran past ten minutes *in symbolic execution*, before the
 solver saw anything. The cause was not the calendar or the grammar: it was `core::str::from_utf8`
 and `for &b in slice` over a variable-length slice, which makes CBMC branch on the length at every
 step. Two changes fixed it and both improved the code rather than weakening the proof:
 
-- **`Formatted`'s ASCII check became an index loop** over the fixed 32-byte buffer with an `i < len`
+- `Formatted`'s ASCII check became an index loop over the fixed 32-byte buffer with an `i < len`
   guard, and the "therefore `from_utf8` succeeds" step became one line of composition (ASCII is a
   subset of UTF-8) instead of a proof through the standard library's validator. Ten minutes and
   counting became 130 seconds, for a property that now covers every representable date at every
   offset rather than one day.
-- **The parser grew a byte-level entry point**, `parse_rfc3339_bytes`, with the `&str` version as its
+- The parser grew a byte-level entry point, `parse_rfc3339_bytes`, with the `&str` version as its
   wrapper. RFC 3339 *is* ASCII, so bytes are what the grammar is defined on, and a caller holding a
   network buffer no longer has to validate UTF-8 for a function that rejects every non-ASCII byte
-  anyway. Totality went from ten minutes-plus to 17 seconds, **and got stronger**: it now quantifies
+  anyway. Totality went from ten minutes-plus to 17 seconds, and got stronger: it now quantifies
   over arbitrary bytes including sequences that are not UTF-8 at all, which is exactly the input a
   network client will hand it. The print-then-parse round trip went from not finishing to 38 seconds
   over the full range.
@@ -579,11 +579,11 @@ property was fine and the plumbing was expensive.
 
 A third cut came free from restating a theorem rather than weakening it. Monotonicity was written
 over an arbitrary pair of days and cost 228s, because a second symbolic day number buys a second copy
-of the whole decode. Written over **adjacent** days it costs 38-50s and is the same theorem: the
+of the whole decode. Written over adjacent days it costs 38-50s and is the same theorem: the
 order is transitive, so `d(n) < d(n+1)` for every `n` gives `d(a) < d(b)` for every `a < b`. The
 general property, phrased as its induction step.
 
-The crate verifies in **about seven minutes** on an M-series laptop, which is the largest single
+The crate verifies in about seven minutes on an M-series laptop, which is the largest single
 entry in `script/verify` and is worth knowing before adding to it. The two costs that dominate are
 `every_format_is_ascii` (150-170s, five formats over every representable date at every offset) and
 `unix_to_civil_and_back_is_the_identity` (81-84s, the one harness that pays for the 86,400 division).
@@ -607,13 +607,13 @@ there is a crafted binary halting the kernel. It did not work, and the reason is
 
 Two things put it past bounded model checking:
 
-1. **A loop Kani bounds too loosely.** `parse` has an `O(n^2)` overlap check over up to
+1. A loop Kani bounds too loosely. `parse` has an `O(n^2)` overlap check over up to
    `MAX_PHNUM = 64` program headers. The real bound is far tighter (the header table must fit in the
    file, which at any small input size allows one or two headers), but that bound is *nonlinear*
    (`phoff + phnum * phentsize <= len`). Kani uses the *linear* `phnum <= 64` cap it can see for the
    unwinding assertion, so it insists on unrolling 64 deep, and `unwind(65)` did not return in 7+
    minutes.
-2. **Symbolic slice offsets.** `phoff` and each segment's `p_offset` come out of the file, so the
+2. Symbolic slice offsets. `phoff` and each segment's `p_offset` come out of the file, so the
    reads land at *symbolic positions* in a symbolic array. That is expensive for the solver's memory
    model, and it did not return even after pinning the header count to a single segment to kill the
    loop.
@@ -621,16 +621,16 @@ Two things put it past bounded model checking:
 So *whole-parse* totality is deferred. But the first path forward turned out to recover most of what
 it was for, so it is worth following the story to its end rather than stopping at the wall:
 
-- **Factor the leaf arithmetic into a pure function, and prove that.** Done. The per-segment bounds
+- Factor the leaf arithmetic into a pure function, and prove that. Done. The per-segment bounds
   and overflow checks are now `check_segment_bounds`, a loopless function over a header's raw fields
   and the file length, and the three harnesses above prove it never panics, that a passing check
   yields an in-bounds range (`p_offset <= end <= file_len`, which is what makes `segment_at`'s slice
   safe), and that a passing check rules out the `vaddr + memsz` overflow. That is the actual panic
   surface, proved for every input, without ever touching the loop. The refactor left the tests
   unchanged, so it is faithful.
-- **A loop-invariant tool (Verus)**, if the *loop itself* (the `O(n^2)` overlap check) ever needs
+- A loop-invariant tool (Verus), if the *loop itself* (the `O(n^2)` overlap check) ever needs
   proving rather than just the arithmetic inside it. Not needed yet.
-- **Shrink `MAX_PHNUM`.** Changing product code to suit the prover; still the last resort.
+- Shrink `MAX_PHNUM`. Changing product code to suit the prover; still the last resort.
 
 The lesson, kept: BMC blunted against the loop and the symbolic slice base, and the fix was not a
 bigger hammer but a smaller target. Decomposing the risky arithmetic out of the loop moved it from
@@ -642,20 +642,20 @@ named: that the *number* of segments and their mutual overlap are handled withou
 
 Six in `crates/glob/src/lib.rs`, milestone 47's pattern matcher (see [glob.md](glob.md) for the crate
 itself, which carries the harness table). The target is a loop over two byte strings where the
-pattern is untrusted, so the property that matters is the one BMC is best at: **totality**, no panic
+pattern is untrusted, so the property that matters is the one BMC is best at: totality, no panic
 and no hang on any input.
 
 It also produced two findings worth having next to the calendar's, because both are about the same
-thing: **the cost of a proof is the shape of the code, not the size of the claim.**
+thing: the cost of a proof is the shape of the code, not the size of the claim.
 
-- **Two loops became one, and the claim did not move.** The first version found a bracket
+- Two loops became one, and the claim did not move. The first version found a bracket
   expression's closing `]` in one loop and tested membership in another, nested inside the match loop
   Kani was already unrolling. One harness reached 3.5 GB and twelve minutes before it was killed.
   Scanning the class once, deciding membership as it goes, removed a whole loop from the unrolling
   and is less work at runtime too. DECISIONS §46 rule 1 in one edit.
-- **An unwind bound too high is as expensive as a claim too big.** These harnesses were first written
+- An unwind bound too high is as expensive as a claim too big. These harnesses were first written
   with `#[kani::unwind(60)]`, picked from a loose algebraic bound. The measured worst case over the
-  same domain is **10**. A host test now enumerates that domain and pins the number, so the unwind
+  same domain is 10. A host test now enumerates that domain and pins the number, so the unwind
   bounds are derived from a measurement rather than from arithmetic on a worst case that cannot
   happen. Every outer iteration charges at least one step, which is what makes the measured step
   count a sound upper bound for the iteration count.
@@ -665,9 +665,9 @@ is already a negated class, so "`[xy]` and `[!xy]` are complements" is false whe
 back in 42 seconds with the counterexample. Worth recording because the reflex on a red harness is to
 suspect the code.
 
-**The cost, stated rather than discovered.** About ten minutes of solver time for the six, which puts
+The cost, stated rather than discovered. About ten minutes of solver time for the six, which puts
 `glob` second to `calendar` in this suite. Two thirds of it is the two harnesses that quantify over a
-symbolic-length pattern **and** a symbolic-length name at once, which is the calendar's finding again
+symbolic-length pattern and a symbolic-length name at once, which is the calendar's finding again
 from a different direction: the expensive thing is not the property, it is the second symbolic
 length. Cutting one harness's name bound from three bytes to two took it from 279s to 199s without
 weakening it, because that harness's rule is a predicate on the name's first byte.
@@ -680,8 +680,8 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**188 harnesses** <!--count:kani-harnesses--> **across 27 packages** <!--count:harness-crates-->. (Milestone 198 (a package manager, and the trivial install) added two on 2026-09-23, in
-`crates/package_archive`; both discharge in **4 seconds**, which is the cheapest row in the table
+193 harnesses <!--count:kani-harnesses--> across 27 packages <!--count:harness-crates-->. (Milestone 198 (a package manager, and the trivial install) added two on 2026-09-23, in
+`crates/package_archive`; both discharge in 4 seconds, which is the cheapest row in the table
 after `elf`'s and `memory_regions`'.
 Milestone 304 (`cargo kani -p kernel` only ever compiled one architecture) added two, in
 `kernel/src/arch/x86_64/irq.rs`, which **only an x86_64 host runs** (the `prove` shards, since milestone 587 (most CI jobs do not need an arm64 host)): the count is of the tree, not of
@@ -700,7 +700,7 @@ exit-clean on the same tree:
 
 | machine | serial | `-j 4` |
 |---|---|---|
-| dev Mac (Apple Silicon) | 21m40s | **11m19s** |
+| dev Mac (Apple Silicon) | 21m40s | 11m19s |
 | CI (4-core ubuntu-arm) | ~42m | expect ~20m; take the real number from the first merged run |
 | cordoba (4-core Haswell) | 58m41s cold, ~40m solve | not measured; nothing decides on it |
 
@@ -719,41 +719,41 @@ reasoning; here is the measurement, read from the `==> kani:` timestamps of a re
 
 | crate | wall clock | share of the job |
 |---|---|---|
-| `glob` | 15.0 min | **49.7%** |
+| `glob` | 15.0 min | 49.7% |
 | `calendar` | 10.0 min | 33.0% |
 | `dma_validator` | 2.9 min | 9.6% |
 | `gpt` | 1.1 min | 3.5% |
 | the other 15 crates | 1.4 min together | 4.2% |
 
-**Two crates are 83% of the suite**, which is the fact that decides everything else. `script/verify
+Two crates are 83% of the suite, which is the fact that decides everything else. `script/verify
 --shard k/n` packs the crates by measured seconds (greedy longest-processing-time, from the cost
 table in the script), and CI runs two shards concurrently:
 
 | arrangement | wall clock |
 |---|---|
 | serial, as it ran until now | 30.3 min |
-| **two shards** | **15.1 min** |
+| two shards | 15.1 min |
 | three or four shards | 15.0 min |
 | per-harness sharding, unbounded runners | 10.8 min |
 
-**Three and four shards buy nothing**, because `glob` is atomic at crate granularity: the extra
+Three and four shards buy nothing, because `glob` is atomic at crate granularity: the extra
 runners idle while `glob` decides the answer alone. That is why CI runs two and not the four the
 milestone first proposed.
 
 The 10.8-minute row is the real floor and it is one harness:
-**`glob::the_dot_rule_only_touches_names_that_start_with_a_dot` takes 646 seconds by itself**, with
+`glob::the_dot_rule_only_touches_names_that_start_with_a_dot` takes 646 seconds by itself, with
 `no_magic_means_the_pattern_is_its_own_only_match` at 530 and
 `calendar::the_calendar_algorithms_are_mutual_inverses` at 462. Going below 10.8 minutes is not a CI
 question at all: it is an unwind bound in `glob`, and it should be approached as "is this harness
 proving more than it needs to" rather than as "can we buy more machines".
 
-**The dangerous failure mode is a crate that lands in no shard**, because an unproved crate is
+The dangerous failure mode is a crate that lands in no shard, because an unproved crate is
 invisible: the suite goes green *faster* and nothing says a harness stopped running. The packer
 therefore asserts on every invocation that the shards partition the table exactly, and refuses to
 prove a subset while reporting itself as the suite. Verified by running both shards against a stubbed
 `cargo` and diffing the union against the unsharded run: identical, all 19 crates.
 
-**The required check is still one job called `verify (Kani proofs)`.** A matrix would have renamed it
+The required check is still one job called `verify (Kani proofs)`. A matrix would have renamed it
 to `verify (Kani proofs) (1)` and `(2)`, leaving the ruleset requiring a check that no longer exists
 and blocking every merge forever. So the proving happens in a `prove` matrix and a small aggregate
 job carries the name and reports their combined result. See the comment at the top of
@@ -771,7 +771,7 @@ how a kernel-only pull request stops paying the 42 minutes.
 
 ## The rules that keep proofs cheap and honest
 
-- **Proofs live behind `#[cfg(kani)]`.** An ordinary `cargo build`/`cargo test` never compiles them,
+- Proofs live behind `#[cfg(kani)]`. An ordinary `cargo build`/`cargo test` never compiles them,
   and the crate needs no dependency on `kani` (its intrinsics are injected only under `cargo kani`).
 - **Verify pure logic first.** The §7 host crates (`capability`, `paging`, `elf`, `page_frames`, the ASID
   allocator when it lands) are the frontier: small, allocation-light, already host-compiled. Bounded
@@ -781,13 +781,13 @@ how a kernel-only pull request stops paying the 42 minutes.
   each proved a property the security story previously rested on by argument. The frontier now
   moves with milestone 14: proving properties *of the kernel* at scale wants a kernel that does
   not allocate.
-- **A harness that needs a huge bound is a design smell.** If a property needs Kani to explore an
+- A harness that needs a huge bound is a design smell. If a property needs Kani to explore an
   unbounded loop or a giant structure, that is often the code telling you the logic is not as local
-  as it should be. Prefer refactoring the logic to shrinking the proof. **This applies to *declining* a
+  as it should be. Prefer refactoring the logic to shrinking the proof. This applies to *declining* a
   proof too**, which milestone 35 learned the hard way: the IOMMU domain property was written off as the
   build-and-translate wall, and the wall was real but it was not where the property lived. Before
   recording a proof as impossible, check whether a smaller target carries it.
-- **Falsify a property before believing it.** Break the code the harness guards and confirm the harness
+- Falsify a property before believing it. Break the code the harness guards and confirm the harness
   fails. Every milestone 35 property was falsified this way, and one falsification corrected a claim in
   the code (the load-bearing guard was not the one the comment pointed at). A harness that cannot be
   made to fail is not evidence.
@@ -798,6 +798,6 @@ how a kernel-only pull request stops paying the 42 minutes.
   `script/falsifications --sweep` replays the patches weekly. Read notes/falsification.md before
   writing one, in particular for what six real records found: a harness can be green, falsifiable,
   and still blind to the defect its own comment claims to rule out.
-- **Guard against vacuity with `kani::cover!`.** Assumptions and bounds can silently empty a harness's
+- Guard against vacuity with `kani::cover!`. Assumptions and bounds can silently empty a harness's
   input set, and a vacuous harness reports `SUCCESSFUL`. A `cover!` fails when a state is unreachable,
   so it is the one check that catches this. See the non-vacuity section above.
