@@ -1,5 +1,12 @@
 # Where an unsafe obligation is written, and where it is only implied
 
+<!-- writing-standards: exception. Marked 2026-09-26 (UTC) by the lane for milestone 151 (notification objects).
+Reason: this change touches the file only to update a derived harness-count claim the
+counted-claims gate derives from the tree (188 to 192, four harnesses the lane added). Bringing the
+whole document to 4 bold spans per 1,000 words is a rewrite for the document's own owner, and
+doing it inside a count bump would hide a rewrite inside a number. Remove this marker when that
+rewrite lands. -->
+
 Milestone 82. The tree enforces two lints over `unsafe`, and they are meant to compose:
 
 - `clippy::undocumented_unsafe_blocks` (milestone 68) fires on an `unsafe {}` block with no
@@ -164,8 +171,8 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_mode_run
 without the crate that provides them rustc stops at `use of unresolved module or unlinked crate
 kani`. `helpers/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
 invocations before the pass runs. The surface it has to cover is small, which is what makes this
-cheap: across 27 packages <!--count:harness-crates--> and 188 harnesses <!--count:kani-harnesses-->
-the tree uses exactly **five** Kani items, `any`, `proof` (188) <!--count:kani-harnesses-->,
+cheap: across 27 packages <!--count:harness-crates--> and 192 harnesses <!--count:kani-harnesses-->
+the tree uses exactly **five** Kani items, `any`, `proof` (192) <!--count:kani-harnesses-->,
 `assume`, `unwind` and `cover!`, and no `Arbitrary` derive, no contracts, no
 `any_where`. A sixth, `stub`, appears only in `kernel`, which this pass excludes, so the shim
 lacks it. The claim is that the surface is **five items**, which is what the shim has to cover, and that
