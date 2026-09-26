@@ -121,12 +121,12 @@
 //!
 //! # BUGS
 //!
-//! **A manifest is compiled in, not shipped in the archive beside the build.** So a vendor cannot
+//! **A manifest is compiled in, not shipped with the build.** So a vendor cannot
 //! today hand over a binary and have its needs read out of it; what this crate removes is the
-//! endowment from the *operator*, not from the tree. Reading a manifest out of an ELF section or an
-//! archive member is a format two programs agree on, which is the expensive, irreversible category
-//! (AGENTS.md), so it is deliberately left for the architect rather than decided by a lane. See
-//! notes/component-manifest.md for what that decision would cost and buy.
+//! endowment from the *operator*, not from the tree. calef ruled on 2026-09-26 that a manifest
+//! travels inside the executable as an ELF note, per DECISIONS §197 (a package is one archive file);
+//! the note's owner, type and encoding are still the architect's, and nothing reads a note yet.
+//! See notes/component-manifest.md.
 //!
 //! **[`Requirements::pages`] is a property of the build, not of the contract**, and it is the only
 //! field here that is. How many pages an instance needs depends on its image size, its stack and its
