@@ -155,12 +155,15 @@ prediction down is what made it checkable.
 - **Recorded.** `design/fatal-risks.md` keeps risk 7 open. The enumeration inherits the blind spots
   of the tests it was read out of, and it cannot reach the claim nobody made, which is where real
   escapes live.
-- **Recorded.** One claim is owed, per §219 (how the shell names an installed program to the spawner), decided
-  2026-09-26: an unvouched child holds no capability the caller did not delegate, beyond the clock
-  and configuration pages the ruling allows. It is stated and falsified in this milestone's shape
-  by whoever builds §219's option D, with `unreachable_network_witness` as the fixture. The test
-  probes the process domain, entropy and the network, and must go red when one of them is granted.
-  Until D is built there is no unvouched child to test.
+- **Done.** The claim §219 (how the shell names an installed program to the spawner) owed this
+  milestone: an unvouched child holds no capability the caller did not delegate, beyond the clock
+  and configuration pages. Built 2026-09-26 with §219's
+  gate D2. `script/swish-check` runs `installed/unvouched`, a stripped `unreachable_network_witness`,
+  which probes the process domain, entropy and the network and lists every slot it holds. Granting
+  each of the three turned the line red, once each, by hand on aarch64
+  (notes/packages/running-unvouched.md). The census counts capabilities, not mappings.
+- **Proposed.** The claim above as row 31 of notes/confinement-claims.md's table
+  (`design/roadmap/proposals/the-confinement-table-lists-the-unvouched-child.md`).
 
 ## Index row
 

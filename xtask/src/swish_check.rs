@@ -165,8 +165,12 @@ const fn line(jobs: u8, typed: &'static str, answer: &'static [&'static str]) ->
 }
 
 /// **What the second boot types** (milestone 198 (a package manager) rung 3a): the installed
-/// program still runs after a reboot, a removal makes it unrunnable without deleting it, and a
-/// rollback makes it runnable again. The disk is the only thing the first boot hands this one.
+/// program still runs after a reboot, a removal takes its vouch away without deleting it, and a
+/// rollback vouches for it again. The disk is the only thing the first boot hands this one.
+///
+/// A removed program is refused only at a prompt that does not hold the run-unvouched capability
+/// (DECISIONS §219 gate D2). The boot prompt holds it, provisionally, so here the removal shows in
+/// `caps` and the bytes still run; before D2 this script typed the refusal.
 ///
 /// `greeting` rides along (milestone 198 rung 3a's fetch): it was installed as generation 2, it
 /// runs after the reboot, and removing `uptime` leaves it running, because a generation drops one
@@ -183,11 +187,19 @@ const SWISH_CHECK_AFTER_REBOOT: &[Line] = &[
         "package remove uptime",
         &["removed; generation 3 is live"],
     ),
+    // **Removed means unvouched, not unrunnable, for a session holding D2** (DECISIONS §219 gate
+    // D2). Until D2 this line was a refusal. The boot prompt now holds the run-unvouched
+    // capability (provisionally), so the bytes still run, with the ruling's endowment rather than
+    // the installed manifest; `caps` is what shows the vouch is gone.
     line(
-        1,
-        "packages/uptime/0.1.0/uptime",
-        &["refused: those bytes are not in the activation set"],
+        0,
+        "caps packages/uptime/0.1.0/uptime",
+        &[
+            "provenance: unvouched (digest ",
+            "runs on this session's capability to run unvouched bytes",
+        ],
     ),
+    line(1, "packages/uptime/0.1.0/uptime", &["up "]),
     line(
         1,
         "packages/greeting/0.1.0/greeting",
@@ -423,14 +435,43 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
     // and the progenitor hashes its own copy and finds the digest in the generation just written.
     // `up ` is the proof it ran: a refusal prints no such thing.
     line(1, "packages/uptime/0.1.0/uptime", &["up "]),
-    // **And bytes nobody installed, refused.** A real program (`unreachable_network_witness`), so
-    // what is refused is runnable code, not garbage; the sentence is the progenitor's word for a
-    // digest miss, and the witness's own report ("network: refused ...") never appears because
-    // nothing was built.
+    // **`caps` names who vouched** (§219: "or the source that vouched"): the digest the shell
+    // hashed is in the generation the install just wrote.
     line(
         0,
+        "caps packages/uptime/0.1.0/uptime",
+        &["provenance: vouched by activation generation 1 (digest "],
+    ),
+    // **And bytes nobody installed, previewed** (§219 gate D2): no generation lists them, and the
+    // boot prompt holds the run-unvouched capability (its provisional grant,
+    // `crates/system_initializer`), so the preview is the ruling's endowment and says why it runs.
+    line(
+        0,
+        "caps installed/unvouched",
+        &[
+            "cap 1  page      clock",
+            "cap 2  page      config",
+            "provenance: unvouched (digest ",
+            "runs on this session's capability to run unvouched bytes (slot 22)",
+        ],
+    ),
+    // **And run: milestone 202 (every confinement test is a ritual until somebody breaks the confinement)'s claim that an unvouched child holds no capability the caller did
+    // not delegate** (DECISIONS §219 gate D2). The bytes are `unreachable_network_witness`
+    // stripped, so no table vouches for them and they run on the session's capability alone. The
+    // line delegated the output and nothing else; the ruling adds the clock and configuration
+    // pages. So each of the three authorities the progenitor holds must answer "refused", and the
+    // census must read exactly slots 0, 1 and 2. Falsified once per authority before it was
+    // committed: granting the domain, entropy or the network to an unvouched child turned this
+    // line red (design/roadmap/202's block records the three runs).
+    line(
+        1,
         crate::disk::INSTALLED_UNVOUCHED,
-        &["refused: those bytes are not in the activation set"],
+        &[
+            "network: refused (no capability at slot 10)",
+            "entropy: refused (no capability at slot 9)",
+            "domain: refused (no capability at slot 7)",
+            "slots held: 0 1 2\n",
+        ],
     ),
     // **Fetching, refused before the network is touched**: the catalogue names no such package,
     // so nothing is asked of the package source. Runs on all three legs, because x86_64's missing
@@ -727,7 +768,12 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
     line(
         1,
         "unreachable_network_witness",
-        &["network: refused (no capability at slot 10)"],
+        &[
+            "network: refused (no capability at slot 10)",
+            "entropy: refused (no capability at slot 9)",
+            "domain: refused (no capability at slot 7)",
+            "slots held: 0\n",
+        ],
     ),
     // **A supervised job, interrupted**, under DECISIONS §24 (interrupting the foreground
     // process), and these two are the only lines this gate presses `^C` for (see
@@ -1742,8 +1788,8 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
     if failed.is_empty() && !fresh {
         eprintln!(
             "swish-check ({arch}): rebooted against the same disk, ran the two packages installed \
-             before the reboot, removed one and was refused it while the other still ran, rolled \
-             back, and ran it again"
+             before the reboot, removed one and saw its vouch gone while the other still ran, \
+             rolled back, and ran it again"
         );
         return true;
     }
@@ -1778,10 +1824,12 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
             ""
         };
         let network = if x86 {
-            "refused the network to a program that did not declare it, "
+            "refused the network to a program that did not declare it, ran bytes nobody vouched \
+             for holding nothing the line did not grant but the two pages, "
         } else {
             "reached the network twice through the stack the progenitor built and refused it to a \
-             program that did not declare it, "
+             program that did not declare it, ran bytes nobody vouched for holding nothing the line \
+             did not grant but the two pages, "
         };
         eprintln!(
             "swish-check ({arch}): the prompt booted, piped, redirected, appended, named a \
@@ -2305,9 +2353,10 @@ $ outlaw
                         .split_whitespace()
                         .find(|w| *w != "time" && *w != "xargs")
                 })
+                // A token with a `/` in it runs a file's bytes (DECISIONS §219 D), which is the
+                // shell's own test (`components/src/swish.rs`, `run`).
                 .filter(|head| {
-                    head.starts_with("packages/")
-                        || grant_plan::Prog::ALL.iter().any(|p| p.name() == *head)
+                    head.contains('/') || grant_plan::Prog::ALL.iter().any(|p| p.name() == *head)
                 })
                 .count();
             assert!(
