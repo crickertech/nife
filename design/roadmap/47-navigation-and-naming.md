@@ -5,9 +5,9 @@
 false, and both are corrected there rather than here: the glob caretaker was built 2026-07-31, and the
 `std` PAL's three namespace verbs were bound 2026-08-04.
 
-**Gate: DECISION §227, DECISION §228, DECISION §229.** Each of the three items left below is an
-architect's call, and on 2026-09-26 the maintainer minted each as a PROPOSED section (numbers
-provisional until the merge queue lands them). The old gate, a milestone 64 measurement the
+**Gate: DECISION §228, DECISION §229.** Two of the three items left below are architect's calls,
+minted on 2026-09-26 as PROPOSED sections (numbers provisional until the merge queue lands them).
+The third, completion, was ruled the same day in §227 (how Tab reaches the shell) and is buildable. The old gate, a milestone 64 measurement the
 namespace half waited on, was discharged 2026-08-18 when that measurement landed.
 
 Where this stands, 2026-09-26 (UTC), `milestone/47-navigation`. Every item below was checked
@@ -17,8 +17,9 @@ notes/env-config.md). One was settled elsewhere: the function-call syntax fork w
 §141 (application is grant) on 2026-09-03. What is left is three architect's calls, each written
 up with its options, and none of them this lane's to answer:
 
-- Completion: a resume message on the terminal wire. PROPOSED below since 2026-08-26, and
-  minted as §227 (how Tab reaches the shell) on 2026-09-26.
+- Completion. PROPOSED below since 2026-08-26, minted as §227 (how Tab reaches the shell) and
+  ruled by calef on 2026-09-26: option D, the shell runs the line editor itself in raw mode, and
+  the terminal wire does not change.
 - A set grant at the prompt, which is what `xargs <program>` has been waiting on and, found
   today, what refuses a plain `rm *.txt` over two files: `spawnproto` cannot carry a set. PROPOSED
   in notes/a-set-grant-at-the-prompt.md, and minted as §228 (how a set of matched names reaches
@@ -1116,8 +1117,9 @@ will depend on, so it is calef's.
 
 ## Completion: a concrete primitive, priced and not built (investigated further 2026-08-26, `milestone/47-remainder-round2`). **PROPOSED, not decided.**
 
-The decision is §227 (how Tab reaches the shell), minted 2026-09-26; this section is its
-evidence, and §227 adds a raw-mode option this section predates.
+The decision is §227 (how Tab reaches the shell), ruled 2026-09-26: option D, a raw-mode option
+this section predates. The resume message below was refused, and this section is kept as the
+evidence that was weighed.
 
 The 2026-08-26 lane found that Tab is swallowed at the line discipline
 (`crates/line_editor/src/lib.rs`, "Tab is ignored," confirmed again this round at the same line:
@@ -1351,11 +1353,11 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   now. `crates/swish/src/lib.rs` prints a bound name's own row and writes it, with a test asserting
   `bind recent -> /logs/2026`. The block's own `bind` paragraph already says so; this sentence
   never got the correction.
-- **Decision.** Tab completion, `design/decisions/227-a-resume-message-for-tab-completion.md`
-  (PROPOSED, options only: it is a wire change). `crates/line_editor` still ignores Tab, checked
-  2026-09-26. The section adds an option the 2026-08-26 write-up could not weigh: the raw mode of
-  milestone 169 (`kilo`, the smallest real text editor) lets the shell edit its own line with no
-  new wire message.
+- **Outstanding.** Tab completion, now buildable: calef ruled
+  `design/decisions/227-a-resume-message-for-tab-completion.md` option D on 2026-09-26, so the
+  shell turns raw mode on and runs `LineDisc` itself. Not built: `crates/line_editor` still ignores
+  Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The lane
+  that builds it owes two measurements, the shell's binary size and the per-keystroke IPC cost.
 - **Decision.** `PATH`, `design/decisions/229-how-a-bare-name-reaches-an-installed-program.md`
   (PROPOSED, recommends the live activation set with ambiguity refused). An installed program still
   runs only by path, checked 2026-09-26.
