@@ -3513,17 +3513,32 @@ fn forcible(job_ut: u64) {
     }
 }
 
+/// How long [`reclaim`] keeps retrying before it reports a refusal: a hundred of the kernel's 10 ms
+/// timeslices. A force-killed thread is converted to a corpse at its own core's next preemption
+/// (notes/object-revocation.md, "DESTROY force-kills a runaway"), so the wait that matters is one
+/// timeslice, and a bound on time says that where a bound on attempts cannot.
+const RECLAIM_PATIENCE_NS: u64 = 1_000_000_000;
+
 /// Reclaim the job's region, retrying because a cooperatively-exiting child may still be finishing
-/// its last instruction (DESTROY refuses while a thread is live). Returns whether it succeeded.
+/// its last instruction, and a force-killed one is still resident until its core's next tick
+/// (DESTROY refuses while a thread is live). Returns whether it succeeded.
+///
+/// **Bounded by time, not by a count of 256 attempts, since 2026-09-25.** A yield returns at once
+/// when this core has nothing else to run, so 256 of them could all land inside the one timeslice
+/// the killed runaway still had on another core. Measured at a real prompt on aarch64: two of six
+/// `interrupt_ignorer` teardowns printed "teardown refused", and each refusal also leaked the job's
+/// pages from this shell's budget, which ran out on the seventh job.
 fn reclaim(job_ut: u64) -> bool {
-    for _ in 0..256 {
-        // DESTROY reclaims the region or refuses (a live thread, pre-amendment).
+    let start = monotonic_nanos();
+    loop {
         if destroy_region(job_ut) == 0 {
             return true;
         }
+        if monotonic_nanos().wrapping_sub(start) > RECLAIM_PATIENCE_NS {
+            return false;
+        }
         yield_now();
     }
-    false
 }
 
 /// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
