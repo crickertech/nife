@@ -809,6 +809,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  package install <name>  fetch it from the package source and install it\n");
     out(b"  package remove <prog>   a new generation without it; its bytes stay for rollback\n");
     out(b"  package rollback        make the generation before the live one live again\n");
+    out(b"  vouch <file>            the owner vouches for these bytes; a rollback undoes it\n");
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
     // Two spaces rather than the column the rest of this block keeps: these two names run past the
     // description column (26), so aligning them would leave no separator at all. Both were ratified
@@ -905,12 +906,24 @@ pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed befo
 /// meets this sentence only when it does not hold it.
 pub const UNVOUCHED_SENTENCE: &[u8] = b"  refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold\n";
 
+/// **Who vouched for an image's digest**, for [`write_image_caps`]: the live generation that lists
+/// it, and whether its entry is the owner's own vouch (`activation_set::OWNER`) rather than an
+/// installed package's. Name: provisional (2026-09-26).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Vouched {
+    /// The live generation's number.
+    pub generation: u32,
+    /// The entry names the owner rather than a package.
+    pub by_owner: bool,
+}
+
 /// **`caps <path>`: what running a file's bytes would grant, and on whose word**
 /// (DECISIONS §219 option D and gate D2, milestone 198 rung 3a).
 ///
 /// The shell computes both halves from the bytes it read and the activation set it can read:
 /// `hex` is the file's SHA-256 in lowercase hex, and `vouched_by` is the live generation that
-/// lists that digest, or `None`. `holds` is whether this session holds the run-unvouched
+/// lists that digest and whether that entry is the owner's own vouch (`vouch`, DECISIONS §221
+/// (the boot prompt is the owner's console)), or `None`. `holds` is whether this session holds the run-unvouched
 /// capability. The rows are the endowment the progenitor would build: an installed program's
 /// (`grant_plan::INSTALLED_MANIFEST_OF`) when vouched, and `grant_plan::UNVOUCHED_MANIFEST`'s
 /// three slots when not, or a refusal when the session cannot run unvouched bytes.
@@ -930,7 +943,7 @@ pub const UNVOUCHED_SENTENCE: &[u8] = b"  refused: those bytes are not in the ac
 pub fn write_image_caps(
     path: &[u8],
     hex: &[u8],
-    vouched_by: Option<u32>,
+    vouched_by: Option<Vouched>,
     holds: bool,
     out: &mut dyn FnMut(&[u8]),
 ) {
@@ -949,9 +962,13 @@ pub fn write_image_caps(
     }
     out(b"    provenance: ");
     match vouched_by {
-        Some(generation) => {
-            out(b"vouched by activation generation ");
-            write_num(u64::from(generation), out);
+        Some(v) => {
+            out(if v.by_owner {
+                b"vouched by the owner in activation generation "
+            } else {
+                b"vouched by activation generation "
+            });
+            write_num(u64::from(v.generation), out);
             out(b" (digest ");
         }
         None => out(b"unvouched (digest "),
@@ -988,6 +1005,7 @@ pub fn write_activation(
         (S::Done, V::Install(_)) => b"  installed",
         (S::Done, V::Fetch(_)) => b"  fetched and installed",
         (S::Done, V::Remove(_)) => b"  removed",
+        (S::Done, V::Vouch(_)) => b"  vouched",
         (S::Done, _) => b"  rolled back",
         (S::NotCatalogued, _) => {
             b"  refused: this image's catalogue does not vouch for those bytes"
@@ -1002,6 +1020,7 @@ pub fn write_activation(
         }
         (S::NoNetwork, _) => b"  this boot has no network to fetch a package over",
         (S::FetchFailed, _) => b"  the package source did not send a whole package",
+        (S::NotExecutable, _) => b"  refused: those bytes are not a program this machine runs",
     };
     out(said);
     if live == 0 {
@@ -1012,6 +1031,10 @@ pub fn write_activation(
         out(b" is live\n");
     }
 }
+
+/// What a malformed `vouch` line is answered with, sending nothing.
+pub const VOUCH_USAGE: &[u8] =
+    b"  vouch <file>: a path to a program, whose last name is at most sixteen bytes\n";
 
 /// What a malformed `package` line is answered with, sending nothing.
 pub const PACKAGE_USAGE: &[u8] =
@@ -1568,15 +1591,27 @@ mod tests {
     /// session that holds the capability; otherwise it says it would be refused and grants nothing.
     #[test]
     fn caps_of_an_image_names_its_provenance_and_the_gate() {
-        let say = |v: Option<u32>, holds: bool| {
+        let say = |v: Option<super::Vouched>, holds: bool| {
             let mut said = Vec::new();
             super::write_image_caps(b"bin/x", b"00ff", v, holds, &mut |b| {
                 said.extend_from_slice(b);
             });
             String::from_utf8(said).unwrap()
         };
-        let vouched = say(Some(3), false);
+        let by = |generation, by_owner| {
+            Some(super::Vouched {
+                generation,
+                by_owner,
+            })
+        };
+        let vouched = say(by(3, false), false);
         assert!(vouched.contains("vouched by activation generation 3 (digest 00ff)"));
+        let owned = say(by(4, true), true);
+        assert!(owned.contains("vouched by the owner in activation generation 4 (digest 00ff)"));
+        assert!(
+            !owned.contains("clock"),
+            "an owner's vouch runs as installed, not as D2"
+        );
         assert!(vouched.contains("cap 0"));
         assert!(
             !vouched.contains("clock"),
@@ -1641,6 +1676,10 @@ mod tests {
             shown(|o| write_activation(V::Fetch(b"nosuch"), S::NoSuchPackage, 2, o)),
             "  refused: this image's catalogue names no such package, so nothing was fetched; \
              generation 2 is live\n"
+        );
+        assert_eq!(
+            shown(|o| write_activation(V::Vouch(b"./a.out"), S::Done, 3, o)),
+            "  vouched; generation 3 is live\n"
         );
     }
 

@@ -175,6 +175,11 @@ const fn line(jobs: u8, typed: &'static str, answer: &'static [&'static str]) ->
 /// `greeting` rides along (milestone 198 rung 3a's fetch): it was installed as generation 2, it
 /// runs after the reboot, and removing `uptime` leaves it running, because a generation drops one
 /// program and not its neighbours.
+///
+/// **The numbers skip one** because the first boot vouched for a build as generation 3 and rolled
+/// it back (DECISIONS §221). A generation is never rewritten, so the removal is generation 4, and
+/// a rollback is by number (`notes/packages.md`'s BUGS), so it lands on 3: the vouch's generation,
+/// which lists `uptime` too.
 const SWISH_CHECK_AFTER_REBOOT: &[Line] = &[
     line(1, "packages/uptime/0.1.0/uptime", &["up "]),
     line(
@@ -185,7 +190,7 @@ const SWISH_CHECK_AFTER_REBOOT: &[Line] = &[
     line(
         0,
         "package remove uptime",
-        &["removed; generation 3 is live"],
+        &["removed; generation 4 is live"],
     ),
     // **Removed means unvouched, not unrunnable, for a session holding D2** (DECISIONS §219 gate
     // D2). Until D2 this line was a refusal. The boot prompt now holds the run-unvouched
@@ -208,7 +213,7 @@ const SWISH_CHECK_AFTER_REBOOT: &[Line] = &[
     line(
         0,
         "package rollback",
-        &["rolled back; generation 2 is live"],
+        &["rolled back; generation 3 is live"],
     ),
     line(1, "packages/uptime/0.1.0/uptime", &["up "]),
 ];
@@ -517,6 +522,48 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
         1,
         "packages/greeting/0.1.0/greeting",
         &["hello from a package this image never carried"],
+    ),
+    // **The owner vouches for a local build** (DECISIONS §221 (the boot prompt is the owner's
+    // console), ruling 1). `installed/unvouched` is the fresh build the D2 lines above ran on the
+    // ruling's endowment (slots 0, 1 and 2). Vouching writes a generation that lists its digest,
+    // so the same bytes now run vouched, with the installed manifest (`uptime`'s until a manifest
+    // travels in the executable: `grant_plan::INSTALLED_MANIFEST_OF`), which holds the output and
+    // nothing else. So the census drops to slot 0: the grant changed with the vouch, and nothing
+    // else on the line did. A rollback takes the vouch away and the census is D2's again.
+    line(
+        0,
+        "vouch installed/unvouched",
+        &["vouched; generation 3 is live"],
+    ),
+    line(
+        0,
+        "caps installed/unvouched",
+        &["provenance: vouched by the owner in activation generation 3 (digest "],
+    ),
+    line(
+        1,
+        crate::disk::INSTALLED_UNVOUCHED,
+        &[
+            "network: refused (no capability at slot 10)",
+            "entropy: refused (no capability at slot 9)",
+            "domain: refused (no capability at slot 7)",
+            "slots held: 0\n",
+        ],
+    ),
+    line(
+        0,
+        "package rollback",
+        &["rolled back; generation 2 is live"],
+    ),
+    line(
+        0,
+        "caps installed/unvouched",
+        &["provenance: unvouched (digest "],
+    ),
+    line(
+        1,
+        crate::disk::INSTALLED_UNVOUCHED,
+        &["slots held: 0 1 2\n"],
     ),
     // **`uuid`, at the real prompt** (milestone 111), and this is the only gate that can run it.
     // The endowment is `crates/system_initializer`'s to make: the progenitor holds the entropy service's
@@ -1825,11 +1872,13 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
         };
         let network = if x86 {
             "refused the network to a program that did not declare it, ran bytes nobody vouched \
-             for holding nothing the line did not grant but the two pages, "
+             for holding nothing the line did not grant but the two pages, vouched for them as \
+             the owner and rolled the vouch back, "
         } else {
             "reached the network twice through the stack the progenitor built and refused it to a \
              program that did not declare it, ran bytes nobody vouched for holding nothing the line \
-             did not grant but the two pages, "
+             did not grant but the two pages, vouched for them as the owner and rolled the vouch \
+             back, "
         };
         eprintln!(
             "swish-check ({arch}): the prompt booted, piped, redirected, appended, named a \
