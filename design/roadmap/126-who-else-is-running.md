@@ -6,14 +6,13 @@ consistency with how milestone 123 (somebody else's software, running narrow) ap
 packages. The corpus is chosen by an external ordering and taken in the units that ordering uses,
 which is packages rather than programs we like. Re-swept and condensed 2026-09-26 by
 `milestone/126-procps`, which found three claims here stale and one premise false (see "Corrections,
-2026-09-26").
+2026-09-26"). `free`, `vmstat` and `slabtop` built the same day by `milestone/126-free`.
 
 **Gate: DECISION §164, DECISION.** `w` waits on §164 (whether the kernel resolves a tid it already
-sent), because a tid has no name. `pmap`'s reach from the prompt waits on a fork nobody has ruled
-on, written up with the seven questions answered in
-[notes/process-view/what-is-left.md](../../notes/process-view/what-is-left.md). `free` and `vmstat`
-wait only on effort now: §225 (`free` sees the machine and your share) ruled their shape 2026-09-26.
-`pidwait`'s shape is ruled too, §226 (`pidwait` takes tids), with its wait primitive still owed.
+sent), because a tid has no name. `pidwait`'s shape is ruled, §226 (`pidwait` takes tids), and its
+wait primitive is a kernel method nobody has ruled on; `pmap`'s reach from the prompt waits on a
+fork too. Both are written up with the options in
+[notes/process-view/what-is-left.md](../../notes/process-view/what-is-left.md).
 
 A program does one and only one thing (calef, 2026-09-26: *"One thing I like about unix is that a
 program does one and only one thing."*). It decided `pidwait`, and it is the test for every row this
@@ -42,10 +41,10 @@ came to miss it.
 | `kill`, `pkill`, `skill`, `snice` | refused, milestone 455 (the signalling stratum of `procps`) | `design/roadmap/455-the-signalling-stratum.md` |
 | `pwdx` | declined 2026-09-26, §224 (no `pwdx`): only the shell has a working directory | `design/decisions/224-no-pwdx.md` |
 | `w` | waits on §164, and on a second session existing | what-is-left.md, section 2 |
-| `free`, `vmstat` | ruled 2026-09-26, unbuilt: a region method and a withholdable machine memory page, §225 | `design/decisions/225-free-sees-the-machine-and-your-share.md` |
-| `slabtop` | no slab since milestone 14 (kernel objects from untyped); becomes §225's region method asked per object type | what-is-left.md, section 3 |
-| `tload` | not a program: a line in `top`'s summary (§225) | what-is-left.md, section 3 |
-| `pidwait` | ruled 2026-09-26, unbuilt: takes tids and composes with `pgrep`, §226 | `design/decisions/226-pidwait-takes-tids.md` |
+| `free`, `vmstat` | built 2026-09-26 under §225 (`free` sees the machine and your share) | `crates/free`, `crates/vmstat`, the-machine-and-your-share.md |
+| `slabtop` | built 2026-09-26: no slab since milestone 14 (kernel objects from untyped), so it breaks down a job budget by object kind | `crates/slabtop` |
+| `tload` | built 2026-09-26 as a line in `top`'s summary, not a program | `crates/top` |
+| `pidwait` | ruled 2026-09-26 (§226), unbuilt: its wait primitive is a new kernel method | what-is-left.md, section 4 |
 
 ## Why this package, and why the package rather than the program
 
@@ -211,18 +210,23 @@ this wrong looks like `ps` working beautifully while the confinement is decorati
   `design/decisions/225-free-sees-the-machine-and-your-share.md` (calef, 2026-09-26): a
   `MemoryRegion` method under `ENUMERATE` for the caller's share, and a machine memory page granted
   to every login by default and withholdable by the owner.
-- **Outstanding.** `free` and `vmstat` are unbuilt, and `slabtop` (per object type) with them. The
-  page-frame statistics in `kernel/src/memory.rs` are still read only by the boot summary and kernel
-  tests. The method's number, the page's layout and its name are the building lane's to propose.
-  Checked 2026-09-26.
+- **Done.** `free`, `vmstat`, `slabtop` and `top`'s machine line, on `milestone/126-free`
+  (2026-09-26): `MemoryRegion::USAGE` and the machine statistics page. The proposed method number,
+  page layout and names are in `notes/process-view/the-machine-and-your-share.md`.
+- **Recorded.** The owner's switch for the machine page is one boot-time constant,
+  `system_initializer::GRANT_MACHINE_PAGE`, not a per-login policy; marked as an exception in
+  `crates/system_initializer/src/lib.rs` where it is defined.
+- **Recorded.** `free` prints no `Swap:` line and `vmstat` no swap columns, because nife refuses
+  paging out for now (pull request #1356); each says so in its `BUGS` in `crates/free/src/lib.rs`
+  and `crates/vmstat/src/lib.rs`.
 - **Decision.** `pidwait` takes tids, not a pattern, and composes as `pidwait $(pgrep foo)`:
   `design/decisions/226-pidwait-takes-tids.md` (calef, 2026-09-26). `pgrep --wait`, one binary with
   two names, and a pattern-taking `pidwait` are refused there.
 - **Outstanding.** `pidwait` is unbuilt. Nothing lets it observe a named tid's exit without more
   authority than the ruling gives it: `RECV` needs `READ` and steals the death message, and polling
-  `SURVEY` needs `ENUMERATE`, which is `pgrep`'s. The shell has pipes and no `$( … )`. Both are in
-  §226's open list for the building lane. Checked in `kernel/src/syscall.rs` and `crates/swish`
-  2026-09-26.
+  `SURVEY` needs `ENUMERATE`, which is `pgrep`'s. A new kernel method is owed, and its options are
+  in what-is-left.md section 4, with the finding that `pgrep | pidwait` names `pidwait` itself.
+  Checked in `kernel/src/syscall.rs` and `crates/swish` 2026-09-26.
 - **Outstanding.** `pmap` is unreachable from the prompt: `crates/grant_plan` has no program variant
   for it, and `take_user_address_space` still deregisters a space at `CONFIGURE`. Checked
   2026-09-26.
@@ -246,5 +250,6 @@ The sharpest ambient-authority case in the utility set, because what these progr
 enumeration of the process namespace, and `/proc` hands it to anyone. Taken as a whole package for
 consistency with 123's corpus approach. Replacing `/proc` with a held capability stratifies it.
 `ps`, `pgrep`, `pmap`, `uptime` and `top` are built over `rendezvous::SURVEY` and `ENUMERATE`.
-`sysctl`, `pwdx` and the signalling programs are declined, and `watch` was built and cut. The
-memory statistics (§225) and `pidwait` (§226) are ruled and unbuilt; `w` waits on §164.
+`sysctl`, `pwdx` and the signalling programs are declined, and `watch` was built and cut. `free`,
+`vmstat` and `slabtop` read a region method and a machine page (§225). `pidwait` (§226) waits on a
+wait primitive; `w` waits on §164.

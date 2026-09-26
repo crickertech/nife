@@ -83,7 +83,8 @@ region method for the caller's share, plus a read-only machine memory page held 
 granted to every login by default and withholdable by the owner. `free` prints a machine line, and
 a "yours" line when the caller holds a region. The ruling, its reasons and the prior art checked
 against primary sources are in §225 (`free` sees the machine and your share). The fork is kept as it
-was written.
+was written. Built the same day: `free`, `vmstat`, `slabtop` and `top`'s machine line, recorded in
+[the machine and your share](the-machine-and-your-share.md).
 
 The block's 2026-08-26 fork covered `free` and `vmstat` and missed the other two members of the row.
 Re-checked 2026-09-26: `kernel/src/memory.rs`'s `stats()` and `free_page_frames()` are still read
