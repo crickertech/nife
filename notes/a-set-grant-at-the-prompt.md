@@ -1,6 +1,7 @@
 # A set grant at the prompt: how a matched pattern reaches the progenitor
 
-**Status: PROPOSED, not decided.** Written 2026-09-26 (UTC) by milestone 47 (navigation and
+**Status: decided 2026-09-26 as §228 (how a set of matched names reaches the progenitor), option
+2b, which this note predates.** Written 2026-09-26 (UTC) by milestone 47 (navigation and
 naming)'s lane `milestone/47-navigation`. It answers the item milestone 47's block and milestone 109
 (`xargs`) both carry: "the shell cannot ask the progenitor to mint a per-batch caretaker." It is a
 change to `spawnproto`, which the shell and the progenitor both read, so it is an architect's call.

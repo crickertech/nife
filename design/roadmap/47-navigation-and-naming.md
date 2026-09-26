@@ -5,27 +5,27 @@
 false, and both are corrected there rather than here: the glob caretaker was built 2026-07-31, and the
 `std` PAL's three namespace verbs were bound 2026-08-04.
 
-**Gate: NONE.** Discharged 2026-08-18. The navigation half is built. The namespace half (absolute paths,
-environment, `PATH`, and `bind`) had no forcing use case from the shell, and this block's own
-sequencing was to let milestone 64 measure first so a real crate's demands could size the remaining
-scope. That measurement has landed and it did its job, so the gate it was waiting for is
-discharged rather than merely aged.
+**Gate: NONE.** The three items left below were architect's calls, and calef ruled all three on
+2026-09-26: §227 (how Tab reaches the shell), §228 (how a set of matched names reaches the
+progenitor) and §229 (how a bare name at the prompt reaches an installed program). The old gate, a milestone 64 measurement the
+namespace half waited on, was discharged 2026-08-18 when that measurement landed.
 
 Where this stands, 2026-09-26 (UTC), `milestone/47-navigation`. Every item below was checked
 against the tree that day. One was built: `caps` prints the inert-configuration values a child
 will read, from the boot shell's own read-only view of the same frame (DECISIONS §111 (inert configuration is a validated page)'s preview;
 notes/env-config.md). One was settled elsewhere: the function-call syntax fork was refused by
-§141 (application is grant) on 2026-09-03. What is left is three architect's calls, each written
-up with its options, and none of them this lane's to answer:
+§141 (application is grant) on 2026-09-03. What was left was three architect's calls, each
+written up with its options. All three were ruled on 2026-09-26 and are now work to build:
 
-- Completion: a resume message on the terminal wire. PROPOSED below, unchanged since
-  2026-08-26 and still with no `design/decisions/` entry.
+- Completion: ruled D in §227 (how Tab reaches the shell). The shell edits its own line in raw
+  mode.
 - A set grant at the prompt, which is what `xargs <program>` has been waiting on and, found
-  today, what refuses a plain `rm *.txt` over two files: `spawnproto` cannot carry a set. PROPOSED
-  in notes/a-set-grant-at-the-prompt.md.
+  today, what refuses a plain `rm *.txt` over two files: `spawnproto` cannot carry a set. Ruled
+  2b in §228 (how a set of matched names reaches the progenitor): a page the shell fills.
 - `PATH` for installed programs: the manifest question that blocked it is answered by §208 and
-  §219, and what remains is how a bare name reaches an installed program. PROPOSED under "`PATH`,
-  sized" below.
+  §219, and what remains is how a bare name reaches an installed program. PROPOSED under "The
+  manifest question was answered elsewhere" below. Ruled B2 in §229 (how a bare name at the prompt
+  reaches an installed program): the activation set, never an owner's vouch.
 
 The secrets third moved out of this milestone: it is §41 (the endpoint is the broker)'s endpoint, milestone 65 (a secrets service)'s service and
 §165's open question, and no program on nife needs one (Follow-on, below).
@@ -1088,6 +1088,9 @@ further here).
 
 ### The manifest question was answered elsewhere (checked 2026-09-26). **PROPOSED: how a bare name reaches an installed program.**
 
+§229 (how a bare name at the prompt reaches an installed program) ruled B2 on 2026-09-26; this
+section is its evidence.
+
 The table above is overtaken. §208 (installing is granting) made the activation set the record of
 what is installed, digest and manifest together. §219 (how the shell names an installed program to
 the spawner) ruled option D: the shell reads a program's bytes and sends them as frames, and the
@@ -1111,6 +1114,9 @@ search at all: installing is what puts a name in it (§208). It is a name the sh
 will depend on, so it is calef's.
 
 ## Completion: a concrete primitive, priced and not built (investigated further 2026-08-26, `milestone/47-remainder-round2`). **PROPOSED, not decided.**
+
+§227 (how Tab reaches the shell) ruled option D on 2026-09-26, which this section predates. The
+resume message below was refused; this is the evidence weighed.
 
 The 2026-08-26 lane found that Tab is swallowed at the line discipline
 (`crates/line_editor/src/lib.rs`, "Tab is ignored," confirmed again this round at the same line:
@@ -1344,15 +1350,15 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   now. `crates/swish/src/lib.rs` prints a bound name's own row and writes it, with a test asserting
   `bind recent -> /logs/2026`. The block's own `bind` paragraph already says so; this sentence
   never got the correction.
-- **Outstanding.** An architect's call. Tab completion. `crates/line_editor` still carries only
-  `None`, `Line`, `Eof` and `Interrupt` as events and still documents that Tab is ignored; there is no `Event::Tab`, no
-  completion flag and no resume opcode anywhere in the crate. Checked 2026-09-03 and again
-  2026-09-26. The resume message is a wire decision; the proposal is "Completion: a concrete
-  primitive" above, and it still has no `design/decisions/` entry for the maintainer to mint.
-- **Outstanding.** An architect's call. `PATH`. The manifest half is answered by §208, §219 and
-  §197's ELF-note manifest (PR #1338, in flight), and an installed program runs by path. How a bare name
-  reaches one is PROPOSED under "The manifest question was answered elsewhere" above. Checked
-  2026-09-26.
+- **Outstanding.** Tab completion, now buildable: calef ruled
+  `design/decisions/227-the-shell-edits-its-own-line.md` option D on 2026-09-26, so the
+  shell turns raw mode on and runs `LineDisc` itself. Not built: `crates/line_editor` still ignores
+  Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The
+  building lane owes the two measurements §227 names.
+- **Outstanding.** `PATH`, now buildable: calef ruled
+  `design/decisions/229-how-a-bare-name-reaches-an-installed-program.md` B2 on 2026-09-26. An
+  installed program still runs only by path, checked 2026-09-26. The lane must meet the two
+  checks on owner-vouch entries that §229 names.
 - **Milestone 65.** Environment's secrets third, moved rather than built. A secret here is an
   endpoint (§41), the service that holds one is milestone 65's (BUILT), and where a stored secret comes from is §165 (PROPOSED). §220
   (signed builds) met the one candidate customer, a signing key, on 2026-09-26 and recommended
@@ -1367,12 +1373,15 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
 - **Milestone 154.** `bind` in a two-grant shell stays host-tested only. Both real entry points
   still pass no second directory (`components/src/swish.rs`, `user/src/system_initializer.rs`), and
   `crates/system_initializer` calls the path unverified against a real boot.
-- **Outstanding.** An architect's call. The delegation chain `xargs` needs, and it is wider than
-  `xargs`: `spawnproto` cannot carry a set of names, so the progenitor builds only the one-name
-  subtree caretaker and every pattern matching two or more names is refused at a real prompt,
-  `rm *.txt` included. The options, the costs and a prerequisite that was never given a milestone
-  (the shared-page audit's frame per client channel) are in notes/a-set-grant-at-the-prompt.md,
-  PROPOSED. Checked 2026-09-26.
+- **Outstanding.** The set grant at the prompt, now buildable once its dependencies land: calef
+  ruled `design/decisions/228-how-a-set-of-names-reaches-the-progenitor.md` option 2b on
+  2026-09-26. Not built: `components/src/swish.rs` still refuses a set of names, checked
+  2026-09-26. It waits on the two dependencies §228 names, a frame per filesystem client channel
+  (`design/roadmap/proposals/a-frame-per-filesystem-client-channel.md`) and the swish allocator.
+- **Done.** A dispatched CI run scoped its build check to the branch's last commit, so this lane's
+  run skipped the build and reported green. The lane filed it as a proposal, and PR #1355
+  (`maintainer/ci-dispatch-scope`) fixes it by scoping against the merge base with `main`, so the
+  proposal was dropped on 2026-09-26 rather than promoted.
 - **Refused.** The two symlink questions this block leaves open, what a stored `..` means to a
   shallower holder and the `rm -r link/` trailing slash, are moot:
   `design/decisions/50-namespace-composition.md` chose composition over stored paths, so there is
