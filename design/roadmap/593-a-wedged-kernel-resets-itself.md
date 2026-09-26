@@ -67,11 +67,13 @@ CI runs both in the `watchdog` job, only when a path they depend on changes, and
 
 ## xenon's first bench step
 
-Blocked before it starts, by a gap this lane found and did not close. A soak kernel cannot reach
-xenon's stick: the UEFI loader's seal check refuses it. The proposal
-`a-soak-kernel-cannot-reach-xenons-stick` has the evidence and the options.
+This lane found that a soak kernel could not reach xenon's stick, because the UEFI loader's seal
+check refused it. Milestone 563 (a seal check that reads bytes cannot see a check that was dropped)
+closed that gap. After rebasing onto it, `cargo xtask uefi-image --features watchdog_soak_test`
+builds on patagonia (2026-09-26), and `uefi_loader/build.rs` panics `NOT SEALED` on any unsealed
+pair, so the image is sealed.
 
-Once it can, the step is one boot with the POST settings unchanged. Build a `watchdog_soak_test`
+The step is one boot with the POST settings unchanged. Build a `watchdog_soak_test`
 image, boot it with the serial chain on the desk, and read three lines. The `found the Intel TCO`
 line says whether step 1's discovery agrees with the datasheet. A `NOT ARMED` reason says firmware
 holds `NO_REBOOT` visibly; an `ARMED` line cannot rule out a strap. The first `petted` line says whether the
@@ -103,8 +105,8 @@ SRST does not. That is untested, and the first watchdog boot on radon is the tes
   this branch: `script/soak-test` and `xtask/src/soak.rs` still arm it only for `--watchdog` and
   `--wedge`. It is not built here because it changes how every soak build picks its features, and
   `watchdog_soak_test` is a `compile_error!` off x86_64.
-- **Proposed.** A soak kernel cannot reach xenon's stick:
-  `design/roadmap/proposals/a-soak-kernel-cannot-reach-xenons-stick.md`.
+- **Milestone 563.** A soak kernel could not reach xenon's stick. That gap was folded into milestone
+  563 and built there.
 
 ## Index row
 
