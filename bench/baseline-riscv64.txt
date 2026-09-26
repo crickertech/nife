@@ -1,7 +1,7 @@
-# toolchain: nightly-2026-09-24
+# toolchain: nightly-2026-09-25
 # qemu: 11.1.1
-# date: 2026-09-24
-# why: nightly-2026-09-24: against the old nightly on the same tree (b5a83740d), ipc_rtt 0.58% faster and nothing else moved; this save also absorbs drift already on main since the last save (at most -0.20%, ipc_rtt)
+# date: 2026-09-26
+# why: nightly-2026-09-25: measured on main at 508333ebe against the 2026-09-24 floors, every row within 1.8% (largest rfence_self +1.37%, ipc_rtt -0.32%); this mixes the compiler with drift on main since the last save, not separated
 # bench/baseline-riscv64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -10,18 +10,18 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 187322 2000
-ipc_rtt 170981 1000
-relay_rtt 342741 1000
-call_reply 177263 1000
-broker_rtt 354074 1000
+yield_switch 186990 2000
+ipc_rtt 170437 1000
+relay_rtt 342421 1000
+call_reply 177104 1000
+broker_rtt 353707 1000
 spawn_reap 34490 64
 map_new 2369 64
-rfence_self 5991 512
-coremark 3654460 256
-null_syscall 73032 20000
-ctx_switch 513471 5000
-ipc_rtt_el0 1861152 5000
-sink_throughput 757956 80000
+rfence_self 6073 512
+coremark 3654465 256
+null_syscall 73033 20000
+ctx_switch 512869 5000
+ipc_rtt_el0 1860287 5000
+sink_throughput 757543 80000
 map_el0 62585 500
-spawn_el0 216585 100
+spawn_el0 216571 100
