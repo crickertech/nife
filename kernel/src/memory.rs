@@ -412,13 +412,29 @@ fn overlaps(a: u64, alen: u64, b: u64, blen: u64) -> bool {
 }
 
 pub fn alloc() -> Option<PageFrame> {
-    ALLOCATOR.lock().as_mut()?.alloc()
+    let mut guard = ALLOCATOR.lock();
+    let allocator = guard.as_mut()?;
+    let frame = allocator.alloc();
+    publish_counts(allocator);
+    frame
+}
+
+/// **The free count, for the machine statistics page** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and your share)), written by
+/// whoever just changed it and under the same lock, so the page never shows a count the allocator
+/// never had. Three stores; the allocator already keeps both numbers.
+fn publish_counts(allocator: &PageFrameAllocator<'_>) {
+    let s = allocator.stats();
+    crate::machine_statistics::frames(s.total, s.free());
 }
 
 /// Physically contiguous frames, for hardware that does DMA and has no MMU to hide a
 /// scattered buffer behind. Milestone 8 needs this.
 pub fn alloc_contiguous(count: usize) -> Option<PageFrame> {
-    ALLOCATOR.lock().as_mut()?.alloc_contiguous(count)
+    let mut guard = ALLOCATOR.lock();
+    let allocator = guard.as_mut()?;
+    let frame = allocator.alloc_contiguous(count);
+    publish_counts(allocator);
+    frame
 }
 
 /// A freshly allocated frame, zeroed.
@@ -471,11 +487,10 @@ fn zero_frames(frame: PageFrame, count: usize) {
 }
 
 pub fn free(frame: PageFrame) {
-    ALLOCATOR
-        .lock()
-        .as_mut()
-        .expect("freeing a frame before memory::init")
-        .free(frame);
+    let mut guard = ALLOCATOR.lock();
+    let allocator = guard.as_mut().expect("freeing a frame before memory::init");
+    allocator.free(frame);
+    publish_counts(allocator);
 }
 
 pub fn stats() -> Option<Stats> {

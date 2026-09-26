@@ -224,6 +224,30 @@ const ACTIVATION_BIT: u64 = 1 << 40;
 /// Name: provisional (milestone 198 rung 3a, 2026-09-26).
 const RUN_UNVOUCHED_BIT: u64 = 1 << 41;
 
+/// **The machine statistics page follows as one `SEND_CAP`, after every other delegated
+/// capability** (milestone 126 (the `procps` package), DECISIONS §225 (`free` sees the machine and
+/// your share)). Set by a shell that holds the page at [`MACHINE_PAGE_SLOT`] when the program's
+/// manifest declares `machine`; the progenitor maps it read-only into the child and places it at
+/// `crate::MACHINE_SLOT`, then deletes its copy.
+///
+/// **Why the page travels with the request rather than living in the progenitor.** The progenitor's
+/// capability table peaks during the login block at one slot under the table's size
+/// (`kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED`), and a page held for the life of the boot would
+/// have spent that last slot; the first CI run that tried it measured the table full. The progenitor
+/// hands the page to the shell before the login block and keeps no copy, so what reaches a program
+/// is decided by what its session holds. That is also the shape §225's "granted to every login,
+/// withholdable by the owner" reads as: a session without the page cannot pass it on.
+///
+/// Name: provisional (milestone 126's `free` lane, 2026-09-26).
+const MACHINE_BIT: u64 = 1 << 42;
+
+/// **Where a session holds the machine statistics page** (milestone 126, DECISIONS §225): `READ |
+/// GRANT`, so it can delegate it with [`MACHINE_BIT`] and not write it. Twenty-one, one under
+/// [`RUN_UNVOUCHED_SLOT`], for that constant's reasons.
+///
+/// Name: provisional.
+pub const MACHINE_PAGE_SLOT: u64 = 21;
+
 /// **Where a session holds the run-unvouched capability** (DECISIONS §219 gate D2): the slot the
 /// progenitor places it in, `WRITE` only, in the boot shell and in `login`, and the slot `login`
 /// delegates it from.
@@ -412,6 +436,9 @@ pub struct Wiring {
     /// **One `SEND` on the run-unvouched capability follows the delegation** (DECISIONS §219 gate
     /// D2). See `RUN_UNVOUCHED_BIT`.
     pub run_unvouched: bool,
+    /// **The machine statistics page follows as the last delegated capability** (milestone 126).
+    /// See `MACHINE_BIT`.
+    pub machine: bool,
 }
 
 /// Build the three request words from a resolved endowment's parts.
@@ -444,6 +471,9 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     if w.run_unvouched {
         w2 |= RUN_UNVOUCHED_BIT;
     }
+    if w.machine {
+        w2 |= MACHINE_BIT;
+    }
     (prog_id, arg, w2)
 }
 
@@ -460,6 +490,7 @@ pub fn wiring(w2: u64) -> Wiring {
         screen: w2 & SCREEN_BIT != 0,
         image: w2 & IMAGE_BIT != 0,
         run_unvouched: w2 & RUN_UNVOUCHED_BIT != 0,
+        machine: w2 & MACHINE_BIT != 0,
     }
 }
 
@@ -606,44 +637,32 @@ mod tests {
         assert_eq!(mem_pages(w2), 0);
     }
 
-    /// **The nine flags are independent of each other and of the page count** (milestone 50 (pipes and redirection),
+    /// **The ten flags are independent of each other and of the page count** (milestone 50 (pipes and redirection),
     /// §67 (a program's second stream is a declaration)'s fourth, milestone 31 (a capability shell) phase 3's fifth, DECISIONS §106 (the `terminal_sink_caretaker` narrowing)'s sixth, milestone 154 (a process that holds two directory capabilities)'s
-    /// seventh, and §219's image and its gate D2). They share one word, and what the progenitor reads next off the endpoint depends on all of
+    /// seventh, §219's image and its gate D2, and milestone 126's machine page). They share one word, and what the progenitor reads next off the endpoint depends on all of
     /// them, so a bit that bled into another would make the progenitor take a capability for a data word
     /// (or the reverse) and hang rather than fail.
     #[test]
     fn the_wiring_flags_do_not_collide() {
-        for &interruptible in &[false, true] {
-            for &sink in &[false, true] {
-                for &source in &[false, true] {
-                    for &diagnostics in &[false, true] {
-                        for &dir in &[false, true] {
-                            for &dir2 in &[false, true] {
-                                for &screen in &[false, true] {
-                                    for &image in &[false, true] {
-                                        for &run_unvouched in &[false, true] {
-                                            let w = Wiring {
-                                                interruptible,
-                                                sink,
-                                                source,
-                                                diagnostics,
-                                                dir,
-                                                dir2,
-                                                screen,
-                                                image,
-                                                run_unvouched,
-                                            };
-                                            let (_, _, w2) = request(3, 0, 64, w);
-                                            assert_eq!(wiring(w2), w, "{w:?}");
-                                            assert_eq!(mem_pages(w2), 64, "{w:?}");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // Every combination of the ten flags, as the bits of a counter: the nested loops this
+        // replaced had reached nine deep when milestone 126 added `machine`.
+        for mask in 0u32..1 << 10 {
+            let bit = |n: u32| mask & (1 << n) != 0;
+            let w = Wiring {
+                interruptible: bit(0),
+                sink: bit(1),
+                source: bit(2),
+                diagnostics: bit(3),
+                dir: bit(4),
+                dir2: bit(5),
+                screen: bit(6),
+                image: bit(7),
+                run_unvouched: bit(8),
+                machine: bit(9),
+            };
+            let (_, _, w2) = request(3, 0, 64, w);
+            assert_eq!(wiring(w2), w, "{w:?}");
+            assert_eq!(mem_pages(w2), 64, "{w:?}");
         }
     }
 
@@ -699,6 +718,7 @@ mod tests {
             screen: true,
             image: true,
             run_unvouched: true,
+            machine: true,
         };
         let (_, w1, w2) = request(3, 2, 64, all);
         assert_eq!(activation(w1, w2), None);
