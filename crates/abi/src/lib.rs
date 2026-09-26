@@ -751,11 +751,12 @@ pub mod memory_region {
 /// **Which figure a [`memory_region::USAGE`] asks for** (milestone 126, DECISIONS §225). A selector
 /// on `SURVEY`'s shape, so a new figure is a new value here and an arm in the kernel.
 ///
-/// Every answer is in pages. The counts are bump-only like the region's watermark: a torn-down
-/// object's page stays spent until the region itself is reclaimed, so these say where the budget
-/// went, not what is alive now. [`FRAMES`], the three object kinds and [`CHILDREN`] sum to
-/// [`COMMITTED`] except when a child was reclaimed out of order, whose pages leave `CHILDREN` and
-/// stay committed (the hole `crates/memory_regions` describes).
+/// Every answer is in pages. [`SIZE`], [`COMMITTED`] and [`CHILDREN`] describe this region alone.
+/// [`FRAMES`] and the three object kinds count **the whole subtree**, this region and every live
+/// region split from it, because a budget's pages are mostly carved into child regions and the
+/// objects live in those. The counts are bump-only like a watermark: a torn-down object's page
+/// stays spent until its region is reclaimed, so they say where the budget went, not what is alive
+/// now.
 ///
 /// Names and numbers provisional: calef names public items.
 pub mod usage {
@@ -763,15 +764,15 @@ pub mod usage {
     pub const SIZE: u64 = 0;
     /// Pages spent so far: the watermark.
     pub const COMMITTED: u64 = 1;
-    /// Plain pages: mapped memory, page tables, image pages and revocation records.
+    /// Plain pages over the subtree: mapped memory, page tables, image pages and revocation records.
     pub const FRAMES: u64 = 2;
-    /// Pages retyped into rendezvous objects.
+    /// Pages retyped into rendezvous objects, over the subtree.
     pub const RENDEZVOUS: u64 = 3;
-    /// Pages retyped into address-space roots.
+    /// Pages retyped into address-space roots, over the subtree.
     pub const ADDRESS_SPACES: u64 = 4;
-    /// Pages retyped into thread control blocks.
+    /// Pages retyped into thread control blocks, over the subtree.
     pub const THREADS: u64 = 5;
-    /// Pages carved into child regions that are still live.
+    /// Pages this region carved into child regions that are still live.
     pub const CHILDREN: u64 = 6;
 
     /// Whether this kernel answers a record, `survey::record::is_known`'s twin.

@@ -392,13 +392,47 @@ impl<const N: usize> RegionTable<N> {
     /// stale answer can print a wrong number and can free nothing with it. The counts do not sum to
     /// the watermark when a child was returned out of order: its pages leave `Children` and stay
     /// spent, which is the hole [`return_to_parent`](Self::return_to_parent) describes.
+    ///
+    /// **`Frames` and each `Object` kind count the whole subtree**: this region and every live
+    /// region split from it, however deep. A job budget's own pages are almost all carved into job
+    /// regions, and the objects live in those; a count of the budget alone would say its threads
+    /// cost nothing. `Children` is this region's alone, since it is exactly the pages the subtree
+    /// counts are drawn from.
     #[must_use]
     pub fn spent(&self, name: u64, on: PageUse) -> Option<u64> {
-        self.table.get(name).map(|r| match on {
+        let own = self.table.get(name)?;
+        let count = |r: &Region| match on {
             PageUse::Frames => r.spent.frames,
             PageUse::Object(kind) => r.spent.objects[kind as usize],
             PageUse::Children => r.spent.children,
-        })
+        };
+        if on == PageUse::Children {
+            return Some(count(own));
+        }
+        Some(
+            self.table
+                .iter()
+                .filter(|&(n, _)| n == name || self.descends_from(n, name))
+                .map(|(_, r)| count(r))
+                .sum(),
+        )
+    }
+
+    /// Whether live region `n` was split, directly or through its ancestors, from `ancestor`.
+    /// Bounded by the capacity, because a parent chain longer than the table would be a cycle,
+    /// which the split protocol cannot build.
+    fn descends_from(&self, n: u64, ancestor: u64) -> bool {
+        let mut at = self.table.get(n).map_or(NO_PARENT, |r| r.parent);
+        for _ in 0..N {
+            if at == NO_PARENT {
+                return false;
+            }
+            if at == ancestor {
+                return true;
+            }
+            at = self.table.get(at).map_or(NO_PARENT, |r| r.parent);
+        }
+        false
     }
 
     /// This region's physical span as `(base_page, pages)`, or `None` for a dead name. Object
@@ -555,6 +589,26 @@ mod tests {
         assert_eq!(t.spent(root, PageUse::Children), Some(2));
         assert_eq!(t.usage(root), Some((10, 16)));
         assert_eq!(t.spent(a, PageUse::Frames), None, "a dead name answers nothing");
+    }
+
+    #[test]
+    fn object_counts_reach_through_every_live_descendant_and_children_do_not() {
+        let mut t = RegionTable::<8>::new();
+        let budget = t.insert_root(0, 64).unwrap();
+        let job = t.split(budget, 16).unwrap();
+        let grandchild = t.split(job, 4).unwrap();
+        t.retype_object_page(job, ObjectKind::Thread).unwrap();
+        t.retype_object_page(grandchild, ObjectKind::Thread).unwrap();
+        t.retype_page(grandchild).unwrap();
+        let unrelated = t.insert_root(0x1000, 8).unwrap();
+        t.retype_object_page(unrelated, ObjectKind::Thread).unwrap();
+
+        let thread = PageUse::Object(ObjectKind::Thread);
+        assert_eq!(t.spent(budget, thread), Some(2), "job and grandchild, not the stranger");
+        assert_eq!(t.spent(budget, PageUse::Frames), Some(1));
+        assert_eq!(t.spent(budget, PageUse::Children), Some(16), "direct children only");
+        assert_eq!(t.spent(job, thread), Some(2));
+        assert_eq!(t.spent(grandchild, thread), Some(1));
     }
 
     #[test]
