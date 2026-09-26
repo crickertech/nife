@@ -154,6 +154,25 @@ const SH_BUDGET_PAGES: u64 = 128;
 /// probing the wrong slot would find some *other* object and map a page that is not a clock.
 static CLOCK_SLOT: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(NO_CLOCK);
 
+/// **Whether this session holds the run-unvouched capability** (DECISIONS §219 gate D2), at
+/// [`spawnproto::RUN_UNVOUCHED_SLOT`], `WRITE` only.
+///
+/// Probed once, at [`_start`], and that timing is the soundness argument rather than a detail: at
+/// `_start` this shell has allocated nothing, so the slot holds exactly what its builder placed
+/// there. Probed any later, a frame or a region this shell retyped could have landed in it. Probed
+/// rather than told because `x0` to `x2` are all spoken for (role, directory rights, clock slot),
+/// and a named slot is how this tree already places an authority a program looks for
+/// (`grant_plan::NETWORK_SLOT`).
+///
+/// Holding it changes one thing: an image request claims it and sends one message on it
+/// ([`run_image`]), so a digest miss runs with only what the line granted instead of being
+/// refused. It is not something this shell can hand on: it carries no `GRANT`.
+static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+
+// `grant_plan` states the slot without depending on `abi`; the relation is held by each reader.
+const _: () = assert!(spawnproto::RUN_UNVOUCHED_SLOT == abi::fault::FAULT_EP_SLOT - 1);
+
 /// The `x2` value meaning "this shell was granted no clock". Zero rather than a sentinel, because
 /// slot 0 is the terminal in every wiring, so no clock can ever legitimately be there.
 const NO_CLOCK: u64 = 0;
@@ -1103,6 +1122,11 @@ const ROLE_TIMING: u64 = 5;
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, arg: u64, clock: u64) -> ! {
     CLOCK_SLOT.store(clock, core::sync::atomic::Ordering::Relaxed);
+    // Probed here and nowhere later: see [`HOLDS_RUN_UNVOUCHED`].
+    HOLDS_RUN_UNVOUCHED.store(
+        user_mode_runtime::is_granted(spawnproto::RUN_UNVOUCHED_SLOT),
+        core::sync::atomic::Ordering::Relaxed,
+    );
     match role {
         ROLE_NAVIGATE => navigate(arg),
         ROLE_GLOB => globbing(arg),
@@ -1705,9 +1729,11 @@ static IMAGE_PRIMED: core::sync::atomic::AtomicBool = core::sync::atomic::Atomic
 ///
 /// The shell reads the file through the file service it already holds, into frames split from its
 /// own budget, and sends them on the spawn endpoint under `IMAGE_BIT`. The progenitor hashes its own
-/// copy and looks the digest up in the activation set: a hit runs, a miss is refused with its own
-/// word ([`swish::UNVOUCHED_SENTENCE`]), because running unvouched bytes needs §219's gate D2, which
-/// no session holds yet.
+/// copy and looks the digest up in the activation set: a hit runs with the installed manifest. A
+/// miss runs only if this session holds the run-unvouched capability ([`HOLDS_RUN_UNVOUCHED`],
+/// §219's gate D2), which this request then claims and presents as its last message; the child
+/// gets what the line granted and the clock and configuration pages. Otherwise the miss is refused
+/// with its own word ([`swish::UNVOUCHED_SENTENCE`]).
 ///
 /// **The line is bound against [`grant_plan::INSTALLED_MANIFEST_OF`]**, `uptime`'s manifest, since
 /// no manifest travels with a package yet (§197 (a package is one archive file)). So an argument, a `--mem` or a file operand is
@@ -1740,6 +1766,7 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
         return;
     };
     let pages = spawnproto::image_pages(size);
+    let holds_run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed);
 
     // The primer first (once), then any `--mem` region, then the staging region, so staging is
     // the top of the budget when it is destroyed. See [`IMAGE_PRIMER_VA`].
@@ -1766,6 +1793,7 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
         if mem_slot.is_some() { e.mem_pages } else { 0 },
         spawnproto::Wiring {
             image: true,
+            run_unvouched: holds_run_unvouched,
             ..spawnproto::Wiring::default()
         },
     );
@@ -1775,6 +1803,12 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
     if let Some(slot) = mem_slot {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
         cap_delete(slot);
+    }
+    // **The presentation, last** (`spawnproto::RUN_UNVOUCHED_BIT`): one word on the endpoint only a
+    // holder can reach. Sent on every image request this session makes, vouched or not, because
+    // the shell cannot know the verdict and the progenitor is waiting for it either way.
+    if holds_run_unvouched {
+        send(spawnproto::RUN_UNVOUCHED_SLOT, 0, 0, 0);
     }
 
     if e.prog.manifest().output.is_byte_stream() {
@@ -2152,6 +2186,7 @@ fn spawn(e: Endowment) {
             // have anything to narrow.
             screen: false,
             image: false,
+            run_unvouched: false,
         },
     );
     send(SPAWN, w0, w1, w2);
@@ -2394,6 +2429,9 @@ fn outcome(e: Endowment, answer: u64) {
 /// entire meaning is checkable without a machine to run it on. What is left here is the directory
 /// read a pattern needs and the terminal to print to.
 fn caps(nav: &mut Nav, tail: &[u8]) {
+    if let Some(spec) = image_line(tail) {
+        return caps_image(nav, spec);
+    }
     let holdings = holdings(nav);
     // The clock row is a *slot number*, and it comes from what this shell was told rather than from
     // a constant, for [`CLOCK_SLOT`]'s reason: printing a number this shell did not get would make
@@ -2410,6 +2448,149 @@ fn caps(nav: &mut Nav, tail: &[u8]) {
         &mut |token| nav.expand(token),
         &mut print,
     );
+}
+
+/// **The line is a plain run of a file's bytes**: one stage, no operator, a program token with a
+/// `/` in it. The shape [`run`] hands to [`run_image`], so `caps` previews exactly what would run.
+fn image_line(tail: &[u8]) -> Option<RunSpec<'_>> {
+    let l = line::split(grant_plan::trim(tail)).ok()?;
+    let [stage] = l.stages() else {
+        return None;
+    };
+    if l.output.is_some() || l.input.is_some() || l.diagnostics.is_some() {
+        return None;
+    }
+    match grant_plan::parse(stage) {
+        Command::Run(spec) if spec.prog.contains(&b'/') => Some(spec),
+        _ => None,
+    }
+}
+
+/// **`caps <path>`** (DECISIONS §219 D and D2): bind the line as [`run_image`] would, hash the
+/// file's bytes as the progenitor will, look the digest up in the live generation, and say what
+/// would be granted and on whose word. Nothing is sent to the progenitor.
+fn caps_image(nav: &mut Nav, spec: RunSpec) {
+    let expanded = match expansion(nav, &spec) {
+        Ok(e) => e,
+        Err(Say::Cannot(r)) => return swish::write_refusal(&spec, r, &mut print),
+        Err(said) => return swish::write_say(said, &mut print),
+    };
+    let stand_in = grant_plan::INSTALLED_MANIFEST_OF;
+    if let Err(r) = grant_plan::plan_against(
+        &spec,
+        stand_in,
+        stand_in.manifest(),
+        holdings(nav),
+        expanded,
+    ) {
+        return swish::write_refusal(&spec, r, &mut print);
+    }
+    let Some(dir) = nav.dir else {
+        return say(Say::NoDirectory);
+    };
+    let Some((handle, size)) = open_for_bytes(nav, dir, spec.prog) else {
+        return;
+    };
+    let mut hash = measured_boot::Sha256::new();
+    let mut chunk = [0u8; 256];
+    let mut at = 0u64;
+    let mut read_ok = true;
+    while at < size {
+        let n = call(dir, fs::req(fs::READ, handle, PAGE), at).0 as i64;
+        if n <= 0 {
+            read_ok = false;
+            break;
+        }
+        let mut done = 0usize;
+        while done < n as usize {
+            let take = (n as usize - done).min(chunk.len());
+            get_page_at(done, &mut chunk[..take]);
+            hash.update(&chunk[..take]);
+            done += take;
+        }
+        at += n as u64;
+    }
+    nav.close(handle);
+    if !read_ok {
+        failed();
+        return print(b"  this shell could not read the whole file, so it cannot say what it is\n");
+    }
+    let digest = hash.finalize();
+    let hex = measured_boot::hex(&digest);
+    let vouched_by = live_generation_listing(nav, &digest);
+    swish::write_image_caps(
+        spec.prog,
+        &hex,
+        vouched_by,
+        HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed),
+        &mut print,
+    );
+}
+
+/// One page of a generation table, read by [`live_generation_listing`]. A static rather than a
+/// local because a page on the stack would take `caps`'s frame over the 4 KiB guard page
+/// `script/stack-frame-check` holds every frame to; [`RANKED`] is here for the same reason.
+static mut GENERATION_TABLE: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
+
+/// **The live generation, if it lists `digest`**: `activation/current`, then the generation it
+/// names, read as the progenitor reads them (`crates/system_initializer`'s `FsCalls::live_generation`)
+/// and looked up with the same `activation_set::lookup_digest`. `None` on a miss and on every way
+/// of failing to read the table, which is the progenitor's rule too: a table that cannot be read
+/// vouches for nothing.
+fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<u32> {
+    let act = nav.name_call(
+        fs::OPENDIR,
+        fs::ROOT,
+        activation_set::DIRECTORY.as_bytes(),
+        filesystem_protocol::dir::READ,
+    );
+    if act < 0 {
+        return None;
+    }
+    let act = act as u64;
+    let found = (|| {
+        let mut line = [0u8; 16];
+        let n = read_named(nav, act, activation_set::CURRENT.as_bytes(), &mut line)?;
+        let number = core::str::from_utf8(&line[..n])
+            .ok()
+            .and_then(activation_set::parse_current)?;
+        let mut name = [0u8; 10];
+        let generation = activation_set::generation_name(number, &mut name);
+        // SAFETY: this shell is one thread and `GENERATION_TABLE` is used here and nowhere else,
+        // so no other reference to it can exist while this one does.
+        let table = unsafe { &mut *core::ptr::addr_of_mut!(GENERATION_TABLE) };
+        let n = read_named(nav, act, generation.as_bytes(), table)?;
+        // A page and not a byte more, the progenitor's rule: a full page may have been cut short.
+        if n >= table.len() {
+            return None;
+        }
+        let text = core::str::from_utf8(&table[..n]).ok()?;
+        matches!(activation_set::lookup_digest(text, digest), Ok(Some(_))).then_some(number)
+    })();
+    nav.close(act);
+    found
+}
+
+/// Open `name` under the directory handle `at`, read up to `out.len()` bytes of it (one `READ`,
+/// so at most a page), close it. The byte count, or `None`.
+fn read_named(nav: &Nav, at: u64, name: &[u8], out: &mut [u8]) -> Option<usize> {
+    let h = nav.name_call(fs::OPEN, at, name, 0);
+    if h < 0 {
+        return None;
+    }
+    let want = (out.len() as u64).min(PAGE);
+    let n = call(nav.dir.unwrap_or(DIR), fs::req(fs::READ, h as u64, want), 0).0 as i64;
+    nav.close(h as u64);
+    let n = usize::try_from(n).ok()?.min(out.len());
+    get_page_at(0, &mut out[..n]);
+    Some(n)
+}
+
+/// Copy `out.len()` bytes out of the file page, starting `from` bytes in.
+fn get_page_at(from: usize, out: &mut [u8]) {
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = FS_WINDOW.r8((from + i) as u64);
+    }
 }
 
 /// Carve `pages` off our own untyped budget (slot 3) into a delegatable child untyped. `None` when
@@ -3195,6 +3376,7 @@ fn spawn_stage(
         // A pipeline stage is always a program the image names (§219 D's first cut runs an image
         // only on a plain line; see `run_image`).
         image: false,
+        run_unvouched: false,
     };
     let (w0, w1, w2) = spawnproto::request(e.prog.id(), e.arg, e.mem_pages, wiring);
     send(SPAWN, w0, w1, w2);
@@ -3409,6 +3591,7 @@ fn spawn_interruptible(e: Endowment) {
             // not `result_ep`, so there is nothing here for DECISIONS §106's narrowing to replace.
             screen: false,
             image: false,
+            run_unvouched: false,
         },
     );
     send(SPAWN, w0, w1, w2);

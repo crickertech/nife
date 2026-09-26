@@ -54,6 +54,12 @@ pub const LOGOUT: u64 = 3;
 pub const HOLD_TERMINAL: u64 = 4;
 /// Sends `login_protocol::logout_word` on the front door directly, with no credential at all.
 pub const FREE_TERMINAL: u64 = 5;
+/// DECISIONS §219 (how the shell names an installed program to the spawner) gate D2: logs in and sends [`RUN_UNVOUCHED_MAGIC`] on the sixth delegated
+/// capability. See the same file's module docs.
+pub const PRESENT_RUN_UNVOUCHED: u64 = 6;
+/// [`PRESENT_RUN_UNVOUCHED`]'s proof-of-life word; must match the same file's
+/// `RUN_UNVOUCHED_MAGIC`.
+pub const RUN_UNVOUCHED_MAGIC: u64 = 0x_7e12_0000_0000_0002;
 
 /// The report words `login_test_client` sends; must match the same file.
 pub const RPT_OK: u64 = login_protocol::OK;
@@ -81,6 +87,10 @@ pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 /// Milestone 49's terminal update: the fifth delegated capability delivered [`TERM_MAGIC`] to a
 /// real receiver. Set only by [`HOLD_TERMINAL`].
 pub const F_TERM_WORKS: u64 = 1 << 8;
+/// DECISIONS §219 limitation 2: the sixth capability arrived and `SEND_CAP` of it was refused.
+pub const F_RUN_UNVOUCHED_NOT_GRANTABLE: u64 = 1 << 9;
+/// The sixth capability delivered [`RUN_UNVOUCHED_MAGIC`]. Set only by [`PRESENT_RUN_UNVOUCHED`].
+pub const F_RUN_UNVOUCHED_WORKS: u64 = 1 << 10;
 
 /// **[`LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
 /// behaviour's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
@@ -107,6 +117,11 @@ pub struct Wiring {
     /// not merely "a capability arrived"), the same "prove it works, not merely that it arrived"
     /// standard this file's own module doc already sets for the directory and the budget.
     pub term_ep: RendezvousId,
+    /// **The stand-in run-unvouched endpoint** (DECISIONS §219 gate D2), `READ`: the progenitor's
+    /// role, played by the harness. `login` holds it `WRITE | GRANT` at
+    /// `grant_plan::spawnproto::RUN_UNVOUCHED_SLOT`, as the real boot places it, and a test
+    /// `ipc_recv`s here to confirm the copy a session was handed names this object.
+    pub run_unvouched: RendezvousId,
 }
 
 /// Copy `bytes` into fresh read-only pages at consecutive VAs from `base` (milestone 233).
@@ -285,6 +300,17 @@ pub fn start(
         rendezvous_cap(term_ep, Rights::WRITE.union(Rights::GRANT)),
     );
     assert_eq!(next_slot, 8, "login must hold exactly eight capabilities");
+    // **And the run-unvouched capability at its named slot** (DECISIONS §219 gate D2), where
+    // `crates/system_initializer` places it in the real boot, so `login` meets one contract here
+    // and there.
+    let run_unvouched = sched::create_rendezvous();
+    let landed = sched::thread_control_block_insert_cap(
+        tid,
+        rendezvous_cap(run_unvouched, Rights::WRITE.union(Rights::GRANT)),
+        Some(grant_plan::spawnproto::RUN_UNVOUCHED_SLOT),
+    )
+    .expect("insert run_unvouched");
+    assert_eq!(landed, grant_plan::spawnproto::RUN_UNVOUCHED_SLOT);
 
     sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
         .expect("configure");
@@ -296,6 +322,7 @@ pub fn start(
         result,
         audit,
         term_ep,
+        run_unvouched,
     }
 }
 

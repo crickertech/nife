@@ -170,8 +170,9 @@
 //! 2026-09-26 by DECISIONS §219 (how the shell names an installed program to the spawner), from
 //! "runs nothing it cannot vouch for": unvouched bytes a caller sends may run with the caller's
 //! grants and the clock and configuration pages, but only for a session holding §219's D2
-//! capability. Option D is not built, so today every program reaches this crate from the archive,
-//! and here the rule still means refusal. A digest that does not match is a refusal, and so is a
+//! capability (`Channels::run_unvouched`; the boot prompt's grant of it is provisional). That is
+//! `spawn_service`'s image path. Everything this section describes below is the archive's, where
+//! the rule still means refusal: a digest that does not match is a refusal, and so is a
 //! name the table does not mention, for the reason the kernel's empty trust root is refused: a
 //! check that passes when there is nothing to check against is not a check.
 //!
@@ -1771,6 +1772,11 @@ pub fn boot(
         && audit_elf.is_some();
     let mut login_ready = false;
     let mut login_password = [0u8; PASSWORD_HEX_LEN];
+    // **The run-unvouched endpoint** (DECISIONS §219 gate D2), retyped the first time something is
+    // placed on it: inside the block below when `login` is built, and after it otherwise. Never
+    // before `login`'s build, because this process's table peaks inside this block and this
+    // endpoint is held for the life of the boot; see [`Channels::run_unvouched`].
+    let mut run_unvouched: Option<u64> = None;
     if !have_login_stack {
         // **Not given back any more** (milestone 111). A boot with a working entropy service and
         // no login stack (no filesystem, or one of the four programs missing) still reaches a
@@ -2019,6 +2025,22 @@ pub fn boot(
                         ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
+                // **`login` hands the run-unvouched capability to each session it builds**
+                // (DECISIONS §219 gate D2; calef's consequence: a user whose session was not given
+                // it cannot run unvouched bytes). Placed after the build rather than in `caps`
+                // above, because the build is this table's peak (`kernel::cap::
+                // CAPABILITY_TABLE_PEAK_MEASURED`) and the endpoint is held from here on: retyped
+                // now, it costs a slot the loader's transient address space and page have just
+                // given back. `WRITE | GRANT`, because `login` must delegate it; each session gets
+                // `WRITE` alone (`components/src/login.rs`).
+                let d2 = *run_unvouched
+                    .get_or_insert_with(|| must(retype_obj(ut, abi::objtype::RENDEZVOUS)));
+                must_ok(place_at(
+                    login_child.tcb,
+                    d2,
+                    abi::rights::WRITE | abi::rights::GRANT,
+                    spawnproto::RUN_UNVOUCHED_SLOT,
+                ));
                 // The two blob lengths, in `x0` and `x1`, which is the rest of that contract: a
                 // mapping with no length is a slice this process cannot bound.
                 must_ok(start_child(
@@ -2047,6 +2069,21 @@ pub fn boot(
     // watermark must move for **jobs only**, or the LIFO return-of-pages (§16) never fires. A scratch
     // page table carved out of the same region between a job's split and its reap would sit above
     // that job's run, so the reclaim would find it is not the top and give back nothing.
+    // **The boot prompt holds the run-unvouched capability. PROVISIONAL**, and the one line in this
+    // file that decides it (DECISIONS §219 gate D2). Whether the machine owner's console should hold
+    // it at all is an architect's open question (notes/who-may-write-the-activation-set.md, option
+    // A against B), and deleting this call is the whole of the other answer: the prompt then
+    // refuses every unvouched image, as it did before D2 existed. `WRITE` alone, so the shell can
+    // present it and can hand it to nothing it spawns.
+    let run_unvouched =
+        run_unvouched.unwrap_or_else(|| must(retype_obj(ut, abi::objtype::RENDEZVOUS)));
+    must_ok(place_at(
+        shell.tcb,
+        run_unvouched,
+        abi::rights::WRITE,
+        spawnproto::RUN_UNVOUCHED_SLOT,
+    ));
+
     let own_ut = must(memory_region_split(ut, INIT_OWN_PAGES));
     let jobs_ut = must(memory_region_split(ut, JOBS_BUDGET_PAGES));
     // The shell's output page, in our own space, so we can say what just happened. This mapping is
@@ -2233,6 +2270,7 @@ pub fn boot(
             // (provisional)), `entropy`'s shape one service over.
             network: network.map(|(stack, _)| stack),
             catalogue,
+            run_unvouched,
         },
         &progs,
         care_elf,
@@ -2250,6 +2288,17 @@ pub fn boot(
 fn archive_name(p: Prog) -> Option<&'static str> {
     Some(p.name())
 }
+
+/// **Place `cap`, narrowed to `rights`, at `slot` of an unstarted child's table** (`CAP_INSERT` with
+/// an explicit target, which the ABI numbers from one). `false` if the slot was taken or the right
+/// could not be granted.
+fn place_at(tcb: u64, cap: u64, rights: u64, slot: u64) -> bool {
+    user_mode_runtime::tcb_cap_insert(tcb, cap, rights, slot + 1) >= 0
+}
+
+// The slot the run-unvouched capability is placed in sits just under the kernel's reserved fault
+// slot; `grant_plan` states the number without depending on `abi`, so the relation is held here.
+const _: () = assert!(spawnproto::RUN_UNVOUCHED_SLOT == abi::fault::FAULT_EP_SLOT - 1);
 
 /// Turn a `recv_cap` slot into `Some(slot)`, or `None` if the message carried no capability.
 fn opt_cap(slot: u64) -> Option<u64> {
@@ -2323,6 +2372,16 @@ struct Channels {
     /// Empty when the archive carried none or the table refused it, and then every
     /// `package install` is refused as not catalogued.
     catalogue: &'static str,
+    /// **READ on the run-unvouched endpoint** (DECISIONS §219 gate D2): the only receive right on
+    /// it. The boot shell and `login` hold `WRITE` at `spawnproto::RUN_UNVOUCHED_SLOT`, and `login`
+    /// passes `WRITE` to each session it builds. A request that sets `spawnproto::Wiring::
+    /// run_unvouched` is followed by one `SEND` on it, which this process takes with a `RECV`;
+    /// arriving is the proof, because nothing but a holder can send here.
+    ///
+    /// One slot for the life of the boot, and the table had one left (23 of 24). It is retyped
+    /// after `login`'s build, the peak, so it is not held across it; `script/swish-check`'s
+    /// `capability slots:` line is what says whether that held.
+    run_unvouched: u64,
 }
 
 /// The file service, as the progenitor holds it for the life of the boot.
@@ -2373,6 +2432,7 @@ fn spawn_service(
         entropy,
         network,
         catalogue,
+        run_unvouched,
     } = c;
     // Whether the file page is mapped here yet, for the activation set (first image request).
     let mut fs_mapped = false;
@@ -2477,12 +2537,20 @@ fn spawn_service(
         } else {
             None
         };
+        // **The run-unvouched capability, presented** (DECISIONS §219 gate D2): the last message
+        // of any request that claimed it, taken whether or not this one turns out to need it, so
+        // the caller's `SEND` is never left waiting. It arrived on the endpoint only a holder can
+        // send on, which is all it proves and all it has to. See `spawnproto::RUN_UNVOUCHED_BIT`.
+        let presented = wiring.run_unvouched && {
+            recv(run_unvouched);
+            true
+        };
 
         // **Vouched or not** (§219 D). A hit is endowed with the installed-program manifest, which
-        // is `uptime`'s until a manifest travels with a package (`grant_plan::INSTALLED_MANIFEST_OF`);
-        // a miss is refused with its own word, because running unvouched bytes needs §219's gate
-        // D2, a capability no session holds yet. `prog` stays `None` for a miss, so nothing below
-        // reads a manifest for it and nothing of this process's is endowed.
+        // is `uptime`'s until a manifest travels with a package (`grant_plan::INSTALLED_MANIFEST_OF`).
+        // A miss is built only for a caller that presented the run-unvouched capability, and then
+        // with `grant_plan::UNVOUCHED_MANIFEST`: what the caller delegated, and the clock and
+        // configuration pages. Any other miss is refused with its own word.
         let mut unvouched = false;
         let image_elf = staging.and_then(|_| {
             let bytes = staged_image(spawnproto::image_len(w0));
@@ -2490,13 +2558,21 @@ fn spawn_service(
                 elf::Elf::parse(bytes).ok()
             } else {
                 unvouched = true;
-                None
+                presented.then(|| elf::Elf::parse(bytes).ok()).flatten()
             }
         });
-        if image_elf.is_some() {
+        if image_elf.is_some() && !unvouched {
             prog = Some(grant_plan::INSTALLED_MANIFEST_OF);
         }
-        let failure = if unvouched {
+        // **The one manifest everything below reads**, so an unvouched child is endowed from the
+        // ruling and never from a `Prog` row: `prog` stays `None` for it, and no row's authority
+        // can reach it by a path this line does not name.
+        let manifest = if unvouched && image_elf.is_some() {
+            Some(grant_plan::UNVOUCHED_MANIFEST)
+        } else {
+            prog.map(|p| p.manifest())
+        };
+        let failure = if unvouched && !presented {
             spawnproto::SPAWN_UNVOUCHED
         } else {
             spawnproto::SPAWN_FAILED
@@ -2508,25 +2584,25 @@ fn spawn_service(
         };
         // Read from the program's own declaration, not from the request: a clock is not something
         // the command line can designate, so there is no bit on the wire for it (`Manifest::clock`).
-        let wants_clock = prog.is_some_and(|p| p.manifest().clock);
+        let wants_clock = manifest.is_some_and(|m| m.clock);
         // Same reasoning, one authority over (milestone 126): a **process domain** is not something
         // a person designates either. There is no /proc to name and no pid space to scan, so what a
         // program may see is decided here, by which supervision endpoint the progenitor puts in its capability table.
-        let wants_domain = prog.is_some_and(|p| p.manifest().domain);
+        let wants_domain = manifest.is_some_and(|m| m.domain);
         // `clock`'s twin again: the inert-configuration page is the progenitor's to endow, not something a
         // command line can designate, so there is no bit on the wire for it either
         // (`Manifest::config`).
-        let wants_config = prog.is_some_and(|p| p.manifest().config);
+        let wants_config = manifest.is_some_and(|m| m.config);
         // `clock`'s family a fourth time, and the first member of it that is an endpoint rather
         // than a page (milestone 111). Randomness is not something a command line designates, so
         // there is no bit on the wire for it either; the program's own declaration is what decides,
         // which is what keeps a program's dependence on unpredictable bytes visible in what it
         // holds. A boot with no entropy service answers `None` here and a declaring child is born
         // with an empty slot, which is the state its second stream exists to report.
-        let wants_entropy = prog.is_some_and(|p| p.manifest().entropy);
+        let wants_entropy = manifest.is_some_and(|m| m.entropy);
         // And a fifth (milestone 590 (provisional)): a network is not something a command line
         // designates either.
-        let wants_network = prog.is_some_and(|p| p.manifest().network);
+        let wants_network = manifest.is_some_and(|m| m.network);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
@@ -2577,7 +2653,7 @@ fn spawn_service(
             // An image request never takes this arm: its manifest is
             // `grant_plan::INSTALLED_MANIFEST_OF`'s, which is native, and its region is sized to the
             // image before the frames arrive (milestone 595's block, Follow-on).
-            let std_layout = prog.is_some_and(|p| p.manifest().runtime == grant_plan::Runtime::Std);
+            let std_layout = manifest.is_some_and(|m| m.runtime == grant_plan::Runtime::Std);
             let region = if wiring.image {
                 // Split before the frames were taken; see `image_region` above.
                 image_region
@@ -2689,7 +2765,7 @@ fn spawn_service(
             // slot is high and explicit rather than next-in-line, because how many low slots this
             // child gets depends on what else the line granted, and a stream the program probes for
             // by number cannot move under it.
-            let diag_slot = prog.and_then(|p| p.manifest().output.diagnostics_slot());
+            let diag_slot = manifest.and_then(|m| m.output.diagnostics_slot());
             // **Where the second stream goes when the line did not say.** The shell delegates an
             // endpoint only for a `2>`, because that is the case it has to back a file for. With no
             // operator on the line the destination is the **terminal's own sink**, which is the progenitor's
@@ -2754,6 +2830,8 @@ fn spawn_service(
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
             let clock_map = [(CHILD_CLOCK_VA, clock_page, abi::address_space::MAP_RO)];
             let config_map = [(CHILD_CONFIG_VA, config_page, abi::address_space::MAP_RO)];
+            // Both pages, which only `grant_plan::UNVOUCHED_MANIFEST` declares (§219 gate D2).
+            let both_map = [clock_map[0], config_map[0]];
             // **The FS contract's shared page, for a program behind a directory grant.** The same
             // frame the caretaker maps and the same frame the FS server maps: one page for all three
             // parties, sound because every request on both hops is a blocking `CALL`, so the client
@@ -2768,15 +2846,17 @@ fn spawn_service(
             // out of that carve, and a single reclaim frees all of it; the clock frame and the FS
             // page are ours and are only *mapped* into the child, so they are untouched when the
             // region goes.
-            // **One extra mapping at most, today.** A program that declared a directory grant AND a
-            // clock AND the config page would need three, and this chain only ever offers one; no
-            // shipped manifest reaches that combination (the directory program, `rm`, declares
-            // neither clock nor config, and no program declares both clock and config), so the gap
-            // is unreached rather than closed. The same ordered-slot debt `wants_clock`'s own
+            // **Two extra mappings at most, today.** A program that declared a directory grant AND a
+            // clock AND the config page would need three, and this chain only ever offers two; no
+            // manifest reaches that combination (the directory program, `rm`, declares neither
+            // clock nor config, and only `grant_plan::UNVOUCHED_MANIFEST` declares both clock and
+            // config, with no directory), so the gap is unreached rather than closed. The same ordered-slot debt `wants_clock`'s own
             // comment above already names for `caps`, one structure over; see notes/pipes.md's
             // `BUGS`.
             let maps: &[(u64, u64, u64)] = if narrowed.is_some() {
                 &dir_map
+            } else if wants_clock && wants_config {
+                &both_map
             } else if wants_clock {
                 &clock_map
             } else if wants_config {

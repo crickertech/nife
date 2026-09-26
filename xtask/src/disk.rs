@@ -208,10 +208,10 @@ pub(crate) fn package_source_dir(architecture: &str) -> std::path::PathBuf {
     workspace_root().join(format!("target/package-source-{architecture}"))
 }
 
-/// **And a real program that nothing installed**, for the refusal: `unreachable_network_witness`,
-/// stripped, which is in no activation generation. The witness rather than garbage bytes because
-/// the claim is that a *runnable* program is refused for being unvouched, and because it is the
-/// fixture milestone 202 (every confinement test is a ritual until somebody breaks the confinement) will run the unvouched-child probe with once §219's gate D2 exists.
+/// **And a real program that nothing installed**: `unreachable_network_witness`, stripped, which
+/// is in no activation generation. It is milestone 202 (every confinement test is a ritual until
+/// somebody breaks the confinement)'s unvouched-child fixture: run on §219 (how the shell names an installed program to the spawner)'s gate D2, it probes the
+/// process domain, entropy and the network and lists the slots it holds.
 pub(crate) const INSTALLED_UNVOUCHED: &str = "installed/unvouched";
 
 /// **Put a package on the RedoxFS image for the target to install** (milestone 198 rung 3a). Copies

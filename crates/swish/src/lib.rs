@@ -901,8 +901,75 @@ pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed befo
 /// milestone 198 (a package manager) rung 3a). One sentence for every place that can read
 /// [`spawnproto::SPAWN_UNVOUCHED`], for [`FAULTED_SENTENCE`]'s reason. It names both halves of the
 /// rule: the digest was not found, and what would have let it run anyway is a capability, not a
-/// setting. That capability is §219's gate D2, which is not built, so no session holds it.
+/// setting. That capability is §219's gate D2 (`spawnproto::RUN_UNVOUCHED_SLOT`), and a shell
+/// meets this sentence only when it does not hold it.
 pub const UNVOUCHED_SENTENCE: &[u8] = b"  refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold\n";
+
+/// **`caps <path>`: what running a file's bytes would grant, and on whose word**
+/// (DECISIONS §219 option D and gate D2, milestone 198 rung 3a).
+///
+/// The shell computes both halves from the bytes it read and the activation set it can read:
+/// `hex` is the file's SHA-256 in lowercase hex, and `vouched_by` is the live generation that
+/// lists that digest, or `None`. `holds` is whether this session holds the run-unvouched
+/// capability. The rows are the endowment the progenitor would build: an installed program's
+/// (`grant_plan::INSTALLED_MANIFEST_OF`) when vouched, and `grant_plan::UNVOUCHED_MANIFEST`'s
+/// three slots when not, or a refusal when the session cannot run unvouched bytes.
+///
+/// It is a preview, and it says so where it could be wrong: the progenitor hashes its own copy
+/// when the line runs, so a file changed in between is judged on what arrives then.
+///
+/// # EXAMPLES
+///
+/// ```
+/// let mut said = Vec::new();
+/// swish::write_image_caps(b"./a.out", b"ab12", None, true, &mut |b| said.extend_from_slice(b));
+/// let said = String::from_utf8(said).unwrap();
+/// assert!(said.contains("provenance: unvouched (digest ab12)"));
+/// assert!(said.contains("cap 1  page      clock"));
+/// ```
+pub fn write_image_caps(
+    path: &[u8],
+    hex: &[u8],
+    vouched_by: Option<u32>,
+    holds: bool,
+    out: &mut dyn FnMut(&[u8]),
+) {
+    let runs = vouched_by.is_some() || holds;
+    out(b"  ");
+    out(path);
+    if runs {
+        out(b" would grant the new process, and nothing else:\n");
+        out(b"    cap 0  endpoint  result   report its answer back\n");
+    } else {
+        out(b" would not run here:\n");
+    }
+    if vouched_by.is_none() && holds {
+        out(b"    cap 1  page      clock    read-only; unvouched bytes may read the time\n");
+        out(b"    cap 2  page      config   read-only; and the configuration page\n");
+    }
+    out(b"    provenance: ");
+    match vouched_by {
+        Some(generation) => {
+            out(b"vouched by activation generation ");
+            write_num(u64::from(generation), out);
+            out(b" (digest ");
+        }
+        None => out(b"unvouched (digest "),
+    }
+    out(hex);
+    out(b")\n");
+    match (vouched_by, holds) {
+        (Some(_), _) => {}
+        (None, true) => {
+            out(b"    runs on this session's capability to run unvouched bytes (slot ");
+            write_num(spawnproto::RUN_UNVOUCHED_SLOT, out);
+            out(b")\n");
+        }
+        (None, false) => {
+            out(b"    refused if run: this session holds no capability to run unvouched bytes\n");
+        }
+    }
+}
 
 /// **What `package` says about an edit to the activation set** (milestone 198 (a package manager)
 /// rung 3a's installer). `status` and `live` are the progenitor's reply
@@ -1496,6 +1563,40 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 
 #[cfg(test)]
 mod tests {
+    /// **`caps <path>` tells the three cases apart** (§219 D and D2): vouched runs with the
+    /// installed manifest and names its generation; unvouched runs with the two pages only on a
+    /// session that holds the capability; otherwise it says it would be refused and grants nothing.
+    #[test]
+    fn caps_of_an_image_names_its_provenance_and_the_gate() {
+        let say = |v: Option<u32>, holds: bool| {
+            let mut said = Vec::new();
+            super::write_image_caps(b"bin/x", b"00ff", v, holds, &mut |b| {
+                said.extend_from_slice(b);
+            });
+            String::from_utf8(said).unwrap()
+        };
+        let vouched = say(Some(3), false);
+        assert!(vouched.contains("vouched by activation generation 3 (digest 00ff)"));
+        assert!(vouched.contains("cap 0"));
+        assert!(
+            !vouched.contains("clock"),
+            "a vouched image is endowed its manifest's, not D2's"
+        );
+        let held = say(None, true);
+        assert!(held.contains("provenance: unvouched (digest 00ff)"));
+        assert!(
+            held.contains("cap 1  page      clock") && held.contains("cap 2  page      config")
+        );
+        assert!(held.contains("slot 22"));
+        let not_held = say(None, false);
+        assert!(not_held.contains("would not run here"));
+        assert!(
+            !not_held.contains("cap 0"),
+            "a refusal grants nothing, so it previews nothing"
+        );
+        assert!(not_held.contains("refused if run"));
+    }
+
     use grant_plan::SecondDir;
 
     use super::*;

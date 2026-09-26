@@ -48,7 +48,8 @@
 //! there is nothing a shared front door would expose by handling it directly. See
 //! [`logout_word`] and this contract's own BUGS for what it does and does not authenticate.
 //!
-//! On [`OK`], login sends exactly five capabilities over `priv_result`, in this order:
+//! On [`OK`], login sends five capabilities over `priv_result`, or six when the reply's second word
+//! carries [`RUN_UNVOUCHED_FOLLOWS`], in this order:
 //!
 //! 1. the **directory** capability: a freshly built `fs_subtree_caretaker`'s endpoint, `WRITE`;
 //! 2. the **filesystem's shared page**, a `PageFrame`, `READ | WRITE`: the client maps it itself
@@ -84,6 +85,15 @@
 //!    carries this fifth capability too. There is exactly one physical terminal and exactly one
 //!    holder at a time; see this contract's own BUGS and `components/src/login.rs`'s module docs for the
 //!    single-session design this is deliberately not more than.
+//! 6. **the run-unvouched capability**, only when [`OK`]'s second word says so (DECISIONS §219 (how the shell names an installed program to the spawner)
+//!    gate D2, milestone 198 (a package manager) rung 3a): a `Rendezvous`, `WRITE` only, the one the progenitor
+//!    receives on. A session that holds it may run bytes nobody vouched for, with only what it
+//!    delegates and the clock and configuration pages; a session that was not given it cannot, and
+//!    that is how a machine can have users who may not run new native code (calef's consequence in
+//!    §219). No `GRANT`, so the session cannot hand it on, and for the same reason it cannot ride a
+//!    `SEND_CAP` anywhere: it is used by sending on it (`grant_plan::spawnproto::
+//!    RUN_UNVOUCHED_BIT`). `login` gives it to every session it builds when it holds one itself;
+//!    which identities should get it is not decided, and this contract's BUGS say so.
 //!
 //! **A full logout destroys capability 3 before capability 4, and the order is load-bearing.**
 //! `mint()` splits the fourth capability's region from `login`'s own `CONSTRUCTION_UT` first and the
@@ -106,6 +116,14 @@
 //! it held before it asked.
 //!
 //! # BUGS
+//!
+//! **Every session `login` builds gets the run-unvouched capability, or none does.** calef's
+//! consequence in DECISIONS §219 is that a machine could constrain which users may run unvouched
+//! bytes, and this is the mechanism for that, but no rule picks the users: there is no attribute
+//! of an identity to read it from yet (the credential store holds a secret per identity and nothing
+//! else). Until there is, `login` passes it to every session when its spawner gave it one. No
+//! session `login` builds can spawn anything today (none holds a spawn endpoint), so the capability
+//! is delivered and not yet usable; the boot prompt is the only session that presents it.
 //!
 //! **[`LOGOUT`] authenticates nothing.** It is a bare word on the shared front door, deliberately:
 //! unlike a login it carries no secret to protect and needs no private channel, but the flip side is
@@ -187,9 +205,16 @@ pub fn logout_word() -> u64 {
 /// the actual login on. See the module docs for the two-phase exchange.
 pub const CONNECTED: u64 = 4;
 
-/// **Authenticated.** Exactly five capabilities follow on the private result endpoint; see the
-/// module docs for the order.
+/// **Authenticated.** Five capabilities follow on the private result endpoint, or six when the
+/// reply's second word carries [`RUN_UNVOUCHED_FOLLOWS`]; see the module docs for the order.
 pub const OK: u64 = 1;
+
+/// **A bit of [`OK`]'s second word: the sixth capability, the run-unvouched one, follows**
+/// (DECISIONS §219 gate D2). Carried on the reply rather than implied, because a client's sixth
+/// `RECV_CAP` must match a sixth `SEND_CAP` exactly: a `login` spawned without the capability
+/// (every kernel test harness before this bit) sends five, and a client that always waited for six
+/// would block for ever. Name: provisional.
+pub const RUN_UNVOUCHED_FOLLOWS: u64 = 1;
 
 /// **Refused.** The identity is unknown, the secret is wrong, the service could not mint a
 /// capability set for an otherwise-authenticated principal, or (on the front door) the service could

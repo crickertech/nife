@@ -54,13 +54,18 @@
 //! The image request ([`Wiring::image`], DECISIONS §219 (how the shell names an installed program to the spawner) option D) is a first cut, and these are
 //! what it does not do yet. Milestone 198 (a package manager)'s block carries the same list.
 //!
-//! - **Every digest miss is refused.** §219's gate D2, a capability that lets a session run
-//!   unvouched bytes with only what it delegates, is owed. The tree already decides its shape: a
-//!   capability without `GRANT` cannot ride a `SEND_CAP` (§219 limitation 2), so D2 will be a
-//!   progenitor endpoint the session invokes rather than a token on this request. Nothing here
-//!   precludes that: a miss is answered with [`SPAWN_UNVOUCHED`] before anything is built, and the
-//!   ruled endowment for an unvouched child (the clock and configuration pages, nothing else) is
-//!   one branch away in the progenitor.
+//! - **A caller that claims the run-unvouched capability without holding it hangs the progenitor.**
+//!   [`Wiring::run_unvouched`] promises one `SEND` on [`RUN_UNVOUCHED_SLOT`], and the progenitor
+//!   waits for it on the endpoint behind that slot, which only a holder can reach. A shell that
+//!   sets the bit and holds nothing leaves the progenitor blocked there for the life of the boot.
+//!   It is the exposure every promised message in this protocol already has (the frame entry
+//!   below), and it is reachable only by a program that holds the spawn endpoint and lies on it,
+//!   which today is the boot shell alone.
+//! - **A holder can lend its presentation.** The progenitor serves requests one at a time, so a
+//!   holder's `SEND` is taken only while some request that claimed the capability is being served.
+//!   A holder that sends one early, on purpose, can let another caller's claim through. That is a
+//!   proxy, and no capability system prevents a holder from running something on another's behalf;
+//!   it is recorded so nobody reads the missing `GRANT` as a stronger promise than it is.
 //! - **An installed program's manifest is `uptime`'s** ([`crate::INSTALLED_MANIFEST_OF`]), because
 //!   no manifest travels with a package yet (§197 (a package is one archive file)'s open question). A program that needs a clock,
 //!   the network or a directory is not refused by name; it runs and finds the slot empty.
@@ -72,8 +77,6 @@
 //!   sized to the image, so this needs a full capability table in the shell, but if it happens the
 //!   progenitor waits for a frame that never comes. Nothing in the ABI lets either side abandon a
 //!   half-sent request; every capability this protocol promises has the same exposure.
-//! - **`caps <path>` previews nothing.** §219 wants a `provenance:` row computed from the bytes the
-//!   shell read; the shell does not print one yet.
 
 /// The interruptible bit, packed into the high half of the page-count word so one `SEND` still
 /// carries the whole request. `mem_pages` is a small count (`memory_grant_depleter`'s ceiling is
@@ -159,7 +162,9 @@ const DIR2_BIT: u64 = 1 << 38;
 /// through the loader's never-reused scratch window, copies it into a page of its own, and deletes
 /// the capability before taking the next, so a request of any size costs its capability table one
 /// transient slot. A digest found in the activation set is vouched and runs with that entry's
-/// manifest; a miss is refused with [`SPAWN_UNVOUCHED`] until DECISIONS §219's gate D2 exists.
+/// manifest. A miss runs only for a caller that presents the run-unvouched capability
+/// ([`RUN_UNVOUCHED_BIT`], §219's gate D2), with [`crate::UNVOUCHED_MANIFEST`]; any other miss is
+/// refused with [`SPAWN_UNVOUCHED`].
 ///
 /// Name: provisional (milestone 198 rung 3a, 2026-09-26), §219's own word for it.
 const IMAGE_BIT: u64 = 1 << 39;
@@ -194,6 +199,44 @@ const IMAGE_BIT: u64 = 1 << 39;
 ///
 /// Name: provisional (2026-09-26).
 const ACTIVATION_BIT: u64 = 1 << 40;
+
+/// **The caller presents the run-unvouched capability: one `SEND` on it follows the delegation**
+/// (DECISIONS §219 gate D2, ruled by calef 2026-09-26). Meaningful with [`IMAGE_BIT`]; the
+/// progenitor honours it on any request, so a caller that sets it is never left blocked in its
+/// `SEND`.
+///
+/// **Why a message on a second endpoint rather than a capability on this one.** The capability is
+/// granted without `GRANT`, so its holder cannot pass it on (§219 limitation 2), and for the same
+/// reason it cannot ride a `SEND_CAP` here: the kernel refuses to delegate a capability that lacks
+/// `GRANT`. What a holder *can* do with a `WRITE`-only endpoint is send on it. The progenitor holds
+/// the only `READ` on that endpoint and takes one message from it, at a fixed point in the
+/// exchange, while serving a request that claimed it. A message that arrives there came from a
+/// holder, because nothing else can reach the endpoint.
+///
+/// **Where in the exchange**: after every delegated capability, the last thing a request sends. The
+/// progenitor then knows the digest's verdict and the whole delegation before it decides. The word
+/// sent is not read: the fact that it arrived is the whole of what it says.
+///
+/// The progenitor rather than the kernel decides what it means, which is why this is a bit on a
+/// userspace word and not a method: DECISIONS §10 (process model: capability-based, microkernel)'s surface is unchanged. The kernel only routes a
+/// `SEND` on an endpoint, as it routes every other.
+///
+/// Name: provisional (milestone 198 rung 3a, 2026-09-26).
+const RUN_UNVOUCHED_BIT: u64 = 1 << 41;
+
+/// **Where a session holds the run-unvouched capability** (DECISIONS §219 gate D2): the slot the
+/// progenitor places it in, `WRITE` only, in the boot shell and in `login`, and the slot `login`
+/// delegates it from.
+///
+/// Twenty-two, the highest slot below the kernel's reserved fault slot (`abi::fault::FAULT_EP_SLOT`,
+/// 23; `grant_plan` does not depend on `abi`, so each binary that reads this asserts the relation
+/// itself). A named slot for the reason [`crate::NETWORK_SLOT`] is one: the holder probes it rather
+/// than being told, and the probe is sound only at `_start`, before the process has allocated
+/// anything, because a runtime allocation takes the first free slot and could land here only in a
+/// table that is almost full.
+///
+/// Name: provisional.
+pub const RUN_UNVOUCHED_SLOT: u64 = 22;
 
 /// **What an activation request asks for** (see `ACTIVATION_BIT`). Provisional names, like the
 /// bit's; the prompt spells them `package install`, `package remove` and `package rollback`.
@@ -366,6 +409,9 @@ pub struct Wiring {
     /// **The executable's bytes follow as frames, and word 0 is their length** (DECISIONS §219
     /// option D). See `IMAGE_BIT`.
     pub image: bool,
+    /// **One `SEND` on the run-unvouched capability follows the delegation** (DECISIONS §219 gate
+    /// D2). See `RUN_UNVOUCHED_BIT`.
+    pub run_unvouched: bool,
 }
 
 /// Build the three request words from a resolved endowment's parts.
@@ -395,6 +441,9 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     if w.image {
         w2 |= IMAGE_BIT;
     }
+    if w.run_unvouched {
+        w2 |= RUN_UNVOUCHED_BIT;
+    }
     (prog_id, arg, w2)
 }
 
@@ -410,6 +459,7 @@ pub fn wiring(w2: u64) -> Wiring {
         dir2: w2 & DIR2_BIT != 0,
         screen: w2 & SCREEN_BIT != 0,
         image: w2 & IMAGE_BIT != 0,
+        run_unvouched: w2 & RUN_UNVOUCHED_BIT != 0,
     }
 }
 
@@ -506,9 +556,9 @@ pub const JOB_FAULTED: u64 = u64::MAX - 1;
 /// as unvouched" are different facts a person needs told apart: the first is out of memory, the
 /// second is a decision.
 ///
-/// Today every miss gets it. §219's gate D2 (a capability to run unvouched bytes, held by a
-/// session) will make a miss from a caller that delegates that capability run with only what the
-/// caller delegated instead; until then this is the whole of the unvouched path.
+/// A miss gets it unless the caller presented the run-unvouched capability ([`Wiring::run_unvouched`],
+/// §219's gate D2). A presented miss is built instead, with [`crate::UNVOUCHED_MANIFEST`]: only what
+/// the caller delegated, and the clock and configuration pages.
 ///
 /// Two below `u64::MAX`, for [`JOB_FAULTED`]'s reason one below it. Name: provisional.
 pub const SPAWN_UNVOUCHED: u64 = u64::MAX - 2;
@@ -556,9 +606,9 @@ mod tests {
         assert_eq!(mem_pages(w2), 0);
     }
 
-    /// **The seven flags are independent of each other and of the page count** (milestone 50,
-    /// §67's fourth, milestone 31 phase 3's fifth, DECISIONS §106's sixth, and milestone 154's
-    /// seventh). They share one word, and what the progenitor reads next off the endpoint depends on all of
+    /// **The nine flags are independent of each other and of the page count** (milestone 50 (pipes and redirection),
+    /// §67 (a program's second stream is a declaration)'s fourth, milestone 31 (a capability shell) phase 3's fifth, DECISIONS §106 (the `terminal_sink_caretaker` narrowing)'s sixth, milestone 154 (a process that holds two directory capabilities)'s
+    /// seventh, and §219's image and its gate D2). They share one word, and what the progenitor reads next off the endpoint depends on all of
     /// them, so a bit that bled into another would make the progenitor take a capability for a data word
     /// (or the reverse) and hang rather than fail.
     #[test]
@@ -571,19 +621,22 @@ mod tests {
                             for &dir2 in &[false, true] {
                                 for &screen in &[false, true] {
                                     for &image in &[false, true] {
-                                        let w = Wiring {
-                                            interruptible,
-                                            sink,
-                                            source,
-                                            diagnostics,
-                                            dir,
-                                            dir2,
-                                            screen,
-                                            image,
-                                        };
-                                        let (_, _, w2) = request(3, 0, 64, w);
-                                        assert_eq!(wiring(w2), w, "{w:?}");
-                                        assert_eq!(mem_pages(w2), 64, "{w:?}");
+                                        for &run_unvouched in &[false, true] {
+                                            let w = Wiring {
+                                                interruptible,
+                                                sink,
+                                                source,
+                                                diagnostics,
+                                                dir,
+                                                dir2,
+                                                screen,
+                                                image,
+                                                run_unvouched,
+                                            };
+                                            let (_, _, w2) = request(3, 0, 64, w);
+                                            assert_eq!(wiring(w2), w, "{w:?}");
+                                            assert_eq!(mem_pages(w2), 64, "{w:?}");
+                                        }
                                     }
                                 }
                             }
@@ -645,6 +698,7 @@ mod tests {
             dir2: true,
             screen: true,
             image: true,
+            run_unvouched: true,
         };
         let (_, w1, w2) = request(3, 2, 64, all);
         assert_eq!(activation(w1, w2), None);

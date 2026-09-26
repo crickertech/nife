@@ -12,11 +12,12 @@ granting) versions is in `crates/activation_set`. Run by digest and the installe
 2026-09-26, once §219 (how the shell names an installed program to the spawner) was ruled:
 `package install`, `remove` and `rollback` at the prompt, across a reboot, on all three
 architectures. `package install <name>` fetches over the booted system's network (aarch64,
-riscv64), and `greeting`, which no image carries, runs on all three. notes/packages.md has the account.
+riscv64), and `greeting`, which no image carries, runs on all three. So does §219's gate D2: a
+session holding the run-unvouched capability runs bytes nobody vouched for. notes/packages.md has the account.
 
 **Gate: NONE.** [§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
 shell names an installed program to the spawner) was decided 2026-09-26 (UTC): option D with gate
-D2. D's request and the installer are built. Who may write `activation/` is a proposal
+D2. D's request, D2 and the installer are built. Who may write `activation/` is a proposal
 (notes/who-may-write-the-activation-set.md). The first cut took §219's two open
 recommendations provisionally (the table's shape, and where a manifest travels, §197). Every earlier fork is ruled:
 [§195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md),
@@ -227,10 +228,9 @@ block's other rungs carry their own exit criteria in the table above, and the ru
 calef's acts are named there rather than here.
 
 - **Outstanding.** Rung 3a still owes closing the `activation/` write hole (an architect's
-  call), §219's gate D2, and milestone 202 (every confinement test is a ritual until somebody
-  breaks the confinement)'s unvouched-child claim. notes/packages.md has each.
-- **Done.** §219 was ruled 2026-09-26 and its request built; the fetch at the prompt and a
-  program absent from the image followed.
+  call), which also answers whether the boot prompt keeps D2.
+- **Done.** §219 was ruled 2026-09-26 and its request, gate D2 and the unvouched-child
+  confinement claim built (notes/packages/running-unvouched.md).
 - **Proposed.** The virtio device table never reuses a slot
   (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`). The booted system
   had no network either; milestone 590 (the booted system starts its network stack) built it.
