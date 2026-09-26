@@ -234,12 +234,28 @@ fn stage_installed(architecture: &str) -> Result<String, String> {
     // host, rather than as a refusal at the prompt that reads like the installer's fault.
     let parsed = package_archive::Package::parse(&package)
         .map_err(|e| format!("{} does not parse: {e:?}", built.display()))?;
-    if parsed.index_of("uptime").is_none() {
+    let (Some(index), Some(member)) = (parsed.index_of("uptime"), parsed.read("uptime")) else {
         return Err(format!("{} carries no uptime member", built.display()));
-    }
+    };
+    // **The tampered copy is consistent with itself**: one byte of the program flipped *and* the
+    // table of contents' digest for it rewritten to match. So the only thing on the target that can
+    // tell it from a genuine package is the image's catalogue, and the refusal at the prompt is that
+    // check and no other. A plain flipped byte was the first cut, and falsifying the catalogue check
+    // left the line green, because the member's own digest refused it instead (2026-09-26).
+    let offset = member.as_ptr() as usize - package.as_ptr() as usize;
     let mut tampered = package.clone();
-    let middle = tampered.len() / 2;
-    tampered[middle] ^= 1;
+    tampered[offset + member.len() / 2] ^= 1;
+    let digest = package_archive::sha256(&tampered[offset..offset + member.len()]);
+    let at = package_archive::HEADER_LEN
+        + index * package_archive::MEMBER_LEN
+        + package_archive::NAME_LEN
+        + 8;
+    tampered[at..at + digest.len()].copy_from_slice(&digest);
+    let reread = package_archive::Package::parse(&tampered)
+        .map_err(|e| format!("the tampered copy does not parse: {e:?}"))?;
+    if reread.verify().is_err() {
+        return Err("the tampered copy is not consistent with itself".into());
+    }
 
     let triple = match architecture {
         "aarch64" => crate::TARGET,

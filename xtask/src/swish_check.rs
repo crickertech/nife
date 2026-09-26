@@ -329,9 +329,10 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 76] = [
     // elapsed time is not asserted because a real boot's timing is not this check's business.
     ("uptime", &["up "]),
     // **The installer** (milestone 198 (a package manager) rung 3a, DECISIONS §208 (installing a
-    // package is granting it, and the activation set is versioned)). A package with one byte
-    // flipped is refused by the image's catalogue before anything is written, and nothing is
-    // installed afterwards: the line after it says generation 1, not 2.
+    // package is granting it, and the activation set is versioned)). A package with one byte of
+    // its program flipped, and its table of contents rewritten to agree, is refused by the image's
+    // catalogue before anything is written: the catalogue is the only thing that can tell
+    // (`disk::stage_installed`). Nothing is installed afterwards: the line after says generation 1.
     (
         "package install downloads/tampered.nifepkg",
         &["refused: this image's catalogue does not vouch for those bytes; nothing is installed"],
