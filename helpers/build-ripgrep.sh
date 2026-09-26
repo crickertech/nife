@@ -51,23 +51,17 @@ fi
 # `-Copt-level=s` and `-Cstrip=debuginfo` are not tuning: ripgrep's own release profile sets
 # `debug = 1`, which produces a 25 MB ELF the initrd would carry into RAM. Overriding a profile from
 # the command line is a build setting, not a change to the program.
-# **The link base has to move, and that is a finding rather than a workaround.**
-# `crates/user_mode_runtime/link.ld` puts every program at `0x40_0000`, and `kernel/src/user.rs` puts every program's
-# stack at `0x50_0000` with a deeper std stack below that, so an image has under 896 KiB of address
-# space before it collides with its own stack. ripgrep's `.text` alone is 1.37 MiB, and the loader
-# refuses it with `Unmappable(AlreadyMapped)`. Relinking at 16 MiB is a link setting and touches no
-# ripgrep source, but it is not something a stranger's program would know to do: see
-# notes/ripgrep-on-nife.md, which argues this address map is the thing to change.
-#
-# Derived from `crates/user_mode_runtime/link.ld` by substitution rather than copied, so the two cannot drift.
+# The link script is the shared one, unchanged. **This used to relink at 16 MiB**, by substituting
+# `crates/user_mode_runtime/link.ld`'s base, because every program was linked at `0x40_0000` with its
+# stack at `0x50_0000`, and ripgrep's 1.37 MiB of `.text` did not fit in the 896 KiB between them.
+# Milestone 206 (a program image has under 896 KiB) drew the address-space map (`crates/address_space_map`, DECISIONS §171 (where a program image starts) option D),
+# which gives an image 496 MiB at the shared base, so ripgrep links like every other program.
 mkdir -p "$OUT"
-sed 's/^    \. = 0x400000;$/    . = 0x1000000;/' "$ROOT/crates/user_mode_runtime/link.ld" > "$OUT/link-high.ld"
-grep -q '0x1000000' "$OUT/link-high.ld" || { echo "build-ripgrep: crates/user_mode_runtime/link.ld no longer sets 0x400000 where this script expects it"; exit 1; }
 
 for TRIPLE in ${NIFE_RIPGREP_TRIPLES:-aarch64-unknown-nife riscv64-unknown-nife x86_64-unknown-nife}; do
   cd "$SRC"
   RUSTUP_TOOLCHAIN=nife-dev \
-  RUSTFLAGS="-Clink-arg=-T$OUT/link-high.ld -Clink-arg=-u_start -Clink-arg=--build-id=none -Cstrip=debuginfo -Copt-level=s" \
+  RUSTFLAGS="-Clink-arg=-T$ROOT/crates/user_mode_runtime/link.ld -Clink-arg=-u_start -Clink-arg=--build-id=none -Cstrip=debuginfo -Copt-level=s" \
     cargo build --release \
       -Zjson-target-spec \
       -Zbuild-std=core,alloc,std,panic_abort \
