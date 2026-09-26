@@ -40,6 +40,15 @@ capability = { version = "0.1.0", path = "../crates/capability" }
 # manifest the prompt checks against rather than from a second copy of an ordering. Same rule as
 # `line_editor`, `bitmap_font` and `calendar` below: no party has its own copy of a shared definition.
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
+# The registration page's layout (milestone 129 (scheduled execution), DECISIONS §222 (who holds a user's schedule)). The kernel's timetable test is
+# the registrar until milestone 152 (durable delegation) rebuilds the durable session, so it stages replacements with
+# the same `timetable::registration` the program answers with. Only that module's constants and
+# small functions are reached: `Registry::register`'s 21 KiB frame stays out of the kernel, which
+# is the reason `kernel/src/user/timetable_tests.rs` gives for writing its program list by hand.
+timetable = { version = "0.1.0", path = "../crates/timetable" }
+# The stored schedule's fixture (milestone 152), so the replacement the test sends first is the
+# document the store test writes to disk, byte for byte.
+schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 # The wall-clock contract (milestone 51, DECISIONS §43). The kernel discovers the RTC by
 # `compatible` and names the binding with these constants, and its clock tests read the shared page
 # through the same seqlock the service publishes with, so no party has its own copy of the layout.
