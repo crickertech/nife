@@ -1,7 +1,7 @@
-# toolchain: nightly-2026-09-24
+# toolchain: nightly-2026-09-25
 # qemu: 11.1.1
-# date: 2026-09-24
-# why: nightly-2026-09-24: measured against the old nightly on the same tree (b5a83740d), nothing moved on aarch64; this save also absorbs drift already on main since the last save (at most +0.16%, spawn_reap)
+# date: 2026-09-26
+# why: nightly-2026-09-25: measured on main at 508333ebe against the 2026-09-24 floors, every row within 1.8% (largest ipc_rtt +0.22%, ipc_rtt_el0 -0.21%); this mixes the compiler with drift on main since the last save, not separated
 # bench/baseline-aarch64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -10,17 +10,17 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 1126479 2000
-ipc_rtt 1032404 1000
-relay_rtt 2057831 1000
-call_reply 1058884 1000
-broker_rtt 2114585 1000
-spawn_reap 216836 64
+yield_switch 1124419 2000
+ipc_rtt 1034642 1000
+relay_rtt 2056026 1000
+call_reply 1057883 1000
+broker_rtt 2112776 1000
+spawn_reap 216813 64
 map_new 15365 64
-coremark 20913779 256
+coremark 20913774 256
 null_syscall 410003 20000
-ctx_switch 3058151 5000
-ipc_rtt_el0 11012496 5000
-sink_throughput 4489724 80000
+ctx_switch 3055009 5000
+ipc_rtt_el0 10989356 5000
+sink_throughput 4486215 80000
 map_el0 390574 500
-spawn_el0 1372643 100
+spawn_el0 1372505 100
