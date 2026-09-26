@@ -1103,6 +1103,33 @@ pub const ENTROPY_SLOT: u64 = 9;
 /// program that shows it at the prompt.
 pub const NETWORK_SLOT: u64 = 10;
 
+/// **Where the boot shell holds the inert-configuration page** (milestone 47 (navigation and
+/// naming), DECISIONS §111 (inert configuration is a validated page)), so `caps` can print the
+/// values a child declaring [`Manifest::config`] would read rather than only that it would read
+/// some.
+///
+/// The progenitor places the **same frame** it endows every such child with here, `READ` only, and
+/// maps it at [`SHELL_CONFIG_VA`]. The same frame is the point: a preview that printed values from a
+/// copy of the defaults would agree with the child by coincidence and drift from it the first time
+/// either changed, while a second holder of one page cannot disagree with the first.
+///
+/// Twenty-one, one under `spawnproto::RUN_UNVOUCHED_SLOT`, for that constant's reason: a named
+/// slot is probed at `_start`, before the shell has allocated anything, so the slot holds exactly
+/// what its builder placed. A shell built by anything else (a `login` session, a kernel test role)
+/// finds it empty and says it cannot see the values, which is true.
+///
+/// Name: provisional (milestone 47, 2026-09-26).
+pub const SHELL_CONFIG_SLOT: u64 = 21;
+
+/// **Where the boot shell's view of the inert-configuration page is mapped**, read-only
+/// ([`SHELL_CONFIG_SLOT`]). One page above the shell's clock (`0x00d0_0000`), so both share one page
+/// table and this mapping costs the builder no table page of its own. A constant here rather than
+/// one in each binary, because the progenitor maps it and the shell reads through it, and rule 7 of
+/// the codebase rules says an address two binaries agree on is a crate's.
+///
+/// Name: provisional (milestone 47, 2026-09-26).
+pub const SHELL_CONFIG_VA: u64 = 0x0000_0000_00d0_1000;
+
 /// **Whose manifest an installed program is bound and endowed with**, until a manifest travels
 /// with a package (DECISIONS §219 (how the shell names an installed program to the spawner), milestone 198 rung 3a's first cut).
 ///
@@ -2018,7 +2045,7 @@ pub enum Refusal {
     RedirectMidPipeline,
     /// **A word after a redirection's name** (`< f wc`). The spelling this shell takes is `wc < f`.
     /// See notes/pipes.md: refusing the other order is what keeps a stage's text a slice of the
-    /// line in a shell with no allocator.
+    /// line, and `grant_plan` has no allocator.
     WordAfterRedirect,
     /// **A pipeline stage with no command in it** (`| wc`, `a |`).
     ///
@@ -2080,7 +2107,7 @@ pub enum Refusal {
     UnclosedQuote,
     /// **A quote that wraps part of a word** (`a"b"`, `'it''s'`). Every token here is a slice of
     /// the line you typed, so two quoted pieces cannot be joined into one word; the alternative is
-    /// a byte buffer this shell has no allocator for. Refused rather than misread, because both
+    /// a byte buffer, and `grant_plan` has no allocator. Refused rather than misread, because both
     /// readings (join them, or take the quotes literally) would be silently wrong. See [`word`].
     PartlyQuoted,
     /// **A connector with nothing on one side of it** (`&& date`, `date &&`). The mirror of

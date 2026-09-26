@@ -93,6 +93,9 @@
 // documenting an OS-facing ABI entry point is not what the lint is for.
 #![allow(missing_docs)]
 #![no_main]
+// `Vec::push_within_capacity`: the only way this shell adds to a `Vec`, because it cannot allocate
+// behind the caller's back (see [`heap`]).
+#![feature(vec_push_within_capacity)]
 
 use filesystem_protocol::{dirent, fs};
 use grant_plan::expand::{Expander, NameSet, Resume};
@@ -138,6 +141,71 @@ const SPAWN: u64 = 1; // SEND a spawn request to the progenitor
 const RESULT: u64 = 2; // RECV a spawned program's answer
 const BUDGET: u64 = 3; // our own untyped; SPLIT a grant off it for `--mem`
 
+/// **This shell's heap** (milestone 47 (navigation and naming), calef's ruling of 2026-09-26).
+/// Capped at [`swish::HEAP_MAX_BYTES`] and mapped from a region split off [`BUDGET`] before any
+/// other carve, so a leak exhausts the heap and never the budget children are built from.
+#[global_allocator]
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
+
+/// Split the heap's region off [`BUDGET`] and wire the allocator to it. First thing at `_start`,
+/// for the roles whose slot 3 is a budget: the carve is then the budget's first, and every later
+/// carve sits above it, which is what their last-in first-out return needs. A failed split leaves
+/// the heap unwired, and every allocation then refuses its line with [`Say::HeapFull`].
+fn heap_init() {
+    let region = split_region(BUDGET, swish::HEAP_REGION_PAGES);
+    if region >= 0 {
+        HEAP.init(
+            region as u64,
+            user_mode_runtime::heap::DEFAULT_BASE,
+            swish::HEAP_MAX_BYTES,
+        );
+    }
+}
+
+/// **Every allocation this shell makes, and every one of them can fail.** calef's first condition:
+/// the boot shell is the owner's root console, so running out of heap is a refusal with a sentence
+/// ([`Say::HeapFull`]) and never a panic. Nothing outside this module names `alloc`, and nothing in
+/// it calls an allocating method that panics on failure: capacity is reserved with
+/// `try_reserve_exact`, and elements go in with `push_within_capacity`, which cannot allocate.
+/// The compiler holds the first half (below), and `script/lint` holds that the declaration stays
+/// here.
+mod heap {
+    // Declared here and nowhere else, so no other module can even name `alloc`: a `no_std` crate
+    // has no `alloc` in its extern prelude unless the crate root declares it.
+    extern crate alloc;
+
+    /// **Room for a fixed number of values, on the heap.** A slice once filled (indexing works), and
+    /// there is no way to grow it: `Vec` is private to this module, so nothing outside can call a
+    /// method that would allocate and panic on failure.
+    pub struct Room<T>(alloc::vec::Vec<T>);
+
+    impl<T> core::ops::Deref for Room<T> {
+        type Target = [T];
+        fn deref(&self) -> &[T] {
+            &self.0
+        }
+    }
+
+    impl<T> core::ops::DerefMut for Room<T> {
+        fn deref_mut(&mut self) -> &mut [T] {
+            &mut self.0
+        }
+    }
+
+    /// `n` copies of `x`, or `HeapFull`. Capacity is reserved with `try_reserve_exact`, and the
+    /// copies go in with `push_within_capacity`, which cannot allocate.
+    pub fn filled<T: Copy>(n: usize, x: T) -> Result<Room<T>, swish::Say> {
+        let mut v = alloc::vec::Vec::new();
+        v.try_reserve_exact(n).map_err(|_| swish::Say::HeapFull)?;
+        for _ in 0..n {
+            v.push_within_capacity(x)
+                .map_err(|_| swish::Say::HeapFull)?;
+        }
+        Ok(Room(v))
+    }
+}
+
 /// The budget the progenitor granted us at boot (must match `crates/system_initializer`'s `SH_BUDGET_PAGES`).
 /// We cannot query how much remains (there is no such syscall), so `caps` prints the initial grant.
 const SH_BUDGET_PAGES: u64 = 128;
@@ -172,6 +240,18 @@ static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
 
 // `grant_plan` states the slot without depending on `abi`; the relation is held by each reader.
 const _: () = assert!(spawnproto::RUN_UNVOUCHED_SLOT == abi::fault::FAULT_EP_SLOT - 1);
+
+/// **Whether this shell holds a read-only view of the inert-configuration page**
+/// ([`grant_plan::SHELL_CONFIG_SLOT`], mapped at [`grant_plan::SHELL_CONFIG_VA`]; milestone 47
+/// (navigation and naming), DECISIONS §111 (inert configuration is a validated page)). Only the
+/// progenitor places it, and it maps the page in the same build, so a capability in the slot at
+/// `_start` means the page is there to read. Probed once at `_start` for [`HOLDS_RUN_UNVOUCHED`]'s
+/// reason. `caps` reads it to print the values a child declaring `config` will read; nothing else
+/// in this shell looks at it.
+static HOLDS_CONFIG: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+// The named slot sits under the run-unvouched one and so under the kernel's fault slot.
+const _: () = assert!(grant_plan::SHELL_CONFIG_SLOT < spawnproto::RUN_UNVOUCHED_SLOT);
 
 /// The `x2` value meaning "this shell was granted no clock". Zero rather than a sentinel, because
 /// slot 0 is the terminal in every wiring, so no clock can ever legitimately be there.
@@ -1127,6 +1207,15 @@ pub extern "C" fn _start(role: u64, arg: u64, clock: u64) -> ! {
         user_mode_runtime::is_granted(spawnproto::RUN_UNVOUCHED_SLOT),
         core::sync::atomic::Ordering::Relaxed,
     );
+    HOLDS_CONFIG.store(
+        user_mode_runtime::is_granted(grant_plan::SHELL_CONFIG_SLOT),
+        core::sync::atomic::Ordering::Relaxed,
+    );
+    // After the probes, which must see the table as its builder left it. The two witness roles
+    // hold no budget at slot 3.
+    if !matches!(role, ROLE_NAVIGATE | ROLE_GLOB) {
+        heap_init();
+    }
     match role {
         ROLE_NAVIGATE => navigate(arg),
         ROLE_GLOB => globbing(arg),
@@ -2440,11 +2529,17 @@ fn caps(nav: &mut Nav, tail: &[u8]) {
         NO_CLOCK => None,
         slot => Some(slot),
     };
+    // SAFETY: the progenitor maps the page at `SHELL_CONFIG_VA` read-only in the same build that
+    // places its capability, and never unmaps it; [`HOLDS_CONFIG`] is that capability's presence.
+    let config = HOLDS_CONFIG
+        .load(core::sync::atomic::Ordering::Relaxed)
+        .then(|| unsafe { environment_protocol::ConfigPage::new(grant_plan::SHELL_CONFIG_VA) });
     swish::write_caps(
         tail,
         SH_BUDGET_PAGES,
         holdings,
         clock,
+        config,
         &mut |token| nav.expand(token),
         &mut print,
     );
@@ -2650,7 +2745,14 @@ fn pipeline(nav: &mut Nav, l: Line<'_>) {
     // that produces text, at the head of the pipeline, whose bytes **the shell writes into the pipe
     // itself**. That costs no process and no new mechanism, and it is what makes `ls | wc` a thing a
     // person can type in a shell that holds a directory.
-    let mut plans: [Option<Endowment>; line::MAX_STAGES] = [None; line::MAX_STAGES];
+    // **On the heap, not on the stack** (milestone 47, calef's allocator ruling). This array of
+    // endowments, each carrying a whole name set, is what the four stack overflows in
+    // notes/pipes/the-boot.md had in common, and this function's frame was the deepest in the
+    // program. Sized to the line's own stages rather than to `MAX_STAGES`.
+    let mut plans = match heap::filled::<Option<Endowment>>(l.stage_count(), None) {
+        Ok(v) => v,
+        Err(s) => return say(s),
+    };
     let mut head_builtin = false;
     for (i, stage) in l.stages().iter().enumerate() {
         match grant_plan::parse(stage) {
@@ -3482,11 +3584,12 @@ const JOBFRAME_WINDOWS: core::ops::Range<u64> = 0x0000_0000_0100_0000..0x0000_00
 // Every fixed window this shell maps, and the job frames' range, are disjoint. A window added to
 // the shell belongs in this list.
 const _: () = {
-    let fixed: [(u64, u64); 5] = [
+    let fixed: [(u64, u64); 6] = [
         (OUT_VA, PAGE),
         (LINE_VA, PAGE),
         (FS_VA, filesystem_protocol::PAGE as u64),
         (SH_CLOCK_VA, PAGE),
+        (grant_plan::SHELL_CONFIG_VA, PAGE),
         // The primer page and the image window above it (DECISIONS §219 option D).
         (
             IMAGE_PRIMER_VA,
@@ -4079,8 +4182,8 @@ fn navigate(spec: u64) -> ! {
 
 // ---- the globbing witness (milestone 47's globbing lane) ----
 
-/// A small collector: what `echo` printed, or what a grant rendered to. Fixed size because this
-/// program has no allocator, and generous enough that a truncation cannot make two renderings agree
+/// A small collector: what `echo` printed, or what a grant rendered to. Fixed size, written before
+/// the shell had a heap (2026-09-26) and still enough, and generous enough that a truncation cannot make two renderings agree
 /// by both running out at the same place.
 struct Text {
     buf: [u8; 96],
@@ -4415,7 +4518,7 @@ fn removed(nav: &Nav, verb: u64, name: &[u8]) -> bool {
 }
 
 /// A fixture name with the run index appended, so runs sharing one image do not collide on `EEXIST`
-/// and read it as a refusal. Fixed-size because this program has no allocator.
+/// and read it as a refusal. Fixed-size, which is all it needs; written before the shell had a heap.
 fn run_name(base: &str, run: u64) -> ([u8; 16], usize) {
     let mut out = [0u8; 16];
     let n = base.len().min(15);
