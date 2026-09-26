@@ -2188,6 +2188,21 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         #[cfg(target_arch = "aarch64")]
         crate::arch::irq::enable(g.intid);
     }
+    // **Or the CPU's own seed instruction** (slot 16, milestone 595 (provisional)), when there is
+    // no virtio-rng: an entropy service the *kernel* built and proved, granted as its request
+    // endpoint, the way the file service in slot 5 is. See [`boot_instruction_entropy`] for why the
+    // kernel builds this one rather than the progenitor, and why the grant is never both.
+    if virtio_rng.is_none()
+        && let Some(request) = boot_instruction_entropy()
+    {
+        let s16 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::rendezvous_cap(request, Rights::WRITE.union(Rights::GRANT)),
+            Some(16),
+        )
+        .expect("insert the instruction entropy service");
+        assert_eq!(s16, 16);
+    }
     // The graphical terminal stack (slots 10-12, milestone 177), when a GPU is attached
     // (milestone 192 dropped the keyboard from the condition; the UART is a keystroke source too).
     // `None` on a boot with no GPU: system_initializer builds the plain console/input pair
@@ -2652,6 +2667,68 @@ fn boot_virtio_rng_device() -> Option<VirtioBootGrant> {
     boot_virtio_mmio_device(crate::virtio::find_entropy_device()?)
 }
 
+/// **An entropy service on the CPU's own seed instruction, for a boot with no virtio-rng**
+/// (milestone 595 (provisional); promoted from the proposal
+/// `the-x86-64-progenitor-serves-entropy-from-rdseed`). The request endpoint, which
+/// [`boot_progenitor`] grants at slot 16, or `None`, and a `None` is said on the console.
+///
+/// **The kernel confirms the instruction exists, not the progenitor**, which is the question that
+/// proposal left open. Three things decided it, and none of them is effort:
+///
+/// - It is what the tree already does. `entropy_service::is_instruction_backend_available` reads
+///   the feature bit from `arch::isa`'s boot record, and `components/src/entropy.rs` says outright
+///   that it trusts its spawner's choice of mode. The installer (`install_service`) takes the same
+///   service the same way on the booted `x86_64` path.
+/// - It is the only answer that works on aarch64 too. `ID_AA64ISAR0_EL1` is not readable at EL0,
+///   so a progenitor that ran `CPUID` itself would be an `x86_64` special case with no aarch64 twin
+///   (DECISIONS §19). Here the function is arch-neutral: aarch64 with `FEAT_RNG` and no
+///   `NIFE_RNG` takes this path as well, and riscv64 answers `None` from the same predicate.
+/// - Detection stays in `kernel/src/arch/` (AGENTS.md's rule 1), and the progenitor stays free of
+///   `cfg(target_arch)`.
+///
+/// **The kernel builds the service rather than telling the progenitor to**, because a fact with
+/// no capability has no slot to travel in: the progenitor's three `START` words are spent
+/// (`system_initializer::BootEndowment::virtio_rng`'s doc), and a flag in a page
+/// would be a second format for one bit. A built service is a capability, and a probe on its slot
+/// is how the progenitor already tells every optional grant from an absent one. `fs_ep` is the
+/// precedent: the kernel wires the file service before the progenitor exists and grants its
+/// endpoint.
+///
+/// **A refusal, not weaker bytes.** No instruction, or a first draw of all zeros
+/// (`entropy_protocol::readiness`), and this returns `None` with a sentence saying so. There is no
+/// fallback to `RDRAND`/`RNDR` (DRBG output, which `entropy.rs`'s header refuses) and no software
+/// generator. The bytes served are the instruction's own, unmixed and not health-tested after the
+/// first draw: option A of DECISIONS §137 (a hardware TRNG with no published health-test claim),
+/// which is what every other backend here does. Choosing B or C is calef's.
+///
+/// **`ready` may already be taken.** `entropy_service::ensure` hands the readiness report to
+/// whoever wired the service first, and on `x86_64` that can be the installer earlier in this boot.
+/// The installer does not read the verdict either, so a condemned service would answer
+/// `NO_ENTROPY` to every request rather than serve anything; the progenitor's own first draw (the
+/// login password) is then what fails, and it builds no login stack.
+fn boot_instruction_entropy() -> Option<crate::sched::RendezvousId> {
+    let image = program("entropy")?;
+    let Some(w) = entropy_service::ensure(image, entropy_service::Bus::Instruction) else {
+        crate::println!(
+            "  entropy     : NONE. No virtio-rng device, and this CPU has no seed instruction \
+             (RDSEED, RNDRRS), so nothing at the prompt can draw random bytes and there is no login."
+        );
+        return None;
+    };
+    if let Some(report) = w.wait_for_ready()
+        && report[0] != entropy_protocol::READY
+    {
+        crate::println!(
+            "  entropy     : REFUSED. The seed instruction's first draw was all zeros ({:#x}), so \
+             the service is condemned for this boot; nothing at the prompt can draw random bytes.",
+            report[0]
+        );
+        return None;
+    }
+    crate::println!("  entropy     : the CPU's seed instruction; the progenitor serves it");
+    Some(w.request)
+}
+
 /// **The same for the network card** (milestone 590 (provisional), the booted system starts its
 /// network stack; promoted from the proposal `the-booted-system-has-no-network`). `None` on a boot
 /// with no virtio-net device on the MMIO bus: every real board today, and every QEMU run with
@@ -3052,7 +3129,8 @@ mod uuid_tests;
 /// the device writes into, and cannot ask for anything the service did not ask on its behalf.
 ///
 /// Arch-neutral: one portable binary, both transports, both ISAs (DECISIONS §19).
-#[cfg_attr(not(test), allow(dead_code))] // the tests and std_service are its callers
+#[cfg_attr(not(test), allow(dead_code))]
+// the tests, std_service, the installer and boot_progenitor are its callers
 pub mod entropy_service;
 
 /// **The EL0 NVMe block server's wiring** (milestone 261; DECISIONS §86's option 2a).
