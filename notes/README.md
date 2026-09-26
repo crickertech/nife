@@ -1,6 +1,6 @@
 # Concept notes
 
-*Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` stays: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing. (This said `elf` and `dtb` until 2026-09-19, when DECISIONS §154 expanded `dtb` to `device_tree_blob`; `notes` is an ordinary English word and was never an acronym, so §154 does not reach it.)*
+*Name: ratified (§75 (directories carry provenance in their own README) covers this directory). `notes` predates every convention here and stays for the reason `elf` stays: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing. (§154 (the acronym test), which expanded `dtb` on 2026-09-19, does not reach `notes`: it was never an acronym.)*
 
 Running glossary for nife, written as concepts come up. If something in the code or the
 conversation does not make sense, it belongs here.
@@ -128,6 +128,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [The command line as a grant expression](grant-expression.md): naming a resource at the prompt grants it.
 - [The glob matcher](glob.md): a pure byte glob matcher with a bounded cost.
 - [Globbing, and the expansion you see is the grant](glob-grant.md).
+- [A set grant at the prompt](a-set-grant-at-the-prompt.md): PROPOSED.
 - [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as capability builtins.
 - [The inert-configuration page](env-config.md): validated read-only `TZ`, `LANG` and `TERM` for programs.
 - [The documentation crate](documentation.md): streaming markdown renderer, manual viewer and search index.
