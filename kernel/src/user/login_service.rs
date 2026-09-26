@@ -26,6 +26,12 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// destroying the region frees tables the dying process is still walking. Doing this properly means
 /// reclaiming the run's whole address space first (`Holding::add_region_after_death`), which needs
 /// [`spawn_client`] to hand its caller the thread id it currently drops.
+///
+/// **It already costs a test.** On 2026-09-26 the lane `milestone/198-owner-console` added two
+/// client runs, and `tests::std_net_runs_over_the_socket_contract` then failed to load a program
+/// as `Unmappable(OutOfPageFrames)` on aarch64 (and riscv64 hung in the CPU matrix). Folding the
+/// same checks into logins the suite already made put it back. A new login test should ride an
+/// existing run until this is reclaimed.
 const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and
@@ -91,6 +97,8 @@ pub const F_TERM_WORKS: u64 = 1 << 8;
 pub const F_RUN_UNVOUCHED_NOT_GRANTABLE: u64 = 1 << 9;
 /// The sixth capability delivered [`RUN_UNVOUCHED_MAGIC`]. Set only by [`PRESENT_RUN_UNVOUCHED`].
 pub const F_RUN_UNVOUCHED_WORKS: u64 = 1 << 10;
+/// `OK` announced a sixth capability. Set by every behaviour that was sent one.
+pub const F_RUN_UNVOUCHED_ANNOUNCED: u64 = 1 << 11;
 
 /// **[`LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
 /// behaviour's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.

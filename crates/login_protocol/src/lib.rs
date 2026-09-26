@@ -92,8 +92,9 @@
 //!    that is how a machine can have users who may not run new native code (calef's consequence in
 //!    §219). No `GRANT`, so the session cannot hand it on, and for the same reason it cannot ride a
 //!    `SEND_CAP` anywhere: it is used by sending on it (`grant_plan::spawnproto::
-//!    RUN_UNVOUCHED_BIT`). `login` gives it to every session it builds when it holds one itself;
-//!    which identities should get it is not decided, and this contract's BUGS say so.
+//!    RUN_UNVOUCHED_BIT`). `login` gives it only to an identity on the owner's list,
+//!    [`RUN_UNVOUCHED_LIST`] (DECISIONS §221 (the boot prompt is the owner's console)), and only
+//!    when it holds one itself.
 //!
 //! **A full logout destroys capability 3 before capability 4, and the order is load-bearing.**
 //! `mint()` splits the fourth capability's region from `login`'s own `CONSTRUCTION_UT` first and the
@@ -117,13 +118,15 @@
 //!
 //! # BUGS
 //!
-//! **Every session `login` builds gets the run-unvouched capability, or none does.** calef's
-//! consequence in DECISIONS §219 is that a machine could constrain which users may run unvouched
-//! bytes, and this is the mechanism for that, but no rule picks the users: there is no attribute
-//! of an identity to read it from yet (the credential store holds a secret per identity and nothing
-//! else). Until there is, `login` passes it to every session when its spawner gave it one. No
-//! session `login` builds can spawn anything today (none holds a spawn endpoint), so the capability
-//! is delivered and not yet usable; the boot prompt is the only session that presents it.
+//! **Which identities get the run-unvouched capability is a file the owner writes**
+//! ([`RUN_UNVOUCHED_LIST`], DECISIONS §221 (the boot prompt is the owner's console), ruling 2).
+//! It is read on every login, so an owner's edit holds from the next login on, and it shares the
+//! file service's one page with every session: sound only while the terminal rule keeps one
+//! session live at a time, which is the assumption every client of that page already makes. No
+//! session `login` builds can spawn anything today (none holds a spawn endpoint), so a listed
+//! session's capability is delivered and not yet usable; the boot prompt is the only session that
+//! presents it. Taking a name off the list holds from that identity's next login; a session
+//! already built keeps its copy, because nothing revokes a delegated capability here.
 //!
 //! **[`LOGOUT`] authenticates nothing.** It is a bare word on the shared front door, deliberately:
 //! unlike a login it carries no secret to protect and needs no private channel, but the flip side is
@@ -215,6 +218,43 @@ pub const OK: u64 = 1;
 /// (every kernel test harness before this bit) sends five, and a client that always waited for six
 /// would block for ever. Name: provisional.
 pub const RUN_UNVOUCHED_FOLLOWS: u64 = 1;
+
+/// **The owner's list of identities whose sessions may run unvouched bytes** (DECISIONS §221 (the
+/// boot prompt is the owner's console), ruling 2): a file at the root of the file service, beside
+/// the identities' own subtrees, which is where this tree already keeps what it knows about an
+/// identity (DECISIONS §117 (a principal's subtree is named by its identity string)). A session
+/// is confined to its own subtree and cannot name it; the boot prompt, the owner's console, can
+/// (`echo chris >> may-run-unvouched`).
+///
+/// **Empty by default**: no file, an unreadable file, or one larger than a page lists nobody, so
+/// the failure is always toward the narrower grant. The format is [`lists`]'s.
+///
+/// Name: provisional (milestone 198 (a package manager), lane `milestone/198-owner-console`,
+/// 2026-09-26).
+pub const RUN_UNVOUCHED_LIST: &str = "may-run-unvouched";
+
+/// **Whether `list` names `identity`** ([`RUN_UNVOUCHED_LIST`]'s format): one identity per line,
+/// surrounding spaces, tabs and a carriage return ignored, blank lines and lines starting with `#`
+/// skipped, and the match exact. `chris` does not list `chr` or `chris2`, and an empty identity
+/// is never listed.
+///
+/// # EXAMPLES
+///
+/// ```
+/// let list = b"# who may run new native code\nchris\n  corinne \r\n";
+/// assert!(login_protocol::lists(list, b"chris"));
+/// assert!(login_protocol::lists(list, b"corinne"));
+/// assert!(!login_protocol::lists(list, b"chr"));
+/// assert!(!login_protocol::lists(b"", b"chris"));
+/// ```
+pub fn lists(list: &[u8], identity: &[u8]) -> bool {
+    !identity.is_empty()
+        && list
+            .split(|&b| b == b'\n')
+            .map(|line| line.trim_ascii())
+            .filter(|line| !line.is_empty() && !line.starts_with(b"#"))
+            .any(|line| line == identity)
+}
 
 /// **Refused.** The identity is unknown, the secret is wrong, the service could not mint a
 /// capability set for an otherwise-authenticated principal, or (on the front door) the service could
@@ -314,6 +354,23 @@ pub const PROGRAM_MEASUREMENTS_VA: u64 = 0x0000_0000_0140_0000;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The list is exact, and every doubtful case lists nobody** (DECISIONS §221 ruling 2).
+    /// Falsified once: matching by prefix (`line.starts_with(identity)`) listed `chr` here.
+    #[test]
+    fn the_run_unvouched_list_names_whole_identities_only() {
+        let list = b"# owner-written\nchris\n\n\tcorinne\r\n#graeme\n";
+        assert!(lists(list, b"chris"));
+        assert!(lists(list, b"corinne"));
+        for not in [&b"chr"[..], b"chris2", b"graeme", b"#graeme", b"", b" "] {
+            assert!(
+                !lists(list, not),
+                "{:?} was listed",
+                core::str::from_utf8(not)
+            );
+        }
+        assert!(!lists(b"", b"chris"), "an empty list named somebody");
+    }
 
     #[test]
     fn identity_hint_round_trips_short_names() {
