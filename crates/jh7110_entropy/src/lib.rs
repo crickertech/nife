@@ -647,6 +647,13 @@ pub const WORD_BYTES: u64 = 8;
 /// # Examples
 ///
 /// ```
+/// # // The hidden lines run this example on a worker with a deadline, the same one
+/// # // `take_returns_rather_than_spinning` uses. A `take` that stops making progress spins rather
+/// # // than returning a wrong answer, and a doctest that spins is not a failure, it is a process:
+/// # // on 2026-09-20 a killed `cargo test -p jh7110_entropy --doc` left this example's two
+/// # // `rust_out` processes at 99% CPU for five days. With the deadline it fails in five seconds.
+/// # let (done, finished) = std::sync::mpsc::channel();
+/// # std::thread::spawn(move || {
 /// use jh7110_entropy::Pool;
 ///
 /// // A device that answers with 32 bytes of 0xAB, forever.
@@ -658,6 +665,11 @@ pub const WORD_BYTES: u64 = 8;
 /// let mut dry = || None;
 /// let mut pool = Pool::new();
 /// assert_eq!(pool.take(4, &mut dry), (0, 0));
+/// # let _ = done.send(());
+/// # });
+/// # finished
+/// #     .recv_timeout(std::time::Duration::from_secs(5))
+/// #     .expect("the example panicked (see above), or take never returned");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pool {

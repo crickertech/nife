@@ -62,6 +62,12 @@
 //! The kernel's spelling, one armer and one checker:
 //!
 //! ```
+//! # // The hidden lines run this example on a worker with a deadline, as this crate's own tests do:
+//! # // `arm`, `disarm` and the `loop` below all spin, so a regression hangs `cargo test` rather
+//! # // than failing it, and a killed run leaves the doctest spinning (jh7110_entropy's `Pool`
+//! # // example did, for five days, in September 2026).
+//! # let (done, finished) = std::sync::mpsc::channel();
+//! # std::thread::spawn(move || {
 //! use memory_corruption_canary_gate::Gate;
 //!
 //! static GATE: Gate = Gate::new();
@@ -88,6 +94,11 @@
 //!
 //! // Disarm quiesces: after this returns, nothing reads the watched ranges.
 //! GATE.disarm();
+//! # let _ = done.send(());
+//! # });
+//! # finished
+//! #     .recv_timeout(std::time::Duration::from_secs(5))
+//! #     .expect("the example panicked (see above), or it never returned");
 //! ```
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from

@@ -71,15 +71,19 @@ allows it. The difference matters to the person who runs `cargo test` and gets n
   under `*=`, which never advances. A `for &k in &MIX` has no increment to lose, so the mutant does
   not exist rather than being caught. That is rung one of AGENTS.md's ladder where the old code sat
   at rung zero.
-- `jh7110_entropy`: not converted, for a measured reason. `Pool::take`'s four timeouts are the same
-  shape, and `take_returns_rather_than_spinning` now states the property on a deadline. The
-  classification does not move, because `Pool`'s own doctest calls `take` directly. `cargo test`
-  runs doctests, and a doctest has nowhere to put a deadline. Confirmed by hand-applying the
-  `self.cursor != self.filled` mutant and running `cargo test -p jh7110_entropy --doc`, which sat
-  at `has been running for over 60 seconds`. These are recorded as four gaps. Closing them needs a
-  way to tell a deadlock timeout from a slow-test one, which cargo-mutants 27.1.0 does not offer.
-  Its whole set of limits is the clock, per milestone 277 (bound what one mutant may allocate)'s
-  own check.
+- `jh7110_entropy`: converted on 2026-09-26, after first being recorded here as not convertible.
+  `Pool::take`'s four timeouts are the same shape, and `take_returns_rather_than_spinning` states
+  the property on a deadline. They stayed timeouts because `Pool`'s own doctest calls `take`
+  directly, and this note said a doctest has nowhere to put a deadline. **That premise was wrong.**
+  Hidden doctest lines (`# `) can run the example on a worker and `recv_timeout` it, and the
+  rendered example does not change; the doctest now fails in five seconds under the `cursor !=
+  filled` and `got *= run` mutants instead of spinning. The wrong premise had a cost: the hand run
+  that "confirmed" it, `cargo test -p jh7110_entropy --doc` sitting at `has been running for over 60
+  seconds`, was abandoned, and a `SIGKILL` to `cargo` does not reach a doctest (measured; `SIGTERM`
+  does). Its two `rust_out` processes spun at 99% CPU for five days.
+  `memory_corruption_canary_gate`'s doctest, whose `loop { try_check }` spins the same way, got the
+  same wrapper. The four are expected to classify as caught at the next sweep; that is not yet
+  measured.
 
 ### The exclusion, which is measured and not assumed
 
