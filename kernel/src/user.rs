@@ -447,7 +447,10 @@ static USER_SPACES: crate::sync::IrqSafeMutex<
 /// the space's table-and-record budget, exactly as for an exec-built space. `None` on an
 /// exhausted region, a full registry, or ASID exhaustion (unreachable; the type is honest).
 pub fn user_address_space_create(region: u64) -> Option<u64> {
-    let root = crate::memory_region::retype_object_page(region)?;
+    let root = crate::memory_region::retype_object_page(
+        region,
+        crate::memory_region::ObjectKind::AddressSpace,
+    )?;
     mmu::share_kernel_half(root); // RISC-V single-satp: the process root carries the kernel high half
 
     if !crate::revoke::register_space(root, region) {

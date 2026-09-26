@@ -2502,7 +2502,11 @@ fn try_create_rendezvous_from(region: u64) -> Result<RendezvousId, RendezvousFai
     // Rank: MEMORY_REGION (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
     // hold as the carve, so no destroy can race the page away (see retype_object_page).
     let phys =
-        crate::memory_region::retype_object_page(region).ok_or(RendezvousFailure::RegionFull)?;
+        crate::memory_region::retype_object_page(
+        region,
+        crate::memory_region::ObjectKind::Rendezvous,
+    )
+    .ok_or(RendezvousFailure::RegionFull)?;
 
     // The page arrives zeroed, and an all-zero Rendezvous happens to be valid; write it explicitly
     // anyway, because "happens to be" is the kind of truth that stops being one silently.
@@ -3572,7 +3576,8 @@ pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Erro
 /// Returns its `ThreadId` (what an `Object::ThreadControlBlock` capability carries) or `None` if the region is out of
 /// budget or the table is full.
 pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
-    let page = crate::memory_region::retype_object_page(region)?;
+    let page =
+        crate::memory_region::retype_object_page(region, crate::memory_region::ObjectKind::Thread)?;
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut()?;
     let name = sched.threads.insert_from_page(page, |tid| {

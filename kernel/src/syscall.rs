@@ -417,6 +417,21 @@ pub(crate) fn invoke(
                 }
                 memory_region_destroy(region)
             }
+            // What the region was spent on (milestone 126's `free`, DECISIONS §225 part 1). Under
+            // `ENUMERATE` alone, `address_space::LIST`'s rule one object type over: learning what
+            // a budget went to is not the authority to spend it. An unknown record is refused
+            // before the region is looked up, `SURVEY`'s order.
+            abi::memory_region::USAGE => {
+                if !cap.rights.allows(Rights::ENUMERATE) {
+                    return Err(Error::NotPermitted);
+                }
+                if !abi::usage::is_known(a0) {
+                    return Err(Error::BadMethod);
+                }
+                crate::memory_region::usage_record(region, a0)
+                    .map(|pages| pages as i64)
+                    .ok_or(Error::Gone)
+            }
             _ => Err(Error::BadMethod),
         },
 

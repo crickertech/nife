@@ -732,6 +732,53 @@ pub mod memory_region {
     /// tree to walk). `NotPermitted` while a live thread still occupies the region, or if it has
     /// been `SPLIT` into children (destroy the children first), or without `WRITE`.
     pub const DESTROY: u64 = 4;
+
+    /// `invoke(cap, USAGE, record, _, _)` -> pages. **How much of this region has been spent, and
+    /// on what** (milestone 126, DECISIONS §225 part 1: `free`'s "yours" line, and `slabtop`
+    /// asked per object type). `record` is one of [`usage`](super::usage)'s selectors; the answer
+    /// is a page count in x0.
+    ///
+    /// Needs `ENUMERATE` and nothing else, the rule §114 (`ENUMERATE` extends to the address-space
+    /// object) set for `pmap`: a holder learns what the region is spent on without being able to
+    /// spend, split or destroy it. `BadMethod` for an unknown record, checked before the region is
+    /// looked up; `NoSuchSlot`-style staleness reads as [`crate::Error::Gone`] for a region already
+    /// reclaimed.
+    ///
+    /// Number provisional: proposed by the lane that built it, and calef's to ratify.
+    pub const USAGE: u64 = 5;
+}
+
+/// **Which figure a [`memory_region::USAGE`] asks for** (milestone 126, DECISIONS §225). A selector
+/// on `SURVEY`'s shape, so a new figure is a new value here and an arm in the kernel.
+///
+/// Every answer is in pages. The counts are bump-only like the region's watermark: a torn-down
+/// object's page stays spent until the region itself is reclaimed, so these say where the budget
+/// went, not what is alive now. [`FRAMES`], the three object kinds and [`CHILDREN`] sum to
+/// [`COMMITTED`] except when a child was reclaimed out of order, whose pages leave `CHILDREN` and
+/// stay committed (the hole `crates/memory_regions` describes).
+///
+/// Names and numbers provisional: calef names public items.
+pub mod usage {
+    /// Pages the region holds in total.
+    pub const SIZE: u64 = 0;
+    /// Pages spent so far: the watermark.
+    pub const COMMITTED: u64 = 1;
+    /// Plain pages: mapped memory, page tables, image pages and revocation records.
+    pub const FRAMES: u64 = 2;
+    /// Pages retyped into rendezvous objects.
+    pub const RENDEZVOUS: u64 = 3;
+    /// Pages retyped into address-space roots.
+    pub const ADDRESS_SPACES: u64 = 4;
+    /// Pages retyped into thread control blocks.
+    pub const THREADS: u64 = 5;
+    /// Pages carved into child regions that are still live.
+    pub const CHILDREN: u64 = 6;
+
+    /// Whether this kernel answers a record, `survey::record::is_known`'s twin.
+    #[must_use]
+    pub const fn is_known(record: u64) -> bool {
+        record <= CHILDREN
+    }
 }
 
 /// Methods on a `PageFrame` capability. **A physical page a process holds, maps, and shares.**

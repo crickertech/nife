@@ -109,6 +109,54 @@ struct Region {
     /// parent becomes reclaimable again once its last child returns, which is what stops a split
     /// parent being committed for its whole lifetime.
     children: u32,
+    /// **What the watermark was spent on**, one count per [`ObjectKind`] plus plain frames, and
+    /// the pages currently carved into live children (milestone 126, §225 part 1: `free`'s "yours"
+    /// line and `slabtop` per object type). Pure bookkeeping beside the watermark: no decision in
+    /// this module reads it, so it cannot become the read half of a claim.
+    spent: Spent,
+}
+
+/// The per-use counts behind [`RegionTable::spent`]. Bump-only like the watermark, except
+/// `children`, which falls when a child's pages come back.
+#[derive(Clone, Copy, Default)]
+struct Spent {
+    frames: u64,
+    objects: [u64; ObjectKind::COUNT],
+    children: u64,
+}
+
+/// **Which kind of kernel object a page was retyped into**, so the region can say afterwards what
+/// its pages were spent on (milestone 126, DECISIONS §225).
+///
+/// Name: provisional, minted 2026-09-26 by milestone 126's `free` lane.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ObjectKind {
+    /// An IPC rendezvous (`abi::objtype::RENDEZVOUS`).
+    Rendezvous,
+    /// An address space's root table (`abi::objtype::ADDRESS_SPACE`).
+    AddressSpace,
+    /// A thread control block (`abi::objtype::THREAD_CONTROL_BLOCK`).
+    Thread,
+    /// A page of the kernel's own object pool (`kernel/src/kmem.rs`), whose contents change kind as
+    /// pages are recycled, so no finer count would stay true.
+    KernelPool,
+}
+
+impl ObjectKind {
+    const COUNT: usize = 4;
+}
+
+/// **One line of a region's spending, as [`RegionTable::spent`] reports it.**
+///
+/// Name: provisional, minted 2026-09-26 by milestone 126's `free` lane.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PageUse {
+    /// Plain pages: mapped memory, page tables, image pages and revocation records.
+    Frames,
+    /// Pages retyped into one kind of kernel object.
+    Object(ObjectKind),
+    /// Pages carved off into children that are still live.
+    Children,
 }
 
 /// **The exclusive right to reclaim one region.** Minted only by
@@ -238,6 +286,7 @@ impl<const N: usize> RegionTable<N> {
             pinned: false,
             parent: NO_PARENT,
             children: 0,
+            spent: Spent::default(),
         })
     }
 
@@ -260,6 +309,7 @@ impl<const N: usize> RegionTable<N> {
             let base_page = r.base_page + r.watermark;
             r.watermark = new_watermark;
             r.children += 1;
+            r.spent.children += pages;
             base_page
         };
         self.table.insert_with(|_| Region {
@@ -269,6 +319,7 @@ impl<const N: usize> RegionTable<N> {
             pinned: false,
             parent,
             children: 0,
+            spent: Spent::default(),
         })
     }
 
@@ -291,6 +342,7 @@ impl<const N: usize> RegionTable<N> {
         }
         let page = r.base_page + r.watermark;
         r.watermark += 1;
+        r.spent.frames += 1;
         Some(page)
     }
 
@@ -300,7 +352,9 @@ impl<const N: usize> RegionTable<N> {
     ///
     /// `None` on an exhausted or dead region, and **nothing is pinned** in that case: a caller that
     /// got no page owes no unpin.
-    pub fn retype_object_page(&mut self, name: u64) -> Option<u64> {
+    ///
+    /// `kind` is recorded for [`spent`](Self::spent) and decides nothing here.
+    pub fn retype_object_page(&mut self, name: u64, kind: ObjectKind) -> Option<u64> {
         let r = self.table.get_mut(name)?;
         if r.watermark >= r.pages {
             return None;
@@ -308,6 +362,7 @@ impl<const N: usize> RegionTable<N> {
         r.pinned = true;
         let page = r.base_page + r.watermark;
         r.watermark += 1;
+        r.spent.objects[kind as usize] += 1;
         Some(page)
     }
 
@@ -327,6 +382,23 @@ impl<const N: usize> RegionTable<N> {
     #[must_use]
     pub fn usage(&self, name: u64) -> Option<(u64, u64)> {
         self.table.get(name).map(|r| (r.watermark, r.pages))
+    }
+
+    /// **How many of the region's pages went to `on`** (milestone 126, DECISIONS §225 part 1), or
+    /// `None` for a dead name.
+    ///
+    /// An observer like [`usage`](Self::usage), and safe for a stronger reason than the other
+    /// three: no decision in this module or in the kernel reads these counts, so a caller holding a
+    /// stale answer can print a wrong number and can free nothing with it. The counts do not sum to
+    /// the watermark when a child was returned out of order: its pages leave `Children` and stay
+    /// spent, which is the hole [`return_to_parent`](Self::return_to_parent) describes.
+    #[must_use]
+    pub fn spent(&self, name: u64, on: PageUse) -> Option<u64> {
+        self.table.get(name).map(|r| match on {
+            PageUse::Frames => r.spent.frames,
+            PageUse::Object(kind) => r.spent.objects[kind as usize],
+            PageUse::Children => r.spent.children,
+        })
     }
 
     /// This region's physical span as `(base_page, pages)`, or `None` for a dead name. Object
@@ -402,6 +474,7 @@ impl<const N: usize> RegionTable<N> {
             p.watermark -= unbump;
         }
         p.children = p.children.saturating_sub(1);
+        p.spent.children = p.spent.children.saturating_sub(claim.pages);
     }
 }
 
@@ -426,7 +499,7 @@ mod tests {
     fn a_pinned_region_refuses_and_stays_alive() {
         let mut t = RegionTable::<4>::new();
         let r = t.insert_root(0x100, 8).unwrap();
-        assert_eq!(t.retype_object_page(r), Some(0x100));
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), Some(0x100));
         assert!(t.claim_for_destroy(r).is_none(), "an object pins it");
         assert_eq!(t.bounds(r), Some((0x100, 8)), "a refusal must not remove");
         t.unpin(r);
@@ -455,6 +528,33 @@ mod tests {
             "the last return closes the hole"
         );
         assert!(t.claim_for_destroy(root).is_some());
+    }
+
+    #[test]
+    fn spending_is_counted_by_use_and_a_hole_shows_as_the_difference() {
+        let mut t = RegionTable::<4>::new();
+        let root = t.insert_root(0, 16).unwrap();
+        t.retype_page(root).unwrap();
+        t.retype_object_page(root, ObjectKind::Thread).unwrap();
+        t.retype_object_page(root, ObjectKind::Thread).unwrap();
+        t.retype_object_page(root, ObjectKind::AddressSpace).unwrap();
+        t.unpin(root);
+        let a = t.split(root, 4).unwrap();
+        let _b = t.split(root, 2).unwrap();
+        let used = |on| t.spent(root, on).unwrap();
+        assert_eq!(used(PageUse::Frames), 1);
+        assert_eq!(used(PageUse::Object(ObjectKind::Thread)), 2);
+        assert_eq!(used(PageUse::Object(ObjectKind::AddressSpace)), 1);
+        assert_eq!(used(PageUse::Object(ObjectKind::Rendezvous)), 0);
+        assert_eq!(used(PageUse::Children), 6);
+        assert_eq!(t.usage(root), Some((10, 16)), "every page is one of the above");
+
+        // `a` is below `_b`, so its return leaves a hole: out of `Children`, still spent.
+        let ca = t.claim_for_destroy(a).unwrap();
+        t.return_to_parent(&ca);
+        assert_eq!(t.spent(root, PageUse::Children), Some(2));
+        assert_eq!(t.usage(root), Some((10, 16)));
+        assert_eq!(t.spent(a, PageUse::Frames), None, "a dead name answers nothing");
     }
 
     #[test]
@@ -502,7 +602,7 @@ mod tests {
         let mut t = RegionTable::<4>::new();
         let r = t.insert_root(0, 1).unwrap();
         assert_eq!(t.retype_page(r), Some(0));
-        assert_eq!(t.retype_object_page(r), None);
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), None);
         assert!(
             t.claim_for_destroy(r).is_some(),
             "a failed object retype must not leave the region pinned"
@@ -540,12 +640,12 @@ mod tests {
     fn the_object_retype_walks_the_region_one_page_at_a_time() {
         let mut t = RegionTable::<4>::new();
         let r = t.insert_root(0x40, 3).unwrap();
-        assert_eq!(t.retype_object_page(r), Some(0x40));
-        assert_eq!(t.retype_object_page(r), Some(0x41));
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), Some(0x40));
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), Some(0x41));
         assert_eq!(t.usage(r), Some((2, 3)));
         // And it shares one budget with the plain retype rather than keeping its own.
         assert_eq!(t.retype_page(r), Some(0x42));
-        assert_eq!(t.retype_object_page(r), None, "exhausted, not an error");
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), None, "exhausted, not an error");
     }
 
     #[test]
@@ -563,7 +663,7 @@ mod tests {
         let claim = t.claim_for_destroy(r).unwrap();
         assert!(claim.is_root());
         assert_eq!(t.retype_page(r), None);
-        assert_eq!(t.retype_object_page(r), None);
+        assert_eq!(t.retype_object_page(r, ObjectKind::Rendezvous), None);
         assert_eq!(t.split(r, 1), None);
         assert!(!t.has_children(r));
         assert_eq!(t.usage(r), None);
