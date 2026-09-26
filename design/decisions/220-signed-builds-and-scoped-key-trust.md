@@ -36,10 +36,9 @@ D2's capability with a key pair bolted on.
   Everything else a child holds comes from the caller's line. §219 already gives an unvouched child
   the clock and configuration pages. So a key's scope, today, is a subset of three things: the
   process domain, entropy and the network.
-- "Vendor the crypto" is stale. The 2026-07-31 amendment to §46 (thin primitives or whole
-  subsystems) made crypto "an ordinary dependency", pinned in `Cargo.lock` and not vendored, so
-  advisories reach it. `CLAUDE.md` rule 6 still says vendor, and should be corrected by whoever
-  holds that file.
+- "Vendor the crypto" is stale, and this section's brief repeated it. The 2026-07-31 amendment to
+  §46 (thin primitives or whole subsystems) made crypto "an ordinary dependency", pinned in
+  `Cargo.lock` and not vendored, so advisories reach it. `CLAUDE.md` rule 6 still says vendor.
 - §170 (how a foreign program is told what to do) has no "confirm at the prompt" step for unvouched
   programs. Its only prompt output is a typed refusal. The nearest rule is in `notes/installing.md`:
   a confirmation is asked by the service that grants, never by the program asking for the grant.
