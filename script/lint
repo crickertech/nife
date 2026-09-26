@@ -1417,12 +1417,16 @@ QEMUEOF
 # visible, and where a human is already deciding something; that is the shape calef chose on
 # 2026-09-21 over a general staleness check, which would fail branches that caused nothing.
 #
-# **Auto-re-saving on a bump is refused, and this is the place somebody would reach for it.** A
-# workflow that re-recorded the floors as part of raising the pin would make them track the compiler
-# by construction, so a nightly that genuinely made this kernel slower would never be visible, and
-# most of what the tripwire exists for is exactly that. The re-save stays a human act in the bump's
-# own commit, with the numbers in front of them. `script/toolchain-bump` says the same thing at the
-# moment it raises the pin.
+# **Auto-re-saving on a bump is refused; restamping a floor proven unmoved is not** (calef,
+# 2026-09-26, overturning part of his 2026-09-21 refusal; milestone 598 (a nightly bump restamps the
+# floors it proves it did not move)). A workflow that re-recorded the floors as part of raising the
+# pin would make them track the compiler by construction, so a nightly that genuinely made this
+# kernel slower would never be visible, and most of what the tripwire exists for is exactly that. So
+# a floor NUMBER still moves only by a person's `--save --why`. What the bump workflow may do is
+# `cargo xtask bench --restamp`: build the tree under the stamped nightly and the pin on one runner,
+# and when every row moved under 0.5% and under 2% since the last save, rewrite this line and add a
+# `# why:` line with the measurement. This check therefore reads `# toolchain:` as "the nightly these
+# numbers were last proven valid for", which is weaker than "produced by" and is the ruling.
 #
 # **The one exemption, and it is a foot gun.** `script/toolchain-bump` sets
 # `NIFE_BUMP_IN_PROGRESS=1` around its own gate run, because it has just raised the pin and has not
@@ -1475,8 +1479,10 @@ if bad:
     print(f"""
 A compiler bump changes the instruction sequences these floors count, so the
 numbers are revalued by a change no commit in this branch is responsible for.
-Re-record them HERE, in the commit that raises the pin, so the delta is seen by
-the person causing it:
+The bump workflow's restamp job carries a floor across when it proves the
+compiler moved no row by 0.5% or more (its table is in the pull request body).
+Every floor named above is one it could not carry. Re-record it HERE, in the
+branch that raises the pin, so the delta is seen by the person causing it:
 
     script/bench --save --why "nightly-<date>: <what the new compiler moved>"
     script/bench --riscv --save --why "..."
