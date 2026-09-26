@@ -87,11 +87,28 @@ pub(crate) fn bench() -> bool {
         None => "bench".to_string(),
     };
 
+    // **`--restamp`: carry the floor across a nightly bump without re-saving it** (milestone 598 (a
+    // nightly bump restamps the floors it proves it did not move), calef 2026-09-26). It runs this
+    // leg twice, under the stamped nightly and under the pin, and never writes a number; see
+    // `restamp.rs`. It is its own mode rather than a modifier, so it refuses the others.
+    if std::env::args().any(|a| a == "--restamp") {
+        if real || check || save {
+            eprintln!("bench: --restamp is a mode of its own; drop --check, --save and --real");
+            return false;
+        }
+        return crate::restamp::restamp(|| leg(false, false, false, &features));
+    }
+    leg(real, check, save, &features)
+}
+
+/// One bench pass on the architecture the command line names: build, boot, read the rows, and
+/// check or save them if asked. Split out of `bench` so `--restamp` can run it twice.
+fn leg(real: bool, check: bool, save: bool, features: &str) -> bool {
     // The second architecture. RISC-V has its own path (its own kernel target, runner, and initrd,
     // no disk, no HVF); everything else -- the icount instrument, the parsing, the table, the
     // baseline gate -- is shared through run_bench. See bench_riscv.
     if std::env::args().any(|a| a == "--riscv") {
-        return bench_riscv(check, save, &features);
+        return bench_riscv(check, save, features);
     }
 
     // The third architecture (milestone 161; DECISIONS §121's amendment, the TSS I/O-bitmap
@@ -107,7 +124,7 @@ pub(crate) fn bench() -> bool {
     // 2026-08-24 section already used, and the `real`+`check`/`save` refusal above already
     // covers `--x86 --real --check`.
     if std::env::args().any(|a| a == "--x86") {
-        return bench_x86(real, check, save, &features);
+        return bench_x86(real, check, save, features);
     }
 
     // `--smp`: boot the full 4-hart machine under HVF so the multi-hart throughput bench
@@ -130,7 +147,7 @@ pub(crate) fn bench() -> bool {
             "-p",
             "kernel",
             "--features",
-            &features,
+            features,
             "--target",
             TARGET,
         ])
@@ -348,6 +365,17 @@ fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     )
 }
 
+/// The rows of the most recent `run_bench` in this process, for `--restamp`, which runs a leg
+/// twice and compares. A static rather than a return value because the three legs return a pass or
+/// fail and `--check` and `--save` consume the rows inside `run_bench`; threading them out through
+/// every leg would change four signatures to serve one caller.
+static LAST_RUN: std::sync::Mutex<Vec<(String, u64, u64)>> = std::sync::Mutex::new(Vec::new());
+
+/// Take the rows the last bench pass reported, leaving none behind.
+pub(crate) fn take_last_run() -> Vec<(String, u64, u64)> {
+    std::mem::take(&mut *LAST_RUN.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
 /// The `--why <reason>` values of this invocation, in the order they were given.
 ///
 /// Repeatable, unlike `flag_value`, because one save often covers several moves with different
@@ -383,7 +411,7 @@ fn save_reasons() -> Vec<String> {
 /// because AGENTS.md says every date in this tree is UTC, and the machines writing most of them do
 /// not all agree with the architect's clock. `unrecorded` when `date(1)` cannot be asked, which is
 /// the same honest answer the `# qemu:` line already gives.
-fn today_utc() -> String {
+pub(crate) fn today_utc() -> String {
     Command::new("date")
         .args(["-u", "+%Y-%m-%d"])
         .output()
@@ -443,7 +471,7 @@ fn baseline_header(
 /// A three-line parse rather than a TOML dependency: §46 (thin primitives or whole subsystems) is the
 /// rule, and one `channel = "..."` line does not justify one. `None` when the file has no channel
 /// line at all, which the caller turns into `unrecorded` rather than a guess.
-fn pinned_nightly() -> Option<String> {
+pub(crate) fn pinned_nightly() -> Option<String> {
     let text = std::fs::read_to_string(workspace_root().join("rust-toolchain.toml")).ok()?;
     text.lines()
         .find(|l| l.trim_start().starts_with("channel"))
@@ -580,6 +608,8 @@ fn run_bench(
         eprintln!("(TCG+icount: ticks are deterministic; ns are fiction. --real for magnitudes.)");
     }
 
+    *LAST_RUN.lock().unwrap_or_else(|e| e.into_inner()) = results.clone();
+
     if save {
         // The header names the file it is in. It used to be the literal `bench/baseline.txt` for
         // both baselines, so the riscv one claimed to be the aarch64 one; deriving it from the path
@@ -595,7 +625,10 @@ fn run_bench(
         // cost was live: `nightly-2026-09-15` was pinned without re-recording, the tripwire's
         // headroom eroded for reasons no change was responsible for, and the tree was bumped again
         // before anyone acted. `script/lint`'s baseline-toolchain check compares this line against
-        // `rust-toolchain.toml`, so the two cannot disagree silently.
+        // `rust-toolchain.toml`, so the two cannot disagree silently. Written here, it is the
+        // nightly that produced the counts; `--restamp` may later move it to a nightly it proved
+        // produces the same counts within bounds (calef, 2026-09-26), so a reader of the file takes
+        // it as "last proven valid for" and the `# why:` lines say which.
         //
         // Read from the PIN rather than from the compiler that happens to be running: the pin is
         // what CI and every other machine build with, and a `RUSTUP_TOOLCHAIN` override in one

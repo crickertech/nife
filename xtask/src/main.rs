@@ -44,6 +44,7 @@ mod install;
 mod manual;
 mod measure;
 mod package;
+mod restamp;
 mod rollback;
 mod scanout;
 mod screen;
