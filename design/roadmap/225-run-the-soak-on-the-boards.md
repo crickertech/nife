@@ -23,15 +23,18 @@ is untested, not disproved, and this milestone is the experiment that would test
 
 Everything needed to run it now exists, and none of it existed on 2026-09-01:
 
-- A workload that lasts (milestone 219), with a heartbeat on the wall clock so a crawling machine
+- A workload that lasts (milestone 219 (the boot tour ends and the kernel halts, so there is nothing
+  to soak)), with a heartbeat on the wall clock so a crawling machine
   still reports on time.
-- A hook that makes it cross cores (milestone 221), on the real `irq_notify` to `wake_load_aware`
+- A hook that makes it cross cores (milestone 221 (the soak never crosses cores, so build the hook
+  that makes it)), on the real `irq_notify` to `wake_load_aware`
   path. That path was once read as where a radon defect lived; the reading is retracted (the fifth
   bench stop in `notes/visionfive2.md`, 2026-08-15), so it is the path worth stressing, not the site
   of a known defect.
-- A console that watches and judges (milestone 216), with a sustained mode and a stage that
+- A console that watches and judges (milestone 216 (nothing in this tree can read a board)), with a sustained mode and a stage that
   re-arms the quiet check a completed boot tour suppresses.
-- A boot that needs nobody typing (milestone 218), unconfirmed on the board itself.
+- A boot that needs nobody typing (milestone 218 (every boot of the VisionFive 2 needs a human
+  typing four commands into U-Boot)), unconfirmed on the board itself.
 
 ## What it needs
 
