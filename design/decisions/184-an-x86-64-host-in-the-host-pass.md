@@ -27,6 +27,17 @@ So **no host test pass has ever run on x86_64**, which is the claim, and **the x
 is already in use** for a different job, so the "we would be introducing a new runner" objection
 does not apply.
 
+*(Dated note, 2026-09-26, decisions-hygiene lane.)* The runner economics this section prices were
+reversed on 2026-09-24. Milestone 587 (most CI jobs do not need an arm64 host), on calef's ruling
+that day, moved fifteen jobs to `ubuntu-24.04` (commit `0695ab7d8`) because the arm64 pool was where
+every run waited: in same-run pairs the x86_64 job waited less, often by an order of magnitude. So
+option 1's cost, "one runner slot per pull request, competing with group builds", is now a slot in
+the less contended pool. And one host pass already runs on x86_64 as a side effect: the `coverage`
+job moved with the rest, and `script/coverage` runs `cargo llvm-cov --workspace`, the workspace's host
+tests, on every pull request that is not documentation only. `build + test` stays on arm64, so the
+full host pass (`script/test`'s) still has not run on x86_64 in CI. Whether coverage's leg is enough
+to close the class is the question this note leaves to calef, and it narrows options 1 and 2.
+
 ## What is not covered
 
 Every machine that has ever run this suite is aarch64: the development machine is Apple Silicon and
