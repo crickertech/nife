@@ -1,7 +1,7 @@
-# toolchain: nightly-2026-09-25
+# toolchain: nightly-2026-09-26
 # qemu: 11.1.1
 # date: 2026-09-26
-# why: nightly-2026-09-25: measured on main at 508333ebe against the 2026-09-24 floors, every row within 1.8% (largest ipc_rtt +0.22%, ipc_rtt_el0 -0.21%); this mixes the compiler with drift on main since the last save, not separated
+# why: nightly-2026-09-26: measured on the bump branch (main at 50d32760a plus the pin) against the nightly-2026-09-25 floors, every row within 0.1% (largest map_el0 +0.06%, null_syscall +0.06%); this mixes the compiler with drift on main since the last save, not separated
 # bench/baseline-aarch64.txt: deterministic icount tick counts (cargo xtask bench --save).
 # Recorded against the QEMU pinned in .qemu-version. icount counts guest instructions, so the
 # emulator version is part of what these numbers mean: script/qemu-check warns when the QEMU on
@@ -18,9 +18,9 @@ broker_rtt 2112776 1000
 spawn_reap 216813 64
 map_new 15365 64
 coremark 20913774 256
-null_syscall 410003 20000
-ctx_switch 3055009 5000
-ipc_rtt_el0 10989356 5000
-sink_throughput 4486215 80000
-map_el0 390574 500
+null_syscall 410248 20000
+ctx_switch 3053788 5000
+ipc_rtt_el0 10994714 5000
+sink_throughput 4486920 80000
+map_el0 390819 500
 spawn_el0 1372505 100
