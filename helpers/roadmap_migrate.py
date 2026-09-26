@@ -41,6 +41,9 @@ nothing from the clock except the raise date of a block no commit has seen yet.
 **What happens to the prose.** The status token leaves its paragraph; a date inside it that equals
 `built` goes with it, and anything else it held stays as an ordinary sentence. The gate token
 leaves its paragraph and the reason after it stays. The `**Built:**` line leaves `## Index row`.
+That rewrite is `helpers/roadmap_block.py`'s `without_fields`, the same one `helpers/prose_ratchet.py`
+measures a prose-form block through and `script/citations --ratchet` compares a changed line
+against, so a migrated block measures what it measured before and cites nothing new.
 
 BUGS
 
@@ -147,10 +150,6 @@ RAISE_WORDS = re.compile(r"\b(?:minted|raised|filed|written|proposed)\b"
 STATUS_HEAD = re.compile(r"\A\*\*Status: ([A-Z-]+)(.*?)\*\*[ \t]*", re.S)
 GATE_HEAD = re.compile(r"\A\*\*Gate: ([A-Z0-9§, ]+)\.\*\*[ \t]*")
 BRANCH = re.compile(r"`([a-z][a-z0-9]*(?:/[A-Za-z0-9._-]+)+)`")
-PHRASE = {"BUILT": "Built", "PARTIAL": "Partial as of", "REMOVED": "Removed", "REFUSED": "Refused",
-          "SUPERSEDED": "Superseded", "RECORDED": "Recorded", "OPTIONAL": "Optional",
-          "NOT-STARTED": "Not started", "IN-PROGRESS": "In progress", "PROPOSED": "Proposed"}
-
 
 def utc(epoch):
     return datetime.datetime.fromtimestamp(int(epoch), datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -223,83 +222,6 @@ def first_in_old_files(root, wanted):
     return found
 
 
-# ---- glosses on the lines this rewrites ---------------------------------------------------------
-# `script/citations --ratchet` asks every added line's citations to say what they cite, and a line
-# this program rewrites reads as added. Milestone 582's lane met the same rule and wrote 106 glosses
-# by hand. Here they are written from the record's own title, which is the tier the checker grounds
-# first: the words before the title's first colon or parenthesis are a subset of its words by
-# construction, so the gloss is grounded and short, and only the lines this program changed get one.
-ANY_CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)([a-z]?)(?![0-9a-z])")
-
-
-STOPWORDS = {"a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "is", "it", "its",
-             "of", "on", "or", "that", "the", "to", "what", "when", "which", "who", "with"}
-
-
-def titles(root):
-    """{('§', n) or ('m', n): the words a gloss takes from that record's title}."""
-    out = {}
-    for sub, scheme in (("design/roadmap", "m"), ("design/decisions", "§")):
-        for f in os.listdir(os.path.join(root, sub)):
-            m = re.fullmatch(r"(\d+[a-z]?)-[a-z0-9-]*\.md", f)
-            if not m:
-                continue
-            body = roadmap_block.body(open(os.path.join(root, sub, f)).read())
-            h = re.match(r"# \d+[a-z]?\. (.*)", body[0] if body else "")
-            if not h:
-                continue
-            short = re.split(r":\s|\s\(", h.group(1), maxsplit=1)[0].strip().rstrip(".")
-            if short[:1].isupper() and not short[1:2].isupper():
-                short = short[0].lower() + short[1:]
-            # At most seven words, ending on one that carries meaning: a gloss lengthens the
-            # sentence it sits in, and `helpers/prose_ratchet.py` measures sentences.
-            words = short.split()
-            if len(words) > 7:
-                words = words[:7]
-                while words and words[-1].lower().strip(",;") in STOPWORDS:
-                    words.pop()
-                short = " ".join(words).rstrip(",;")
-            out[(scheme, m.group(1))] = short
-    return out
-
-
-def glossed(text, scheme, n):
-    """Whether a citation of this record already carries a parenthetical the checker counts. A date
-    in parentheses is not a gloss to it, so it is not one here either."""
-    word = r"§" if scheme == "§" else r"(?<![a-zA-Z])[Mm]ilestone "
-    for m in re.finditer(word + n + r"(?![0-9a-z])(?:\*\*|__|\*|_|`)?,?"
-                         r"(?:[^\S\n]+|[^\S\n]*\n[^\S\n]*)\(([^)\n]*)", text):
-        if not re.match(r"[a-z ]*\d{4}-\d{2}-\d{2}", m.group(1)):
-            return True
-    return False
-
-
-def gloss_rewritten(old, new, names):
-    """`new` with a title gloss on the first unglossed citation of each record, on changed lines."""
-    before = set(old.split("\n"))
-    lines = new.split("\n")
-    start = lines.index("---", 1) + 1 if lines[:1] == ["---"] else 0
-    for i in range(start, len(lines)):
-        if lines[i] in before:
-            continue
-        pos = 0
-        while True:
-            m = ANY_CITE.search(lines[i], pos)
-            if not m:
-                break
-            scheme = "§" if m.group(1) == "§" else "m"
-            n = m.group(2) + m.group(3)
-            # A lettered milestone with no file of its own (16a) is described by its parent's.
-            name = names.get((scheme, n)) or names.get((scheme, m.group(2)))
-            if name and not glossed("\n".join(lines), scheme, n) and "(" not in name \
-                    and ")" not in name:
-                lines[i] = lines[i][:m.end()] + f" ({name})" + lines[i][m.end():]
-                pos = m.end() + len(name) + 3
-            else:
-                pos = m.end()
-    return "\n".join(lines)
-
-
 # ---- one block ---------------------------------------------------------------------------------
 def paragraphs(lines, start):
     """[(first, last)] line spans of the non-blank runs from `start`."""
@@ -316,25 +238,6 @@ def paragraphs(lines, start):
     return spans
 
 
-def status_prose(token, inside, after, built):
-    """What is left of the status paragraph once its token is a field."""
-    inside = inside.strip()
-    inside_bare = inside.strip(" .")
-    droppable = not inside_bare or (inside_bare == built)
-    lead = PHRASE[token] + ("" if not inside_bare else
-                            (inside.rstrip(".") if inside[0] in ",;" else " " + inside.rstrip(".")))
-    ended = inside.endswith(".")
-    if after and (after[0] in "(,;:" or (not ended and (after[0].isdigit() or after[0].islower()))
-                  or (not inside_bare and (after[0].isdigit() or after[0].islower()))):
-        # The prose continues the token's sentence ("2026-09-15, by milestone 166 (one boot
-        # loader)"), so the token's word stays as the sentence's subject.
-        joiner = "" if after[0] in ",;:" else " "
-        return lead + joiner + after
-    if droppable:
-        return after
-    return lead + ". " + after if after else lead + "."
-
-
 def migrate(text, num, raised_git, pre_split_date, today, ever=None):
     """(new text, None) or (None, reason it cannot be migrated). `num` is None for a proposal."""
     lines = text.split("\n")
@@ -349,7 +252,6 @@ def migrate(text, num, raised_git, pre_split_date, today, ever=None):
     if not sm:
         return None, "no '**Status:' at the head of the paragraph under the title"
     token, inside = sm.group(1), sm.group(2)
-    after = para[sm.end():].lstrip()
     status_line = " ".join(l.strip() for l in lines[s0:s1 + 1])
     f = {}
 
@@ -426,43 +328,10 @@ def migrate(text, num, raised_git, pre_split_date, today, ever=None):
         f["needs_person"] = person
 
     # ---- the body -----------------------------------------------------------------------------
-    body = list(lines)
-    drop = set()
-    if gate_span:
-        g0, g1, gm = gate_span
-        rest = body[g0][gm.end():]
-        if rest.strip():
-            body[g0] = rest
-        else:
-            body[g0] = ""
-            drop.add(g0)
-    new_status = status_prose(token, inside, after, built) if num is not None else after
-    new_status_lines = new_status.split("\n") if new_status.strip() else []
-    if "## Index row" in body:
-        i = body.index("## Index row")
-        j = i + 1
-        while j < len(body) and not body[j].strip():
-            j += 1
-        if j < len(body) and roadmap_block.PROSE_BUILT.fullmatch(body[j]):
-            drop.add(j)
-            if j + 1 < len(body) and not body[j + 1].strip():
-                drop.add(j + 1)
-    out = []
-    i = 0
-    while i < len(body):
-        if i == s0:
-            out.extend(new_status_lines)
-            i = s1 + 1
-            if not new_status_lines:
-                while i < len(body) and not body[i].strip():
-                    i += 1
-            continue
-        if i in drop:
-            i += 1
-            continue
-        out.append(body[i])
-        i += 1
-    # A paragraph emptied by the gate leaves two blank lines; one is a paragraph break.
+    # The same rewrite `helpers/prose_ratchet.py` reads a prose-form block through, so a migrated
+    # block measures what it measured before, and a line that only lost its token is not new prose.
+    out = roadmap_block.without_fields(text).split("\n")
+    # A paragraph emptied of its token leaves two blank lines; one is a paragraph break.
     tidy = []
     for l in out:
         if not l.strip() and tidy and not tidy[-1].strip():
@@ -500,7 +369,6 @@ def main():
         if m and "/proposals/" not in rel and origin.get(rel, (0, ""))[1] in PRE_SPLIT:
             wanted[int(m.group(1))] = rel
     old = first_in_old_files(root, set(wanted)) if wanted else {}
-    names = titles(root)
     changed, refused, doubtful = 0, [], []
     for rel, text in todo:
         is_prop = "/proposals/" in rel
@@ -523,7 +391,6 @@ def main():
         if new is None:
             refused.append(f"{rel}: {why}")
             continue
-        new = gloss_rewritten(text, new, names)
         if new != text:
             changed += 1
             if not dry:
