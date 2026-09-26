@@ -14,6 +14,10 @@ vouched. DECISIONS §219 (how the shell names an installed program to the spawne
 unvouched bytes takes a capability (gate D2). A session that can write the table holds that
 capability without being given it.
 
+D2 is built (2026-09-26, [packages/running-unvouched.md](packages/running-unvouched.md)), and the
+boot prompt is given it by one call in `crates/system_initializer`, marked provisional. That line
+is option A below, taken for now so the gate could be proven at the prompt. Option B deletes it.
+
 The question: **what stops a session writing `activation/`**, when the progenitor must still write it?
 
 ## Is the premise true? Checked, and it is narrower than it was recorded
@@ -101,7 +105,7 @@ effort.
 ## What I need from you
 
 1. Is the boot prompt the owner's root console, allowed to vouch its own bytes? If yes, take A:
-   one `BUGS` line beside §219's D2, nothing built. If no, go to 2.
+   the provisional grant becomes the rule, nothing else built. If no, go to 2, and the grant goes.
 2. B or C? B can be built by a lane with no kernel change. C needs a decision on how the server
    learns which endpoint a request came on.
 

@@ -44,7 +44,9 @@ test = false
 bench = false
 
 # The unreachable network witness (milestone 590, provisional): declares no network, tries to use
-# one anyway, and prints the kernel's refusal. The negative control for the echo client.
+# one anyway, and prints the kernel's refusal. The negative control for the echo client. Since
+# milestone 198 rung 3a it also probes entropy and the process domain and lists every slot it
+# holds, because stripped it is `installed/unvouched`, milestone 202 (every confinement test is a ritual until somebody breaks the confinement)'s unvouched-child fixture.
 [[bin]]
 name = "unreachable_network_witness"
 path = "src/unreachable_network_witness.rs"
@@ -445,3 +447,7 @@ current_cpu_protocol = { version = "0.1.0", path = "../crates/current_cpu_protoc
 network_time_protocol = { version = "0.1.0", path = "../crates/network_time_protocol" }
 socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
 clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }
+# `unreachable_network_witness`'s entropy probe (milestone 202's unvouched-child claim, DECISIONS
+# §219 (how the shell names an installed program to the spawner) gate D2): a real `GET`, so a child wrongly handed the service gets an answer rather than a
+# request the service would not recognise. Already in the shipping graph through `components`.
+entropy_protocol = { version = "0.1.0", path = "../crates/entropy_protocol" }

@@ -177,6 +177,7 @@ name = "components"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "activation_set",
  "bitmap_font",
  "block_roster",
  "boot_ladder",
@@ -395,6 +396,7 @@ dependencies = [
  "credential_protocol",
  "current_cpu_protocol",
  "elf",
+ "entropy_protocol",
  "filesystem_protocol",
  "grant_plan",
  "graphics_protocol",

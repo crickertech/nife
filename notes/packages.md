@@ -42,7 +42,7 @@ repeating here because a reader comparing this against `.hpkg` will ask about th
 - **Member bytes are 8-byte aligned.** The largest member is an ELF, and the cheapest way to be
   wrong later is to hand a parser an odd address.
 
-**The encoding is provisional and the crate's name is provisional.** §197 ruled the container, not
+The encoding is provisional and the crate's name is provisional. §197 ruled the container, not
 these offsets. Its manifest question was ruled 2026-09-26: an ELF note inside the executable, not
 a member. Whether the digest is a Merkle root is still open; this takes the plain SHA-256 §197
 records as the default. §197 says the day somebody outside this repository fetches a package
@@ -73,26 +73,26 @@ with it; nobody had fetched one.
 
 Three things in that run are the mechanism rather than decoration.
 
-**It reads its own output back with the target's parser before writing anything to disk.** A
+It reads its own output back with the target's parser before writing anything to disk. A
 producer that could emit a file its consumer refuses would ship one, and the gate that would catch
 it does not exist yet on the target side.
 
-**A recipe's recorded digest is checked before anything is written.** A rebuild that does not
+A recipe's recorded digest is checked before anything is written. A rebuild that does not
 reproduce the reviewed line is exactly the failure §195's arrangement exists to make visible, so the
 tool prints both digests and writes nothing. That ordering costs a rebuild to discover and is worth
 it: a package nothing accepts, sitting on disk beside a catalogue entry vouching for it, would be
 the tool disagreeing with itself.
 
-**The catalogue line is `measured_boot`'s manifest shape**, a name, a space, 64 hex characters,
+The catalogue line is `measured_boot`'s manifest shape, a name, a space, 64 hex characters,
 which is what the progenitor already reads to decide whether a program may run. §195 makes the
 image's measurement table the first source of trust, so a package's entry looking like an entry in
 that table is the point.
 
-**The bytes are a function of the inputs alone**: no timestamp, no ordering pass, no non-zero
+The bytes are a function of the inputs alone: no timestamp, no ordering pass, no non-zero
 padding. A reviewed digest is worth nothing if two hosts building the same recipe disagree, and
 `the_same_inputs_give_the_same_bytes` is the host test that says so.
 
-`packages/uptime.recipe` deliberately records **no** digest, and the comment in it says why: the
+`packages/uptime.recipe` deliberately records no digest, and the comment in it says why: the
 program it names is rebuilt by this checkout whenever anything it links changes, so a recorded
 digest would be a number that fails for the next reader. A recorded number that is wrong is worse
 than an absent one. The line goes in when there is a release to pin it to, which is rung 4.
@@ -154,7 +154,7 @@ The progenitor reads and writes it on the target (below).
 ## Running what was installed, by its bytes
 
 DECISIONS §219 (how the shell names an installed program to the spawner) was ruled on 2026-09-26:
-option D, the executable's bytes as frames the caller owns, with gate D2. It is built.
+option D, the executable's bytes as frames the caller owns, with gate D2. Both are built.
 
 A command word with a `/` in it is a file. The shell binds the line against
 `grant_plan::INSTALLED_MANIFEST_OF`, which is `uptime`'s manifest and the ceiling every installed
@@ -166,8 +166,9 @@ The progenitor maps each frame through the loader's never-reused scratch window,
 page of its own, and deletes the capability before taking the next. It copies because the caller
 keeps a mapping of its frames and could change them between a hash and a build. It hashes the copy,
 reads `activation/current` and then that generation through the file service it already held, and
-looks the digest up (`activation_set::lookup_digest`). A hit is built from the copy. A miss gets
-`SPAWN_UNVOUCHED`, whose sentence names the missing capability: D2, which no session holds yet.
+looks the digest up (`activation_set::lookup_digest`). A hit is built from the copy. A miss runs
+only for a session presenting D2's capability, with its grants and two pages; otherwise it gets
+`SPAWN_UNVOUCHED`. D2 is [packages/running-unvouched.md](packages/running-unvouched.md).
 
 The digest is the member's, not the package's: the spawner is handed the executable, and the
 package's table of contents already carries each member's digest. The recipe's digest over the whole file (§195 (a reviewed recipe vouches for a package))
@@ -186,7 +187,10 @@ $ package install downloads/uptime.nifepkg
 $ packages/uptime/0.1.0/uptime
   up 00:00:06
 $ installed/unvouched
-    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
+  network: refused (no capability at slot 10)
+  entropy: refused (no capability at slot 9)
+  domain: refused (no capability at slot 7)
+  slots held: 0 1 2
 ```
 
 And on the next boot, from the same disk:
@@ -196,8 +200,11 @@ $ packages/uptime/0.1.0/uptime
   up 00:00:01
 $ package remove uptime
   removed; generation 2 is live
-$ packages/uptime/0.1.0/uptime
-    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
+$ caps packages/uptime/0.1.0/uptime
+  packages/uptime/0.1.0/uptime would grant the new process, and nothing else:
+    ...
+    provenance: unvouched (digest ...)
+    runs on this session's capability to run unvouched bytes (slot 22)
 $ package rollback
   rolled back; generation 1 is live
 $ packages/uptime/0.1.0/uptime
@@ -249,18 +256,14 @@ packs, is what the gate fetches: [packages/fetching.md](packages/fetching.md).
 ## Where this stops
 
 Rung 3a's exit criterion (fetched, verified, installed, run, kept across a reboot, rolled back,
-removed) is met. Who may write `activation/` is an architect's call:
-[who-may-write-the-activation-set.md](who-may-write-the-activation-set.md). After that, §219's gate D2
-lets a miss run with only what the caller delegated, and milestone 202 (every confinement test is a
-ritual until somebody breaks the confinement)'s unvouched-child probe becomes testable;
-`installed/unvouched` is already its fixture.
+removed) is met, and so is §219's gate D2. Who may write `activation/` is an architect's call:
+[who-may-write-the-activation-set.md](who-may-write-the-activation-set.md).
 
 ## BUGS
 
 - The boot prompt can write the activation set. It holds the file service's root endpoint, the
   same one the progenitor writes through, and the server cannot tell them apart. So that session can
-  vouch its own bytes, which is running unvouched code without §219's D2. Harmless while every
-  installed program is endowed as `uptime` is. A session `login` builds is confined to its own
+  vouch its own bytes. Harmless while every installed program is endowed as `uptime` is. A session `login` builds is confined to its own
   subtree and cannot reach `activation/`. Closing it for the boot prompt is a fork:
   [who-may-write-the-activation-set.md](who-may-write-the-activation-set.md).
 - Whoever holds the spawn endpoint (only the boot prompt) may install what the catalogue

@@ -1122,6 +1122,41 @@ pub const NETWORK_SLOT: u64 = 10;
 /// Name: provisional (2026-09-26); `design/naming.md` is the rule and calef's the call.
 pub const INSTALLED_MANIFEST_OF: Prog = Prog::Uptime;
 
+/// **What the progenitor endows a child whose bytes nobody vouched for**, when the caller presented
+/// the run-unvouched capability (DECISIONS §219 gate D2, ruled by calef 2026-09-26: *"Yes, allow
+/// the clock and config pages."*).
+///
+/// The ruling in one value. Of the five authorities the progenitor endows from a manifest rather
+/// than from the line (`clock`, `domain`, `config`, `entropy`, `network`), an unvouched child gets
+/// the two read-only pages and none of the rest: never the process domain, the network, entropy or
+/// the file service. Everything else it holds is what the caller delegated, which today is the
+/// output alone, because the shell binds an image line against [`INSTALLED_MANIFEST_OF`] before it
+/// knows the verdict (`spawnproto`'s BUGS).
+///
+/// Where the two pages land, for a native child: slot 0 the output, slot 1 the clock page (mapped
+/// read-only at the address `date` reads), slot 2 the configuration page (at the address
+/// `printenv` reads). The bytes' own declaration is not consulted; a program asking for more finds
+/// the slot empty.
+///
+/// Name: provisional (milestone 198 rung 3a, 2026-09-26).
+pub const UNVOUCHED_MANIFEST: Manifest = Manifest {
+    arg: ArgSpec::Forbidden,
+    mem: MemSpec::Forbidden,
+    file: FileSpec::Forbidden,
+    dir: DirSpec::Forbidden,
+    flags: NO_FLAGS,
+    output: OutputSpec::Bytes,
+    input: InputSpec::Forbidden,
+    reports: true,
+    interruptible: false,
+    clock: true,
+    domain: false,
+    config: true,
+    entropy: false,
+    network: false,
+    runtime: Runtime::Native,
+};
+
 /// A program's expectation about the integer argument (`least_authority_demo 9`'s `9`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ArgSpec {
@@ -3114,6 +3149,33 @@ mod tests {
     use expand::{Expander, MAX_NAMES};
 
     use super::*;
+
+    /// **The unvouched manifest is §219's ruling and nothing wider** (gate D2, calef 2026-09-26).
+    /// The two read-only pages are allowed; the process domain, entropy and the network are not;
+    /// nothing a line could designate is accepted either, because the shell binds an image line
+    /// against [`INSTALLED_MANIFEST_OF`] and the progenitor must not endow more than it bound.
+    #[test]
+    fn the_unvouched_manifest_allows_the_two_pages_and_nothing_of_the_progenitors() {
+        let m = UNVOUCHED_MANIFEST;
+        assert!(m.clock && m.config, "the ruling allows both pages");
+        assert!(!m.domain, "never the process domain");
+        assert!(!m.entropy, "never entropy");
+        assert!(!m.network, "never the network");
+        let bound = INSTALLED_MANIFEST_OF.manifest();
+        assert_eq!(
+            (m.arg, m.mem, m.file, m.dir, m.input, m.output, m.runtime),
+            (
+                bound.arg,
+                bound.mem,
+                bound.file,
+                bound.dir,
+                bound.input,
+                bound.output,
+                bound.runtime
+            ),
+            "an unvouched child is endowed exactly what the shell bound the line against",
+        );
+    }
 
     /// Plan a line with **nothing expanded**, which is every line that has no pattern on it. The two
     /// shims shadow the real functions so the tests below read as they did before the globbing lane,
