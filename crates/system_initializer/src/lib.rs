@@ -62,12 +62,16 @@
 //!         disp_term_page: 13,
 //!         kbd_ep: 14,
 //!         // The network card (milestone 590 (the booted system starts its network stack)): empty
-//! on a boot with no virtio-net
-//!         // device, which is every real board today. Numbered here past this example's own
-//!         // graphical trio; the real table is `components/src/progenitor.rs`'s.
+//!         // on a boot with no virtio-net device, which is every real board today. Numbered here
+//!         // past this example's own graphical trio; the real table is
+//!         // `components/src/progenitor.rs`'s.
 //!         virtio_net: 15,
 //!         virtio_net_irq: 16,
 //!         virtio_net_dma: 17,
+//!         // An entropy service the kernel built on the CPU's seed instruction (milestone 595
+//!         // (provisional)): empty whenever the virtio-rng trio is granted, and on a CPU with no
+//!         // such instruction, which is every riscv64 part.
+//!         entropy_ep: 18,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; the progenitor deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -476,6 +480,22 @@ pub struct BootEndowment {
     /// The network card's DMA page, with its own physical base written at its last eight bytes;
     /// [`virtio_rng_dma`](BootEndowment::virtio_rng_dma)'s shape and reason. `READ | WRITE | GRANT`.
     pub virtio_net_dma: u64,
+    /// **An entropy service the kernel already built on the CPU's own seed instruction**
+    /// (`RDSEED` on `x86_64`, `RNDRRS` on aarch64), when this boot has no virtio-rng (milestone 595
+    /// (provisional), the `x86_64` half; promoted from the proposal
+    /// `the-x86-64-progenitor-serves-entropy-from-rdseed`). The request endpoint, `WRITE | GRANT`,
+    /// which is what [`boot`] would otherwise have made itself from the
+    /// [`virtio_rng`](BootEndowment::virtio_rng) trio, already proven: the kernel waited for the
+    /// service's readiness report and grants nothing on a refusal
+    /// (`kernel::user::boot_instruction_entropy`, which also says why the kernel builds this one).
+    ///
+    /// **Never both.** The kernel grants this only when it granted no virtio-rng, so a boot has
+    /// one entropy source or none. **Absent** on every riscv64 boot (neither instruction exists
+    /// there), on a CPU without the instruction, and on any QEMU run with `NIFE_RNG` set; [`boot`]
+    /// probes it the way it probes [`fs_ep`](BootEndowment::fs_ep).
+    ///
+    /// Name: provisional, lane `milestone/595-x86-std`, 2026-09-26. `fs_ep`'s shape, one service over.
+    pub entropy_ep: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
     ///
@@ -1026,6 +1046,10 @@ pub fn boot(
     // every byte it writes to that terminal as well. So `kbd_ep` is what tells the two apart.
     let has_graphical = is_granted(g.disp_term_ep) && is_granted(g.kbd_ep);
     let has_screen = !has_graphical && is_granted(g.disp_term_ep);
+    // **Read before anything below retypes**, and the position is the mechanism: every object this
+    // function makes lands in the first free slot, so once one has, "slot 16 holds something" no
+    // longer means the kernel put it there. See [`BootEndowment::entropy_ep`].
+    let kernel_built_entropy = is_granted(g.entropy_ep);
     if has_graphical {
         cap_delete(g.uart_dev);
         cap_delete(g.uart_irq);
@@ -1170,6 +1194,17 @@ pub fn boot(
                 cap_delete(g.virtio_rng_dma);
             }
         }
+    }
+    // **Or the service the kernel built on the CPU's seed instruction** (milestone 595
+    // (provisional)), which arrives already proven: the kernel waited for its readiness report and
+    // grants nothing on a refusal ([`BootEndowment::entropy_ep`]). One slot rather than the trio's
+    // three, granted only when the trio was not, so this block's peak argument above still holds.
+    // Nothing is built here, so nothing is spent here either.
+    let mut entropy_from_instruction = false;
+    if entropy_client.is_none() && kernel_built_entropy {
+        entropy_ready = true;
+        entropy_from_instruction = true;
+        entropy_client = Some(g.entropy_ep);
     }
 
     // **The network stack** (milestone 590 (provisional), the booted system starts its network
@@ -2079,7 +2114,11 @@ pub fn boot(
     if entropy_ready {
         announce(
             term_ep,
-            b"progenitor: entropy service up; drew real bytes from a virtio-rng device\n",
+            if entropy_from_instruction {
+                &b"progenitor: entropy service up; the kernel built it on the CPU's seed instruction\n"[..]
+            } else {
+                &b"progenitor: entropy service up; drew real bytes from a virtio-rng device\n"[..]
+            },
         );
     }
     // **The network stack's outcome** (milestone 590 (provisional)), said here for

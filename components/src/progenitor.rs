@@ -82,6 +82,11 @@ const GRANTS: BootEndowment = BootEndowment {
     virtio_net: 13,
     virtio_net_irq: 14,
     virtio_net_dma: 15,
+    // An entropy service the kernel built on the CPU's seed instruction (milestone 595
+    // (provisional)), granted only on a boot with no virtio-rng, so a boot has one of slot 7's trio
+    // or this, never both. Past the network card's floor (slot 15) for the reason every group above
+    // gives.
+    entropy_ep: 16,
     // Nothing. Since milestone 166 the boot loader is not shared with milestone 19d's test roles on
     // any architecture, so the kernel grants exactly what the interactive system uses. aarch64 once
     // carried a report endpoint (slot 1) and the 19d.2b test interrupt (slot 3) here.

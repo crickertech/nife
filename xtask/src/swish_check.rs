@@ -741,28 +741,13 @@ fn swish_check_omits(arch: &str, line: &str) -> Option<&'static str> {
              NIC, so it installs it from the disk instead",
         );
     }
-    // `uuid` draws from the entropy service, and the progenitor builds that service only from a
-    // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
-    // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
-    // `virtio-rng-pci` on x86_64 yet (DECISIONS §120's stopgap is QEMU-only on every architecture;
-    // x86_64's real source is `rdrand`/`rdseed`, not wired to the service). So these four lines
-    // would test the absence of a device, and the two "empty second stream" checks would fail on
-    // it. `caps uuid` stays: it is a preview of the manifest and needs no device.
+    // The four `uuid` lines and `std_exerciser` used to be here, for want of an entropy service at
+    // the x86_64 prompt: the progenitor built one only from a virtio-rng, and `q35` has no mmio bus
+    // to find one on. Milestone 595 (provisional) gave the progenitor the kernel's service on
+    // `RDSEED` instead (`kernel::user::boot_instruction_entropy`), so they run.
     match line {
-        "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
-            "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
-             found on virtio-mmio only, and q35 has none)",
-        ),
-        // `std_exerciser` asserts that two draws from `std::random::SystemRng` differ, and a
-        // `std` program with an empty entropy slot panics there rather than inventing bytes. The
-        // line would test the same missing device the four `uuid` lines above cannot, and fail as
-        // a fault. `caps std_exerciser` stays: it is a preview and needs no device.
-        "std_exerciser" => Some(
-            "x86_64 has no entropy service at the prompt (the `uuid` lines' reason), and \
-             std_exerciser's transcript asserts two draws from it",
-        ),
-        // The same shape one device over (milestone 590 (provisional)): the kernel grants the
-        // progenitor a NIC only from a virtio-mmio slot, and the x86_64 runner attaches no
+        // The kernel grants the progenitor a NIC only from a virtio-mmio slot, and the x86_64
+        // runner attaches no
         // `-netdev` at all until milestone 494 (a driver for the network card a PC actually has).
         // The preview and the witness stay: neither needs a device, and the witness's refusal is
         // the same on a boot with no stack as on one that has a stack and did not endow it.
@@ -1111,9 +1096,11 @@ fn boot_claim_complaint(
 ///   progenitor for ten seconds and then prints two lines, so the transcript does not end in `$ `
 ///   until something is typed. The leg waits for that report and then presses Enter once, so the
 ///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
-/// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
-///   mmio bus, so the progenitor builds no entropy service. [`swish_check_omits`] names the
-///   lines that need one.
+/// - **No virtio-rng, so `RDSEED`.** Every entropy device the kernel can find is virtio-mmio and
+///   `q35` has no mmio bus, so the kernel builds the progenitor's entropy service on the CPU's seed
+///   instruction instead (milestone 595 (provisional)), which the runner's `-cpu max` implements.
+///   The leg asserts the progenitor said so, because a boot that silently fell back to no entropy
+///   would otherwise surface only as the `uuid` lines failing.
 fn swish_check_leg(arch: &str) -> bool {
     swish_check_boot(arch, &SWISH_CHECK_SCRIPT, true)
         && swish_check_boot(arch, &SWISH_CHECK_AFTER_REBOOT, false)
@@ -1138,7 +1125,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
     // it first: a missing image there means the build broke, and skipping would hide exactly that.
     let std_built = crate::farm::std_exerciser_elf(&format!("{arch}-unknown-nife")).exists();
     // Said once per leg, on the first boot: the second boot types no `std` line.
-    if fresh && !std_built && !x86 {
+    if fresh && !std_built {
         if std::env::var_os("CI").is_some() {
             eprintln!(
                 "swish-check ({arch}): no std_exerciser was built for this architecture, and in CI \
@@ -1394,6 +1381,24 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         ) {
             failed.push(complaint);
         }
+        // **And the progenitor has an entropy service, from the source this leg's machine has**
+        // (milestone 595 (provisional)). The `uuid` and `std_exerciser` lines below would fail
+        // without one, but as a refused draw several lines on, which says nothing about why. This
+        // names the source: a virtio-rng on the two `virt` machines, the CPU's `RDSEED` on `q35`,
+        // where the kernel builds the service and the progenitor is granted it. The negative is
+        // the kernel's own refusal, which both of its no-entropy sentences end with.
+        if let Some(complaint) = boot_claim_complaint(
+            &after_hand_over(&transcript_now(&seen)),
+            "its entropy source",
+            if x86 {
+                "entropy service up; the kernel built it on the CPU's seed instruction"
+            } else {
+                "entropy service up; drew real bytes from a virtio-rng device"
+            },
+            "nothing at the prompt can draw random bytes",
+        ) {
+            failed.push(complaint);
+        }
         // **x86_64: let the kernel finish its hand-over report first**, then press Enter for a
         // fresh prompt (this function's doc says why). The report is the boot thread's last
         // output, so after it the shell is the UART's only writer until something faults.
@@ -1646,22 +1651,21 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         return true;
     }
     if failed.is_empty() {
-        // The six lines x86_64 omits are six jobs (two `uuid`s, the two `wc`s reading what they
-        // wrote, and milestone 590's two `network_echo_client` runs); see
-        // [`swish_check_omits`]. Milestone 590 added three jobs on the other two legs (the two
-        // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness). Milestone
-        // 198 rung 3a added two on each (the installed `uptime` and `greeting` runs); the first of
-        // those landed without this count, and this corrects it. A refused image is not a job. The
-        // two supervised lines (`interrupt_heeder`, `interrupt_ignorer`) are not counted either: a
+        // The lines x86_64 omits are milestone 590's two `network_echo_client` runs and the two
+        // `package install` fetches, which need its missing NIC; see [`swish_check_omits`].
+        // Milestone 590 added three jobs on the other two legs (the two echo runs and
+        // `unreachable_network_witness`) and one on x86_64 (the witness). Milestone 198 rung 3a
+        // added two on each (the installed `uptime` and `greeting` runs); the first of those landed
+        // without this count, and this corrects it. A refused image is not a job. The two
+        // supervised lines (`interrupt_heeder`, `interrupt_ignorer`) are not counted either: a
         // supervised job is built from the shell's own untyped, not from the progenitor's pool.
-        // Milestone 595 (provisional) added one on the other two legs, `std_exerciser`, when it
-        // was built; x86_64 omits it with the `uuid` lines.
-        let jobs = if x86 {
-            "twenty"
-        } else if std_built {
-            "twenty-seven"
-        } else {
-            "twenty-six"
+        // Milestone 595 (provisional) added `std_exerciser` on every leg when it was built, and on
+        // x86_64 gave back the four `uuid`-and-`wc` jobs it had omitted for want of entropy.
+        let jobs = match (x86, std_built) {
+            (true, true) => "twenty-five",
+            (true, false) => "twenty-four",
+            (false, true) => "twenty-seven",
+            (false, false) => "twenty-six",
         };
         if x86 {
             let omitted: Vec<&str> = script
@@ -1678,7 +1682,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
                 omitted,
             );
         }
-        let std_ran = if std_built && !x86 {
+        let std_ran = if std_built {
             ", one of them a `std` program built in the layout nife's `std` reads"
         } else {
             ""
