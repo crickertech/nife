@@ -29,6 +29,14 @@ A `Dir` asks for `dir::ALL`, and when a narrowed grant refuses, it discovers wha
 asking for one right at a time. Six extra messages, at most once per `Dir::open`, and one message in
 the common case. Correct, bounded, honest, and a workaround.
 
+*(Dated note, 2026-09-26, decisions-hygiene lane.)* "Six" was the size of `dir::ALL` on 2026-08-18.
+Milestone 47 (navigation and naming: `cd`, `pwd`, `ls`, `mkdir`, `rm`) added a seventh right,
+`dir::SETTIME`, on 2026-08-24 (`dir::ALL == 127`), and the probe kept naming six, so a `Dir` under a
+narrowed grant never learned whether it held `SETTIME`. No `Dir` operation asks for that right, so
+nothing observed it. The probe now walks the bits of `dir::ALL`
+(`patches/std-nife/overlay/std/src/sys/fs/nife.rs`, `Dir::held_rights`) and costs seven messages
+today. Every "six" below means one per right, and the question this section asks is unchanged.
+
 ## What was considered, and why each lost
 
 - **Ask for a fixed useful mask.** Every fixed mask has a grant it breaks under. See `readdir` above:
