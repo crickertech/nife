@@ -1171,8 +1171,9 @@ impl File {
 /// "attenuate to whatever you have"** and no verb that reports a handle's rights. The common case
 /// costs one message: ask for `dir::ALL`, and a full-rights grant answers with the handle. A
 /// narrowed grant answers `EPERM`, and then [`Dir::held_rights`] finds out exactly what is there by
-/// asking for one right at a time, six messages, once per `Dir::open` at the first hop only, since
-/// every hop after that descends from a parent whose rights are now known.
+/// asking for one right at a time, one message per bit of `dir::ALL` (seven today), once per
+/// `Dir::open` at the first hop only, since every hop after that descends from a parent whose
+/// rights are now known.
 ///
 /// That probe is a workaround and is recorded as one: the fix is a sentinel in `OPENDIR`'s rights
 /// word meaning "the parent's, whatever they are", which is a contract change and therefore not a
@@ -1187,7 +1188,7 @@ pub struct Dir {
 
 impl Dir {
     /// The rights of the granted directory: not a mask, a statement that we have not been told.
-    /// `u64::MAX` cannot be confused with a real one, since `dir::ALL` is six bits.
+    /// `u64::MAX` cannot be confused with a real one, since `dir::ALL` is seven bits.
     const UNKNOWN: u64 = u64::MAX;
 
     /// The granted directory itself, which costs no message: it is what the endpoint is bound to
@@ -1215,11 +1216,11 @@ impl Dir {
         }
     }
 
-    /// Which of the six rights this directory carries, found by asking for one at a time.
+    /// Which of the rights in `dir::ALL` this directory carries, found by asking for one at a time.
     ///
     /// Each `OPENDIR` here succeeds exactly when the parent holds that one right, because the
-    /// server's test is `parent & requested == requested`. Six messages and six closes, and the
-    /// handles are released as they are minted rather than held, so this never approaches the
+    /// server's test is `parent & requested == requested`. One message and one close per bit, and
+    /// the handles are released as they are minted rather than held, so this never approaches the
     /// contract's per-session handle budget.
     ///
     /// A parent that cannot be descended at all answers `ENOENT` rather than `EPERM` (§47 withholds
@@ -1227,14 +1228,15 @@ impl Dir {
     /// propagates out of the first probe as an ordinary `NotFound`.
     fn held_rights(&self, p: &mut Page, name: &str) -> io::Result<u64> {
         let mut held = 0;
-        for right in [
-            fsproto::dir::ENUMERATE,
-            fsproto::dir::READ,
-            fsproto::dir::WRITE,
-            fsproto::dir::CREATE,
-            fsproto::dir::REMOVE,
-            fsproto::dir::DESCEND,
-        ] {
+        // Every bit of `dir::ALL`, lowest first, rather than a list of names. The list this
+        // replaced named six rights and `ALL` had carried a seventh (`SETTIME`, milestone 47)
+        // since 2026-08-24, so a `Dir` under a narrowed grant silently dropped it. Harmless so far,
+        // because no `Dir` operation asks for `SETTIME`; walking the mask is what keeps the next
+        // right from being missed the same way when one does.
+        let mut rest = fsproto::dir::ALL;
+        while rest != 0 {
+            let right = rest & rest.wrapping_neg();
+            rest &= !right;
             match descend(p, &self.at, name, right) {
                 // Dropping the `At` closes it: this was a question, not a capability we wanted.
                 Ok(_) => held |= right,
@@ -1272,11 +1274,11 @@ impl Dir {
     /// was bumped past `nightly-2026-08-26`). Unix answers this with `O_PATH`/`O_SEARCH`: a
     /// handle that can be descended through but not necessarily enumerated.
     ///
-    /// **This contract has no such right to ask for.** [`fsproto::dir`] has six bits
-    /// (`ENUMERATE`, `READ`, `WRITE`, `CREATE`, `REMOVE`, `DESCEND`) and [`Dir`]'s own header
-    /// explains why every open here asks for all of them anyway: a held directory is an object,
-    /// not a verb, and there is no wire sentinel meaning "the least you'll let me have". So the
-    /// honest answer is [`Dir::open`] itself, which already asks for everything the parent
+    /// **This contract has no such right to ask for.** [`fsproto::dir`] has seven bits
+    /// (`ENUMERATE`, `READ`, `WRITE`, `CREATE`, `REMOVE`, `DESCEND`, `SETTIME`) and [`Dir`]'s own
+    /// header explains why every open here asks for all of them anyway: a held directory is an
+    /// object, not a verb, and there is no wire sentinel meaning "the least you'll let me have". So
+    /// the honest answer is [`Dir::open`] itself, which already asks for everything the parent
     /// carries, a superset of "enough to traverse".
     pub fn open_for_traversal(path: &Path) -> io::Result<Dir> {
         let mut opts = OpenOptions::new();
