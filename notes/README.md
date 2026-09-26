@@ -153,10 +153,11 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 ## Storage
 
 - [The RedoxFS filesystem server](fs-server.md): RedoxFS confined behind a capability-shaped file contract.
+- [A frame per filesystem client channel](a-frame-per-filesystem-client-channel.md): a window per file client, by badge.
 - [RedoxFS std-footprint audit](redoxfs-audit.md): costing the RedoxFS port to no_std by building it.
-- [The directory capability](dir-capability.md): a directory split into separable, attenuable rights.
+- [The directory capability](dir-capability.md): separable, attenuable directory rights.
 - [Removal needs a directory](rm.md): why `rm` gets a directory and `-r` widens it.
-- [`touch`: create if absent](touch.md): create-if-absent and mtime setting, with separate rights.
+- [`touch`: create if absent](touch.md): mtime setting, with separate rights.
 - [Extended attributes](xattr.md): named byte strings on files, kept above RedoxFS.
 - [Reading the backup from a MacBook or a Linux host](host-recovery.md).
 - [The GUID Partition Table](globally-unique-identifier-partition-table.md): reading, writing and validating GPT, host-tested and proved.
@@ -164,21 +165,21 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 
 ## Verification and security
 
-- [Machine-checked proofs (Kani)](verification.md): how the Kani proofs work, and what they prove.
+- [Machine-checked proofs (Kani)](verification.md): how the Kani proofs work and what they prove.
 - [Proving things about `kernel/src`](kernel-proofs.md): proving kernel code, and the stub boundary. Name provisional.
 - [Proving things about `user/`](user-proofs.md): proving the EL0 programs, and what it found. Name provisional.
 - [Verus, and whether it reaches the code Kani stops at](verus.md). Name provisional.
 - [Did the proofs catch the bugs?](proof-retrospective.md). Name provisional.
 - [Falsification records](falsification.md): recording that each proof harness can fail.
-- [Fuzzing the parse surface](fuzzing.md): coverage-guided fuzzing of the parsers that read outside bytes.
+- [Fuzzing the parse surface](fuzzing.md): coverage-guided fuzzing of parsers that read outside bytes.
 - [Dynamic undefined-behavior checking (Miri)](undefined-behavior.md): Miri over the host crates, and what "clean" means.
-- [Interleavings, model-checked (loom)](interleaving.md): loom over the hand-rolled concurrency protocols, and its finds.
-- [Mutation testing](mutation-testing.md): the cargo-mutants triage rule, the current census, and per-crate triage in 17 appendices.
+- [Interleavings, model-checked (loom)](interleaving.md): loom over the hand-rolled concurrency protocols.
+- [Mutation testing](mutation-testing.md): the cargo-mutants triage rule and census, with 17 per-crate appendices.
 - [The mutation census record](mutation-census.md): per-crate mutation scores for every census, comparable. Names provisional.
 - [Where an unsafe obligation is written, and where it is only implied](unsafe-obligations.md).
 - [What nife claims a confined component cannot do](confinement-claims.md).
 - [A security audit](security.md): the first adversarial review of the whole kernel.
-- [Auditing the shared pages](shared-page-audit.md): the second security audit, reading for double fetches.
+- [Auditing the shared pages](shared-page-audit.md): the second security audit, for double fetches.
 - [Auditing untrusted counterparty input](untrusted-input-audit.md): network and device input read as hostile.
 - [What each system makes you trust, measured](trusted-base.md).
 - [The incremental path to a safer kernel, and why nife is not on it](incremental-path.md). Name provisional.
