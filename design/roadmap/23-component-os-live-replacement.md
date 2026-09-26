@@ -125,11 +125,11 @@ warning is a `CALL`. notes/non-cooperative-fallback.md.
   since a permanently blocked thread never reaches the scheduler to spend the kill a destroy arms.
   A hang can also cost two unreclaimable regions, the component's and its stranded caller's.
   Checked 2026-09-26.
-- **Proposed.** `design/roadmap/proposals/warn-a-dependent-without-blocking.md`, PROPOSED 2026-09-26.
-  The fallback for a dependent that will not answer is not "the same open question one level out":
-  measured above, it needs only a warning that never blocks. Recommended: signal a notification
-  bound to the dependent plus a read-only state page, after milestone 151 (notification objects:
-  async multiplexing without wait-any). Until then a hung `broker` hangs `swapper`, recorded at the
+- **Proposed.** `design/roadmap/proposals/warn-a-dependent-without-blocking.md`, **ruled 2026-09-26
+  by calef: "Make the warning advisory."** The fallback for a dependent that will not answer is not
+  "the same open question one level out": measured above, it needs only a warning that never
+  blocks. To build: signal a notification bound to the dependent plus a read-only state page, once
+  milestone 151 (notification objects: async multiplexing without wait-any) lands (#1351). Until then a hung `broker` hangs `swapper`, recorded at the
   `CALL` in `swapper.rs` and in notes/non-cooperative-fallback.md.
 - **Outstanding.** `line_editor`, `display_terminal` and `compositor` are not swapped. The 2026-09-03
   line that stood here was half right: all three run under the kernel test harness, but milestone
@@ -139,9 +139,12 @@ warning is a `CALL`. notes/non-cooperative-fallback.md.
   clients) and gets nothing until some boot runs it. notes/interactive-stack-swap.md, checked
   2026-09-26.
 - **Proposed.** `design/roadmap/proposals/swap-line-editor-live-under-system-initializer.md`,
-  PROPOSED 2026-09-26, behind two terminal-contract forks for an architect: an additive quiesce
-  opcode, and what a reader parked in `OP_READLINE` is told when a swap begins (recommended: a new
-  "ask again" flag).
+  ruled 2026-09-26 by calef ("1a and 2b"): an additive `OP_QUIESCE`, and a `FLAG_RETRY` reply that
+  a parked `OP_READLINE` or `OP_READRAW` reader answers by asking again. Order: handoff page count,
+  the `line_editor` declaration after #1338, the opcode and flag in every reader, then the swap.
+- **Proposed.** `design/roadmap/proposals/a-region-retypes-a-frame-run.md`, PROPOSED 2026-09-26. The
+  handoff page count needs a supervisor to mint a multi-page frame, and only the kernel can today.
+  An argument to `MemoryRegion::RETYPE`, so an architect's call.
 - **Proposed.** `design/roadmap/proposals/build-the-graphical-terminal-stack-in-userspace.md`,
   PROPOSED 2026-09-26. `MAP_INTO` already maps a frame run, so the eleven-slot reason the kernel
   builds `display_terminal` looks expired; whether the gpu's DMA pages are one run is the question.
