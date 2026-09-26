@@ -584,7 +584,7 @@ impl<'a> DeviceTreeBlob<'a> {
     /// the parent's slot, which is already filled when the child closes because the DTB format
     /// puts every property of a node before its first subnode.
     ///
-    /// Name provisional (milestone 592): calef names public functions.
+    /// Name: provisional (milestone 592), 2026-09-25. calef names public functions.
     pub fn parent_prop_compatible(
         &self,
         compat: &[u8],

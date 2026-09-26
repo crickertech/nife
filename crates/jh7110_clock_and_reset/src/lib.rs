@@ -725,7 +725,7 @@ pub fn discover(
 /// fail: a tree that names no controller gets [`SYS_BASE`] with `from_tree: false`. The caller is
 /// held to [`discover`]'s rule: an answer here is not evidence that the machine is a JH7110.
 ///
-/// Name provisional (milestone 592): calef names public functions.
+/// Name: provisional (milestone 592), 2026-09-25. calef names public functions.
 ///
 /// # Errors
 ///
