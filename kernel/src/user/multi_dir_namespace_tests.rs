@@ -24,8 +24,12 @@ fn two_dir_witness() -> Option<u64> {
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::TwoDirGrant {
-            a: (filesystem_protocol::fixture::tree::SUB, dir::READ),
-            b: (filesystem_protocol::fixture::tree::OTHER, dir::READ),
+            // The same rights the two-tree shell below asks for, so both tests share one pair of
+            // caretakers (`start_granted_two_dirs` reuses a pair asked for twice). The extra
+            // rights do not widen what this witness proves: it opens by name, and the claim is
+            // that each endpoint reaches only its own subtree.
+            a: (filesystem_protocol::fixture::tree::SUB, TWO_TREE_RIGHTS),
+            b: (filesystem_protocol::fixture::tree::OTHER, TWO_TREE_RIGHTS),
             role: 10, // ROLE_TWO_DIR
             arg: 0,
             stack_pages: 0,
@@ -79,6 +83,10 @@ fn a_process_holding_two_directory_capabilities_reaches_both_and_crosses_neither
     );
 }
 
+/// The rights both tests in this module grant on both trees: what the two-tree shell needs to
+/// list (`ENUMERATE`), walk (`DESCEND`) and read (`READ`), and nothing that writes.
+const TWO_TREE_RIGHTS: u64 = dir::ENUMERATE | dir::READ | dir::DESCEND;
+
 /// The `swish` binary's two-tree role (`components/src/swish.rs`'s `ROLE_TWO_TREES`).
 const ROLE_TWO_TREES: u64 = 6;
 
@@ -89,7 +97,7 @@ const ROLE_TWO_TREES: u64 = 6;
 /// nothing, so it can run against an image other tests have already written to and leave it as it
 /// found it.
 fn two_tree_shell() -> Option<u64> {
-    let rights = dir::ENUMERATE | dir::READ | dir::DESCEND;
+    let rights = TWO_TREE_RIGHTS;
     let report = fs_service::start_granted_two_dirs(
         blk_server_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
