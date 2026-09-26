@@ -37,7 +37,7 @@ That is the installer's own reason.
 
 Were both equally possible, the program would be the better shape. It would keep a parser of
 network input out of the progenitor. As built, `http_response`'s head reader runs there before any
-digest is checked: a fixed 2 KiB buffer, host-tested and not fuzzed. `package_archive::Package::parse`
+digest is checked: a fixed 2 KiB buffer, host-tested and fuzzed but not proved. `package_archive::Package::parse`
 already ran there on unvouched bytes, so this is the second such parser. The choice is reversible:
 once milestone 205 lands, a program can take the fetch and the progenitor keeps the install.
 

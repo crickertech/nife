@@ -56,6 +56,13 @@
 //!   `Content-Length` cannot serve a package to nife.
 //! - **Header values other than the two it reads are not validated.** They are skipped, not
 //!   interpreted, so a malformed `Date` costs nothing; a malformed line (no colon) is refused.
+//! - **Fuzzed, not proved.** `fuzz/fuzz_targets/http_response_feed.rs` checks that how the reads
+//!   fall never changes the answer (46 million inputs in fifteen minutes on 2026-09-25, no crash).
+//!   A Kani harness over two symbolic 22-byte reads was still in the solver after twenty minutes,
+//!   and one over a single 36-byte read had not finished unwinding after five: the `contains` and
+//!   per-byte `ends_with` scans unroll badly. That is a CI shard's minutes for a bound far below
+//!   the 2 KiB head the fuzzer reaches, so the treatment `crates/elf` carries is not proportionate
+//!   here yet.
 //!
 //! Name: provisional 2026-09-24 (milestone 198's rung 3a consumer lane). `http` alone would claim
 //! more than a request writer and a response reader; `design/naming.md` is the rule and calef's the

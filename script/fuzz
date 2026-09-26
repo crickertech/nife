@@ -34,7 +34,7 @@ cd "$(dirname "$0")/.."
 
 # Every target, in the order they cost us the most if they are wrong: the device tree is parsed before
 # anything else exists, and the ELF loader maps what it parses.
-targets="device_tree_blob_walk elf_parse globally_unique_identifier_partition_table nifefs_roundtrip package_archive_roundtrip"
+targets="device_tree_blob_walk elf_parse globally_unique_identifier_partition_table http_response_feed nifefs_roundtrip package_archive_roundtrip"
 
 usage() {
     cat <<'EOF'
@@ -55,6 +55,7 @@ while [ $# -gt 0 ]; do
             echo "device_tree_blob_walk  device tree, parsed at boot from firmware bytes"
             echo "elf_parse            ELF64 headers, and the loader maps what it parses"
             echo "globally_unique_identifier_partition_table  GUID partition table, off a disk somebody else formatted"
+            echo "http_response_feed  a package fetch's HTTP head, off the network and before the digest check"
             echo "nifefs_roundtrip  the archive writer and reader agree (a property, not a panic)"
             echo "package_archive_roundtrip  a package reads back what was written, and verifies"
             exit 0
