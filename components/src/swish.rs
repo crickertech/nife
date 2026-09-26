@@ -1600,6 +1600,7 @@ fn dispatch_one(nav: &mut Nav, cmd: &[u8]) {
         // `each(name, is_dir)` callback is the wrong shape for it; what it shares with the
         // navigation builtins is the argument for being a builtin at all.
         Command::Apropos(term) => say(apropos(nav, term)),
+        Command::Package(tail) => package(nav, tail),
         Command::Run(spec) => run(nav, cmd, spec),
         // Handled above, by the one implementation the witness also runs.
         Command::Cd(_)
@@ -1735,46 +1736,16 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
     let Some(dir) = nav.dir else {
         return say(Say::NoDirectory);
     };
-
-    // Open the file the path names, the way `<` would: walk the lead, open the last component.
-    let (p, _) = match nav.plan_path(spec.prog) {
-        Ok(planned) => planned,
-        Err(said) => return say(said),
-    };
-    let Some((lead, name)) = p.split_last_component() else {
-        refused();
-        print(b"  that path ends in a directory, not a file\n");
+    let Some((handle, size)) = open_for_bytes(nav, dir, spec.prog) else {
         return;
     };
-    let w = match nav.walk_steps(p.is_from_root(), lead) {
-        Ok(w) => w,
-        Err(said) => return say(said),
-    };
-    let opened = nav.name_call(fs::OPEN, w.handle, name, 0);
-    nav.unwind(&w);
-    if opened < 0 {
-        return say(Say::Failed(-opened as i32));
-    }
-    let handle = opened as u64;
-    let size = call(dir, fs::req(fs::FSTAT, handle, 0), 0).0 as i64;
-    let pages = spawnproto::image_pages(size.max(0) as u64);
-    if size <= 0 || pages > spawnproto::IMAGE_MAX_PAGES {
-        nav.close(handle);
-        refused();
-        print(b"  that file is empty, or larger than an image may be (256 KiB)\n");
-        return;
-    }
+    let pages = spawnproto::image_pages(size);
 
     // The primer first (once), then any `--mem` region, then the staging region, so staging is
     // the top of the budget when it is destroyed. See [`IMAGE_PRIMER_VA`].
-    if !IMAGE_PRIMED.load(core::sync::atomic::Ordering::Relaxed) {
-        if user_mode_runtime::map_region_page(BUDGET, IMAGE_PRIMER_VA) < 0 {
-            nav.close(handle);
-            failed();
-            print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
-            return;
-        }
-        IMAGE_PRIMED.store(true, core::sync::atomic::Ordering::Relaxed);
+    if !prime_image_window() {
+        nav.close(handle);
+        return out_of_budget();
     }
     let mem_slot = if e.mem_pages > 0 {
         memory_region_split(e.mem_pages)
@@ -1786,13 +1757,11 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
         if let Some(m) = mem_slot {
             cap_delete(m);
         }
-        failed();
-        print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
-        return;
+        return out_of_budget();
     };
 
     let (w0, w1, w2) = spawnproto::request(
-        size as u64,
+        size,
         e.arg,
         if mem_slot.is_some() { e.mem_pages } else { 0 },
         spawnproto::Wiring {
@@ -1801,40 +1770,7 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
         },
     );
     send(SPAWN, w0, w1, w2);
-
-    // **Every announced frame is sent, whatever goes wrong filling it**, because the progenitor
-    // is now waiting for exactly `pages` of them and the grants behind them. A frame that could
-    // not be filled goes out as it is, its digest misses, and the refusal says so; `read_ok`
-    // keeps the reason honest when it was this shell's read that failed rather than the table.
-    let mut read_ok = true;
-    for i in 0..pages {
-        let va = IMAGE_VA + i * PAGE;
-        let Ok(frame) = u64::try_from(user_mode_runtime::retype_page_frame(staging)) else {
-            // A staging region sized to `pages` cannot run out before the last page, and this
-            // loop holds one frame at a time, so this is a full capability table or a kernel
-            // contradicting the budget. There is then no frame to send, and the progenitor will
-            // wait for it: the prompt hangs. Recorded rather than papered over; see
-            // `spawnproto`'s BUGS.
-            read_ok = false;
-            break;
-        };
-        if map_page_frame(frame, va) {
-            // SAFETY: `va` was just mapped read/write, one page.
-            let window = unsafe { MappedWindow::new(va, PAGE) };
-            let n = call(dir, fs::req(fs::READ, handle, PAGE), i * PAGE).0 as i64;
-            if n < 0 {
-                read_ok = false;
-            } else {
-                for at in 0..n as u64 {
-                    window.w8(at, FS_WINDOW.r8(at));
-                }
-            }
-        } else {
-            read_ok = false;
-        }
-        user_mode_runtime::send_cap(SPAWN, frame, abi::rights::READ, i);
-        cap_delete(frame);
-    }
+    let read_ok = send_frames(dir, handle, pages, staging);
     nav.close(handle);
     if let Some(slot) = mem_slot {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
@@ -1854,6 +1790,173 @@ fn run_image(nav: &mut Nav, spec: RunSpec) {
     // revokes every mapping of them, ours and the progenitor's, and returns the pages.
     user_mode_runtime::destroy_region(staging);
     cap_delete(staging);
+}
+
+fn out_of_budget() {
+    failed();
+    print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
+}
+
+/// **Open the file `path` names, for its bytes**, the way `<` would: walk the lead, open the last
+/// component. Returns the handle and the size, or prints why not and returns `None`. A file that
+/// is empty or larger than [`spawnproto::IMAGE_MAX_PAGES`] is refused here, before anything is
+/// sent, because both a §219 image and a package travel as that many frames at most.
+fn open_for_bytes(nav: &mut Nav, dir: u64, path: &[u8]) -> Option<(u64, u64)> {
+    let (p, _) = match nav.plan_path(path) {
+        Ok(planned) => planned,
+        Err(said) => {
+            say(said);
+            return None;
+        }
+    };
+    let Some((lead, name)) = p.split_last_component() else {
+        refused();
+        print(b"  that path ends in a directory, not a file\n");
+        return None;
+    };
+    let w = match nav.walk_steps(p.is_from_root(), lead) {
+        Ok(w) => w,
+        Err(said) => {
+            say(said);
+            return None;
+        }
+    };
+    let opened = nav.name_call(fs::OPEN, w.handle, name, 0);
+    nav.unwind(&w);
+    if opened < 0 {
+        say(Say::Failed(-opened as i32));
+        return None;
+    }
+    let handle = opened as u64;
+    let size = call(dir, fs::req(fs::FSTAT, handle, 0), 0).0 as i64;
+    if size <= 0 || spawnproto::image_pages(size as u64) > spawnproto::IMAGE_MAX_PAGES {
+        nav.close(handle);
+        refused();
+        print(b"  that file is empty, or larger than an image may be (256 KiB)\n");
+        return None;
+    }
+    Some((handle, size as u64))
+}
+
+/// Map [`IMAGE_PRIMER_VA`] once per shell, so the window's page tables exist before any staging
+/// region does. `false` if the budget could not pay for it.
+fn prime_image_window() -> bool {
+    if !IMAGE_PRIMED.load(core::sync::atomic::Ordering::Relaxed) {
+        if user_mode_runtime::map_region_page(BUDGET, IMAGE_PRIMER_VA) < 0 {
+            return false;
+        }
+        IMAGE_PRIMED.store(true, core::sync::atomic::Ordering::Relaxed);
+    }
+    true
+}
+
+/// **Send a file's bytes on the spawn endpoint as `pages` frames**, after a request that announced
+/// them (DECISIONS §219 option D's image, or a `package install`). One frame is held at a time:
+/// retyped from `staging`, filled from the file, delegated narrowed to `READ`, deleted. Returns
+/// whether every page was read; `false` still sends every announced frame, because the progenitor
+/// is waiting for exactly that many and the messages behind them.
+fn send_frames(dir: u64, handle: u64, pages: u64, staging: u64) -> bool {
+    let mut read_ok = true;
+    for i in 0..pages {
+        let va = IMAGE_VA + i * PAGE;
+        let Ok(frame) = u64::try_from(user_mode_runtime::retype_page_frame(staging)) else {
+            // A staging region sized to `pages` cannot run out before the last page, and this
+            // loop holds one frame at a time, so this is a full capability table or a kernel
+            // contradicting the budget. There is then no frame to send, and the progenitor will
+            // wait for it: the prompt hangs. Recorded rather than papered over; see
+            // `spawnproto`'s BUGS.
+            return false;
+        };
+        if map_page_frame(frame, va) {
+            // SAFETY: `va` was just mapped read/write, one page.
+            let window = unsafe { MappedWindow::new(va, PAGE) };
+            let n = call(dir, fs::req(fs::READ, handle, PAGE), i * PAGE).0 as i64;
+            if n < 0 {
+                read_ok = false;
+            } else {
+                for at in 0..n as u64 {
+                    window.w8(at, FS_WINDOW.r8(at));
+                }
+            }
+        } else {
+            read_ok = false;
+        }
+        user_mode_runtime::send_cap(SPAWN, frame, abi::rights::READ, i);
+        cap_delete(frame);
+    }
+    read_ok
+}
+
+/// **`package install`, `remove` and `rollback`** (milestone 198 (a package manager) rung 3a's
+/// installer): one request to the progenitor, which holds the image's catalogue and the only copy
+/// of the activation set it trusts, and one reply saying what is live afterwards
+/// (`grant_plan::Command::Package` has why this is a request and not a program).
+///
+/// An install sends the package file's bytes exactly as [`run_image`] sends an executable's, so
+/// the progenitor checks its own copy. The shell never reads or writes `activation/` itself here;
+/// that it *could* is `notes/packages.md`'s first BUGS entry.
+fn package(nav: &mut Nav, tail: &[u8]) {
+    use spawnproto::{Activation, ActivationStatus as S};
+    let verb = grant_plan::package_verb(tail);
+    let (r0, r1) = match verb {
+        grant_plan::PackageVerb::Usage => {
+            refused();
+            print(swish::PACKAGE_USAGE);
+            return;
+        }
+        grant_plan::PackageVerb::Install(path) => {
+            let Some(dir) = nav.dir else {
+                return say(Say::NoDirectory);
+            };
+            let Some((handle, size)) = open_for_bytes(nav, dir, path) else {
+                return;
+            };
+            let pages = spawnproto::image_pages(size);
+            let staging = if prime_image_window() {
+                memory_region_split(pages)
+            } else {
+                None
+            };
+            let Some(staging) = staging else {
+                nav.close(handle);
+                return out_of_budget();
+            };
+            let (w0, w1, w2) = spawnproto::activation_request(Activation::Install, size);
+            send(SPAWN, w0, w1, w2);
+            let read_ok = send_frames(dir, handle, pages, staging);
+            nav.close(handle);
+            let (r0, r1, _) = recv(RESULT);
+            user_mode_runtime::destroy_region(staging);
+            cap_delete(staging);
+            if !read_ok {
+                print(
+                    b"  (this shell could not read the whole file, so those were not its bytes)\n",
+                );
+            }
+            (r0, r1)
+        }
+        grant_plan::PackageVerb::Remove(name) => {
+            let (w0, w1, w2) = spawnproto::activation_request(Activation::Remove, 0);
+            send(SPAWN, w0, w1, w2);
+            let (lo, hi) = filesystem_protocol::grant::pack_name(name);
+            send(SPAWN, lo, hi, name.len() as u64);
+            let (r0, r1, _) = recv(RESULT);
+            (r0, r1)
+        }
+        grant_plan::PackageVerb::Rollback => {
+            let (w0, w1, w2) = spawnproto::activation_request(Activation::Rollback, 0);
+            send(SPAWN, w0, w1, w2);
+            let (r0, r1, _) = recv(RESULT);
+            (r0, r1)
+        }
+    };
+    let status = S::from_word(r0);
+    match status {
+        S::Done => {}
+        S::StoreFailed | S::Unknown => failed(),
+        _ => refused(),
+    }
+    swish::write_activation(verb, status, r1, &mut print);
 }
 
 /// Print a refusal in the capability model's voice, which is [`swish::write_refusal`]'s job: the

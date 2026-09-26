@@ -956,6 +956,7 @@ dependencies = [
  "login_protocol",
  "measured_boot",
  "nifefs",
+ "package_archive",
  "socket_protocol",
  "supervision_protocol",
  "user_mode_runtime",
@@ -1171,7 +1172,6 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
- "activation_set",
  "bitmap_font",
  "board_console",
  "boot_ladder",

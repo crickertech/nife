@@ -223,6 +223,18 @@ pub const DIRECTORY: &str = "activation";
 /// The one-line file in [`DIRECTORY`] naming the live generation ([`parse_current`]).
 pub const CURRENT: &str = "current";
 
+/// **Where `current` is written before it is renamed over the real one** (milestone 198 rung 3a's
+/// installer), so the flip is one `RENAME` and a reader meets the old line or the new one, never a
+/// torn write. Provisional; a name no generation can have, because it is not all digits.
+pub const CURRENT_STAGED: &str = "current.next";
+
+/// **The directory an installed program's bytes are placed under**, at the root of the file
+/// service: `packages/<name>/<version>/<program>`, one directory per package version (milestone 198
+/// rung 3a's installer). A component per field rather than the stem, because a name at the prompt
+/// is at most sixteen bytes and `uptime-0.1.0-aarch64` is twenty. The progenitor hashes whatever bytes a person runs (DECISIONS §219 option D), so
+/// this is where they are kept, not what vouches for them. Provisional.
+pub const PACKAGES: &str = "packages";
+
 /// The file name of generation `number` in [`DIRECTORY`]: its decimal digits, no padding.
 pub fn generation_name(number: u32, out: &mut [u8; 10]) -> &str {
     let mut n = number;
