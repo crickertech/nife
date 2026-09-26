@@ -10,10 +10,12 @@ its own regex. They all read it through here now, in both forms, because three o
 predate the switch and will go on reading them for as long as the history is walked. The prose
 reader here is therefore permanent, not transitional.
 
-**The key names are provisional.** The ruling took the dependency fields; the names themselves are
-still before calef. Every key is spelled once, in `KEY` below, and every reader and the migrator
-(`helpers/roadmap_migrate.py`) go through that table, so a ratified rename is a one-line change here
-plus rerunning the migrator. `VALUE` does the same for the fixed words a value may take.
+**The key names are calef's, ratified 2026-09-26 (UTC): "Yes to all."** With them he ratified
+`decision_dependencies: unwritten` for a fork nobody has written up, `raised` on every block, a
+`branch` for IN-PROGRESS, one format for proposals, and `superseded_by` and `refused_by` as lists
+that may name a `§N`. Every key is spelled once, in `KEY` below, and every reader and the migrator
+(`helpers/roadmap_migrate.py`) go through that table. `VALUE` does the same for the fixed words a
+value may take.
 
 **The format is 582's, exactly**: `---`, flat `key: value` lines, `---`. No lists and no nesting; a
 list is one comma-separated value. A value may not contain `: ` or ` #`, because GitHub renders

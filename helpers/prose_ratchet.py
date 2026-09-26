@@ -488,6 +488,22 @@ def measured(path, text):
     return measure(text)
 
 
+def only_fields_moved(path, base):
+    """True when a roadmap document's only change since `base` is milestone 596's: its field tokens
+    moved into frontmatter (`roadmap_block.without_fields`), and not a word of prose changed. Such a
+    document is not touched for the bold rule, because nobody edited its prose."""
+    if not path.startswith('design/roadmap/') or not os.path.exists(path):
+        return False
+    old = at(base, path)
+    if old is None:
+        return False
+
+    def prose(text):
+        return [line.rstrip() for line in text.split('\n') if line.strip()]
+    return prose(roadmap_block.without_fields(old)) == prose('\n'.join(roadmap_block.body(
+        open(path).read())))
+
+
 def counted_words(text):
     """The word count a prose-budget grant is held to: the file's `wc -w`, frontmatter excluded.
 
@@ -724,6 +740,7 @@ def check():
             cells = line.split('\t')
             if cells[0] != 'R100' and cells[0] != 'D':
                 touched.add(cells[-1])
+        touched = {p for p in touched if not only_fields_moved(p, base)}
 
     excused = 0
     held = 0
