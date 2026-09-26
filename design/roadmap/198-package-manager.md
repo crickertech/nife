@@ -10,18 +10,16 @@ harnesses §197 accepted as the container's price. The first package this projec
 the run. Rung 3a's consumer half is built through "verified by digest" (2026-09-24): the image
 carries a package catalogue, a host serves the package over plain HTTP, and `net_stack`'s client
 accepts it only by the image's digest, on aarch64 and riscv64. The table §208 (installing is
-granting) versions is built as host-tested logic in `crates/activation_set`. Installing and everything after it
-waited on §219 (how the shell names an installed program to the spawner), decided 2026-09-26.
+granting) versions is built as host-tested logic in `crates/activation_set`. Run by digest
+followed on 2026-09-26, once §219 (how the shell names an installed program to the spawner) was
+ruled; notes/packages.md has the account.
 
 **Gate: NONE.** [§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
 shell names an installed program to the spawner) was decided 2026-09-26 (UTC): option D with gate
-D2, so rung 3a's remaining half can start. The next build step is D's request. The shell reads a
-package member into frames from its own budget and sends them under a new `spawnproto` flag
-(`IMAGE_BIT`, provisional). The progenitor hashes its own copy, finds the digest in the activation
-set, and endows the child from that entry's manifest. Install, reboot, rollback and removal follow.
-The first cut takes §219's recommendations for its two open questions provisionally: the activation
-table's shape, and where a manifest travels (§197). D2's capability can come later, since an
-installed package is vouched. Every earlier fork is ruled:
+D2. D's request is built; the installer on the target is next, so install, reboot, rollback and
+removal are proved at the prompt rather than seeded on the host. The first cut took §219's two open
+recommendations provisionally (the table's shape, and where a manifest travels, §197), and D2's
+capability comes later. Every earlier fork is ruled:
 [§195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md),
 [§197](../decisions/197-a-package-is-one-archive-file.md),
 [§208](../decisions/208-installing-is-granting.md) and §196 (nife carries TLS). The rulings of §157
@@ -50,7 +48,7 @@ split happens and against what preconditions, and it lists a package format exis
 something to assemble as one of them, which is this milestone. The format, the activation shape and
 the repository split are still not this block's and are deliberately not raised here.
 
-**In brief.** calef, 2026-08-30: *"I don't think we expose nife to third parties (aka other
+In brief, from calef on 2026-08-30: *"I don't think we expose nife to third parties (aka other
 customers) until we have a package manager and a trivial install process."* And, in the same breath,
 that he wants it early, to make our own lives easier.
 
@@ -132,7 +130,7 @@ claim about PCs, and each rung's last exit criterion is that second machine.
 | **1d. A PC that is not xenon** | Nothing new if 1a to 1c hold | The same stick on one fleet machine reaches `$` at its own keyboard and monitor | 243's fleet; [a-stick-that-boots-with-secure-boot-on.md](500-a-stick-that-boots-with-secure-boot-on.md) (new) for machines whose owner will not turn Secure Boot off |
 | **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [milestone 421 (the block roster cannot name an NVMe)](421-a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
 | **2b. Installed onto xenon's disk** | The bench half | The 2a sequence on xenon's Micron 2450, photographed, stick removed before the second boot | 261 (PARTIAL: the disk wipe, calef's, then one bench boot) |
-| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). Fetch and verify built 2026-09-24 (`helpers/package-http-peer`, `crates/http_response`, a QEMU test on aarch64 and riscv64); the rest was unblocked by §219 on 2026-09-26. No TLS, since §195's digest decides whether bytes may run |
+| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). Fetch and verify built 2026-09-24 (`helpers/package-http-peer`, `crates/http_response`, a QEMU test on aarch64 and riscv64); **run by digest built 2026-09-26** on all three architectures. No TLS, since §195's digest decides whether bytes may run |
 | **3b. The network card xenon has** | An Intel I219 (`e1000e` family) driver in 261's shape | Under QEMU `-device e1000e` behind `intel-iommu`, milestone 30 (the network stack as a confined component)'s DHCP and TCP gates pass through the new driver; on xenon, a lease from the house router and a measured transfer | [a-driver-for-the-network-card-a-pc-actually-has.md](494-a-driver-for-the-network-card-a-pc-actually-has.md) (new) |
 | **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [milestone 384](384-a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [DECISIONS §196](../decisions/196-nife-carries-tls-and-builds-the-provider.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
 | **4. The web page** | A published release and a page | A stranger with a PC, a USB stick and no prior knowledge follows the page to rung 3c's result; the stranger harness (`notes/stranger-test.md`) runs against the **download**, not the build | calef's act; the preconditions below |
@@ -225,14 +223,14 @@ trivial-install proposal.~~
 
 ## Follow-on
 
-Added by the lanes that built rung 3a (2026-09-23 and 2026-09-24), covering rung 3a only: this
+Added by the lanes that built rung 3a (2026-09-23, 2026-09-24 and 2026-09-26), covering rung 3a only: this
 block's other rungs carry their own exit criteria in the table above, and the rungs that are
 calef's acts are named there rather than here.
 
-- **Decision.** Rung 3a after "verified by digest": install, run, survive a reboot, roll back,
-  remove. It waits on `design/decisions/219-naming-an-installed-program-to-the-spawner.md`. Milestone
-  507 (installing a package: mutate, compose, or widen)'s blocker was half stale: the progenitor has
-  kept the file service since milestone 31 (a capability shell), but nothing can ask it for a program.
+- **Outstanding.** Rung 3a still owes the installer on the target, §219's gate D2, and milestone
+  202 (every confinement test is a ritual until somebody breaks the confinement)'s unvouched-child
+  claim, untestable while every miss is refused. notes/packages.md has each.
+- **Done.** §219, which the rest of rung 3a waited on, was ruled 2026-09-26 and its request built.
 - **Proposed.** The virtio device table never reuses a slot
   (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`). The booted system
   had no network either; milestone 590 (the booted system starts its network stack) built it.
@@ -305,7 +303,7 @@ install, and he wants both early, to make our own lives easier. That makes packa
 is vacant partly because a second customer could not be accepted if one appeared. The early half
 is what earns it, since the builders pay for its absence today, hand-wiring per program what a
 package would install once (milestone 40 already ships "installed by the package that owns it",
-against no package). Gate: NONE since §219 was ruled on 2026-09-26; the
+against no package). Gate: NONE since §219 was ruled on 2026-09-26, and §219 D's request is built (a path at the prompt runs by digest, 2026-09-26); the
 format, activation and trust forks are ruled too (§197, §208, §195); `MILESTONE 23` was dropped by calef on 2026-09-19 because it closed a
 loop, which §156 (what the package manager waits on) records. Rescoped 2026-09-19 under §157
 into four rungs, each shipping on its own, and rung 3a's producer half is built (2026-09-23:

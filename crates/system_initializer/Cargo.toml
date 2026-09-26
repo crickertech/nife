@@ -24,6 +24,10 @@ line_editor = { version = "0.1.0", path = "../line_editor" }
 # The hash and the manifest format the kernel measures init with (milestone 104). This crate is the
 # next link: it reads the same shape of table out of the archive and applies it to what IT loads.
 measured_boot = { version = "0.1.0", path = "../measured_boot" }
+# The activation set (DECISIONS §208 (installing a package is granting it)), for where it lives and one question: is this executable's
+# digest installed? §219 (how the shell names an installed program to the spawner) option D (milestone 198 (a package manager) rung 3a) looks every image request up in it. Pure
+# logic, and it brings only `measured_boot`, which is already here.
+activation_set = { version = "0.1.0", path = "../activation_set" }
 # The sink contract, for the end-of-stream init sends on a child's behalf when the child was never
 # built and therefore cannot end its own second stream.
 byte_sink_protocol = { version = "0.1.0", path = "../byte_sink_protocol" }

@@ -3,8 +3,9 @@
 Milestone 198 (a package manager, and the trivial install that makes a second customer possible)'s
 rung 3a has two halves. This note is the producer half and the format both halves share, built
 2026-09-23, and the first part of the consumer half, built 2026-09-24: a target fetches a package
-over plain HTTP and accepts it only by a digest its own image vouches for. Nothing installs one
-yet, and the reason is a fork for calef rather than a gap: see "Where this stops" below.
+over plain HTTP and accepts it only by a digest its own image vouches for. Since 2026-09-26 an
+installed program runs by its bytes (DECISIONS §219 option D). Nothing on the target installs one
+yet: see "Where this stops" below.
 
 ## The two decisions this is downstream of
 
@@ -165,25 +166,91 @@ one-line `current` names the live one, and install, upgrade and remove each prod
 generation. Its test `a_rollback_restores_the_whole_set` is the property calef asked for by name.
 Nothing on a target reads it yet, for the reason below.
 
-## Where this stops, and it is a fork for calef
+## Running what was installed, by its bytes
+
+DECISIONS §219 (how the shell names an installed program to the spawner) was ruled on 2026-09-26:
+option D, the executable's bytes as frames the caller owns, with gate D2. It is built.
+
+```
+$ installed/uptime
+  up 00:00:05
+$ installed/unvouched
+    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
+```
+
+A command word with a `/` in it is a file. The shell binds the line against
+`grant_plan::INSTALLED_MANIFEST_OF`, which is `uptime`'s manifest and the ceiling every installed
+program gets until §197 (a package is one archive file) says where a manifest travels. It opens the
+file and sends `spawnproto::request(len, ..)` with `IMAGE_BIT` set: word 0 is the byte length, then
+one `SEND_CAP` per page narrowed to `READ`, then the grants as today, holding one frame at a time.
+
+The progenitor maps each frame through the loader's never-reused scratch window, copies it into a
+page of its own, and deletes the capability before taking the next. It copies because the caller
+keeps a mapping of its frames and could change them between a hash and a build. It hashes the copy,
+reads `activation/current` and then that generation through the file service it already held, and
+looks the digest up (`activation_set::lookup_digest`). A hit is built from the copy. A miss gets
+`SPAWN_UNVOUCHED`, whose sentence names the missing capability: D2, which no session holds yet.
+
+The digest is the member's, not the package's: the spawner is handed the executable, and the
+package's table of contents already carries each member's digest. The recipe's digest over the whole file (§195 (a reviewed recipe vouches for a package))
+is still what installing checks first; the activation table records the member's.
+
+### What proves it
+
+`script/swish-check` seeds the RedoxFS image on the host the way the installer will
+(`seed_installed` in `xtask/src/disk.rs`: the package built by the producer, the member and its
+table-of-contents digest, one generation) and types the two lines above. Green on aarch64, riscv64
+and x86_64 (under OVMF) on 2026-09-26. Both lines were falsified on aarch64. A seeded digest with one
+bit flipped refuses the first line; a progenitor that vouches for everything runs the witness in
+the second.
+
+### What it costs, measured 2026-09-26
+
+| | aarch64 | riscv64 | x86_64 |
+|---|---|---|---|
+| `uptime`, stripped | 89,168 bytes, 22 frames | 49,168 bytes, 13 frames | 28,352 bytes, 7 frames |
+| Messages on the spawn endpoint | 1 `SEND` + 22 `SEND_CAP`s | 1 + 13 | 1 + 7 |
+| File-service calls by the progenitor | 8 (3 opens, 2 reads, 3 closes) | 8 | 8 |
+| Pages staged on each side, returned after | 22 | 13 | 7 |
+| Progenitor capability peak | 23 of 24, unchanged | 23 of 24, unchanged | the hand-over mark only |
+
+At most one of the caller's frames is in the progenitor's table at a time, beside the staging
+region. The gauge reports the boot's high-water mark, so it shows the image path stays under the
+peak without measuring the path itself.
+
+One-time costs are the shell's primer page with its page tables, and the progenitor's mapping of the
+file page. Per image spawn, the progenitor's scratch window advances a page per frame, which costs a
+page table from its own budget about every 23 `uptime` runs on aarch64. Every child already pays
+that debt (§162 (whether a holder can give up a mapping)); this pays it about half again as fast.
+
+Two orderings are load-bearing, because a region returns its pages to its parent only if it is the
+parent's most recent carve (`memory_regions`' `return_to_parent`). The progenitor splits the child's
+region before the staging region, and the shell maps one primer page once so the window's page
+tables exist before any staging region does. Either one wrong silently strands every staging page.
+
+## Where this stops
 
 Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
-rolled back and removed. The first two are built. The rest wait on one question, written up with
-options and measured costs as DECISIONS §219 (how the shell names an installed program to the
-spawner): when a person types the name of an installed program, what travels to the process that
-builds it. The shell names programs by an id from a closed enum, and an installed program has none.
-Every answer is a change the shell and the progenitor agree on, so it is calef's.
-
-Milestone 507 (installing a package: mutate, compose, or widen)'s finding was half stale, and the half that moved matters. It said nothing that
-builds processes can read an installed program because the progenitor gives the file service away.
-The progenitor has kept the file service since milestone 31 (a capability shell) phase 3 (2026-08-17), so it can read
-one. What it cannot do is be asked for one.
-
-A second gap stood behind that one: the booted system had no network, so the fetch above runs only
-in the kernel's test harness. Milestone 590 (the booted system starts its network stack) now starts
-`net_stack` at boot; moving the fetch out of the harness is still to do.
+rolled back and removed. Fetch, verify and run are built. Installing on the target is next: writing
+a generation and `current`, placing the member, and deciding who may write `activation/`. Reboot,
+rollback and removal follow, since each is a file the installer writes. After that, §219's gate D2
+lets a miss run with only what the caller delegated, and milestone 202 (every confinement test is a
+ritual until somebody breaks the confinement)'s unvouched-child probe becomes testable;
+`installed/unvouched` is already its fixture.
 
 ## BUGS
+
+- The activation set lives where the shell can write it: `activation/` at the root of the file
+  service, which the shell holds with its boot rights. A session can add a digest to the live
+  generation and have its bytes vouched. That grants nothing extra today, because every installed
+  program is endowed as `uptime` is, and it stops being harmless the day a manifest travels. The
+  installer is what must put the table where no session can write.
+- An installed program's manifest is a ceiling, not its own (`grant_plan::INSTALLED_MANIFEST_OF`).
+  A program that needs more than `uptime` finds its slot empty rather than being refused by name.
+- Only a plain line runs an image. A path in a pipe or behind a redirection reaches the planner as
+  a program name and is refused as "no such program", and `caps <path>` prints no `provenance:`
+  row. `crates/grant_plan/src/spawnproto.rs`'s `BUGS` has the full list.
+- The installed file and its generation are seeded on the host, standing in for an installer.
 
 - **No compression.** `.hpkg` chunks its heap with zlib and `.apk` is three gzip streams; this
   stores members whole. The first packages are ELFs that were about to be written to a disk anyway,
@@ -202,7 +269,9 @@ in the kernel's test harness. Milestone 590 (the booted system starts its networ
   starts.
 - `uptime` is also in the image, so the package the tests fetch is not a program the image
   lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
-  criterion, and they wait on §219.
+  criterion. The run-by-bytes line in `script/swish-check` has the same limit: it runs a copy of
+  the image's own `uptime`, vouched by a generation, which proves the path and not novelty. The
+  installer's tests are where a program the image lacks first runs.
 - The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).

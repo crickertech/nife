@@ -184,6 +184,117 @@ pub(crate) fn mkredoxfs() -> bool {
         && redoxfs_host(&["import", &img, &tree])
 }
 
+/// **Where `script/swish-check` finds an installed package** (milestone 198 (a package manager) rung 3a, DECISIONS
+/// §219 (how the shell names an installed program to the spawner) option D): the file the prompt line names, relative to the image root. Provisional; the
+/// installer that will write real ones decides where they go.
+pub(crate) const INSTALLED_UPTIME: &str = "installed/uptime";
+
+/// **And a real program that nothing installed**, for the refusal: `unreachable_network_witness`,
+/// stripped, which is in no activation generation. The witness rather than garbage bytes because
+/// the claim is that a *runnable* program is refused for being unvouched, and because it is the
+/// fixture milestone 202 (every confinement test is a ritual until somebody breaks the confinement) will run the unvouched-child probe with once §219's gate D2 exists.
+pub(crate) const INSTALLED_UNVOUCHED: &str = "installed/unvouched";
+
+/// **Install `uptime` into the RedoxFS image the way the target will, on the host** (milestone 198
+/// rung 3a). Builds the package for `architecture` from `packages/uptime.recipe` with the producer
+/// (`package::build`, which reads it back with the target's parser), takes the executable member
+/// and the digest the package's table of contents carries for it, and writes three things:
+///
+/// - `activation/current` naming generation 1, and `activation/1` holding one entry,
+///   `uptime uptime-0.1.0-<arch> <member digest>` (`crates/activation_set`'s shape);
+/// - the member itself at [`INSTALLED_UPTIME`];
+/// - an unvouched program at [`INSTALLED_UNVOUCHED`].
+///
+/// **This stands in for the installer, and says so.** Nothing on a target writes an activation
+/// generation yet; that is rung 3a's next step. What this proves is the half that is built: bytes a
+/// generation vouches for run, and bytes it does not are refused. Run after the initrd build,
+/// because the ELFs it reads are that build's output, and before the boot.
+///
+/// The recipe's `architecture` line is rewritten for `riscv64` and `x86_64`, because the tree carries
+/// one recipe and `uptime` is the same program on all three.
+pub(crate) fn seed_installed(architecture: &str) -> bool {
+    match stage_installed(architecture) {
+        Ok(tree) => redoxfs_host(&["import", &redoxfs_disk_path(), &tree]),
+        Err(complaint) => {
+            eprintln!("seed_installed ({architecture}): {complaint}");
+            false
+        }
+    }
+}
+
+fn stage_installed(architecture: &str) -> Result<String, String> {
+    let root = workspace_root();
+    let recipe = std::fs::read_to_string(root.join("packages/uptime.recipe"))
+        .map_err(|e| format!("could not read packages/uptime.recipe: {e}"))?;
+    let recipe: String = recipe
+        .lines()
+        .map(|line| {
+            if line.starts_with("architecture ") {
+                format!("architecture {architecture}\n")
+            } else {
+                format!("{line}\n")
+            }
+        })
+        .collect();
+    let built = crate::package::build(&root, &recipe)?;
+    let package = package_archive::Package::parse(&built.file)
+        .map_err(|e| format!("the package just built does not parse: {e:?}"))?;
+    let index = package
+        .index_of("uptime")
+        .ok_or("the package has no uptime member")?;
+    let (Some(member), Some(digest)) = (package.member(index), package.member_digest(index)) else {
+        return Err("the uptime member has no bytes or no digest".into());
+    };
+
+    let triple = match architecture {
+        "aarch64" => crate::TARGET,
+        "riscv64" => crate::RISCV_TARGET,
+        _ => crate::X86_TARGET,
+    };
+    let witness = root.join(format!(
+        "target/{triple}/{}/unreachable_network_witness",
+        crate::profile_dir()
+    ));
+    let unvouched = crate::inspect::read_stripped(&witness.display().to_string())
+        .map_err(|e| format!("could not read {}: {e}", witness.display()))?;
+
+    let tree = root.join("target/redoxfs-installed");
+    let _ = std::fs::remove_dir_all(&tree);
+    let activation = tree.join(activation_set::DIRECTORY);
+    std::fs::create_dir_all(&activation).map_err(|e| e.to_string())?;
+    let mut current = [0u8; 16];
+    let n = activation_set::format_current(1, &mut current).map_err(|e| format!("{e:?}"))?;
+    let entry = activation_set::Entry {
+        program: "uptime",
+        package: &built.stem,
+        digest,
+    };
+    let mut generation = [0u8; 256];
+    let g =
+        activation_set::with_entry("", &entry, &mut generation).map_err(|e| format!("{e:?}"))?;
+    let mut name = [0u8; 10];
+    let write = |path: std::path::PathBuf, bytes: &[u8]| {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))
+    };
+    write(activation.join(activation_set::CURRENT), &current[..n])?;
+    write(
+        activation.join(activation_set::generation_name(1, &mut name)),
+        &generation[..g],
+    )?;
+    write(tree.join(INSTALLED_UPTIME), member)?;
+    write(tree.join(INSTALLED_UNVOUCHED), &unvouched)?;
+    eprintln!(
+        "seed_installed ({architecture}): {} installed, {} bytes, member digest {}",
+        built.stem,
+        member.len(),
+        String::from_utf8_lossy(&measured_boot::hex(&digest)),
+    );
+    Ok(tree.display().to_string())
+}
+
 /// Stage milestone 47's subtree as a host directory and return its path, for `import` to copy into
 /// the image root.
 ///

@@ -124,7 +124,7 @@ pub(crate) fn swish_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 72] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 74] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -314,6 +314,19 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 72] = [
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
     ("uptime", &["up "]),
+    // **The same program, installed, and run by its bytes** (milestone 198 (a package manager) rung 3a, DECISIONS
+    // §219 (how the shell names an installed program to the spawner) option D). A path, so the shell reads the file into frames and the progenitor hashes its
+    // own copy and finds the digest in the activation set `disk::seed_installed` wrote. `up ` is
+    // the proof it ran: the refusal below prints no such thing.
+    (crate::disk::INSTALLED_UPTIME, &["up "]),
+    // **And bytes nobody installed, refused.** A real program (`unreachable_network_witness`), so
+    // what is refused is runnable code, not garbage; the sentence is the progenitor's word for a
+    // digest miss, and the witness's own report ("network: refused ...") never appears because
+    // nothing was built.
+    (
+        crate::disk::INSTALLED_UNVOUCHED,
+        &["refused: those bytes are not in the activation set"],
+    ),
     // **`uuid`, at the real prompt** (milestone 111), and this is the only gate that can run it.
     // The endowment is `crates/system_initializer`'s to make: the progenitor holds the entropy service's
     // request endpoint and places a `WRITE` view of it at `grant_plan::ENTROPY_SLOT` for a child
@@ -960,7 +973,10 @@ fn swish_check_leg(arch: &str) -> bool {
         redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
         redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
-    } && (x86
+    } // After the archive build, whose ELFs it reads: an installed `uptime` and an unvouched
+    // program on the disk, for the two §219 lines in the script (milestone 198 rung 3a).
+    && crate::disk::seed_installed(arch)
+    && (x86
         || run(
             "cargo",
             &[

@@ -893,10 +893,21 @@ pub fn write_refusal(spec: &RunSpec, refusal: Refusal, out: &mut dyn FnMut(&[u8]
 /// because a person meeting the same event in four places should not meet four wordings.
 pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed before it answered\n";
 
+/// **What the prompt says when the progenitor refuses bytes nobody vouched for** (DECISIONS §219 (how the shell names an installed program to the spawner),
+/// milestone 198 (a package manager) rung 3a). One sentence for every place that can read
+/// [`spawnproto::SPAWN_UNVOUCHED`], for [`FAULTED_SENTENCE`]'s reason. It names both halves of the
+/// rule: the digest was not found, and what would have let it run anyway is a capability, not a
+/// setting. That capability is §219's gate D2, which is not built, so no session holds it.
+pub const UNVOUCHED_SENTENCE: &[u8] = b"  refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold\n";
+
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
     if answer == spawnproto::SPAWN_FAILED {
         out(b"  could not spawn (the progenitor is out of memory)\n");
+        return;
+    }
+    if answer == spawnproto::SPAWN_UNVOUCHED {
+        out(UNVOUCHED_SENTENCE);
         return;
     }
     // **The job ran and the kernel killed it** (milestone 235). A different fact from the line

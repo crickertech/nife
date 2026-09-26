@@ -48,6 +48,32 @@
 //!    [`JOB_FAULTED`] there instead. It is a third value on the same one-word read rather than a
 //!    second channel, because the shell has one thread and can be blocked in exactly one `RECV`;
 //!    see [`JOB_FAULTED`] for the two couplings this refused.
+//!
+//! # BUGS
+//!
+//! The image request ([`Wiring::image`], DECISIONS §219 (how the shell names an installed program to the spawner) option D) is a first cut, and these are
+//! what it does not do yet. Milestone 198 (a package manager)'s block carries the same list.
+//!
+//! - **Every digest miss is refused.** §219's gate D2, a capability that lets a session run
+//!   unvouched bytes with only what it delegates, is owed. The tree already decides its shape: a
+//!   capability without `GRANT` cannot ride a `SEND_CAP` (§219 limitation 2), so D2 will be a
+//!   progenitor endpoint the session invokes rather than a token on this request. Nothing here
+//!   precludes that: a miss is answered with [`SPAWN_UNVOUCHED`] before anything is built, and the
+//!   ruled endowment for an unvouched child (the clock and configuration pages, nothing else) is
+//!   one branch away in the progenitor.
+//! - **An installed program's manifest is `uptime`'s** ([`crate::INSTALLED_MANIFEST_OF`]), because
+//!   no manifest travels with a package yet (§197 (a package is one archive file)'s open question). A program that needs a clock,
+//!   the network or a directory is not refused by name; it runs and finds the slot empty.
+//! - **Only a plain line runs an image.** A path in a pipeline or behind a redirection reaches
+//!   the planner as a program name and is refused as "no such program", which is true of the name
+//!   and says nothing about the bytes. Nothing sets the bit alongside `interruptible` or `dir`, and
+//!   the progenitor refuses an interruptible image request if one arrives.
+//! - **A shell that cannot retype a frame mid-request hangs the prompt.** The staging region is
+//!   sized to the image, so this needs a full capability table in the shell, but if it happens the
+//!   progenitor waits for a frame that never comes. Nothing in the ABI lets either side abandon a
+//!   half-sent request; every capability this protocol promises has the same exposure.
+//! - **`caps <path>` previews nothing.** §219 wants a `provenance:` row computed from the bytes the
+//!   shell read; the shell does not print one yet.
 
 /// The interruptible bit, packed into the high half of the page-count word so one `SEND` still
 /// carries the whole request. `mem_pages` is a small count (`memory_grant_depleter`'s ceiling is
@@ -117,6 +143,39 @@ const DIR_BIT: u64 = 1 << 36;
 /// stated a grant nothing could construct yet.
 const DIR2_BIT: u64 = 1 << 38;
 
+/// **The executable's bytes follow, as page frames the caller owns** (DECISIONS §219 option D,
+/// ruled by calef 2026-09-26). Set when the shell runs a program the image did not name by
+/// [`Prog`](crate::Prog) id: an installed package's member, or a binary somebody just built.
+///
+/// **Word 0 changes meaning under this bit**: it carries the image's **length in bytes** instead
+/// of a program id ([`image_len`]), and [`image_pages`] of that many `SEND_CAP`s follow, one frame
+/// each, in page order, each tagged with its index. They come after the directory grant's data
+/// messages and before every other delegated capability, so the data-before-capabilities order the
+/// rest of this word keeps is kept here too. The shell sends each frame narrowed to `READ`, so the
+/// progenitor can map it and can neither write it nor pass it on.
+///
+/// **The progenitor hashes its own copy**, never the caller's frames, because the caller keeps a
+/// mapping of them and could change the bytes between a hash and a build. It maps each frame
+/// through the loader's never-reused scratch window, copies it into a page of its own, and deletes
+/// the capability before taking the next, so a request of any size costs its capability table one
+/// transient slot. A digest found in the activation set is vouched and runs with that entry's
+/// manifest; a miss is refused with [`SPAWN_UNVOUCHED`] until DECISIONS §219's gate D2 exists.
+///
+/// Name: provisional (milestone 198 rung 3a, 2026-09-26), §219's own word for it.
+const IMAGE_BIT: u64 = 1 << 39;
+
+/// **The largest image `IMAGE_BIT` may carry, in pages** (256 KiB). A ceiling both sides read,
+/// so the shell refuses a larger file before it sends anything and the progenitor never stages more
+/// than its job pool can hold beside the child built from it. `uptime` is 22 pages stripped.
+///
+/// Provisional, like the bit: the number is the job pool's arithmetic (`JOBS_BUDGET_PAGES` in
+/// `crates/system_initializer`), not a property of any program.
+pub const IMAGE_MAX_PAGES: u64 = 64;
+
+/// The page size an image is carried in. A frame is one page on every architecture this tree
+/// builds for.
+pub const IMAGE_PAGE: u64 = 4096;
+
 /// **The two messages a [`Wiring::dir`] request is followed by**, in order, each three words:
 ///
 /// 1. **the caretaker's `START` words**, which the progenitor passes to `fs_subtree_caretaker` verbatim: the
@@ -165,6 +224,9 @@ pub struct Wiring {
     /// practice (a stage the shell delegated an explicit sink for has somewhere else to write), but
     /// nothing here enforces that; the two ride independent bits because both sides read one word.
     pub screen: bool,
+    /// **The executable's bytes follow as frames, and word 0 is their length** (DECISIONS §219
+    /// option D). See `IMAGE_BIT`.
+    pub image: bool,
 }
 
 /// Build the three request words from a resolved endowment's parts.
@@ -191,6 +253,9 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     if w.screen {
         w2 |= SCREEN_BIT;
     }
+    if w.image {
+        w2 |= IMAGE_BIT;
+    }
     (prog_id, arg, w2)
 }
 
@@ -205,7 +270,20 @@ pub fn wiring(w2: u64) -> Wiring {
         dir: w2 & DIR_BIT != 0,
         dir2: w2 & DIR2_BIT != 0,
         screen: w2 & SCREEN_BIT != 0,
+        image: w2 & IMAGE_BIT != 0,
     }
+}
+
+/// The image's length in bytes from a received request (word 0), when [`Wiring::image`] is set.
+/// The same word [`prog_id`] reads otherwise; which one it is depends on word 2 alone.
+pub fn image_len(w0: u64) -> u64 {
+    w0
+}
+
+/// How many frames an image of `len` bytes travels in: one per started page. `0` for an empty
+/// image, which the progenitor refuses rather than builds.
+pub fn image_pages(len: u64) -> u64 {
+    len.div_ceil(IMAGE_PAGE)
 }
 
 /// The program id from a received request (word 0).
@@ -283,6 +361,19 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// name calef decides.
 pub const JOB_FAULTED: u64 = u64::MAX - 1;
 
+/// **The word for bytes nobody vouched for** (DECISIONS §219, milestone 198 rung 3a). Sent on the
+/// result endpoint by the progenitor when an `IMAGE_BIT` request's digest is not in the
+/// activation set, in place of [`SPAWN_FAILED`], because "nothing was built" and "it was refused
+/// as unvouched" are different facts a person needs told apart: the first is out of memory, the
+/// second is a decision.
+///
+/// Today every miss gets it. §219's gate D2 (a capability to run unvouched bytes, held by a
+/// session) will make a miss from a caller that delegates that capability run with only what the
+/// caller delegated instead; until then this is the whole of the unvouched path.
+///
+/// Two below `u64::MAX`, for [`JOB_FAULTED`]'s reason one below it. Name: provisional.
+pub const SPAWN_UNVOUCHED: u64 = u64::MAX - 2;
+
 /// The ack the progenitor sends on the result endpoint when a **supervised** (interruptible) child started
 /// cleanly. An interruptible child reports its own progress and exit through the shared job frame,
 /// not the result endpoint, so the progenitor sends this once as the go-ahead: the shell reads it, then begins
@@ -340,18 +431,21 @@ mod tests {
                         for &dir in &[false, true] {
                             for &dir2 in &[false, true] {
                                 for &screen in &[false, true] {
-                                    let w = Wiring {
-                                        interruptible,
-                                        sink,
-                                        source,
-                                        diagnostics,
-                                        dir,
-                                        dir2,
-                                        screen,
-                                    };
-                                    let (_, _, w2) = request(3, 0, 64, w);
-                                    assert_eq!(wiring(w2), w, "{w:?}");
-                                    assert_eq!(mem_pages(w2), 64, "{w:?}");
+                                    for &image in &[false, true] {
+                                        let w = Wiring {
+                                            interruptible,
+                                            sink,
+                                            source,
+                                            diagnostics,
+                                            dir,
+                                            dir2,
+                                            screen,
+                                            image,
+                                        };
+                                        let (_, _, w2) = request(3, 0, 64, w);
+                                        assert_eq!(wiring(w2), w, "{w:?}");
+                                        assert_eq!(mem_pages(w2), 64, "{w:?}");
+                                    }
                                 }
                             }
                         }
@@ -366,9 +460,35 @@ mod tests {
     /// "nothing was built", "it ran and died" and "it started" the same message.
     #[test]
     fn the_result_sentinels_do_not_collide() {
-        assert_ne!(SPAWN_FAILED, JOB_FAULTED);
-        assert_ne!(SPAWN_FAILED, SPAWN_OK);
-        assert_ne!(JOB_FAULTED, SPAWN_OK);
+        let all = [SPAWN_FAILED, JOB_FAULTED, SPAWN_UNVOUCHED, SPAWN_OK];
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    /// **Word 0 is a length under [`IMAGE_BIT`], and it survives the round trip whole** (§219 D).
+    /// 89,168 is `uptime`'s stripped size, which is not a page multiple, so the frame count has to
+    /// round up: a request that rounded down would send one frame fewer than the progenitor waits
+    /// for, and both sides would hang.
+    #[test]
+    fn an_image_request_carries_its_length_and_rounds_up_to_frames() {
+        let (w0, _, w2) = request(
+            89_168,
+            0,
+            0,
+            Wiring {
+                image: true,
+                ..Wiring::default()
+            },
+        );
+        assert!(wiring(w2).image);
+        assert_eq!(image_len(w0), 89_168);
+        assert_eq!(image_pages(image_len(w0)), 22);
+        assert_eq!(image_pages(4096), 1);
+        assert_eq!(image_pages(4097), 2);
+        assert_eq!(image_pages(0), 0);
     }
 
     /// **`DIR2_BIT` follows [`DIR_BIT`]'s own precedent**: it is a second bit, not a count, and it

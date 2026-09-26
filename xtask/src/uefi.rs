@@ -57,16 +57,31 @@ pub(crate) fn esp_dir() -> std::path::PathBuf {
 /// seal check that reads bytes cannot see a check that was dropped), the change that made a soak
 /// kernel seal at all. Any kernel feature works the same way; one whose boot enters no archive
 /// program through `trust::require_program` or the hand-over will still be refused as `NOT SEALED`.
+///
+/// **Only the `uefi-image` subcommand reads the command line** ([`uefi_image_command`]). The other
+/// callers (`swish-check`'s `x86_64` leg, the stick) call this with no features, because the
+/// arguments on *their* command line are theirs: `script/swish-check --arch x86_64` handed
+/// `--arch x86_64` to this parser and failed with its usage line from 915a60c3d until 2026-09-26,
+/// found by milestone 198 (a package manager) rung 3a's image lane.
 pub(crate) fn uefi_image() -> bool {
+    uefi_image_with(None)
+}
+
+/// `cargo xtask uefi-image [--features <list>]`: the one caller whose arguments are this
+/// function's.
+pub(crate) fn uefi_image_command() -> bool {
     let args: Vec<String> = std::env::args().skip(2).collect();
-    let features = match args.as_slice() {
-        [] => None,
-        [flag, list] if flag == "--features" => Some(list.as_str()),
+    match args.as_slice() {
+        [] => uefi_image_with(None),
+        [flag, list] if flag == "--features" => uefi_image_with(Some(list.as_str())),
         _ => {
             eprintln!("usage: cargo xtask uefi-image [--features <kernel features>]");
-            return false;
+            false
         }
-    };
+    }
+}
+
+fn uefi_image_with(features: Option<&str>) -> bool {
     let Some(kernel) = uefi_kernel(features) else {
         return false;
     };
