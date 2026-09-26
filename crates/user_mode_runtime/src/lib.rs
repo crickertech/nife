@@ -382,6 +382,17 @@ pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
     (w0, w1, w2)
 }
 
+/// [`recv_cap`], also returning the **sender's badge** in the fourth position (milestone 599,
+/// provisional): `(w0, received_slot, w1, badge)`. The badge is the value stamped on the endpoint
+/// capability the sender invoked (`abi::rendezvous::BADGE`), or 0 when it was unbadged, so a server
+/// serving many clients on one endpoint tells them apart. A server that does not care which client
+/// called keeps using [`recv_cap`]; this is for one that maps a per-client resource by badge.
+pub fn recv_cap_badged(slot: u64) -> (u64, u64, u64, u64) {
+    // SAFETY: forwarded from `invoke5`'s contract; RECV_CAP writes the badge into the fourth word.
+    let (w0, w1, w2, w3, ..) = unsafe { invoke5(slot, abi::rendezvous::RECV_CAP, 0, 0, 0) };
+    (w0, w1, w2, w3)
+}
+
 /// `CALL` on the endpoint capability in `slot`: send two words and block until the server
 /// replies through the one-shot Reply capability the kernel mints (milestone 12). Returns the
 /// two reply words. The atomic send-and-wait that makes a request unmistakably answerable.
