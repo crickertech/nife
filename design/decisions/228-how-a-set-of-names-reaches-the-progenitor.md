@@ -1,9 +1,11 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-26
+decided: 2026-09-26
+ratified_by: calef
 ---
 
-# 228. How a set of matched names reaches the progenitor
+# 228. How a set of matched names reaches the progenitor: in a page the shell fills, copied and checked
 
 Raised 2026-09-26 by the maintainer, from milestone 47 (navigation and naming)'s lane
 `milestone/47-navigation`, which wrote the options up in
@@ -11,11 +13,64 @@ Raised 2026-09-26 by the maintainer, from milestone 47 (navigation and naming)'s
 costs and the lane's reasoning are there and are not copied here. *(Section number provisional until
 the merge queue lands it.)*
 
-## What is being decided
+## The ruling
+
+calef, 2026-09-26 (UTC): *"2b".* He first asked for `rm *.txt` over 30 files to work. He then ruled
+that swish gets an allocator: fallible, capped, and with no word splitting as a tested rule. He
+chose among the options assuming that allocator, which is why 2b is not in the table below: it was
+put to him in conversation once the allocator removed the stack bound.
+
+What 2b means:
+
+- The set travels in a page the shell fills, option 3's carrier. The progenitor copies it, checks
+  the encoding, and maps its own read-only copy for the set caretaker, so the shell's later writes
+  reach nothing. A new `spawnproto` bit announces the page; its name is provisional.
+- A page holds a few hundred names, and a set may span pages. The building lane proposes the limit
+  and states its memory cost.
+- Over the limit, the shell refuses, names the limit and suggests `xargs`. It never truncates a set.
+- `grant::MAX_NAME` (16 bytes today) rises. The building lane proposes the value, with Unix's
+  `NAME_MAX` of 255 as the reference.
+- The preview is the grant. The set is resolved when the command is planned, as the nameset code
+  already requires, so what `caps` shows is exactly what the caretaker enforces.
+
+### Refused, with reasons
+
+- 1 (leave it). `rm *.txt` would never work, and calef asked for it to.
+- 2 (data words alone). It cannot carry a realistic set. Its eight-name limit came from the shell's
+  stack, and the allocator removes that bound, so 2 would keep a limit whose cause is gone.
+- 4 (batches of one). It was argued only on effort, and it does not fix a plain `rm *.txt`.
+- 5 (a pattern grant the caretaker resolves), raised in the same conversation. The preview could
+  differ from the grant, since the directory can change between the two, and it is a new kind of
+  grant. It stays open for the day a program needs a live pattern rather than a fixed set.
+
+### Prior art
+
+All three are from memory and were not re-read for this ruling:
+
+- Unix `execve` copies the argument strings into the new process, up to `ARG_MAX`. A larger set
+  fails with `E2BIG`, and `xargs` exists to split one. 2b takes the copy and the loud refusal,
+  and points at `xargs` the same way.
+- Fuchsia's `processargs` protocol sends a new process its arguments and handles in a bootstrap
+  message on a channel, which the receiver owns once sent.
+- CloudABI's `argdata` passes structured arguments, including file descriptors, as one encoded
+  buffer rather than as flat strings.
+
+### What it depends on
+
+- A frame per filesystem client channel: the lane's proposal
+  `a-frame-per-filesystem-client-channel`, which PR #1358 promotes to a milestone (provisionally
+  numbered 599), and whose design §230 (badged endpoints name a caller's frame) rules. A set caretaker at the prompt must not
+  share the file service's staging frame with another client.
+- The swish allocator calef ruled the same day (`milestone/47-swish-allocator`, in flight). A set of
+  a few hundred names does not live on the shell's stack.
+
+The options as they were raised follow, unchanged apart from this section.
+
+## What was decided
 
 How the shell asks the progenitor to build a set caretaker, so that a pattern matching two or more
 names can be granted at a real prompt. It is a change to `spawnproto`, which the shell and the
-progenitor both read, so this section gives options only.
+progenitor both read, so the section was raised with options only.
 
 ## The premise, checked 2026-09-26
 
@@ -43,9 +98,9 @@ The note's table has the detail. In one line each:
    that already works. It does nothing for a plain `rm *.txt`, and the note says plainly that it is
    recommended only as effort.
 
-The lane recommends option 2, because the carrier is data the progenitor checks rather than a page
-someone else can still write. That is recorded as the lane's view; this section does not push it,
-because the fork is a wire format.
+The lane recommended option 2, because the carrier is data the progenitor checks rather than a
+page someone else can still write. 2b keeps that property by copying the page before anything
+reads it.
 
 ## The seven questions
 
@@ -66,16 +121,15 @@ because the fork is a wire format.
 7. Equal cost. Option 4 is the only one chosen for effort, and it says so. Between 2 and 3 at equal
    cost, 2 still wins, because 3 must copy anyway.
 
-## What it depends on
+## Why the frame per channel is a prerequisite
 
-A prerequisite with no milestone until the lane filed it:
-[a frame per filesystem client channel](../roadmap/proposals/a-frame-per-filesystem-client-channel.md).
 The file service shares one read-write staging frame with every client. A set caretaker built at
 the prompt, beside a `>` caretaker in the same pipeline, makes the check-then-use window that
-`notes/shared-page-audit.md` called unreachable a live one. Options 2 and 3 should wait for that
-work or land with it. Option 4 does not need it.
+`notes/shared-page-audit.md` called unreachable a live one. The lane filed that work as a proposal,
+which PR #1358 promotes. Option 4 would not have needed it.
 
-## What is blocked until this is answered
+## What this unblocks
 
-Milestone 109 (`xargs`: batching a grant too large to hand over) past its first batch, and every
-multi-name pattern at the prompt. It is the second of milestone 47's three open items.
+The set grant at the prompt, buildable in milestone 47 (navigation and naming) once its two
+dependencies land, and milestone 109 (`xargs`: batching a grant too large to hand over) past its
+first batch.

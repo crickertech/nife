@@ -5,25 +5,24 @@
 false, and both are corrected there rather than here: the glob caretaker was built 2026-07-31, and the
 `std` PAL's three namespace verbs were bound 2026-08-04.
 
-**Gate: DECISION §228, DECISION §229.** Two of the three items left below are architect's calls,
-minted on 2026-09-26 as PROPOSED sections (numbers provisional until the merge queue lands them).
-The third, completion, was ruled the same day in §227 (how Tab reaches the shell) and is buildable. The old gate, a milestone 64 measurement the
+**Gate: DECISION §229.** One of the three items left below is still an architect's call, minted on
+2026-09-26 as a PROPOSED section (number provisional until the merge queue lands it). The other
+two were ruled the same day: completion in §227 (how Tab reaches the shell), and the set grant in
+§228 (how a set of matched names reaches the progenitor). The old gate, a milestone 64 measurement the
 namespace half waited on, was discharged 2026-08-18 when that measurement landed.
 
 Where this stands, 2026-09-26 (UTC), `milestone/47-navigation`. Every item below was checked
 against the tree that day. One was built: `caps` prints the inert-configuration values a child
 will read, from the boot shell's own read-only view of the same frame (DECISIONS §111 (inert configuration is a validated page)'s preview;
 notes/env-config.md). One was settled elsewhere: the function-call syntax fork was refused by
-§141 (application is grant) on 2026-09-03. What is left is three architect's calls, each written
-up with its options, and none of them this lane's to answer:
+§141 (application is grant) on 2026-09-03. What was left was three architect's calls, each
+written up with its options. Two were ruled on 2026-09-26 and are now work to build; one waits:
 
-- Completion. PROPOSED below since 2026-08-26, minted as §227 (how Tab reaches the shell) and
-  ruled by calef on 2026-09-26: option D, the shell runs the line editor itself in raw mode, and
-  the terminal wire does not change.
+- Completion: ruled D in §227 (how Tab reaches the shell). The shell edits its own line in raw
+  mode.
 - A set grant at the prompt, which is what `xargs <program>` has been waiting on and, found
-  today, what refuses a plain `rm *.txt` over two files: `spawnproto` cannot carry a set. PROPOSED
-  in notes/a-set-grant-at-the-prompt.md, and minted as §228 (how a set of matched names reaches
-  the progenitor).
+  today, what refuses a plain `rm *.txt` over two files: `spawnproto` cannot carry a set. Ruled
+  2b in §228 (how a set of matched names reaches the progenitor): a page the shell fills.
 - `PATH` for installed programs: the manifest question that blocked it is answered by §208 and
   §219, and what remains is how a bare name reaches an installed program. PROPOSED under "The
   manifest question was answered elsewhere" below, and minted as §229 (how a bare name at the
@@ -1117,9 +1116,8 @@ will depend on, so it is calef's.
 
 ## Completion: a concrete primitive, priced and not built (investigated further 2026-08-26, `milestone/47-remainder-round2`). **PROPOSED, not decided.**
 
-The decision is §227 (how Tab reaches the shell), ruled 2026-09-26: option D, a raw-mode option
-this section predates. The resume message below was refused, and this section is kept as the
-evidence that was weighed.
+§227 (how Tab reaches the shell) ruled option D on 2026-09-26, which this section predates. The
+resume message below was refused; this is the evidence weighed.
 
 The 2026-08-26 lane found that Tab is swallowed at the line discipline
 (`crates/line_editor/src/lib.rs`, "Tab is ignored," confirmed again this round at the same line:
@@ -1356,8 +1354,8 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
 - **Outstanding.** Tab completion, now buildable: calef ruled
   `design/decisions/227-the-shell-edits-its-own-line.md` option D on 2026-09-26, so the
   shell turns raw mode on and runs `LineDisc` itself. Not built: `crates/line_editor` still ignores
-  Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The lane
-  that builds it owes two measurements, the shell's binary size and the per-keystroke IPC cost.
+  Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The
+  building lane owes the two measurements §227 names.
 - **Decision.** `PATH`, `design/decisions/229-how-a-bare-name-reaches-an-installed-program.md`
   (PROPOSED, recommends the live activation set with ambiguity refused). An installed program still
   runs only by path, checked 2026-09-26.
@@ -1375,11 +1373,11 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
 - **Milestone 154.** `bind` in a two-grant shell stays host-tested only. Both real entry points
   still pass no second directory (`components/src/swish.rs`, `user/src/system_initializer.rs`), and
   `crates/system_initializer` calls the path unverified against a real boot.
-- **Decision.** The delegation chain `xargs` needs, and it is wider than `xargs`: `spawnproto`
-  cannot carry a set of names, so every pattern matching two or more names is refused at a real
-  prompt, `rm *.txt` included. `design/decisions/228-how-a-set-of-names-reaches-the-progenitor.md`
-  (PROPOSED, options only), with the costs in notes/a-set-grant-at-the-prompt.md and its
-  prerequisite in `design/roadmap/proposals/a-frame-per-filesystem-client-channel.md`.
+- **Outstanding.** The set grant at the prompt, now buildable once its dependencies land: calef
+  ruled `design/decisions/228-how-a-set-of-names-reaches-the-progenitor.md` option 2b on
+  2026-09-26. Not built: `components/src/swish.rs` still refuses a set of names, checked
+  2026-09-26. It waits on the two dependencies §228 names, a frame per filesystem client channel
+  (`design/roadmap/proposals/a-frame-per-filesystem-client-channel.md`) and the swish allocator.
 - **Done.** A dispatched CI run scoped its build check to the branch's last commit, so this lane's
   run skipped the build and reported green. The lane filed it as a proposal, and PR #1355
   (`maintainer/ci-dispatch-scope`) fixes it by scoping against the merge base with `main`, so the
