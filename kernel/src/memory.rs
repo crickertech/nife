@@ -106,15 +106,13 @@ pub fn init() {
     // that matter here: the tree names a clock controller, or it names the TRNG whose clocks this
     // exists to ungate. QEMU's `virt` board names neither, so `jh7110_clock_and_reset` stays None
     // there and `drivers::jh7110_clock_and_reset` is never reached.
-    {
-        let crg = jh7110_clock_and_reset::discover(&dtb).ok();
-        let has_trng = matches!(jh7110_entropy::discover(&dtb), Ok(Some(_)));
-        if let Some(found) = crg
-            && (found.from_tree || has_trng)
-        {
-            *JH7110_CRG.lock() = Some(found);
-        }
-    }
+    //
+    // The SYS window and the PMIC bus's plan (milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write),
+    // provisional) ride the same guard, and
+    // only it: their own discovery also falls back to constants, so it cannot be the evidence that
+    // this machine is a JH7110. They are read here, while the tree is in hand, because the one
+    // caller (the rebooting soak, just before its SBI reset) runs long after boot.
+    record_jh7110(&dtb);
 
     // The SMMUv3 (milestone 16b), present only when the machine was started with
     // `iommu=smmuv3`. Absent, the kernel runs exactly as before; present, iommu::init drives it.
@@ -229,6 +227,30 @@ pub fn init() {
     let forbidden = &forbidden[..n];
 
     bring_up_page_frames(ram, forbidden);
+}
+
+/// **Record the JH7110's clock-and-reset windows and the PMIC bus's plan** (milestones 220 and
+/// 592), under the guard `init`'s comment above the call describes.
+///
+/// Its own frame, and `inline(never)` so it stays one: `init` is already close to the 4,096-byte
+/// guard page in an unoptimised build, and the two `Found`s and the `PmicBus` here pushed it over
+/// (`script/stack-frame-check`, 4,352 bytes on aarch64, 2026-09-25). A call keeps these locals off
+/// `init`'s frame instead of raising any ceiling.
+#[inline(never)]
+fn record_jh7110(dtb: &device_tree_blob::DeviceTreeBlob<'_>) {
+    let crg = jh7110_clock_and_reset::discover(dtb).ok();
+    let has_trng = matches!(jh7110_entropy::discover(dtb), Ok(Some(_)));
+    if let Some(found) = crg
+        && (found.from_tree || has_trng)
+    {
+        *JH7110_CRG.lock() = Some(found);
+        if let (Ok(sys), Ok(bus)) = (
+            jh7110_clock_and_reset::discover_sys(dtb),
+            jh7110_clock_and_reset::pmic_bus(dtb),
+        ) {
+            *JH7110_PMIC_BUS.lock() = Some((sys, bus));
+        }
+    }
 }
 
 /// **Bring the frame allocator up over a described machine**, given RAM and everything already
@@ -540,6 +562,21 @@ pub fn jh7110_clock_and_reset() -> Option<jh7110_clock_and_reset::Found> {
     *JH7110_CRG.lock()
 }
 
+/// **The JH7110's SYS clock-and-reset window, and the plan that brings the PMIC's I2C bus back
+/// up** (milestone 592, provisional). `None` on every machine that is not a JH7110, under exactly
+/// [`jh7110_clock_and_reset()`]'s guard. RISC-V's `mmu::init` maps the window device-typed.
+///
+/// The only caller is the rebooting soak, just before SBI SRST: on radon OpenSBI performs every
+/// reset as an I2C write to the AXP15060, and U-Boot hands over with that bus's clock gated and its
+/// reset asserted. See `design/roadmap/592-radons-reboot-dies-in-opensbis-pmic-write.md`.
+#[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))] // no JH7110 anywhere but a JH7110
+pub fn jh7110_pmic_bus() -> Option<(
+    jh7110_clock_and_reset::Found,
+    jh7110_clock_and_reset::PmicBus,
+)> {
+    *JH7110_PMIC_BUS.lock()
+}
+
 /// The PCIe host bridge's windows, from the device tree: `(ecam, mem32)`, each `(start, size)`,
 /// all **physical**. ECAM is the config window the bridge's `reg` names; `mem32` is the 32-bit
 /// non-prefetchable memory window BARs are placed in. `None` before `init`, and on a machine
@@ -823,6 +860,15 @@ static PLIC_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::R
 /// not a JH7110.
 static JH7110_CRG: IrqSafeMutex<Option<jh7110_clock_and_reset::Found>> =
     IrqSafeMutex::new(rank::RAM, None);
+
+/// The JH7110's SYS clock-and-reset window and the PMIC bus's plan (milestone 592). `None` until
+/// `init`, and on every machine that is not a JH7110.
+static JH7110_PMIC_BUS: IrqSafeMutex<
+    Option<(
+        jh7110_clock_and_reset::Found,
+        jh7110_clock_and_reset::PmicBus,
+    )>,
+> = IrqSafeMutex::new(rank::RAM, None);
 
 /// The generic-ECAM PCIe host bridge's windows: (ecam, mem32), each (base, size). Physical.
 type PciWindows = ((u64, u64), (u64, u64));

@@ -89,6 +89,33 @@ fn finds_the_plics_context_list_by_compatible() {
     );
 }
 
+/// **The parent's property, not the node's** (milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write),
+/// provisional). The PLIC sits under
+/// `/soc`, so asking its parent for `compatible` must answer `simple-bus` (the soc's) and asking
+/// for `interrupts-extended` must answer nothing, although the PLIC itself has one. Radon's use is
+/// a PMIC under the I2C bus whose clocks and resets the kernel needs; this is the same walk on the
+/// tree every CI run boots.
+#[test]
+fn finds_the_parent_of_a_compatible_node() {
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    assert_eq!(
+        dtb.parent_prop_compatible(b"sifive,plic-1.0.0", b"compatible")
+            .unwrap(),
+        Some(&b"simple-bus\0"[..])
+    );
+    assert_eq!(
+        dtb.parent_prop_compatible(b"sifive,plic-1.0.0", b"interrupts-extended")
+            .unwrap(),
+        None,
+        "the soc node has no such property, even though the PLIC does"
+    );
+    assert_eq!(
+        dtb.parent_prop_compatible(b"acme,unobtainium", b"compatible")
+            .unwrap(),
+        None
+    );
+}
+
 /// The OpenSBI firmware regions, from the `/reserved-memory` node. Missing these is the bug the
 /// function exists to prevent: the frame allocator hands out OpenSBI's RAM and the first write
 /// faults on a PMP violation, in code nowhere near the allocator.

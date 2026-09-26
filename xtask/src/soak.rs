@@ -422,8 +422,12 @@ pub(crate) fn soak_test() -> ExitCode {
             }
             (TARGET, "helpers/qemu-runner-aarch64.sh", initrd_path())
         }
+        // `mkdisk` for job-mix's reason above (found again 2026-09-25 by milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write)'s
+        // lane,
+        // whose fresh worktree failed `--reboot --arch riscv64` with `starts=0` before the kernel
+        // printed a line): the riscv64 runner refuses a `NIFE_DISK` naming a missing file.
         "riscv64" => {
-            if !initrd_riscv() {
+            if !(mkdisk() && initrd_riscv()) {
                 return ExitCode::from(4);
             }
             (

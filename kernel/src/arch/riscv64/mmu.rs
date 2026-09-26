@@ -451,6 +451,14 @@ where
         direct_map(m, crg.base, crg.base + crg.size, Flags::device())?;
     }
 
+    // 6c. The JH7110's SYS clock and reset generator (milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write), provisional),
+    // device memory,
+    // under 6b's guard and for one caller: the rebooting soak ungates I2C5 and releases its reset
+    // just before SBI SRST, because radon's OpenSBI resets the board with an I2C write to the PMIC.
+    if let Some((sys, _)) = memory::jh7110_pmic_bus() {
+        direct_map(m, sys.base, sys.base + sys.size, Flags::device())?;
+    }
+
     // 7. The `sifive_test` finisher (0x10_0000), device memory: the MMIO word the test harness writes
     // to exit QEMU (arch::semihosting::exit). One page. Only QEMU `virt` has this device; the
     // VisionFive 2 has nothing at 0x10_0000, so mapping it there is a mapping to a nonexistent

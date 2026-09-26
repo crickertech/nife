@@ -66,7 +66,7 @@ banner with nothing after it. The escape check in notes/soak.md's procedure come
 
 | board | first step | what QEMU cannot show |
 |---|---|---|
-| radon | the I2C5 clock experiment below, then one reset watched to `soak-test: started` | OpenSBI's PMIC write failing again |
+| radon | one reset with milestone 592 (radon's cold reboot dies in OpenSBI's PMIC write)'s kernel, watched to `soak-test: started` | OpenSBI's PMIC write failing again |
 | argon | boot nife at all, which has never happened; then one PSCI reset over `smc` | NVIDIA's boot chain; upstream TF-A has dropped Tegra210 |
 | xenon | read the boot log's `fadt reset register:` line, then one reset watched to a netboot | Dell firmware stopping at a POST prompt ("Prompt on Warnings and Errors") |
 
@@ -92,7 +92,12 @@ is the matching source, not a proven one.
 The likely cause is in the same log. At `Starting kernel`, U-Boot prints `clk u5_dw_i2c_clk_core
 already disabled` and `clk u5_dw_i2c_clk_apb already disabled`. U-Boot gated I2C5, the PMIC's bus.
 OpenSBI turns the APB gate back on, but only when that register reads zero, and never the core
-clock. That is an inference, and it is cheap to test.
+clock. That is an inference, and milestone 592 found it half right (corrected 2026-09-25). radon
+runs an older OpenSBI than the branch above, pinned by SDK tag `VF2_v2.10.4`. U-Boot's handover
+also asserts I2C5's reset, which that OpenSBI never releases. It computes the clock word from the
+node name, and U-Boot's `i2c@12050000` gives UART4's core clock instead of I2C5's gate. The "core
+clock" is a divide-by-one child of the APB gate with no register of its own. The kernel now brings
+I2C5 back up before the reset; the milestone's block has the sources and the bench outcome table.
 
 SRST shutdown fails the same way on this board (notes/visionfive2.md, boot 15+), which fits. The
 route is not closed. It is blocked on one I2C transaction that the kernel may be able to set up.
@@ -101,8 +106,9 @@ route is not closed. It is blocked on one I2C transaction that the kernel may be
 
 All are in `design/roadmap/proposals/`, with no number yet.
 
-- `radons-reboot-dies-in-opensbis-pmic-write.md`: turn on I2C5's clocks before SRST, about 20
-  lines. Then a nife PMIC write, about 250 lines. Last, a firmware update, which is calef's call.
+- `radons-reboot-dies-in-opensbis-pmic-write.md`, now milestone 592: bring I2C5 back up before
+  SRST (built). Then a nife PMIC write, about 250 lines. Last, a firmware update, which is calef's
+  call.
 - `a-wedged-kernel-resets-itself.md`: hardware watchdogs, so a wedged kernel resets itself. xenon's
   TCO comes first, because q35 emulates it.
 - `xenon-may-carry-amt.md`: remote power and serial over LAN, if xenon's factory option has AMT.
