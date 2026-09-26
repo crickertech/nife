@@ -1523,9 +1523,10 @@ pub struct Manifest {
     /// [`clock`](Manifest::clock)'s family again: how the box is doing is not something a command
     /// line designates, so this tells the progenitor which children to endow and tells a person
     /// reading `caps free` that the program sees the machine. §225 ruled it granted to every login
-    /// by default and withholdable by the owner; the owner's switch is
-    /// `system_initializer::GRANT_MACHINE_PAGE`, and a program denied it prints that it cannot see
-    /// the machine rather than a machine of zero bytes.
+    /// by default and withholdable by the owner. The page travels with the session: the shell
+    /// holds it at [`spawnproto::MACHINE_PAGE_SLOT`] and sends it with the request, so a session
+    /// the owner withheld it from (`system_initializer::GRANT_MACHINE_PAGE`) spawns programs that
+    /// print that they cannot see the machine rather than a machine of zero bytes.
     ///
     /// **Provisional field name.**
     pub machine: bool,

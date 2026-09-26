@@ -173,6 +173,34 @@ static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
 // `grant_plan` states the slot without depending on `abi`; the relation is held by each reader.
 const _: () = assert!(spawnproto::RUN_UNVOUCHED_SLOT == abi::fault::FAULT_EP_SLOT - 1);
 
+/// **Whether this session holds the machine statistics page** (milestone 126 (the `procps`
+/// package), DECISIONS §225 (`free` sees the machine and your share)), at
+/// [`spawnproto::MACHINE_PAGE_SLOT`], `READ | GRANT`. Probed once at [`_start`], for
+/// [`HOLDS_RUN_UNVOUCHED`]'s reason.
+///
+/// Holding it changes one thing: a program whose manifest declares `machine` is sent the page with
+/// its spawn request ([`machine_wiring`]), so it can see how the machine is doing. A session the
+/// owner withheld it from cannot pass on what it does not hold, and `free` then says so.
+static HOLDS_MACHINE_PAGE: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+
+/// Whether a spawn of `e` sends the machine statistics page: the program declared it and this
+/// session holds it.
+fn machine_wiring(e: &Endowment) -> bool {
+    e.prog.manifest().machine && HOLDS_MACHINE_PAGE.load(core::sync::atomic::Ordering::Relaxed)
+}
+
+/// **Send the machine statistics page, the last delegated capability of a request that set
+/// `machine`** (`spawnproto::MACHINE_BIT`). We keep our own copy.
+fn delegate_machine_page(wired: bool) {
+    if wired {
+        delegate(
+            spawnproto::MACHINE_PAGE_SLOT,
+            abi::rights::READ | abi::rights::GRANT,
+        );
+    }
+}
+
 /// The `x2` value meaning "this shell was granted no clock". Zero rather than a sentinel, because
 /// slot 0 is the terminal in every wiring, so no clock can ever legitimately be there.
 const NO_CLOCK: u64 = 0;
@@ -1125,6 +1153,11 @@ pub extern "C" fn _start(role: u64, arg: u64, clock: u64) -> ! {
     // Probed here and nowhere later: see [`HOLDS_RUN_UNVOUCHED`].
     HOLDS_RUN_UNVOUCHED.store(
         user_mode_runtime::is_granted(spawnproto::RUN_UNVOUCHED_SLOT),
+        core::sync::atomic::Ordering::Relaxed,
+    );
+    // Probed here too: see [`HOLDS_MACHINE_PAGE`].
+    HOLDS_MACHINE_PAGE.store(
+        user_mode_runtime::is_granted(spawnproto::MACHINE_PAGE_SLOT),
         core::sync::atomic::Ordering::Relaxed,
     );
     match role {
@@ -2187,6 +2220,7 @@ fn spawn(e: Endowment) {
             screen: false,
             image: false,
             run_unvouched: false,
+            machine: machine_wiring(&e),
         },
     );
     send(SPAWN, w0, w1, w2);
@@ -2205,6 +2239,7 @@ fn spawn(e: Endowment) {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
         cap_delete(slot); // our copy is delegated; free the slot
     }
+    delegate_machine_page(machine_wiring(&e));
 
     // One reader, one word: a real program's answer, or the progenitor's spawn-failed sentinel. A program
     // whose manifest says it writes **bytes** is the exception: its answer is a stream, so it is
@@ -3377,6 +3412,7 @@ fn spawn_stage(
         // only on a plain line; see `run_image`).
         image: false,
         run_unvouched: false,
+        machine: machine_wiring(&e),
     };
     let (w0, w1, w2) = spawnproto::request(e.prog.id(), e.arg, e.mem_pages, wiring);
     send(SPAWN, w0, w1, w2);
@@ -3403,6 +3439,7 @@ fn spawn_stage(
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
         cap_delete(slot);
     }
+    delegate_machine_page(wiring.machine);
 
     // A stage whose output was substituted owes this shell no answer, so the progenitor acks instead. Without
     // it a failed spawn would be invisible and the pipeline would wait on a producer that does not
@@ -3592,6 +3629,9 @@ fn spawn_interruptible(e: Endowment) {
             screen: false,
             image: false,
             run_unvouched: false,
+            // An interruptible child is built with no capabilities at all (it reports through the
+            // job frame), so there is nowhere to put the machine page.
+            machine: false,
         },
     );
     send(SPAWN, w0, w1, w2);

@@ -102,8 +102,9 @@ pub fn context_switch() {
     mine(word::CONTEXT_SWITCHES).fetch_add(1, Ordering::Relaxed);
 }
 
-/// This core took an interrupt other than its tick (the tick counts itself in [`tick`]).
-#[inline]
+/// This core took an interrupt other than its tick (the tick counts itself in [`tick`]). Out of
+/// line because its callers sit in the exception dispatchers `script/fastpath-footprint` measures.
+#[inline(never)]
 pub fn interrupt() {
     mine(word::INTERRUPTS).fetch_add(1, Ordering::Relaxed);
 }

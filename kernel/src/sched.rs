@@ -1904,11 +1904,8 @@ pub fn on_tick() {
     // [`CPU_TICKS`] for why the counter is an array beside the table rather than a field in it.
     charge_tick();
     // **And the machine's own view of the same tick** (milestone 126, DECISIONS §225): busy or
-    // idle, and how many threads were waiting, for `vmstat` and `top`'s summary. Lock-free, like
-    // `charge_tick`: the idle tid and the run-queue length are this core's own relaxed mirrors.
-    let here = cpu::current();
-    let idle = current_thread_id() == here.idle.load(Ordering::Relaxed);
-    crate::machine_statistics::tick(idle, here.runnable() as u64 + u64::from(!idle));
+    // idle, and how many threads were waiting, for `vmstat` and `top`'s summary.
+    count_tick();
     // The corruption tripwire, when armed (the board tour's initrd-demo window). One relaxed
     // load when it is not, which is every other tick everywhere. IRQ context is safe for its
     // println: the console's IrqSafeMutex masks interrupts while held, so the interrupted
@@ -1926,6 +1923,17 @@ pub fn on_tick() {
     // down through `irq_notify`. It compiles to nothing anywhere else; see kernel/src/soak.rs.
     #[cfg(feature = "soak_test")]
     crate::soak::signal_waiters();
+}
+
+/// The machine statistics page's half of a tick, out of line because every architecture's
+/// exception dispatcher is in `script/fastpath-footprint`'s flat `syscall_entry` set and a tick is
+/// not a syscall. Lock-free, like `charge_tick`: the idle tid and the run-queue length are this
+/// core's own relaxed mirrors.
+#[inline(never)]
+fn count_tick() {
+    let here = cpu::current();
+    let idle = current_thread_id() == here.idle.load(Ordering::Relaxed);
+    crate::machine_statistics::tick(idle, here.runnable() as u64 + u64::from(!idle));
 }
 
 pub fn take_need_resched() -> bool {

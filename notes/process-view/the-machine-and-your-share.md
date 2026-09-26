@@ -20,7 +20,16 @@ The machine statistics page is one kernel frame holding the machine's counters: 
 frames, and per core the busy and idle ticks, context switches, interrupts and run queue. The
 counters live in the page itself, so there is no copy and no refresh. Each per-core word has one
 writer, its own core, and each core has its own cache line. The kernel mints one capability to it,
-for the progenitor, which maps it read-only into a child whose manifest declares `machine`.
+for the progenitor, which hands it to the boot prompt's shell and keeps no copy. The shell sends it
+back with the spawn request of a program whose manifest declares `machine`, and the progenitor maps
+it read-only into that child.
+
+The page travels with the session for a measured reason. The progenitor's capability table peaks
+during the login block at 23 of its 24 slots, and the first build, which kept the page in the
+progenitor for the life of the boot, took it to 24 of 24. The kernel's own record of that peak says
+the next permanent capability should buy a slot back rather than spend the last one. Handing the
+page to the session before the login block buys it back, and it is also the shape §225's words
+describe: what a program sees is decided by what its session holds.
 
 Four programs read them:
 
@@ -48,6 +57,8 @@ Every number and name here was minted by this lane and ships provisional.
 | the page's layout | a 64-byte header line (magic `MACHSTA1`, frame bytes, tick rate, total and free frames), then one line per possible core | one writer per line, so no two cores share a written cache line |
 | where a child sees it | `0x00f0_0000`, read-only | inside the 2 MiB the clock and configuration pages already use, so a spawn pays no new page-table frames |
 | the progenitor's slot | 17 | past the entropy slot, the highest fixed boot slot before it |
+| the session's slot | `spawnproto::MACHINE_PAGE_SLOT` 21 | one under the run-unvouched slot, for that slot's reasons |
+| the spawn wire | `spawnproto::MACHINE_BIT`, bit 42 of word 2; the page is the last delegated capability | the next free bit, and last so every existing request keeps its order |
 | the child's slots | `MACHINE_SLOT` 11, `SHARE_SLOT` 12 | named slots past `NETWORK_SLOT`, for the reasons `DOMAIN_SLOT` gives |
 | the manifest fields | `machine`, `share` | `clock`'s family: nothing a command line designates |
 | the owner's switch | `system_initializer::GRANT_MACHINE_PAGE`, default `true` | see below |
@@ -55,14 +66,19 @@ Every number and name here was minted by this lane and ships provisional.
 ## The owner's switch is a boot-time constant, and that is an exception
 
 §225 says owner policy grants the page to every login by default and can withhold it. The switch
-built here is one constant in the progenitor, beside the owner's other boot-time policy (the
-run-unvouched capability). It withholds the page from every program at once, and a withheld page is
-said on the second stream rather than printed as a machine of zero bytes.
+built here is one constant in the progenitor, `GRANT_MACHINE_PAGE`, beside the owner's other
+boot-time policy (the run-unvouched capability). It decides whether the boot prompt's session holds
+the page, and a program spawned from a session without it says so on its second stream rather than
+printing a machine of zero bytes.
 
-The ruling's words suggest a per-login policy, where login hands each session the page or not.
-Nothing builds that yet, because the page reaches a program through the progenitor rather than
-through the session. The constant is the lowest rung that expresses "the owner can withhold it", and
-it is marked as provisional where a reader meets it.
+The mechanism is already per session, since the page travels with each request. A per-login policy
+is `login` handing each session the page or not, the way it hands on the run-unvouched capability.
+Nothing hands the page to `login` yet, so the constant decides for the boot prompt alone, and it is
+marked as provisional where a reader meets it.
+
+One exposure comes with holding `GRANT`, which delegation needs. `PageFrame::REVOKE` needs `GRANT`
+too, so a session could revoke the page from every holder, the kernel's mappings aside. The shell
+never calls it; the same exposure applies to every frame a session holds with `GRANT`.
 
 ## What the counters cost
 

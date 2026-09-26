@@ -503,9 +503,10 @@ pub struct BootEndowment {
     /// **The machine statistics page** (milestone 126, DECISIONS §225 (`free` sees the machine and your share) part 2): a `PageFrame`
     /// capability with `READ | GRANT` to the frame the kernel keeps its machine-wide counters in
     /// (`crates/machine_statistics_protocol`). Granted unconditionally, like
-    /// [`config_page`](BootEndowment::config_page), so its slot never moves. [`boot`] maps it into
-    /// a child whose manifest declares [`grant_plan::Manifest::machine`], when
-    /// [`GRANT_MACHINE_PAGE`] says the owner allows it.
+    /// [`config_page`](BootEndowment::config_page), so its slot never moves. [`boot`] hands it to
+    /// the boot prompt's shell when [`GRANT_MACHINE_PAGE`] says the owner allows it, and keeps no
+    /// copy; the shell sends it back with the spawn request of a program that declares
+    /// [`grant_plan::Manifest::machine`] (`spawnproto::MACHINE_BIT`).
     ///
     /// Name: provisional, milestone 126's `free` lane, 2026-09-26.
     pub machine_page: u64,
@@ -575,15 +576,16 @@ const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
 /// numbers that happen not to need to agree.
 const CHILD_CONFIG_VA: u64 = 0x00e0_0000;
 
-/// **Whether a child that declares `machine` is shown the machine** (milestone 126, DECISIONS §225
-/// part 2). §225 ruled the page granted to every login by default and withholdable by the machine
-/// owner, and this is the owner's switch, in the one file the owner's other boot-time policy
-/// (the run-unvouched capability, above) already lives in. `false` and every `free` prints that it
-/// cannot see the machine, and `vmstat` refuses, rather than either printing zeroes.
+/// **Whether the boot prompt's session is handed the machine statistics page** (milestone 126,
+/// DECISIONS §225 part 2). §225 ruled the page granted to every login by default and withholdable
+/// by the machine owner, and this is the owner's switch, in the one file the owner's other
+/// boot-time policy (the run-unvouched capability) already lives in. `false` and the shell never
+/// holds the page, so every `free` prints that it cannot see the machine and `vmstat` refuses,
+/// rather than either printing zeroes.
 ///
-/// **PROVISIONAL, and an exception worth marking**: a boot-time constant is the lowest rung that
-/// expresses "the owner can withhold it". A per-login policy (login handing each session the page
-/// or not) is the shape the ruling's words suggest, and nothing here builds it yet.
+/// **PROVISIONAL, and an exception worth marking**: the page already travels with the session
+/// (`spawnproto::MACHINE_BIT`), so a per-login policy is `login` handing each session the page or
+/// not. Nothing hands it to `login` yet; this constant decides for the boot prompt alone.
 pub const GRANT_MACHINE_PAGE: bool = true;
 
 /// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the
@@ -1700,6 +1702,22 @@ pub fn boot(
         },
     ));
     cap_delete(sh_budget); // our copy; the shell holds its own now
+    // **The machine statistics page goes to the session, and this process keeps no copy**
+    // (milestone 126, DECISIONS §225). Placed now, before the login block, because that block is
+    // this table's peak and a page held across it would spend the table's last slot
+    // (`kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED`). The shell hands it back with a spawn request
+    // only for a program that declares `machine` (`spawnproto::MACHINE_PAGE_SLOT`, `MACHINE_BIT`),
+    // so which programs see the machine is decided by what the session holds. `READ | GRANT`: it
+    // can delegate the page and cannot write it. [`GRANT_MACHINE_PAGE`] is the owner's switch.
+    if GRANT_MACHINE_PAGE {
+        must_ok(place_at(
+            shell.tcb,
+            g.machine_page,
+            abi::rights::READ | abi::rights::GRANT,
+            spawnproto::MACHINE_PAGE_SLOT,
+        ));
+    }
+    cap_delete(g.machine_page);
     // The caretaker's endpoint was only ever the means of wiring: the shell holds its own copy and
     // the caretaker holds the other end, the same disposal `spawn_service`'s dynamic directory
     // grants already give their own narrowed endpoint below.
@@ -2277,8 +2295,6 @@ pub fn boot(
             jobs_ut,
             clock_page: g.clock_page,
             config_page: g.config_page,
-            // The machine page, unless the owner withholds it (§225's default and its switch).
-            machine_page: GRANT_MACHINE_PAGE.then_some(g.machine_page),
             // The terminal's sink, if this initrd carried an adapter to serve it. This is what a
             // declared second stream gets by default (DECISIONS §67): the shell names a file with
             // `2>` and otherwise the bytes go straight to the screen, through a process that can do
@@ -2350,10 +2366,6 @@ struct Channels {
     jobs_ut: u64,
     /// READ on the wall clock, endowed to a child whose manifest declares one (DECISIONS §43).
     clock_page: u64,
-    /// READ on the machine statistics page (milestone 126, DECISIONS §225), endowed to a child
-    /// whose manifest declares [`grant_plan::Manifest::machine`], or `None` when
-    /// [`GRANT_MACHINE_PAGE`] withholds it.
-    machine_page: Option<u64>,
     /// READ on the inert-configuration page, endowed to a child whose manifest declares
     /// [`grant_plan::Manifest::config`] (DECISIONS §111). [`clock_page`](Channels::clock_page)'s
     /// twin in every respect: unconditional, read-only, and handed on only where the manifest asks.
@@ -2456,7 +2468,6 @@ fn spawn_service(
         jobs_ut,
         clock_page,
         config_page,
-        machine_page,
         term_sink,
         fs,
         entropy,
@@ -2563,6 +2574,14 @@ fn spawn_service(
             None
         };
         let budget = if mem_pages > 0 {
+            opt_cap(recv_cap(spawn_ep).1)
+        } else {
+            None
+        };
+        // **The machine statistics page, when the session sent it** (milestone 126,
+        // `spawnproto::MACHINE_BIT`): the last delegated capability, and deleted with the others
+        // below once the child holds its own mapping and slot.
+        let machine_page = if wiring.machine {
             opt_cap(recv_cap(spawn_ep).1)
         } else {
             None
@@ -2896,25 +2915,27 @@ fn spawn_service(
             // combination it could not express; the machine statistics page made a fourth kind of
             // mapping, and a list closes that debt instead of adding a branch to it. Each entry is a
             // page this progenitor holds and only maps, so the child's reclaim leaves them all alone.
-            let machine_map = machine_page.map(|page| {
-                (
+            let mut map_buf = [(0u64, 0u64, 0u64); 4];
+            let mut map_n = 0usize;
+            if narrowed.is_some() {
+                map_buf[map_n] = dir_map[0];
+                map_n += 1;
+            }
+            if wants_clock {
+                map_buf[map_n] = clock_map[0];
+                map_n += 1;
+            }
+            if wants_config {
+                map_buf[map_n] = config_map[0];
+                map_n += 1;
+            }
+            if let (true, Some(page)) = (wants_machine, machine_page) {
+                map_buf[map_n] = (
                     machine_statistics_protocol::PAGE_VA,
                     page,
                     abi::address_space::MAP_RO,
-                )
-            });
-            let mut map_buf = [(0u64, 0u64, 0u64); 4];
-            let mut map_n = 0usize;
-            for (wanted, entry) in [
-                (narrowed.is_some(), Some(dir_map[0])),
-                (wants_clock, Some(clock_map[0])),
-                (wants_config, Some(config_map[0])),
-                (wants_machine, machine_map),
-            ] {
-                if let (true, Some(e)) = (wanted, entry) {
-                    map_buf[map_n] = e;
-                    map_n += 1;
-                }
+                );
+                map_n += 1;
             }
             let maps: &[(u64, u64, u64)] = &map_buf[..map_n];
             // **The std layout** (milestone 595 (provisional)): the same authorities, placed where
@@ -3059,9 +3080,18 @@ fn spawn_service(
         // mapped, the budget and the streams inserted), and the shell holds the originals it kept
         // (the job untyped for teardown, the pipe it minted). This keeps the progenitor's 16-slot capability table from
         // filling across a long session.
-        for s in [job_ut, job_fr, sink, source, diagnostics, screen, budget]
-            .into_iter()
-            .flatten()
+        for s in [
+            job_ut,
+            job_fr,
+            sink,
+            source,
+            diagnostics,
+            screen,
+            budget,
+            machine_page,
+        ]
+        .into_iter()
+        .flatten()
         {
             cap_delete(s);
         }
