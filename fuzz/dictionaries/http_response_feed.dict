@@ -1,0 +1,22 @@
+# libFuzzer dictionary for the package fetch's HTTP response reader.
+#
+# `Response::feed` does nothing interesting until it has seen a CRLF CRLF, and `parse_head` refuses
+# anything whose first line is not `HTTP/1.<digit> <three digits>`. The header names are the two it
+# reads; everything else is skipped, so spelling them is the only way into the length and encoding
+# checks.
+
+version10="HTTP/1.0 "
+version11="HTTP/1.1 "
+ok=" 200 OK"
+crlf="\x0d\x0a"
+blank="\x0d\x0a\x0d\x0a"
+content_length="Content-Length:"
+content_length_lower="content-length:"
+transfer_encoding="Transfer-Encoding:"
+chunked="chunked"
+colon=": "
+tab="\x09"
+lf="\x0a"
+cr="\x0d"
+big="99999999999999999999"
+max_u64="18446744073709551615"

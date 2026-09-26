@@ -247,12 +247,12 @@ says so where the step is), or the flush cost comes down in milestone 400's code
 ### The script lines, and the four it omits
 
 **60 of 64 lines run.** The omitted four are `uuid > id.txt`, `wc < id.txt`, `uuid 2> ent.txt` and
-`wc < ent.txt`, each carrying its reason in `swish_check_x86_omits` (`xtask/src/main.rs`), under the
-rule milestone 150 added. The reason: `uuid` draws from the entropy service, which the progenitor
-builds only from a virtio-rng the kernel found, and the kernel finds one only on a virtio-mmio slot
-(`kernel::user::boot_virtio_rng_device`); `q35` has no mmio bus. `caps uuid` still runs, because it
-is a preview of the manifest and needs no device. A line added to the script runs on x86_64 unless
-someone argues it out.
+`wc < ent.txt`, each carrying its reason in `swish_check_omits(arch, line)`
+(`xtask/src/swish_check.rs`). The reason: `uuid` draws from the entropy service, which the
+progenitor builds only from a virtio-rng the kernel found, and the kernel finds one only on a
+virtio-mmio slot (`kernel::user::boot_virtio_rng_device`); `q35` has no mmio bus. `caps uuid` still
+runs, because it is a preview of the manifest and needs no device. A line added to the script runs
+on x86_64 unless someone argues it out.
 
 ### Capability slots at peak
 

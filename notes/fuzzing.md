@@ -63,7 +63,7 @@ even always "bounded versus unbounded": sometimes it is that nobody wrote the pr
 whose input this system produced is a correctness question. A parser whose input somebody else
 produced is a security question, and it is the one where a panic has a consequence a user notices.
 
-Four targets, deliberately fewer than one per crate. A fuzz target that finds nothing because it
+Six targets, deliberately fewer than one per crate. A fuzz target that finds nothing because it
 fuzzes a total function is worse than no target: it costs CI time on every commit and it implies
 coverage the project does not have.
 
@@ -72,11 +72,13 @@ coverage the project does not have.
 | `device_tree_blob_walk` | firmware (QEMU, OpenSBI, a board's ROM) | parsed **before anything else exists**, on both ISAs, from a pointer in a register; a panic here is a kernel that cannot boot and cannot say why. Kani reaches the leaf readers and not the walkers. |
 | `elf_parse` | any binary a user asks to run | the only parser that **loads what it parses**: its output becomes page-table entries. The whole-parse totality proof is recorded as intractable. |
 | `globally_unique_identifier_partition_table` | a disk somebody else formatted | decides which LBA range is a filesystem. Heavily checked already, which is the point: the gap is *combinations* of hostile fields, which neither the proofs nor the single-byte mutation tests can build. |
+| `http_response_feed` | a package server, over plain HTTP | network bytes, read in the progenitor **before** the digest check. Asserts read splits never change the answer. |
 | `nifefs_roundtrip` | (structured) the writer's own output | not a panic hunt. Asserts that **what goes in comes out**, which is the property `write_image`'s truncation bug violated until 2026-08-01 and its NUL bug until 2026-08-02. |
+| `package_archive_roundtrip` | (structured) the writer's own output | §197 (a package is one archive file)'s owed target: a written package reads back and verifies. |
 
 ### And the ones deliberately not fuzzed
 
-Naming these matters as much as naming the four, because "we have fuzzers" is the kind of claim that
+Naming these matters as much as naming the six, because "we have fuzzers" is the kind of claim that
 quietly grows to cover everything.
 
 - **`nifefs`'s `Fs::parse` on raw bytes.** Kani proves it total with no size bound. A fuzz target
@@ -203,9 +205,6 @@ every target**, and four to six million per CI run, from a corpus already past e
 check. CI's runner is a different machine; the order of magnitude is what the budget is chosen
 against.
 
-None of the four crashed in those forty minutes, which is the "not yet" this note's BUGS section
-insists on rather than a result.
-
 **What the CI budget actually does**, measured the way CI does it, from a deleted corpus so nothing
 carries over:
 
@@ -217,11 +216,6 @@ gpt_table              1,548,246 execs    25,381/s
 nifefs_roundtrip    1,763,965 execs    28,917/s
 ==> fuzz: no crashes in 4 targets at 60s each
 ```
-
-That transcript is the run's own output, so it keeps `dtb_walk` and `gpt_table`, the targets' names
-at the time (now `device_tree_blob_walk` and `globally_unique_identifier_partition_table`).
-
-56 million inputs in four minutes of runner time.
 
 **And it is weaker than that number makes it sound**, which is worth knowing before anyone leans on
 it. The draft of this paragraph claimed the job would now catch `Region::end`'s overflow immediately

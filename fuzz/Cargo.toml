@@ -65,6 +65,7 @@ nifefs = { path = "../crates/nifefs" }
 device_tree_blob = { path = "../crates/device_tree_blob" }
 elf = { path = "../crates/elf" }
 globally_unique_identifier_partition_table = { path = "../crates/globally_unique_identifier_partition_table" }
+http_response = { path = "../crates/http_response" }
 package_archive = { path = "../crates/package_archive" }
 
 # **Overflow checks and debug assertions ON in an optimised build**, which is not cargo-fuzz's
@@ -97,6 +98,13 @@ bench = false
 [[bin]]
 name = "globally_unique_identifier_partition_table"
 path = "fuzz_targets/globally_unique_identifier_partition_table.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http_response_feed"
+path = "fuzz_targets/http_response_feed.rs"
 test = false
 doc = false
 bench = false

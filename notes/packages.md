@@ -284,8 +284,8 @@ ritual until somebody breaks the confinement)'s unvouched-child probe becomes te
   numbers (milestone 590 (the booted system starts its network stack)'s BUGS). Another network
   program can fail a fetch, not pass one; the digest decides.
 - The progenitor serves nothing else while it fetches, and a slow source makes the prompt wait.
-- An HTTP reader runs in the progenitor before the digest check (above). It is host-tested and has
-  no fuzz target.
+- An HTTP reader runs in the progenitor before the digest check (above). It is fuzzed, not
+  proved; `crates/http_response`'s BUGS says why.
 
 - **No compression.** `.hpkg` chunks its heap with zlib and `.apk` is three gzip streams; this
   stores members whole. The first packages are ELFs that were about to be written to a disk anyway,
