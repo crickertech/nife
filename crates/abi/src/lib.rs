@@ -751,10 +751,11 @@ pub mod memory_region {
 /// **Which figure a [`memory_region::USAGE`] asks for** (milestone 126, DECISIONS §225). A selector
 /// on `SURVEY`'s shape, so a new figure is a new value here and an arm in the kernel.
 ///
-/// Every answer is in pages. [`SIZE`], [`COMMITTED`] and [`CHILDREN`] describe this region alone.
-/// [`FRAMES`] and the three object kinds count **the whole subtree**, this region and every live
-/// region split from it, because a budget's pages are mostly carved into child regions and the
-/// objects live in those. The counts are bump-only like a watermark: a torn-down object's page
+/// Every answer is in pages. [`SIZE`](usage::SIZE), [`COMMITTED`](usage::COMMITTED) and
+/// [`CHILDREN`](usage::CHILDREN) describe this region alone. [`FRAMES`](usage::FRAMES) and the
+/// three object kinds count **the whole subtree**, this region and every live region split from
+/// it, because a budget's pages are mostly carved into child regions and the objects live in
+/// those. The counts are bump-only like a watermark: a torn-down object's page
 /// stays spent until its region is reclaimed, so they say where the budget went, not what is alive
 /// now.
 ///
