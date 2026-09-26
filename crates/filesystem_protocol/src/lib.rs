@@ -2491,6 +2491,45 @@ pub mod fixture {
     /// first. Any other value (or silence) fails the test.
     pub const SUCCESS: u64 = 0xF11E_600D;
 
+    /// **The shared-frame witness's two files** (milestone 599 (a frame per filesystem client
+    /// channel), provisional). Two files at the image root with the **same-length name** and
+    /// **distinct contents**, so a substitution shows up as the wrong body rather than a length
+    /// mismatch. The name lengths must be equal, because the length a client sends travels in a
+    /// register (the caller chooses it) while the name travels in the shared page (any holder of
+    /// the frame can rewrite it): the victim sends its own name's length and the attacker's name
+    /// must fill exactly that many bytes for the server to resolve it.
+    ///
+    /// The witness has the victim intend [`SHARED_VICTIM_NAME`] and the attacker overwrite the
+    /// staged name with [`SHARED_USURPER_NAME`] before the victim calls. A server that read the
+    /// victim's own bytes returns [`SHARED_VICTIM_BODY`]; a server that read the attacker's bytes
+    /// returns [`SHARED_USURPER_BODY`], which is the escape. See `kernel/src/user/fs_shared_page_tests.rs`.
+    ///
+    /// Names provisional (this lane's coinage); an architect names files.
+    pub const SHARED_VICTIM_NAME: &str = "fs-witness-victim";
+    /// See [`SHARED_VICTIM_NAME`]. Exactly as long as [`SHARED_USURPER_NAME`].
+    pub const SHARED_USURPER_NAME: &str = "fs-witness-usurpr";
+    /// What [`SHARED_VICTIM_NAME`] holds: what the victim expects to read back.
+    pub const SHARED_VICTIM_BODY: &[u8] = b"CRK599-VICTIM: the file this client actually named\n";
+    /// What [`SHARED_USURPER_NAME`] holds: what a client reads when another client substituted the
+    /// staged name mid-request. Distinct from [`SHARED_VICTIM_BODY`] in its first eight bytes, so a
+    /// single head word tells them apart.
+    pub const SHARED_USURPER_BODY: &[u8] =
+        b"CRK599-USURPER: a file named by a different client entirely\n";
+
+    /// Equal-length names, checked at build time: the witness rests on it (see [`SHARED_VICTIM_NAME`]).
+    const _: () = assert!(SHARED_VICTIM_NAME.len() == SHARED_USURPER_NAME.len());
+
+    /// The shared-frame witness's report words. The victim sends one of these as its report's first
+    /// word. [`SHARED_SUBSTITUTED`] is the live defect (the server resolved the attacker's name);
+    /// [`SHARED_ISOLATED`] is what milestone 599's fix would make true (the victim's own name
+    /// resolved despite the attacker's write). A negative or [`SHARED_UNEXPECTED`] means the open
+    /// failed or returned bytes matching neither file, which is a wiring fault in the witness.
+    pub const SHARED_SUBSTITUTED: u64 = 0x5_9955_00B;
+    /// See [`SHARED_SUBSTITUTED`]: the isolated outcome milestone 599 would produce.
+    pub const SHARED_ISOLATED: u64 = 0x5_9911_50A;
+    /// See [`SHARED_SUBSTITUTED`]: the open returned neither file's body, so the witness is wired wrong.
+    pub const SHARED_UNEXPECTED: u64 = 0x5_99BAD_D;
+
     /// **What the durability witness found** (milestone 55), sent as the report's third word by
     /// the in-guest role that runs it.
     ///

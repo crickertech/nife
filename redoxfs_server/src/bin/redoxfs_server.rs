@@ -25,6 +25,27 @@
 //!
 //! The server only ever OPENS the image (never creates: creation is std-gated and host-side), and
 //! it maps RedoxFS's error type to the wire exactly once, in [`serve`], via `filesystem_protocol::reply_err`.
+//!
+//! # BUGS
+//!
+//! **The file channel ([`FILE_PAGE`]) is one frame shared with every client, and the server cannot
+//! tell whose bytes it read** (finding 1 of `notes/shared-page-audit.md`, milestone 599 (a frame
+//! per filesystem client channel), provisional). The kernel maps this one physical frame read-write
+//! into every FS client a boot wires (`kernel/src/user/fs_service.rs`), and the server reads the
+//! request name and `WRITE` payload from it after the message arrives. When two clients are
+//! runnable at once on the frame, a second client can overwrite the name a first client staged
+//! between that client's call and this server's read, and the server resolves the second client's
+//! name for the first client's request. The first client is then handed a file it never named, and
+//! if it is behind a caretaker, one outside the namespace that caretaker enforces.
+//!
+//! `kernel/src/user/fs_shared_page_tests.rs` reproduces this deterministically with two live
+//! clients on one service. It is latent on the wiring that ships today, because the boot paths keep
+//! one FS client active at a time; the set grant at the prompt (`rm *.txt`) would put two live
+//! clients on the frame and make it reachable. The fix, a channel per client rather than per
+//! service, is a decision fork (badged endpoints, a kernel remap, or a token convention among the
+//! page's writers), written up in `notes/a-frame-per-filesystem-client-channel.md`. Until it lands,
+//! nothing in a boot path runs two FS clients concurrently, which is the property that keeps this
+//! from being live.
 
 #![no_std]
 #![no_main]

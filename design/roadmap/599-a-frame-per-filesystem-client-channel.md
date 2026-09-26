@@ -1,13 +1,14 @@
 # 599. A frame per filesystem client channel
 
-**Status: NOT-STARTED.** Minted 2026-09-26 by lane `milestone/fs-client-page`, promoted from the
+**Status: PARTIAL.** Minted 2026-09-26 by lane `milestone/fs-client-page`, promoted from the
 proposal `a-frame-per-filesystem-client-channel`, which milestone 47 (navigation and naming)'s lane
 wrote on `milestone/47-navigation` (#1343). The work was first named as case A of
 `notes/shared-page-audit.md` by milestone 43 (a second security audit) and never got a number.
-*(Number and title provisional: the integrator mints the number at merge, and the title is a draft
-until an architect names it.)*
+The witness was built 2026-09-26 by the same lane and reproduces the defect; the wiring waits on the
+decision below. *(Number and title provisional: the integrator mints the number at merge, and the
+title is a draft until an architect names it.)*
 
-**Gate: DECISION.** The proposal said NONE, "a wiring change inside the tree". Reading the server
+**Gate: DECISION.** Ruled 2026-09-26 (option A, badged endpoints); see the status paragraph. The proposal said NONE, "a wiring change inside the tree". Reading the server
 says otherwise: the file server receives on one endpoint, learns nothing about its caller, and reads
 every request from one window. A per-client frame it can read needs badged endpoints, a kernel
 remap at the rendezvous, or a token convention among the page's writers. The first two change the
@@ -35,10 +36,14 @@ one FS client active at a time. The set grant at the prompt would not.
   moves the server's window to the caller's frame) and C (private client frames plus a staging
   token, no kernel change), with costs, in `notes/a-frame-per-filesystem-client-channel.md`.
   calef's call; it blocks everything below except the witness.
-- The witness. Two live confined clients on one file service, one rewriting the other's name
-  mid-request, failing before the change and passing after it, on every architecture
-  `script/test` boots. Its attacker is the same under every option, so it can be built before the
-  ruling. Not yet built.
+- BUILT: the witness. Two live clients on one file service, one rewriting the other's name
+  mid-request, on every architecture `script/test` boots
+  (`kernel/src/user/fs_shared_page_tests.rs`, the two `fs_test_client` roles it drives, and
+  `fs_service::start_shared_frame_witness`). It forces the interleaving with a handshake rather than
+  a race, so it reproduces deterministically, and it asserts the substitution the shared frame
+  permits. The day the wiring below lands, that assertion must invert to expect isolation, which is
+  what makes this test the gate on the fix. The live defect it reproduces is recorded in
+  `redoxfs_server`'s `BUGS`.
 - The wiring, in the shape the ruling picks: a channel allocated where each chain is built
   (`fs_service`'s `spawn_fs_client`, `start_granted*`, `narrow_dir`, `start_std*`, the sinks; the
   progenitor's `build_caretaker` and the shell's grant) instead of one memoised per service.
@@ -57,6 +62,20 @@ option: nothing added under A, a window remap under B, two rendezvous and a copy
 Milestone 47 (navigation and naming)'s set grant at the prompt, which names this as its
 prerequisite. A ruling on option A would also decide option 1 of the proposal
 `every-client-of-a-network-stack-shares-its-socket-numbers`, which is the same question for sockets.
+
+## Follow-on
+
+- **Done.** The witness, `kernel/src/user/fs_shared_page_tests.rs`, with its two `fs_test_client`
+  roles and `fs_service::start_shared_frame_witness`. It reproduces the defect on all three
+  architectures.
+- **Recorded.** The live defect it reproduces is in `redoxfs_server`'s module `BUGS`, beside the
+  file channel it is a property of.
+- **Decision.** calef ruled option A (badged endpoint capabilities) on 2026-09-26; a maintainer is
+  recording it under `design/decisions/`. The gate above is answered.
+- **Outstanding.** The badged-endpoint build: a `BADGE` method (provisional) to mint a badged
+  endpoint, the badge as a fourth `RECV_CAP` return value, the file server's K windows, and the
+  progenitor's pool of (badged endpoint, frame) pairs taken back at reap. Checked 2026-09-26: the
+  witness is built and the decision is ruled, so this is the only piece left before BUILT.
 
 ## Index row
 

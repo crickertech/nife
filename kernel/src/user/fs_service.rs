@@ -1228,6 +1228,76 @@ pub fn start_granted_set(
     ))
 }
 
+/// **Wire two live clients on one file service, for the shared-frame witness** (milestone 599 (a
+/// frame per filesystem client channel), provisional).
+///
+/// This is the wiring finding 1 of `notes/shared-page-audit.md` describes as latent and the set
+/// grant at the prompt would make live: two clients that both map the FS server's one staging frame
+/// read-write at the same time. Both `fs_test_client` roles (`ROLE_SHARE_VICTIM`,
+/// `ROLE_SHARE_ATTACKER` in `fixtures/src/fs_test_client.rs`) share `file_shared`, and a **sync
+/// endpoint** lets them hand off deterministically so the witness does not depend on a race landing.
+///
+/// The victim holds the FS-service endpoint and calls it; the attacker holds it too but never calls
+/// it, because sharing the frame is the whole of what makes it a second writer. Each holds the sync
+/// endpoint `READ|WRITE` (both `SEND` and `RECV`), and its own report endpoint at the same slot, so
+/// both roles read one slot layout: FILE at 0, REPORT at 1, SYNC at 2.
+///
+/// Returns `(readiness, victim_report)`: the service's readiness sentinels if this call wired it,
+/// and the endpoint the victim reports its verdict on. The attacker never reports; it signals the
+/// victim and exits.
+///
+/// Provisional name (this lane's coinage); an architect names functions.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn start_shared_frame_witness(
+    blk_image: &'static [u8],
+    fs_server_image: &'static [u8],
+    client_image: &'static [u8],
+    victim_role: u64,
+    attacker_role: u64,
+) -> Option<(Readiness, RendezvousId)> {
+    let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
+    let sync = crate::sched::create_rendezvous();
+    let victim_report = crate::sched::create_rendezvous();
+    let attacker_report = crate::sched::create_rendezvous();
+
+    // Spawn a witness client sharing the one file frame. Its whole slot layout is FILE=0, REPORT=1,
+    // SYNC=2, mapped against `file_shared` at `FILE_VA_CLIENT`. `sync` is granted `READ|WRITE` so a
+    // role can both `SEND` and `RECV` on it.
+    let spawn_witness = move |role: u64, report: RendezvousId| {
+        crate::sched::spawn(move || {
+            let mut maps = [Mapping {
+                va: 0,
+                phys: 0,
+                flags: Flags::user_data(),
+            }; FILE_PAGES];
+            let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
+            run(
+                client_image,
+                Spawn {
+                    arg0: role,
+                    arg1: 0,
+                    arg2: 0,
+                    grants: &[
+                        rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
+                        rendezvous_cap(report, Rights::WRITE),  // slot 1: report to the kernel
+                        rendezvous_cap(sync, Rights::READ.union(Rights::WRITE)), // slot 2: handshake
+                    ],
+                    maps: &maps[..n],
+                },
+            )
+        })
+        .expect("could not spawn a shared-frame witness client");
+    };
+
+    // The victim first, so it is parked in its first `SEND` on the sync endpoint before the attacker
+    // runs; the attacker's first act is a `RECV` on the same endpoint, so the order they start in
+    // does not change the handshake, but starting the victim first keeps the ordering obvious.
+    spawn_witness(victim_role, victim_report);
+    spawn_witness(attacker_role, attacker_report);
+
+    Some((readiness, victim_report))
+}
+
 /// **Put a file behind a byte sink** (milestone 50, notes/sink-protocol.md).
 ///
 /// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/file_sink.rs`: it holds
