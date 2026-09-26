@@ -110,6 +110,9 @@ pub(crate) fn std_inputs_stamp() -> u64 {
         // this crate, generated verbatim into the PAL, so a change to either must rebuild the
         // farm or the PAL silently drifts from what assembles the page.
         root.join("crates/environment_protocol/src/lib.rs"),
+        // The std runtime contract (milestone 595 (provisional)): `rt`'s slot numbers and page
+        // addresses, generated verbatim into the PAL, so the loader and the PAL read one file.
+        root.join("crates/std_runtime_protocol/src/lib.rs"),
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
         root.join("targets/x86_64-unknown-nife.json"),
@@ -430,6 +433,14 @@ fn std_generate_modules() -> bool {
         (
             root.join("crates/byte_sink_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/sinkproto.rs"),
+        ),
+        // The std runtime contract (milestone 595 (provisional)): the eight fixed slots and the three
+        // shared pages, which `rt` re-exports. The progenitor places a std child's capabilities by
+        // these numbers, so a drift here would be a program reading its heap budget out of the
+        // slot its stdout went in.
+        (
+            root.join("crates/std_runtime_protocol/src/lib.rs"),
+            farm_std_src().join("sys/pal/nife/runtimeproto.rs"),
         ),
         // The timebase page (milestone 184), so `rt::cntfrq` reads the machine's rate at the
         // address and with the magic the kernel writes it with. Generated for every farm and

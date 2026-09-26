@@ -48,13 +48,13 @@ const BLK_PAGE_FS: u64 = 0x5000_0000; // FS server's block region (redoxfs_serve
 const FILE_PAGE_FS: u64 = BLK_PAGE_FS + (BLK_PAGES as u64) * FRAME_SIZE;
 const FILE_VA_CLIENT: u64 = 0x0000_0000_0060_0000; // client's file page (fs_test_client.rs FILE_VA)
 
-/// A std program's half of the same agreement (notes/abi.md §4, notes/std.md). Both constants
-/// MUST match the std PAL's `sys/pal/nife/rt.rs`: the slot it looks for the FS-service
-/// endpoint in, and the VA it expects the shared file page at. A std program's slot layout
-/// differs from the hand-written client's because std already owes slots 0 and 1 to its heap and
-/// its stdout, and 2 and 3 to `std::net`.
-const FS_DIR_SLOT: u64 = 4;
-const FS_PAGE_STD: u64 = 0x0000_0000_1100_0000;
+/// A std program's half of the same agreement (notes/abi.md §4, notes/std.md): the slot the PAL
+/// looks for the FS-service endpoint in, and the VA it expects the shared file page at. Read from
+/// `std_runtime_protocol`, which the std PAL has generated into it, so the two cannot drift. A std
+/// program's slot layout differs from the hand-written client's because std already owes slots 0
+/// and 1 to its heap and its stdout, and 2 and 3 to `std::net`.
+const FS_DIR_SLOT: u64 = std_runtime_protocol::FS_DIR_SLOT;
+const FS_PAGE_STD: u64 = std_runtime_protocol::FS_PAGE;
 
 /// A fresh, zeroed frame, returned by physical address. Zeroed so no stale RAM is ever visible
 /// across a share, and (for the DMA frame) so the device never reads a stale descriptor.
@@ -1330,7 +1330,7 @@ pub fn start_file_source(
 /// program: it is a full std program (formatting, `Vec`, `String`, `read_to_string`), so it
 /// needs the generous heap and the deep stack std's machinery wants.
 const STD_FS_HEAP_PAGES: u64 = 256;
-const STD_FS_STACK_PAGES: u64 = 32;
+const STD_FS_STACK_PAGES: u64 = std_runtime_protocol::STACK_PAGES;
 
 /// **Wire the service and endow a std program with a directory capability** (milestone 27 phase
 /// two, the FS half).

@@ -52,6 +52,12 @@ pub(crate) mod sinkproto;
 // (init, or today's kernel test harness standing in for it), hence the allow.
 #[allow(dead_code)]
 pub(crate) mod envproto;
+// The std runtime contract itself (milestone 595 (provisional)): the eight fixed slots and the three
+// shared pages' addresses, generated verbatim from `crates/std_runtime_protocol/src/lib.rs` by the
+// same xtask step, so the progenitor that builds a std child and this PAL that reads one cannot
+// drift. `rt` re-exports what it reads; `SLOTS` and `STACK_PAGES` are the loader's, hence the allow.
+#[allow(dead_code)]
+pub(crate) mod runtimeproto;
 // The timebase page (milestone 184; riscv64 joined 2026-09-21): where `rt::cntfrq` reads the rate
 // on the two architectures that have no register stating it. Generated verbatim from
 // `crates/counter_frequency_protocol/src/lib.rs` by the same xtask step, so the page's address and
