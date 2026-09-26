@@ -91,6 +91,9 @@
 
 #![no_std]
 
+mod note;
+pub use note::NoteError;
+
 /// `\x7fELF`.
 const MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
