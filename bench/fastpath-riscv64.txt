@@ -1,3 +1,6 @@
+# toolchain: nightly-2026-09-26
+# date: 2026-09-26
+# why: Milestone 151 (notification objects): the receive fastpath gains the TCB binding's entry check (one load of Thread::bound_notification and a branch; the body is #[cold] take_bound_signal), RECV_CAP writes x4 (the bound-delivery tag calef ruled 2026-09-26), and ipc_recv_cap returns five words. Measured against the base commit 256815e5 on the same nightly, not against this file: riscv64 ipc_send_recv +76 B (+1.6%), ipc_call_reply +104 B (+1.7%), syscall_entry +2 B; x86_64 ipc_send_recv +48 B (+0.7%), ipc_call_reply +144 B (+1.7%), syscall_entry +0 B. The rest of the move from the recorded figures is drift main had already accumulated (+2.0% to +3.9% on every ISA at the base commit).
 # bench/fastpath-riscv64.txt: an upper bound on the IPC fastpath's instruction footprint.
 # Written by script/fastpath-footprint --save. Updating this file is a statement that a
 # footprint change is intended and understood; do it in the commit that causes it.
@@ -7,7 +10,7 @@
 # milestone 188 phase 1 because the system runs the second and this gate measured only the
 # first. `ipc_fastpath` is DERIVED, the worse of the two, kept under its old name because
 # the tree cites it; it is not checked separately. Both shapes and `syscall_entry` are.
-ipc_send_recv 4632
-ipc_call_reply 5936
-ipc_fastpath 5936
-syscall_entry 1828
+ipc_send_recv 4854
+ipc_call_reply 6186
+ipc_fastpath 6186
+syscall_entry 1894
