@@ -1029,6 +1029,10 @@ fn login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed
             ls::F_RUN_UNVOUCHED_WORKS,
             "the run-unvouched capability did not deliver a word",
         ),
+        // The session comes home, so nothing this test built outlives it: left standing, its
+        // caretaker starved `timetable_tests` into a hang later in the suite (riscv64, aarch64).
+        (ls::F_TEARDOWN_OK, "the logout ticket's own DESTROY"),
+        (ls::F_BUDGET_TEARDOWN_OK, "the budget's own DESTROY"),
     ] {
         assert_eq!(r[1] & bit, bit, "{what}");
     }

@@ -191,7 +191,7 @@ pub const HOLD_TERMINAL: u64 = 4;
 pub const FREE_TERMINAL: u64 = 5;
 /// Log in, and prove the sixth delegated capability (the run-unvouched one, DECISIONS §219 gate D2)
 /// names the endpoint `login` was given, by sending [`RUN_UNVOUCHED_MAGIC`] on it for the kernel
-/// test to receive. Otherwise [`LOGIN`].
+/// test to receive, then tears its session down as [`HOLD_TERMINAL`] does.
 pub const PRESENT_RUN_UNVOUCHED: u64 = 6;
 
 /// **[`PRESENT_RUN_UNVOUCHED`]'s proof of life**, [`TERM_MAGIC`]'s twin for the sixth capability.
@@ -398,7 +398,9 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
     // fixed, which is exactly the anti-oracle failure `login_protocol::DENIED`'s own fold exists to
     // prevent (a real password silently answered as though it were wrong). See `login_protocol`'s own
     // module docs on the fourth capability for the client-facing version of this note.
-    if (behaviour == LOGOUT || behaviour == HOLD_TERMINAL) && destroy_with_retry(budget) {
+    if (behaviour == LOGOUT || behaviour == HOLD_TERMINAL || behaviour == PRESENT_RUN_UNVOUCHED)
+        && destroy_with_retry(budget)
+    {
         flags |= F_BUDGET_TEARDOWN_OK;
         if retype_page_frame(budget) < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
@@ -460,6 +462,10 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
                 // hint every other behaviour puts in the third word, so the wait report stays
                 // `LOGOUT`'s alone, exactly as that comment above claims.
                 HOLD_TERMINAL => flags |= teardown_directory(dir_ep, region),
+                // Torn down as `HOLD_TERMINAL` is, and for a measured reason: left standing, its
+                // caretaker lived for the rest of the suite and a later, unrelated test
+                // (`timetable_tests`) hung on riscv64 and aarch64 for want of what it held.
+                PRESENT_RUN_UNVOUCHED => flags |= teardown_directory(dir_ep, region),
                 _ => {}
             }
         }
