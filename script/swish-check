@@ -10,7 +10,7 @@
 # copies to a USB stick, rather than a `--features shell` kernel under QEMU's PVH loader. x86_64 has
 # no early hand-over, so the kernel it boots is the default one, tour first. It types the same
 # script over COM1 minus the four `uuid` lines (q35 has no entropy device the progenitor can use;
-# `swish_check_x86_omits` in `xtask/src/swish_check.rs` carries the reason). It is the slow leg: about six
+# `swish_check_omits` in `xtask/src/swish_check.rs` carries the reason). It is the slow leg: about six
 # minutes on patagonia against about ninety seconds for the same script over PVH, because under
 # firmware the console server tees every byte onto the screen and waits for it to be drawn
 # (milestone 400). Milestone 182's block has the measurement and why the slower boot was chosen.
