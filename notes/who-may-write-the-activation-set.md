@@ -1,8 +1,10 @@
-# Who may write the activation set: a proposal
+# Who may write the activation set: a proposal, answered
 
-*Status: PROPOSED, an architect's call. Written 2026-09-26 (UTC) by milestone 198 (a package
-manager) rung 3a's installer lane, which built everything around this question and stopped at it. Not a
-`design/decisions/` section: a lane does not mint one. Name: provisional.*
+*Status: ANSWERED 2026-09-26 (UTC) by calef, as DECISIONS §221 (the boot prompt is the owner's
+console): the boot prompt is the owner's root console, so option A holds and the hole below is
+closed by definition. Options B and C are not built. Kept as the record of the question. Written
+2026-09-26 by milestone 198 (a package manager) rung 3a's installer lane, which built everything
+around this question and stopped at it. Name: provisional.*
 
 ## What is being decided
 
