@@ -1,6 +1,8 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-19
+decided: 2026-09-24
+ratified_by: calef
 ---
 
 # 177. Whether AGENTS.md quotes measured numbers at all
@@ -12,6 +14,25 @@ Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decisio
 `DECISION` gate and found it naming no section. Milestone 234's series produced the evidence and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue
 lands it.)*
+
+## The ruling
+
+calef, 2026-09-24 (UTC): drop the counts and point at the generated metrics. AGENTS.md now
+reads *"A number here changes at the pace of a decision, not at the pace of a commit (calef,
+2026-09-24). Counts live in `notes/project-metrics.md`, generated weekly so they cannot rot"*
+(AGENTS.md lines 56 and 57). What stays is one order-of-magnitude sentence carrying the date it was
+written, which moves only when a decision moves it.
+
+That is option B, with two differences from the table below. The pointer is at
+`notes/project-metrics.md`, the generated page, rather than at `weekly.csv`. And the four figures
+the series did not carry were deleted rather than first added to the series, so D's precondition was
+not taken. The evidence is commit `e23df4a4d` ("docs: AGENTS.md's numbers change at the pace of a
+decision"), merged in PR #1198 on 2026-09-24 at 15:05 UTC, whose message records that calef ratified
+the rule that day. Recorded here 2026-09-26 by the decisions-hygiene lane, which invented no part of
+it.
+
+What it answers downstream. Milestone 350 (the comment ratio AGENTS.md quotes is wrong) is
+`SUPERSEDED` by this: the sentence it would have corrected no longer exists.
 
 ## What is being decided
 

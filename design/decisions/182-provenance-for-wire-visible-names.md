@@ -6,7 +6,8 @@ raised: 2026-09-19
 # 182. Is a string two binaries agree on a name for `script/names`' purposes, or is it data?
 
 Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice-c lane, which found milestone 398 (provenance for the names two programs agree on)'s
-`DECISION` gate naming no section. The finding itself is milestone 283's: its gate fired on a record
+`DECISION` gate naming no section. The finding itself is milestone 283 (one provenance block per file, in the spelling the parse
+reads)'s: its gate fired on a record
 nobody knew was there. *(Section number provisional until the merge queue lands it.)*
 
 ## What is being decided
@@ -59,6 +60,20 @@ carries "Three surfaces, and the tree has more than three kinds of name", which 
 `mkfs` by whoever was mid-task, because `redoxfs_server/src/bin/` is a place nothing looks. That is
 a `BUGS` entry, which under §71 is a fact rather than a plan, and this section is where it becomes a
 plan or is refused on the record.
+
+*(Dated note, 2026-09-26, decisions-hygiene lane.)* That entry has moved, and the tree under it
+has changed. On 2026-09-24 `design/naming.md` was split and the entry now lives in
+[design/naming/provenance-limits.md](../naming/provenance-limits.md), under "The tree has more kinds
+of name than the table covers", which is the one place the worklist's scope is stated. The same day
+`script/names` learned four kinds read by marker (`design/naming.md`, "Four more kinds are read by
+marker"), one of them an `item`: any function, constant, type, field or variant whose `///` doc holds
+a `Name:` paragraph. That is a mechanical answer to sub-questions 2 and 3 above, since the block
+lives in the constant's own doc and enumeration is by marker rather than by directory. It does not
+answer question 1, whether a wire string is a name at all, and `PROGRAM_MEASUREMENTS` carries no
+marker: `script/names program_measurements` still answers "neither a name in the tree nor a recorded
+refusal". Its doc comment's reason for not wearing `Name:` (milestone 283's one-block-per-file
+spelling) predates the `item` kind and is stale. The worklist figures below are also from
+2026-09-19; `--unratified` now reports 333 provisional, 3 unrecorded and 30 recorded.
 
 ## What it costs, counted rather than asserted
 

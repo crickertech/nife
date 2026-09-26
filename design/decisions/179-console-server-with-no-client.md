@@ -13,7 +13,7 @@ the merge queue lands it.)*
 
 ## What is being decided
 
-On a tour boot, `kernel/src/main.rs:1768` runs
+On a tour boot, `kernel/src/main.rs:1881` runs
 `user::initrd().map(|_| user::console_service::start())`. That spawns `components/src/console.rs`, a
 real UART driver at EL0 holding the PL011's registers, which then blocks on `recv(REQUEST)` for
 ever, because nothing on that boot holds a capability naming its endpoint. Its only client was the
@@ -23,9 +23,12 @@ narrator, deleted 2026-09-13 on calef's ruling (milestone 267).
 
 ## Is the premise true
 
-Checked 2026-09-19 in this worktree. Yes, on both halves:
+Checked 2026-09-19 in this worktree. Yes, on both halves. *(Line citations in this section re-pointed 2026-09-26 against `main` at
+`508333ebe` by the decisions-hygiene lane: the `map` line moved from 1768 to 1881 and
+`system_initializer`'s load from 769 to 868. The other three still point where they did, and each
+still says what the section says it does.)*
 
-- `kernel/src/main.rs:1768` still carries the `map` line, in the tour arm.
+- `kernel/src/main.rs:1881` still carries the `map` line, in the tour arm.
 - `console_service.rs:20` still carries `#[expect(dead_code, reason = "no client since the narrator
   went; see milestone 267's block")]` on `Console`, whose three fields `start` writes and nobody
   reads.
@@ -46,7 +49,7 @@ tree's whole argument is that authority is granted deliberately.
 **Infrastructure is not deleted on a demonstration's momentum.** §85 draws the line between what is
 evidence and what is product, and AGENTS.md's blind-`sed` scar is the standing warning about sweeps
 that carry further than the ruling behind them. `components/src/console.rs` is not the narrator: it
-has four consumers that have nothing to do with this path (`crates/system_initializer/src/lib.rs:769`
+has four consumers that have nothing to do with this path (`crates/system_initializer/src/lib.rs:868`
 loads it by name, `fixtures/src/hello.rs:303` builds it as init's print server,
 `measured_boot_tests.rs` measures it, `components/src/swapper.rs:252` names it in a dependency
 check), and the interactive boot reaches it through `boot_via_progenitor`, never through

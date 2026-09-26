@@ -21,7 +21,12 @@ settled by the person whose call it was.
 that reason: it is now a ratification or an overrule rather than an open fork, and the difference
 between those two is not a lane's to erase.
 
-**Premise re-checked 2026-09-19 and still true.** `job_mix::REPEATS` is still `3`, one constant for
+*(Updated 2026-09-26.)* calef ratified what shipped on 2026-09-26 (about 01:30 UTC): *"Yes, ratify
+§191 as shipped."* §191 (whether the job mix reports the spread rather than the best) is `DECIDED`, so the paragraph above describes a question that is now
+closed, and it was closed by the person whose call it was.
+
+**Premise re-checked 2026-09-19 and still true.** *(That check predates commit `ab6ff0fa0` the
+same day; `REPEATS` has been 21 since, at `crates/job_mix/src/lib.rs:465`.)* `job_mix::REPEATS` is still `3`, one constant for
 the whole sweep, and milestone 168 is still `PARTIAL` for the reason this block names: its status
 line says it does not turn `BUILT` until `tasks=4` has a number, and it still does not have one. The
 interim this block recommends, option 4, is what 168's block now does.

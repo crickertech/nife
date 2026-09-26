@@ -10,6 +10,26 @@ Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decisio
 baseline-audit lane's, 2026-09-15, which calef asked for after PR #886 found a regression that had
 hidden under the 10% threshold. *(Section number provisional until the merge queue lands it.)*
 
+## Item 2 is ruled and built, and item 3 is still open
+
+Recorded 2026-09-26 by the decisions-hygiene lane, which invented no part of it. calef ruled item
+2 on 2026-09-16, under milestone 302 (a baseline records what it was saved against, and a stale
+one fails loudly), three days before this section was raised: its block reads *"The format is
+comment lines, ratified by calef 2026-09-16"*. The lane that wrote this section did not find that
+ruling, so the question below ("may a lane build item 2 without further ruling?") was already
+answered when it was asked.
+
+It shipped on 2026-09-23 in commit `1c5dee224` ("A baseline save records why the number moved,
+beside the number"), PR #1126. `cargo xtask bench --save` now refuses to run without at least one
+`--why "<reason>"` (`xtask/src/bench.rs`, the check before the kernel build), and writes one
+`# why:` line per reason into the baseline's header beside a `# date:` line; `--check` prints those
+reasons back when a row moves. The usage line is `xtask/src/main.rs:276`. So the "Item 2 is not
+built" bullet below, and its `xtask/src/main.rs:7460` citation, describe the tree of 2026-09-19.
+
+Item 3, the fixed historical anchor, has no ruling, and the section stays `PROPOSED` for it:
+the decisions README has no status for a section half answered. The recommendation below already
+sequenced it after item 2, and item 2 has now been in the tree since 2026-09-23.
+
 ## What is being decided
 
 Milestone 415 named four items. **One has landed and one is refused, so this section is about the

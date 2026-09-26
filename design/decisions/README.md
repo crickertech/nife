@@ -286,7 +286,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 174 | PROPOSED | [Which caller each of the three uncalled instruments gets](174-a-caller-for-the-three-uncalled-instruments.md) |
 | 175 | PROPOSED | [Where the kernel's own output goes once userspace owns the console](175-kernel-console-arbitration.md) |
 | 176 | PROPOSED | [Offering the two RedoxFS patches upstream, and under whose name](176-offering-the-redoxfs-patches-upstream.md) |
-| 177 | PROPOSED | [Whether AGENTS.md quotes measured numbers at all](177-measured-numbers-in-the-front-door-file.md) |
+| 177 | DECIDED | [Whether AGENTS.md quotes measured numbers at all](177-measured-numbers-in-the-front-door-file.md) |
 | 178 | PROPOSED | [Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have](178-timer-rearm-seam.md) |
 | 179 | PROPOSED | [Whether the tour boot keeps starting a console server that has no client](179-console-server-with-no-client.md) |
 | 180 | PROPOSED | [Whether `components/` splits again, for the tools a person invokes](180-a-third-program-directory.md) |
@@ -300,7 +300,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 188 | PROPOSED | [What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand](188-one-home-for-the-trap-on-false-helper.md) |
 | 189 | PROPOSED | [Which of two definitions `caretaker` carries, and what the translating shape is called](189-what-a-caretaker-is-when-it-translates.md) |
 | 190 | PROPOSED | [Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?](190-what-a-baseline-save-must-record.md) |
-| 191 | PROPOSED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](191-job-mix-repeats-and-what-the-line-reports.md) |
+| 191 | DECIDED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](191-job-mix-repeats-and-what-the-line-reports.md) |
 | 192 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](192-a-checked-direct-map-reader-for-the-acpi-walk.md) |
 | 193 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](193-nvme-in-the-block-roster.md) |
 | 194 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](194-sessions-interleave-rather-than-serialize.md) |
