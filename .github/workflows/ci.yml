@@ -244,8 +244,12 @@ jobs:
     needs: gate
     if: ${{ !cancelled() && needs.gate.outputs.run != 'false' }}
     # A hung kernel means QEMU never exits and the runner would block until the 6-hour default.
-    # Fail loudly instead. Local runs finish in well under a minute once built.
-    timeout-minutes: 30
+    # Fail loudly instead. The limit is a hang detector, not a budget: on 2026-09-26 an ordinary
+    # full run took 30m28s (milestone/597-manifest-note) and milestone 121 (`ripgrep` on nife:
+    # enumeration as a capability)'s lane was cancelled at 30m with every kernel leg green, so it
+    # moved to 40. A hang still fails in minutes rather than hours, and a watchdog inside the
+    # kernel names it long before this fires.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
         with:
