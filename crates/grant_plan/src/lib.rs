@@ -496,7 +496,8 @@ programs! {
         /// is this prompt's job budget narrowed to `ENUMERATE`, which answers "yours". Neither can
         /// change anything: the page is read-only and the budget view cannot spend.
         ///
-        /// **Provisional name**: upstream `procps`'s, for the program a reader types to ask this.
+        /// Name: provisional, milestone 126's `free` lane, 2026-09-26. Upstream `procps`'s, for the
+        /// program a reader types to ask this.
         Free { id: 17, name: "free" },
         /// **The machine's counters since boot**: run queue, memory, interrupts, context switches
         /// and the busy/idle split (milestone 126, DECISIONS §225, `components/src/vmstat.rs`,
@@ -505,7 +506,7 @@ programs! {
         /// The machine statistics page and nothing else. Not `free`'s manifest, because it does not
         /// hold the budget view: `vmstat` describes the machine and says nothing about "yours".
         ///
-        /// **Provisional name**: upstream `procps`'s.
+        /// Name: provisional, milestone 126's `free` lane, 2026-09-26. Upstream `procps`'s.
         Vmstat { id: 18, name: "vmstat" },
         /// **Where this prompt's job budget went, by kind of kernel object** (milestone 126,
         /// DECISIONS §225, `components/src/slabtop.rs`, `crates/slabtop`).
@@ -515,8 +516,9 @@ programs! {
         /// so §225 turned the question into `MemoryRegion::USAGE` asked per object type. It holds
         /// the budget view alone, which is why it is not `free`: it does not see the machine.
         ///
-        /// **Provisional name**, flagged harder than the other two: the upstream name promises a
-        /// kernel-wide cache view, and this is one budget's breakdown.
+        /// Name: provisional, milestone 126's `free` lane, 2026-09-26, flagged harder than the other
+        /// two: the upstream name promises a kernel-wide cache view, and this is one budget's
+        /// breakdown.
         Slabtop { id: 19, name: "slabtop" },
     }
 }
