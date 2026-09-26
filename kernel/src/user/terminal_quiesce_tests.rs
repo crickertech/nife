@@ -1,4 +1,4 @@
-//! **A terminal can be quiesced for replacement without stranding its reader** (milestone 23, a
+//! **A terminal can be quiesced for replacement without stranding its reader** (milestone 23 (a capability-routed component OS with live replacement), a
 //! capability-routed component OS with live replacement; calef's ruling of 2026-09-26, "1a and
 //! 2b"). `OP_QUIESCE` rides the terminal endpoint, and a parked `OP_READLINE` or `OP_READRAW` is
 //! answered `FLAG_RETRY` before the terminal stops receiving, because the reply capability that

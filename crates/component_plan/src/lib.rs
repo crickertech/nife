@@ -289,7 +289,7 @@ pub struct MapNeed {
     pub kind: PageKind,
 }
 
-/// **The role name a supervisor routes a component's handoff page under** (DECISIONS §209). One fixed
+/// **The role name a supervisor routes a component's handoff page under** (DECISIONS §209 (state handoff is an opaque blob over a granted frame, and it is optional)). One fixed
 /// word rather than a role the component picks, because a handoff page is not a need the component
 /// names for its own purposes: it is the one page a supervisor must route to the **same** frame in the
 /// outgoing and the incoming instance, and a supervisor wiring two builds of one contract has to be

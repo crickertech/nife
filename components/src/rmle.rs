@@ -119,7 +119,7 @@ fn readraw() -> ([u8; 8], usize) {
     let w0 = proto::req(proto::OP_READRAW, 0);
     loop {
         let (r0, r1) = call(TERM, w0, 0);
-        // The terminal is being replaced and handed this read back (FLAG_RETRY, milestone 23).
+        // The terminal is being replaced and handed this read back (FLAG_RETRY, milestone 23 (a capability-routed component OS with live replacement)).
         if !proto::is_retry(r0, r1) {
             return (r1.to_le_bytes(), r0 as usize);
         }

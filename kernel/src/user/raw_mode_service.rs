@@ -60,7 +60,7 @@ pub fn start() -> (Wiring, Holding) {
 }
 
 /// [`start`], plus a control endpoint in slot 3 whose number is `line_editor`'s second start
-/// argument: the wiring a supervisor that can replace it would use (milestone 23, a
+/// argument: the wiring a supervisor that can replace it would use (milestone 23 (a capability-routed component OS with live replacement), a
 /// capability-routed component OS with live replacement). The only difference `line_editor` can
 /// see is that `OP_QUIESCE` is honoured rather than refused.
 pub fn start_replaceable() -> (Wiring, Holding) {

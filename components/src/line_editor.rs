@@ -20,7 +20,7 @@
 //! send wire bytes to"; the application holds "an endpoint that prints and reads lines"; the
 //! output sink holds "an endpoint requests arrive on". Rendezvous-only naming (notes/
 //! ipc-naming.md) is what makes the discipline swappable: rewire the endpoints and no client can
-//! tell, which is milestone 23's hot-swap claim in component form. Milestone 177 exercises that
+//! tell, which is milestone 23 (a capability-routed component OS with live replacement)'s hot-swap claim in component form. Milestone 177 exercises that
 //! claim on the output side for real: the same server, unchanged on its input side, prints through
 //! `display_terminal`'s `OP_WRITE`/one-`CALL` contract instead of the console's bespoke two-endpoint
 //! one, chosen at spawn by `mode` (see [`MODE_CONSOLE`]/[`MODE_DISPLAY`]) and nowhere else --

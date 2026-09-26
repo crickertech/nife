@@ -32,7 +32,7 @@ Two facts, both recorded in its own source.
   install), hands it to whatever serves activation. It is `swapper`'s shape (an unprivileged
   operator that holds exactly the objects it swaps), which is what DECISIONS §41 (the endpoint is
   the broker, and a device is revoked by taking it back) already argues for.
-- **B. Raise the table to 32.** Milestone 230's rule is to buy slots back rather than raise it, and
+- **B. Raise the table to 32.** The rule milestone 230 (`script/shell-check` is red on `main`) left is to buy slots back rather than raise it, and
   B would still leave the progenitor holding terminal authority it deliberately gives up.
 - **C. Swap only under the kernel test harness.** Proves the protocol, which
   `terminal_quiesce_tests` already does for the incumbent's half, and ships nothing a person can use.

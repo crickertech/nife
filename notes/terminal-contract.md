@@ -17,7 +17,7 @@ Nobody in that picture can name anyone else. The input driver holds "an endpoint
 bytes to." The application holds "an endpoint that prints text and reads lines." The console
 server holds "an endpoint requests arrive on." Endpoint-only naming
 ([ipc-naming.md](ipc-naming.md)) is the whole point: rewire the endpoints and no client can tell
-the terminal changed, which is milestone 23's hot-swap claim in component form. See
+the terminal changed, which is milestone 23 (a capability-routed component OS with live replacement)'s hot-swap claim in component form. See
 [line-discipline.md](line-discipline.md) for the component that implements this today and why it
 was built rather than ported.
 
@@ -88,7 +88,7 @@ no control endpoint refuses it with `BAD_REQUEST`, which is every terminal a boo
   driver does no editing, echo, or line assembly; it forwards bytes and nothing else, the way a
   UART driver feeds the Unix tty layer without being the tty layer.
 
-- `OP_PRINT` (DECISIONS §67): print one to eight bytes carried in the request's own words.
+- `OP_PRINT` (DECISIONS §67 (a program's second stream is a declaration, not a number)): print one to eight bytes carried in the request's own words.
   Same job as `OP_WRITE` and same manners (both go through `expand_output`), and it exists because
   of a limit `OP_WRITE` has that is easy to miss: it reads from the client's output page, and
   there is exactly one of those. The progenitor maps a single frame into the terminal read-only and into the
@@ -102,7 +102,7 @@ no control endpoint refuses it with `BAD_REQUEST`, which is every terminal a boo
   choice: a served request arrives through `recv_cap` with the reply capability and two data words,
   which is why `OP_BYTES` carries eight too.
 
-- `OP_RAWMODE` / `OP_READRAW` (milestone 169): the raw-keystroke primitive `kilo` needs and the
+- `OP_RAWMODE` / `OP_READRAW` (milestone 169 (the smallest real text editor)): the raw-keystroke primitive `kilo` needs and the
   line discipline, by design, does not give a program (DECISIONS §21 says a program "never sees a
   keystroke, an escape sequence, or an echo"). `OP_RAWMODE` switches the terminal between the line
   discipline and raw mode (`len` 1 to enter, 0 to leave), replied immediately. While raw mode is on,
@@ -129,7 +129,7 @@ no control endpoint refuses it with `BAD_REQUEST`, which is every terminal a boo
   mode never touches `Con` at all except its overflow bell, so the primitive is identical behind
   either backend by construction rather than by having been wired twice.
 
-- `OP_INTRCOUNT` (DECISIONS §24): reply immediately with the running count of `^C` the terminal
+- `OP_INTRCOUNT` (DECISIONS §24 (interrupting the foreground process)): reply immediately with the running count of `^C` the terminal
   has seen since boot. This is the shell's `^C` sensor for the case a parked read cannot cover: when
   a foreground job is running, the shell is not in `OP_READLINE`, so there is no read to fail with
   `FLAG_INTERRUPTED`. The shell polls this count while watching the job and escalates from its

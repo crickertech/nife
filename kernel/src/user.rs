@@ -3644,7 +3644,7 @@ mod job_undertaker_tests;
 #[cfg(all(test, initrd))]
 mod c_seam_tests;
 
-/// **A running component replaced under a talking client** (milestone 23, DECISIONS §41).
+/// **A running component replaced under a talking client** (milestone 23 (a capability-routed component OS with live replacement), DECISIONS §41).
 ///
 /// The flagship the roadmap points at, and the thing to notice about it is what the kernel does not
 /// contain. There is no component object, no swap syscall, no naming service, and no

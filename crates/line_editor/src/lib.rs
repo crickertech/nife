@@ -223,7 +223,7 @@ pub mod proto {
     /// [`OP_READLINE`]; a second one while one is parked is refused with `BAD_REQUEST`.
     pub const OP_READRAW: u64 = 7;
 
-    /// Supervisor → terminal: **stop serving so a replacement can take over** (milestone 23, the
+    /// Supervisor → terminal: **stop serving so a replacement can take over** (milestone 23 (a capability-routed component OS with live replacement), the
     /// `line_editor` swap; ruled by calef 2026-09-26, "1a"). It rides the served endpoint, so its
     /// FIFO does the draining: every request queued ahead of it is served by this instance, and
     /// every one behind it by whoever receives next.

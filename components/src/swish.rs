@@ -1074,7 +1074,7 @@ fn read_line(prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
     stage(prompt, prompt.len());
     let (len, flags) = loop {
         let r = call(TERM, proto::req(proto::OP_READLINE, prompt.len() as u64), 0);
-        // The terminal is being replaced and handed this read back (FLAG_RETRY, milestone 23).
+        // The terminal is being replaced and handed this read back (FLAG_RETRY, milestone 23 (a capability-routed component OS with live replacement)).
         // Ask again, unchanged: whichever terminal answers resumes the line where it was.
         if !proto::is_retry(r.0, r.1) {
             break r;
