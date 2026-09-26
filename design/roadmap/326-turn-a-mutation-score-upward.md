@@ -117,17 +117,16 @@ so its 82 survivors close by deletion. The other flagged crate went the opposite
 `memory_corruption_canary_gate` was genuinely **50.0%** once its loom mutants left the count, worse
 than the 66.7% it was flagged at.
 
-**Eight of the fifty-six were deadlocks rather than wrong answers**, and that is the part worth
-carrying to the next lane. A loop that waits is broken by making it never accept; a loop that
-gathers is broken by making it never advance. Neither returns, so the suite's answer is to hang, and
-cargo-mutants can only call a suite that did not finish a timeout. This block's own posture is that
-such a timeout is the tests noticing rather than missing, and that stands. What part 3 adds is that
-noticing by hanging is worth converting into noticing by *failing* where the crate allows it:
-`memory_corruption_canary_gate` now runs each test body on a worker with a deadline (four
-converted), `job_mix`'s hand-rolled index became a `for` (one removed at rung one), and
-`jh7110_entropy`'s four could not be converted because `Pool`'s own doctest calls `take` directly
-and a doctest has nowhere to put a deadline, which was confirmed by hand-applying the mutant rather
-than assumed.
+**Eight of the fifty-six were deadlocks rather than wrong answers.** A loop that waits is broken by
+making it never accept; a loop that gathers is broken by making it never advance. Neither returns,
+so the suite's answer is to hang, and cargo-mutants can only call a suite that did not finish a
+timeout. This block's own posture is that such a timeout is the tests noticing rather than missing,
+and that stands. What part 3 adds is that noticing by hanging is worth converting into noticing by
+*failing* where the crate allows it: `memory_corruption_canary_gate` now runs each test body on a
+worker with a deadline (four converted), `job_mix`'s hand-rolled index became a `for` (one removed
+at rung one), and `jh7110_entropy`'s four were left because `Pool`'s doctest calls `take` directly,
+a hang confirmed by hand-applying the mutant. (Corrected 2026-09-26, UTC: this said a doctest has
+nowhere to put a deadline. #1323 disproved it, with hidden `# ` lines that `recv_timeout` a worker.)
 
 **Nothing found here is a defect in shipped behaviour**, which is the answer to the question this
 milestone exists to ask. The closest are three places where a plausible-looking mistake was
