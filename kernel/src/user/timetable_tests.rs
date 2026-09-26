@@ -302,9 +302,9 @@ fn spawn_timetable_with(
     let page_va = if page.is_some() { REGISTRATION_VA } else { 0 };
     crate::sched::start_thread_control_block(tid, [fires, archive_len, page_va]).expect("start");
     let exit_word = page.as_ref().map(|p| {
+        #[allow(clippy::cast_ptr_alignment)] // page-aligned; EXIT is word 7
         // SAFETY: the page is page-aligned, so its exit word is aligned for an `AtomicU64`, and it
         // lives as long as the frame, which outlives the test. Both sides touch it only atomically.
-        #[allow(clippy::cast_ptr_alignment)] // page-aligned; EXIT is word 7
         unsafe {
             &*p.as_ptr()
                 .add(timetable::registration::EXIT)
