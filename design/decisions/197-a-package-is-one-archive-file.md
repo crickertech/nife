@@ -33,15 +33,51 @@ looked when the options were written.
 
 ## Still calef's, and narrowed by this ruling
 
-- **Where a program's manifest travels.** The proposal's M1 (a sibling member) and M2 (inside the
-  ELF) are both still open. C2 makes M1 nearly free, because the package is already a container with
-  members; the maintainer's reading is that M1 wins on that alone, and it stays a ruling because it
-  is a thing two programs agree on.
+- Where a program's manifest travels. Ruled 2026-09-26: M2, recorded in the next section.
 - **The digest's shape.** A plain SHA-256 over the package file, or a Merkle root. The proposal's
   measurement says a Merkle tree buys verifying part of a file without reading all of it, which
   matters for a binary paged in on demand and not for one read whole, which is what this loader
   does, so plain unless something measures otherwise.
-- **Activation** (what installing *does*) is untouched by this and is its own ruling.
+- **Activation** (what installing *does*) is untouched by this and is its own ruling. It has
+  since been ruled: §208 (installing a package is granting it), 2026-09-23.
+
+## Where the manifest travels: M2, ruled 2026-09-26
+
+calef, 2026-09-26 (UTC), on the evidence in draft pull request #1319 (the price of an ELF-note
+manifest): *"M2 is right."* A program's manifest travels inside its executable, as an ELF note
+found through a `PT_NOTE` program header. Under §219 (how the shell names an installed program to
+the spawner) option D, the unit the system handles is the executable's bytes. The manifest rides in
+the only thing that is hashed, handed over and run, so it cannot drift from the code or be separated
+from it. That holds for an installed program, a fresh build and a foreign one alike. M1's one
+remaining advantage, changing a manifest without relinking, is an effort argument, and #1319
+recorded it as one.
+
+What #1319 measured, on patagonia with Kani 0.67.0 and rust-lld 23.1.1:
+
+- `crates/elf` stays program-headers-only. The reader is 113 code lines with three Kani harnesses
+  (about 6.4 s together), and the `elf_parse` fuzz target now calls it. `Elf::parse` is unchanged,
+  and the kernel never calls the reader.
+- `crates/user_mode_runtime/link.ld` discards `*(.note*)` today. Two lines give aarch64, riscv64
+  and x86_64 each a `PT_NOTE`.
+- The note survives `llvm-strip --strip-all` and `llvm-objcopy --strip-sections` on all three.
+- A foreign build links a note object through `-Clink-arg`, with no change to its source.
+- `objcopy --add-section` does not work. It adds a section with no program header, which a
+  program-header reader cannot see.
+
+Prior art on the same side: Apple's entitlements, carried in the code signature; freedesktop's UAPI.8
+package-metadata note; FreeBSD's `elfctl` feature-control note. Fuchsia and Android chose a sibling
+file, because their unit is the package. nife's unit is the executable, which runs unpackaged.
+
+Still open, and an architect's, because two programs agree on each of them: the note's owner string
+(#1319 proposes `nife`; nothing has chosen it), its type number, and the descriptor's encoding. The
+build is filed as the proposal
+[`a-program-carries-its-manifest-in-an-elf-note`](../roadmap/proposals/a-program-carries-its-manifest-in-an-elf-note.md).
+
+Correction, 2026-09-26. The M2 row below says M2 "extends `crates/elf`, which parses program
+headers only", and "reluctantly" rested on that. So did `notes/component-manifest.md`, which said
+reading a note meant teaching the parser section headers. The premise joined two mechanisms. A
+`PT_NOTE` is a program header, found in the table the crate already walks. A section-header reader
+would in fact lose the note after `--strip-sections`. The row is left as calef ruled on it.
 
 ## The proposal as calef ruled on it
 
