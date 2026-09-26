@@ -223,6 +223,33 @@ pub mod proto {
     /// [`OP_READLINE`]; a second one while one is parked is refused with `BAD_REQUEST`.
     pub const OP_READRAW: u64 = 7;
 
+    /// Supervisor → terminal: **stop serving so a replacement can take over** (milestone 23, the
+    /// `line_editor` swap; ruled by calef 2026-09-26, "1a"). It rides the served endpoint, so its
+    /// FIFO does the draining: every request queued ahead of it is served by this instance, and
+    /// every one behind it by whoever receives next.
+    ///
+    /// Before replying, the terminal answers any parked [`OP_READLINE`] or [`OP_READRAW`] with
+    /// [`FLAG_RETRY`], because a reply capability cannot leave this process and a reader stranded
+    /// on it could never be woken. Then it replies r0 = [`QUIESCED`] and stops receiving until its
+    /// supervisor says [`CTL_RESUME`] or [`CTL_QUIT`] on its control endpoint.
+    ///
+    /// **Refused with [`BAD_REQUEST`] by a terminal started with no control endpoint**, which is
+    /// every terminal a boot builds today. Without one there is nobody to tell it to resume, so an
+    /// honoured quiesce would be a dead terminal. See this crate's `BUGS` for who may send it.
+    ///
+    /// Name: provisional (the lane for milestone 23, 2026-09-26).
+    pub const OP_QUIESCE: u64 = 8;
+
+    /// The reply word to [`OP_QUIESCE`]: "QUIT", the value `swap_protocol::QUIESCED` also uses.
+    pub const QUIESCED: u64 = 0x5155_4954;
+
+    /// Supervisor → quiesced terminal, on its control endpoint: go back to serving. The swap did not
+    /// commit, and this instance never lost its state.
+    pub const CTL_RESUME: u64 = 1;
+    /// Supervisor → quiesced terminal, on its control endpoint: exit. The replacement has taken
+    /// over.
+    pub const CTL_QUIT: u64 = 2;
+
     /// Pack a request's first word from an opcode and a length/count.
     pub const fn req(op: u64, len: u64) -> u64 {
         (op << OP_SHIFT) | (len & 0xffff_ffff)
@@ -241,6 +268,22 @@ pub mod proto {
     /// READLINE reply flag: the read was interrupted (^C). The line length is 0. This is the
     /// contract's hook for interrupt routing; see design/interrupt-routing.md.
     pub const FLAG_INTERRUPTED: u64 = 1 << 1;
+    /// Read reply flag: **ask again** (calef, 2026-09-26, "2b"). The terminal is about to be
+    /// replaced and could not hold this read across the swap; nothing was typed away. Re-issue the
+    /// same request, unchanged, and the terminal that answers it resumes the line where it was.
+    ///
+    /// An [`OP_READLINE`] reply carries it in r1 with r0 = 0. An [`OP_READRAW`] reply cannot,
+    /// because r1 is the data there, so it is r0 = 0 (never a byte count, which is 1..=8) with this
+    /// flag in r1. [`is_retry`] reads both.
+    ///
+    /// Name: provisional (the lane for milestone 23, 2026-09-26).
+    pub const FLAG_RETRY: u64 = 1 << 2;
+
+    /// **Whether a read reply means "ask again".** One test for both read shapes, so a reader
+    /// cannot check the flag in the wrong register.
+    pub const fn is_retry(r0: u64, r1: u64) -> bool {
+        r0 == 0 && r1 == FLAG_RETRY
+    }
 
     /// The reply to a request whose opcode the terminal does not implement: r0 = this, r1 = 0.
     /// A sentinel rather than silence, so a confused client fails fast instead of hanging.
@@ -357,6 +400,15 @@ impl LineDisc {
         self.len = 0;
         self.cur = 0;
         self.browse = None;
+    }
+
+    /// **Resume a read the reader re-issued after [`proto::FLAG_RETRY`]**: remember `prompt` as
+    /// [`start_line`](LineDisc::start_line) does, but paint nothing, because the screen already
+    /// shows the prompt and the half-typed line. Painting again would print them twice.
+    pub fn resume_line(&mut self, prompt: &[u8]) {
+        let n = prompt.len().min(PROMPT_MAX);
+        self.prompt[..n].copy_from_slice(&prompt[..n]);
+        self.prompt_len = n;
     }
 
     /// Begin a read: remember `prompt` (for repaints) and paint it, followed by whatever the
@@ -1151,6 +1203,33 @@ mod tests {
         assert_eq!(s2.text(), "$ early");
         feed_all(&mut d, &mut s2, b"\r");
         assert_eq!(d.line(), b"early");
+    }
+
+    /// **A read re-issued after `FLAG_RETRY` paints nothing and loses nothing.** The half-typed
+    /// line survives, the prompt is remembered for later repaints, and finishing the line returns
+    /// all of it: the promise `FLAG_RETRY` makes to a reader.
+    #[test]
+    fn a_resumed_read_keeps_the_half_typed_line_and_paints_nothing() {
+        let (mut d, mut s) = (LineDisc::new(), Screen::new());
+        d.start_line(b"$ ", &mut s);
+        feed_all(&mut d, &mut s, b"ech");
+        let mut quiet = Screen::new();
+        d.resume_line(b"$ ");
+        assert_eq!(quiet.text(), "", "a resumed read must not repaint the prompt");
+        feed_all(&mut d, &mut quiet, b"o\r");
+        assert_eq!(d.line(), b"echo");
+    }
+
+    /// `FLAG_RETRY` is distinguishable from every other read reply, in both shapes: a line reply
+    /// of length zero with no flags is an empty line, and a raw reply always carries 1..=8 bytes.
+    #[test]
+    fn a_retry_is_never_mistaken_for_data() {
+        assert!(proto::is_retry(0, proto::FLAG_RETRY));
+        assert!(!proto::is_retry(0, 0), "an empty line is not a retry");
+        assert!(!proto::is_retry(0, proto::FLAG_INTERRUPTED));
+        assert!(!proto::is_retry(1, proto::FLAG_RETRY), "a one-byte raw read of 0x04 is data");
+        assert_eq!(proto::FLAG_RETRY & (proto::FLAG_EOF | proto::FLAG_INTERRUPTED), 0);
+        assert_eq!(proto::OP_QUIESCE, 8);
     }
 
     /// Unknown CSI sequences (F-keys and friends) are swallowed whole: no stray bytes appear

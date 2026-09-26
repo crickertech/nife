@@ -43,6 +43,11 @@
 //! hardware, which is exactly why it did not exist until the drivers did and exactly why it did
 //! not need to change to gain a second one.
 //!
+//! **Plus, when a supervisor that can replace it built it, a control endpoint** (milestone 23):
+//! its slot is the second start argument, and `0` means there is none. With one, `OP_QUIESCE`
+//! answers any parked read with `FLAG_RETRY`, replies, and waits there for `CTL_RESUME` or
+//! `CTL_QUIT`. Without one, `OP_QUIESCE` is refused, because nothing could ever resume it.
+//!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39, landed by milestone 46) for the word and again
 //! 2026-08-01 (milestone 63) for the spelling, replacing `termd` and then `lineedit`. Refused
 //! `termd` (the `-d` claim) and `linedisc`, the correct Unix term of art, which is the second half
@@ -122,7 +127,7 @@ static mut LINE_QUEUE: LineQueue = LineQueue::new();
 static mut RAW_QUEUE: RawQueue = RawQueue::new();
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, control: u64, _x2: u64) -> ! {
     // A raw pointer first, then one dereference: taking `&mut DISC` directly is what
     // `static_mut_refs` exists to refuse. This process has exactly one thread (DECISIONS §33), so
     // each pointer below is the only route to its static and there is no aliasing question, the
@@ -149,6 +154,9 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
     // OP_READRAW's own parked reply capability, the raw-mode twin of `pending`.
     let mut raw_mode = false;
     let mut pending_raw: Option<u64> = None;
+    // Set when a quiesce answered a parked OP_READLINE with FLAG_RETRY and this instance then
+    // resumed: the reader's re-issued read must not repaint a prompt the screen already shows.
+    let mut resuming_line = false;
 
     loop {
         let (w0, slot, w1) = recv_cap(TERM);
@@ -256,8 +264,12 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
                 let plen = proto::len(w0).min(PROMPT_MAX);
                 let mut prompt = [0u8; PROMPT_MAX];
                 copy_in(APP_OUT_VA, 0, &mut prompt[..plen]);
-                disc.start_line(&prompt[..plen], &mut con);
-                con.flush();
+                if core::mem::replace(&mut resuming_line, false) {
+                    disc.resume_line(&prompt[..plen]);
+                } else {
+                    disc.start_line(&prompt[..plen], &mut con);
+                    con.flush();
+                }
                 pending = Some(slot);
                 deliver(queue, &mut pending);
             }
@@ -275,6 +287,28 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
                 line_editor::expand_output(&bytes[..len], &mut con);
                 con.flush();
                 reply(slot, len as u64, 0);
+            }
+            proto::OP_QUIESCE if control == 0 => {
+                // No control endpoint means nobody could ever tell us to resume: honouring this
+                // would leave a dead terminal. Every boot-built terminal today is this case.
+                reply(slot, proto::BAD_REQUEST, 0);
+            }
+            proto::OP_QUIESCE => {
+                // A reply capability cannot leave this process, so a parked reader is answered
+                // now or never. It asks again, and whoever receives next answers it.
+                if let Some(p) = pending.take() {
+                    reply(p, 0, proto::FLAG_RETRY);
+                    resuming_line = true;
+                }
+                if let Some(p) = pending_raw.take() {
+                    reply(p, 0, proto::FLAG_RETRY);
+                }
+                reply(slot, proto::QUIESCED, 0);
+                // Stopped receiving on TERM: anything that arrives now parks on its sender queue.
+                let (what, _, _) = recv(control);
+                if what != proto::CTL_RESUME {
+                    user_mode_runtime::exit()
+                }
             }
             proto::OP_INTRCOUNT => {
                 // The shell's ^C sensor: reply immediately with the running count. Never blocks, so
