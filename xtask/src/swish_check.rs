@@ -118,6 +118,52 @@ pub(crate) fn swish_check() -> bool {
     true
 }
 
+/// **One line this gate types, what it must answer, and how many jobs it runs.**
+///
+/// The job count sits beside the line because it is a fact about the line, and until 2026-09-26 it
+/// was a hand-kept total in the success summary instead: every lane that added a line had to edit
+/// that total and the script's declared length, so any two such lanes conflicted (five rebases in
+/// one day: #1318, #1320, #1322, #1329 and #1330). Now the script is a slice, the total is summed
+/// from the lines each leg actually typed, and adding a line touches the line.
+///
+/// `jobs` is how many children the progenitor builds from its bounded job pool for this line: one
+/// per program stage that runs. **Zero** for a builtin (`echo`, `ls`, `apropos`, `package`), a
+/// `caps` preview, a line refused at the prompt with nothing spawned, an image the activation set
+/// refuses, and a supervised job (`interrupt_heeder` and `interrupt_ignorer`, built from the
+/// shell's own untyped rather than the pool). A pipeline counts each program stage, so
+/// `wc gate.txt | wc` is two; a `builtin | program` pipeline is one. `rm` with its caretaker is one
+/// job whose region holds two processes. It is a required field with no default, so a line cannot
+/// be added without saying.
+///
+/// **The count is checked, not only printed.** A line with `jobs > 0` whose answer carries the
+/// shell's "could not spawn" or "faulted" sentence fails the gate even when its wanted phrases are
+/// empty (`uuid > id.txt`), which is what makes "ran N jobs" in the summary a statement this gate
+/// verified. What it cannot catch is a tag that is too low, since nothing at the prompt reports a
+/// job that nobody counted; the host test `a_job_count_names_a_program` bounds a tag from above.
+pub(crate) struct Line {
+    pub(crate) typed: &'static str,
+    pub(crate) jobs: u8,
+    pub(crate) answer: &'static [&'static str],
+}
+
+/// **What the shell prints when a job it asked for never answered**, either half:
+/// `components/src/swish.rs` prints the first when the progenitor could not build the job, and the
+/// second is `swish::FAULTED_SENTENCE`, for a job that trapped first. Spelled here rather than
+/// imported because xtask does not depend on `swish`, and a phrase is enough for a transcript.
+const JOB_DID_NOT_RUN: [&str; 2] = [
+    "could not spawn",
+    "that command faulted and was killed before it answered",
+];
+
+/// A [`Line`], positionally, so the script reads as the prompt does. The name is provisional.
+const fn line(jobs: u8, typed: &'static str, answer: &'static [&'static str]) -> Line {
+    Line {
+        typed,
+        jobs,
+        answer,
+    }
+}
+
 /// **What the second boot types** (milestone 198 (a package manager) rung 3a): the installed
 /// program still runs after a reboot, a removal makes it unrunnable without deleting it, and a
 /// rollback makes it runnable again. The disk is the only thing the first boot hands this one.
@@ -125,23 +171,34 @@ pub(crate) fn swish_check() -> bool {
 /// `greeting` rides along (milestone 198 rung 3a's fetch): it was installed as generation 2, it
 /// runs after the reboot, and removing `uptime` leaves it running, because a generation drops one
 /// program and not its neighbours.
-const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 7] = [
-    ("packages/uptime/0.1.0/uptime", &["up "]),
-    (
+const SWISH_CHECK_AFTER_REBOOT: &[Line] = &[
+    line(1, "packages/uptime/0.1.0/uptime", &["up "]),
+    line(
+        1,
         "packages/greeting/0.1.0/greeting",
         &["hello from a package this image never carried"],
     ),
-    ("package remove uptime", &["removed; generation 3 is live"]),
-    (
+    line(
+        0,
+        "package remove uptime",
+        &["removed; generation 3 is live"],
+    ),
+    line(
+        1,
         "packages/uptime/0.1.0/uptime",
         &["refused: those bytes are not in the activation set"],
     ),
-    (
+    line(
+        1,
         "packages/greeting/0.1.0/greeting",
         &["hello from a package this image never carried"],
     ),
-    ("package rollback", &["rolled back; generation 2 is live"]),
-    ("packages/uptime/0.1.0/uptime", &["up "]),
+    line(
+        0,
+        "package rollback",
+        &["rolled back; generation 2 is live"],
+    ),
+    line(1, "packages/uptime/0.1.0/uptime", &["up "]),
 ];
 
 /// The text this gate types and what each line must answer. `None` is a line whose answer is
@@ -150,18 +207,18 @@ const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 7] = [
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
-    ("echo hello world | wc", &["1 2 12"]),
-    ("echo hello world > gate.txt", &[]),
-    ("wc < gate.txt", &["1 2 12"]),
-    ("echo hello world >> gate.txt", &[]),
-    ("wc < gate.txt", &["2 4 24"]),
+const SWISH_CHECK_SCRIPT: &[Line] = &[
+    line(1, "echo hello world | wc", &["1 2 12"]),
+    line(0, "echo hello world > gate.txt", &[]),
+    line(1, "wc < gate.txt", &["1 2 12"]),
+    line(0, "echo hello world >> gate.txt", &[]),
+    line(1, "wc < gate.txt", &["2 4 24"]),
     // **Milestone 31's headline, at the one interface a human touches**: naming a resource in a
     // command IS granting it. The answer has to be the same as the `<` above it, because it is the
     // same designation with the operator left out, and the pair is what makes that a claim rather
     // than an assertion: one line reaches the file through an operator and one through a name, so
     // if they disagree, one of them opened something else.
-    ("wc gate.txt", &["2 4 24"]),
+    line(1, "wc gate.txt", &["2 4 24"]),
     // **And the same name at the head of a pipeline**, which is the line that answered nothing at
     // all until milestone 50's draining lane. An input operand is resolved by the planner, and the
     // shell used to wire a pipeline's head off the `Line` (which has no `<` on it), so the planned
@@ -172,20 +229,20 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // `2 4 24` plus a newline is seven bytes and three words on one line, so the answer is the
     // answer above it counted. Spelled out rather than derived for this file's reason: it is a boot
     // gate, and deriving one number from another would hide the case where both are wrong.
-    ("wc gate.txt | wc", &["1 3 7"]),
+    line(2, "wc gate.txt | wc", &["1 3 7"]),
     // The negative control the pair would be weaker without. `wc` alone is refused **at the
     // prompt**, before anything is spawned, because its manifest declares that it reads a stream;
     // on Unix the same command is a shell that appears to hang. So the line above granted
     // something, rather than falling back on a default.
-    ("wc", &["name a file"]),
+    line(0, "wc", &["name a file"]),
     // And `caps` says which file and how, which is the honest half: the shell reads it and streams
     // it in, so what the child holds is an endpoint and not a capability naming the disk.
-    ("caps wc gate.txt", &["input    gate.txt"]),
+    line(0, "caps wc gate.txt", &["input    gate.txt"]),
     // **Milestone 40 at the same interface.** `doc` is in the image, is spawnable, and declares that
     // it reads a stream, so bare `doc` is refused at the prompt before anything is spawned, exactly
     // as `wc` is and for the same reason: a viewer that could open the page it renders could open
     // any page.
-    ("mdr", &["name a file"]),
+    line(0, "mdr", &["name a file"]),
     // **The named file reaches the viewer and comes back rendered**, which two of this gate's own
     // comments said it did not until 2026-08-18. Both halves of that were fixed elsewhere and the
     // record was never corrected: the input operand now comes off the plan rather than off the
@@ -197,7 +254,7 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // lines are one paragraph re-flowed to one output line, and the two bytes are the body indent.
     // A viewer handed an empty stream would answer `0 0 0`, which is what this line answered when
     // the operand was being dropped, so the count is what separates rendering from silence.
-    ("mdr gate.txt | wc", &["1 4 26"]),
+    line(2, "mdr gate.txt | wc", &["1 4 26"]),
     // **And the line a person actually wants now renders**, which is milestone 40's whole
     // remaining phase (DECISIONS §106, 2026-08-22). `mdr gate.txt` alone used to make this shell
     // both the writer and the reader of one line, refused rather than hung, because it has one
@@ -208,13 +265,13 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // counted three lines up, reflowed and indented by the renderer: `gate.txt`'s two source lines
     // become the one line, four words, twenty-six bytes that count asserted, and this line checks
     // the words themselves arrived rather than merely being countable.
-    ("mdr gate.txt", &["hello world hello world"]),
+    line(1, "mdr gate.txt", &["hello world hello world"]),
     // **The negative control on the viewer itself**, and it is the whole milestone in one screen: a
     // documentation viewer is exactly the program a reader expects to go and fetch things, and this
     // one is handed a stream. `caps` prints what would be granted before anything is spawned, and
     // there is no file capability, no directory and no filesystem endpoint in it. The manifest is
     // byte-identical to `wc`'s, which is why the assertion is the same string.
-    ("caps mdr gate.txt", &["input    gate.txt"]),
+    line(0, "caps mdr gate.txt", &["input    gate.txt"]),
     // **Milestone 40 phase 2, at the same interface**: the documentation store is installed, and a
     // search of it answers with pages a person can then open.
     //
@@ -223,32 +280,35 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // real, it is where the reader thinks it is, and nothing special is needed to read it. The
     // numbers are the four bundle names and their newlines, so a bundle added to `DOC_BUNDLES`
     // fails here, which is right: the manifest is what the guest enumerates by.
-    ("wc doc/bundles", &["4 4 25"]),
+    line(1, "wc doc/bundles", &["4 4 25"]),
     // **The query a person would type, against shards built from this repository's own markdown.**
     // Two bundles, so the answer is the merge across shards rather than one shard's list, and both
     // named pages are ones a reader wanting to know what a capability is here would want. The
     // counts are deliberately not asserted: they move whenever the notes are edited, and the claim
     // is which pages were found, not how often the word appears in them.
-    (
+    line(
+        0,
         "apropos capability",
         &["doc/swish/pipes.md", "doc/kernel/ipc-naming.md"],
     ),
     // The negative control, and the word is chosen to appear in **no bundled page**. See
     // notes/documentation.md's BUGS for why this one cannot be written into the note that documents it:
     // that note is itself in the store, so a word written there is a word the store then says.
-    (
+    line(
+        0,
         "apropos photosynthesis",
         &["no page in the store says photosynthesis"],
     ),
     // And a search with nothing to search for is refused, in the same sentence every other verb
     // that needs an operand uses.
-    ("apropos", &["name what you mean"]),
+    line(0, "apropos", &["name what you mean"]),
     // **The payoff, and the reason a search may be a builtin at all.** The name the search printed
     // is an ordinary designation: this line grants `wc` exactly that one page out of the store and
     // nothing else, resolved by the shell against the directory it holds. So search produced a
     // *name*, and the authority moved on the line where a person typed it. A search that had
     // handed a program the store's directory would have moved it three lines earlier and silently.
-    (
+    line(
+        0,
         "caps wc doc/kernel/ipc-naming.md",
         &["input    ipc-naming.md"],
     ),
@@ -258,28 +318,28 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // has no clock it believes" / "this process holds no clock capability") contain no `UTC` at
     // all. So this fails if the clock service did not run, if the kernel granted the progenitor no page, if
     // the progenitor did not endow `date`, or if `date` was handed a page nobody published to.
-    ("date", &["UTC"]),
+    line(1, "date", &["UTC"]),
     // And the visibility surface agrees with the wiring. `caps` is the only thing in this system
     // that claims to print a process's whole authority, so a clock endowed and not printed would
     // make that claim false. Its wording is host-tested; this proves the wording is about a
     // capability the boot really moves.
-    ("caps date", &["cap 1  frame     clock"]),
+    line(0, "caps date", &["cap 1  frame     clock"]),
     // **The inert-configuration page, from the prompt** (milestone 47's environment-variable fork,
     // DECISIONS §111). `date`'s own proof, one manifest field over: this fails if the kernel
     // granted the progenitor no config page, if the progenitor did not endow `printenv`, or if the page's validated
     // domains rejected the boot's own defaults, none of which a host test can see, because
     // `crates/system_initializer`'s spawn wiring is provable only against a real progenitor
     // (this file's module doc names `script/swish-check` as exactly that gate).
-    ("printenv", &["TZ=UTC", "LANG=C", "TERM=dumb"]),
+    line(1, "printenv", &["TZ=UTC", "LANG=C", "TERM=dumb"]),
     // And the visibility surface agrees with the wiring, `date`'s own check repeated for `config`:
     // `caps` claims to print a process's whole authority, so a config page endowed and not printed
     // would make that claim false.
-    ("caps printenv", &["cap 1  frame     config"]),
+    line(0, "caps printenv", &["cap 1  frame     config"]),
     // **`ps`, at the real prompt** (milestone 126). The listing itself: a header, and at least the
     // row for `ps` itself, which is a member of the domain the progenitor spawned it into. Asserting the
     // header rather than a tid is deliberate: a tid is a generational name that moves with how many
     // jobs ran before it, and a gate that pinned one would be pinning the boot's history.
-    ("ps", &["TID  STATE"]),
+    line(1, "ps", &["TID  STATE"]),
     // **`ps` cannot see the machine, and this is the shape of the evidence at the prompt.** The
     // listing above is short: at this line the shell's domain holds `ps` itself and whatever else
     // the shell has running, which is nothing. A `/proc`-shaped `ps` would be listing the progenitor, the
@@ -294,7 +354,7 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // And `caps ps` prints the scope **before** anything is spawned, which is the half Linux has no
     // way to express: there, "which processes can this see" has one answer for every program on the
     // machine and no command line chose it.
-    ("caps ps", &["cap 7  endpoint  domain"]),
+    line(0, "caps ps", &["cap 7  endpoint  domain"]),
     // **`pgrep`, at the real prompt** (milestone 126), and what is asserted is deliberately not the
     // tids. `pgrep` prints nothing but names, one per line, and a tid is a generational name that
     // moves with how many jobs ran before it; a gate that pinned one would be pinning the boot's
@@ -303,14 +363,15 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // walk was refused, the selector can never match, or nothing matched), so an *empty* second
     // stream is the assertion that none of the three happened. This one line fails if the progenitor endowed
     // no domain, if it endowed one the kernel refuses, or if the filter came back empty.
-    ("pgrep 2> pgrep.txt", &[]),
-    ("wc < pgrep.txt", &["0 0 0"]),
+    line(1, "pgrep 2> pgrep.txt", &[]),
+    line(1, "wc < pgrep.txt", &["0 0 0"]),
     // And the asymmetry, printed before anything is spawned, which is the whole of what milestone
     // 126 has instead of the `pgrep`-beside-`pkill` comparison it originally promised. Two phrases:
     // the right (`ENUMERATE`, not `READ`, so the finder cannot receive a death or collect a corpse)
     // and the sentence that says so in English. There is no `caps pkill` line to put beneath this
     // one, because a tid is a name and no method turns one into authority.
-    (
+    line(
+        0,
         "caps pgrep",
         &["cap 7  endpoint  domain   ENUMERATE", "do nothing to them"],
     ),
@@ -324,34 +385,36 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // The tids and the figures are deliberately not pinned. A tid is a generational name that moves
     // with the boot's history, and a CPU figure is a measurement of a real machine; a gate that
     // pinned either would be pinning this boot rather than the program.
-    ("top", &["up ", "threads: ", "TID  STATE     TIME(ms)"]),
+    line(1, "top", &["up ", "threads: ", "TID  STATE     TIME(ms)"]),
     // And the second stream is empty, the same trick the `pgrep 2>` line above uses: `top`
     // complains in exactly the cases `ps` does, so an empty second stream says none of them
     // happened and the table above it is the domain.
-    ("top 2> top.txt", &[]),
-    ("wc < top.txt", &["0 0 0"]),
+    line(1, "top 2> top.txt", &[]),
+    line(1, "wc < top.txt", &["0 0 0"]),
     // The scope, printed before anything is spawned. `top` holds `ps`'s three capabilities and not
     // one more: the ranking costs no authority, because the CPU figures are a second walk of the
     // same endpoint under the same right.
-    ("caps top", &["cap 7  endpoint  domain   ENUMERATE"]),
+    line(0, "caps top", &["cap 7  endpoint  domain   ENUMERATE"]),
     // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
     // `least_authority_demo`'s, because `monotonic_nanos` is granted to every process unconditionally
     // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
-    ("uptime", &["up "]),
+    line(1, "uptime", &["up "]),
     // **The installer** (milestone 198 (a package manager) rung 3a, DECISIONS §208 (installing a
     // package is granting it, and the activation set is versioned)). A package with one byte of
     // its program flipped, and its table of contents rewritten to agree, is refused by the image's
     // catalogue before anything is written: the catalogue is the only thing that can tell
     // (`disk::stage_installed`). Nothing is installed afterwards: the line after says generation 1.
-    (
+    line(
+        0,
         "package install downloads/tampered.nifepkg",
         &["refused: this image's catalogue does not vouch for those bytes; nothing is installed"],
     ),
     // The genuine package, whose digest the image's catalogue carries: the progenitor writes the
     // program under `packages/<stem>/`, writes generation 1, and renames `current` onto it.
-    (
+    line(
+        0,
         "package install downloads/uptime.nifepkg",
         &["installed; generation 1 is live"],
     ),
@@ -359,19 +422,21 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // installed program to the spawner) option D). A path, so the shell reads the file into frames
     // and the progenitor hashes its own copy and finds the digest in the generation just written.
     // `up ` is the proof it ran: a refusal prints no such thing.
-    ("packages/uptime/0.1.0/uptime", &["up "]),
+    line(1, "packages/uptime/0.1.0/uptime", &["up "]),
     // **And bytes nobody installed, refused.** A real program (`unreachable_network_witness`), so
     // what is refused is runnable code, not garbage; the sentence is the progenitor's word for a
     // digest miss, and the witness's own report ("network: refused ...") never appears because
     // nothing was built.
-    (
+    line(
+        0,
         crate::disk::INSTALLED_UNVOUCHED,
         &["refused: those bytes are not in the activation set"],
     ),
     // **Fetching, refused before the network is touched**: the catalogue names no such package,
     // so nothing is asked of the package source. Runs on all three legs, because x86_64's missing
     // NIC is asked about only after the catalogue is.
-    (
+    line(
+        0,
         "package install nosuch",
         &[
             "refused: this image's catalogue names no such package, so nothing was fetched; \
@@ -382,20 +447,23 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // byte flipped and whose table of contents agrees (`disk::stage_installed`), under the genuine
     // name: a whole, well-formed HTTP exchange of a well-formed package. Only the image's
     // catalogue can refuse it, and nothing is written.
-    (
+    line(
+        0,
         "package install uptime",
         &["refused: this image's catalogue does not vouch for those bytes; generation 1 is live"],
     ),
     // **Fetched over the booted system's network and installed** (rung 3a's first gap): the
     // progenitor finds `greeting`'s stem in the catalogue, fetches it from the gate's package
     // source through the stack it built at boot, and installs what arrived as it installs a file.
-    (
+    line(
+        0,
         "package install greeting",
         &["fetched and installed; generation 2 is live"],
     ),
     // x86_64 has no NIC, so it installs the same package from the disk instead; the two legs that
     // fetch omit this line ([`swish_check_omits`]). Either way generation 2 is the same table.
-    (
+    line(
+        0,
         "package install downloads/greeting.nifepkg",
         &["installed; generation 2 is live"],
     ),
@@ -404,7 +472,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // That the image lacks `greeting` is checked on the host before the boot, by reading the
     // archive (`disk::stage_installed`), because the prompt cannot tell: `greeting` is no
     // `grant_plan::Prog`, so its bare name is refused whether or not the archive packs it.
-    (
+    line(
+        1,
         "packages/greeting/0.1.0/greeting",
         &["hello from a package this image never carried"],
     ),
@@ -422,20 +491,21 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // bytes. A `uuid` the progenitor endowed nothing would leave that file **empty** (its refusal goes to the
     // second stream, `Manifest::output`'s whole reason here), so `1 1 37` fails on exactly the
     // condition this milestone exists to create.
-    ("uuid > id.txt", &[]),
-    ("wc < id.txt", &["1 1 37"]),
+    line(1, "uuid > id.txt", &[]),
+    line(1, "wc < id.txt", &["1 1 37"]),
     // And the second stream is empty, which is the same trick the `pgrep 2>` line above uses: this
     // program complains in exactly one case (it holds no entropy capability), so an empty second
     // stream is the assertion that the case did not happen. The two lines together are "it drew
     // real bytes and had nothing to complain about", said without asserting any byte of them.
-    ("uuid 2> ent.txt", &[]),
-    ("wc < ent.txt", &["0 0 0"]),
+    line(1, "uuid 2> ent.txt", &[]),
+    line(1, "wc < ent.txt", &["0 0 0"]),
     // And the visibility surface, which is what a person meets before anything is spawned. On
     // Linux there is nothing here to say: no tool reports whether a program will read
     // `/dev/urandom`, and nothing about running one reveals it either. Here it is a row, and the
     // right on it (`WRITE`, so it may ask the service and may not receive another client's
     // request) is the claim rather than decoration.
-    (
+    line(
+        0,
         "caps uuid",
         &[
             "cap 9  endpoint  entropy  WRITE",
@@ -451,15 +521,15 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // the assertion is that its second stream exists, is separate, and is **empty**: `2> err.txt`
     // creates the file, `date` closes the stream with nothing on it, and `wc` counts zero of
     // everything. A shell that had merged the two streams would put a timestamp in there.
-    ("date 2> err.txt", &["UTC"]),
-    ("wc < err.txt", &["0 0 0"]),
+    line(1, "date 2> err.txt", &["UTC"]),
+    line(1, "wc < err.txt", &["0 0 0"]),
     // And the visibility surface names the second destination, which is what stops `caps date >
     // when.txt` being a half-truth: two destinations on one line, and a reader can see that the
     // complaint is not going into the file.
-    ("caps date 2> err.txt", &["diags    err.txt"]),
+    line(0, "caps date 2> err.txt", &["diags    err.txt"]),
     // The refusal, which is the other half of "a declaration, not a number". `wc` writes one stream
     // and its diagnostics ride it, so `2>` names nothing and the line does not run.
-    ("wc gate.txt 2> err.txt", &["declares no second output"]),
+    line(0, "wc gate.txt 2> err.txt", &["declares no second output"]),
     // **`time`, at the one interface a human touches** (milestone 86). Only this gate runs the real
     // inits, and the clock the shell times with is granted by them: the guest tests wire it from the
     // kernel, so a boot where the progenitor never handed the shell a clock would pass every one of those and
@@ -469,10 +539,10 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // milestone rests on: the tail runs exactly as typed and timing it changes nothing about it. A
     // `time` that re-tokenized its tail, or spawned a differently endowed child, would answer
     // something else here and the duration would still look fine.
-    ("time wc gate.txt", &["2 4 24"]),
+    line(1, "time wc gate.txt", &["2 4 24"]),
     // And the duration itself, checked for its shape rather than its value: the number is a real
     // measurement and cannot be a constant, but `real` and a unit are what a stopwatch prints.
-    ("time date", &["time: real"]),
+    line(1, "time date", &["time: real"]),
     // The visibility surface agrees with the wiring, the same pairing `caps date` makes for the
     // child's clock. This one is about the shell's own: `caps` is the only thing in this system that
     // claims to print a process's whole authority, and a clock the boot really grants would make
@@ -484,7 +554,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // and this row is the only place a person can read that at the real prompt. Every other test
     // that runs the shell has the kernel play the progenitor, so a boot that stopped granting it would fail
     // nothing; `wc gate.txt` above would keep working, because the shell opens that file itself.
-    (
+    line(
+        0,
         "caps",
         &[
             "frame     clock      READ only, NOT delegable",
@@ -500,7 +571,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // of this milestone is that the authority is legible before it moves: the row names the
     // directory the grant is over and the sentence says what `-r` would have added, so a reader can
     // see the narrower of the two capabilities being chosen.
-    (
+    line(
+        0,
         "caps rm rmtree/rm-solo",
         &[
             "dir      /rmtree  (the directory holding rm-solo)",
@@ -510,12 +582,12 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // **The removal, through a caretaker the progenitor built for this one command.** `-v` because `rm`'s
     // default is silence and a gate needs something to read; the name it prints is the name the
     // command line designated, which is the whole of the endowment.
-    ("rm -v rmtree/rm-solo", &["rm-solo"]),
+    line(1, "rm -v rmtree/rm-solo", &["rm-solo"]),
     // **And exactly that name went.** Two entries left in a directory that had three, so the grant
     // took what was designated and not what it could reach: `rm-keep` and the whole `rm-doomed`
     // subtree were inside the same capability and are still there, because nothing named them.
     // Eleven bytes of `rm-doomed/` and eight of `rm-keep`, newlines included.
-    ("ls rmtree | wc", &["2 2 19"]),
+    line(1, "ls rmtree | wc", &["2 2 19"]),
     // **The one shape this still cannot deliver, and the refusal now says what is true.** It used to
     // read "needs the progenitor to build the caretaker", which stopped being true on the line above. A
     // caretaker's whole attenuation is one `OPENDIR` *into* the granted directory, and a name typed
@@ -524,7 +596,7 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // is a refusal at the prompt with **nothing spawned**, which is the one outcome this model must
     // never trade away, and it is a design fork rather than a missing line of code. See
     // design/roadmap/31-capability-shell.md and notes/dir-capability.md's BUGS.
-    ("rm gate.txt", &["there is no name here to descend into"]),
+    line(0, "rm gate.txt", &["there is no name here to descend into"]),
     // **`xargs`, at the one interface a human touches** (milestone 109). `globmany` holds eleven
     // names one pattern matches, which is more than the eight a single grant can carry.
     //
@@ -533,7 +605,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // 47's answer at the bound and the reason `xargs` was raised. It still is the answer, because
     // batching is opt-in: a line that silently ran N times would make `caps rm *.txt`'s single
     // printed grant a lie.
-    (
+    line(
+        0,
         "echo globmany/m-*.txt",
         &["matched more names than one grant can carry"],
     ),
@@ -541,7 +614,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // rule**: `m-08.txt` first means batch one ended at `m-07.txt` and the watermark carried, so
     // this one line rules out an off-by-one at the boundary, a batch that restarted from the top,
     // and a batch that took the first eight the directory happened to yield.
-    (
+    line(
+        0,
         "xargs echo globmany/m-*.txt",
         &["batch 2: m-08.txt m-09.txt m-10.txt"],
     ),
@@ -549,7 +623,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // on and the one only `caps` can make before the delegation chain exists. The preview prints
     // what `rm` would be handed, and what it would be handed in the second invocation is the three
     // remaining names: not the eleven the pattern matched, and not the directory they live in.
-    (
+    line(
+        0,
         "xargs caps rm globmany/m-*.txt",
         &["the directory holding m-08.txt m-09.txt m-10.txt"],
     ),
@@ -562,23 +637,23 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // notes.txt"` is the same designation with the operator left out, so if the two disagree, one of
     // them opened something else. That is `gate.txt`'s trio above, asked of a name with a space in
     // it.
-    ("echo hello world > \"my notes.txt\"", &[]),
-    ("wc < \"my notes.txt\"", &["1 2 12"]),
-    ("wc \"my notes.txt\"", &["1 2 12"]),
+    line(0, "echo hello world > \"my notes.txt\"", &[]),
+    line(1, "wc < \"my notes.txt\"", &["1 2 12"]),
+    line(1, "wc \"my notes.txt\"", &["1 2 12"]),
     // **And the one thing quoting does to authority**: it suppresses expansion, so the same four
     // characters are one name quoted and a set unquoted. `echo` prints what a grant would move, so
     // this line is the narrowing made visible before anything moves. Unquoted, the same pattern is
     // the refusal five lines up.
-    ("echo \"*.txt\"", &["*.txt"]),
+    line(0, "echo \"*.txt\"", &["*.txt"]),
     // And the preview names it, which is the pairing `caps` exists for: what the line designates is
     // on the screen before anything moves, and a name with a space in it is now something that
     // sentence can be about.
-    ("caps wc \"my notes.txt\"", &["input    my notes.txt"]),
+    line(0, "caps wc \"my notes.txt\"", &["input    my notes.txt"]),
     // **Sequencing and the status** (milestone 67). `least_authority_demo 3` runs and `least_authority_demo` alone is refused at
     // the prompt for the integer its manifest requires, so these three lines cover both arms of the
     // condition table with real commands rather than with a branch written for a gate.
-    ("least_authority_demo 3 && echo yes", &["yes"]),
-    ("least_authority_demo || echo no", &["no"]),
+    line(1, "least_authority_demo 3 && echo yes", &["yes"]),
+    line(0, "least_authority_demo || echo no", &["no"]),
     // **The decision this milestone settled, read at a prompt.** `least_authority_demo` alone is refused, and a
     // refusal is not an error: nothing was spawned, nothing was opened, and the status says so with
     // its own number. Unix cannot draw this line, because there `127` and a program's own `exit(1)`
@@ -588,36 +663,33 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // `least_authority_demo || echo no` and got `0`, which was the shell being right: the last thing that ran was
     // the `echo`. `$?` is the previous **command**, not the previous line, and that is bash's rule
     // and this shell's.
-    ("least_authority_demo", &["needs an integer argument"]),
-    ("echo $?", &["2"]),
+    line(0, "least_authority_demo", &["needs an integer argument"]),
+    line(0, "echo $?", &["2"]),
     // **The progenitor's job budget is bounded and comes back** (milestone 22, the interactive increment).
     // The progenitor now holds a pool with room for six live jobs instead of the kernel's whole construction
     // budget, and every job runs in a region of its own that `job_undertaker` returns when the job ends.
-    // **Sixteen spawns above plus these six are twenty-two jobs through a six-job pool**, so a boot
-    // where nothing collected would answer "could not spawn (the progenitor is out of memory)" somewhere in
-    // here rather than the arithmetic. (Eleven when milestone 22 wrote this line, `2>` added two
-    // more spawning lines above, milestone 86's `time` added two more, milestone 67's quoting added
-    // three, milestone 40 phase 2's `wc doc/bundles` added one, milestone 31 phase 3 added two: an
-    // `rm` that really runs, and the `wc` that counts what is left, and DECISIONS §106 added one:
-    // `mdr gate.txt` used to be refused at the prompt with nothing spawned and now actually runs.
-    // The `rm` is the one worth noticing, because it is the first job whose region holds **two**
-    // processes, the program and the `fs_subtree_caretaker` carrying its grant, and it is therefore
-    // the first thing in this script that would fail if `job_undertaker`'s retry did not collect
-    // both; the count is a fact about the whole script, so it is taken at the merge and not from any
-    // one lane.) Six distinct arguments rather than one repeated, because the
-    // transcript is walked with a moving cursor and six identical answers would let a missed line
-    // pass as its neighbour.
-    ("least_authority_demo 3", &["3*3 = 9"]),
-    ("least_authority_demo 4", &["4*4 = 16"]),
-    ("least_authority_demo 5", &["5*5 = 25"]),
-    ("least_authority_demo 6", &["6*6 = 36"]),
-    ("least_authority_demo 7", &["7*7 = 49"]),
-    ("least_authority_demo 8", &["8*8 = 64"]),
+    // **Every job above plus these six go through a six-job pool, several times over**, so a boot
+    // where nothing collected would answer "could not spawn (the progenitor is out of memory)"
+    // somewhere in here rather than the arithmetic. How many that is was a hand-kept figure in this
+    // comment until 2026-09-26 and had drifted; it is now each line's `jobs` tag, summed in the
+    // success summary. The `rm` above is the one worth noticing, because it is the first job whose
+    // region holds **two** processes, the program and the `fs_subtree_caretaker` carrying its
+    // grant, and it is therefore the first thing in this script that would fail if
+    // `job_undertaker`'s retry did not collect both. Six distinct arguments rather than one
+    // repeated, because the transcript is walked with a moving cursor and six identical answers
+    // would let a missed line pass as its neighbour.
+    line(1, "least_authority_demo 3", &["3*3 = 9"]),
+    line(1, "least_authority_demo 4", &["4*4 = 16"]),
+    line(1, "least_authority_demo 5", &["5*5 = 25"]),
+    line(1, "least_authority_demo 6", &["6*6 = 36"]),
+    line(1, "least_authority_demo 7", &["7*7 = 49"]),
+    line(1, "least_authority_demo 8", &["8*8 = 64"]),
     // **The one spawnable program that answers in a register and had no line** until milestone
     // 150's coverage test (`every_spawnable_program_has_a_swish_check_line`) asked. After the six
     // above, so their count is unchanged; the page count it reports depends on page-table overhead,
     // so the assertion is the sentence that says the grant was spent rather than the number.
-    (
+    line(
+        1,
         "memory_grant_depleter --mem 4",
         &["-page budget you granted"],
     ),
@@ -627,14 +699,16 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // at boot from the NIC the kernel granted it, and a program a person typed reaches the runners'
     // echo peer through it. The preview first, because the row it prints is the whole of who may
     // reach the network from this prompt.
-    (
+    line(
+        0,
         "caps network_echo_client --mem 4",
         &[
             "cap 10 endpoint  network  WRITE",
             "a program without this row reaches no network at all",
         ],
     ),
-    (
+    line(
+        1,
         "network_echo_client --mem 4",
         &["echo peer 10.0.2.9:7777 answered: nife-net!"],
     ),
@@ -642,14 +716,16 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // handed `net_stack` a page and exited; its region was reclaimed, which revokes that page out
     // of the stack's address space too. A stack that kept a stale window, or a socket number that
     // could not be opened again, answers the first run and fails this one.
-    (
+    line(
+        1,
         "network_echo_client --mem 4",
         &["echo peer 10.0.2.9:7777 answered: nife-net!"],
     ),
     // **The negative control.** A program that declares no network `CALL`s the network's slot
     // anyway; the kernel must refuse it for want of a capability. A spawn service that endowed the
     // stack to every child prints `REACHED` here instead.
-    (
+    line(
+        1,
         "unreachable_network_witness",
         &["network: refused (no capability at slot 10)"],
     ),
@@ -660,7 +736,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // not map the job frame`, because the shell mapped its job frame over its own terminal page.
     // The heeder is the cooperative tier: one `^C`, and the job reports it stopped. It goes first
     // because it is the first supervised job of the boot, which is the one that failed.
-    (
+    line(
+        0,
         "interrupt_heeder",
         &[
             "^C interrupts it.",
@@ -671,7 +748,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // `^C` to a `DESTROY` of the region the shell built it from, which force-kills its live thread
     // (DECISIONS §16 (object revocation), as amended). A shell whose teardown was refused says so
     // instead.
-    (
+    line(
+        0,
         "interrupt_ignorer",
         &["^C again: tearing the job down.", "its memory reclaimed"],
     ),
@@ -681,7 +759,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // nife's `std` reads (`crates/std_runtime_protocol`): eight fixed slots, three shared pages,
     // thirty-two stack pages. The preview first, because it is where a person learns the slots
     // moved, and slot 0 is not even the same kind of object as a native child's.
-    (
+    line(
+        0,
         "caps std_exerciser",
         &[
             "cap 0  untyped   heap.",
@@ -700,7 +779,8 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
     // 6; `config seeded` is slot 7 and the page at `CONFIG_PAGE`, read before `main`; and the last
     // line is `process::exit` reaching the supervisor as an exit rather than a fault. The stack is
     // the one thing with no phrase of its own: too little of it is a fault partway through.
-    (
+    line(
+        1,
         "std_exerciser",
         &[
             "hello from std on nife",
@@ -713,7 +793,7 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 85] = [
             "exiting through process::exit",
         ],
     ),
-    ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
+    line(0, "echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
 /// **The lines after which this gate presses `^C`**, once the shell has said the job is running.
@@ -1102,15 +1182,15 @@ fn boot_claim_complaint(
 ///   The leg asserts the progenitor said so, because a boot that silently fell back to no entropy
 ///   would otherwise surface only as the `uuid` lines failing.
 fn swish_check_leg(arch: &str) -> bool {
-    swish_check_boot(arch, &SWISH_CHECK_SCRIPT, true)
-        && swish_check_boot(arch, &SWISH_CHECK_AFTER_REBOOT, false)
+    swish_check_boot(arch, SWISH_CHECK_SCRIPT, true)
+        && swish_check_boot(arch, SWISH_CHECK_AFTER_REBOOT, false)
 }
 
 /// **One boot of [`swish_check_leg`]**: build (when `fresh`), boot, type `script`, read the answers.
 /// `fresh` is false for the second boot, which runs against the disk the first one left behind and
 /// builds nothing, because what it proves is that the disk is the only thing carried across
 /// (milestone 198 (a package manager) rung 3a: an installed package survives a reboot).
-fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool {
+fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
@@ -1425,7 +1505,7 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         };
         let mut took: Vec<(&str, Duration)> = Vec::new();
         let mut previous: Option<(&str, Instant)> = None;
-        for &(line, _) in script {
+        for &Line { typed: line, .. } in script {
             if !ready {
                 break;
             }
@@ -1513,7 +1593,12 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         // that found either one would read the same answer for both lines and pass a `>>` that had
         // truncated.
         let mut cursor = 0usize;
-        for &(line, want) in script {
+        for &Line {
+            typed: line,
+            jobs,
+            answer: want,
+        } in script
+        {
             if skipped(line) {
                 continue;
             }
@@ -1532,6 +1617,18 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
                                 answer.trim()
                             ));
                         }
+                    }
+                    // **And a line that runs jobs ran them** ([`Line`]'s doc): the summary's job
+                    // count is summed from these tags, so a tagged line whose job was never built
+                    // must fail here, including the ones whose answer is checked by a later line.
+                    if jobs > 0
+                        && let Some(said) = JOB_DID_NOT_RUN.iter().find(|s| answer.contains(**s))
+                    {
+                        failed.push(format!(
+                            "`{line}` runs {jobs} job(s) and one did not run: its answer carries \
+                             {said:?} ({:?})",
+                            answer.trim()
+                        ));
                     }
                 }
                 None => failed.push(format!("`{line}` produced no answer at all")),
@@ -1651,26 +1748,19 @@ fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool
         return true;
     }
     if failed.is_empty() {
-        // The lines x86_64 omits are milestone 590's two `network_echo_client` runs and the two
-        // `package install` fetches, which need its missing NIC; see [`swish_check_omits`].
-        // Milestone 590 added three jobs on the other two legs (the two echo runs and
-        // `unreachable_network_witness`) and one on x86_64 (the witness). Milestone 198 rung 3a
-        // added two on each (the installed `uptime` and `greeting` runs); the first of those landed
-        // without this count, and this corrects it. A refused image is not a job. The two
-        // supervised lines (`interrupt_heeder`, `interrupt_ignorer`) are not counted either: a
-        // supervised job is built from the shell's own untyped, not from the progenitor's pool.
-        // Milestone 595 (provisional) added `std_exerciser` on every leg when it was built, and on
-        // x86_64 gave back the four `uuid`-and-`wc` jobs it had omitted for want of entropy.
-        let jobs = match (x86, std_built) {
-            (true, true) => "twenty-five",
-            (true, false) => "twenty-four",
-            (false, true) => "twenty-seven",
-            (false, false) => "twenty-six",
-        };
+        // Summed from the lines this leg typed, so an omitted line (see [`swish_check_omits`]) and
+        // a skipped `std_exerciser` take their jobs with them; every tagged line was checked above
+        // for a job that did not run. Until 2026-09-26 this was a hand-kept word per leg (27 on
+        // aarch64 with `std_exerciser`), which undercounted the real 45 by eighteen.
+        let jobs: u32 = script
+            .iter()
+            .filter(|l| !skipped(l.typed))
+            .map(|l| u32::from(l.jobs))
+            .sum();
         if x86 {
             let omitted: Vec<&str> = script
                 .iter()
-                .map(|(line, _)| *line)
+                .map(|l| l.typed)
                 .filter(|line| swish_check_omits(arch, line).is_some())
                 .collect();
             eprintln!(
@@ -2194,9 +2284,39 @@ $ outlaw
     #[test]
     fn the_greeting_install_line_names_the_seeded_file() {
         let line = format!("package install {}", crate::disk::DOWNLOADED_GREETING);
-        assert!(SWISH_CHECK_SCRIPT.iter().any(|(l, _)| *l == line));
+        assert!(SWISH_CHECK_SCRIPT.iter().any(|l| l.typed == line));
         assert!(swish_check_omits("aarch64", &line).is_some());
         assert!(swish_check_omits("x86_64", &line).is_none());
+    }
+
+    /// **A job count names a program** ([`Line`]'s doc): no line may claim more jobs than it has
+    /// stages whose head is something the progenitor can build, a `grant_plan::Prog` or an
+    /// installed package's path, after the `time` and `xargs` prefixes. A `caps` head is a preview
+    /// and builds nothing. A bound from above only; a tag that is too low is the case no host test
+    /// can see, and the transcript cannot either.
+    #[test]
+    fn a_job_count_names_a_program() {
+        for l in SWISH_CHECK_SCRIPT.iter().chain(SWISH_CHECK_AFTER_REBOOT) {
+            let heads = l
+                .typed
+                .split(['|', '&', ';'])
+                .filter_map(|stage| {
+                    stage
+                        .split_whitespace()
+                        .find(|w| *w != "time" && *w != "xargs")
+                })
+                .filter(|head| {
+                    head.starts_with("packages/")
+                        || grant_plan::Prog::ALL.iter().any(|p| p.name() == *head)
+                })
+                .count();
+            assert!(
+                usize::from(l.jobs) <= heads,
+                "`{}` claims {} job(s) and has {heads} stage(s) headed by a program",
+                l.typed,
+                l.jobs
+            );
+        }
     }
 
     #[test]
@@ -2209,7 +2329,7 @@ $ outlaw
             let name = p.name();
             let scripted = SWISH_CHECK_SCRIPT
                 .iter()
-                .any(|(line, _)| line.split_whitespace().any(|w| w == name));
+                .any(|l| l.typed.split_whitespace().any(|w| w == name));
             assert!(
                 scripted != UNSCRIPTED.contains(&name),
                 "`{name}`: {}",
