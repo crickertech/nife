@@ -5,15 +5,14 @@ lands it.)* Rung 3a's producer half was built 2026-09-23 on
 `milestone/198-the-next-rung`: the one archive file §197 ruled a package is
 (`crates/package_archive`, written and read by one definition), `cargo xtask package` turning a
 reviewed recipe into a package, its digest and a catalogue line, and the fuzz target and Kani
-harnesses §197 accepted as the container's price. The first package this project has produced is
-`uptime 0.1.0 aarch64`, 90,491 bytes since programs are packed stripped, and notes/packages.md has
-the run. Rung 3a's consumer half is built through "verified by digest" (2026-09-24): the image
+harnesses §197 accepted as the container's price. Rung 3a's consumer half is built through "verified by digest" (2026-09-24): the image
 carries a package catalogue, a host serves the package over plain HTTP, and `net_stack`'s client
 accepts it only by the image's digest, on aarch64 and riscv64. The table §208 (installing is
 granting) versions is in `crates/activation_set`. Run by digest and the installer followed on
 2026-09-26, once §219 (how the shell names an installed program to the spawner) was ruled:
 `package install`, `remove` and `rollback` at the prompt, across a reboot, on all three
-architectures. notes/packages.md has the account.
+architectures. `package install <name>` fetches over the booted system's network (aarch64,
+riscv64), and `greeting`, which no image carries, runs on all three. notes/packages.md has the account.
 
 **Gate: NONE.** [§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
 shell names an installed program to the spawner) was decided 2026-09-26 (UTC): option D with gate
@@ -227,11 +226,11 @@ Added by the lanes that built rung 3a (2026-09-23, 2026-09-24 and 2026-09-26), c
 block's other rungs carry their own exit criteria in the table above, and the rungs that are
 calef's acts are named there rather than here.
 
-- **Outstanding.** Rung 3a still owes closing the `activation/` write hole (a proposal, an
-  architect's call), a program absent from the image, §219's gate D2, and milestone 202 (every
-  confinement test is a ritual until somebody breaks the confinement)'s unvouched-child claim.
-  notes/packages.md has each.
-- **Done.** §219, which the rest of rung 3a waited on, was ruled 2026-09-26 and its request built.
+- **Outstanding.** Rung 3a still owes closing the `activation/` write hole (an architect's
+  call), §219's gate D2, and milestone 202 (every confinement test is a ritual until somebody
+  breaks the confinement)'s unvouched-child claim. notes/packages.md has each.
+- **Done.** §219 was ruled 2026-09-26 and its request built; the fetch at the prompt and a
+  program absent from the image followed.
 - **Proposed.** The virtio device table never reuses a slot
   (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`). The booted system
   had no network either; milestone 590 (the booted system starts its network stack) built it.
@@ -240,8 +239,8 @@ calef's acts are named there rather than here.
   both still calef's and both left open rather than answered by the built format:
   `design/decisions/197-a-package-is-one-archive-file.md`.
 - **Recorded.** No compression, a `u32` ceiling on a member and on a package, a catalogue that is
-  one file in `target/` rather than a repository index, a fetch only in the test harness, and a recipe that cannot say where its
-  source came from (`crates/package_archive`'s and `xtask/src/package.rs`'s BUGS sections, and
+  one file in `target/` rather than a repository index, a package source compiled into the
+  progenitor, and a recipe that cannot say where its source came from (`crates/package_archive`'s and `xtask/src/package.rs`'s BUGS sections, and
   `notes/packages.md`).
 - **Recorded.** `packages/uptime.recipe` records no digest on purpose, because the program it names
   is rebuilt by this checkout whenever anything it links changes (the recipe's own comment).
