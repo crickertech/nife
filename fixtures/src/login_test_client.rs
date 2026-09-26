@@ -66,6 +66,10 @@
 //!   deliberately, **without** sending [`login_protocol::logout_word`], so the terminal itself stays on
 //!   loan even though the session's memory came home. That is the property under test: session
 //!   teardown and freeing the terminal are two independent acts.
+//! - [`PRESENT_RUN_UNVOUCHED`] (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2) logs in like [`LOGIN`] and sends a known
+//!   word on the sixth delegated capability, the run-unvouched endpoint, which the kernel test
+//!   catches on the endpoint it gave `login`. Every successful login that was announced a sixth
+//!   capability also tries to delegate it and reports the refusal ([`F_RUN_UNVOUCHED_NOT_GRANTABLE`]).
 //! - [`FREE_TERMINAL`] sends [`login_protocol::logout_word`] on the front door directly, without ever
 //!   calling `CONNECT`: there is no identity or secret in this word at all (`login_protocol`'s own BUGS
 //!   on what this does and does not authenticate). It is the one behaviour that takes no credential,
@@ -128,7 +132,8 @@
 
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{
-    call, destroy_region, exit, map_page_frame, recv, recv_cap, retype_page_frame, send, yield_now,
+    call, destroy_region, exit, map_page_frame, recv, recv_cap, retype_page_frame, send, send_cap,
+    yield_now,
 };
 
 /// The login service's front-door request endpoint (slot 0), `WRITE`.
@@ -184,6 +189,13 @@ pub const HOLD_TERMINAL: u64 = 4;
 /// behaviour that takes [`credential_protocol::fixture::NONE`] for both halves of its credential. See
 /// the module docs.
 pub const FREE_TERMINAL: u64 = 5;
+/// Log in, and prove the sixth delegated capability (the run-unvouched one, DECISIONS §219 gate D2)
+/// names the endpoint `login` was given, by sending [`RUN_UNVOUCHED_MAGIC`] on it for the kernel
+/// test to receive. Otherwise [`LOGIN`].
+pub const PRESENT_RUN_UNVOUCHED: u64 = 6;
+
+/// **[`PRESENT_RUN_UNVOUCHED`]'s proof of life**, [`TERM_MAGIC`]'s twin for the sixth capability.
+const RUN_UNVOUCHED_MAGIC: u64 = 0x_7e12_0000_0000_0002;
 
 /// The one-shot marker file [`WRITE_MARKER`] writes and [`READ_MARKER`] reads, inside the identity's own
 /// granted subtree. Chosen to collide with nothing else this tree's fixtures use.
@@ -241,6 +253,15 @@ pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 /// succeeded) would pass every earlier check and never set this one: `send` only returns once a
 /// receiver is actually matched.
 pub const F_TERM_WORKS: u64 = 1 << 8;
+/// **Set when a sixth capability arrived and could not be passed on**: `SEND_CAP` of it was refused
+/// `NotPermitted`, which the kernel answers before it matches any receiver, for a capability that
+/// lacks `GRANT`. That refusal is DECISIONS §219 limitation 2 holding: a session holds the right to
+/// run unvouched bytes and cannot lend it by delegation. Set on every successful login that was
+/// announced a sixth capability.
+pub const F_RUN_UNVOUCHED_NOT_GRANTABLE: u64 = 1 << 9;
+/// **Set when [`RUN_UNVOUCHED_MAGIC`] was taken on the sixth capability.** Set only by
+/// [`PRESENT_RUN_UNVOUCHED`]; like [`F_TERM_WORKS`], `send` returns only once a receiver matched.
+pub const F_RUN_UNVOUCHED_WORKS: u64 = 1 << 10;
 
 /// `a0` is the behaviour, `a1` the identity and `a2` the secret; see the module docs. Three
 /// registers because that is what a process is born with (`kernel::user::Spawn`), and the two
@@ -300,7 +321,7 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
         done(RPT_MALFORMED, 0, 0);
     };
     send(priv_request, w0, 0, 0);
-    let (verdict, _, _) = recv(priv_result);
+    let (verdict, extra, _) = recv(priv_result);
 
     if verdict != login_protocol::OK {
         // `login_protocol`'s own promise: nothing follows a refusal. Reporting here, rather than
@@ -317,9 +338,28 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
     let (_, budget, _) = recv_cap(priv_result);
     let (_, region, _) = recv_cap(priv_result);
     let (_, term_ep, _) = recv_cap(priv_result);
+    // The sixth, only as announced, and taken here with the other five: `login` is blocked sending
+    // it, and anything this process sends first (the terminal's proof below) waits on a kernel test
+    // that is itself waiting on `login`.
+    let run_unvouched =
+        (extra & login_protocol::RUN_UNVOUCHED_FOLLOWS != 0).then(|| recv_cap(priv_result).1);
 
     let mut flags = 0u64;
     let mut hint = 0u64;
+
+    // **Prove the sixth is real (for one behaviour), then that it cannot be passed on.** In that
+    // order, because the delegation is attempted on the report endpoint, which the kernel test
+    // reads only after it has taken the proof of life: a capability wrongly carrying `GRANT` is then
+    // sent there and garbles the report, failing the test rather than hanging it.
+    if let Some(ru) = run_unvouched {
+        if behaviour == PRESENT_RUN_UNVOUCHED {
+            send(ru, RUN_UNVOUCHED_MAGIC, 0, 0);
+            flags |= F_RUN_UNVOUCHED_WORKS;
+        }
+        if send_cap(REPORT, ru, abi::rights::WRITE, 0) == abi::Error::NotPermitted as i64 {
+            flags |= F_RUN_UNVOUCHED_NOT_GRANTABLE;
+        }
+    }
 
     // **Prove the terminal, before anything else touches `budget`/`region`.** `send` on a plain
     // rendezvous only returns once a receiver is actually matched

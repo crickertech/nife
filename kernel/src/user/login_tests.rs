@@ -155,7 +155,8 @@ fn wired() -> Option<ls::Wiring> {
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     static DONE: AtomicBool = AtomicBool::new(false);
     static OK: AtomicBool = AtomicBool::new(false);
-    static SAVED: [AtomicU64; 4] = [
+    static SAVED: [AtomicU64; 5] = [
+        AtomicU64::new(0),
         AtomicU64::new(0),
         AtomicU64::new(0),
         AtomicU64::new(0),
@@ -186,6 +187,7 @@ fn wired() -> Option<ls::Wiring> {
             SAVED[1].store(w.result, Ordering::Relaxed);
             SAVED[2].store(w.audit, Ordering::Relaxed);
             SAVED[3].store(w.term_ep, Ordering::Relaxed);
+            SAVED[4].store(w.run_unvouched, Ordering::Relaxed);
             OK.store(true, Ordering::Release);
         }
         DONE.store(true, Ordering::Release);
@@ -198,6 +200,7 @@ fn wired() -> Option<ls::Wiring> {
         result: SAVED[1].load(Ordering::Relaxed),
         audit: SAVED[2].load(Ordering::Relaxed),
         term_ep: SAVED[3].load(Ordering::Relaxed),
+        run_unvouched: SAVED[4].load(Ordering::Relaxed),
     })
 }
 
@@ -969,4 +972,65 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
         ls::F_TERM_WORKS,
         "the re-delegated terminal capability did not work",
     );
+}
+
+/// **Each session `login` builds is handed the run-unvouched capability, and cannot pass it on**
+/// (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2, milestone 198 (a package manager) rung 3a).
+///
+/// What this proves that nothing else would: that the sixth capability a session receives names
+/// the very endpoint the spawner gave `login` (a word sent on it arrives on that endpoint, which is
+/// where the progenitor receives a presentation in the real boot), and that the session's copy
+/// lacks `GRANT` (its `SEND_CAP` is refused), which is limitation 2's reason the capability is a
+/// presentation rather than a token. `script/swish-check` proves the progenitor's half; no session
+/// `login` builds holds a spawn endpoint, so this is the only place the delivery runs.
+///
+/// Falsified by hand before it was committed (aarch64, 2026-09-26): delegating the sixth capability
+/// `WRITE | GRANT` in `components/src/login.rs` turned this test red. The client's `SEND_CAP` of it
+/// then succeeded, onto the report endpoint, and arrived in place of the report (word 0 read 0).
+#[test_case]
+fn login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed_on() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    free_terminal(&w);
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+    // `spawn_client`/`wait_client` for the terminal test's reason: the role blocks in its `send`
+    // on the sixth capability until this test takes the word.
+    let report = ls::spawn_client(cli, &w, ls::PRESENT_RUN_UNVOUCHED, CHRIS, CHRIS);
+    let a = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a[0],
+        login_protocol::ATTRIBUTED,
+        "no attribution record followed the login",
+    );
+    let presented = sched::ipc_recv(w.run_unvouched);
+    assert_eq!(
+        presented[0],
+        ls::RUN_UNVOUCHED_MAGIC,
+        "the session's run-unvouched capability did not reach the endpoint login was given",
+    );
+    let r = ls::wait_client(report);
+    assert_eq!(
+        r[0],
+        ls::RPT_OK,
+        "no OK report: chris was not authenticated, or the session's run-unvouched capability \
+         carried GRANT and its delegation arrived in place of the report",
+    );
+    for (bit, what) in [
+        (
+            ls::F_RUN_UNVOUCHED_NOT_GRANTABLE,
+            "the run-unvouched capability could be delegated onward",
+        ),
+        (
+            ls::F_RUN_UNVOUCHED_WORKS,
+            "the run-unvouched capability did not deliver a word",
+        ),
+    ] {
+        assert_eq!(r[1] & bit, bit, "{what}");
+    }
+    free_terminal(&w);
 }

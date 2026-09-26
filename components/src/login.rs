@@ -34,6 +34,17 @@
 //! the only thing they could ever contend for is which of them gets served *first*, which is a wait,
 //! not a hazard. See `login_protocol`'s own module docs for the two-phase exchange in full.
 //!
+//! # Who may run new native code (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2)
+//!
+//! When its spawner placed the run-unvouched capability at [`RUN_UNVOUCHED`] (the progenitor does,
+//! after building this process), every session this process builds gets a `WRITE` copy of it as a
+//! sixth capability, announced on the `OK` reply. It is what lets a session run bytes nobody
+//! vouched for; a session built without it cannot. So which users may run new code is decided
+//! here, per session, as calef's consequence in §219 asks, and it is never something a session
+//! can pass on: no `GRANT`. Today the answer is "every session" (`login_protocol`'s BUGS say why),
+//! and no session built here holds a spawn endpoint to use it with, so it is delivered and proven
+//! (`kernel::user::login_tests`) rather than exercised.
+//!
 //! # Which subtree a principal gets (see BUGS for the rest)
 //!
 //! **Each identity is attenuated to its own subtree, named by the identity string itself, used
@@ -639,6 +650,20 @@ const AUDIT: u64 = 6;
 /// narrow and re-delegate it at all; absent that right the capability could be held but never handed
 /// on.
 const TERM_EP: u64 = 7;
+/// **The run-unvouched capability** (DECISIONS §219 gate D2), `WRITE | GRANT`, when the spawner
+/// placed one: the endpoint the progenitor receives a presentation on. Delegated `WRITE` alone to
+/// every session this process builds ([`serve_login`]), so a session can present it and cannot
+/// pass it on. A named slot rather than the ninth, because a spawner that has none leaves it
+/// empty and the other eight where they were; probed once at [`_start`] ([`HOLDS_RUN_UNVOUCHED`]).
+const RUN_UNVOUCHED: u64 = grant_plan::spawnproto::RUN_UNVOUCHED_SLOT;
+// `grant_plan` states the slot without depending on `abi`; the relation is held by each reader.
+const _: () = assert!(RUN_UNVOUCHED == abi::fault::FAULT_EP_SLOT - 1);
+
+/// Whether [`RUN_UNVOUCHED`] holds a capability. Probed at [`_start`], before this process has
+/// allocated anything, which is what makes the probe sound: later, a slot this process retyped
+/// into could be the one being asked about.
+static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 
 /// The page shared with the credential service, for the relayed `VERIFY`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
@@ -727,6 +752,11 @@ const CLIENT_BUDGET_PAGES: u64 = 64;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
+    // First, before anything is allocated: see [`HOLDS_RUN_UNVOUCHED`].
+    HOLDS_RUN_UNVOUCHED.store(
+        user_mode_runtime::is_granted(RUN_UNVOUCHED),
+        core::sync::atomic::Ordering::Relaxed,
+    );
     // **Two blobs rather than the archive** (milestone 233). Whoever started this process mapped
     // `fs_subtree_caretaker`'s ELF bytes read-only at `login_protocol::CARETAKER_ELF_VA` and the
     // measurement table at `login_protocol::PROGRAM_MEASUREMENTS_VA`, with their lengths in the first
@@ -976,7 +1006,17 @@ fn serve_login(
 
     match mint(own_ut, care, &identity_buf[..identity_len]) {
         Some((dir_ep, budget, region)) => {
-            send(channel.result, login_protocol::OK, 0, 0);
+            let run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed);
+            send(
+                channel.result,
+                login_protocol::OK,
+                if run_unvouched {
+                    login_protocol::RUN_UNVOUCHED_FOLLOWS
+                } else {
+                    0
+                },
+                0,
+            );
             delegate(channel.result, dir_ep, abi::rights::WRITE);
             // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring
             // update): the kernel's own `page_frame_map` checks only `Rights::WRITE` for a
@@ -1013,6 +1053,14 @@ fn serve_login(
             // already holds on it: a login session gets to write the terminal, never to hand the
             // capability to read keystrokes on to anything it spawns.
             delegate(channel.result, TERM_EP, abi::rights::WRITE);
+            // **The run-unvouched capability, sixth, and only as announced** (DECISIONS §219 gate
+            // D2; `login_protocol`'s module docs). `WRITE` alone: the session may present it to
+            // the progenitor and may hand it to nothing, which is what makes "this user may run
+            // new native code" a fact about a session rather than about whoever it met. Every
+            // session gets it; which identities should is undecided (`login_protocol`'s BUGS).
+            if run_unvouched {
+                delegate(channel.result, RUN_UNVOUCHED, abi::rights::WRITE);
+            }
             *terminal_held = true;
             cap_delete(dir_ep);
             cap_delete(budget);
