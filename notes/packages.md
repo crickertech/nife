@@ -256,18 +256,14 @@ packs, is what the gate fetches: [packages/fetching.md](packages/fetching.md).
 ## Where this stops
 
 Rung 3a's exit criterion (fetched, verified, installed, run, kept across a reboot, rolled back,
-removed) is met, and so is §219's gate D2. Who may write `activation/` is an architect's call:
-[who-may-write-the-activation-set.md](who-may-write-the-activation-set.md).
+removed) is met, and so is §219's gate D2. The boot prompt is the owner's console, which may write
+`activation/` and vouch for a build: [packages/vouching.md](packages/vouching.md).
 
 ## BUGS
 
-- The boot prompt can write the activation set. It holds the file service's root endpoint, the
-  same one the progenitor writes through, and the server cannot tell them apart. So that session can
-  vouch its own bytes. Harmless while every installed program is endowed as `uptime` is. A session `login` builds is confined to its own
-  subtree and cannot reach `activation/`. Closing it for the boot prompt is a fork:
-  [who-may-write-the-activation-set.md](who-may-write-the-activation-set.md).
-- Whoever holds the spawn endpoint (only the boot prompt) may install what the catalogue
-  vouches for.
+- The boot prompt can write `activation/` directly, through the root endpoint the progenitor
+  writes through. §221 (the boot prompt is the owner's console) ruled that is the owner's right.
+- Whoever holds the spawn endpoint (only the boot prompt) may install, remove, roll back and vouch.
 - Nothing collects `packages/`. A removed program's bytes stay, which is what rollback needs.
 - Rollback is by number, to the generation one below the live one, as Nix's is (recalled, not
   read). Undoing a rollback is another install.

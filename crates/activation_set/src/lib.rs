@@ -235,6 +235,14 @@ pub const CURRENT_STAGED: &str = "current.next";
 /// this is where they are kept, not what vouches for them. Provisional.
 pub const PACKAGES: &str = "packages";
 
+/// **What an entry's package column says when the owner vouched for the bytes** (DECISIONS §221
+/// (the boot prompt is the owner's console), ruling 1; §195 (a reviewed recipe vouches for a
+/// package) clause 3). No package stem can be this word, because a stem is
+/// `name-version-architecture` and carries two hyphens. The entry is an ordinary one otherwise:
+/// found by digest like any other, replaced by a later vouch or install of the same program name,
+/// and undone by a rollback. Provisional, like the column.
+pub const OWNER: &str = "owner";
+
 /// The file name of generation `number` in [`DIRECTORY`]: its decimal digits, no padding.
 pub fn generation_name(number: u32, out: &mut [u8; 10]) -> &str {
     let mut n = number;
@@ -385,6 +393,34 @@ mod tests {
     }
 
     /// **The property §208 asked for by name**: a rollback restores the whole set, not one package.
+    /// **An owner's vouch is an entry like any other** (DECISIONS §221): it reads back, is found by
+    /// its digest, and a later install of the same program name replaces it.
+    #[test]
+    fn an_owner_vouch_is_an_ordinary_entry() {
+        let built = [9u8; 32];
+        let vouch = Entry {
+            program: "a.out",
+            package: OWNER,
+            digest: built,
+        };
+        let mut g = [0u8; 256];
+        let n = with_entry("", &vouch, &mut g).unwrap();
+        let table = core::str::from_utf8(&g[..n]).unwrap();
+        assert_eq!(
+            lookup_digest(table, &built).unwrap().unwrap().package,
+            OWNER
+        );
+        let upgrade = Entry {
+            program: "a.out",
+            package: "a.out-0.1.0-aarch64",
+            digest: [1; 32],
+        };
+        let mut h = [0u8; 256];
+        let n = with_entry(table, &upgrade, &mut h).unwrap();
+        let next = core::str::from_utf8(&h[..n]).unwrap();
+        assert!(lookup_digest(next, &built).unwrap().is_none());
+    }
+
     /// Two programs installed, one upgraded, one removed; selecting the generation before both
     /// changes brings back the old version of the first and the presence of the second together.
     #[test]

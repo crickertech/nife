@@ -262,6 +262,11 @@ pub const F_RUN_UNVOUCHED_NOT_GRANTABLE: u64 = 1 << 9;
 /// **Set when [`RUN_UNVOUCHED_MAGIC`] was taken on the sixth capability.** Set only by
 /// [`PRESENT_RUN_UNVOUCHED`]; like [`F_TERM_WORKS`], `send` returns only once a receiver matched.
 pub const F_RUN_UNVOUCHED_WORKS: u64 = 1 << 10;
+/// **Set when `OK` announced a sixth capability at all** ([`login_protocol::RUN_UNVOUCHED_FOLLOWS`]),
+/// for every behaviour. Its absence is how the kernel test sees an identity that is not on the
+/// owner's list (DECISIONS §221 (the boot prompt is the owner's console), ruling 2) without waiting
+/// on an endpoint nothing will send to.
+pub const F_RUN_UNVOUCHED_ANNOUNCED: u64 = 1 << 11;
 
 /// `a0` is the behaviour, `a1` the identity and `a2` the secret; see the module docs. Three
 /// registers because that is what a process is born with (`kernel::user::Spawn`), and the two
@@ -345,6 +350,9 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
         (extra & login_protocol::RUN_UNVOUCHED_FOLLOWS != 0).then(|| recv_cap(priv_result).1);
 
     let mut flags = 0u64;
+    if run_unvouched.is_some() {
+        flags |= F_RUN_UNVOUCHED_ANNOUNCED;
+    }
     let mut hint = 0u64;
 
     // **Prove the sixth is real (for one behaviour), then that it cannot be passed on.** In that

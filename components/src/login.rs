@@ -37,12 +37,14 @@
 //! # Who may run new native code (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2)
 //!
 //! When its spawner placed the run-unvouched capability at [`RUN_UNVOUCHED`] (the progenitor does,
-//! after building this process), every session this process builds gets a `WRITE` copy of it as a
-//! sixth capability, announced on the `OK` reply. It is what lets a session run bytes nobody
-//! vouched for; a session built without it cannot. So which users may run new code is decided
-//! here, per session, as calef's consequence in §219 asks, and it is never something a session
-//! can pass on: no `GRANT`. Today the answer is "every session" (`login_protocol`'s BUGS say why),
-//! and no session built here holds a spawn endpoint to use it with, so it is delivered and proven
+//! after building this process), a session gets a `WRITE` copy of it as a sixth capability,
+//! announced on the `OK` reply, **only when its identity is on the owner's list**
+//! ([`login_protocol::RUN_UNVOUCHED_LIST`], empty by default; DECISIONS §221 (the boot prompt is
+//! the owner's console), ruling 2). It is what lets a session run bytes nobody vouched for; a
+//! session built without it cannot. So which users may run new code is decided here, per session,
+//! from a file the owner writes and no session can reach ([`listed`]), as calef's consequence in
+//! §219 asks, and it is never something a session can pass on: no `GRANT`. No session built here
+//! holds a spawn endpoint to use it with yet, so it is delivered and proven
 //! (`kernel::user::login_tests`) rather than exercised.
 //!
 //! # Which subtree a principal gets (see BUGS for the rest)
@@ -204,12 +206,14 @@
 //!   process never provisions it and never could: the provision endpoint is deleted at both ends
 //!   before any client of the credential service exists (`components/src/credentialer.rs`).
 //! - slot [`FS_EP`]: `WRITE | GRANT` on the file service's root directory capability. What every
-//!   minted caretaker attenuates.
+//!   minted caretaker attenuates, and where this process reads the owner's run-unvouched list
+//!   ([`listed`]).
 //! - slot [`FS_PAGE_FRAME`]: a `PageFrame`, `WRITE` (resolved, milestone 49's boot-wiring update: not
 //!   `READ | WRITE` -- see [`serve_login`]'s own comment on why `WRITE` alone already produces a
 //!   fully read+write mapping for every holder, and why a real boot could not have delegated `READ`
 //!   here regardless). The page the file service shares with its clients. Delegated on to each
-//!   authenticated principal (see the module docs on why one frame serves every hop).
+//!   authenticated principal (see the module docs on why one frame serves every hop), and mapped
+//!   here at [`LIST_VA`] for [`listed`]'s one read per login.
 //! - slot [`CONSTRUCTION_UT`]: `WRITE | GRANT`. Everything a connecting client's own private channel,
 //!   a caretaker, and a client budget are all built from. Never given away, unlike
 //!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike a progenitor
@@ -665,6 +669,16 @@ const _: () = assert!(RUN_UNVOUCHED == abi::fault::FAULT_EP_SLOT - 1);
 static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 
+/// **Where this process maps the file service's shared page itself, to read the owner's
+/// run-unvouched list** ([`listed`]). Below [`CRED_VA`] and the per-channel window above it, which
+/// is the only thing in this space that grows.
+const LIST_VA: u64 = 0x0000_0000_00e2_0000;
+
+/// Whether [`LIST_VA`] holds the file page. Mapped once, at [`_start`], from [`OWN_UT_PAGES`]'
+/// region, before any session exists, so its page tables sit at the bottom of that watermark and
+/// never between a session's carves. `false` lists nobody.
+static LIST_MAPPED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
 /// The page shared with the credential service, for the relayed `VERIFY`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// The base of a scratch VA range [`connect`] bump-allocates one page from per channel it mints.
@@ -824,6 +838,12 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
     let Ok(channel_ut) = memory_region_split(CONSTRUCTION_UT, CHANNEL_UT_PAGES) else {
         fail(2)
     };
+    // The owner's list is read through the file page ([`listed`]). A map that fails leaves every
+    // session without the run-unvouched capability, which is the list's own default.
+    LIST_MAPPED.store(
+        map_page_frame(FS_PAGE_FRAME, LIST_VA, true, own_ut),
+        core::sync::atomic::Ordering::Relaxed,
+    );
 
     // How many logins this process has established, in order. The audit trail's sequence number,
     // not a capacity: `CONSTRUCTION_UT` is what actually bounds how many logins this process can
@@ -1006,7 +1026,10 @@ fn serve_login(
 
     match mint(own_ut, care, &identity_buf[..identity_len]) {
         Some((dir_ep, budget, region)) => {
-            let run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed);
+            // Read after the session is built, so a list read that fails costs the grant and
+            // nothing else.
+            let run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed)
+                && listed(&identity_buf[..identity_len]);
             send(
                 channel.result,
                 login_protocol::OK,
@@ -1056,8 +1079,8 @@ fn serve_login(
             // **The run-unvouched capability, sixth, and only as announced** (DECISIONS §219 gate
             // D2; `login_protocol`'s module docs). `WRITE` alone: the session may present it to
             // the progenitor and may hand it to nothing, which is what makes "this user may run
-            // new native code" a fact about a session rather than about whoever it met. Every
-            // session gets it; which identities should is undecided (`login_protocol`'s BUGS).
+            // new native code" a fact about a session rather than about whoever it met. Only a
+            // listed identity's session gets it (DECISIONS §221 ruling 2).
             if run_unvouched {
                 delegate(channel.result, RUN_UNVOUCHED, abi::rights::WRITE);
             }
@@ -1345,6 +1368,42 @@ const RECLAIM_ATTEMPTS: usize = 64;
 fn discard(region: u64) {
     reclaim(region);
     cap_delete(region);
+}
+
+/// **Is `identity` on the owner's run-unvouched list?** (DECISIONS §221 (the boot prompt is the
+/// owner's console), ruling 2.) Opens [`login_protocol::RUN_UNVOUCHED_LIST`] at the root of the
+/// file service and asks [`login_protocol::lists`]. Every way of not reading it (no mapped page,
+/// no file, a file larger than a page, a refused read) lists nobody.
+///
+/// Read on every login rather than once at start, so the owner's edit at the boot prompt holds
+/// from the next login without a reboot. The page is the one every session and caretaker shares
+/// with the server; this is sound for the reason those clients' use of it is, that only one session
+/// is live at a time (the terminal rule, checked before this runs), and that session is still
+/// being built.
+fn listed(identity: &[u8]) -> bool {
+    use filesystem_protocol::fs;
+    if !LIST_MAPPED.load(core::sync::atomic::Ordering::Relaxed) {
+        return false;
+    }
+    let name = login_protocol::RUN_UNVOUCHED_LIST.as_bytes();
+    // SAFETY: `_start` mapped the file page read/write at `LIST_VA`, one page, for this process's
+    // life, and nothing else in this process writes it.
+    let page = unsafe { core::slice::from_raw_parts_mut(LIST_VA as *mut u8, login_protocol::PAGE) };
+    page[..name.len()].copy_from_slice(name);
+    let opened = call(FS_EP, fs::req(fs::OPEN, fs::ROOT, name.len() as u64), 0).0 as i64;
+    if opened < 0 {
+        return false;
+    }
+    let handle = opened as u64;
+    let size = call(FS_EP, fs::req(fs::FSTAT, handle, 0), 0).0 as i64;
+    let read = if (0..=login_protocol::PAGE as i64).contains(&size) {
+        call(FS_EP, fs::req(fs::READ, handle, size as u64), 0).0 as i64
+    } else {
+        -1
+    };
+    call(FS_EP, fs::req(fs::CLOSE, handle, 0), 0);
+    // A short read lists by what arrived, which can only be fewer names.
+    read >= 0 && login_protocol::lists(&page[..(read as usize).min(page.len())], identity)
 }
 
 /// Delegate our own copy of `slot`, narrowed to `rights`, over `ep`. `GRANT` must already be on our
