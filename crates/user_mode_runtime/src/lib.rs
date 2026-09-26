@@ -393,6 +393,18 @@ pub fn recv_cap_badged(slot: u64) -> (u64, u64, u64, u64) {
     (w0, w1, w2, w3)
 }
 
+/// **Mint a badged copy of the endpoint capability in `slot`** (milestone 599, provisional):
+/// `abi::rendezvous::BADGE`. Returns `(result, new_slot)`, where a negative `result` is the error
+/// (`NotPermitted` without `GRANT`, or for a zero badge or an already-badged source) and, on
+/// success, `new_slot` holds a copy of the endpoint with `badge` stamped on it. The kernel delivers
+/// that badge to a server's [`recv_cap_badged`] whenever this copy is used to `CALL` or `SEND_CAP`,
+/// which is how a client the progenitor built is told apart from its siblings on one endpoint.
+pub fn badge(slot: u64, badge: u64) -> (i64, u64) {
+    // SAFETY: `svc`/`ecall`; the kernel validates the endpoint capability and mints into a free slot.
+    let (r0, r1, ..) = unsafe { invoke5(slot, abi::rendezvous::BADGE, badge, 0, 0) };
+    (r0 as i64, r1)
+}
+
 /// `CALL` on the endpoint capability in `slot`: send two words and block until the server
 /// replies through the one-shot Reply capability the kernel mints (milestone 12). Returns the
 /// two reply words. The atomic send-and-wait that makes a request unmistakably answerable.

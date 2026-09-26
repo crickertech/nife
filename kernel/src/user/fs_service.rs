@@ -1357,10 +1357,14 @@ pub fn start_shared_frame_witness(
     let (victim_win, victim_phys) = claim_window()?;
     let (attacker_win, attacker_phys) = claim_window()?;
 
-    // Spawn a witness client. Slot layout FILE=0 (a badged endpoint naming this client's window),
-    // REPORT=1, SYNC=2 (`READ|WRITE` so a role can both `SEND` and `RECV`). It maps its own window's
-    // frame at `FILE_VA_CLIENT`.
-    let spawn_witness = move |role: u64, report: RendezvousId, badge: u64, phys: u64| {
+    // Spawn a witness client. Slot layout FILE=0 (the FS endpoint), REPORT=1, SYNC=2 (`READ|WRITE`
+    // so a role can both `SEND` and `RECV`). It maps its own window's frame at `FILE_VA_CLIENT`.
+    //
+    // Two shapes of the FILE endpoint, so the test covers both (milestone 599): a client that
+    // **mints its own badge** gets an unbadged endpoint with `GRANT` and its window index in `arg1`,
+    // and calls `abi::rendezvous::BADGE` itself; one that is **handed a pre-badged endpoint** gets a
+    // badged view directly, the shape the progenitor builds for a confined child.
+    let spawn_witness = move |role: u64, report: RendezvousId, win: u64, phys: u64, mint: bool| {
         crate::sched::spawn(move || {
             let mut maps = [Mapping {
                 va: 0,
@@ -1368,16 +1372,19 @@ pub fn start_shared_frame_witness(
                 flags: Flags::user_data(),
             }; FILE_PAGES];
             let n = map_channel(&mut maps, FILE_VA_CLIENT, phys, FILE_PAGES);
+            let file = if mint {
+                rendezvous_cap(file_ep, Rights::WRITE.union(Rights::GRANT))
+            } else {
+                rendezvous_cap_badged(file_ep, Rights::WRITE, win)
+            };
             run(
                 client_image,
                 Spawn {
                     arg0: role,
-                    arg1: 0,
+                    arg1: if mint { win } else { 0 }, // the window a minting client badges for
                     arg2: 0,
                     grants: &[
-                        // A badged view of the FS endpoint: the kernel delivers `badge` to the
-                        // server's RECV_CAP, which picks this client's window.
-                        rendezvous_cap_badged(file_ep, Rights::WRITE, badge),
+                        file,                                                    // slot 0: the FS endpoint
                         rendezvous_cap(report, Rights::WRITE), // slot 1: report to the kernel
                         rendezvous_cap(sync, Rights::READ.union(Rights::WRITE)), // slot 2: handshake
                     ],
@@ -1390,9 +1397,18 @@ pub fn start_shared_frame_witness(
 
     // The victim first, so it is parked in its first `SEND` on the sync endpoint before the attacker
     // runs; the attacker's first act is a `RECV` on the same endpoint, so the order they start in
-    // does not change the handshake, but starting the victim first keeps the ordering obvious.
-    spawn_witness(victim_role, victim_report, victim_win, victim_phys);
-    spawn_witness(attacker_role, attacker_report, attacker_win, attacker_phys);
+    // does not change the handshake, but starting the victim first keeps the ordering obvious. The
+    // victim mints its own badge (exercising the mint syscall); the attacker is handed a pre-badged
+    // endpoint (the progenitor's shape). The attacker never calls the server, so its badge is
+    // immaterial; what matters is that it maps a different window and cannot reach the victim's.
+    spawn_witness(victim_role, victim_report, victim_win, victim_phys, true);
+    spawn_witness(
+        attacker_role,
+        attacker_report,
+        attacker_win,
+        attacker_phys,
+        false,
+    );
 
     Some((readiness, victim_report))
 }

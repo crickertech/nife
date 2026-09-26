@@ -3015,6 +3015,10 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 4] {
 /// tell the two conversations apart. A future path that reached `ipc_reply` without presenting a
 /// capability would reopen that. The structural fix is a call identity in the payload:
 /// `design/roadmap/371-a-reply-capability-that-names-a-call.md`.
+// Inlined so the unbadged fastpath (`ipc_call_reply`, the shape real services run and the one
+// `script/icount` measures) gains no call frame: this forwards to `ipc_call_badged` with badge 0,
+// which writes the same mailbox word 3 it always did.
+#[inline(always)]
 pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     ipc_call_badged(ep, msg, 0)
 }

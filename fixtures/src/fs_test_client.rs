@@ -255,7 +255,7 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
         ROLE_TWO_DIR => two_dir(),
         ROLE_SCHEDULE_SEED => schedule_seed(),
         ROLE_SCHEDULE_VERIFY => schedule_verify(),
-        ROLE_SHARE_VICTIM => share_victim(),
+        ROLE_SHARE_VICTIM => share_victim(a1),
         ROLE_SHARE_ATTACKER => share_attacker(),
         ROLE_PROOF => proof(),
         _ => proof(),
@@ -273,24 +273,35 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
 ///
 /// The report's first word is the verdict: [`fixture::SHARED_SUBSTITUTED`] when the body read back
 /// is the attacker's file, [`fixture::SHARED_ISOLATED`] when it is this client's own (what
-/// milestone 599's fix would make true), or [`fixture::SHARED_UNEXPECTED`] on any other outcome.
-fn share_victim() -> ! {
+/// milestone 599's fix makes true), or [`fixture::SHARED_UNEXPECTED`] on any other outcome.
+///
+/// `window` is this client's channel window (`a1`): the victim **mints its own badged endpoint** for
+/// it with `abi::rendezvous::BADGE`, which is what exercises the mint syscall end to end (the
+/// attacker gets a pre-badged endpoint from the wiring instead, so the test covers both shapes). It
+/// then calls through the badged slot, so the server reads the victim's own window.
+fn share_victim(window: u64) -> ! {
     let victim = fixture::SHARED_VICTIM_NAME.as_bytes();
+    // Mint a badged view of the FS endpoint naming our window, and call through it from here on.
+    let (r, ep) = user_mode_runtime::badge(FILE, window);
+    if r < 0 {
+        send(REPORT, fixture::SHARED_UNEXPECTED, (-r) as u64, 0);
+        exit();
+    }
     // Stage our own name, then tell the attacker; the SEND blocks until the attacker RECVs it.
     put_page(victim);
     send(SYNC, SHARE_STAGED, 0, 0);
-    // Block until the attacker has rewritten the page. Only then do we call, so the server reads
-    // whatever the attacker left, not what we staged.
+    // Block until the attacker has written its own window. Only then do we call. Before the fix the
+    // attacker shared our frame and this is where the substitution landed; now it cannot reach it.
     let _ = recv(SYNC);
     // The length travels in the register (we choose our own name's length); the name bytes travel
-    // in the page (the attacker chose them). They are the same length by construction.
-    let (r0, _) = call(FILE, fs::req(fs::OPEN, 0, victim.len() as u64), 0);
+    // in our window, which only we and the server map.
+    let (r0, _) = call(ep, fs::req(fs::OPEN, 0, victim.len() as u64), 0);
     if (r0 as i64) < 0 {
         send(REPORT, fixture::SHARED_UNEXPECTED, (-(r0 as i64)) as u64, 0);
         exit();
     }
     let handle = r0 as u64;
-    let (n, _) = call(FILE, fs::req(fs::READ, handle, 8), 0);
+    let (n, _) = call(ep, fs::req(fs::READ, handle, 8), 0);
     if (n as i64) < 0 {
         send(REPORT, fixture::SHARED_UNEXPECTED, (-(n as i64)) as u64, 0);
         exit();
