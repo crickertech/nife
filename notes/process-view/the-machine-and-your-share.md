@@ -55,7 +55,7 @@ Every number and name here was minted by this lane and ships provisional.
 | its records | `abi::usage`: `SIZE` 0, `COMMITTED` 1, `FRAMES` 2, `RENDEZVOUS` 3, `ADDRESS_SPACES` 4, `THREADS` 5, `CHILDREN` 6 | one figure per call, `SURVEY`'s selector shape, so a new figure is a value and not a new return register |
 | the page's name | the machine statistics page, crate `machine_statistics_protocol` | §225 said "machine memory page"; the page carries the scheduler's counters too, because a second page would be a second grant for one question |
 | the page's layout | a 64-byte header line (magic `MACHSTA1`, frame bytes, tick rate, total and free frames), then one line per possible core | one writer per line, so no two cores share a written cache line |
-| where a child sees it | `0x00f0_0000`, read-only | inside the 2 MiB the clock and configuration pages already use, so a spawn pays no new page-table frames |
+| where a child sees it | `0x005F_F000`, read-only | the last page of the 2 MiB block a child's program and stack already use, so a spawn pays no new page-table frame. The first choice, `0x00f0_0000`, cost one, and on `x86_64` that took `top` over its job region |
 | the progenitor's slot | 17 | past the entropy slot, the highest fixed boot slot before it |
 | the session's slot | `spawnproto::MACHINE_PAGE_SLOT` 21 | one under the run-unvouched slot, for that slot's reasons |
 | the spawn wire | `spawnproto::MACHINE_BIT`, bit 42 of word 2; the page is the last delegated capability | the next free bit, and last so every existing request keeps its order |

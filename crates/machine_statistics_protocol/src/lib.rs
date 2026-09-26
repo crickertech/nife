@@ -96,10 +96,18 @@ const _: () = assert!(
     "a mapping starts on a page boundary"
 );
 
-/// **Where a child that declares `machine` finds the page**, read-only. Inside the same 2 MiB as the
-/// clock (`0x00c0_0000`) and configuration (`0x00e0_0000`) pages, so it costs a spawn no new
-/// page-table frames (the measurement `current_cpu_protocol::PAGE_VA` records). Provisional.
-pub const PAGE_VA: u64 = 0x00f0_0000;
+/// **Where a child that declares `machine` finds the page**, read-only: the last page of the 2 MiB
+/// block every child's program and stack already live in (the ELF loads at `0x40_0000` and the
+/// stack sits under `supervision_protocol::CHILD_STACK_VA`, `0x50_0000`), so mapping it costs a
+/// spawn no page-table frame of its own, the measurement `current_cpu_protocol::PAGE_VA` records.
+///
+/// **A measured choice, not a first guess.** The first build put it at `0x00f0_0000`, beside the
+/// configuration page, which reads as tidy and cost a fresh last-level table on every spawn of a
+/// program that maps no configuration page. On `x86_64`, whose debug `top` is nineteen pages, that
+/// one table took the job over its forty-page region, and `top` could not be spawned. Here the only
+/// thing that could collide is a program over a megabyte, which would already have collided with
+/// its own stack. Provisional.
+pub const PAGE_VA: u64 = 0x005F_F000;
 
 /// **Word indices into the page.** A per-core word is `cpu(id) + OFFSET`.
 pub mod word {
