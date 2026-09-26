@@ -130,23 +130,24 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [Globbing, and the expansion you see is the grant](glob-grant.md).
 - [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as capability builtins.
 - [The inert-configuration page](env-config.md): validated read-only `TZ`, `LANG` and `TERM` for programs.
-- [The documentation crate](documentation.md): streaming markdown renderer, manual viewer and search index.
+- [The documentation crate](documentation.md): markdown renderer, manual viewer and search index.
 - [The component manifest](component-manifest.md): what a supervisor must route before a component serves.
 - [Live component replacement](live-replacement.md): swapping a running component under a live client.
 - [The hung component](hung-component.md): a component that stops answering without dying.
 - [Dependency-aware orchestration](dependency-orchestration.md): which components to warn before swapping a dependency.
 - [The process view](process-view.md): `ps` and `pgrep` over a supervision subtree.
 - [Scheduled execution](scheduled-execution.md): a cron whose every entry is a grant.
+- [Durable delegation](durable-delegation.md): sessions outliving clients.
 - [Wall-clock time](clock.md): wall clock as counter plus offset, three authorities.
 - [`date`](date.md): prints the wall clock and cannot set it.
 - [`time`](time-command.md): times a command on the shell's clock.
 - [The calendar crate](calendar.md): Unix seconds to civil dates and back, and formats.
-- [Entropy](entropy.md): where randomness comes from, and who may reach it.
+- [Entropy](entropy.md): where randomness comes from, and who reaches it.
 - [Credentials](credentials.md): checking a secret the service can never read back.
 - [NTLM](ntlm.md): the NTLMv2 key half of the secrets store, removed.
 - [Login](login.md): authentication that returns capabilities instead of changing identity.
-- [The network stack as a confined component](net.md): the confined NIC driver, smoltcp server and socket contract.
-- [NTP: the wire format, and the client that carries it](ntp.md): the NTPv4 codec and a one-shot time client.
+- [The network stack as a confined component](net.md): the NIC driver, smoltcp server and socket contract.
+- [NTP: the wire format, and the client that carries it](ntp.md): the NTPv4 codec and a one-shot client.
 - [SMB: the network file service a Mac mounted, and why it is no longer here](smb.md).
 - [mDNS/DNS-SD: the Time Machine advertisement, and why it is no longer here](mdns.md).
 
