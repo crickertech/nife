@@ -84,7 +84,7 @@ value. Keys snake_case, values uppercase where they are a vocabulary, dates UTC.
 | `built` | `YYYY-MM-DD` | `BUILT`; optional on `REMOVED`; else forbidden | `**Built:**` line | 260 |
 | `branch` | a branch name | `IN-PROGRESS` | backticked branch in the status paragraph | 0 |
 | `promoted_from` | a proposal slug | optional | status-paragraph regex | 99 + 5 to read |
-| `superseded_by` | a milestone number | `SUPERSEDED` | prose, chosen by reading | 10 |
+| `superseded_by` | milestone numbers, or `§N` | `SUPERSEDED` | prose, chosen by reading | 10 |
 | `refused_by` | milestone numbers, or `none` | `REFUSED` | every milestone the status paragraph names | 43 |
 | `milestone_dependencies` | numbers, or `none` | where a gate is required today | `MILESTONE N` | 279 |
 | `decision_dependencies` | section numbers, `unwritten`, or `none` | the same | `DECISION §N`, bare `DECISION` | 279 |
@@ -139,12 +139,9 @@ tags, which this schema leaves as prose.
 
 ## Decisions owed to an architect
 
-1. Fold §207 in now, or migrate `Gate:` verbatim as a `gate` key and build §207 later?
-   Recommended: fold in. A `gate` key is born deprecated, and two migrations mean two rebase storms.
-   Folding in also retires the forced edits the stale-gate checks impose, including milestone 591
-   (a ruling should make the gate it answers fail until someone updates it), because §207 computes
-   blocked-ness instead. It costs reading 34 `HARDWARE` blocks by
-   hand. That is effort, and I would choose it at equal cost.
+1. **Ruled.** calef, 2026-09-26 (UTC): *"Do the dependency fields now."* The block carries the five
+   dependency fields of §207 (the roadmap is a graph) as keys, and `Gate:` retires with no interim
+   `gate` key.
 2. Ratify the key names in the table, including the snake_case forms of §207's labels?
 3. Bare `DECISION` names no section in 41 blocks. May `decision_dependencies` say `unwritten`, listed
    by a worklist mode? Recommended: yes. Writing 41 sections is not this milestone.
@@ -153,8 +150,59 @@ tags, which this schema leaves as prose.
 5. A `branch` key for `IN-PROGRESS`, though 582 refused one? Recommended: yes, for the reason above.
 6. Do proposals take the same frontmatter, with `status: PROPOSED`? Recommended: yes, so promotion
    is a `git mv` and two key edits.
-7. `superseded_by` is one number, as 582's is, and `refused_by` a list copied from today's regex?
-   Recommended: yes.
+7. Is `refused_by` a list copied from today's regex? Recommended: yes. The phase 1 recommendation
+   that `superseded_by` be one number, as 582's is, was wrong, and reading the ten showed it. Four
+   name several milestones (577 names three), and milestone 350 (the comment ratio AGENTS.md quotes
+   is wrong) was answered by a decision, §177 (whether AGENTS.md quotes measured numbers at all). So
+   it is a list, and a `§N` is legal in it.
+
+Questions 2 to 7 are built provisionally on the recommendations above, with every key name in one
+table (`KEY` in `helpers/roadmap_block.py`), so a ratified rename is one line. No block has been
+migrated, so a rename changes no file in the tree.
+
+## Steps 1 and 2: built
+
+Every parser reads both forms through `helpers/roadmap_block.py`. The three that walk history
+(`script/metrics`, `script/catch-up`, `script/citations --moved`) keep the prose reader for good. In
+the frontmatter form, `script/roadmap` checks what each key requires and forbids, and refuses a prose
+line that restates a field. It computes blocked-ness from each dependency's own status, so a landing
+no longer obliges an edit in another block. `--unmodelled` lists the blocks with no dependency
+fields.
+
+`script/roadmap --migrate [FILE...]` is the migrator (`helpers/roadmap_migrate.py`). It is
+deterministic, and a second run changes nothing. Migrating one file gives the same bytes the
+whole-tree run does, which is what a lane rebasing across the switch relies on.
+
+The 34 `HARDWARE` gates were read by hand into the migrator's table. 33 need a person. Nine name a
+specific machine with the reason one machine is the point: argon twice, radon four times, xenon
+three times. Milestone 143 (silicon IOMMU) needs a machine nobody has, not a person.
+
+Proved on a throwaway worktree migrated whole, 602 files:
+
+- `script/roadmap --index` and `--ready` are byte-identical before and after, and `--check` passes.
+- `script/catch-up` and `script/citations --moved` across the switch report no status change, and
+  `script/metrics`' milestone and velocity series are unchanged.
+- `script/citations --ratchet` passes. It would not have: rewriting a status line makes it read as
+  added, and 160 citations on those lines had no gloss. The migrator writes one from the record's
+  own title, capped at seven words, which is the tier the checker grounds first.
+
+## What stops the switch (step 3): the prose ratchet
+
+`helpers/prose_ratchet.py` fails 125 migrated blocks, and nothing about their prose got worse. It
+counts `**Status: BUILT.**` and a `**Gate: NONE.**` token as two-word sentences, so removing them
+raises the median sentence of 118 blocks over their baseline. The other seven are two longest
+sentences a gloss lengthened, and five word counts: three over a baseline row, and two over a
+prose-budget exception whose grant is counted with `wc -w`, which counts the frontmatter. The
+ratchet only lowers a baseline, so the switch cannot land as a script run until one of these is
+chosen:
+
+1. The ratchet measures the prose-form field tokens as syntax rather than sentences, the argument
+   #1311 already made for parsed bold, and re-banks the affected rows once in that change.
+   Recommended: the measurement was wrong, and fixing it also stops an in-flight block in the old
+   form measuring differently from the same block migrated.
+2. The switch commit raises about 120 baseline rows as a recorded exception.
+3. Rewrite 116 blocks' sentences by hand. That changes prose which did not get worse to satisfy a
+   count, so I would not choose it at equal cost.
 
 ## Index row
 
