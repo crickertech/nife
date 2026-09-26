@@ -4,8 +4,8 @@ Milestone 198 (a package manager, and the trivial install that makes a second cu
 rung 3a has two halves. This note is the producer half and the format both halves share, built
 2026-09-23, and the first part of the consumer half, built 2026-09-24: a target fetches a package
 over plain HTTP and accepts it only by a digest its own image vouches for. Since 2026-09-26 an
-installed program runs by its bytes (DECISIONS §219 option D). Nothing on the target installs one
-yet: see "Where this stops" below.
+installed program runs by its bytes (DECISIONS §219 option D), and the target installs, removes and
+rolls back packages itself. What is still missing is in "Where this stops" below.
 
 ## The two decisions this is downstream of
 
@@ -98,22 +98,8 @@ program it names is rebuilt by this checkout whenever anything it links changes,
 digest would be a number that fails for the next reader. A recorded number that is wrong is worse
 than an absent one. The line goes in when there is a release to pin it to, which is rung 4.
 
-## What proves it
-
-- **11 host tests** in `crates/package_archive`, over the round trip, the refusals, alignment,
-  determinism, and four ways a hostile file is refused rather than indexed.
-- **4 host tests** over the recipe parser in `xtask/src/package.rs`.
-- **`fuzz/fuzz_targets/package_archive_roundtrip`**, the first half of §197's accepted debt. 1.39
-  million runs in 46 seconds on the development Mac on 2026-09-23, no crashes.
-- **Two Kani harnesses** in the crate, the second half of that debt: a file the solver chose is
-  either refused or reads only inside itself, and a file shorter than the header is refused rather
-  than indexed. Both discharge, in **4 seconds** together, which is the row `script/verify`'s table
-  now carries. **The first run failed and the failure was the bound, not the code**: at
-  `#[kani::unwind(4)]` the eight-byte magic comparison reports an unwinding assertion inside
-  `<builtin-library-memcmp>` and leaves 270 of 271 checks undetermined, which reads exactly like a
-  refuted proof. 9 is the bound that covers it, and the reason is recorded at the attribute rather
-  than here, because that is where the next person raising it will be looking.
-- **The end-to-end run above**, which is the first package this project has produced.
+What proves the producer, and what running and installing cost, is in
+[the appendix](packages/measurements.md).
 
 ## The consumer's first half: fetch, and verify against the image
 
@@ -164,19 +150,12 @@ same test as a twin in `kernel/src/user/riscv_virtio_tests.rs`.
 generation is a text file of `<program> <package> <digest>` lines that is never rewritten, a
 one-line `current` names the live one, and install, upgrade and remove each produce the next
 generation. Its test `a_rollback_restores_the_whole_set` is the property calef asked for by name.
-Nothing on a target reads it yet, for the reason below.
+The progenitor reads and writes it on the target (below).
 
 ## Running what was installed, by its bytes
 
 DECISIONS §219 (how the shell names an installed program to the spawner) was ruled on 2026-09-26:
 option D, the executable's bytes as frames the caller owns, with gate D2. It is built.
-
-```
-$ installed/uptime
-  up 00:00:05
-$ installed/unvouched
-    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
-```
 
 A command word with a `/` in it is a file. The shell binds the line against
 `grant_plan::INSTALLED_MANIFEST_OF`, which is `uptime`'s manifest and the ceiling every installed
@@ -195,62 +174,109 @@ The digest is the member's, not the package's: the spawner is handed the executa
 package's table of contents already carries each member's digest. The recipe's digest over the whole file (§195 (a reviewed recipe vouches for a package))
 is still what installing checks first; the activation table records the member's.
 
+## Installing on the target
+
+Built 2026-09-26. Each of three words is one request to the progenitor and one reply naming the
+live generation:
+
+```
+$ package install downloads/tampered.nifepkg
+  refused: this image's catalogue does not vouch for those bytes; nothing is installed
+$ package install downloads/uptime.nifepkg
+  installed; generation 1 is live
+$ packages/uptime/0.1.0/uptime
+  up 00:00:06
+$ installed/unvouched
+    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
+```
+
+And on the next boot, from the same disk:
+
+```
+$ packages/uptime/0.1.0/uptime
+  up 00:00:01
+$ package remove uptime
+  removed; generation 2 is live
+$ packages/uptime/0.1.0/uptime
+    refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold
+$ package rollback
+  rolled back; generation 1 is live
+$ packages/uptime/0.1.0/uptime
+  up 00:00:01
+```
+
+The progenitor is the installer, not a program, for §208's own reason: the authority that
+decides which version is active should be the one that performs a swap, and §219 already made it
+the reader of the table. It holds the file service with `WRITE`, the image's catalogue in its
+archive, and the frame-staging path an image request built. A program would need all three
+delegated, and an argument vector it does not have (milestone 205 (how a foreign program is told
+what to do)). `spawnproto::ACTIVATION_BIT` (provisional) is the request.
+
+Install stages the package exactly as an image is staged, so the progenitor checks its own
+copy. `package_archive::installable` is the whole decision on bytes, host-tested: the file's digest
+must be the image catalogue's line for the stem in its header, and the member named after the
+package is the program. Its bytes go to `packages/<name>/<version>/<program>`, one component per
+field because a prompt component is at most sixteen bytes. Remove writes a generation without
+the entry and leaves the bytes, which is what lets a rollback bring them back. Rollback points
+`current` at the generation one below the live one and writes nothing else.
+
+All three end in one commit order: the new generation is created and written whole, `current` is
+written to `current.next` and renamed over `current`, and the device is synced before the reply. A
+generation is never rewritten, and `current` never names one that was not written whole.
+
 ### What proves it
 
-`script/swish-check` seeds the RedoxFS image on the host the way the installer will
-(`seed_installed` in `xtask/src/disk.rs`: the package built by the producer, the member and its
-table-of-contents digest, one generation) and types the two lines above. Green on aarch64, riscv64
-and x86_64 (under OVMF) on 2026-09-26. Both lines were falsified on aarch64. A seeded digest with one
-bit flipped refuses the first line; a progenitor that vouches for everything runs the witness in
-the second.
+`script/swish-check` boots twice per architecture against one disk, typing the first transcript
+above and then the second (`SWISH_CHECK_AFTER_REBOOT`). The host puts a package on the disk and
+installs nothing (`seed_installed` in `xtask/src/disk.rs`). The tampered copy has one program byte
+flipped and its table of contents rewritten to agree, so the catalogue is the only thing that can
+refuse it. Green on aarch64, riscv64 and x86_64 (under OVMF) on 2026-09-26. Each line was falsified
+once on aarch64:
 
-### What it costs, measured 2026-09-26
+- skip the catalogue check, and the tampered package installs;
+- record the program's digest with one bit flipped, and the installed program is refused;
+- give the second boot a fresh disk, and every line after the reboot fails;
+- make `remove` rewrite the old table, and the removed program still runs;
+- make `rollback` stay on the live generation, and the last line is refused.
 
-| | aarch64 | riscv64 | x86_64 |
-|---|---|---|---|
-| `uptime`, stripped | 89,168 bytes, 22 frames | 49,168 bytes, 13 frames | 28,352 bytes, 7 frames |
-| Messages on the spawn endpoint | 1 `SEND` + 22 `SEND_CAP`s | 1 + 13 | 1 + 7 |
-| File-service calls by the progenitor | 8 (3 opens, 2 reads, 3 closes) | 8 | 8 |
-| Pages staged on each side, returned after | 22 | 13 | 7 |
-| Progenitor capability peak | 23 of 24, unchanged | 23 of 24, unchanged | the hand-over mark only |
-
-At most one of the caller's frames is in the progenitor's table at a time, beside the staging
-region. The gauge reports the boot's high-water mark, so it shows the image path stays under the
-peak without measuring the path itself.
-
-One-time costs are the shell's primer page with its page tables, and the progenitor's mapping of the
-file page. Per image spawn, the progenitor's scratch window advances a page per frame, which costs a
-page table from its own budget about every 23 `uptime` runs on aarch64. Every child already pays
-that debt (§162 (whether a holder can give up a mapping)); this pays it about half again as fast.
-
-Two orderings are load-bearing, because a region returns its pages to its parent only if it is the
-parent's most recent carve (`memory_regions`' `return_to_parent`). The progenitor splits the child's
-region before the staging region, and the shell maps one primer page once so the window's page
-tables exist before any staging region does. Either one wrong silently strands every staging page.
+A first tampered copy that only flipped a byte stayed refused with the catalogue check skipped:
+the program's own digest caught it.
 
 ## Where this stops
 
 Rung 3a's exit criterion is a package fetched, verified, installed, run, still there after a reboot,
-rolled back and removed. Fetch, verify and run are built. Installing on the target is next: writing
-a generation and `current`, placing the member, and deciding who may write `activation/`. Reboot,
-rollback and removal follow, since each is a file the installer writes. After that, §219's gate D2
+rolled back and removed. Each is built, with three gaps. The fetch runs in the kernel's harness and
+the prompt's package arrives with the disk. The program is one the image also carries. And who may
+write `activation/` is an architect's call:
+[who-may-write-the-activation-set.md](who-may-write-the-activation-set.md). After that, §219's gate D2
 lets a miss run with only what the caller delegated, and milestone 202 (every confinement test is a
 ritual until somebody breaks the confinement)'s unvouched-child probe becomes testable;
 `installed/unvouched` is already its fixture.
 
 ## BUGS
 
-- The activation set lives where the shell can write it: `activation/` at the root of the file
-  service, which the shell holds with its boot rights. A session can add a digest to the live
-  generation and have its bytes vouched. That grants nothing extra today, because every installed
-  program is endowed as `uptime` is, and it stops being harmless the day a manifest travels. The
-  installer is what must put the table where no session can write.
+- The boot prompt can write the activation set. It holds the file service's root endpoint, the
+  same one the progenitor writes through, and the server cannot tell them apart. So that session can
+  vouch its own bytes, which is running unvouched code without §219's D2. Harmless while every
+  installed program is endowed as `uptime` is. A session `login` builds is confined to its own
+  subtree and cannot reach `activation/`. Closing it for the boot prompt is a fork:
+  [who-may-write-the-activation-set.md](who-may-write-the-activation-set.md).
+- Whoever holds the spawn endpoint (only the boot prompt) may install what the catalogue
+  vouches for.
+- Nothing collects `packages/`. A removed program's bytes stay, which is what rollback needs.
+- Rollback is by number, to the generation one below the live one, as Nix's is (recalled, not
+  read). Undoing a rollback is another install.
+- The member named after the package is the program, by the installer's convention; the format
+  marks no member executable. A package whose program has another name installs nothing.
+- The `SYNC` before the reply is not falsified. QEMU keeps a killed guest's writes, so no gate
+  here can lose a generation that was not synced.
 - An installed program's manifest is a ceiling, not its own (`grant_plan::INSTALLED_MANIFEST_OF`).
   A program that needs more than `uptime` finds its slot empty rather than being refused by name.
 - Only a plain line runs an image. A path in a pipe or behind a redirection reaches the planner as
   a program name and is refused as "no such program", and `caps <path>` prints no `provenance:`
   row. `crates/grant_plan/src/spawnproto.rs`'s `BUGS` has the full list.
-- The installed file and its generation are seeded on the host, standing in for an installer.
+- The package file is put on the disk by the host, standing in for a download: the booted
+  system's network reaches no package source.
 
 - **No compression.** `.hpkg` chunks its heap with zlib and `.apk` is three gzip streams; this
   stores members whole. The first packages are ELFs that were about to be written to a disk anyway,
@@ -264,14 +290,12 @@ ritual until somebody breaks the confinement)'s unvouched-child probe becomes te
   the catalogue into the client the way the progenitor hands `login` its blobs. The booted system
   has no network (the proposal above).
 - x86_64 has no fetch test: its QEMU runner attaches no `-netdev`, and no x86 network test
-  exists. The archive build does not pack a catalogue for it either, because nothing there could
-  read one. Milestone 494 (a driver for the network card a PC actually has) is where x86 networking
+  exists. Milestone 494 (a driver for the network card a PC actually has) is where x86 networking
   starts.
 - `uptime` is also in the image, so the package the tests fetch is not a program the image
   lacks. The tests prove the bytes, not an install; "absent from the image" is the install tests'
-  criterion. The run-by-bytes line in `script/swish-check` has the same limit: it runs a copy of
-  the image's own `uptime`, vouched by a generation, which proves the path and not novelty. The
-  installer's tests are where a program the image lacks first runs.
+  criterion. The installer's lines have the same limit: they install and run a copy of the image's
+  own `uptime`, which proves the path and not novelty. A program the image lacks is still owed.
 - The package peer is a `guestfwd` process, not a server on a LAN. It speaks HTTP to the guest
   over slirp's forwarding, which is enough to prove the client and not enough to prove a real
   network card or a host elsewhere on a network (rung 3b).
