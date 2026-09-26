@@ -6,18 +6,19 @@
 //! went wrong on the other. The table and the walk are `crates/ps`; the summary line is
 //! `crates/top`; what lives here is the syscalls and the two sinks.
 //!
-//! # It is `ps`'s authority, asking a different question
+//! # It is `ps`'s authority and one read-only page, asking a different question
 //!
-//! Three capabilities, and they are `ps`'s three, from the same named constants. Nothing here can
-//! name a process the prompt did not already put in its reach, and the CPU figures come from a
-//! second walk of the **same** endpoint under the **same** right, so a column that on Unix comes
-//! from reading an ambient `/proc` comes here from a capability somebody handed this program.
+//! `ps`'s three capabilities, from the same named constants, and the machine statistics page.
+//! Nothing here can name a process the prompt did not already put in its reach, and the CPU
+//! figures come from a second walk of the **same** endpoint under the **same** right, so a column
+//! that on Unix comes from reading an ambient `/proc` comes here from a capability somebody handed
+//! this program.
 //!
-//! What differs from `ps` is the question, not the endowment. `ps` answers *what exists*, in the
-//! kernel's own slot order. This answers *what is consuming*, most first, with a summary line
-//! saying how large the thing being ranked is. Milestone 281 (`watch` holds exactly what `ps` holds) deleted `watch` for holding `ps`'s
-//! authority while being `ps`'s own loop, and whether this program clears that bar or belongs in
-//! `ps` as a flag is calef's; `crates/top`'s module docs carry the argument both ways.
+//! The page is milestone 126 (the `procps` package)'s addition: DECISIONS §225 (`free` sees the
+//! machine and your share) made `tload`'s question a line in this summary. Before it, this program
+//! held exactly `ps`'s authority, and milestone 281 (`watch` holds exactly what `ps` holds)'s rule
+//! made whether it was a program at all a live question. It holds more than `ps` now; whether that
+//! settles it is calef's.
 //!
 //! # Capability contract
 //!
@@ -49,6 +50,7 @@
 //! ```text
 //! $ top
 //! up 00:01:12, 3 threads: 1 running, 0 ready, 1 blocked, 1 dead
+//! machine: 2 runnable on 4 cores, 7% busy since boot
 //!          TID  STATE     TIME(ms)
 //!            9  running        310
 //! 4294967302  dead             150

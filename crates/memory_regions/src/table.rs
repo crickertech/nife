@@ -799,6 +799,42 @@ mod interleavings {
         }
     }
 
+    /// **The spending observer never sees a child's pages half returned** (milestone 126 (the
+    /// `procps` package), `MemoryRegion::USAGE`). One thread reclaims a child and returns its pages;
+    /// the other asks the parent what is carved into children. Every execution must read the whole
+    /// child or none of it, and loom must be seen reaching both answers.
+    #[test]
+    fn a_spending_read_racing_a_return_sees_all_of_a_child_or_none() {
+        static SAW_BEFORE: Reached = Reached::new();
+        static SAW_AFTER: Reached = Reached::new();
+
+        loom::model(|| {
+            let table = Arc::new(Mutex::new(RegionTable::<4>::new()));
+            let (parent, child) = {
+                let mut t = table.lock().unwrap();
+                let parent = t.insert_root(0, 8).unwrap();
+                (parent, t.split(parent, 3).unwrap())
+            };
+            let reclaimer = {
+                let table = Arc::clone(&table);
+                thread::spawn(move || {
+                    let claim = table.lock().unwrap().claim_for_destroy(child).unwrap();
+                    // The kernel's revoke runs here, with the lock released.
+                    table.lock().unwrap().return_to_parent(&claim);
+                })
+            };
+            let seen = table.lock().unwrap().spent(parent, PageUse::Children);
+            reclaimer.join().unwrap();
+            match seen {
+                Some(3) => SAW_BEFORE.mark(),
+                Some(0) => SAW_AFTER.mark(),
+                other => panic!("a read saw part of a child: {other:?}"),
+            }
+        });
+        SAW_BEFORE.assert("a read before the return");
+        SAW_AFTER.assert("a read after the return");
+    }
+
     /// **The property the whole reclamation path rests on: two callers, one winner.**
     ///
     /// The kernel reaches `destroy` for one region by two routes that can run concurrently on two

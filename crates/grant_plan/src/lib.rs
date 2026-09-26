@@ -428,16 +428,14 @@ programs! {
         /// **Rank the members of that same domain by the CPU time each has been scheduled for**
         /// (milestone 282 (a thread's CPU time, and the `top` it makes possible), `components/src/top.rs`, `crates/top`).
         ///
-        /// [`Prog::Ps`]'s manifest, field for field, and the second time this table has that to say
-        /// about a row. With [`Prog::Pgrep`] the sameness *was* the claim, because the finding
-        /// program must hold nothing the listing program lacks. Here it is a finding rather than a
-        /// claim, and a live one: milestone 281 (`watch` holds exactly what `ps` holds) deleted `watch` on the rule that **two
-        /// programs are two programs when they hold different authority**, and this row holds
-        /// `ps`'s. What differs is the question, not the endowment: `ps` answers what exists in the
-        /// kernel's slot order, this answers what is consuming in order of consumption, and it
-        /// opens with a summary line a listing has no use for. Whether that clears the bar is
-        /// calef's; `crates/top`'s module docs carry the argument both ways, and folding this into
-        /// `ps` as a flag stays a day's work.
+        /// [`Prog::Ps`]'s manifest plus one read-only page. Until milestone 126 (the `procps`
+        /// package) built the machine statistics page it was `ps`'s field for field, and milestone
+        /// 281 (`watch` holds exactly what `ps` holds)'s rule that **two programs are two programs
+        /// when they hold different authority** made whether it was a program at all a live
+        /// question. DECISIONS §225 (`free` sees the machine and your share) then put `tload`'s
+        /// question in this program's summary, which needs the page, so the endowments now differ
+        /// and the rule no longer argues for folding it into `ps`. Whether that settles it is
+        /// calef's; `crates/top`'s module docs carry the argument.
         ///
         /// `ArgSpec::Forbidden` rather than an optional count, because there is no such spec: a
         /// `top N` would have to make the argument `Required`, and a `top` that cannot be typed
@@ -825,12 +823,10 @@ impl Prog {
                 share: false,
                 runtime: Runtime::Native,
             },
-            // **`top`: `ps`'s manifest a second time**, and here the sameness is a fact to
-            // weigh rather than a claim being made. `pgrep`'s identity with `ps` is the point of
-            // `pgrep`; this row's identity with `ps` is the open question about whether `top` is a
-            // program or a flag (see its `Prog` doc). What the manifest settles either way is that
-            // ranking costs no authority: the CPU figures are a second walk of the same endpoint
-            // under the same `ENUMERATE`, so nothing here is endowed that a `ps` was not.
+            // **`top`: `ps`'s manifest and the machine statistics page.** Ranking still costs no
+            // authority: the CPU figures are a second walk of the same endpoint under the same
+            // `ENUMERATE`. What costs a grant is the machine line under the summary, which is what
+            // became of `tload` (DECISIONS §225), and it is a read-only page.
             //
             // `clock: false` and it is worth a line, because a `top` looks like it needs one: the
             // uptime in its summary is the ambient monotonic counter every process already holds,
