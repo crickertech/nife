@@ -66,7 +66,7 @@ use crate::manual::{manual_store, tree_apropos};
 use crate::soak::{job_mix_sweep, soak_test};
 use crate::suite::{test, undefined_behavior_check};
 use crate::swish_check::swish_check;
-use crate::uefi::{uefi_boot, uefi_image, uefi_test};
+use crate::uefi::{uefi_boot, uefi_image_command, uefi_test};
 
 const TARGET: &str = "aarch64-unknown-none-softfloat";
 const RUNNER: &str = "helpers/qemu-runner-aarch64.sh";
@@ -164,7 +164,7 @@ fn main() -> ExitCode {
         // Name: `uefi-image` and `uefi-boot` ratified 2026-08-30 (calef, in session, on milestone
         // 87's lane report). Hyphenated like every other subcommand, and each names what it
         // produces rather than the tool that produces it.
-        "uefi-image" => uefi_image(),
+        "uefi-image" => uefi_image_command(),
         // The same image, booted under OVMF and checked. Runs inside `script/test --arch x86_64`;
         // exposed on its own because the bench procedure starts by watching this pass locally.
         "uefi-boot" => uefi_boot(),
