@@ -851,6 +851,95 @@ peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real b
 correction above does not change that until a boot proves the driver reaches bytes: a node found is
 not a device driven.
 
+## The eight-hour soak, 2026-09-25 (milestone 225), and the first bench session run from a lane
+
+**What ran.** Milestone 219's (the boot tour ends and the kernel halts, so there is nothing to
+soak) workload with milestone 221's (the soak never crosses cores, so build the hook that makes it)
+tick route, built by `script/board-image --soak --tftp` at `9e879f1e7` and netbooted from patagonia.
+Power-on about 01:02 UTC by calef on plug 2; `script/board-console --for 490m --until none` watched
+it to the deadline and exited 0. The log is `bench/radon-2026-09-25/soak-8h.log`. This was the
+first bench session a developer lane ran rather than a maintainer, and `briefs/bench-session.md`
+is what it left for the next one.
+
+**The result, from the last beat:**
+
+```
+soak-test: t=29368s beat=5818 rounds=10193815048 rate=350753/s wakes=11747350 wakerate=404/s workers=24 refused=0 mismatch=0 stalled=0 drifted=0 crossings=4108581 remote=6145275 steals=3 deferred=3
+```
+
+| | value |
+|---|---|
+| harts | 4 online (hart 0, the S7, refused as always) |
+| duration | 8 h 09 m of beats (t=29,368 s), 5,818 beats |
+| IPC round trips | 10,193,815,048, at 348,916 to 352,576/s after the second beat |
+| tick-route wakes | 11,747,350, `wakerate` 402 to 406/s |
+| cross-core handoffs (`crossings`) | 4,108,581, 123 to 164/s per beat, about 503,000 in every full hour |
+| `refused` / `mismatch` / `stalled` | 0 / 0 / 0 at every one of 5,818 beats |
+
+**This board did 10.2 billion IPC round trips and 4.1 million cross-core thread handoffs over
+8.16 hours without the wake gate refusing a wake, without a wrong reply, and without a worker
+stalling.** That is the sentence milestone 219 licenses and nothing more. It is a confidence about
+one arrangement of one workload on one board, not a verdict on the concurrency.
+
+**The draw was a fast one, and the fastest yet.** The spawn census split every group; one drift
+event at the first beat (`drifted=11`) moved it to the arrangement below, and `drifted=0` held for
+the remaining 8 hours:
+
+```
+soak-test-census: core=1 threads=3 G0 G2 G3
+soak-test-census: core=2 threads=8 R0 C0 C0 C0 R1 C1 C1 C1
+soak-test-census: core=3 threads=7 G1 W2 R3 C3 C3 C3 W3
+soak-test-census: core=4 threads=6 W0 W1 R2 C2 C2 C2
+```
+
+Three grinders piled on one core leaves two cores with no grinder at all, and the rate was
+**350,000/s, nearly double 2026-09-03's best draw (188,687/s)**. That fits `notes/soak.md`'s grinder
+co-location reading: what starves a group is a grinder sharing its core. It is one more supporting
+observation and still not the slow-boot census that would test the prediction.
+
+**Crossings are the honest unit, and they did not decay.** Every full hour added between 501,669
+and 503,888 crossings. A flat rate is exactly what milestone 245 (a soak cannot tell a flat run from
+a productive one) says this instrument cannot tell apart from a run that stopped exploring, so
+"steady" here means the machine kept doing the same work, not that it kept finding new
+interleavings.
+
+**The QEMU rehearsal of the same tree**, `script/soak-test --arch riscv64 --for 45s` on patagonia:
+16,264 round trips/s, `wakerate` about 399, 8,755 crossings in 40 s (about 220/s), 0/0/0. radon
+ran the IPC workload about 21 times faster than the emulator and crossed cores at about two thirds
+of its rate. No red occurred on either, so the silicon-only question did not arise.
+
+### Anomalies, each with its excerpt
+
+1. **The beat is 5.05 s, not 5.** 278 of the 5,817 intervals step `t` by 6 rather than 5, about one
+   in twenty: `t=100s beat=20` is followed by `t=106s beat=21`. Over the run, 5,818 beats took
+   29,368 s. Guest time agrees with the host: the console's 29,400 s watch ends at t=29,368 plus a
+   boot. So the supervisor's beat period is 5 s plus its own sampling and printing, not a clock
+   fault. It is harmless for a verdict, but a beat count is not a duration; read `t=`.
+2. **`deferred` rose from 0 to 3** (first `deferred=1` at t=15,381 s, `=2` at 28,000 s, `=3` at
+   28,666 s). `sched::wakes_deferred` counts wakes parked because the target was still standing on
+   a CPU, which its own doc comment calls ordinary under load. Four in 8 hours is a rare event, not
+   a fault.
+3. **Fourteen non-ASCII bytes in the raw capture**, all outside the soak: U-Boot's autoboot
+   backspaces and six bytes (`00 00 01 00 00 00`) between U-Boot's `clk u5_dw_i2c_clk_apb already
+   disabled` and the kernel's banner. Stripped by the `tr` in `notes/job-mix.md` step 5 before the
+   commit.
+4. **`script/board-image --soak` said `NOT SEALED` and exited 1, twice**, for a pair that booted.
+   This is `crates/sealed_pair`'s own recorded bug: a soak build never reaches measured boot, so
+   its trust root is dropped at link time. It cost this session about half an hour and 2026-09-21's
+   about an hour. Milestone 563 (a seal check that reads bytes cannot see a check that was dropped)
+   owns it.
+
+### What it rules out, and what it does not
+
+It makes one thing unlikely: a wake-protocol or IPC-rendezvous defect on this silicon that fires
+more often than about once per 1.4 million cross-core handoffs, in **this** arrangement. Zero events
+in 4.1 million puts the 95% upper bound at three, the rule of three. It says nothing about a rarer
+defect, or one that needs an arrangement this boot did not draw (a slow draw crosses about 275 times
+less often, 0.51/s against 140/s), or one on a path the soak does not drive. The soak drives no
+device interrupt but the tick route's, no page-fault storm, and no process creation under load. And
+it is one boot: on the boots axis of `notes/multicore-defect-curve.md` it is one point, and the
+randomized-scheduler model `notes/soak.md` cites says a second boot is worth more than a ninth hour.
+
 ## To measure at the bench
 
 Facts documentation could not settle, each an explicit measurement, none guessed above:

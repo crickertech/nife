@@ -83,6 +83,7 @@ recorded with workload `soak-test (not crossing)` and excluded from the curve.
 | E1 | 2026-09-03 ~20:04 | radon | riscv64 | 4 | not recorded | soak-test | ~0.33 | ~3,000 at beat 12, final not recorded | not recorded | clean as far as recorded | [`soak.md`](soak.md), "radon, on real silicon" |
 | E2 | 2026-09-03 ~20:24 | radon | riscv64 | 4 | not recorded | soak-test | 2.97 | 5,507 | 2,137 | clean | [`soak.md`](soak.md), "The three-hour run" |
 | E3 | 2026-09-04 ~00:06 | radon | riscv64 | 4 | not recorded | soak-test, census build | ~0.4, end not recorded | not recorded | not recorded | clean as far as recorded | [`soak.md`](soak.md), "The three-hour run" |
+| E4 | 2026-09-25 ~01:02 | radon | riscv64 | 4 | `9e879f1e7` | soak-test | 8.16 | 4,108,581 | 5,818 | clean | `bench/radon-2026-09-25/soak-8h.log`; [`visionfive2.md`](visionfive2.md), "The eight-hour soak, 2026-09-25" |
 
 The start times are Pacific local times from `notes/soak.md` converted to UTC; the note does not
 state its zone, and the conversion is inferred from the commits that recorded them (2026-09-03
@@ -90,6 +91,12 @@ state its zone, and the conversion is inferred from the commits that recorded th
 in the tree and none records its build, which is why their columns are thin. **So radon's curve
 starts at roughly three and a half hours and 5,500-plus crossings with zero defects**, which is a
 confidence about one architecture and one workload, not a verdict about anything.
+
+E4 is the first row with a log in the tree and a build recorded, and on the crossings axis it
+dwarfs the three before it: 4.1 million against about 8,500 recorded in total, from one boot of 8.16
+hours that drew the fast arrangement. **So radon's curve now stands at about 4.12 million crossings
+over four boots and 12 hours with zero defects.** It is one draw of the placement lottery, and on
+the boots axis it is still four points.
 
 ## Defect rows
 

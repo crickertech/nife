@@ -14,6 +14,11 @@ The concurrency is wrong in ways that QEMU cannot show and that arrive one at a 
 
 ### The verdict of record
 
+RUN, 2026-09-25, on radon only: 8 h 09 m, 4.1 million cross-core handoffs, zero refused wakes,
+wrong replies or stalls (`notes/visionfive2.md`, "The eight-hour soak, 2026-09-25"). Still no
+verdict: one boot is one draw, and argon and xenon have not run it. What follows is the record as
+of 2026-09-23.
+
 NOT-RUN, 2026-09-23. No verdict, and the reason no verdict is available is itself the finding. This
 entry carried the provisional word `UNRUN` for the day between its own revision and calef's ruling.
 And said at the time that this file's vocabulary was `RUN`, `MEASURED` and `AUDITED`, which was
@@ -142,8 +147,8 @@ afternoon deciding whether it is the kernel. A sweep of those sites is worth a m
 And it is worth more to this risk than it looks: until a load-sensitive red can be trusted to mean
 something, this suite cannot be the instrument that this entry's experiment needs.
 
-The decisive experiment, which has not been run: milestone 225 (run the soak on radon, argon and
-xenon), which is `NOT-STARTED` and gated `HARDWARE`. Everything it needs exists and none of it did
+The decisive experiment: milestone 225 (run the soak on radon, argon and xenon), `PARTIAL` since
+radon ran it on 2026-09-25 and gated `HARDWARE` for the other two. Everything it needs exists and none of it did
 on 2026-09-01: a workload that lasts, which is milestone 219 (the boot tour ends and the kernel
 halts, so there is nothing to soak). a hook that makes it cross cores, which is milestone 221 (the
 soak never crosses cores, so build the hook that makes it). a console that watches and judges, which
@@ -155,7 +160,8 @@ that makes a red result possible at all, and the running order carries it rather
 
 ### What would render a verdict, in the order it should be bought
 
-1. A bench evening on radon with milestone 225's procedure followed, which means reading the first
+1. **Done 2026-09-25**, first heartbeat read before calef left. A bench evening on radon with
+   milestone 225's procedure followed, which means reading the first
    heartbeat before walking away: `wakerate` about `100 * harts`, and `crossings` rising between
    beats. Eight hours of a non-crossing soak is milestone 219's experiment wearing 221's name, and
    the difference is invisible afterwards.
@@ -163,7 +169,8 @@ that makes a red result possible at all, and the running order carries it rather
    that converts x86_64 from no evidence to some. It is a lane, not a bench evening.
 3. Milestone 201's three seed data points re-derived from the record, since one is retracted and two
    have moved. A curve seeded from a retracted defect is worse than an unseeded one.
-4. A stated duration. Neither 201 nor 225 prescribes one, both because nobody knows what would
+4. A stated duration. radon's 8 hours was chosen before the run against a crossing count, which
+   is a choice rather than a standard. Neither 201 nor 225 prescribes one, both because nobody knows what would
    persuade, and a number chosen after the run is not a number.
 5. argon, which has never booted nife at all and sits behind milestone 127 (the seL4 machine).
 

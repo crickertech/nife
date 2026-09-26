@@ -1,6 +1,8 @@
 # 225. Run the soak on radon, argon and xenon, which is the only place its answer means anything
 
-**Status: NOT-STARTED.** Minted 2026-09-02 by the maintainer, carrying forward the follow-on that
+**Status: PARTIAL** (2026-09-25). radon has run it, clean, for 8 h 09 m; argon and xenon have
+not. `PARTIAL` rather than `BUILT` because the block names three machines and one is done. Minted
+2026-09-02 by the maintainer, carrying forward the follow-on that
 milestones 219 (the boot tour ends and the kernel halts, so there is nothing to soak) and 221 (the
 soak never crosses cores, so build the hook that makes it) both proposed. *(Number provisional until
 the merge queue lands it.)*
@@ -51,10 +53,36 @@ honest that this class of question "produces a confidence rather than a verdict"
 **A failure is worth far more**, and is the outcome to hope for. It would be the second defect this
 risk has produced and the first found by an instrument rather than by somebody watching a bench.
 
+## radon, 2026-09-25: clean, 8 h 09 m, 4.1 million crossings
+
+One boot, netbooted, built at `9e879f1e7`, watched by `script/board-console --for 490m --until
+none` to its deadline (exit 0). First beat checked before calef left: `wakerate=430/s` settling to
+403, `crossings` 747 then 1,445 then rising about 140 a second. Last beat:
+
+| rounds | rate | wakes | crossings | refused / mismatch / stalled |
+|---|---|---|---|---|
+| 10,193,815,048 | 350,753/s | 11,747,350 (404/s) | 4,108,581 | 0 / 0 / 0 |
+
+**radon did 4.1 million cross-core thread handoffs and 10.2 billion IPC round trips over 8.16 hours
+without the wake gate refusing a wake, without a wrong reply, and without a worker stalling.** That
+is the sentence and all of it. No red means the QEMU cross-check a red would have needed never
+arose. The account, the anomalies (none of them a failure) and what it does and does not rule out
+are `notes/visionfive2.md`'s "The eight-hour soak, 2026-09-25"; the log is
+`bench/radon-2026-09-25/soak-8h.log`; the exposure row is E4 in `notes/multicore-defect-curve.md`.
+
+**Why eight hours.** This block prescribes no duration, so the lane proposed one against crossings
+rather than clock time, per `notes/soak.md`'s duration section. On a fast draw 8 hours is 1.4 to 5.4
+million crossings, against 5,507 in the only earlier multi-hour run. Past that, a second boot buys
+a new draw of the placement lottery, which is worth more than a ninth hour. The maintainer approved
+it. What remains on radon is more boots, not longer ones.
+
 ## BUGS
 
 - **No duration is prescribed**, because nobody knows what would be persuasive, and milestone 219's
-  block says the same thing for the same reason.
+  block says the same thing for the same reason. The radon run chose 8 hours against a crossing
+  count and says why above; that is a choice, not a standard.
+- **One radon boot is one draw.** It drew the fastest arrangement seen so far, and a slow draw
+  crosses about 275 times less often, so the clean result says little about slow arrangements.
 - **A hung board needs a person**, since nothing can power-cycle radon remotely (milestone 224) and
   `script/board-console` reads without writing.
 - **The crossing count varies by more than 2x between identical runs**, recorded in milestone 221's
@@ -62,7 +90,20 @@ risk has produced and the first found by an instrument rather than by somebody w
 - **argon has never booted nife at all**, so its soak sits behind milestone 127 (the seL4 machine)
   rather than beside radon's.
 
+## Follow-on
+
+- **Outstanding.** xenon's soak. It is rank 2 in `briefs/bench-session.md`'s ready list, behind
+  milestone 261 (the NVMe driver leaves the kernel, on the machine that can finally confine it).
+  Checked 2026-09-25 against that list.
+- **Outstanding.** argon's soak, behind milestone 127 (the seL4 machine), since argon has never
+  booted nife. Checked 2026-09-25: 127 is NOT-STARTED.
+- **Outstanding.** More radon boots, because one boot is one draw and a slow draw has never been
+  soaked for long with this build. Checked 2026-09-25: E4 is the only radon row with a log.
+- **Recorded.** `script/board-image --soak` reports `NOT SEALED` for a pair that boots; the
+  limitation lives in `crates/sealed_pair/src/lib.rs`'s `BUGS` and milestone 563 (a seal check that
+  reads bytes cannot see a check that was dropped) owns the fix.
+
 ## Index row
 
-fatal risk 5's premise is that these defects appear only on silicon, and every tool it needs now
-exists
+radon ran it clean on 2026-09-25: 8 h 09 m, 4.1 million cross-core handoffs, no refusal; argon
+and xenon have not run it
