@@ -151,7 +151,12 @@ jobs:
         id: scope
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
-          [ -n "$base" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          # A dispatched run has no event base, and `HEAD~1` alone scoped it to the newest commit:
+          # a lane whose last commit was documentation skipped the build its earlier commits needed
+          # (#1347, 2026-09-26). Off `main`, the merge base is the whole branch; on `main` it is
+          # HEAD itself, so the newest commit stays the scope there.
+          [ -n "$base" ] || base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+          [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD)" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
           scope="$(script/verify --affected-since "$base")"
           echo "$scope"
           if [ "$(echo "$scope" | tail -1)" = "verify-scope: not-needed" ]; then
@@ -348,7 +353,12 @@ jobs:
       - name: script/falsifications --affected-since
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
-          [ -n "$base" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          # A dispatched run has no event base, and `HEAD~1` alone scoped it to the newest commit:
+          # a lane whose last commit was documentation skipped the build its earlier commits needed
+          # (#1347, 2026-09-26). Off `main`, the merge base is the whole branch; on `main` it is
+          # HEAD itself, so the newest commit stays the scope there.
+          [ -n "$base" ] || base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+          [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD)" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
           script/falsifications --affected-since "$base"
 
   verify:
