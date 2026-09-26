@@ -98,11 +98,13 @@ With the maintainer's go:
     lsof -i UDP:69; lsof /dev/cu.usbmodem*                  # both must be free
     script/board-netboot                                      # from the worktree, backgrounded
     script/board-console --port /dev/cu.usbmodem<id> --board radon \
-        --for <duration> --until none --log <scratch>/radon-<what>-<UTC stamp>.log
+        --for <duration> --until none --log <worktree>/target/bench/radon-<what>-<UTC stamp>.log
 
-Start both with `nohup ... &` so they outlive one tool call. Write the log to your scratch
-directory, not to `target/` (the main checkout's may be deleted) and not to `bench/` (the log needs
-cleaning first, step 6). **Start the console before power**, so the boot is captured. An empty log
+Start both with `nohup ... &` so they outlive the lane itself, not only one tool call. On
+2026-09-25 the lane was stopped twice by usage limits during an 8-hour soak, and the detached
+watcher logged straight through both. Write the log under your own worktree's `target/`: not the
+main checkout's (the maintainer may delete it), not a session scratch directory (it goes when the
+session does), and not `bench/` (the log needs cleaning first, step 6). **Start the console before power**, so the boot is captured. An empty log
 at this point means the board is off or halted, which is what you want before a power cycle.
 
 Then ask: "power-cycle radon on plug 2 now". calef does it from the Kasa app.
@@ -133,6 +135,10 @@ turn to "wait for a notification" kills the lane.**
 went quiet (three missed beats: a hang, which needs calef for a power cycle), `3` ended early.
 
 ## Step 6: capture, clean, record
+
+Read `t=`, never the beat count, as the duration: radon's beat is about 5.05 s, not 5, because each
+beat's 5 s is counted from the end of the previous beat's sampling and printing (`watch` in
+`kernel/src/soak.rs`).
 
     LC_ALL=C tr -cd '\11\12\15\40-\176' < <scratch log> > bench/<board>-<UTC date>/<what>.log
 
