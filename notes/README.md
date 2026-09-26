@@ -78,6 +78,7 @@ Threads, capabilities, IPC, and how authority ends.
 - [The IPC_TABLES lock inventory](ipc-tables-lock-inventory.md): what the one remaining IPC lock protects, by heat.
 - [Capabilities, and why the kernel has no `open()`](capabilities.md): capabilities, the confused deputy, first syscalls and IPC.
 - [Who does IPC name?](ipc-naming.md): IPC names a rendezvous, never the peer.
+- [Notification objects](notification-objects.md).
 - [How authority moves, narrows, and ends](capability-lifecycle.md): how capabilities are copied, narrowed and revoked.
 - [Delegating a capability](delegation.md): passing a narrowed capability between processes over IPC.
 - [Object revocation: tearing a process back down](object-revocation.md): reclaiming the kernel objects a process built.
