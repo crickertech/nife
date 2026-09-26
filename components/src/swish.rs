@@ -93,6 +93,9 @@
 // documenting an OS-facing ABI entry point is not what the lint is for.
 #![allow(missing_docs)]
 #![no_main]
+// `Vec::push_within_capacity`: the only way this shell adds to a `Vec`, because it cannot allocate
+// behind the caller's back (see [`heap`]).
+#![feature(vec_push_within_capacity)]
 
 use filesystem_protocol::{dirent, fs};
 use grant_plan::expand::{Expander, NameSet, Resume};
@@ -138,6 +141,71 @@ const SPAWN: u64 = 1; // SEND a spawn request to the progenitor
 const RESULT: u64 = 2; // RECV a spawned program's answer
 const BUDGET: u64 = 3; // our own untyped; SPLIT a grant off it for `--mem`
 
+/// **This shell's heap** (milestone 47 (navigation and naming), calef's ruling of 2026-09-26).
+/// Capped at [`swish::HEAP_MAX_BYTES`] and mapped from a region split off [`BUDGET`] before any
+/// other carve, so a leak exhausts the heap and never the budget children are built from.
+#[global_allocator]
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
+
+/// Split the heap's region off [`BUDGET`] and wire the allocator to it. First thing at `_start`,
+/// for the roles whose slot 3 is a budget: the carve is then the budget's first, and every later
+/// carve sits above it, which is what their last-in first-out return needs. A failed split leaves
+/// the heap unwired, and every allocation then refuses its line with [`Say::HeapFull`].
+fn heap_init() {
+    let region = split_region(BUDGET, swish::HEAP_REGION_PAGES);
+    if region >= 0 {
+        HEAP.init(
+            region as u64,
+            user_mode_runtime::heap::DEFAULT_BASE,
+            swish::HEAP_MAX_BYTES,
+        );
+    }
+}
+
+/// **Every allocation this shell makes, and every one of them can fail.** calef's first condition:
+/// the boot shell is the owner's root console, so running out of heap is a refusal with a sentence
+/// ([`Say::HeapFull`]) and never a panic. Nothing outside this module names `alloc`, and nothing in
+/// it calls an allocating method that panics on failure: capacity is reserved with
+/// `try_reserve_exact`, and elements go in with `push_within_capacity`, which cannot allocate.
+/// The compiler holds the first half (below), and `script/lint` holds that the declaration stays
+/// here.
+mod heap {
+    // Declared here and nowhere else, so no other module can even name `alloc`: a `no_std` crate
+    // has no `alloc` in its extern prelude unless the crate root declares it.
+    extern crate alloc;
+
+    /// **Room for a fixed number of values, on the heap.** A slice once filled (indexing works), and
+    /// there is no way to grow it: `Vec` is private to this module, so nothing outside can call a
+    /// method that would allocate and panic on failure.
+    pub struct Room<T>(alloc::vec::Vec<T>);
+
+    impl<T> core::ops::Deref for Room<T> {
+        type Target = [T];
+        fn deref(&self) -> &[T] {
+            &self.0
+        }
+    }
+
+    impl<T> core::ops::DerefMut for Room<T> {
+        fn deref_mut(&mut self) -> &mut [T] {
+            &mut self.0
+        }
+    }
+
+    /// `n` copies of `x`, or `HeapFull`. Capacity is reserved with `try_reserve_exact`, and the
+    /// copies go in with `push_within_capacity`, which cannot allocate.
+    pub fn filled<T: Copy>(n: usize, x: T) -> Result<Room<T>, swish::Say> {
+        let mut v = alloc::vec::Vec::new();
+        v.try_reserve_exact(n).map_err(|_| swish::Say::HeapFull)?;
+        for _ in 0..n {
+            v.push_within_capacity(x)
+                .map_err(|_| swish::Say::HeapFull)?;
+        }
+        Ok(Room(v))
+    }
+}
+
 /// The budget the progenitor granted us at boot (must match `crates/system_initializer`'s `SH_BUDGET_PAGES`).
 /// We cannot query how much remains (there is no such syscall), so `caps` prints the initial grant.
 const SH_BUDGET_PAGES: u64 = 128;
@@ -172,6 +240,18 @@ static HOLDS_RUN_UNVOUCHED: core::sync::atomic::AtomicBool =
 
 // `grant_plan` states the slot without depending on `abi`; the relation is held by each reader.
 const _: () = assert!(spawnproto::RUN_UNVOUCHED_SLOT == abi::fault::FAULT_EP_SLOT - 1);
+
+/// **Whether this shell holds a read-only view of the inert-configuration page**
+/// ([`grant_plan::SHELL_CONFIG_SLOT`], mapped at [`grant_plan::SHELL_CONFIG_VA`]; milestone 47
+/// (navigation and naming), DECISIONS §111 (inert configuration is a validated page)). Only the
+/// progenitor places it, and it maps the page in the same build, so a capability in the slot at
+/// `_start` means the page is there to read. Probed once at `_start` for [`HOLDS_RUN_UNVOUCHED`]'s
+/// reason. `caps` reads it to print the values a child declaring `config` will read; nothing else
+/// in this shell looks at it.
+static HOLDS_CONFIG: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+// The named slot sits under the run-unvouched one and so under the kernel's fault slot.
+const _: () = assert!(grant_plan::SHELL_CONFIG_SLOT < spawnproto::RUN_UNVOUCHED_SLOT);
 
 /// The `x2` value meaning "this shell was granted no clock". Zero rather than a sentinel, because
 /// slot 0 is the terminal in every wiring, so no clock can ever legitimately be there.
@@ -1067,9 +1147,9 @@ fn print_num(v: u64) {
     swish::write_num(v, &mut print);
 }
 
-/// Read a command line: stage the prompt, CALL `OP_READLINE`, and block until the terminal has a
-/// line for us. The editing (cursor keys, history, backspace) happens entirely on the far side;
-/// we get the finished line in `LINE_VA` and its length and flags in the reply.
+/// Read a command line with the terminal's own editor: stage the prompt, CALL `OP_READLINE`, and
+/// block until the terminal has a line. Kept for a terminal that refuses raw mode, where the shell
+/// cannot edit its own line; [`edit_line`] is the path every real boot takes.
 fn read_line(prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
     stage(prompt, prompt.len());
     let (len, flags) = call(TERM, proto::req(proto::OP_READLINE, prompt.len() as u64), 0);
@@ -1078,6 +1158,213 @@ fn read_line(prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
         *b = LINE_WINDOW.r8(i as u64);
     }
     (len, flags)
+}
+
+// ---- the shell edits its own line (DECISIONS §227 (how Tab reaches the shell) option D) ----
+
+/// **The line editor, in this process** (milestone 47 (navigation and naming), §227 option D).
+/// The same sans-IO engine the terminal runs, fed from `OP_READRAW`, so a Tab reaches the process
+/// that holds the authority completion needs. A `static` for `line_editor`'s own reason: the
+/// engine is a few KiB and this shell's stack has run out before (notes/pipes.md).
+static mut EDITOR: line_editor::LineDisc = line_editor::LineDisc::new();
+
+/// Bytes a raw read delivered after the one that ended a line, kept for the next line. A paste of
+/// two lines arrives in one burst, and dropping the second would lose typed input.
+static mut AHEAD: ([u8; 8], usize, usize) = ([0; 8], 0, 0);
+
+/// **Whether the terminal is in raw mode on this shell's behalf.** On at the prompt and while a
+/// plain command runs, so keystrokes typed ahead wait in the terminal's raw queue for the next
+/// prompt. Off only while a supervised job is watched, because §24 (interrupting the foreground
+/// process) counts `^C` in the terminal's line discipline, which raw mode bypasses.
+static RAW: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+/// Ask the terminal for raw mode, or leave it. `false` when the terminal refused, which a terminal
+/// without raw mode does; the caller then reads lines the old way.
+fn set_raw(on: bool) -> bool {
+    let (r, _) = call(TERM, proto::req(proto::OP_RAWMODE, on as u64), 0);
+    let ok = r == 0;
+    RAW.store(on && ok, core::sync::atomic::Ordering::Relaxed);
+    ok
+}
+
+/// Leave raw mode before a supervised job, so its `^C` is counted where [`watch`] polls for it.
+/// Switching discards whatever was typed ahead into the raw queue, which is `OP_RAWMODE`'s contract.
+fn leave_raw() {
+    if RAW.load(core::sync::atomic::Ordering::Relaxed) {
+        set_raw(false);
+    }
+}
+
+/// **Echo, staged in the output page and sent with `OP_WRITE`.** The terminal translates `\n` to
+/// `\r\n` on output, and the engine already writes `\r\n`, so a `\r` right before a `\n` is dropped
+/// here rather than doubled there.
+struct Echo {
+    used: usize,
+}
+
+impl Echo {
+    fn flush(&mut self) {
+        if self.used > 0 {
+            call(TERM, proto::req(proto::OP_WRITE, self.used as u64), 0);
+            self.used = 0;
+        }
+    }
+}
+
+impl line_editor::Sink for Echo {
+    fn put(&mut self, bytes: &[u8]) {
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'\r' && bytes.get(i + 1) == Some(&b'\n') {
+                continue;
+            }
+            if self.used == user_mode_runtime::mapped_window::PAGE as usize {
+                self.flush();
+            }
+            OUT_WINDOW.w8(self.used as u64, b);
+            self.used += 1;
+        }
+    }
+}
+
+/// **Read a command line, editing it here.** Same answer shape as [`read_line`]: the length and
+/// the `FLAG_EOF` / `FLAG_INTERRUPTED` a terminal would have replied with. `^C` arrives as a byte
+/// and the engine discards the line, exactly as the terminal's copy did.
+fn edit_line(nav: &mut Nav, prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
+    if !RAW.load(core::sync::atomic::Ordering::Relaxed) && !set_raw(true) {
+        return read_line(prompt, out);
+    }
+    let editor = &raw mut EDITOR;
+    let typed_ahead = &raw mut AHEAD;
+    // SAFETY: single-threaded EL0, and nothing else in this program names `EDITOR`, so this is
+    // the only reference to it while the line is read.
+    let disc = unsafe { &mut *editor };
+    // SAFETY: as above, for `AHEAD`.
+    let ahead = unsafe { &mut *typed_ahead };
+    let mut echo = Echo { used: 0 };
+    disc.start_line(prompt, &mut echo);
+    echo.flush();
+    loop {
+        if ahead.1 == ahead.2 {
+            let (n, packed) = call(TERM, proto::req(proto::OP_READRAW, 0), 0);
+            if n == proto::BAD_REQUEST {
+                // Something this shell ran left raw mode (a program that holds the terminal turns
+                // it off when it exits). Take it back, and paint the line again on a fresh row.
+                if !set_raw(true) {
+                    disc.abandon();
+                    return read_line(prompt, out);
+                }
+                continue;
+            }
+            *ahead = (packed.to_le_bytes(), 0, (n as usize).min(8));
+        }
+        while ahead.1 < ahead.2 {
+            let b = ahead.0[ahead.1];
+            ahead.1 += 1;
+            match disc.feed(b, &mut echo) {
+                line_editor::Event::Line => {
+                    echo.flush();
+                    let line = disc.line();
+                    let n = line.len().min(out.len());
+                    out[..n].copy_from_slice(&line[..n]);
+                    return (n, 0);
+                }
+                line_editor::Event::Eof => {
+                    echo.flush();
+                    return (0, proto::FLAG_EOF);
+                }
+                line_editor::Event::Interrupt => {
+                    echo.flush();
+                    return (0, proto::FLAG_INTERRUPTED);
+                }
+                line_editor::Event::Tab => complete_word(nav, disc, &mut echo),
+                line_editor::Event::None => {}
+            }
+        }
+        echo.flush();
+    }
+}
+
+/// **Tab**: finish the word under the cursor from what this shell can name (`swish::complete`).
+/// A program or builtin name in command position; otherwise an entry of the directory the word's
+/// lead names, read with the same `ENUMERATE` `ls` needs. No match rings the bell.
+fn complete_word(nav: &mut Nav, disc: &mut line_editor::LineDisc, echo: &mut Echo) {
+    use line_editor::Sink;
+    use swish::complete::{Answer, Completing, Lister, Matches};
+    let mut buf = [0u8; line_editor::LINE_MAX];
+    let (line, cur) = disc.pending();
+    let len = line.len();
+    buf[..len].copy_from_slice(line);
+    let line = &buf[..len];
+    // Offer every candidate to `each`, from the source the word's position names. `false` when
+    // there is nothing this shell can read there.
+    let source = |nav: &mut Nav, which: &Completing<'_>, each: &mut dyn FnMut(&[u8], bool)| {
+        match *which {
+            Completing::Command { .. } => {
+                for b in grant_plan::BUILTINS {
+                    each(b, false);
+                }
+                for p in grant_plan::Prog::ALL {
+                    each(p.name().as_bytes(), false);
+                }
+                // And what the live activation set names by bare word (§229, B2): never an owner's
+                // vouch, which claims no name.
+                with_live_table(nav, |text, _| {
+                    for entry in activation_set::entries(text).flatten() {
+                        // Once per name: a name the image also has is already offered, and is
+                        // refused when run.
+                        if activation_set::lookup_name(text, entry.program)
+                            .is_ok_and(|found| found == Some(entry))
+                            && grant_plan::Prog::from_name(entry.program.as_bytes()).is_none()
+                        {
+                            each(entry.program.as_bytes(), false);
+                        }
+                    }
+                    Some(())
+                });
+                true
+            }
+            Completing::Name { dir, .. } => {
+                // `ls docs` rather than `ls docs/`: the lead names a directory, and its trailing
+                // slash is the word's, not the path's. The root keeps its one slash.
+                let dir = match dir {
+                    [b'/'] => dir,
+                    [lead @ .., b'/'] => lead,
+                    _ => dir,
+                };
+                nav.ls(dir, each) == Say::Nothing
+            }
+            Completing::Nothing => false,
+        }
+    };
+    let which = swish::complete::completing(line, cur);
+    let prefix = match which {
+        Completing::Command { prefix } | Completing::Name { prefix, .. } => prefix,
+        Completing::Nothing => return echo.put(&[0x07]),
+    };
+    let mut m = Matches::new(prefix);
+    if !source(nav, &which, &mut |n, d| m.offer(n, d)) {
+        return echo.put(&[0x07]);
+    }
+    match m.answer() {
+        Answer::NoMatch => echo.put(&[0x07]),
+        Answer::Insert { text, finished } => {
+            disc.insert_text(text, echo);
+            if let Some(f) = finished {
+                disc.insert_text(&[f], echo);
+            }
+        }
+        Answer::List => {
+            let mut l = Lister::new();
+            let wants = Matches::new(prefix);
+            source(nav, &which, &mut |n, d| {
+                if wants.wants(n) {
+                    l.name(n, d, &mut |b| echo.put(b));
+                }
+            });
+            l.finish(&mut |b| echo.put(b));
+            disc.repaint(echo);
+        }
+    }
 }
 
 /// The interactive shell: a terminal at slot 0, a spawn channel, a result channel, a budget. It is
@@ -1127,6 +1414,15 @@ pub extern "C" fn _start(role: u64, arg: u64, clock: u64) -> ! {
         user_mode_runtime::is_granted(spawnproto::RUN_UNVOUCHED_SLOT),
         core::sync::atomic::Ordering::Relaxed,
     );
+    HOLDS_CONFIG.store(
+        user_mode_runtime::is_granted(grant_plan::SHELL_CONFIG_SLOT),
+        core::sync::atomic::Ordering::Relaxed,
+    );
+    // After the probes, which must see the table as its builder left it. The two witness roles
+    // hold no budget at slot 3.
+    if !matches!(role, ROLE_NAVIGATE | ROLE_GLOB) {
+        heap_init();
+    }
     match role {
         ROLE_NAVIGATE => navigate(arg),
         ROLE_GLOB => globbing(arg),
@@ -1348,7 +1644,7 @@ fn interactive(rights: u64) -> ! {
     };
     let mut line = [0u8; 128];
     loop {
-        let (n, flags) = read_line(b"$ ", &mut line);
+        let (n, flags) = edit_line(&mut nav, b"$ ", &mut line);
         if flags & proto::FLAG_INTERRUPTED != 0 {
             // ^C at the prompt: the terminal discarded the line. Account for this interrupt so it
             // does not leak into the next job's watch, then come back for the next line.
@@ -1675,6 +1971,22 @@ fn run(nav: &mut Nav, cmd: &[u8], spec: RunSpec) {
     // hands the progenitor as frames. `installed/uptime` and `./a.out` both land here.
     if spec.prog.contains(&b'/') {
         return run_image(nav, spec);
+    }
+    // **A bare word is the image's, an installed program's, or refused** (DECISIONS §229 (how a
+    // bare name at the prompt reaches an installed program), B2). An installed program runs down
+    // the same road its path does, so what it is granted and who vouched for it do not depend on
+    // how it was named.
+    match bare(nav, spec.prog) {
+        swish::bare::Bare::Installed(path) => {
+            let mut by_path = spec;
+            by_path.prog = path.as_bytes();
+            return run_image(nav, by_path);
+        }
+        swish::bare::Bare::Both(path) => {
+            refused();
+            return swish::bare::write_both(spec.prog, &path, &mut print);
+        }
+        swish::bare::Bare::Image | swish::bare::Bare::Unknown => {}
     }
     // **Expand first.** A pattern designates the names it matched, so the planner has to see the
     // set; and a pattern that matched nothing, or too much, is refused here with nothing spawned.
@@ -2445,8 +2757,23 @@ fn outcome(e: Endowment, answer: u64) {
 /// entire meaning is checkable without a machine to run it on. What is left here is the directory
 /// read a pattern needs and the terminal to print to.
 fn caps(nav: &mut Nav, tail: &[u8]) {
-    if let Some(spec) = image_line(tail) {
-        return caps_image(nav, spec);
+    if let Some(spec) = plain_line(tail) {
+        if spec.prog.contains(&b'/') {
+            return caps_image(nav, spec);
+        }
+        // A bare word previews what running it would do (§229 (how a bare name at the prompt
+        // reaches an installed program), B2), through the same resolution [`run`] uses.
+        match bare(nav, spec.prog) {
+            swish::bare::Bare::Installed(path) => {
+                let mut by_path = spec;
+                by_path.prog = path.as_bytes();
+                return caps_image(nav, by_path);
+            }
+            swish::bare::Bare::Both(path) => {
+                return swish::bare::write_both(spec.prog, &path, &mut print);
+            }
+            swish::bare::Bare::Image | swish::bare::Bare::Unknown => {}
+        }
     }
     let holdings = holdings(nav);
     // The clock row is a *slot number*, and it comes from what this shell was told rather than from
@@ -2456,19 +2783,26 @@ fn caps(nav: &mut Nav, tail: &[u8]) {
         NO_CLOCK => None,
         slot => Some(slot),
     };
+    // SAFETY: the progenitor maps the page at `SHELL_CONFIG_VA` read-only in the same build that
+    // places its capability, and never unmaps it; [`HOLDS_CONFIG`] is that capability's presence.
+    let config = HOLDS_CONFIG
+        .load(core::sync::atomic::Ordering::Relaxed)
+        .then(|| unsafe { environment_protocol::ConfigPage::new(grant_plan::SHELL_CONFIG_VA) });
     swish::write_caps(
         tail,
         SH_BUDGET_PAGES,
         holdings,
         clock,
+        config,
         &mut |token| nav.expand(token),
         &mut print,
     );
 }
 
-/// **The line is a plain run of a file's bytes**: one stage, no operator, a program token with a
-/// `/` in it. The shape [`run`] hands to [`run_image`], so `caps` previews exactly what would run.
-fn image_line(tail: &[u8]) -> Option<RunSpec<'_>> {
+/// **The line is a plain run**: one stage, no operator. The shape [`run`] hands to [`run_image`]
+/// when its program token has a `/` in it or names an installed program, so `caps` previews
+/// exactly what would run.
+fn plain_line(tail: &[u8]) -> Option<RunSpec<'_>> {
     let l = line::split(grant_plan::trim(tail)).ok()?;
     let [stage] = l.stages() else {
         return None;
@@ -2477,7 +2811,7 @@ fn image_line(tail: &[u8]) -> Option<RunSpec<'_>> {
         return None;
     }
     match grant_plan::parse(stage) {
-        Command::Run(spec) if spec.prog.contains(&b'/') => Some(spec),
+        Command::Run(spec) => Some(spec),
         _ => None,
     }
 }
@@ -2548,13 +2882,26 @@ fn caps_image(nav: &mut Nav, spec: RunSpec) {
 /// `script/stack-frame-check` holds every frame to; [`RANKED`] is here for the same reason.
 static mut GENERATION_TABLE: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
 
-/// **The live generation, if it lists `digest`, and whether the owner vouched for it**:
-/// `activation/current`, then the generation it
-/// names, read as the progenitor reads them (`crates/system_initializer`'s `FsCalls::live_generation`)
-/// and looked up with the same `activation_set::lookup_digest`. `None` on a miss and on every way
-/// of failing to read the table, which is the progenitor's rule too: a table that cannot be read
-/// vouches for nothing.
+/// **The live generation, if it lists `digest`, and whether the owner vouched for it**, looked up
+/// with the progenitor's own `activation_set::lookup_digest` in [`with_live_table`]'s read.
 fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<swish::Vouched> {
+    with_live_table(nav, |text, number| {
+        match activation_set::lookup_digest(text, digest) {
+            Ok(Some(entry)) => Some(swish::Vouched {
+                generation: number,
+                by_owner: entry.package == activation_set::OWNER,
+            }),
+            _ => None,
+        }
+    })
+}
+
+/// **Read the live generation and hand it to `f`**, with its number: `activation/current`, then the
+/// generation it names, read as the progenitor reads them (`crates/system_initializer`'s
+/// `FsCalls::live_generation`). `None` on every way of failing to read it, which is the
+/// progenitor's rule too: a table that cannot be read vouches for nothing and names nothing.
+fn with_live_table<R>(nav: &Nav, f: impl FnOnce(&str, u32) -> Option<R>) -> Option<R> {
+    nav.dir?;
     let act = nav.name_call(
         fs::OPENDIR,
         fs::ROOT,
@@ -2581,17 +2928,20 @@ fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<
         if n >= table.len() {
             return None;
         }
-        let text = core::str::from_utf8(&table[..n]).ok()?;
-        match activation_set::lookup_digest(text, digest) {
-            Ok(Some(entry)) => Some(swish::Vouched {
-                generation: number,
-                by_owner: entry.package == activation_set::OWNER,
-            }),
-            _ => None,
-        }
+        f(core::str::from_utf8(&table[..n]).ok()?, number)
     })();
     nav.close(act);
     found
+}
+
+/// **What a bare word names** (DECISIONS §229 (how a bare name at the prompt reaches an installed
+/// program), B2), from the image's programs and the live table. See `swish::bare`.
+fn bare(nav: &Nav, word: &[u8]) -> swish::bare::Bare {
+    let image = grant_plan::Prog::from_name(word).is_some();
+    with_live_table(nav, |text, _| {
+        Some(swish::bare::resolve(word, image, Some(text)))
+    })
+    .unwrap_or_else(|| swish::bare::resolve(word, image, None))
 }
 
 /// Open `name` under the directory handle `at`, read up to `out.len()` bytes of it (one `READ`,
@@ -2673,11 +3023,24 @@ fn pipeline(nav: &mut Nav, l: Line<'_>) {
     // that produces text, at the head of the pipeline, whose bytes **the shell writes into the pipe
     // itself**. That costs no process and no new mechanism, and it is what makes `ls | wc` a thing a
     // person can type in a shell that holds a directory.
-    let mut plans: [Option<Endowment>; line::MAX_STAGES] = [None; line::MAX_STAGES];
+    // **On the heap, not on the stack** (milestone 47, calef's allocator ruling). This array of
+    // endowments, each carrying a whole name set, is what the four stack overflows in
+    // notes/pipes/the-boot.md had in common, and this function's frame was the deepest in the
+    // program. Sized to the line's own stages rather than to `MAX_STAGES`.
+    let mut plans = match heap::filled::<Option<Endowment>>(l.stage_count(), None) {
+        Ok(v) => v,
+        Err(s) => return say(s),
+    };
     let mut head_builtin = false;
     for (i, stage) in l.stages().iter().enumerate() {
         match grant_plan::parse(stage) {
             Command::Run(spec) => {
+                // A name the image and an installed package both have is refused wherever it
+                // stands (§229 (how a bare name at the prompt reaches an installed program), B2).
+                if let swish::bare::Bare::Both(path) = bare(nav, spec.prog) {
+                    refused();
+                    return swish::bare::write_both(spec.prog, &path, &mut print);
+                }
                 let expanded = match expansion(nav, &spec) {
                     Ok(e) => e,
                     Err(Say::Cannot(r)) => return refuse(spec, r),
@@ -3505,11 +3868,12 @@ const JOBFRAME_WINDOWS: core::ops::Range<u64> = 0x0000_0000_0100_0000..0x0000_00
 // Every fixed window this shell maps, and the job frames' range, are disjoint. A window added to
 // the shell belongs in this list.
 const _: () = {
-    let fixed: [(u64, u64); 5] = [
+    let fixed: [(u64, u64); 6] = [
         (OUT_VA, PAGE),
         (LINE_VA, PAGE),
         (FS_VA, filesystem_protocol::PAGE as u64),
         (SH_CLOCK_VA, PAGE),
+        (grant_plan::SHELL_CONFIG_VA, PAGE),
         // The primer page and the image window above it (DECISIONS §219 option D).
         (
             IMAGE_PRIMER_VA,
@@ -3617,6 +3981,12 @@ fn spawn_interruptible(e: Endowment) {
             run_unvouched: false,
         },
     );
+    // **Out of raw mode before the job exists** (DECISIONS §227 (how Tab reaches the shell)
+    // option D). [`watch`] learns of `^C` from the terminal's count, and the terminal counts only
+    // in its line discipline. The watermark is taken after the switch, so a `^C` from here on is
+    // this job's, and one pressed at the prompt, which was a byte to [`edit_line`], never is.
+    leave_raw();
+    CONSUMED.store(intr_count(), core::sync::atomic::Ordering::Relaxed);
     send(SPAWN, w0, w1, w2);
     send_cap(job_ut);
     send_cap(job_fr);
@@ -4102,8 +4472,8 @@ fn navigate(spec: u64) -> ! {
 
 // ---- the globbing witness (milestone 47's globbing lane) ----
 
-/// A small collector: what `echo` printed, or what a grant rendered to. Fixed size because this
-/// program has no allocator, and generous enough that a truncation cannot make two renderings agree
+/// A small collector: what `echo` printed, or what a grant rendered to. Fixed size, written before
+/// the shell had a heap (2026-09-26) and still enough, and generous enough that a truncation cannot make two renderings agree
 /// by both running out at the same place.
 struct Text {
     buf: [u8; 96],
@@ -4438,7 +4808,7 @@ fn removed(nav: &Nav, verb: u64, name: &[u8]) -> bool {
 }
 
 /// A fixture name with the run index appended, so runs sharing one image do not collide on `EEXIST`
-/// and read it as a refusal. Fixed-size because this program has no allocator.
+/// and read it as a refusal. Fixed-size, which is all it needs; written before the shell had a heap.
 fn run_name(base: &str, run: u64) -> ([u8; 16], usize) {
     let mut out = [0u8; 16];
     let n = base.len().min(15);

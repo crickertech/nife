@@ -142,6 +142,9 @@ pub(crate) fn swish_check() -> bool {
 /// job that nobody counted; the host test `a_job_count_names_a_program` bounds a tag from above.
 pub(crate) struct Line {
     pub(crate) typed: &'static str,
+    /// What the prompt shows once `typed` has been edited: the same text for a plain line, and
+    /// the finished word for one with a Tab in it, or `^C` for one abandoned (see [`keys`]).
+    pub(crate) echoed: &'static str,
     pub(crate) jobs: u8,
     pub(crate) answer: &'static [&'static str],
 }
@@ -159,9 +162,33 @@ const JOB_DID_NOT_RUN: [&str; 2] = [
 const fn line(jobs: u8, typed: &'static str, answer: &'static [&'static str]) -> Line {
     Line {
         typed,
+        echoed: typed,
         jobs,
         answer,
     }
+}
+
+/// **A line typed with editing keys in it** (milestone 47 (navigation and naming), DECISIONS §227
+/// (how Tab reaches the shell)): `typed` goes to the UART byte for byte, and `echoed` is what the
+/// prompt then shows. A line ending in `^C` (`\x03`) is sent with no Enter, and must answer
+/// nothing, because the shell discarded it. The name is provisional.
+const fn keys(
+    jobs: u8,
+    typed: &'static str,
+    echoed: &'static str,
+    answer: &'static [&'static str],
+) -> Line {
+    Line {
+        typed,
+        echoed,
+        jobs,
+        answer,
+    }
+}
+
+/// Whether a scripted line is abandoned with `^C` rather than run.
+fn interrupted_at_prompt(typed: &str) -> bool {
+    typed.ends_with('\x03')
 }
 
 /// **What the second boot types** (milestone 198 (a package manager) rung 3a): the installed
@@ -351,7 +378,43 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
     // And the visibility surface agrees with the wiring, `date`'s own check repeated for `config`:
     // `caps` claims to print a process's whole authority, so a config page endowed and not printed
     // would make that claim false.
-    line(0, "caps printenv", &["cap 1  frame     config"]),
+    //
+    // **And the values, before anything runs** (DECISIONS §111 (inert configuration is a validated
+    // page)'s preview, milestone 47 (navigation and naming)). The shell prints them from its own
+    // read-only view of the frame `printenv` was just handed, so this fails if the progenitor did
+    // not place the view at `grant_plan::SHELL_CONFIG_SLOT`, did not map it at `SHELL_CONFIG_VA`,
+    // or the shell's probe missed it (it then says it "cannot show their values" and none of the
+    // three appears).
+    line(
+        0,
+        "caps printenv",
+        &[
+            "cap 1  frame     config",
+            "the page this shell reads too",
+            "TZ=UTC",
+            "LANG=C",
+            "TERM=dumb",
+        ],
+    ),
+    // **The shell edits its own line** (milestone 47 (navigation and naming), DECISIONS §227 (how
+    // Tab reaches the shell) option D). Tab in command position finishes a program name from the
+    // names the image carries, and the finished line runs; Tab after it finishes a file name from
+    // the directory the word leads into, read with the shell's own `ENUMERATE`. Each fails if the
+    // shell is not in raw mode (the terminal would drop the Tab and the echo would not match), if
+    // the completion inserted the wrong text, or if the completed line did not run.
+    keys(1, "printe\t", "printenv ", &["TZ=UTC"]),
+    keys(
+        0,
+        "caps wc doc/kernel/ipc-nam\t",
+        "caps wc doc/kernel/ipc-naming.md ",
+        &["input    ipc-naming.md"],
+    ),
+    // **`^C` at the prompt is a byte now**, and the shell's editor discards the line: this one must
+    // answer nothing (the check is `interrupted_at_prompt`'s), and the prompt must come back for the
+    // next. The supervised jobs below still take `^C` through the terminal's count, which this
+    // gate presses under `interrupt_heeder` and `interrupt_ignorer`.
+    keys(0, "echo abandoned\x03", "echo abandoned^C", &[]),
+    line(0, "echo kept", &["kept"]),
     // **`ps`, at the real prompt** (milestone 126). The listing itself: a header, and at least the
     // row for `ps` itself, which is a member of the domain the progenitor spawned it into. Asserting the
     // header rather than a tid is deliberate: a tid is a generational name that moves with how many
@@ -523,6 +586,29 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
         "packages/greeting/0.1.0/greeting",
         &["hello from a package this image never carried"],
     ),
+    // **And by its bare name** (DECISIONS §229 (how a bare name at the prompt reaches an installed
+    // program), B2): the live generation's entry of that name, run down the same road as its path,
+    // so `caps` names the same generation.
+    line(
+        1,
+        "greeting",
+        &["hello from a package this image never carried"],
+    ),
+    line(
+        0,
+        "caps greeting",
+        &["provenance: vouched by activation generation 2 (digest "],
+    ),
+    // **A name the image and a package both have is refused, naming both** (§229 B2). `uptime` is
+    // an image program and generation 1 installed a package of that name, which the image keeps.
+    line(
+        0,
+        "uptime",
+        &[
+            "uptime is both a program the image carries and an installed one, at \
+             /packages/uptime/0.1.0/uptime",
+        ],
+    ),
     // **The owner vouches for a local build** (DECISIONS §221 (the boot prompt is the owner's
     // console), ruling 1). `installed/unvouched` is the fresh build the D2 lines above ran on the
     // ruling's endowment (slots 0, 1 and 2). Vouching writes a generation that lists its digest,
@@ -540,6 +626,9 @@ const SWISH_CHECK_SCRIPT: &[Line] = &[
         "caps installed/unvouched",
         &["provenance: vouched by the owner in activation generation 3 (digest "],
     ),
+    // **A vouch claims no name** (§229 B2): the entry is found by the bytes' digest and never by
+    // the name it was recorded under, so the bare word reaches nothing.
+    line(0, "unvouched", &["no such program"]),
     line(
         1,
         crate::disk::INSTALLED_UNVOUCHED,
@@ -1598,7 +1687,12 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
         };
         let mut took: Vec<(&str, Duration)> = Vec::new();
         let mut previous: Option<(&str, Instant)> = None;
-        for &Line { typed: line, .. } in script {
+        for &Line {
+            typed: line,
+            echoed,
+            ..
+        } in script
+        {
             if !ready {
                 break;
             }
@@ -1616,12 +1710,19 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
             }
             previous = Some((line, Instant::now()));
             let at = mark();
-            if writeln!(stdin, "{line}").is_err() || stdin.flush().is_err() {
-                failed.push(format!("could not type `{line}` at the prompt"));
+            // A line abandoned with `^C` is sent without Enter: the shell has already discarded
+            // it and painted a fresh prompt, which the next line's wait reads.
+            let enter = if interrupted_at_prompt(line) {
+                ""
+            } else {
+                "\n"
+            };
+            if write!(stdin, "{line}{enter}").is_err() || stdin.flush().is_err() {
+                failed.push(format!("could not type `{line:?}` at the prompt"));
                 break;
             }
-            if !wait_after(at, &format!("{line}\n"), line_secs) {
-                failed.push(format!("the prompt never echoed `{line}`"));
+            if !wait_after(at, &format!("{echoed}\n"), line_secs) {
+                failed.push(format!("the prompt never echoed `{echoed}` for {line:?}"));
                 break;
             }
             if SWISH_CHECK_INTERRUPTED.contains(&line) {
@@ -1687,17 +1788,28 @@ fn swish_check_boot(arch: &str, script: &[Line], fresh: bool) -> bool {
         // truncated.
         let mut cursor = 0usize;
         for &Line {
-            typed: line,
+            typed,
+            echoed: line,
             jobs,
             answer: want,
         } in script
         {
-            if skipped(line) {
+            if skipped(typed) {
                 continue;
             }
             match swish_check_answer(&transcript, cursor, line) {
                 Some((answer, next)) => {
                     cursor = next;
+                    // **A line abandoned with `^C` ran nothing** (DECISIONS §227 option D): the
+                    // shell edits its own line now, so `^C` at the prompt is a byte its editor
+                    // turns into a discard. Anything between the echo and the next prompt means
+                    // the line ran anyway.
+                    if interrupted_at_prompt(typed) && !answer.trim().is_empty() {
+                        failed.push(format!(
+                            "{typed:?} was abandoned with ^C and still answered {:?}",
+                            answer.trim()
+                        ));
+                    }
                     // **Every wanted phrase, not the first**, because one answer can carry several
                     // independent claims and checking one of them makes the rest decoration. `caps`
                     // is the case that forced it: it prints the shell's whole endowment, and a gate
@@ -2391,11 +2503,15 @@ $ outlaw
     /// installed package's path, after the `time` and `xargs` prefixes. A `caps` head is a preview
     /// and builds nothing. A bound from above only; a tag that is too low is the case no host test
     /// can see, and the transcript cannot either.
+    /// Bare names this script installs before it types them (§229 (how a bare name at the prompt
+    /// reaches an installed program), B2), which run as programs without being the image's.
+    const INSTALLED_BY_THE_SCRIPT: [&str; 1] = ["greeting"];
+
     #[test]
     fn a_job_count_names_a_program() {
         for l in SWISH_CHECK_SCRIPT.iter().chain(SWISH_CHECK_AFTER_REBOOT) {
             let heads = l
-                .typed
+                .echoed
                 .split(['|', '&', ';'])
                 .filter_map(|stage| {
                     stage
@@ -2405,13 +2521,15 @@ $ outlaw
                 // A token with a `/` in it runs a file's bytes (DECISIONS §219 D), which is the
                 // shell's own test (`components/src/swish.rs`, `run`).
                 .filter(|head| {
-                    head.contains('/') || grant_plan::Prog::ALL.iter().any(|p| p.name() == *head)
+                    head.contains('/')
+                        || grant_plan::Prog::ALL.iter().any(|p| p.name() == *head)
+                        || INSTALLED_BY_THE_SCRIPT.contains(head)
                 })
                 .count();
             assert!(
                 usize::from(l.jobs) <= heads,
                 "`{}` claims {} job(s) and has {heads} stage(s) headed by a program",
-                l.typed,
+                l.echoed,
                 l.jobs
             );
         }
