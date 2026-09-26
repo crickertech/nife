@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 211, 213, 448
+---
 # 470. A gate on harness quality: self-reference and re-implementation
 
-**Status: REFUSED.** Refused by milestone 211 (design/roadmap/211-self-referential-harnesses.md),
+Refused by milestone 211 (design/roadmap/211-self-referential-harnesses.md),
 milestone 213 (design/roadmap/213-harnesses-that-duplicate-the-implementation.md), and recorded
 there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a

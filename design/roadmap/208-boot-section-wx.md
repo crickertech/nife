@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-09-02
+---
 # 208. The x86_64 kernel image ships an RWX segment, and it is the reason a second ELF reader exists
 
-**Status: BUILT.** Minted 2026-08-31, found by milestone 196's (a physical address on
+Minted 2026-08-31, found by milestone 196's (a physical address on
 `elf::Segment`) lane while trying to delete a duplicate ELF parser. Built 2026-09-02.
 *(Number provisional until the merge queue lands it.)* It needed no ruling to start: the change was
 one linker script and the parser that refused the image already existed.
@@ -172,8 +177,6 @@ pointing existing checks at new inputs, which is what the gate now does permanen
   flipped, a red run is visible and merges anyway, so the gate reports rather than gates.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 Found by milestone 196's lane while trying to delete a duplicate ELF parser: `link-x86_64.ld`
 folded `.text.boot` and `.data.boot` into one output section, so the trampoline shipped as a

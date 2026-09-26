@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-14
+---
 # 116. The fences with no partner
 
-**Status: BUILT** 2026-08-14 (PR #131). Minted 2026-08-04 by the integrator, from milestone 43's audit proposal C,
+Built 2026-08-14 (PR #131). Minted 2026-08-04 by the integrator, from milestone 43's audit proposal C,
 after the same mistake was found twice the same day by two methods that share nothing.
 
 **A release fence orders what came before it against a matching acquire on the reader.** With no
@@ -62,8 +67,6 @@ right.
   riscv64. Every soundness argument in it is a C11-model argument about happens-before.
 
 ## Index row
-
-**Built:** 2026-08-14
 
 A release fence with no matching acquire orders nothing and reads as though it does, which is
 worse than no fence because the fence is the comment. Found twice on one day by two methods

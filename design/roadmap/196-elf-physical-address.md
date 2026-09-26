@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-09-02
+---
 # 196. A physical address on `elf::Segment`, or a second ELF reader forever
 
-**Status: BUILT 2026-09-02.** The field shipped (`milestone/196-elf-paddr`, 2026-08-31). **The
+The field shipped (`milestone/196-elf-paddr`, 2026-08-31). **The
 second reader did not go then**, for a reason nobody predicted, and milestone 208 (the x86_64 kernel
 image ships an RWX segment, and it is the reason a second ELF reader exists) is what removed it: the
 image was refused by `Elf::parse` as writable-and-executable, so the loader could not use the shared
@@ -99,8 +104,6 @@ comment, and milestone 200 makes the mistake unsayable everywhere at once.
   the firmware loader's own question rather than the format's.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 The UEFI loader carries its own forty-line ELF reader because `crates/elf` exposes no `p_paddr`,
 and in this kernel `p_vaddr` and `p_paddr` are genuinely unrelated. Two readers of one format is

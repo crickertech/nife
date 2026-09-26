@@ -1,10 +1,19 @@
+---
+status: RECORDED
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 199. GitHub shows this public repository as having no licence (it does not; retracted)
 
-**Status: RECORDED.** Minted and retracted the same day, 2026-08-31. Found while checking whether the repository was public
+Minted and retracted the same day, 2026-08-31. Found while checking whether the repository was public
 for DECISIONS §135's (running GPL software is aggregation) distribution question. *(Number
 provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The terms are already ratified by DECISIONS §87; what is missing is that one tool
+The terms are already ratified by DECISIONS §87; what is missing is that one tool
 cannot see them, and finding the fix needs only a look at what GitHub renders.
 
 **In brief.** `gh repo view crickertech/nife --json licenseInfo` returns **none**. The tree carries

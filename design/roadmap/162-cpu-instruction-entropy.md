@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-24
+built: 2026-08-26
+---
 # 162. Real hardware entropy on x86_64 and aarch64: RDSEED and RNDRRS
 
-**Status: BUILT, confirmed 2026-08-26.** aarch64 is fully built and proven; riscv64 is correctly
+Built, confirmed 2026-08-26. aarch64 is fully built and proven; riscv64 is correctly
 excluded (neither instruction exists on that ISA). x86_64's blocker, milestone 161 item 4's
 userspace-compilation hand-off, landed on `main` via PR #476 (merged 2026-08-25), so `cfg(initrd)`
 now covers x86_64 and `kernel::user::entropy_tests` compiles and runs there.
@@ -168,8 +173,6 @@ itself, at which point no further code change is expected, only a status flip on
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-26
 
 Parity with 159, asked for once calef said the §120 customer condition is met. Unlike 159, not
 hardware-gated: RDSEED and RNDRRS (not the DRBG-buffered RDRAND/RNDR, checked against the specs)

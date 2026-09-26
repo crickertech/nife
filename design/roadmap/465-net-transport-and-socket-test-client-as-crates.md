@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 175, 448
+---
 # 465. `net_transport` and `socket_test_client` as crates rather than `#[path]` modules
 
-**Status: REFUSED.** Refused by
+Refused by
 milestone 175 (design/roadmap/175-user-components-fixtures-split.md), and recorded there on 2026-09-13. Backfilled
 here on 2026-09-20 by milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a
 refusal that names work a number, a status and a condition that would change it. *(Number

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-02
+---
 # 217. The card carries a kernel and an archive from different builds, and the gate is the only thing that noticed
 
-**Status: BUILT** 2026-09-02. Minted 2026-09-01 by the maintainer, from a boot driven over the
+Built 2026-09-02. Minted 2026-09-01 by the maintainer, from a boot driven over the
 serial console the same hour. *(Number provisional until the merge queue lands it.)*
 
 **In brief.** The VisionFive 2 boots, starts a user program at U-mode, and then halts:
@@ -137,8 +142,6 @@ the build rather than after it. What no host check covers is a real card's files
   mismatch is found after a power cycle at the bench instead of before one.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 `script/board-image --card <dir>` copies the kernel, the archive and the boot script onto a
 mounted card as one act, so the pair cannot be separated by following the printed steps, which is

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-23
+---
 # 14. Kernel objects from untyped: remove the kernel heap
-
-**Status: BUILT.**
 
 **In brief.** Retype TCBs, endpoints, page tables; delete the kernel heap
 
@@ -42,7 +45,5 @@ kernel-heap-exhaustion class disappears entirely.
   on the derivation tree refused above.
 
 ## Index row
-
-**Built:** 2026-07-23
 
 removes the kernel heap: the prerequisite for "small enough to verify"

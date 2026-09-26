@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 360. `crates/timetable`'s proved `next_after` is not what the timer calls, so nothing runs the proof
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
 milestone 197's block; promoted by milestone 433 on 2026-09-19. Checked against the tree that day
 and the counterfactual is intact: `timetable::next_after` has exactly one caller in the tree,
 `crates/timetable/src/lib.rs`'s own `Timetable::due`, and nothing on the kernel timer path reaches it.
@@ -9,7 +18,7 @@ One correction to the body's "every ISA restates the arithmetic": two do, not th
 `fired + interval` with their own copy of the skip-rather-than-catch-up rule, while x86_64 arms the
 local APIC in periodic mode and the hardware reloads, so there is no software re-arm there to lift.
 
-**Gate: DECISION.** Where the seam goes is calef's call, and it is the whole of the work rather than
+Where the seam goes is calef's call, and it is the whole of the work rather than
 a detail of it. Too high and the arch layer keeps the milestone 6 drift bug it has today; too low
 and every ISA restates the same arithmetic, which is the thing the crate exists to stop. A lane can
 prepare the options and measure them, but it cannot pick the line.

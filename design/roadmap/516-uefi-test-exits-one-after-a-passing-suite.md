@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: uefi-test-exits-one-after-a-passing-suite
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 516. `uefi-test` can exit 1 after its own suite has passed, and nobody has taken a rate
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `uefi-test-exits-one-after-a-passing-suite`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Written by milestone 117 (the stranger test)'s run 6 lane, from the stranger's red `script/test` and the operator's
 green re-run.
 
-**Gate: NONE.** A lane can start today; it needs the dev Mac and nothing else.
+A lane can start today; it needs the dev Mac and nothing else.
 
 **In brief.** On 2026-09-19 a stranger's `cargo xtask test` passed every leg on all three ISAs and
 then failed at the last one: under OVMF the kernel suite printed `test result: ok. 215 passed, 71

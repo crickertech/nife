@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: two-programs-share-one-disks-transfer-region
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 573. Two programs share one disk's transfer region, and only an ordering keeps them apart
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `two-programs-share-one-disks-transfer-region` on 2026-09-22, filed 2026-09-21. Raised by the lane `abboot/confirm-a-trial-boot`, which had to
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `two-programs-share-one-disks-transfer-region` on 2026-09-22, filed 2026-09-21. Raised by the lane `abboot/confirm-a-trial-boot`, which had to
 write a live partition table on a machine whose filesystem server already held the same disk, and
 found that nothing but where the call sits stops the two corrupting each other.
 
-**Gate: DECISION.** The two candidate fixes are both values two programs agree on (a field on the
+The two candidate fixes are both values two programs agree on (a field on the
 `blk` wire, or a second shared region in a server's handoff), which `AGENTS.md` puts in the
 irreversible category. The mechanism either way is small; the agreement is not.
 

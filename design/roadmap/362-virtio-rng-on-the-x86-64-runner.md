@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-03
+superseded_by: 420
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 362. The x86_64 runner has no RNG, so four of six NTP tests skip there
 
-**Status: SUPERSEDED.** 2026-09-19, by the proposal `the-rest-of-the-x86-64-fixture-set`, which
+Superseded 2026-09-19, by the proposal `the-rest-of-the-x86-64-fixture-set`, which
 milestone 433 numbers 420 and which names the RNG as one of its six devices. Filed as a proposal on
 2026-09-03 by the milestone 247 sweep, from milestone 176's block. Checked on 2026-09-19 and the
 underlying gap is real: `helpers/qemu-runner-x86_64.sh` still attaches no RNG and says so in its own
@@ -9,7 +19,7 @@ written knowing this would happen: *"whoever promotes either should merge the tw
 two lanes at the same fixture file"*. The larger lane is now numbered, so this one is the duplicate
 rather than the placeholder.
 
-**Gate: NONE.** It is a line in `helpers/qemu-runner-x86_64.sh` plus its wiring, and both the device
+It is a line in `helpers/qemu-runner-x86_64.sh` plus its wiring, and both the device
 and the client exist on the other architectures already.
 
 **In brief.** Attach a virtio-rng function to the x86_64 test runner and wire it through, so the

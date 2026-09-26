@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-17
+milestone_dependencies: none
+decision_dependencies: 165
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 131. A share is configured, not compiled, and its secret arrives from somewhere
 
-**Status: NOT-STARTED.** **The subject was removed on 2026-08-30**: this milestone was about
+**The subject was removed on 2026-08-30**: this milestone was about
 configuring an SMB share and provisioning its secret, and calef decided that day to remove the SMB
 implementation (notes/smb.md). There is no share to configure. The status word is unchanged because
 the vocabulary has no word for a block whose subject is gone, and minting one is calef's.
 
-**Gate: DECISION §165.** The configuration half needs nothing and has a precedent to copy. The secret
+The configuration half needs nothing and has a precedent to copy. The secret
 half is a fork calef must rule on, stated in full below and now in
 §165 (where a stored secret comes from on a
 boot that is not a test), written up 2026-09-19 by milestone 435's lane: **where a secret physically
@@ -23,7 +32,6 @@ That is a real gap in the credential service regardless of who its clients are. 
 deliverables (per-resource credential endpoints for the SMB adapter, and the boot that stops
 admitting guests to the share) have no subject left. **Re-aiming or retiring this block is calef's
 call.**
-
 
 ## What "configured" means today, measured rather than characterised
 

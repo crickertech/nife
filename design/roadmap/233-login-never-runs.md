@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 233. `login` dies on every boot, and the boot says it is ready
 
-**Status: BUILT 2026-09-02.** Minted the same day by the maintainer, from milestone 230's
+Minted the same day by the maintainer, from milestone 230's
 (`script/shell-check` is red on `main`, on both architectures, and nothing says so) lane, which found
 it the moment that check could see straight. *(Number provisional until the merge queue lands it.)*
 
@@ -131,8 +136,6 @@ is not this case.
   remains is a consistency check on the hand-over.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 it is handed the caretaker image and the measurement table as blobs instead of the archive, for
 zero capability slots; the boot line names what init measured, and the gate fails on any killed

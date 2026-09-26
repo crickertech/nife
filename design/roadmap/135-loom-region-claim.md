@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-18
+built: 2026-08-18
+---
 # 135. The region claim, under loom
 
-**Status: BUILT.** Raised and closed 2026-08-18, out of the double-free fix (pull request #316),
+Raised and closed 2026-08-18, out of the double-free fix (pull request #316),
 which closed the bug and said plainly which half of it was not gated. The gate is
 `script/interleaving-check`, which now covers `crates/regions` and searches 1,364 executions of the
 claim across five harnesses. **Verified it can fail**, twice and in two different places: deleting
@@ -124,8 +129,6 @@ already exists, and adds harnesses to a script that already exists.
   `notes/locking.md` are the separate arguments.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 `untyped::destroy` was not a single-winner claim, and pull request #316 fixed it by removing the
 slot under the same lock hold that decided to destroy it. That fix is argued from lock discipline

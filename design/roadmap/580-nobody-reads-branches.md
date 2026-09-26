@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-23
+built: 2026-09-23
+promoted_from: nobody-reads-branches
+---
 # 580. Nobody reads branches, so give the maintainer a command that does
 
-**Status: BUILT.** *(Number minted at promotion.)* Promoted from the proposal
+*(Number minted at promotion.)* Promoted from the proposal
 `nobody-reads-branches`, filed 2026-09-23, on calef's instruction of 2026-09-23 to give the two
 unnumbered proposals on `main` a number. The text below is the proposal's own, unedited except for
 this paragraph, the removal of its `**Gate: NONE.**` line and the two sections appended at the end:
@@ -288,8 +294,6 @@ widening cost.
   as out of scope and which stays with `merge-drain.sh`.
 
 ## Index row
-
-**Built:** 2026-09-23
 
 A branch with no open pull request is invisible to every watcher the tree had, and a 2026-09-23
 sweep found 25 of them, the oldest nine days old. This block separates that failure into four

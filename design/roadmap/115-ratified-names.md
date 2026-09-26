@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 115. The names that were ratified, and the ones that were refused
 
-**Status: BUILT** 2026-08-04 (pull request #116, merge `d1e6b1e9`). Raised 2026-08-04 by calef, asking
+Built 2026-08-04 (pull request #116, merge `d1e6b1e9`). Raised 2026-08-04 by calef, asking
 whether anything tracked the names he had ratified. Nothing did, and the same day produced the evidence
 for why it should. The status read `IN-PROGRESS since 2026-08-04, a developer holds it on
 milestone/115-ratified-names` for thirteen days after that merge; found 2026-08-17 by the
@@ -137,8 +142,6 @@ citations, and milestone 97 is the neighbouring case.
   naming the right thing.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 Nothing tracks calef's naming calls, and on 2026-08-04 a lane proposed `system_builder`, the
 maintainer endorsed it, and milestone 63 turned out to have refused it months earlier for a

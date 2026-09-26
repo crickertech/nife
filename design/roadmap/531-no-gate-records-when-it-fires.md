@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: no-gate-records-when-it-fires
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 531. No gate in this tree records when it fires, so its own retirement rule cannot be applied
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `no-gate-records-when-it-fires`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by a research lane calef briefed to ask what gate practices
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `no-gate-records-when-it-fires`, filed 2026-09-21, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by a research lane calef briefed to ask what gate practices
 this tree lacks, with the instruction that any gate must prove its worth, existing ones included.
 The lane read `script/lint`'s 47 named checks, the thirteen workflows, `notes/check-inventory.md`,
 `design/fatal-risks.md` and the failure records in `notes/`, and measured the git history for
@@ -8,7 +18,7 @@ evidence that each gate has caught a real defect. The 47 is derived rather than 
 (`grep -c '^echo "==>' script/lint`), because the number written into `notes/check-inventory.md` has
 already gone stale once and that file says to derive it.
 
-**Gate: DECISION.** Two of the three additions below change what every contributor runs, and the
+Two of the three additions below change what every contributor runs, and the
 third is a watcher rather than a gate. None should be built before calef rules on the first, because
 the first is what would decide whether the others are worth keeping a year from now.
 

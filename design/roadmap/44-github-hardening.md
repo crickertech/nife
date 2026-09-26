@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-08-04
+---
 # 44. GitHub repository hardening: policy, private reporting, code scanning, pull requests
 
-**Status: BUILT** 2026-08-04. The committable half landed 2026-07-30; calef applied the settings half
+Built 2026-08-04. The committable half landed 2026-07-30; calef applied the settings half
 the evening of 2026-08-04, and what was applied is recorded in §73 rather than only in a chat.
 Private vulnerability reporting is on, and the `main` ruleset is active with seven required checks,
 zero bypass actors, no linear-history rule, and branches required to be up to date before merging.
@@ -80,7 +85,5 @@ the ruleset itself is sequenced after this branch merges.
   diagnosed and fixed.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 a repository with a security thesis should be able to receive a report privately

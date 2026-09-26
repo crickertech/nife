@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-07-29
+---
 # 27. Rust `std` on the native ABI
-
-**Status: BUILT.**
 
 **In brief.** A custom target whose `std` builds: `Vec`, `String`, `println!`, `Instant`, allocation from the process's own untyped, stdio over the console endpoint, `fs`/`net` honestly `Unsupported` until capability-granted servers back them
 
@@ -65,7 +68,5 @@ the history here cannot bound). Off the thesis path, like 20 was: a reach the de
   "Honest caveats", where a reader writing a `std` program meets them.
 
 ## Index row
-
-**Built:** 2026-07-29
 
 widens "runs real workloads" by orders of magnitude

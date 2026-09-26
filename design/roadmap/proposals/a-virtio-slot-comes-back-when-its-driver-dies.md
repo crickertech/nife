@@ -1,13 +1,22 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A virtio slot should come back when its driver dies
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 198 (a package manager)'s rung 3a consumer
+Raised by milestone 198 (a package manager)'s rung 3a consumer
 lane, whose package-fetch test was the first thing to run the virtio device table out after its
 thirty-third slot: both QEMU legs panicked with `more virtio devices than MAX_DEVICES` in CI. The
 lane took the tenth bump (to 34) and wrote this down, because `kernel/src/virtio.rs`'s own comment
 on `MAX_DEVICES` names the unregister as "the next lane's work item" and a bump is not that.
 **Name provisional**: this file's stem is a lane's coinage.
 
-**Gate: DECISION.** Reusing a slot means a stale `Object::Virtio` capability must not resolve to the
+Reusing a slot means a stale `Object::Virtio` capability must not resolve to the
 device that took its slot next, which needs a generational name on the table, the machinery region
 slots and thread ids already use. That changes what a capability means, which DECISIONS §16 (object
 revocation) treats as a design fork rather than a task. The seventh receipt in the comment also

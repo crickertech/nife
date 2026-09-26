@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 346. The first RedoxFS pin bump, on the engine that holds backups
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 203's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `vendor/README.md` still pins RedoxFS at 0.9.1, upstream git sha
 `473b4baeb041ebe14504f30693393b1cae52558c`, and still lists the five divergences in the same order
@@ -9,7 +18,7 @@ procedure has still never been executed. How far upstream has moved since the 37
 `script/vendor-watch` reported cannot be re-measured without network, so whoever takes this re-runs
 the watch rather than quoting that number.
 
-**Gate: NONE.** Everything this needs exists: the pinned sha, the five recorded divergences,
+Everything this needs exists: the pinned sha, the five recorded divergences,
 `script/vendor-verify --write-patch`, the suite, and milestone 37's crash injector. One clause is
 calef's if it comes up, and it is named below rather than blocking the start.
 

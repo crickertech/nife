@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 341. Give the three instruments nothing runs a caller
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 232's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds, with one name corrected.** None of `script/interleaving-check`, `script/crate-probes` or
 `script/rule-violations --check` appears in `script/ci-build`'s check table, in any workflow under
@@ -10,7 +19,7 @@ person types them. **`script/gates` no longer exists**: milestone 286 retired it
 which tier a row takes rather than which script it joins. Milestone 286's own follow-on handed that
 stale name to the integrator, and this is where it is corrected.
 
-**Gate: DECISION.** Which of the three takes a `local` row in `script/ci-build`, which takes a `ci`
+Which of the three takes a `local` row in `script/ci-build`, which takes a `ci`
 row and which gets a cadence is calef's call, because two of them are expensive enough that "run it
 in CI" changes what a pull request costs. The measuring and the wiring are a lane's; the placement is not.
 

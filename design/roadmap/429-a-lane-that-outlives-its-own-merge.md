@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-18
+promoted_from: a-lane-that-outlives-its-own-merge
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 429. A lane that outlives its own merge, and the checklist line that would end it
 
-**Status: NOT-STARTED.** Promoted from the proposal `a-lane-that-outlives-its-own-merge`, filed
+Promoted from the proposal `a-lane-that-outlives-its-own-merge`, filed
 2026-09-18 by the maintainer when milestone 310's lane reported "ready for review, all gates green"
 about a pull request that had merged 18 hours earlier. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: NONE.** It is a line on a checklist and a habit, not code.
+It is a line on a checklist and a habit, not code.
 
 **Premise re-checked 2026-09-19 and still true.** `AGENTS.md`'s merge checklist still reads prune
 the worktree, delete the branch, relink `nife-dev`, `git worktree prune`, and every piece of

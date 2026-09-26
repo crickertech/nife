@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-19
+---
 # 370. A layout control, because the perturbation experiments cannot tell footprint from addresses
 
-**Status: BUILT 2026-09-19.** Filed as a proposal on 2026-09-04 out of the E3 session on radon,
+Filed as a proposal on 2026-09-04 out of the E3 session on radon,
 promoted by milestone 433 on 2026-09-19, built the same day. "What was built" below is the record;
 everything after it is the proposal's own argument, kept because it is why this exists.
 
@@ -195,8 +200,6 @@ itself: the result is milestone 134's radon evening.
   `bench-probe: fastpath_pad` line, `PAD_UNITS`, `SHIFT_BYTES` and `BUILD`.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 E3 compares two kernels that differ in one Cargo feature and reads the difference as the cost of the
 footprint that feature adds. The 2026-09-04 radon session proved that inference does not hold: six

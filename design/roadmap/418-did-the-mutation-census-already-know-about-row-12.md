@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-16
+promoted_from: did-the-mutation-census-already-know-about-row-12
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 418. Did the mutation census already know about row 12, and if so who read it
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `did-the-mutation-census-already-know-about-row-12`, filed 2026-09-16 by milestone 307, which broke
 `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit` and found it could not fail. *(Number
 provisional until the merge queue lands it.)*
 
-**Gate: NONE.** This is a measurement a lane can take with tools that exist, and it wants a lane
+This is a measurement a lane can take with tools that exist, and it wants a lane
 rather than an hour because the answer is not guessable from the tree.
 
 **Premise re-checked 2026-09-19, and the title's own question is answerable by reading, which

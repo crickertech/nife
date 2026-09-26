@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 557. A thread reads its own CPU from a page
 
-**Status: BUILT.** The number is **provisional**: the integrator mints it at merge, and 524 onward
+The number is **provisional**: the integrator mints it at merge, and 524 onward
 is contested between branches that cannot see each other.
 
 ## What this is
@@ -191,8 +196,6 @@ their own commit. Nothing else was.
   own `BUGS` section, where a caller meets it.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 A thread learns which core it is running on by loading a word from a page the kernel wrote, with no
 syscall, because the consumer that decides the shape is a memory allocator asking once per

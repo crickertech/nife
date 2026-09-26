@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-27
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 181. The foreign-language seam, extended to a process the shell calls more than once
 
-**Status: NOT-STARTED.** Minted 2026-08-27, calef, on hearing that milestone 169's own C-seam goal
+Minted 2026-08-27, calef, on hearing that milestone 169's own C-seam goal
 (DECISIONS §31's first real, load-bearing C program) had been quietly answered by building `kilo`
 in Rust instead. His reservation was not about `kilo` specifically: *"My only reservation is we
 need an answer to running open source programs we don't build."*
 
-**Gate: NONE.** The seam's per-call ABI (`(u8*, usize) -> u32`, DECISIONS §31 rule 2) does not need
+The seam's per-call ABI (`(u8*, usize) -> u32`, DECISIONS §31 rule 2) does not need
 to change; what has never been built is calling into an already-running C component's exported
 function more than once, with its own state persisting between calls the ordinary way a process's
 own memory persists between two function calls. That is an extension to an existing, working

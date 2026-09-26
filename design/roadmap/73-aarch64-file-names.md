@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 73. Name the aarch64 files aarch64, before x86_64 makes it worse
 
-**Status: BUILT (2026-08-03), both ISAs**, for the five pairs. `crates/paging/src/aarch64.rs` is
+Built (2026-08-03), both ISAs, for the five pairs. `crates/paging/src/aarch64.rs` is
 **deferred to calef**, because the replacement is a name and names are his call; the proposal is in
 the section below. Raised 2026-08-03 by calef, from the observation that files named when this was an
 aarch64-only kernel never got renamed when RISC-V arrived and brought explicitly named twins.
@@ -189,8 +194,6 @@ stem, not just the path.
   which is why the rule is "suffix a file that has a named twin" and not "suffix every unnamed file".
 
 ## Index row
-
-**Built:** 2026-08-03
 
 Five files carried a riscv name while their aarch64 twin carried none, so the unnamed one read as
 "the general case" and was not. Both sides now carry the ISA, and a sixth file the entry had

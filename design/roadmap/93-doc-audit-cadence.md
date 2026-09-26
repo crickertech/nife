@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-16
+---
 # 93. Documentation audits as a mechanism: the docs stay true to the tree
 
-**Status: BUILT** 2026-08-16. The mechanism is one row in milestone 92's cadence table, not a second
+Built 2026-08-16. The mechanism is one row in milestone 92's cadence table, not a second
 machine: `documentation` is a kind `script/audits` evaluates, `script/audits --worklist` answers the
 scope question this block left open (a heuristic, not a signal, and the reasoning is in
 [notes/documentation-audit.md](../../notes/documentation-audit.md)), and the procedure is written
@@ -71,8 +76,6 @@ or stays a sweep heuristic is a decision for whoever builds this. The index and 
   there says why that stayed a sweep heuristic instead of becoming a signal that fires.
 
 ## Index row
-
-**Built:** 2026-08-16
 
 92's sibling for claim rot: four stale claims were found in one day, every one by accident. Shares
 92's index, tripwire and dispositions by adding one cadence row; `script/audits --worklist` ranks

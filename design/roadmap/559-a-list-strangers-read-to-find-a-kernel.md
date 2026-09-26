@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-list-strangers-read-to-find-a-kernel
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 559. A list strangers read to find a kernel worth reading
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-list-strangers-read-to-find-a-kernel` on 2026-09-22, filed 2026-09-21. Raised by calef: *"Create a proposal to add nife or basalt to
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-list-strangers-read-to-find-a-kernel` on 2026-09-22, filed 2026-09-21. Raised by calef: *"Create a proposal to add nife or basalt to
 https://github.com/jubalh/awesome-os."*
 
-**Gate: DECISION.** Not because the work is hard, which is one line in somebody else's README, but
+Not because the work is hard, which is one line in somebody else's README, but
 because it is the category this project treats as irreversible: a fact that leaves the machine. A
 listing can be deleted; a stranger's first impression of this tree cannot, and neither can a claim
 they quote.

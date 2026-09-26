@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: real silicon; PMU cycle counter
+specific_machine: none
+needs_person: yes
+---
 # 168. A multi-tasking workload benchmark: the number that would decide the event-kernel question
 
-**Status: PARTIAL.** The instrument is built, gated and rehearsed on all three architectures.
+The instrument is built, gated and rehearsed on all three architectures.
 **Five boots of radon on 2026-09-16 produced numbers, and this block still does not turn `BUILT`**,
 because one of the six sweep points did not produce a number so much as a distribution. The measured
 curve and the reason are in "What five boots measured" below; the honest summary is that the
@@ -11,7 +20,7 @@ outstanding is one radon bench evening with the new instrument, by `notes/job-mi
 2026-09-04 by a lane with no board, which is what the gate below predicts rather than a shortfall
 against it. Minted 2026-08-25, from [DECISIONS §96](../decisions/96-process-kernel-or-event-kernel.md)'s own recommendation: *"Build the instrument that could decide it. The blocker is that a multi-tasking workload is the only place the difference appears, and we have none."*
 
-**Gate: HARDWARE.** Real silicon, and that is all. **Corrected 2026-09-04 by calef**; it read
+Real silicon, and that is all. **Corrected 2026-09-04 by calef**; it read
 `HARDWARE, MILESTONE 127` from 2026-08-25 until then, and the paragraph below explains why that was
 right when written and is not now.
 

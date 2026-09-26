@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 337. Nobody has drawn the capability-shaped way past one IPC round trip per file request
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 138's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** No `design/decisions/` entry draws this design: the only sections naming a page cache or
 `mmap` are §34 (RedoxFS primary) and §86 (whether an NVMe driver can leave the kernel), neither of which is about granting a
 client readable frames. Milestone 138's block still describes the ~13 us residual in prose at four
 sites, which is what "a frontier described in prose" means.
 
-**Gate: NONE.** Drawing the design is a lane's work and can start today: frames are already
+Drawing the design is a lane's work and can start today: frames are already
 capabilities, the residual is already measured, and the alternatives milestone 138 refused are
 already written down with their reasons. What the design *concludes* is a change to a contract two
 programs agree on, so it lands as a `design/decisions/` entry for calef rather than as code.

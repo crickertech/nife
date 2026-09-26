@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 240. The soak reports what happened and not where, so an eightfold difference cannot be explained
 
-**Status: BUILT** 2026-09-03. Minted the same day by calef, during the first bench session that ran
+Built 2026-09-03. Minted the same day by calef, during the first bench session that ran
 the soak on real silicon. *(Number provisional until the merge queue lands it.)*
 
 **In brief.** Two soak runs on **radon**, from the same card and the same build, twenty minutes apart:
@@ -105,8 +110,6 @@ in notes/soak.md.
   microkernel read for it rebalances at all, and nothing here reopens that question.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 two runs from one card differed 8x in IPC rate with the CPU proven identical, and nothing prints
 which core a thread landed on

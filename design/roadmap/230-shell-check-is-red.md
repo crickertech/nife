@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 230. `script/shell-check` is red on `main`, on both architectures, and nothing says so
 
-**Status: BUILT 2026-09-02.** Minted the same day by the maintainer, from milestone 192's (a
+Minted the same day by the maintainer, from milestone 192's (a
 keyboard on real silicon) lane, which found it while proving an unrelated boot path. *(Number
 provisional until the merge queue lands it.)*
 
@@ -243,7 +248,6 @@ accounting move together and want a lane of their own.
 - **The bisect is over first-parent merges**, so it names PR #556 rather than a commit inside it.
   `d1c81062` is identified by reading that branch, not by a boot at that commit.
 
-
 ## Follow-on
 
 - **Milestone 233.** `login` dies on every interactive boot on both architectures, at
@@ -286,8 +290,6 @@ accounting move together and want a lane of their own.
   home that now exists.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 init ran out of capability slots building the login stack; the table goes 17 -> 24 and the check
 now runs in `script/gates` and CI

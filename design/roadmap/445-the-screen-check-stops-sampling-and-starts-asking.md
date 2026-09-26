@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-20
+---
 # 445. The screen check stops sampling and starts asking
 
-**Status: BUILT** 2026-09-20. Minted 2026-09-20 by the maintainer, after calef chose option A among
+Built 2026-09-20. Minted 2026-09-20 by the maintainer, after calef chose option A among
 three put to him the same day. The ruling is
 [§199 (the screen check asks instead of sampling)](../decisions/199-the-screen-check-asks-instead-of-sampling.md);
 this block is what was built against it. *(Number provisional until the merge queue
@@ -177,8 +182,6 @@ next person meets it.
   `uefi_screen_esp_dir` and `uefi_kernel` in `xtask`; `Pl011::rx_waiting` and `Pl011::discard_rx`.
 
 ## Index row
-
-**Built:** 2026-09-20
 
 `cargo xtask uefi-boot` asserted milestone 243's claim by sampling a window that closes in guest
 time, so a loaded machine read zero rows and blamed the framebuffer. The kernel is asked to hold the

@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: the-disk-an-installer-names-has-no-model
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 569. The disk an installer names has no model, only a size
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-disk-an-installer-names-has-no-model` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `the-disk-an-installer-names-has-no-model` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible) while building the install offer, and
 filed rather than built because the half that a *program* needs is a wire shape and that is not a
 lane's to mint.
 
-**Gate: DECISION.** Only for the second half. The kernel-side half below needs no ruling and could
+Only for the second half. The kernel-side half below needs no ruling and could
 start today; what waits on calef is whether a process that is not the kernel may be told a
 controller's identity, which is the same question milestone 421 (the block roster cannot name an
 NVMe disk) is already held on.

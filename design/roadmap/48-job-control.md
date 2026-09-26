@@ -1,8 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-07-31
+milestone_dependencies: 47
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 48. Job control: `jobs`, `wait`, `kill`, `fg`, `bg`, and a stopped state
 
-**Status: NOT-STARTED.**
-
-**Gate: DECISION, MILESTONE 47.** Phase one is sequenced after 47, because it wants `jobs`
+Phase one is sequenced after 47, because it wants `jobs`
 alongside the other builtins on the same shell surface. Phase two is `Tcb::SUSPEND`/`RESUME`, which
 DECISIONS §24 deferred, so it is a kernel-surface fork for calef; the block asks for it to be
 designed as one surface with the fault endpoint and for all three of §24's triggers at once.

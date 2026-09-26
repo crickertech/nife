@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 221. The soak never crosses cores, so build the hook that makes it
 
-**Status: BUILT** (2026-09-02). Minted 2026-09-02 by the maintainer, the moment calef approved
+Built (2026-09-02). Minted 2026-09-02 by the maintainer, the moment calef approved
 option D in DECISIONS 138 (how a saturated workload is made to hand threads across cores). *(Number
 provisional until the merge queue lands it.)*
 
@@ -137,8 +142,6 @@ are bound before the first waiter; only the signalling is switched on last.
   `design/roadmap/221-a-soak-that-crosses-cores.md`.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 `sched::on_tick` signals a routed rendezvous under `--features soak` and one worker per group
 blocks on it through the `Irq::WAIT` a device driver already uses, so a tick runs the whole real

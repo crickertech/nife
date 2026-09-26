@@ -1,12 +1,21 @@
+---
+status: PARTIAL
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: x86_64 silicon with two VT-d units and RMRRs
+specific_machine: none
+needs_person: yes
+---
 # 594. Every VT-d unit translates its own devices
 
-**Status: PARTIAL.** *(Number provisional: minted by the lane, to be confirmed at merge.)* Promoted
+*(Number provisional: minted by the lane, to be confirmed at merge.)* Promoted
 on 2026-09-25 from the proposal `every-vt-d-unit-translates-its-own-devices`, which milestone 261
 (the NVMe driver leaves the kernel)'s bench rehearsal filed on 2026-09-24. It also closes milestone
 378 (read the DMAR on xenon)'s third item, carrying more than one DRHD. Built and proven on
 patagonia; what is left needs xenon.
 
-**Gate: HARDWARE.** Of the second kind: the machine exists and somebody has to be at it. QEMU
+Of the second kind: the machine exists and somebody has to be at it. QEMU
 presents one VT-d unit and no RMRRs, so the two-unit route and the RMRR path are proven on host
 tables and run for the first time on xenon.
 

@@ -1,11 +1,20 @@
+---
+status: RECORDED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 244. The largest crate in the tree is proved by nothing a mutation can reach
 
-**Status: RECORDED.** Measured and deliberately not built: this block's own "what would make this
+Measured and deliberately not built: this block's own "what would make this
 milestone wrong" clause fired. Minted 2026-09-03 by calef, from milestone 238's (the scheduled checks
 that never run) first published mutation report; measured and closed 2026-09-03 by the lane on
 `milestone/244-system-initializer`.
 
-**Gate: NONE.** Nothing is missing; what is missing is a way for a test to reach the code.
+Nothing is missing; what is missing is a way for a test to reach the code.
 
 ## What the lane was asked to do, and what it found
 

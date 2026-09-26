@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A typed prompt outruns the undertaker, and the job pool fills with holes
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 590 (the booted system starts its network stack)'s lane, which ran
+Raised by milestone 590 (the booted system starts its network stack)'s lane, which ran
 `script/swish-check --arch riscv64` repeatedly and found it failing on a line its change does not
 touch.
 
-**Gate: NONE.** Measurement first; the remedy is not chosen here.
+Measurement first; the remedy is not chosen here.
 
 ## The finding
 

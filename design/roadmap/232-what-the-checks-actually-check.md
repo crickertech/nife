@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-03
+---
 # 232. Audit every check against two questions: does anything run it, and does it block
 
-**Status: BUILT 2026-09-03.** Minted 2026-09-02 by calef, after four independent findings in one
+Minted 2026-09-02 by calef, after four independent findings in one
 day, each a different way for this tree's verification to report something that was not true.
 *(Number provisional until the merge queue lands it.)*
 
@@ -138,8 +143,6 @@ inventory to answer it with.
   stands GREEN on a hand-run instrument meanwhile.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 `notes/check-inventory.md`: 19 check names reach a pull request and 11 block; the mutation
 workflow behind fatal risk 3 has never once succeeded, Miri is red on a missing environment

@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 279. Documentation search is a shell builtin, so a second shell has none
 
-**Status: NOT-STARTED.** Minted 2026-09-13 by calef, from his own question while ratifying
+Minted 2026-09-13 by calef, from his own question while ratifying
 `crates/manual`'s name: if the search is built into swish, is there no documentation search with a
 different shell? There is not. *(Number provisional until the merge queue lands it; 278 is in flight
 ahead of it.)*
 
-**Gate: NONE.** calef decided the shape when he raised it: loosen the coupling with a service rather
+calef decided the shape when he raised it: loosen the coupling with a service rather
 than record it as a limitation. What is still his at build time is the wire format and the protocol
 crate's name, like every other thing two programs agree on.
 

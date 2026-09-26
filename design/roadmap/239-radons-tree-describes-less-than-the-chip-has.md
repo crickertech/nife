@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: radon (the device tree radon's own firmware hands over is the subject)
+needs_person: yes
+---
 # 239. radon's device tree does not describe the TRNG, so a working driver never runs
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from the first bench session that ran milestone
+Minted 2026-09-03 by calef, from the first bench session that ran milestone
 159's (a real hardware entropy source: the JH7110's TRNG) driver on the board it was written for.
 **The premise in that title is false and the title is kept anyway**, because milestone 241 (what a
 fourth board would have to be for, so that GICv3 is bought rather than justified) cites this
@@ -10,7 +19,7 @@ milestone 218's (every boot of the VisionFive 2 needs a human typing four comman
 precedent exactly: **a route was taken on 2026-09-03 and radon was powered off, so the status says
 what the outcome is rather than what was built.**
 
-**Gate: HARDWARE.** Everything that does not need the board is built, host-tested and merged; what
+Everything that does not need the board is built, host-tested and merged; what
 remains is two commands at a U-Boot prompt and one boot, and QEMU cannot stand in, because the
 `virt` machine has no JH7110 anything.
 

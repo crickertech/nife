@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: the-machine-description-should-say-the-screen-geometry
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 411. The machine description should say the screen's geometry, not just its address
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `the-machine-description-should-say-the-screen-geometry`, filed 2026-09-14 by milestone 268's lane
 while writing `kernel/src/console.rs`'s `print_summary`. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: NONE.** It reads the tree and touches one function.
+It reads the tree and touches one function.
 
 **Premise re-checked 2026-09-19 and still true, to the line.** `console::print_summary` still prints
 `and a screen, {len} bytes of framebuffer at {pixels}` out of the two fields `KernelConsole::screen`

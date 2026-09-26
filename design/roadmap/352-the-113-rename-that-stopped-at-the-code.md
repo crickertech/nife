@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 352. DECISIONS 113's rename reached the code and stopped there
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal while fixing milestone 133's
+Filed 2026-09-03 as an unnumbered proposal while fixing milestone 133's
 block for the same reason; numbered 2026-09-19 by milestone 433. **Premise re-checked and re-measured
 2026-09-19 and it holds.** `notes/tcb.md` is still named for a retired word and is still indexed in
 `notes/README.md` as "The TCB". Counting only the seven retired spellings that cannot collide with
@@ -11,7 +20,7 @@ milestone 158's own block, which is the account of the rename and keeps them: **
 need a reader rather than a grep, so the two numbers are not comparable and neither is the smaller
 one a claim that the residue has shrunk.
 
-**Gate: NONE.** It is a rename with a decided target vocabulary and no open question.
+It is a rename with a decided target vocabulary and no open question.
 
 **What the work is.** DECISIONS §113 (eleven kernel object and identifier names move from contraction
 or borrowed jargon to the plain, standard term) was decided by calef on 2026-08-23, after he said the

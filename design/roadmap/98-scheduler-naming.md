@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-23
+---
 # 98. The scheduler that stopped scheduling: name what `SCHED` actually guards
 
-**Status: BUILT (2026-08-23), both ISAs.** Raised 2026-08-04 by calef as an abbreviation question
+Built (2026-08-23), both ISAs. Raised 2026-08-04 by calef as an abbreviation question
 (`sched` or `scheduler`?), and rewritten the same hour when the question "what does `sched`
 schedule?" turned up a better answer: **increasingly, nothing.**
 
@@ -92,8 +97,6 @@ need its own entry: `sched` stays, because the module really does schedule.
   milestone's hundred in one.
 
 ## Index row
-
-**Built:** 2026-08-23
 
 Decided (DECISIONS §118): `Scheduler`/`SCHED` renamed to `IpcTables`/`IPC_TABLES` throughout `kernel/src/sched.rs`, the lock rank constant, and every doc comment across `kernel/src`/`crates`
 naming the lock. The module keeps `sched` (it really does schedule). `notes/sched-lock-inventory.md` renamed to `notes/ipc-tables-lock-inventory.md` last, per the

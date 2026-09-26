@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 146. NFS: serve and connect to network file systems
 
-**Status: NOT-STARTED.** Minted 2026-08-21 by calef, as the other network file protocol milestone 54's
+Minted 2026-08-21 by calef, as the other network file protocol milestone 54's
 options table left explicitly *possible* and neither milestone 54 nor 55 would build. NFS is the
 general-purpose network file system: a Mac can mount it, Linux and every BSD already does, and a
 NAS on the same LAN serves it natively.
 
-**Gate: NONE.** The adapter pattern is proven (milestone 54), `fs_proto` is stable, the network
+The adapter pattern is proven (milestone 54), `fs_proto` is stable, the network
 stack runs, and the protocol is a published spec rather than a design fork. Nothing structural
 stops a lane starting on either half; whether the first half is the server or the client is a
 sequencing decision, not a dependency.

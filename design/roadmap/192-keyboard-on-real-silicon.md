@@ -1,12 +1,21 @@
+---
+status: PARTIAL
+raised: 2026-08-30
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 192. A keyboard on real silicon: the input half of every graphical story, which nothing owns
 
-**Status: PARTIAL.** Minted 2026-08-30, discovered while tracing journey 3 (login to `kilo` on
+Minted 2026-08-30, discovered while tracing journey 3 (login to `kilo` on
 real silicon) the way journey 1's trace discovered milestone 177 (wire the graphical terminal stack
 into the real interactive boot). **Option A's wiring built 2026-09-02**
 (`milestone/192-keyboard-silicon`); see "What option A's lane built" below, and the paragraph after
 it on why the status stops here rather than at BUILT.
 
-**Gate: NONE.** **Decided 2026-08-30 by calef:** *"we will do Option A first and follow with Option B
+**Decided 2026-08-30 by calef:** *"we will do Option A first and follow with Option B
 later."* Both options are in scope; the decision is their order, not a choice between them.
 
 ## What done looks like, and option A does not meet it

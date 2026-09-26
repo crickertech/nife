@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 438. Would a diff-scoped mutation check have caught the 55, and what would it cost
 
-**Status: BUILT 2026-09-19.** The answer is **no**, and the reason is not the one this block
+The answer is **no**, and the reason is not the one this block
 expected: the decisive measurement came back negative because **the premise was false**. Milestone
 319's pull request did not introduce 55 survivors. It introduced four. *(Number provisional until
 the merge queue lands it.)*
@@ -215,8 +220,6 @@ irreversible half.
   instrument for the standing corpus; this is only about the derivative.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Measured and refused. Replaying `cargo mutants --in-diff` against milestone 319's pull request
 reports four survivors where the census of 2026-09-19 attributed 55 to it, and a full sweep of the

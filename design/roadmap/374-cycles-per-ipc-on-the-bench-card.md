@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: 74
+decision_dependencies: none
+machine_requirements: riscv64 silicon; PMU cycle counter
+specific_machine: none
+needs_person: yes
+---
 # 374. Cycles per IPC on the bench card, so E3's verdict is not a 250 ns quantum
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane;
+Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane;
 promoted by milestone 433 on 2026-09-19. Checked against the tree that day. `bench::timed` still
 reads `arch::timer::now()` and still prints one tick count per row, so every row a bench card prints
 is a `rdtime` tick and on the JH7110 that is still a 250 ns quantum. What has arrived since is the
@@ -9,7 +18,7 @@ cycles on all three architectures now (milestone 74's riscv64 half, milestone 30
 radon printed `cycles_per_tick 250.00` on 2026-09-16, which converts a tick but does not subdivide
 one. The rows this file names still have no cycle column.
 
-**Gate: MILESTONE 74, HARDWARE.** Milestone 74's riscv64 half landed 2026-09-04
+Milestone 74's riscv64 half landed 2026-09-04
 (`kernel/src/arch/riscv64/pmu.rs`), so the counter exists; what is left is wiring it into
 `kernel/src/bench.rs`'s rows and a bench session on radon to read them. Nothing here is blocked on
 design.

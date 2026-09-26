@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-09-01
+---
 # 212. `script/falsifications` walks `crates/` only, so the ratio it prints is not the tree's
 
-**Status: BUILT** 2026-09-01. Minted 2026-08-31 from milestone 197's (`user/` and `xtask` are out of
+Built 2026-09-01. Minted 2026-08-31 from milestone 197's (`user/` and `xtask` are out of
 reach of the prover) lane. *(Number provisional until the merge queue lands it.)*
 
 **What it found.** The walk comes from `cargo metadata` now, and the correction is smaller than the
@@ -75,7 +80,6 @@ quietly excludes them.
   `user/src` holds two such files today and neither carries a harness; `--check` reports the mismatch
   rather than accepting it silently.
 
-
 ## Follow-on
 
 - **Milestone 210.** A kernel *test* falsification stays unsweepable, because no kernel test can be
@@ -95,8 +99,6 @@ quietly excludes them.
   `--check` reports the mismatch rather than accepting it silently.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 Found by milestone 197's lane. §134 calls the `unfalsified` count the claim's honest denominator,
 and it is currently the wrong one: milestone 197's record under `user/` is uncounted, milestone

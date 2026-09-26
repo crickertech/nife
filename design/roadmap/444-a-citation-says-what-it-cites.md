@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 444. A citation says what it cites, so a number stops being the identity
 
-**Status: BUILT.** Minted 2026-09-19 by the maintainer, on calef's ruling the same day:
+Minted 2026-09-19 by the maintainer, on calef's ruling the same day:
 *"add the gloss ratchet and launch a lane to address the 17% that fail today."* Built the same day.
 *(Number provisional until the merge queue lands it.)*
 
@@ -122,8 +127,6 @@ where `design/naming.md`'s rule that a dated record keeps its words applies.
   out to want an exemption.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 calef ruled on 2026-09-19 that a citation added by a commit must say what it cites. The ratchet is
 `script/citations --ratchet` in `script/lint`, per number per file, read from the diff: a median of

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-04
+---
 # 65. A secrets service: hold the key, expose the operation, never the key
 
-**Status: BUILT.** Merged 2026-08-04 (pull request #125; the `cred` crates and credentialer are on main). The status said IN-PROGRESS for eleven days after the merge, found 2026-08-15 alongside milestone 107's identical staleness. Raised 2026-08-01, from a question about MD4 and MD5 that turned out to be
+Merged 2026-08-04 (pull request #125; the `cred` crates and credentialer are on main). The status said IN-PROGRESS for eleven days after the merge, found 2026-08-15 alongside milestone 107's identical staleness. Raised 2026-08-01, from a question about MD4 and MD5 that turned out to be
 asking something else.
 
 ## The observation that reframes it
@@ -106,8 +111,6 @@ login would use `verify`; and anything later that signs.
   restarting the service and reprovisioning every other. `notes/credentials.md`.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 NTLMv2 does not verify a presented secret, it **computes with a key**, so §54's verifier shape
 does not fit it. Generalises the credentialer into a software HSM. Blocks milestone 55

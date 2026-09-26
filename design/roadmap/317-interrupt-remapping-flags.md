@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 317. The interrupt-remapping flags, and where MSI confinement actually lives
 
-**Status: BUILT.** Minted by the maintainer on 2026-09-17 out of
+Minted by the maintainer on 2026-09-17 out of
 [DECISIONS §86](../decisions/86-el0-nvme-driver.md)'s research pass, which found the gap while
 pricing an EL0 NVMe driver. *(Number provisional until the merge queue lands it.)*
 
@@ -345,8 +350,6 @@ Compare the device trees the two GIC versions produce, which is how the table ab
   exists, in the same `BUGS` section, pointing at milestone 143's hardware gate.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 An MSI is a memory write to a special address, so DMA remapping does not confine it and a component
 that can write a device's MSI-X table can aim an interrupt at a vector it was never given. DECISIONS

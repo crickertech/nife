@@ -1,12 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: x86_64 silicon with PCID
+specific_machine: none
+needs_person: yes
+---
 # 271. Measure `CR4.PCIDE`, and settle the ASID-tagging skip it leaves on x86_64
 
-**Status: NOT-STARTED.** Minted 2026-09-10 by calef, from the live skip inventory. Raised as
+Minted 2026-09-10 by calef, from the live skip inventory. Raised as
 **Outstanding** in milestone 161 (the x86_64 kernel port), checked 2026-09-03 and still
 unmeasured, and referenced but not answered by milestone 186 (derive the architecture list),
 whose only claim on it is that the bench-tooling caller for the x86 baseline is one of its eleven
 silent gaps. *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names: xenon is here and this
+In the second sense `notes/roadmap.md` names: xenon is here and this
 needs an evening at it. PCID's whole benefit is a TLB that survives a `mov cr3`, and the only
 instrument this tree points at x86_64 counts instructions. QEMU's softmmu TLB is not tagged, so it
 charges for the added gate and credits nothing for the removed flush, which is not a prediction: it

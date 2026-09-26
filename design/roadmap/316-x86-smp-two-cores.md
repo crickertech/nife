@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 316. Which core booted: making `NIFE_SMP=2` mean something on x86_64
 
-**Status: BUILT 2026-09-17.** Built by a lane on `milestone/316-x86-smp-two-cores`.
+Built by a lane on `milestone/316-x86-smp-two-cores`.
 *(Number provisional until the merge queue lands it.)*
 
 `arch::x86_64::ap_boot`'s `BUGS` #3 is fixed at its root, both of its symptoms are gone, and the
@@ -187,8 +192,6 @@ than an answer to it.
   Boot it several times; one boot decides nothing, since the defect is intermittent under TCG too.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `arch::x86_64::boot_cpu_id` recomputed `CPUID` leaf 1's initial local APIC id on every call, which
 answers "which core am I" where every caller wants "which core booted"; the two agree only while

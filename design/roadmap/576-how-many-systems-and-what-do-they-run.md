@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-22
+milestone_dependencies: 198
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 576. How many systems are out there, and what do they run
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Minted
+The number is **provisional**: the integrator mints it at merge. Minted
 2026-09-22 at calef's request: *"We want to know system count and packages subscribed to... the
 metrics will help us make and maintain a better product if we know what people are using."*
 
-**Gate: MILESTONE 198, DECISION.** There is nothing to count until something installs, so this
+There is nothing to count until something installs, so this
 waits on milestone 198 (a package manager, and the trivial install that makes a second customer
 possible); and what leaves a stranger's machine is the irreversible category this tree is most
 careful about, so the shape of the report is calef's.

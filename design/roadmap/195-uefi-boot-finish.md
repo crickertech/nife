@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-09-02
+---
 # 195. Finish the UEFI boot path: the suite under firmware, the memory it gives back, and a second core
 
-**Status: BUILT** (2026-09-02). Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine)
+Built (2026-09-02). Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine)
 lane, whose three ordinary handoffs otherwise lived only in a pull request body.
 
 **In brief.** The UEFI loader boots the kernel's tour under OVMF and, once calef has run it, on the
@@ -102,8 +107,6 @@ the bus and places every BAR before nife exists:
   cannot name a 64-bit one.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 The kernel suite runs under OVMF now (`cargo xtask uefi-test`): the same 192 passes and the same
 68 skips as under PVH. Boot-services memory and the loader's own code come back, 36 MiB of a 2 GiB

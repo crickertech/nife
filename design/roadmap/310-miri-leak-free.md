@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+---
 # 310. The Miri leak check stays on, and the test pool it caught cannot leak again
 
-**Status: BUILT 2026-09-17.** Built by a lane on `milestone/310-miri-leak-free`.
+Built by a lane on `milestone/310-miri-leak-free`.
 *(Number provisional until the merge queue lands it.)*
 
 `.github/workflows/undefined-behavior-check.yml` had **never once succeeded**. Five scheduled runs
@@ -153,8 +158,6 @@ and the crate's other thirty pass unchanged.
   second fix went up a rung.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `.github/workflows/undefined-behavior-check.yml` had **never once succeeded**, five scheduled runs
 red since 2026-08-11, and the cause was never undefined behaviour: `crates/paging`'s domain tests

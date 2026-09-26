@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: 75
+decision_dependencies: 167
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 147. A profiler that holds exactly the counters it was granted
 
-**Status: NOT-STARTED.** Minted 2026-08-21 by calef, from a question about HPC differentiation:
+Minted 2026-08-21 by calef, from a question about HPC differentiation:
 what would a performance-analysis story look like that CrayPat, Intel VTune and Linaro Forge cannot
 tell, given that all three are built on their host OS's ambient perf-counter interface
 (`perf_event_open` or a vendor driver reachable by any sufficiently-privileged process).
 
-**Gate: MILESTONE 75, DECISION §167.** Milestone 75 (cycle counter authority) asks the prior question (whether the cycle counter
+Milestone 75 (cycle counter authority) asks the prior question (whether the cycle counter
 is ambient or a capability) for one consumer (`sel4bench`), and **that question was answered on
 2026-09-02 while this gate went on deferring to it**:
 [§139](../decisions/139-cycle-counter-authority.md) (who may read the cycle counter, and by what

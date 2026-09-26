@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-14
+---
 # 10. A shell at EL0, and processes spawned on command
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `61ed8c2` (2026-07-14), the rung the
 original table called "proof the whole stack works," and the commit claims exactly that: four
@@ -34,7 +37,5 @@ shell has since become is milestones 31, 47, and 67's story.
   niceties that started the next day (echoing keystrokes) rather than a grammar anyone designed.
 
 ## Index row
-
-**Built:** 2026-07-14
 
 proof the whole stack works: every keystroke is a conversation between processes

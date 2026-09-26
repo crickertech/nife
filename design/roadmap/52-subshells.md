@@ -1,8 +1,15 @@
+---
+status: RECORDED
+raised: 2026-07-31
+milestone_dependencies: none
+decision_dependencies: 160
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 52. Subshells without `fork`, and what copying an endowment means
 
-**Status: RECORDED.**
-
-**Gate: DECISION §160.** Recorded and deliberately not designed: calef asked to design this one
+Recorded and deliberately not designed: calef asked to design this one
 together, and the block says not to build from it without that conversation. It was also sequenced
 after milestone 50, which is BUILT as of 2026-08-14's status catch-up, so that half of the gate is
 satisfied and what remains is exactly the conversation: 50's landing removed most of the

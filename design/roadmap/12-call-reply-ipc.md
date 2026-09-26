@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-22
+built: 2026-07-22
+---
 # 12. Call/Reply IPC: a one-shot reply capability
-
-**Status: BUILT.**
 
 **In brief.** Reply-to-caller as a kernel guarantee. **Built, §12.**
 
@@ -31,7 +34,5 @@ and gives it its own numbered §.
   the syscall-surface widening it named all landed, and it names nothing left over.
 
 ## Index row
-
-**Built:** 2026-07-22
 
 the IPC the TCB must get right

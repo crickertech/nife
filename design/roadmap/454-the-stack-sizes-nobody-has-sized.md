@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 90, 124, 448
+---
 # 454. The two stack sizes this tree has parked rather than measured
 
-**Status: REFUSED.** Refused by
+Refused by
 milestone 124 (design/roadmap/124-a-thread-is-born-where-it-lives.md),
 milestone 90 (design/roadmap/90-secondary-stack-guard.md), and recorded there on 2026-09-03. Backfilled here on
 2026-09-20 by milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal

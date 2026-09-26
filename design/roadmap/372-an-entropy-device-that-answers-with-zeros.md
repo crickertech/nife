@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 372. Nothing in QEMU can hand the entropy service a bufferful of zeros
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the
+Filed as a proposal on 2026-09-04 by the
 `maintainer/ready-on-a-dead-device` lane; promoted by milestone 433 on 2026-09-19. Checked against
 the tree that day and unchanged in both directions. `entropy_protocol::readiness` still refuses
 `READY` on an all-zero first bufferful and still has that decision tested only on the host
@@ -9,7 +18,7 @@ of any kind: the aarch64 runner's only mention of one is a comment saying QEMU d
 host's `/dev/urandom`. The two consumers of the readiness word, `components/src/entropy.rs` and
 `components/src/jh7110_entropy.rs`, still have no machine that can make either of them fail.
 
-**Gate: NONE.** QEMU already has the device (`-object rng-random,filename=/dev/zero`), the service
+QEMU already has the device (`-object rng-random,filename=/dev/zero`), the service
 already has the check, and the only new thinking is how a wiring names *which* virtio-rng it wants.
 
 **What the work is.** `entropy_protocol::readiness` decides the readiness word from the first bufferful,

@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: an-event-counter-driver-for-m6-to-m8
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: aarch64 and riscv64 silicon; PMU event counters
+specific_machine: none
+needs_person: yes
+---
 # 503. An event-counter driver, so milestone 134 (the register of measures)'s M6 to M8 have an instrument
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `an-event-counter-driver-for-m6-to-m8`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Written by milestone 134's per-IPC stack-depth lane, which re-checked tier B against the tree
 after milestone 74 (cycle counters)'s aarch64 half landed (PR #972).
 
-**Gate: HARDWARE.** The code can be written and exercised under QEMU, but QEMU counts no cache or
+The code can be written and exercised under QEMU, but QEMU counts no cache or
 TLB event that means anything; the reading needs radon and argon.
 
 **In brief.** Milestone 134's M6 (I-cache misses per IPC), M7 (D-cache misses, and whether they fall

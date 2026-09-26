@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-15
+built: 2026-09-15
+---
 # 300. Decompose the icount baseline drift, and re-baseline only what is proven
 
-**Status: BUILT.** 2026-09-15. *(Number provisional until the merge queue lands it.)* Re-saving a
+Built 2026-09-15. *(Number provisional until the merge queue lands it.)* Re-saving a
 baseline commits a new performance floor, which is calef's call like any baseline save; this
 milestone was briefed with that latitude and executes Decision 1 of the finding below. Decision 2
 stays open for calef as the follow-on.
@@ -130,8 +135,6 @@ milestone removes, so x86_64's baseline is re-saved against its recovered number
   which came back ~0. If a future QEMU does move icount, this method still separates it.
 
 ## Index row
-
-**Built:** 2026-09-15
 
 Decomposed the ~+6.5% icount drift over the 2026-08-27 baselines into QEMU (~0), toolchain (~0), and
 code components, refuting the proposal's nightly-codegen hypothesis: the whole move bisected to one

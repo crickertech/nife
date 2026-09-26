@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-05
+milestone_dependencies: 66
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 387. A TLS stack, and the fork is not "OpenSSL or not" but what we are trying to prove
 
-**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after calef asked
+Filed 2026-09-05 as an unnumbered proposal, written after calef asked
 whether a milestone covered OpenSSL; numbered 2026-09-19 by milestone 433's drain of the proposal
 pile. **Premise re-read against the tree on 2026-09-19 and still true.** There is still no TLS: no
 `rustls`, no `ring`, no `aws-lc-rs` and no OpenSSL anywhere in `Cargo.lock`, and the crypto surface
@@ -11,7 +20,7 @@ below are still `NOT-STARTED` (66, 99, 174, 198), so the reason this was filed a
 than a milestone, that nothing is blocked on it, is unchanged.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: MILESTONE 66.** That gate covers the server half only; the client half is gated on nothing
+That gate covers the server half only; the client half is gated on nothing
 and could start today, which the table below sets out. Neither is urgent, and this is a proposal
 rather than a milestone for one reason: **nothing is blocked on it today.**
 

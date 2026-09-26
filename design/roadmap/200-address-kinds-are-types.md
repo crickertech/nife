@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 200. A virtual address and a physical address stop being the same type
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, out of milestone 196's (a physical address on
+Minted 2026-08-31 by calef, out of milestone 196's (a physical address on
 `elf::Segment`) naming discussion, when the question *"what is wrong with the tree-wide refactor"*
 turned out to have no answer on merit. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Nothing needs deciding. The names are ratified below and the sequencing constraint is
+Nothing needs deciding. The names are ratified below and the sequencing constraint is
 practical rather than a fork.
 
 **In brief.** Physical and virtual addresses are bare `u64` everywhere in this tree: `paging`,

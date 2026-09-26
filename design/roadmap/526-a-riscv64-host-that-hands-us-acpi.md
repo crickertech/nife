@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: a-riscv64-host-that-hands-us-acpi
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 526. A riscv64 host that hands this kernel ACPI instead of a device tree
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-riscv64-host-that-hands-us-acpi`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `a-riscv64-host-that-hands-us-acpi`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number provisional until the merge queue lands
 it; the slug is provisional too, like every name a lane mints.)*
 
-**Gate: NONE.** Nothing has to be bought, rented or decided first. QEMU's `riscv64` `virt` machine
+Nothing has to be bought, rented or decided first. QEMU's `riscv64` `virt` machine
 already generates the tables: its manual documents an `acpi` machine option and says *"When this
 option is 'on' (which is the default), ACPI tables are generated and exposed as firmware tables
 etc/acpi/rsdp and etc/acpi/tables"*

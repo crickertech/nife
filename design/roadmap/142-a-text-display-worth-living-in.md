@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-20
+milestone_dependencies: 141
+decision_dependencies: 166
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 142. A text display good enough that people use it instead of a GUI
 
-**Status: PARTIAL.** Minted 2026-08-20 by calef, on seeing the Kaypro-style font land:
+Minted 2026-08-20 by calef, on seeing the Kaypro-style font land:
 *"I would like to explore a really awesome text display and not a grainy one like we get with
 Kaypro II... the idea would be to deliver a text display so good that people would use it outside
 of a GUI."*
 
-**Gate: MILESTONE 141, DECISION §166.** Milestone 141 (a palette) owns the palette property check, and a palette
+Milestone 141 (a palette) owns the palette property check, and a palette
 cannot be chosen before the check saying which palettes are admissible exists. The
 decision is the font and the dependency that renders it. **Half of that was taken on
 2026-08-20 and this gate did not say so until 2026-09-19**:

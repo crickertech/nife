@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 443. Lanes wait on each other for three reasons, and none of them is the work
 
-**Status: BUILT** 2026-09-19. Minted 2026-09-19 by the maintainer, on calef's question: *"Is there
+Built 2026-09-19. Minted 2026-09-19 by the maintainer, on calef's question: *"Is there
 any way to decouple all of this so that we don't have to sequence?"* *(Number provisional until the
 merge queue lands it.)*
 
@@ -179,8 +184,6 @@ reported, and that the later lander takes the next free numbers instead of displ
   ask written on the pull request.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Eleven pull requests in flight, four blocked at once, and none of the blocks about the code in them:
 a committed 441-row generated index that every milestone rewrites, a gate reading that derived file

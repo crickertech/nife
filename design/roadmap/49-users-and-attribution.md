@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-08-27
+---
 # 49. Users, login, and attribution: what identity is for once it stops being authority
 
-**Status: BUILT.** A login service exists, proven end to end (see "What is built" below), and it
+A login service exists, proven end to end (see "What is built" below), and it
 authenticates against the credential service milestone 56 already built. **It is now wired into the
 real interactive boot, on both ISAs.** `crates/system_initializer::boot` builds `credentialer`,
 `identity_provisioner` and `login` (plus `audit_sink`, which drains `login`'s own audit trail so its
@@ -383,8 +388,6 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
   the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-27
 
 three of Unix's four uses for a uid are already answered structurally; the fourth, attribution, is
 a channel (DECISIONS §109). `login` is wired into the real interactive boot on both ISAs,

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-04
+---
 # 255. A quarter of `kernel/src/arch/` has no assembly in it, and none of it is proved
 
-**Status: BUILT 2026-09-04.** Minted the same day by calef, from `design/fatal-risks.md` risk 2's
+Minted the same day by calef, from `design/fatal-risks.md` risk 2's
 remaining amber, and built in this branch; notes/kernel-proofs.md is the record.
 *(Number provisional until the merge queue lands it.)*
 
@@ -93,7 +98,6 @@ integers, which is exactly what a bounded model checker is good at and what a bo
 a wrong entry that still confines *this* device on *this* machine is invisible to every test in the
 tree.
 
-
 **`x86_64/machine.rs` walks somebody else's tables.** ACPI's RSDP, XSDT and MCFG arrive from firmware
 and are untrusted input in the sense that matters: a length field, a checksum, a count. notes/x86-uefi-boot.md
 records that under OVMF the kernel read a 118-descriptor memory map and a revision-2 RSDP where PVH
@@ -172,8 +176,6 @@ Not a survey of what could be proved, and not a harness over a function moved ou
   milestone was minted to remove. It also could not be run: see the proposal above.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 two harnesses over the SMMUv3's stream table and context descriptor, both replayably falsified;
 and `cargo kani -p kernel` turns out to compile only the host's `arch/`

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: 181
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 397. `script/bootstrap` installs what is missing, and also judges whether the machine is good enough
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
+Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
 a failure that milestone measured on its own container; numbered 2026-09-19 by milestone 433's drain
 of the proposal pile. **`script/bootstrap` was re-read on 2026-09-19. The conflation is unchanged
 and the measurement that argued for it has weakened**, which is worth separating. Still true: the
@@ -13,7 +22,7 @@ shape rather than the instance: macOS has no fallback and still exits 1 from ins
 step, and so does any Linux box where `script/ci-qemu` cannot run. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION §181.** The decision is
+The decision is
 §181 (may `script/bootstrap` say "installed everything I could, and this machine is still not good enough" without failing?), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
 corrects one figure below: the callers that read this exit code are five scripts and **three

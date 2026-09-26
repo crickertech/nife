@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-23
+built: 2026-08-23
+---
 # 156. `syscall_entry`'s measured size is every method combined; extract the rest and ratchet both ways
 
-**Status: BUILT.** 2026-08-23. Minted 2026-08-23, found while fixing milestone 126's `pmap` (`abi::aspace::LIST`
+Built 2026-08-23. Minted 2026-08-23, found while fixing milestone 126's `pmap` (`abi::aspace::LIST`
 tripped `script/fastpath-footprint`'s 5% bound, +6.7% on riscv64). Extracting `LIST` alone into an
 `#[inline(never)]` function fixed that one regression; measuring why turned up a bigger, pre-existing
 gap this milestone tracks. **Scope widened 2026-08-23** (calef, answering "do we have a mechanism to
@@ -153,8 +158,6 @@ None needed outside this tree: `LIST`'s own fix (milestone 126, `kernel/src/sysc
   sibling.
 
 ## Index row
-
-**Built:** 2026-08-23
 
 `invoke` has no separate symbol in the compiled binary; the compiler folds it wholesale into `dispatch`, so `script/fastpath-footprint`'s flat measurement has been counting every capability
 method's bytes, not just the IPC round trip, since before milestone 126's `pmap` tripped it.

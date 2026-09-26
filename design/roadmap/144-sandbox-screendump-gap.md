@@ -1,8 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 144. QEMU's monitor screendump never lands in this sandbox
 
-**Status: NOT-STARTED.**
-
-**Gate: NONE.** Minted provisionally by calef on 2026-08-21, during milestone 16a's bench session;
+Minted provisionally by calef on 2026-08-21, during milestone 16a's bench session;
 the integrator should confirm the number at merge (143 was already claimed on an unmerged branch,
 `roadmap/143-silicon-iommu`, so this may need renumbering; as of this writing 143 merged clean and
 144 has no collision).

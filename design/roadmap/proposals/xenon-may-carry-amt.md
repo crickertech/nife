@@ -1,12 +1,21 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # xenon may carry Intel AMT, which would power-cycle it and give it a console with nobody at the desk
 
-**Status: PROPOSED 2026-09-24.** Raised by the lane that brought milestone 249 (the boot lottery is sampled by a person walking to the board)'s reboot to `x86_64`,
+Raised by the lane that brought milestone 249 (the boot lottery is sampled by a person walking to the board)'s reboot to `x86_64`,
 while pricing hang recovery that needs no person. Milestone 87 (the x86_64 bare-metal machine) chose a smart plug over management
 firmware (`design/roadmap/87-x86-machine.md`, "Remote power cycling by smart plug, not by management
 firmware"), and no plug was ever bought. This asks whether the hardware already on the desk makes
 the plug unnecessary.
 
-**Gate: DECISION.** Enabling AMT is a firmware change, and it needs a cable onto calef's network.
+Enabling AMT is a firmware change, and it needs a cable onto calef's network.
 Both are his.
 
 ## What the tree and the vendor say

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 110. The recovery tool takes a device and a partition
 
-**Status: BUILT** 2026-08-04 (PR #103). Raised 2026-08-04 from `notes/host-recovery.md:263`. Milestone 57
+Built 2026-08-04 (PR #103). Raised 2026-08-04 from `notes/host-recovery.md:263`. Milestone 57
 (partitioning and formatting a real drive) is BUILT, so this is its residual, and it is small.
 
 **The finding.** `tools/redoxfs_host` reads a filesystem out of an **image file**, not off a device.
@@ -60,8 +65,6 @@ partition index is the acceptance evidence.
   story this milestone is about is somebody at a Mac at 2am.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 `tools/redoxfs_host` reads a whole-device image; a real drive has a partition table at offset
 zero. `crates/globally_unique_identifier_partition_table` and the recovery verbs both exist and nothing joins them, except in xtask's

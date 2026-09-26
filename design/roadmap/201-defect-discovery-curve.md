@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: aarch64, riscv64 and x86_64 silicon
+specific_machine: none
+needs_person: yes
+---
 # 201. Is multicore reliability converging? A defect-discovery curve, not a stress run
 
-**Status: PARTIAL.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 5, which
+Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 5, which
 its own `BUGS` recorded as unowned. The part that needs no hardware is done (2026-09-24): the seeds
 are re-derived below and the curve has a home and a data format,
 [`notes/multicore-defect-curve.md`](../../notes/multicore-defect-curve.md). The run is what remains.
 
-**Gate: HARDWARE.** Three boards, and the sense of the gate that means somebody has to sit at them.
+Three boards, and the sense of the gate that means somebody has to sit at them.
 
 **In brief.** Risk 5 is *"it cannot be made reliable on multicore, and the bugs appear only on
 silicon."* The experiment written against it was "sustained multi-core stress on all three boards",

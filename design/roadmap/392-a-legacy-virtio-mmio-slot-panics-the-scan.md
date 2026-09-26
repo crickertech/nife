@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 392. A legacy virtio-mmio slot panics the kernel's scan, where skipping it is the answer
 
-**Status: NOT-STARTED.** Filed 2026-09-10 as an unnumbered proposal by the lane that built milestone
+Filed 2026-09-10 as an unnumbered proposal by the lane that built milestone
 306, which met this as a boot panic in a step that had nothing to do with virtio; numbered
 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read against the tree on
 2026-09-19 and still true**: `kernel/src/virtio.rs` still reaches the `debug_assert_eq!` on
@@ -10,7 +19,7 @@ naming neither the slot nor the runner flag. The runner bug that exposed it was 
 runners at the time; the shape that turns a missing command-line flag into a kernel panic is
 untouched. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is one `debug_assert_eq!` in `kernel/src/virtio.rs` and whatever the tree decides
+It is one `debug_assert_eq!` in `kernel/src/virtio.rs` and whatever the tree decides
 should stand in its place, plus a test that a legacy slot is not returned.
 
 **In brief.** `virtio::find_by_device_id` walks the mmio slots, matches on `DeviceID`, and then

@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: one-machine-description-not-two
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 409. One machine description, not a description and a narrative saying the same thing
 
-**Status: NOT-STARTED.** Promoted from the proposal `one-machine-description-not-two`, filed
+Promoted from the proposal `one-machine-description-not-two`, filed
 2026-09-14 by milestone 268's lane, which caused it: the machine description now prints on all three
 architectures, and on two of them the arm above it had already said most of the same things in its
 own words. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It reads the tree and moves lines within one function.
+It reads the tree and moves lines within one function.
 
 **Premise re-checked 2026-09-19 and still true.** `kernel/src/main.rs` calls
 `arch::isa::print_summary()` in both the x86_64 and riscv64 arms and again inside

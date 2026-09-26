@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-05
+built: 2026-09-05
+---
 # 259. Sweep `notes/` for claims that stopped being true, because the gate cannot see them
 
-**Status: BUILT** (2026-09-05). Minted 2026-09-05 by calef, as the other half of milestone 385,
+Built (2026-09-05). Minted 2026-09-05 by calef, as the other half of milestone 385,
 `design/roadmap/385-a-note-that-cites-a-milestone-that-moved.md`, which catches the notes that
 cite a milestone and says plainly that the notes which cite nothing are the worse half.
 *(Number provisional until the merge queue lands it.)*
@@ -88,7 +93,6 @@ number a future reader needs to know whether to run it again.
 **And at least one recurring shape named.** 247's value was not the 139 blocks it read, it was the
 `## Follow-on` convention that came out of them. If this sweep finds that stale claims cluster in one
 kind of note or one kind of sentence, that finding is worth more than the corrections.
-
 
 ## What the sweep read, and what it found
 
@@ -222,8 +226,6 @@ not.
   were counted as concept.
 
 ## Index row
-
-**Built:** 2026-09-05
 
 the other half of the stale-notes proposal: a page saying "there is no networking" cites nothing,
 so no check can catch it. 175 notes read and classified 46 concept / 129 state, 66 found stale,

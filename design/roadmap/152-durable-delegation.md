@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-22
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 152. Durable delegation: authority that outlives the session that requested it
 
-**Status: PARTIAL**, updated 2026-08-24. Minted 2026-08-22, from a milestone 129 discussion: calef
+Partial as of, updated 2026-08-24. Minted 2026-08-22, from a milestone 129 discussion: calef
 wants nife to support multiple users, and wants the jobs a user schedules to carry capabilities that
 reflect that user's own authority. Working through what that requires surfaced a gap this tree has
 not needed to close before, and #387 (milestone 129's `--mem` grant, held pending this) is where it
@@ -11,7 +20,7 @@ because the milestone is no longer nothing but a design: what remains is wiring 
 against the pieces already proven (#387), which is real, separate work rather than a detail of what
 is already built.
 
-**Gate: NONE.** Cleared 2026-08-27: milestone 49 (users, login, and attribution) reached BUILT, so
+Cleared 2026-08-27: milestone 49 (users, login, and attribution) reached BUILT, so
 the real identity this milestone's design needed to attach to now exists. The design fork itself
 (what durably represents a user) was already answered below; what remains is wiring a real
 registrar against the pieces already proven (#387), which is real, separate work and not a further

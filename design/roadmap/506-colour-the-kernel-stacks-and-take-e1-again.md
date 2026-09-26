@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: colour-the-kernel-stacks-and-take-e1-again
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 506. Colour the kernel stacks and take E1 again, to find out what E1's knee is made of
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `colour-the-kernel-stacks-and-take-e1-again`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Written by milestone 134 (the register of measures)'s per-IPC stack-depth lane, from the measurement that retired E1's
 estimated input (notes/stack-high-water.md, "Per-IPC depth").
 
-**Gate: NONE.** The build is a feature on patagonia; the reading needs radon, which is booked by
+The build is a feature on patagonia; the reading needs radon, which is booked by
 milestone 134's and 168's evenings anyway (notes/footprint-perturbation.md, "The next radon
 evening"), so this can ride on one of them if it is built first.
 

@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-long-file-name-or-riscv64-cannot-be-installed
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 560. A long file name, or riscv64 cannot be installed
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-long-file-name-or-riscv64-cannot-be-installed` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-long-file-name-or-riscv64-cannot-be-installed` on 2026-09-22, filed 2026-09-21. Raised by the rung 2a lane of milestone 198 (a package manager, and
 the trivial install that makes a second customer possible), which wrote
 `crates/file_allocation_table` and refused the name rather than mangling it.
 
-**Gate: NONE.** Nothing has to be decided, bought or ruled on. It is a self-contained piece of
+Nothing has to be decided, bought or ruled on. It is a self-contained piece of
 `crates/file_allocation_table` with host tests and one third-party reader already wired up.
 
 ## The gap, in one line

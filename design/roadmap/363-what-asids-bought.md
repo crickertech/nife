@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: silicon with a tagged TLB
+specific_machine: none
+needs_person: yes
+---
 # 363. ASIDs ship with their payoff asserted rather than measured
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
 milestone 15's block; promoted by milestone 433 on 2026-09-19. Checked that day: nothing in `bench/`
 or in notes/address-space-identifiers.md carries a switch-cost number with tagging on against
 tagging off, so the payoff is still asserted rather than measured. **The board list in the gate below
@@ -11,7 +20,7 @@ the case this file warned would measure no change at all, and xenon cannot show 
 nowhere to put its tag and `ttbr0_value` drops it. argon is the one machine of the three that can
 answer this.
 
-**Gate: HARDWARE.** Of the second kind: the machines exist. QEMU cannot show this, because it does
+Of the second kind: the machines exist. QEMU cannot show this, because it does
 not model TLB refill cost, so a number from patagonia would be noise wearing a decimal point. It
 needs argon, radon or xenon, and it needs somebody at one of them to flash an image and read a
 serial console. Waiting does not discharge it.

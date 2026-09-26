@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-13
+superseded_by: 405
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 399. The six `init` roles in `hello`, which milestone 266's title says should not exist
 
-**Status: SUPERSEDED.** 2026-09-19, by milestone 405, which was filed one day after this one by a
+Superseded 2026-09-19, by milestone 405, which was filed one day after this one by a
 lane holding the whole inventory and which takes the same six constants as part of a larger change.
 Filed 2026-09-13 as an unnumbered proposal by the lane that finished milestone 266's prose sweep;
 numbered and disposed of in one act on 2026-09-19 by milestone 433's drain of the proposal pile,
@@ -15,7 +25,7 @@ consider a name for what remains"*). The refusals below are the durable half and
 because they refuse names that work will reach for. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: NONE.** Nothing gates this because nothing should start it: the work is milestone 405's, and
+Nothing gates this because nothing should start it: the work is milestone 405's, and
 this block is the record of what was found and what was refused. The gate was `DECISION` while it
 was open, on the ground that calef names constants, and that is still true of the names 405 will
 reach for.

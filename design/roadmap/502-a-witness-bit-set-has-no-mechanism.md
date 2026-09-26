@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: a-witness-bit-set-has-no-mechanism
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 502. A witness bit set is held together by a hand-written list, and the list has gone stale twice
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-witness-bit-set-has-no-mechanism`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Found by milestone 326 (nobody has been assigned to turn a) while triaging the 2026-09-14 mutation census. It is not that milestone's
 work: 326 fixed the two lists it found broken, which is rung four again.
 
-**Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
+Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
 
 ## In brief
 

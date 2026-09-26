@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 134. The register of measures: every number this kernel owes itself
 
-**Status: PARTIAL.** The register exists and holds the tier A and tier B measures below.
+The register exists and holds the tier A and tier B measures below.
 **Tier A (E1 through E4) ran 2026-08-22, and E4's own follow-up (a background load near E1's knee)
 ran 2026-08-23**; **E1, E3 and E4 were re-taken on radon on 2026-09-04**, which is the small-cache
 board all three were designed against and where the dev Mac's large L1 had been muting them.
@@ -13,7 +22,7 @@ ceiling relation that census needed. See "What is built, and what is not" below.
 by calef, in one question: *"So what data would enable us to make these decisions?"* Both open kernel decisions ended in the same place, that the deciding
 number does not exist, and §96 said the instrument "wants a roadmap block of its own". This is it.
 
-**Gate: NONE.** Tier A is startable today. That is also a correction to the two decisions that raised
+Tier A is startable today. That is also a correction to the two decisions that raised
 this block: §95 and §96 both say to wait for milestone 74's counters on milestone 127's TX1, and both
 over-gated, because the experiments that produce a *verdict* need no silicon. The PMU produces
 *mechanism*. See the correction section below.
@@ -44,8 +53,6 @@ over four pad sizes against four un-padded kernels that differ only in address a
 `script/fastpath-footprint --layout` proves before a boot that all eight execute the same
 instructions. **What 134 still owes is the radon evening**, and "Follow-on" says what it must
 produce. The procedure is notes/footprint-perturbation.md, "The next radon evening".
-
-
 
 **Extended the same day, at calef's direction**, and the extension changes what this block is. The
 first draft listed only the experiments runnable today, on the reasoning that a measure we cannot take

@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: the-decision-index-is-still-hand-maintained
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 513. The decision index is still hand-maintained
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `the-decision-index-is-still-hand-maintained`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Filed by milestone 443 (lanes wait on each other for three)'s lane, which took the gates off the generated roadmap index and found
 the same hotspot one directory over, untouched.
 
-**Gate: NONE.** It is milestone 294's shape applied to `design/decisions/`, over files already in
+It is milestone 294's shape applied to `design/decisions/`, over files already in
 the tree.
 
 ## The shape, because it is the one already solved next door

@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-04
+milestone_dependencies: none
+decision_dependencies: 164
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 105. The two forks milestone 22 named and left
 
-**Status: NOT-STARTED.** Raised 2026-08-04. Milestone 22 (trusted init) built the supervision tree
+Raised 2026-08-04. Milestone 22 (trusted init) built the supervision tree
 and, in `notes/trusted-init.md`, recorded two questions it deliberately did not answer, both marked
 "calef's call, not a thing to slip in". **This block's job is to state them precisely enough to be
 decided, not to pick.** Both are kernel-surface changes; one is also a rights-model change.
 
-**Gate: DECISION §164.** **One of the two halves was already decided when this block was written, and
+**One of the two halves was already decided when this block was written, and
 that is recorded here rather than quietly fixed.** Fork one (whether reclamation and construction
 are separable rights) is [§32](../decisions/32-reap-without-build.md) (a supervisor may collect a
 corpse without being able to build one), decided 2026-07-29, six days before this block was raised,

@@ -1,13 +1,22 @@
+---
+status: PARTIAL
+raised: 2026-09-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 326. Nobody has been assigned to turn a mutation score upward
 
-**Status: PARTIAL.** Minted 2026-09-19 by calef, from the gap his own fatal-risk-3 ruling named
+Minted 2026-09-19 by calef, from the gap his own fatal-risk-3 ruling named
 the same day. *(Number provisional until the merge queue lands it.)* **Parts 1 and 2 are done**, on
 `milestone/326-mutation-survivor-triage`. **Part 3's seven named crates are done** (2026-09-20, on
 `milestone/326-new-crate-backlog`), and the 2026-09-21 census is classified with 89 survivors left
 (`## The 2026-09-21 census` below). Part 4 is
 untouched and must stay last for the reason its own paragraph gives.
 
-**Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
+Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the
 rule a survivor is triaged under. No decision is owed and no hardware is involved.
 

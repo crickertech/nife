@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: live-patching-the-kernel
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 509. Live-patching the kernel, so that even a new kernel does not need a reboot
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `live-patching-the-kernel`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
 every proposal on `main` a number. The text below is the proposal's own, unedited except for this
 paragraph: the argument is its author's and promotion is not the moment to improve it. Recorded by
 the maintainer from calef's ruling in DECISIONS §159 (lab machines upgrade like user machines, and): *"Live-patching a kernel is a separate
 milestone that we may not get to for a very long time. Rebooting for a new kernel is fine for now."*
 
-**Gate: DECISION.** Deferred by calef, deliberately and for a long time. This file exists so the
+Deferred by calef, deliberately and for a long time. This file exists so the
 idea has a home and is not re-proposed as new.
 
 ## In brief

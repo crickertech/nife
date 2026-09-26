@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-03
+superseded_by: 303, 420
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 364. Most x86_64 tests take a "no RedoxFS disk attached" arm, because the runner attaches little
 
-**Status: SUPERSEDED.** 2026-09-19, in two parts. The first piece this file names, making the FS
+Superseded 2026-09-19, in two parts. The first piece this file names, making the FS
 server's disk lookup transport-blind and attaching the RedoxFS image, was built by milestone 303 on
 2026-09-16. The rest was restated by the milestone 303 lane the same day as the proposal
 `the-rest-of-the-x86-64-fixture-set`, which milestone 433 numbers 420, with the device list
@@ -11,7 +21,7 @@ RNG, and the tree carries 50 `skip!("no RedoxFS disk attached")` sites rather th
 counted, which is the measure growing rather than the gap closing. The work is real and it lives in
 the newer block.
 
-**Gate: NONE.** The blocker is gone. Milestone 215 made a PCI function's interrupt reach a userspace
+The blocker is gone. Milestone 215 made a PCI function's interrupt reach a userspace
 driver on x86_64, and it did the whole thing on patagonia under QEMU's `q35`, so nothing here waits
 on xenon.
 

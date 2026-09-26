@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-03
+---
 # 235. A command that faults hangs the prompt, because nothing has a word for it
 
-**Status: BUILT** (2026-09-03). Minted 2026-09-02 by calef, from the lane that built milestones 231
+Built (2026-09-03). Minted 2026-09-02 by calef, from the lane that built milestones 231
 (nothing counts how many capability slots a boot actually uses) and 233 (`login` dies on every boot),
 which found it while proving its own gate could fail. *(Number provisional until the merge queue
 lands it.)*
@@ -102,7 +107,5 @@ legs.
   say whether the fix mattered to two programs or to forty.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 `spawnproto::JOB_FAULTED`: `job_undertaker` already held the death, and now has one word and one `WRITE` to say it with

@@ -1,8 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-07-30
+milestone_dependencies: 74
+decision_dependencies: none
+machine_requirements: aarch64 silicon; PMU cycle counter
+specific_machine: argon (the Jetson TX1 under seL4's published aarch64 numbers, so the comparison is like for like)
+needs_person: yes
+---
 # 25. Cross-OS performance comparison (extends 21)
 
-**Status: PARTIAL.**
-
-**Gate: HARDWARE, MILESTONE 74.** Everything but `sel4bench` is done, and `sel4bench` times single
+Everything but `sel4bench` is done, and `sel4bench` times single
 operations through a PMU cycle counter that neither QEMU-TCG nor HVF provides. The hardware is no
 longer 16a's board: milestone 127 bought the machine under the only published aarch64 seL4 numbers
 (a sealed TX1 kit, 2026-08-15, arriving ~08-19 to -26), so this gate now counts down in shipping

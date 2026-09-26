@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 520. Call-frame information in hand-written assembly, and the link-script line that was hiding the compiler's own
 
-**Status: BUILT** 2026-09-21. Minted 2026-09-21 by the maintainer, assigning the number to a lane's
+Built 2026-09-21. Minted 2026-09-21 by the maintainer, assigning the number to a lane's
 already-completed work adding CFI to `kernel/src/arch/`'s hand-written `.s` files.
 *(Number provisional until the merge queue lands it.)*
 
@@ -179,8 +184,6 @@ transcripts above, not the gate.
   finding that today's tooling only reaches aarch64.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 Twelve hand-written `.s` files under `kernel/src/arch/` (thirteen counting `x86_64/fp.s`, missing
 from the original list) get real call-frame information -- `.cfi_undefined` where a function

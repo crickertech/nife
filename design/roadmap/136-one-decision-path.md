@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-18
+built: 2026-08-18
+---
 # 136. One decision path, and a gate that keeps it that way
 
-**Status: BUILT.** Raised and closed 2026-08-18, out of milestone 135's own `BUGS` section, which
+Raised and closed 2026-08-18, out of milestone 135's own `BUGS` section, which
 named this as the one of its three recorded limitations worth a milestone: *"a later lane could
 reintroduce a second decision path in `untyped.rs` and no check would notice."* The gate is two
 halves of `script/lint` plus two `compile_fail` doctests, and **it was verified against seven
@@ -186,8 +191,6 @@ kernel and the crate are byte-identical apart from the doc comment carrying the 
   loom-searched surface and its callers; the block declines to pick.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 Milestone 135's value is that the thing loom searches is the thing the kernel runs, and nothing
 checked it: a later lane could hand the decision back to `untyped.rs` and every gate would stay

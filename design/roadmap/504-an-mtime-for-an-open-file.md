@@ -1,12 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: an-mtime-for-an-open-file
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 504. An mtime for an open file, not only for a name
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `an-mtime-for-an-open-file`, filed 2026-09-19, on calef's instruction of 2026-09-20 to give
 every proposal on `main` a number. The text below is the proposal's own, unedited except for this
 paragraph: the argument is its author's and promotion is not the moment to improve it. Written by
 the milestone 64 (enough std to run somebody else's crate) lane (`milestone/64-std-filesystem-shim`), from milestone 64's block.
 
-**Gate: DECISION.** Every option that closes this puts something on the file contract, which two
+Every option that closes this puts something on the file contract, which two
 programs agree on (`crates/filesystem_protocol`, the FS server, every caretaker and the `std` PAL),
 and so is calef's. Declining is also an answer, and the PAL already implements it.
 

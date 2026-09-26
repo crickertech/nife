@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-25
+---
 # 19. Run a real workload
-
-**Status: BUILT.**
 
 **In brief.** A native-ABI workload first; Linux-compat or VM hosting later
 
@@ -33,7 +36,5 @@ compat code, so it stays scoped.
   against that page.
 
 ## Index row
-
-**Built:** 2026-07-25
 
 the "runs real workloads" half of the thesis

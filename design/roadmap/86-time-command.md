@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-04
+---
 # 86. `time`: the shell times a command
 
-**Status: BUILT.** Raised 2026-08-03, prompted by timing a forty-minute proof run on the
+Raised 2026-08-03, prompted by timing a forty-minute proof run on the
 host and noticing this OS has no way to ask the same question. It shipped the same day it was
 written up (`crates/swish`, `components/src/swish.rs`, `kernel/src/user/time_tests.rs`,
 notes/time-command.md), reading the shell's clock as the block below leans, and proven at a real
@@ -38,7 +43,6 @@ the *shell* holds no clock either, and the refusal should be `date`'s, worded fo
 position. Host tests cover the plan and the arithmetic; the QEMU test is one timed spawn asserting
 the duration is positive and sane, not a latency benchmark, which is `bench`'s job.
 
-
 ## Follow-on
 
 - **Decision.** `design/decisions/72-time-command-clock.md` takes the question this block left open,
@@ -56,8 +60,6 @@ the duration is positive and sane, not a latency benchmark, which is `bench`'s j
   roadmap drift 93 turned into a cadence rather than a one-off correction.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 The second prefix-word command after `caps`, so the grammar is proven, and `date` already built
 the clock story. The design question was whose clock it is: the shell's, so a child that holds no

@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 348. The x86_64 kernel is linked at one physical address, so firmware picks the address and we hope
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 195's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `kernel/link-x86_64.ld` still sets `PHYS_START = 0x02000000` (32 MiB) and still carries
 the paragraph headed "PHYS_START WAS 1 MiB AND IS NOW 32 MiB, and the reason is firmware rather than
 specification"; the image is still linked at one physical address, and `.boot` still carries the
 absolute self-references that have to become position-independent first.
 
-**Gate: NONE.** A lane can start today. OVMF under QEMU reproduces the whole problem, which is how
+A lane can start today. OVMF under QEMU reproduces the whole problem, which is how
 milestone 195 found it, and nothing here waits on the OptiPlex.
 
 **In brief.** `PHYS_START` for the x86_64 kernel moved from 1 MiB to 32 MiB so the image would clear

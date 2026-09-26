@@ -1,6 +1,11 @@
+---
+status: REMOVED
+raised: 2026-09-19
+built: 2026-09-19
+---
 # 434. Retire the `Proposed.` disposition and the machinery that read its directory
 
-**Status: REMOVED** 2026-09-19, the same evening it was built. The work was sound and the premise
+Removed 2026-09-19, the same evening it was built. The work was sound and the premise
 was not: the maintainer read calef's *"we want to drive proposals to zero"* as a ruling to abolish
 `design/roadmap/proposals/`, and his follow-up question, *"shouldn't a proposal become a milestone as
 NOT-STARTED?"*, as a ruling that lanes should skip the proposal step. **He meant neither.** He was
@@ -178,8 +183,6 @@ when it next runs, and nothing here touches the generated file.
   about a fortnight that happened. The module keeps its parse half and lost `promoted_from`.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 The tree contradicted itself for an afternoon. calef retired the `Proposed.` disposition and the
 `design/roadmap/proposals/` directory on 2026-09-19, milestone 433 drained all 106 files out of it,

@@ -1,9 +1,18 @@
+---
+status: OPTIONAL
+raised: 2026-07-30
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 24. A second aarch64 *board*: Virtualization.framework (optional)
 
-**Status: OPTIONAL.** Modernized 2026-08-03 to the current block standard, with the two design
+Modernized 2026-08-03 to the current block standard, with the two design
 forks named that the original one-liner left implicit; the substance is unchanged.
 
-**Gate: NONE.** Fork two, the host-side runner, is decided: **vfkit** (calef, 2026-08-26: "Ratify
+Fork two, the host-side runner, is decided: **vfkit** (calef, 2026-08-26: "Ratify
 vfkit"). See below. Sequencing is a separate question and not a blocker, since the default EFI path
 follows milestone 88's stage 1 while the Linux-boot-protocol path needs neither.
 

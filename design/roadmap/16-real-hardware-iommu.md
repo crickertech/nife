@@ -1,8 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-07-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: riscv64 silicon
+specific_machine: none
+needs_person: yes
+---
 # 16. Real hardware + IOMMU-backed driver isolation (recast 2026-07-27: RISC-V first)
 
-**Status: PARTIAL.**
-
-**Gate: HARDWARE.** Not the "no board" kind: the board is on the desk. **The remaining work needs
+Not the "no board" kind: the board is on the desk. **The remaining work needs
 somebody sitting at it** (flashing an image, watching a serial console, power-cycling a wedged
 board), which is the second sense the gate vocabulary now names, and it is why this sat on
 `--ready` for days offering work no lane could take. 16b is built, the board arrived 2026-08-14, and the bench delivered first silicon

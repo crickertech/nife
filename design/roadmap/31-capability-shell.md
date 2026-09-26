@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-08-17
+---
 # 31. A capability shell: designation is authorization
 
-**Status: BUILT.** Closed 2026-08-17 by the lane that built phase 3's last item, init building a
+Closed 2026-08-17 by the lane that built phase 3's last item, init building a
 `fs_subtree_caretaker` per grant. The gate is `script/swish-check` on both ISAs: it types `caps rm
 rmtree/rm-solo`, `rm -v rmtree/rm-solo` and `ls rmtree | wc` at the real prompt, so the authority is
 previewed, the name the command line designated is removed, and the two names beside it inside the
@@ -161,7 +166,5 @@ out to be `script/swish-check` and already built.
   puts nothing on the wire and changes what every other command at that prompt means.
 
 ## Index row
-
-**Built:** 2026-08-17
 
 no-ambient-authority made user-visible, at the one interface a human touches

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-27
+built: 2026-07-30
+---
 # 30. The network stack as a confined component
-
-**Status: BUILT.**
 
 **In brief.** A userspace **virtio-net** driver behind the DMA confinement (extended to multi-queue: RX means the device writes INTO driver memory), and the TCP/IP stack itself (`smoltcp`) as a swappable userspace component with a capability-shaped socket contract; backs `std::net` for 27
 
@@ -51,7 +54,5 @@ prerequisite piece and worth building first as its own tested step. Feeds 23 and
   stack.
 
 ## Index row
-
-**Built:** 2026-07-30
 
 the canonical microkernel component, and the one people ask about first

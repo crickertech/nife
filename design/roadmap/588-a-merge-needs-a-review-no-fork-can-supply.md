@@ -1,6 +1,16 @@
+---
+status: PARTIAL
+raised: 2026-09-24
+promoted_from: a-merge-needs-a-review-no-fork-can-supply
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 588. A merge needs a review no fork can supply
 
-**Status: PARTIAL.** *(Number minted at promotion.)* Promoted from the proposal
+*(Number minted at promotion.)* Promoted from the proposal
 `a-merge-needs-a-review-no-fork-can-supply`, filed 2026-09-24, after calef ruled on it the same
 day: **options 2 and 3 adopted, option 1 not taken and still open.** Option 2 is set live (workflow
 approval is required for all external contributors). Option 3's tree side is pull request #1215:
@@ -18,7 +28,7 @@ build runs a pull request's own workflow edits with this repository's secrets. T
 path in the script (`helpers/queue-eligible.jq` refuses a head in another repository); this is the
 rung above it.
 
-**Gate: DECISION.** Option 1 is still calef's to rule, and the secret move is an organisation
+Option 1 is still calef's to rule, and the secret move is an organisation
 setting only he can make. As filed: every option below is a repository or organisation setting, which is a fact
 that leaves the tree: no lane can change it, and every lane works under it from the moment it
 changes. It is calef's.

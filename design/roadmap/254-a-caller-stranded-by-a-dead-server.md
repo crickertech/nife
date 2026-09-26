@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-04
+---
 # 254. A caller stranded by a server that died is stranded forever, and nothing records that as intended
 
-**Status: BUILT** (2026-09-04). Split out of milestone 133 (ending a permanently blocked thread,
+Built (2026-09-04). Split out of milestone 133 (ending a permanently blocked thread,
 and deciding who may) on 2026-09-03 by calef, who took this half first on the argument that it is a
 defect rather than a fork.
 
@@ -203,8 +208,6 @@ could still take.
   not be quoted as doing.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 `Gone` reaches endpoint wait queues and not reply parks, so a dead server blocks its callers for
 the life of the machine

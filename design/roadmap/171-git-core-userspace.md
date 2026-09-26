@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 171. `git` core plumbing: version control on a nife host with no new primitive
 
-**Status: NOT-STARTED.** Minted 2026-08-25, the first of four milestones from calef's self-hosting
+Minted 2026-08-25, the first of four milestones from calef's self-hosting
 question: "how could I shift nife development onto a nife host, so that would have me using nife
 daily." Broken into pieces by tractability rather than proposed as one undertaking; this is the
 piece that needs the least.
 
-**Gate: NONE.** Software-only. Informed by [milestone 169](169-kilo-editor.md) (`kilo`, the first
+Software-only. Informed by [milestone 169](169-kilo-editor.md) (`kilo`, the first
 real C program against [DECISIONS §31](../decisions/31-foreign-language-seam.md)'s seam) but not
 hard-gated on it: git core needs the identical seam pattern kilo proves, not the terminal
 raw-input primitive kilo exists to build, so the two can proceed in parallel.

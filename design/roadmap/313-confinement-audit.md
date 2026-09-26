@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-17
+built: 2026-09-17
+promoted_from: the-security-audit-that-has-been-due-since-august
+---
 # 313. The security audit that was due since August: userspace confinement, read adversarially
 
-**Status: BUILT 2026-09-17.** Minted by the maintainer from milestone 311's proposal
+Minted by the maintainer from milestone 311's proposal
 (`the-security-audit-that-has-been-due-since-august`), lens chosen by the maintainer, built by a
 lane on `milestone/313-confinement-audit`. *(Number provisional until the merge queue lands it.)*
 
@@ -110,8 +116,6 @@ code was touched and a comment in a shared crate is code that was touched.
   because a table was edited to make it.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 The security audit `script/audits` had reported overdue every week since 2026-08-17, run under the
 userspace-confinement lens on a bounded scope: the device and port authority minted in the window,

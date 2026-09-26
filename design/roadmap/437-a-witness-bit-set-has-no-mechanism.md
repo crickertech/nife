@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 437. A witness bit set is held together by a hand-written list, and the list has gone stale twice
 
-**Status: NOT-STARTED.** Filed 2026-09-19 by milestone 326's lane while triaging the 2026-09-14
+Filed 2026-09-19 by milestone 326's lane while triaging the 2026-09-14
 mutation census. It is not that milestone's work: 326 fixed the two lists it found broken, which is
 rung four again.
 
-**Gate: NONE.** Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
+Everything it needs is in `crates/filesystem_protocol` and a `macro_rules!`.
 
 **It is the last proposal this tree will ever carry, by about four hours.** The lane wrote it under
 `design/roadmap/proposals/` because it branched before calef abolished that directory the same

@@ -1,12 +1,22 @@
+---
+status: PARTIAL
+raised: 2026-09-15
+promoted_from: sub-tripwire-drift-accumulates-across-baseline-saves
+milestone_dependencies: none
+decision_dependencies: 190
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 415. Sub-tripwire drift accumulates across baseline saves, and one architecture has no gate at all
 
-**Status: PARTIAL.** Item 1 landed 2026-09-15 as commit `ba99c83`; items 2 and 3 are outstanding and
+Item 1 landed 2026-09-15 as commit `ba99c83`; items 2 and 3 are outstanding and
 item 4 is refused. Promoted from the proposal
 `sub-tripwire-drift-accumulates-across-baseline-saves`, filed 2026-09-15 by the baseline-audit lane,
 which calef asked for after PR #886 found a regression that had hidden under the 10% threshold.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §190.** The decision is
+The decision is
 §190 (must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. Items 2 and 3 change
 how `cargo xtask bench --save` behaves and what a save is obliged to record, which is a workflow

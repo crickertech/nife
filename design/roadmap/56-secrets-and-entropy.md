@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-07-31
+---
 # 56. Secrets, credentials, and the entropy to make them safe
-
-**Status: BUILT.**
 
 **In brief.** Milestone 55 needs the Mac to authenticate, so it needs an identity, a secret, and
 unguessable challenges. We had none of the three, and one of the gaps was a hard blocker rather than
@@ -183,8 +186,6 @@ milestone 55's critical path, because provisioning at boot is enough to authenti
   or lockout on the verify endpoint.
 
 ## Index row
-
-**Built:** 2026-07-31
 
 **built 2026-08-01**: entropy (§44), the Argon2id crypto taken as a dependency per §46, and the
 credentialer, a store with no getter that verifies and never reads back (§54). The thesis-level

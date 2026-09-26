@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-12
+built: 2026-07-12
+---
 # 1. Boot to Rust on QEMU `virt`, and print to the PL011 UART
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from the first day's history (milestone 76). This is a record of what the
 commits show, not a reconstruction of what anyone remembers.
@@ -32,7 +35,5 @@ row are the evidence.
   now without rewriting history.
 
 ## Index row
-
-**Built:** 2026-07-12
 
 the first instruction; freestanding Rust, the linker script, and a test harness on day one

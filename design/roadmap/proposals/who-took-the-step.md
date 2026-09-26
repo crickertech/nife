@@ -1,11 +1,20 @@
+---
+status: PROPOSED
+raised: 2026-09-23
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # The record should say whether a person or the machinery took a step
 
-**Status: PROPOSED 2026-09-23.** Raised by the `maintainer/what-the-machinery-did` lane, which was
+Raised by the `maintainer/what-the-machinery-did` lane, which was
 sent to make the merge drain's actions countable and found that the logging half (landed in the same
 pull request) cannot answer the question calef actually asked. **Name provisional**, this file's and
 nothing else's: `who-took-the-step.md` is a lane's coinage and `design/naming.md` is the rule.
 
-**Gate: DECISION.** Every option below except the refusal puts a long-lived credential on patagonia
+Every option below except the refusal puts a long-lived credential on patagonia
 or adds an account to the organization. That is calef's call, it is a security decision, and it is
 close to irreversible in the sense `AGENTS.md` means: a key that has been on a machine has been on
 it. **Nothing here has been implemented and no credential has been placed anywhere.**
@@ -260,7 +269,6 @@ options and needs nobody's ruling. Named here so it is not forgotten, in the sha
 for.
 
 ## The five options
-
 
 ### (a) A dedicated machine account, `smelter-bot`, with a PAT on patagonia
 

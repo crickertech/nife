@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-18
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 322. One machine matrix for three architectures, because a board is a memory map and not a CPU
 
-**Status: NOT-STARTED.** Minted 2026-09-18 by calef, from asking whether breadth is bought in QEMU
+Minted 2026-09-18 by calef, from asking whether breadth is bought in QEMU
 or only on silicon. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Every machine named below is in the pinned QEMU already. Nothing has to be bought,
+Every machine named below is in the pinned QEMU already. Nothing has to be bought,
 ported or decided first; `script/cpu-matrix` is the shape to copy and milestone 59 already argued
 the general case for narrowing an emulator rather than forking one.
 

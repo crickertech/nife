@@ -1,13 +1,22 @@
+---
+status: PARTIAL
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: x86_64 silicon with VT-d and an NVMe drive
+specific_machine: none
+needs_person: yes
+---
 # 261. The NVMe driver leaves the kernel, on the machine that can finally confine it
 
-**Status: PARTIAL.** Built 2026-09-17: the driver is out of the kernel and a confined EL0 process
+Built 2026-09-17: the driver is out of the kernel and a confined EL0 process
 serves the block contract off QEMU's NVMe on all three architectures. What is left is the machine,
 and the machine is what this block's gate always said it was. Minted 2026-09-05 by the maintainer. [§86](../decisions/86-el0-nvme-driver.md)
 was **DECIDED on 2026-09-03** and the work it authorises has had no milestone since, which is
 milestone 247's failure class (work identified by a finished piece goes nowhere) applied to a
 decision rather than to a block. *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** Of the second kind: the machine is on the desk and one thing on it is calef's,
+Of the second kind: the machine is on the desk and one thing on it is calef's,
 below. The driver itself is buildable and testable under QEMU and does not wait for any of it.
 
 ## What §86 decided, so this block does not reopen it

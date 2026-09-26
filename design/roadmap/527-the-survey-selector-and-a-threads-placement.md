@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 527. The `SURVEY` selector, and a thread's placement
 
-**Status: BUILT 2026-09-21.** *(Number provisional until the merge queue lands it.* **Expect
+*(Number provisional until the merge queue lands it.* **Expect
 renumbering**: 524 onward are contested between several in-flight branches, and this lane picked 527
 by looking at what was on `main` and at nothing another session can see. The integrator mints the
 real number at merge, like every other global name.*)*
@@ -175,8 +180,6 @@ plus the x86_64 UEFI-firmware leg.
   not this milestone, and recorded so a reader does not mistake the selector's scope for it.
 
 ## Index row
-
-**Built:** 2026-09-21
 
  `abi::rendezvous::SURVEY` took a cursor and returned three fixed words; it now
 takes a **record selector** in the argument that was always a zero, and only the third word belongs

@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-24
+built: 2026-09-24
+promoted_from: a-ruling-updates-the-gate-it-answers
+---
 # 591. A ruling should make the gate it answers fail until someone updates it
 
-**Status: BUILT.** The number is provisional; the integrator mints it at merge, and 590 was the
+The number is provisional; the integrator mints it at merge, and 590 was the
 highest claimed when this lane cut its branch. The file stem is a lane's coinage and is provisional
 too. Promoted from the proposal `a-ruling-updates-the-gate-it-answers`, filed 2026-09-24 by the
 `maintainer/198-gate-is-stale` lane. That lane found milestone 198 (a package manager, and the
@@ -103,8 +109,6 @@ for staleness.
   checker cannot tell apart.
 
 ## Index row
-
-**Built:** 2026-09-24
 
 A `DECISION` gate named nothing, so nothing could tell when it had been answered, and milestone 198
 sat behind a ruled fork for a day. `DECISION §N` now names the section and fails `--check` once

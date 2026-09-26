@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-08-04
+milestone_dependencies: 74
+decision_dependencies: none
+machine_requirements: riscv64 silicon; PMU cycle counter
+specific_machine: none
+needs_person: yes
+---
 # 101. The L4 calibration, read from the IPC number that pays for the trap
 
-**Status: PARTIAL** since 2026-08-04 (PR #104). Raised 2026-08-04 as "build the EL0-to-EL0 IPC
+Partial as of since 2026-08-04 (PR #104). Raised 2026-08-04 as "build the EL0-to-EL0 IPC
 benchmark nobody owns", and that is not what the tree says. **The benchmark exists and has been
 published for days.** The milestone survived because the comparison built on it did not follow, and
 the corrected comparison is considerably worse for us than the one that was on the page.
 
-**Gate: MILESTONE 74, HARDWARE.** What remains is one step, reading cycles from a PMU instead of
+What remains is one step, reading cycles from a PMU instead of
 deriving them from nanoseconds and an assumed clock. That is milestone 74's deliverable by name, and
 it rides milestone 16's silicon. This line read `NONE` until 2026-08-16, which was true while a
 paragraph was still waiting to be rewritten and stopped being true when it was: nothing in this

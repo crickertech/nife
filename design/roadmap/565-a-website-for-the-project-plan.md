@@ -1,12 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-website-for-the-project-plan
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 565. A website for the project plan
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-website-for-the-project-plan` on 2026-09-22, filed 2026-09-21. Written by the lane that retired the roadmap index, out of calef's
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-website-for-the-project-plan` on 2026-09-22, filed 2026-09-21. Written by the lane that retired the roadmap index, out of calef's
 own sentence on the day he retired it: *"Nothing at all. You'll have to read the directory for now.
 Eventually we'll build a website and the project plan will be captured there."* The first half is
 done; this is the tracked form of the second, because `AGENTS.md` says identified work leaves a lane
 as a proposal or a recorded limitation and "eventually" is neither.
 
-**Gate: DECISION.** What a website is for here has not been decided, and everything about the shape
+What a website is for here has not been decided, and everything about the shape
 follows from that answer rather than from anything a lane can look up.
 
 ## What the directory does not do

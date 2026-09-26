@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-03
+---
 # 226. `qemu-bounded.sh` leaves an emulator behind, and the next run blames the wrong thing
 
-**Status: BUILT 2026-09-03.** Minted 2026-09-02 by the maintainer, from milestone 127's EL2 entry
+Minted 2026-09-02 by the maintainer, from milestone 127's EL2 entry
 lane, which hit it twice in one session. *(Number provisional until the merge queue lands it.)*
 
 **Both shapes, because they answer different failures.** The leak is prevented everywhere anything
@@ -142,8 +147,6 @@ something this project did not start.
   its root, and walk the parent chain up before killing anything.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 Both shapes. The killer had one reason to fire, the bound, which bounds a run allowed to finish
 and does nothing about a run whose wrapper is killed: the emulator was then inherited by pid 1,

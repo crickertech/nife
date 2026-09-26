@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-16
+promoted_from: time-the-hw-entropy-step
+---
 # 306. Time the hw-entropy step, so fatal risk 6's last half stops being measured by eye
 
-**Status: BUILT 2026-09-16.** Promoted from `design/roadmap/306-time-the-hw-entropy-step.md`
+Promoted from `design/roadmap/306-time-the-hw-entropy-step.md`
 by the maintainer on 2026-09-16, the day its remaining half was satisfied: a proposal whose work is
 finished is not a proposal, and `script/roadmap` refuses a proposal file that does not say
 `PROPOSED`, which is what surfaced this. Written by milestone 159's third lane, from that
@@ -165,8 +171,6 @@ The scan's own behaviour is a separate question and is milestone 392,
   6's decisive experiment is unchanged and is still an EL0 NVMe driver at throughput.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 The riscv64 boot tour printed `pcie` and then `hw entropy` with nothing in between, so the last open
 half of `design/fatal-risks.md` risk 6 (*a capability-confined userspace driver cannot drive real

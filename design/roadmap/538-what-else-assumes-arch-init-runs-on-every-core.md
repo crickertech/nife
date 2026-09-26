@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: what-else-assumes-arch-init-runs-on-every-core
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 538. What else assumes `arch::init` runs on every core
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-else-assumes-arch-init-runs-on-every-core`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Found by milestone 447 (a thread's vector registers are its own),
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `what-else-assumes-arch-init-runs-on-every-core`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Found by milestone 447 (a thread's vector registers are its own),
 which hit the instance and named the class in its own report. The instance is fixed in that
 milestone; the class is not audited, and this is that audit.
 
-**Gate: NONE.** Three call sites and a reading of each boot path.
+Three call sites and a reading of each boot path.
 
 ## The instance, which is evidence rather than anecdote
 

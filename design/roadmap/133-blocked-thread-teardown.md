@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-17
+built: 2026-09-04
+---
 # 133. Ending a permanently blocked thread, and deciding who may
 
-**Status: BUILT** 2026-09-04. Proposed 2026-08-17 by the research lane
+Built 2026-09-04. Proposed 2026-08-17 by the research lane
 `roadmap/blocked-thread-teardown`, from the residual milestone 23's hung-component lane recorded and
 declined to open.
 
@@ -184,8 +189,6 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
   kernel state in flight and its region is going away regardless.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 Milestone 23's case (c): `DESTROY` arms a kill that `schedule()` spends only for a `Running`
 thread, so a permanently `Blocked` one is refused forever and its region never returns. One hang

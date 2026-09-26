@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-19
+---
 # 227. A GICv3 driver, because GICv2 boots and silently loses every interrupt
 
-**Status: BUILT 2026-09-19.** Minted 2026-09-02 by the maintainer, from milestone 222's (the one
+Minted 2026-09-02 by the maintainer, from milestone 222's (the one
 command a person runs before pushing has a leg that fails instead of skipping) measurement. Built by
 the lane on `milestone/227-gicv3-driver`. *(Number provisional until the merge queue lands it.)*
 
@@ -198,8 +203,6 @@ one.
   is now a proving run rather than a driver.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 the kernel drives GICv2 and GICv3, chosen by the device tree's binding and confirmed against the
 hardware at boot; `gic-version=3` goes from zero ticks to the whole suite under TCG, and the suite

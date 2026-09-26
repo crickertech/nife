@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-08-30
+---
 # 191. Did the proofs catch the bugs? A retrospective of every real defect against the harness that should have found it
 
-**Status: BUILT 2026-08-30.** Minted 2026-08-30 by calef, from the fatal-risk sweep
+Minted 2026-08-30 by calef, from the fatal-risk sweep
 (design/fatal-risks.md). Built the same day; `notes/proof-retrospective.md` is the study and pull
 request #589 is where it landed.
 
@@ -100,8 +105,6 @@ more than an expensive one that probably will not**, and this is the cheapest on
   measurement, and the counts were taken at base `f1f138a8` and will drift.
 
 ## Index row
-
-**Built:** 2026-08-30
 
 Minted by calef on 2026-08-30 from the fatal-risk sweep (design/fatal-risks.md), where it ranks
 first: an afternoon, no hardware, aimed at half of DECISIONS §14's thesis. 112+ Kani harnesses

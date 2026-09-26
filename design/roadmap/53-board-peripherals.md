@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-07-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: riscv64 silicon with an NVMe controller and a NIC
+specific_machine: none
+needs_person: yes
+---
 # 53. The board's own peripherals: network and storage on real silicon
 
-**Status: PARTIAL.** The storage half is built for QEMU as of 2026-08-15 (pull request #193): the
+The storage half is built for QEMU as of 2026-08-15 (pull request #193): the
 `non_volatile_memory_express` crate (queue mechanics, host-tested, 5 Kani harnesses), a rule-2 kernel driver confined
 through the IOMMU before enable, class-code enumeration over §18, and an end-to-end boot test on
 both ISAs. What remains of the milestone: the network half (the JH7110's GMAC), the board-side
@@ -8,7 +17,7 @@ PLDA XpressRICH root complex that carries the NVMe driver to the real M.2 slot (
 own milestone, 163, NOT-STARTED), and the EL0
 question, which is §86 (PROPOSED). Scope and honest limits: notes/non-volatile-memory-express.md, BUGS included.
 
-**Gate: HARDWARE.** In the second sense: the board is here and this needs hands on it. Bringing up
+In the second sense: the board is here and this needs hands on it. Bringing up
 an NVMe controller and a real NIC means flashing, a serial console, and power-cycling a board that
 will wedge, none of which a background lane can do. Both halves of the *old* gate are gone. The hardware cleared 2026-08-14: the board
 is on the desk and 16a boots it through the full tour, so the two drivers finally have silicon to

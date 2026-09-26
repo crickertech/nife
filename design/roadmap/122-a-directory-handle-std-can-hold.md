@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-13
+built: 2026-08-18
+---
 # 122. A directory handle `std` can hold: `OPENDIR` reaches the PAL
 
-**Status: BUILT** on 2026-08-18 (PR #320). Both options were built, in the order this block
+Built on 2026-08-18 (PR #320). Both options were built, in the order this block
 recommends, and both are proven end to end on both ISAs by the `std_exerciser` transcript. What the
 recommendation also asked for and this milestone did **not** do is measure A; see "What it did not
 do" below, which also names the one contract question it turned up.
@@ -195,8 +200,6 @@ is §82's stated failure mode.
   shipped asking for `dir::ALL`.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 Descent was built and native programs used it, and `std` could not reach it: the PAL called `OPENDIR` only inside `read_dir` against ROOT and dropped the handle, so a program could list a
 subdirectory and not open what it found there. Both answers are now built. A nested path is a

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-14
+---
 # 8. The console driver leaves the kernel
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `a5533cb` (2026-07-14). The revised
 milestone table (`491f23d`) called this "the milestone that proves §10 was real": if the console
@@ -29,7 +32,5 @@ program can take reaches kernel UART code.
   true one: no code path a user program can take reaches kernel UART code.
 
 ## Index row
-
-**Built:** 2026-07-14
 
 the microkernel thesis, executable: no user-reachable path touches kernel UART code

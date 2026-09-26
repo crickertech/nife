@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-18
+built: 2026-09-18
+promoted_from: refusals-written-where-the-tool-cannot-read-them
+---
 # 430. Refusals written where `script/names` cannot read them
 
-**Status: BUILT 2026-09-18.** Promoted from the proposal
+Promoted from the proposal
 `refusals-written-where-the-tool-cannot-read-them`, filed 2026-09-18 by the maintainer, who noticed
 the refusal count go **down** by three after a commit that added one. Closed the same day by commit
 `c1a177c`, before this file was read again. *(Number provisional until the merge queue lands it.)*
@@ -134,8 +140,6 @@ file's block being touched.
   buys.
 
 ## Index row
-
-**Built:** 2026-09-18
 
 `script/names`' `Name:` block parser stopped at the first blank `//!` line, so a block written one
 argument per paragraph, which is how this tree's best ones are written, put every refusal after the

@@ -1,12 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-08-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 99. `git` on nife: the tool this project is built with, hosting its own history
 
-**Status: NOT-STARTED.** Raised 2026-08-04 by calef. A second "somebody else's real application"
+Raised 2026-08-04 by calef. A second "somebody else's real application"
 target beside milestone 66's Vaultwarden, chosen for a different reason: not the hardest workload,
 but the one whose success statement is unanswerable. **A capability microkernel that can hold its
 own source history is a machine that does real work**, and the demo needs no explanation to any
 audience that has ever used a computer.
 
-**Gate: NONE.** (MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT.) The first fork is decided
+(MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT.) The first fork is decided
 (gitoxide, calef, 2026-08-04), and the block sequences the work after 64 measures what a real crate needs, because 64's probe crates are the
 cheap version of this milestone's first week.
 

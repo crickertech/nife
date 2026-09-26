@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-18
+---
 # 94. The untracked-work sweep, and the convention that ends the category
 
-**Status: BUILT** 2026-08-18. Deliverable one landed 2026-08-04 (PR #91, with the minting in PR #94)
+Built 2026-08-18. Deliverable one landed 2026-08-04 (PR #91, with the minting in PR #94)
 in all three of its parts: the sweep ran, the TODO lint landed, the inventory is
 notes/untracked-work-sweep.md, and each of the nine recorded-accepted findings carries its blessing
 in the paragraph a reader meets the limitation in. **Deliverable two waited fourteen days for one
@@ -143,8 +148,6 @@ numbers in CLAUDE.md are his to place.
   wearing a different hat, which is the measurement that shaped the TODO lint in the first place.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 The sweep ran and the lint landed: `script/lint` fails a `TODO`/`FIXME` that does not cite a
 milestone with a block, and the measurement corrected the block's own floor (11 hits, 2 real

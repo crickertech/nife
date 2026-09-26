@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Every client of a network stack shares its socket numbers
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 590 (the booted system starts its network
+Raised by milestone 590 (the booted system starts its network
 stack), whose number is provisional, which gave programs at the prompt a `WRITE` view of one
 `net_stack` endpoint and had to say in `caps` what that view does not narrow.
 
-**Gate: DECISION.** The fix changes `crates/socket_protocol`, which two programs agree on, so it is
+The fix changes `crates/socket_protocol`, which two programs agree on, so it is
 a wire format and calef's call.
 
 ## The finding

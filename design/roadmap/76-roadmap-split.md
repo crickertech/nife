@@ -1,7 +1,12 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 76. Split the roadmap: `design/roadmap/README.md` as index, one file per milestone
 
-**Status: BUILT (2026-08-03, the day it was raised; the postscript below says why it jumped the
-queue).** Raised 2026-08-03 by calef, after a discussion of whether the roadmap should
+Built (2026-08-03, the day it was raised; the postscript below says why it jumped the
+queue). Raised 2026-08-03 by calef, after a discussion of whether the roadmap should
 move to GitHub issues at all. It should not, and the reasons are recorded below because the question
 will come back. What it should do is stop being one 5,375-line file.
 
@@ -171,8 +176,6 @@ that does not exist): seven injections, seven failures reported, none missed.
   the plan, and none of them left work behind.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 **built 2026-08-03, the day the single file (by then 6,200 lines) took nine entries and two more
 same-day PR conflicts.** The split is this directory, proven by byte-for-byte reassembly; the gate

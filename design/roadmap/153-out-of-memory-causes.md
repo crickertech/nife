@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-23
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 153. `OutOfMemory` collapses three distinct causes into one error code
 
-**Status: NOT-STARTED.** Found 2026-08-22 while costing milestone 49's attribution fork: `Untyped::SPLIT`'s
+Found 2026-08-22 while costing milestone 49's attribution fork: `Untyped::SPLIT`'s
 own doc comment already admits it (`crates/abi/src/lib.rs`), but nothing downstream lets a caller,
 or a person debugging one, tell the three apart.
 
-**Gate: NONE.** **Declined for now (DECISIONS §119, 2026-08-23), for want of a customer**: no caller
+**Declined for now (DECISIONS §119, 2026-08-23), for want of a customer**: no caller
 is confused by this today, and it was found by pricing milestone 152's future cost rather than by
 an actual bug. Same shape as `std::thread::spawn` (§105), hard links (§110), and state handoff
 (§116). §119 also records non-binding guidance for whoever eventually has a real customer: new

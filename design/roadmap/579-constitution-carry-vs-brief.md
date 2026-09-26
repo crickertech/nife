@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-23
+promoted_from: constitution-carry-vs-brief
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 579. Which of the constitution must be carried, and which is a brief
 
-**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+*(Number minted at promotion.)* Promoted from the proposal
 `constitution-carry-vs-brief`, filed 2026-09-23, on calef's instruction of 2026-09-23 to give the
 two unnumbered proposals on `main` a number. The text below is the proposal's own, unedited except
 for this paragraph and the `## Index row` section: the argument is its author's and promotion is not
@@ -11,7 +21,7 @@ specific, known task, not on every turn of every session, and `briefs/` (built f
 still-open "split" piece) is already the right place to put that. This lane ran the test end to end
 against the whole file and is reporting what it found, not building the briefs.
 
-**Gate: DECISION.** `AGENTS.md` cannot be edited by a developer lane, and neither can `briefs/` be
+`AGENTS.md` cannot be edited by a developer lane, and neither can `briefs/` be
 populated on this file's authority alone: calef decides whether to build the five briefs below, cut
 the corresponding prose, and settle one open question about where the largest of the five belongs.
 Nothing here blocks on hardware or on another milestone.

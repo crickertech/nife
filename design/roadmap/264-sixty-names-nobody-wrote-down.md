@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-05
+built: 2026-09-05
+---
 # 264. Sixty names the history cannot justify, and the research that would let calef rule on them
 
-**Status: BUILT** 2026-09-05. Minted the same day by calef, after measuring the naming backlog
+Built 2026-09-05. Minted the same day by calef, after measuring the naming backlog
 rather than working through it. *(Number provisional until the merge queue lands it.)*
 
 It gated on nothing while it ran, which is `script/names --unratified`'s own design: a worklist
@@ -245,8 +250,6 @@ The 31 names that were already `provisional` on 2026-09-05 are untouched on purp
 prepared, and adding to their argument is not this milestone's business.
 
 ## Index row
-
-**Built:** 2026-09-05
 
 100 of 204 names are unratified, and the 60 unrecorded ones have no argument at all. Bringing
 calef a name with no argument is what the seven questions refuse, so this does the lookups and

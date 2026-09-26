@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: which-rva23-extensions-this-kernel-must-save
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 539. Which RVA23 extensions this kernel must save, and which it only has to admit exist
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `which-rva23-extensions-this-kernel-must-save`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `which-rva23-extensions-this-kernel-must-save`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number and slug provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** The profile is ratified, QEMU can be told to be an RVA23 machine, and the audit is a
+The profile is ratified, QEMU can be told to be an RVA23 machine, and the audit is a
 reading of `kernel/src/arch/riscv64/context.rs` against a published list. Nothing waits on calef, on
 hardware, or on another milestone.
 

@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-26
+milestone_dependencies: none
+decision_dependencies: 169
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 180. Copy and paste: a clipboard in a system with no ambient authority
 
-**Status: NOT-STARTED.** Minted 2026-08-26, calef, checking the roadmap for a gap that turned out
+Minted 2026-08-26, calef, checking the roadmap for a gap that turned out
 not to be a gap at all: **nothing in `design/` or `notes/` mentions a clipboard**, not even as a
 named limitation the way mouse support is (see milestone 179). This file is that gap's first record.
 
-**Gate: DECISION §169.** Not a driver or a wiring question, as milestone 179 (pointer input) was: a clipboard is shared,
+Not a driver or a wiring question, as milestone 179 (pointer input) was: a clipboard is shared,
 mutable state that more than one principal reads and writes, and this tree has a standing rule
 against exactly that shape (`AGENTS.md`, milestone 126: "enumeration is itself authority," the same
 posture that refused a hung-thread lookup as "list everything and find the match"). A conventional

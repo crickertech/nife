@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-11
+built: 2026-09-11
+---
 # 275. A gate that diffs `design/fatal-risks.md` against the roadmap it cites
 
-**Status: BUILT 2026-09-11.** Minted 2026-09-11 by calef, from a maintainer review of
+Minted 2026-09-11 by calef, from a maintainer review of
 `design/fatal-risks.md` against the tree the previous day, which found the file's own `BUGS`
 warning ("nothing gates this file") firing four separate ways in one pass. *(Number provisional
 until the merge queue lands it.)*
@@ -170,8 +175,6 @@ once, and by this file's own standard that is an attestation rather than evidenc
   955,223 bytes/s, and risk 6's third bullet carries it.
 
 ## Index row
-
-**Built:** 2026-09-11
 
 calef, 2026-09-11, from a 2026-09-10 review that found the same status-in-two-places defect four
 separate times in one file, one pass, nothing catching any of them.

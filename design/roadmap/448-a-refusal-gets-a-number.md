@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-20
+---
 # 448. A refusal gets a number, a status, and a condition that would change it
 
-**Status: BUILT.** 2026-09-20. Minted from calef's ruling the same day, that refusals which name
+Built 2026-09-20. Minted from calef's ruling the same day, that refusals which name
 work should be milestones rather than bullets, backfilled so the inventory is comprehensive; he
 ratified the status word `REFUSED` in the same conversation. *(Number provisional until the merge
 queue lands it.)*
@@ -195,8 +200,6 @@ to cheap by saying out loud that it is not settled.
   names 42.
 
 ## Index row
-
-**Built:** 2026-09-20
 
 140 refusal bullets sat in finished blocks where nothing reads them, and exactly two named a
 milestone; one of them went stale in a fortnight and calef caught it by hand. `REFUSED` gives a

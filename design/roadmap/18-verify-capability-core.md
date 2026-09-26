@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-23
+---
 # 18. Verify the capability core, then spread inward
-
-**Status: BUILT.**
 
 **In brief.** Machine-checked proofs of `capability`, then IPC, then MMU isolation
 
@@ -65,7 +68,5 @@ board without one they are unconfined. See DECISIONS §30 and notes/verification
   with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-07-23
 
 the verification itself

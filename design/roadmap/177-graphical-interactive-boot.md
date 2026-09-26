@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-26
+built: 2026-09-19
+---
 # 177. Wire the graphical terminal stack into the real interactive boot
 
-**Status: BUILT** 2026-09-19. Minted 2026-08-26, from tracing the user story "boot to a login
+Built 2026-09-19. Minted 2026-08-26, from tracing the user story "boot to a login
 prompt, land in a `swish` prompt on a real terminal" against the actual code rather than the
 roadmap's own framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built and
 merged 2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
@@ -252,8 +257,6 @@ key, not `SWISH_CHECK_SCRIPT`; that limit is recorded in the leg's own doc.
   sentence saying neither architecture plans it is superseded by the split recorded lower down.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 The real interactive boot brings up the graphical terminal stack whenever a GPU is attached:
 `gpu_driver`, `display_terminal`, and a keystroke source (a virtio keyboard in `MODE_DIRECT`, or the

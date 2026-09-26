@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 368. `script/fastpath-footprint`'s entry set is flat, so an inlining flip can move 12% into it
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 133 lane; promoted by
+Filed as a proposal on 2026-09-04 by the milestone 133 lane; promoted by
 milestone 433 on 2026-09-19. Read against `script/fastpath-footprint` that day and every part of the
 premise is intact. The riscv64 entry set is still the flat list `trap_entry`, `trap_return`,
 `riscv_trap_dispatch`, `riscv_trap_body`; the failure message still prints a percentage and two
@@ -10,7 +19,7 @@ first; and the three `#[inline(never)]` patches are all still in the tree, on
 measurement written beside it. Milestone 188's phase 2 changed what aarch64's entry set contains
 (one vector slot and `exception_restore` rather than all sixteen entries) and left it just as flat.
 
-**Gate: NONE.** Nothing is owed. It wants a lane because the fix is a judgement about what the
+Nothing is owed. It wants a lane because the fix is a judgement about what the
 number is *for*, and getting that wrong in either direction costs something real: a looser gate
 stops catching regressions, and a tighter one fails changes that are not regressions.
 

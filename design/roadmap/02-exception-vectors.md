@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-13
+---
 # 2. Exception vectors, and a fault that tells you what it was
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `543d390` (2026-07-13), the first
 commit to carry a milestone title, and marked done in `9175732` the same day.
@@ -31,7 +34,5 @@ a flat arm64 Image and getting the device tree.
   the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-07-13
 
 faults, interrupts, and syscalls are one mechanism; this is the plumbing for all three

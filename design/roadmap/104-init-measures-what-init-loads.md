@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-05
+---
 # 104. The measurement continues past init
 
-**Status: BUILT** 2026-08-05 (PR #138). Raised 2026-08-04. Milestone 22 (trusted init) is BUILT, so the sentence it
+Built 2026-08-05 (PR #138). Raised 2026-08-04. Milestone 22 (trusted init) is BUILT, so the sentence it
 left behind is no longer a gap in work-in-progress; it is a permanent property of the shipped system
 with nobody assigned to it.
 
@@ -79,8 +84,6 @@ of two, and sequencing it after 96 is worth more than the wait costs.
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-05
 
 Init refuses to load what it cannot vouch for, which turned out to be the whole policy:
 spawn-and-record and halt are not rival policies but what a refusal *costs*, and init already

@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 107. The socket contract learns to accept
 
-**Status: BUILT.** Merged 2026-08-04 (pull request #117; `socket_proto`'s listen verbs are on main). The status said IN-PROGRESS for eleven days after the merge, found 2026-08-15 while ranking ready work: §76's defect class, and the finding that un-hid milestone 54`. Raised 2026-08-04 from `notes/net.md:250`, which states the gap and names
+Merged 2026-08-04 (pull request #117; `socket_proto`'s listen verbs are on main). The status said IN-PROGRESS for eleven days after the merge, found 2026-08-15 while ranking ready work: §76's defect class, and the finding that un-hid milestone 54`. Raised 2026-08-04 from `notes/net.md:250`, which states the gap and names
 the test that would close it. Two milestones already on the roadmap need it and neither block says
 so, which is why it is here rather than folded into one of them.
 
@@ -61,8 +66,6 @@ gitoxide-style real workload (milestone 99) can serve anything.
   one call at a time. Serving several at once wants userspace threads or a select-shaped wait.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 The contract has no listen verb and the gate proves outbound only: nife can reach the network and
 cannot be reached. Milestones 54 and 55 are both servers and neither block mentions it, so the

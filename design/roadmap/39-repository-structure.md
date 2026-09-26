@@ -1,12 +1,21 @@
+---
+status: RECORDED
+raised: 2026-07-30
+milestone_dependencies: 23
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 39. Repository structure for a loosely-coupled OS, and the road to a distribution
 
-**Status: RECORDED.** The direction is now decided even though the work is not:
+The direction is now decided even though the work is not:
 **DECISIONS §151** (2026-09-15) rules the goal is independent release and third-party programs, which
 is this page's option C as the destination, reached through option B. What stays open is the *order*
 (§151 keeps that as its own ruling), so this block remains RECORDED analysis rather than a scheduled
 milestone.
 
-**Gate: DECISION, MILESTONE 23.** The *goal* is no longer the open decision (§151 took it); the
+The *goal* is no longer the open decision (§151 took it); the
 *timing* still is, and it still inherits milestone 23. The recommendation on the page held up: option
 B (multiple workspaces in one repo) now, the distribution as a separate manifest repo (`basalt`,
 milestone 120) later, and the split itself not before the strain justifies trading the

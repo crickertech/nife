@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-09-19
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: an x86_64 UEFI machine with a display attached
+specific_machine: none
+needs_person: yes
+---
 # 400. The shell on the firmware's screen, because on a PC with no serial port the prompt went nowhere
 
-**Status: PARTIAL.** Built 2026-09-19 on `milestone/400-the-shell-on-the-firmware-screen` (pull request
+Built 2026-09-19 on `milestone/400-the-shell-on-the-firmware-screen` (pull request
 #985): under OVMF the shell's prompt is on the screen, a command typed on the serial line answers
 there, and `cargo xtask uefi-boot` reads both back off the framebuffer. **What remains is the bench
 half of the exit criterion**, the same stick on xenon with a monitor, which only a person at xenon
@@ -8,7 +17,7 @@ can do (the procedure is below). *(Number provisional until the merge queue land
 was `design/roadmap/proposals/the-shell-on-the-firmware-screen.md`, found by milestone 198's rungs
 lane, and that file is deleted by the commit that wrote this one.)*
 
-**Gate: HARDWARE.** calef at xenon with a monitor attached; everything a lane can do is done.
+calef at xenon with a monitor attached; everything a lane can do is done.
 
 **In brief.** Milestone 243 put the *kernel's* boot tour on a UEFI machine's framebuffer. Since
 milestone 299 the console is a userspace process that writes COM1 by port I/O and nothing else, so on

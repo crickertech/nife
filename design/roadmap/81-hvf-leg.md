@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-04
+---
 # 81. An HVF leg: the test suite on the physical core
 
-**Status: BUILT** 2026-08-04 (PR #95). Raised 2026-08-03, same survey as 79.
+Built 2026-08-04 (PR #95). Raised 2026-08-03, same survey as 79.
 
 The infrastructure exists and is used one-sidedly: `NIFE_ACCEL=hvf` runs the kernel on the
 physical Apple Silicon core, `script/bench --real` and `script/server --hvf` use it, and `script/test`
@@ -64,8 +69,6 @@ says which mode ran.
   with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 `NIFE_ACCEL=hvf` exists and bench uses it; nothing runs `script/test` there as a habit. GitHub's
 hosted runners cannot (no nested virtualization), so the leg rides `script/gates`: it runs

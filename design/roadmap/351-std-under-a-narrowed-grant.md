@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 351. Every `std` test grants the mount root, so a walk that over-asks for rights still passes
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 122's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `kernel/src/user/std_tests.rs` names no caretaker: every std program it spawns is handed
 the mount root, and the one rights-shaped assertion in the file is about `/../motd` asking for the
 level above the only root it has. `fs_subtree_caretaker` is built and packed
 (`components/Cargo.toml`), so both halves of the fixture exist and nothing has joined them.
 
-**Gate: NONE.** Both halves exist. `fs_subtree_caretaker` narrows a grant today, and the `std`
+Both halves exist. `fs_subtree_caretaker` narrows a grant today, and the `std`
 platform abstraction layer (PAL) runs under the test runner on every architecture. Nothing is owed
 by another milestone and no decision is waiting.
 

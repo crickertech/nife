@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-04
+milestone_dependencies: 106
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 103. `^C` stops spinning: the shell's interrupt watch, blocking
 
-**Status: NOT-STARTED.** Raised 2026-08-04 as "`^C` is decided and ready to schedule and nobody
+Raised 2026-08-04 as "`^C` is decided and ready to schedule and nobody
 built it", which is what `notes/session-handoff.md:52` says. **The note is stale and `^C` is built.**
 What is genuinely unbuilt is one line of §24's own implementation record, and this block is that
 line.
 
-**Gate: MILESTONE 106.** Strictly downstream: the shell busy-polls because there is nothing to
+Strictly downstream: the shell busy-polls because there is nothing to
 block on, and this milestone converts the watch to whatever 106 settles. If 106 puts the deadline
 on `Endpoint::RECV`/`CALL`, this is a small change in one file.
 

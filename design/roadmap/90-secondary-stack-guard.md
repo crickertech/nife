@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 90. A guard page under the per-CPU secondary stacks
 
-**Status: BUILT.** Raised 2026-08-03, from milestone 84's stack inventory, which found the
+Raised 2026-08-03, from milestone 84's stack inventory, which found the
 asymmetry rather than assumed the symmetry: the boot stack has a guard page below it, every
 dynamic thread stack has a guard page below it, and the per-CPU secondary stacks are a plain
 array in `.bss` with kernel data directly beneath. A secondary that runs deep does not fault; it
@@ -38,8 +43,6 @@ boot-stack guards are prior art in this tree; cite where the pattern lives when 
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 Milestone 84's instrument found the asymmetry: the boot stack and every thread stack sit above a
 guard page, and the per-CPU secondaries sit above `.bss`, so a deep secondary silently corrupts

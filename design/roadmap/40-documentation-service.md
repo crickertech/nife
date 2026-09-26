@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-08-26
+---
 # 40. Documentation as a system service: searchable, rendered, and installed by packages
 
-**Status: BUILT, 2026-08-26.** Phases 1 and 2 are built, phase 2's own known gap (ranking by raw
+Built, 2026-08-26. Phases 1 and 2 are built, phase 2's own known gap (ranking by raw
 occurrence count rather than document length) closed 2026-08-22, and phase 3's caretaker-narrowing
 increment is built too (DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no
 `| wc` in front of it, which is the milestone's own headline demonstration. **Phase 3's other half,
@@ -262,7 +267,6 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
   a rendering `doc` invocation to be surveyable, and the alternative (giving the shell a second,
   narrower view into `deaths` itself) is a bigger change than this increment needed.
 
-
 ## Follow-on
 
 - **Milestone 151.** The caretaker-hop display race: with the `terminal_sink_caretaker` narrowing
@@ -295,8 +299,6 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
   both are calef's call; `notes/manual.md`'s "where this goes next" is the only record either has.
 
 ## Index row
-
-**Built:** 2026-08-26
 
 the OS explains itself, on itself. Phases 1 and 2 built: `crates/manual` (a streaming renderer and
 an index layout a reader with one 4 KiB page can binary-search), `doc` at the prompt, and `apropos` as a builtin because search is enumeration and a searching *program* would need the

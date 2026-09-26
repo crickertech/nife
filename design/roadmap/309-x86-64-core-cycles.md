@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-17
+promoted_from: cycles-per-tick-on-the-other-two-architectures
+---
 # 309. Unhalted core cycles on `x86_64`, so `cycles_per_tick` means the same thing on two architectures
 
-**Status: BUILT 2026-09-17.** Promoted from
+Promoted from
 `design/roadmap/proposals/cycles-per-tick-on-the-other-two-architectures.md`, whose central
 recommendation is **corrected here rather than implemented**. Built by a lane on
 `milestone/309-x86-64-core-cycles`.
@@ -263,8 +269,6 @@ last one is the one to look at hardest, because it is the only one that leaves t
   a lane's. This block's last section says what that boot decides.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 `kernel/src/bench.rs`'s `cycles_per_tick`, the one number that converts a whole tick-denominated
 board bench into cycles, existed on one of three architectures. The proposal that raised this said to

@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-26
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A program carries its manifest in an ELF note
 
-**Status: PROPOSED 2026-09-26.** Raised by the `maintainer/m2-ruling` lane, which recorded calef's
+Raised by the `maintainer/m2-ruling` lane, which recorded calef's
 ruling on DECISIONS §197 (a package is one archive file)'s manifest question and built none of it.
 The slug is a lane's coinage and provisional, like every name below.
 
-**Gate: DECISION.** The owner string, the type number and the descriptor's encoding are names and a
+The owner string, the type number and the descriptor's encoding are names and a
 wire format two programs agree on, so they are an architect's. The build cannot start until they
 are ruled. Everything else here is reversible code.
 

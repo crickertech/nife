@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: 179
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 394. The boot-time console server comes up with no client and nothing notices
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal, left behind by
+Filed 2026-09-13 as an unnumbered proposal, left behind by
 `maintainer/delete-narrator`, which deleted the narrator on calef's ruling and left the server that
 existed to print for it running; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **Premise re-read against the tree on 2026-09-19 and still true**: the tour arm of
@@ -10,7 +19,7 @@ now, 1676 when this was written), and `kernel/src/user/console_service.rs` still
 `Console`, whose own doc comment says the `expect` is this question made visible and should be
 deleted when the question is answered. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §179.** The decision is
+The decision is
 §179 (whether the tour boot keeps starting a console server that has no client), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section and the ask lived only
 in the prose below, addressed to one person. calef's, and specifically because the answer is not

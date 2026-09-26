@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 358. `revoke.rs`'s log-page walk restates one safety argument in six places
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 252 sweep, from
+Filed as a proposal on 2026-09-03 by the milestone 252 sweep, from
 milestone 139's block; promoted by milestone 433 on 2026-09-19. Counted against the tree that day
 and the number is still six: `kernel/src/revoke.rs` calls `log_page` inside `unsafe` blocks at lines
 312, 333, 360, 418, 493 and 670, each with its own `SAFETY:` comment, and four of the six say the
@@ -8,7 +17,7 @@ same two things in four spellings ("pages in the chain are the log's own; SPACES
 pages under the held SPACES lock"). The helper itself is at line 258. Nothing has collapsed them
 since the file was written.
 
-**Gate: NONE.** It is one file, the helper already exists, and the ratchet in `script/lint` is the
+It is one file, the helper already exists, and the ratchet in `script/lint` is the
 measurement that says whether the change worked.
 
 **In brief.** `kernel/src/revoke.rs` walks its per-space log-page chain inside six separate

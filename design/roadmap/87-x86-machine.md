@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-09-17
+---
 # 87. The x86_64 bare-metal machine
 
-**Status: BUILT 2026-09-17.** Raised 2026-08-03. xenon printed `nife self-test: 5 of 5 passed` at
+Raised 2026-08-03. xenon printed `nife self-test: 5 of 5 passed` at
 09:55 UTC on 2026-09-17, which is the criterion calef set that morning. Transcript:
 `bench/xenon-2026-09-17/first-light-095500.log`.
 
@@ -285,8 +290,6 @@ hardware side finished before the code side needed it.
   than to the machine purchase.
 
 ## Index row
-
-**Built:** 2026-09-17
 
 Milestone 161's third ISA needs what milestone 16's second needed: a dedicated, brickable board,
 selected before the port so the requirements drive the purchase. Selected: a used OptiPlex 7050

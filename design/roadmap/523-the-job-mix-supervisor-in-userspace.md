@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 523. Moving the job-mix supervisor into userspace, and the five permissions it turns out to need
 
-**Status: NOT-STARTED.** Minted 2026-09-21 by the maintainer, an hour before a bench evening on
+Minted 2026-09-21 by the maintainer, an hour before a bench evening on
 radon, after `script/board-image --job-mix --tftp` reported `NOT SEALED` on every attempt. This lane
 investigated the move end to end and **built none of it**, because every route to it runs through a
 decision that is calef's. What is below is the investigation, the one premise in the brief that is
 false, the five things a shell-spawned program would have to be allowed to do, and what each would
 cost. Nothing about the instrument changed; `--features job_mix` is still how the number is taken.
 
-**Gate: DECISION.** Five of them, and they are not one question wearing five hats. Two are the
+Five of them, and they are not one question wearing five hats. Two are the
 syscall surface (a thread's placement, a `START` return value), one is the spawn manifest, one is
 the shell's authority model as `crates/grant_plan` states it in its own words, and one is an ABI
 fact about what a process may know about its machine. Any single one left unanswered leaves an

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-27
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 187. Read the x86_64 arch tree through the lens the first arch audit used
 
-**Status: NOT-STARTED.** Minted 2026-08-27 by calef, from finding 8 of the architecture-list parity
+Minted 2026-08-27 by calef, from finding 8 of the architecture-list parity
 sweep. That sweep asked how many siblings `script/stack-frame-check`'s hardcoded
 `arches="aarch64 riscv64"` had and found eleven. Ten are strings in shell scripts that a one-line
 edit fixes, and they are the worklist of the sweep's own milestone, minted alongside it on pull
@@ -8,7 +17,7 @@ request #568 and not yet on `main` when this block was written; cite that one by
 lands. This one is not a string: `notes/arch-audit.md` contains zero occurrences of "x86", and the
 directory it does not mention is the largest of the three.
 
-**Gate: NONE.** The lens exists, the template exists, and the disposition vocabulary exists
+The lens exists, the template exists, and the disposition vocabulary exists
 (DECISIONS §35, how a scanner's findings get dispositioned). Nothing here is a design fork. Findings
 may raise forks, which is what an audit is for; raising them is not the same as this milestone
 needing one to start.

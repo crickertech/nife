@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-05
+built: 2026-09-19
+---
 # 262. The naming rule is written twice, so changing it means changing two files and remembering to
 
-**Status: BUILT 2026-09-19.** The note half was done by this block's lane; the `AGENTS.md` half was
+The note half was done by this block's lane; the `AGENTS.md` half was
 done by DECISIONS §155 on 2026-09-18, which went further than this block's diff (the naming section
 is 26 lines, a pointer and the authority, and the conventions live only in `design/naming.md`); the
 duplicate heading was renamed on calef's ruling of 2026-09-19. It was PARTIAL from 2026-09-05 with
@@ -107,8 +112,6 @@ three crates the noun rule settled, and the domain table's two arguments.
   dependency rule is not; the reading is in the pull request body and the lane report.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 AGENTS.md's naming section is 132 lines, 12% of a file with a zero-headroom ceiling, and
 design/naming.md is 760 more on the same subject. Both stated the rule that changed on 2026-09-05.

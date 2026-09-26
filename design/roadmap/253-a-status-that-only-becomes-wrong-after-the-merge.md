@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 253. A status that can only become wrong after the merge, so no gate can catch it in time
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, after `main` went red on a status the tree
+Minted 2026-09-03 by calef, after `main` went red on a status the tree
 already had a check for. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** `script/roadmap` already holds the check that fires too late.
+`script/roadmap` already holds the check that fires too late.
 
 **In brief.** AGENTS.md's rule is that a milestone branch lands its status flip **in the same merge
 as the work**, so `main` never claims something is built while its code is on a branch. Milestone

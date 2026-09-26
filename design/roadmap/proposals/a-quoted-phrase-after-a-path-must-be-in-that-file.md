@@ -1,11 +1,20 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A phrase quoted after a path must still be in that file
 
-**Status: PROPOSED 2026-09-24.** Raised by the 2026-09-24 documentation audit
+Raised by the 2026-09-24 documentation audit
 (`design/audit-reports/2026-09-24-split-documents-read-from-the-inbound-side.md`), whose lens was
 the day's document splits read from the side of the files that cite them. **Name provisional**, this
 file's and nothing else's.
 
-**Gate: NONE.** No hardware, no decision, no dependency. It extends `script/citations`, which
+No hardware, no decision, no dependency. It extends `script/citations`, which
 already checks the same thing for two other shapes.
 
 ## The claim

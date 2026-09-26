@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: a rented Scaleway Elastic Metal RV1
+specific_machine: none
+needs_person: yes
+---
 # 89. Scaleway EM-RV1: a second RISC-V implementation, rented
 
-**Status: PARTIAL.** Raised 2026-08-03 alongside milestone 88 (nife on rented silicon: Oracle's free tier first, Graviton metal for the
+Raised 2026-08-03 alongside milestone 88 (nife on rented silicon: Oracle's free tier first, Graviton metal for the
 PMU), when the cloud-hardware survey
 turned up rentable riscv64 silicon. Rewritten 2026-09-25 (UTC) as the port plan, after calef ruled
 to rent the machine ([§215 (the second RISC-V machine is a rented Scaleway Elastic Metal
@@ -8,7 +17,7 @@ RV1)](../decisions/215-the-second-risc-v-machine-is-a-scaleway-rv1.md)). Milesto
 RISC-V implementation, for €16 a month) was the same proposal filed a second time and is folded in
 here. The host-side PLIC prep is built; the rest is below.
 
-**Gate: HARDWARE.** One rented RV1, which needs calef's Scaleway account before anything runs.
+One rented RV1, which needs calef's Scaleway account before anything runs.
 Every step that can run under QEMU or on the host is ordered first, so the meter starts at a step
 that needs the machine.
 

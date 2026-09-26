@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: JH7110 silicon
+specific_machine: none
+needs_person: yes
+---
 # 163. The JH7110's PCIe root complex: a real driver for the PLDA XpressRICH controller
 
-**Status: NOT-STARTED.** Minted 2026-08-25, provisional number pending the integrator (mint against
+Minted 2026-08-25, provisional number pending the integrator (mint against
 the current index at merge). Named as needing "its own milestone" in three places without ever
 getting one: `design/roadmap/53-board-peripherals.md` ("driving it is its own milestone, not a
 bench fix"), `notes/visionfive2.md`'s own "PCIe" section (identical words), and
 `design/decisions/86-el0-nvme-driver.md`, which holds itself `PROPOSED` pending exactly this work.
 This block gives that debt a home.
 
-**Gate: HARDWARE.** In milestone 159's sense: the board is on the desk and this needs hands on it.
+In milestone 159's sense: the board is on the desk and this needs hands on it.
 Bringing up a real PCIe root complex means flashing, a serial console, and power-cycling a board
 that will wedge, none of which a background lane can do (milestone 53's own words, said generally
 about the NVMe/network work this is one piece of).

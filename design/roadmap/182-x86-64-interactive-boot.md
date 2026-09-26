@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-27
+built: 2026-09-19
+---
 # 182. x86_64's own interactive-boot entry point
 
-**Status: BUILT.** 2026-09-19. Split off from [milestone 177](177-graphical-interactive-boot.md),
+Built 2026-09-19. Split off from [milestone 177](177-graphical-interactive-boot.md),
 2026-08-27, once that milestone's build lane found piece 3 (originally scoped as "build x86_64's
 own interactive-boot entry point first") needs a from-scratch ELF-loading boot path, not wiring: a
 substantially larger, separate undertaking than pieces 1-2's device attachment and program swap.
@@ -333,8 +338,6 @@ this milestone does not build.
   `cargo xtask uefi-boot`, which reads the shell off the firmware screen (milestone 400).
 
 ## Index row
-
-**Built:** 2026-09-19
 
 x86_64's interactive boot: the kernel hands over to the progenitor through the shared
 `boot_progenitor`, the console is a userspace driver on a port-range capability (milestone 299), and

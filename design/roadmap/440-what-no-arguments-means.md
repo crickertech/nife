@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: 183
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 440. What `script/ci-build` with no arguments should mean
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
+Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
 the milestone calef minted the same day; numbered 2026-09-19 by milestone 433's drain of the
 proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**: `script/ci-build`
 still carries the `local`/`ci` tier column, still runs the `local` tier on the no-argument path, and
@@ -10,7 +19,7 @@ the proposal priced option A against fifteen. That makes A's cost one word per r
 rather than fifteen, and changes nothing else. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: DECISION §183.** The decision is
+The decision is
 §183 (what `script/ci-build` with no arguments means, and what the two tiers are called), written up 2026-09-19 by
 milestone 435's slice-c lane because this gate named no section.
 Milestone 286 collapsed two enumerations of "the checks that gate a pull

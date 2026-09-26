@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-08-15
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: aarch64 silicon
+specific_machine: argon (bought as the seL4 machine, so identical silicon referees the comparison)
+needs_person: yes
+---
 # 127. The seL4 machine: a Jetson TX1, so identical silicon referees the comparison
 
-**Status: NOT-STARTED.** Raised 2026-08-15 from the aarch64 board survey
+Raised 2026-08-15 from the aarch64 board survey
 (notes/aarch64-board-survey.md, which holds the candidate table, the sel4bench support tiers with
 sources, and the port-cost analysis this block summarizes). **Purchased 2026-08-15 (calef): a
 factory-sealed TX1 developer kit, $89.99, delivery estimated 2026-08-19 to -26; in hand as of
@@ -8,7 +17,7 @@ factory-sealed TX1 developer kit, $89.99, delivery estimated 2026-08-19 to -26; 
 completes when the board has printed a byte over serial; the sel4bench comparison itself remains
 milestone 25's, sequenced behind the customer path by the ranking function.
 
-**Gate: HARDWARE.** The board is here. calef confirmed on 2026-09-01 that **argon** is in hand, so
+The board is here. calef confirmed on 2026-09-01 that **argon** is in hand, so
 this gate no longer means "waiting for a delivery" and now means the sense milestone 53 uses: the
 board is on the desk and this needs hands on it. What remains is bring-up, not procurement.
 The two pre-board lanes the block names are deliberately NOT gated and can run now.

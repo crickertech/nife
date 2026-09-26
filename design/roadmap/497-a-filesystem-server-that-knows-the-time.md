@@ -1,13 +1,23 @@
+---
+status: NOT-STARTED
+raised: 2026-09-19
+promoted_from: a-filesystem-server-that-knows-the-time
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 497. A filesystem server that knows what time it is
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the
+*(Number provisional until the merge queue lands it.)* Promoted from the
 proposal `a-filesystem-server-that-knows-the-time`, filed 2026-09-19, on calef's instruction of
 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited
 except for this paragraph: the argument is its author's and promotion is not the moment to improve
 it. Written by the milestone 64 (enough std to run somebody else's crate) lane (`milestone/64-std-filesystem-shim`), from milestone 64's block
 and `notes/touch.md`'s `BUGS`.
 
-**Gate: NONE.** The mechanism a reader needs already exists and already has a decision behind it:
+The mechanism a reader needs already exists and already has a decision behind it:
 DECISIONS §43 made reading the wall clock a broadly grantable, read-only authority (a `Frame`
 capability naming the clock page), and every `std` program already holds one at slot 5. What this
 needs is a lane, and one judgment a lane can make: which spawn sites give the FS server the page.

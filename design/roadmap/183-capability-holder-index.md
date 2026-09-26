@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-28
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 183. A physical-range index for capability holders, so revocation stops scanning every thread
 
-**Status: NOT-STARTED.** Minted 2026-08-28, calef, out of a measured cost finding from milestone
+Minted 2026-08-28, calef, out of a measured cost finding from milestone
 142's own review pass (DECISIONS §102, the CRITICAL 1 fix for reclamation-time capability deletion,
 and DECISIONS §132's capability-scoped `REVOKE`). Discussed directly with calef, who asked for this
 to be tracked as a milestone rather than only a `BUGS` line.
 
-**Gate: NONE.** The data-structure shape (extend an existing structure vs. build a new one, see "The
+The data-structure shape (extend an existing structure vs. build a new one, see "The
 starting point" below) is a real choice but not one that needs calef's decision before a lane starts:
 it is kernel-internal, changes no syscall, no wire format, and no name. A lane picking this up should
 investigate and decide, the same latitude this project already gives reversible engineering calls.

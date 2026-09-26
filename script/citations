@@ -101,6 +101,11 @@ import subprocess
 import sys
 
 root, mode, arg = sys.argv[1], sys.argv[2], sys.argv[3]
+# Milestone 596: a block's status is read through helpers/roadmap_block.py, which knows the
+# frontmatter form and the prose form older revisions carry.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(root, "helpers"))
+import roadmap_block                                                        # noqa: E402
 
 # ---- the two records ---------------------------------------------------------
 # Title from the H1 and body from the whole file. Milestone 114 and 76 split both records into one
@@ -700,6 +705,22 @@ if mode == "--ratchet":
                 count = 1 if m.group(2) is None else int(m.group(2))
                 added.setdefault(path, set()).update(range(start, start + count))
 
+    # **A line that only lost a roadmap field token is not added prose.** Milestone 596 (the roadmap
+    # blocks get frontmatter too) moves `**Status:**`, `**Gate:**` and `**Built:**` out of every
+    # block's prose, and a line that differs from the base only by that reads as added under any
+    # diff. The rewrite is `helpers/roadmap_block.py`'s, and the same one the prose ratchet
+    # measures through, so what counts as unchanged here is what counts as unchanged there.
+    for path in list(added):
+        if not path.startswith("design/roadmap/"):
+            continue
+        was = subprocess.run(["git", "-C", root, "show", f"{base}:{path}"], capture_output=True)
+        if was.returncode != 0:
+            continue
+        old = was.stdout.decode(errors="replace")
+        same = {l for l in roadmap_block.without_fields(old).split("\n") if l.strip()}
+        now = (head_blob(path) or "").split("\n")
+        added[path] = {n for n in added[path] if n > len(now) or now[n - 1] not in same}
+
     ungloss = []
     for path in sorted(added):
         raw = head_blob(path)
@@ -804,7 +825,6 @@ if mode == "--ratchet":
 # than assumed: see notes/citations.md for what this prints against the live tree.
 #
 # Name provisional: `--moved` is this lane's, not calef's.
-STATUS_LINE = re.compile(r"\*\*Status: ([A-Z-]+)\b")
 BLOCK_FILE = re.compile(r"design/roadmap/(\d+)-[a-z0-9][a-z0-9-]*\.md")
 
 if mode == "--moved":
@@ -821,20 +841,17 @@ if mode == "--moved":
         sys.exit(0)
 
     def status_at(rev, path):
-        """The `**Status: <TOKEN>` of a block as of `rev`, or None if the file is not there.
+        """The status of a block as of `rev`, or None if the file is not there.
 
-        The first non-blank line after the H1, which is where script/roadmap --check requires it
-        and fails the block if it is anywhere else. Parsing it here rather than shelling out to
-        script/roadmap keeps this a diff of two commits: script/roadmap reads the working tree.
+        The frontmatter's `status`, or before milestone 596 the `**Status: <TOKEN>` on the first
+        non-blank line after the H1; `helpers/roadmap_block.py` reads either, because `rev` may be
+        on either side of the switch. Parsing it here rather than shelling out to script/roadmap
+        keeps this a diff of two commits: script/roadmap reads the working tree.
         """
         r = subprocess.run(["git", "-C", root, "show", f"{rev}:{path}"], capture_output=True)
         if r.returncode != 0:
             return None
-        for line in r.stdout.decode(errors="replace").split("\n")[1:]:
-            if line.strip():
-                m = STATUS_LINE.match(line)
-                return m.group(1) if m else None
-        return None
+        return roadmap_block.status_and_built(r.stdout.decode(errors="replace"))[0]
 
     names = subprocess.run(
         ["git", "-C", root, "diff", "--name-only", f"{base}..{tip}", "--", "design/roadmap/"],

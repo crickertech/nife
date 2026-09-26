@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-29
+built: 2026-07-29
+---
 # 36. A foreign-language component, seam first (spike; feeds 29 and 23)
-
-**Status: BUILT.**
 
 **In brief.** Prove the FFI seam end to end with a *minimal* C component before committing to a large one: bare-metal clang for both bare targets in the build, a Rust `user_rt` shell that holds every capability and does every syscall while the C code gets plain buffers over the C ABI (so the §4 surface does not widen), and only the handful of libc symbols the component actually needs, with `malloc` on milestone 27's untyped-backed `GlobalAlloc`. The deliverable that matters is one test: a deliberate out-of-bounds write in the C code faults the process, touches nothing outside its grant, and its supervisor restarts it. **Built, DECISIONS §31, both ISAs**: clang capability-checked for both backends from one compiler (Apple's is rejected: no RISC-V), `c_shim` holds every capability so the C holds none, the libc turned out to be **two** symbols not five (`compiler_builtins` already supplies the rest), and two witnesses prove the confinement (a read-only page that is the *same physical frame*, and a different frame at the same virtual address). notes/c-seam.md
 
@@ -123,7 +126,5 @@ find it with a throwaway component rather than half way into a port.
   when first silicon makes it concrete.
 
 ## Index row
-
-**Built:** 2026-07-29
 
 the thesis in one assertion: unverified foreign code, confined and restarted

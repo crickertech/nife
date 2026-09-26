@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: cheri-capabilities-are-not-these-capabilities
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 528. CHERI's capabilities are not this kernel's capabilities, and the tree never says so
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `cheri-capabilities-are-not-these-capabilities`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `cheri-capabilities-are-not-these-capabilities`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Filed by `maintainer/riscv-summit-research` from the RISC-V Summit
 Europe 2026 reading (`notes/riscv-summit-2026.md`). *(Number and slug provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** The work is one note in `notes/` and a cross-reference from `notes/acronyms.md`,
+The work is one note in `notes/` and a cross-reference from `notes/acronyms.md`,
 both of which a lane can start today against a published specification. **One sentence inside it is
 calef's**, and the milestone should stop at that sentence rather than write it: any claim about how
 nife stands relative to a hardware capability ISA is a positioning claim, and AGENTS.md puts *facts

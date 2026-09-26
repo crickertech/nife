@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-01
+built: 2026-08-01
+---
 # 63. Directory and package names: one spelling per thing
 
-**Status: BUILT, 2026-08-01, both ISAs.** Raised 2026-08-01, after `fsserver` was fixed and the
+Built, 2026-08-01, both ISAs. Raised 2026-08-01, after `fsserver` was fixed and the
 survey behind it found the rest.
 
 **Every table and paragraph below keeps the OLD spellings**, because this block is the record of the
@@ -221,8 +226,6 @@ Do it here, with the numbers written down, rather than under pressure from a nam
   normalises it, and nothing was broken. The case was internal consistency, 36 crates against 3.
 
 ## Index row
-
-**Built:** 2026-08-01
 
 **built, both ISAs.** Eight crates, fourteen programs and modules, and the three violating
 directories renamed to the spellings settled in review; `fs-server` is `fs_server`, `user-std`/`hellostd` is `std_exerciser` twice, and the shell has a name (`swish`). Its tables

@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+milestone_dependencies: none
+decision_dependencies: 184
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 403. An x86_64 host in the host pass
 
-**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal, left open by milestone 288,
+Filed 2026-09-14 as an unnumbered proposal, left open by milestone 288,
 which fixed four instances of "a test that states a fact about the author's laptop" in `crates/elf`
 and could not stop a fifth; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
 **Premise re-read against the tree on 2026-09-19 and still true, with one clarification worth
@@ -11,7 +20,7 @@ block's claim, and the x86_64 runner image is already in use for a different job
 option 1 and option 2 a little lower than the proposal assumed.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §184.** The decision is
+The decision is
 §184 (host test pass), written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section refuses
 option 1 on a measurement rather than restating the three: the x86_64 runner image is already in use

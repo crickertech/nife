@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-16
+promoted_from: a-usurper-that-reports-instead-of-hanging
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 417. A usurper that reports instead of hanging, so row 26 can be falsified
 
-**Status: NOT-STARTED.** Promoted from the proposal `a-usurper-that-reports-instead-of-hanging`,
+Promoted from the proposal `a-usurper-that-reports-instead-of-hanging`,
 filed 2026-09-16 by milestone 305, which wrote the honest defect for
 `notes/confinement-claims.md`'s row 26 and could not use the result. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION.** It needs a non-blocking or timed receive, which is the syscall surface
+It needs a non-blocking or timed receive, which is the syscall surface
 (AGENTS.md: anything two programs agree on, and §10/§16's narrow boundary), so it is calef's before
 it is anyone's.
 

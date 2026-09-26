@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-25
+built: 2026-09-15
+---
 # 166. One boot loader, reached two inconsistent ways: unifying the per-architecture progenitor loaders
 
-**Status: BUILT** 2026-09-15. Delivered as one boot loader, `kernel::user::boot_progenitor`
+Built 2026-09-15. Delivered as one boot loader, `kernel::user::boot_progenitor`
 (name provisional), used by all three architectures. The `init`-meaning question this block was
 minted for (2026-08-25) was overtaken and settled by other milestones before this was built, so the
 scope narrowed to the loader unification that actually remained; see "What overtook the original
@@ -87,8 +92,6 @@ unchanged; the six `spawn_hello` tests reach `hello`'s roles exactly as before.
   this milestone's scope.
 
 ## Index row
-
-**Built:** 2026-09-15
 
 Two boot-loader functions loaded the first process differently: aarch64's `spawn_progenitor` (a
 closure that also served the 19d test roles, and so carried two capabilities the interactive system

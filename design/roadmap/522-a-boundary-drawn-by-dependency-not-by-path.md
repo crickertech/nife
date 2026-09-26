@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-21
+built: 2026-09-21
+---
 # 522. A boundary drawn by dependency, not by path, is what finds the 117 blocks a path split misses
 
-**Status: BUILT 2026-09-21.** *(Number provisional until the merge queue lands it.)*
+*(Number provisional until the merge queue lands it.)*
 
 **The contribution is the boundary, not the count.** `script/metrics`'s `unsafe_outside_arch` (824,
 density 77 per 10,000, `script/lint`'s ceiling 88) answers "how much of the tree's Rust is unsafe
@@ -148,8 +153,6 @@ number; this milestone does not touch it.
   recorded above as a recommendation (kernel density, 142 per 10,000) rather than decided here.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 `script/metrics`'s `unsafe_outside_arch` mixed unconfined kernel code with confined userspace code
 into one density. This milestone draws the boundary as a real `cargo metadata` dependency edge

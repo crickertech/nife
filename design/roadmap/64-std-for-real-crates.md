@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-02
+built: 2026-09-19
+---
 # 64. Enough `std` to run somebody else's crate
 
-**Status: BUILT** on 2026-09-19 (PR #984), after five passes: the first on 2026-08-04 (PR #113),
+Built on 2026-09-19 (PR #984), after five passes: the first on 2026-08-04 (PR #113),
 the second on 2026-08-17, three on 2026-08-18, and the last on 2026-09-19, which bound file times
 and closed the one item the Follow-on still called outstanding (below, "The last pass: file
 times"). Every other row on the ranked list is closed, declined with a recorded reason, or owned by
@@ -118,7 +123,6 @@ could not, so they were answered from §27's existing decision (`.` is the grant
 The sting the measurement found is the one worth carrying forward: **a green build is not evidence.**
 `tempfile` compiles, links, and returns "operation not supported" at run time. Raised 2026-08-01,
 from a question with a number behind it: does milestone 27 mean ordinary Rust programs run here?
-
 
 ## What 27 actually delivered, and where it stops
 
@@ -377,8 +381,6 @@ build them, and report what breaks.
   where they live, and naming is calef's.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Fifty crates.io crates measured: **43 build, 7 fail** (2026-08-18; 39 without `entropy_backend`),
 ranked by demand, which is the list milestones 99 and 66 consume and is `script/crate-probes` rather

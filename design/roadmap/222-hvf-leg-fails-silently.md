@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 222. The one command a person runs before pushing has a leg that fails instead of skipping
 
-**Status: BUILT 2026-09-02.** Minted 2026-09-02 by the maintainer, from milestone 208's (the x86_64
+Minted 2026-09-02 by the maintainer, from milestone 208's (the x86_64
 kernel image ships an RWX segment) lane, which hit it while proving an unrelated boot path and
 reproduced it outside this project. *(Number provisional until the merge queue lands it.)*
 
@@ -133,8 +138,6 @@ only visible by running the thing.
   carries it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 `script/gates` now skips the HVF leg out loud, on a probe that asks QEMU rather than a version
 test; GICv3 measured and refused as its own milestone

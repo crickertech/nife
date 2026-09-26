@@ -27,6 +27,8 @@ does not touch. calef names modules, and has not ratified it.
 
 import re
 
+import roadmap_block
+
 DIRECTORY = 'design/roadmap/proposals'
 
 # A proposal filename is a lowercase hyphenated slug carrying NO number. The slug is the readable
@@ -81,6 +83,21 @@ def classify(text):
     a proposal a lane cannot start is worth as little as a milestone a lane cannot start.
     """
     lines = text.split('\n')
+    # Milestone 596 (the roadmap blocks get frontmatter too): a proposal takes the numbered block's frontmatter, with `status: PROPOSED`, the
+    # date it was written as `raised`, and the five dependency fields of §207 (the roadmap is a graph) where the gate was. Both
+    # forms are read, because `script/metrics` counts the pile at revisions from before the switch.
+    fields, start, fm_problems = roadmap_block.frontmatter(lines)
+    if fields is not None:
+        body = lines[start:]
+        if not body or not _TITLE.match(body[0]):
+            return None, None, NO_TITLE
+        raised = fields.get('raised', '')
+        if (fm_problems or fields.get('status') != roadmap_block.PROPOSED
+                or not roadmap_block.DATE.fullmatch(raised)):
+            return None, None, NO_STATUS
+        if any(fields.get(r) is None for r in roadmap_block.DEPENDENCIES):
+            return None, None, NO_GATE
+        return raised, body[0][2:], None
     if not lines or not _TITLE.match(lines[0]):
         return None, None, NO_TITLE
     first = next((line for line in lines[1:] if line.strip()), '')

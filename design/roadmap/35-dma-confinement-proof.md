@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-29
+built: 2026-07-29
+---
 # 35. Prove the DMA-confinement boundary (extends 18)
-
-**Status: BUILT.**
 
 **In brief.** Extract the shadow-ring validator (`validate_and_shadow`) out of `kernel/src/virtio.rs` into a host-testable logic crate and machine-check it: no validated descriptor chain, in either direction and including indirect descriptors and multi-queue, can reference memory outside the driver's granted DMA region. Add the `Untyped::SPLIT` "never widens rights" harness (the one fresh-mint site the caps proof doesn't reach) and confirm the IOMMU domain builder's *maps-exactly-the-grant* property is proved, not just tested.
 
@@ -117,7 +120,5 @@ placement policy stay host-tested; a bad placement is a performance bug, not a s
   bug rather than a safety hole, and host tests are the right instrument for it.
 
 ## Index row
-
-**Built:** 2026-07-29
 
 closes the one isolation boundary we test instead of prove

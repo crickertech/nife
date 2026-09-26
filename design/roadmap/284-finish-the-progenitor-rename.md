@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-13
+---
 # 284. The first process is called `progenitor`, and 775 sentences still said `init`
 
-**Status: BUILT** 2026-09-13. Minted the same day by the maintainer out of a measurement taken
+Built 2026-09-13. Minted the same day by the maintainer out of a measurement taken
 against `main`: milestone 266 wrote down the policy for this and carried out three cases of it.
 *(Number provisional until the merge queue lands it.)*
 
@@ -204,8 +209,6 @@ deliberately, so that a rename moves one set of words and not two.
   parents into programs with their own names; 399 keeps the refusals and 405 carries them forward.
 
 ## Index row
-
-**Built:** 2026-09-13
 
 Minted 2026-09-13 by the maintainer from a measurement against `main`. Milestone 266 renamed the
 first process and published the rule that a present-tense claim about the system changes because

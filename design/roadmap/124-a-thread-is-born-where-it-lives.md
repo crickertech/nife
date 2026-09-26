@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-14
+built: 2026-08-17
+---
 # 124. A thread is born where it lives: the spawn path's copies
 
-**Status: BUILT.** Built 2026-08-14, reopened 2026-08-16 when the same banner came back on both
+Built 2026-08-14, reopened 2026-08-16 when the same banner came back on both
 ISAs, and **closed 2026-08-17 when the banner turned out not to be this milestone's bug at all**.
 Minted by calef out of the riscv64 stack overflow milestone 108 was held on. The hold turned out to
 be the wrong suspect three times over, and the third time is the interesting one.
@@ -343,8 +348,6 @@ proofs and tests run in a configuration nobody checks is not demonstrating.
   it wants a lane rather than a hotfix.
 
 ## Index row
-
-**Built:** 2026-08-17
 
 `sched::spawn_on` carries a 4592-byte frame and the guard page under every kernel thread stack is
 4096, so ten instantiations can step from inside the stack to below the guard in one move,

@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+promoted_from: retire-the-builder-program
+---
 # 295. Retire `components/src/builder.rs`
 
-**Status: BUILT** 2026-09-14. Promoted from `design/roadmap/295-retire-the-builder-program.md`,
+Built 2026-09-14. Promoted from `design/roadmap/295-retire-the-builder-program.md`,
 which was written on 2026-09-14 to ask calef one sentence and which carries this block's whole
 argument in its git history. *(Number provisional until the merge queue lands it.)*
 
@@ -206,7 +212,5 @@ moves is one nobody can check.
   from the source, the same limitation milestone 289 recorded.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 Promoted from the 2026-09-14 proposal that asked calef one sentence and got it: *"Retire builder"*, option (b). Milestone 20's richer-initrd demo composed a child from **exactly two** capabilities and printed the tour's `init/build` line; milestone 268 item 4 made the default riscv64 boot hand over to the progenitor, which makes the same claim at the scale of a whole system on the same boot, so the step was making it twice. Eight surveyed sites, all real, one path stale (`crates/user_rt` is `user_mode_runtime` since 285), plus two live-code citations the survey missed. The accepted risk was priced rather than assumed: the minimality half is **half-proved**, by `fixtures/src/address_space_witness.rs` holding the same two capabilities on both ISAs under `script/test`, and proved nowhere past the address space, which is milestone 404. The proposal's guess at where the claim went was checked and was wrong: `least_authority_demo` and `grant_plan` are about a **child's** authority, not a composer's. Closed unasked: the one unmeasured child-loader that ran on the shipped board path. `userspace_ran()` keeps its matcher for the VisionFive 2 capture and its doc now says it reads history, not a live board.

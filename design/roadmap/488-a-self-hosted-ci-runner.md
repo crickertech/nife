@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 81, 119, 448
+---
 # 488. A self-hosted CI runner
 
-**Status: REFUSED.** Refused by milestone 119 (design/roadmap/119-merge-throughput.md),
+Refused by milestone 119 (design/roadmap/119-merge-throughput.md),
 milestone 81 (design/roadmap/81-hvf-leg.md), and recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work
 a number, a status and a condition that would change it. *(Number provisional until the merge queue

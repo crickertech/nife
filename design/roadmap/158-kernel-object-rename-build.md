@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-23
+built: 2026-08-25
+---
 # 158. Build the eleven kernel object and identifier renames DECISIONS §113 decided
 
-**Status: BUILT.** Minted 2026-08-23, from calef asking what the milestone was that renamed
+Minted 2026-08-23, from calef asking what the milestone was that renamed
 the kernel components and finding the answer was "none": DECISIONS §113 (eleven kernel object and
 identifier names move from contraction or borrowed jargon to the plain, standard term) was decided
 2026-08-23 and never turned into tracked build work. Checked directly before minting this:
@@ -380,8 +385,6 @@ contraction or borrowed abbreviation from this list anywhere in the tree anymore
   `design/decisions/114-aspace-enumerate.md` was left as the point-in-time record it is.
 
 ## Index row
-
-**Built:** 2026-08-25
 
 All seven names built across five lanes and green on all three ISAs, each measured far larger than
 §113's own estimate once its ABI module and lowercase identifier family were counted: `Endpoint`/`EpId`/`EpFail` -> `Rendezvous`/`RendezvousId`/`RendezvousFailure`, `Tcb`/`Tid`/`TcbPtr`/`TidSet` -> `ThreadControlBlock`/`ThreadId`/`ThreadControlBlockPointer`/`ThreadIdSet`, `Aspace`/`FreeVas` -> `AddressSpace`/`FreeAddressSpace`, `Frame` -> `PageFrame`, `Untyped` -> `MemoryRegion`.

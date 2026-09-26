@@ -1,11 +1,20 @@
+---
+status: PARTIAL
+raised: 2026-07-31
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 47. Navigation and naming: `cd`, `pwd`, `ls`, `mkdir`, `rm`, paths, and environment
 
-**Status: PARTIAL.** The token read `IN-PROGRESS` with no branch anywhere and nobody holding it, found
+The token read `IN-PROGRESS` with no branch anywhere and nobody holding it, found
 2026-08-17 by the status-accuracy sweep. Two claims in the "still to do" sentence below were also
 false, and both are corrected there rather than here: the glob caretaker was built 2026-07-31, and the
 `std` PAL's three namespace verbs were bound 2026-08-04.
 
-**Gate: NONE.** Discharged 2026-08-18. The navigation half is built. The namespace half (absolute paths,
+Discharged 2026-08-18. The navigation half is built. The namespace half (absolute paths,
 environment, `PATH`, and `bind`) had no forcing use case from the shell, and this block's own
 sequencing was to let milestone 64 measure first so a real crate's demands could size the remaining
 scope. **That measurement has landed and it did its job**, so the gate it was waiting for is

@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-26
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 179. Pointer input: a mouse in text mode
 
-**Status: NOT-STARTED.** Minted 2026-08-26, calef, checking the roadmap for a gap `notes/glyphs.md`
+Minted 2026-08-26, calef, checking the roadmap for a gap `notes/glyphs.md`
 already names as an honest limit rather than an unmentioned one: **"No mouse."** The compositor and
 terminal milestones (29, 33, 142) attach only a keyboard today, deliberately, not for want of a
 device.
 
-**Gate: NONE.** Nothing here is known to be blocked on a design fork the way milestone 178 is, but
+Nothing here is known to be blocked on a design fork the way milestone 178 is, but
 the "what this needs" section below has not been checked against the compositor's actual event
 model, and a fork may be hiding there (see "What is not yet checked").
 

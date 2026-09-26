@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 329. The 5.13x record-level number was measured against a request size nothing ships
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 138's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `bench/record-level-sweep.sh` is still in the tree, `filesystem_protocol::fs::TRANSFER_PAGES`
 is still 16 (64 KiB), and milestone 138's block still publishes **5.13x** as its headline read ratio
 in its opening paragraph and at four more sites, every one of them taken at 4 KiB. Nothing has re-run
 the sweep at the shipped size.
 
-**Gate: NONE.** The sweep script is in the tree, the shipped configuration is in the tree, and the
+The sweep script is in the tree, the shipped configuration is in the tree, and the
 run is one command on patagonia.
 
 **In brief.** Re-run the record-level sweep at the transfer size the system actually uses: `sh

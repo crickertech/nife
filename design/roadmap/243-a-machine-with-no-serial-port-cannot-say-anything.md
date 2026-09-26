@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-19
+---
 # 243. A machine with no serial port has no way to say anything, and no gate can read it
 
-**Status: BUILT** 2026-09-19. Minted 2026-09-03 by calef, from asking how nife reaches commodity
+Built 2026-09-19. Minted 2026-09-03 by calef, from asking how nife reaches commodity
 hardware. Built in two passes: 2026-09-04 put the boot tour on a UEFI machine's framebuffer and
 gave a gate a way to read it under QEMU; 2026-09-19 closed the block's two remaining Outstanding
 items, **early boot** and **the other two architectures**. See `notes/serial-less-output.md`.
@@ -354,8 +359,6 @@ through the channel it is replacing, and say which one failed.
   the network is the failure**, and no answer here escapes that entirely.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 the boot tour is on the screen on all three architectures, read back off the framebuffer by a gate
 that decodes the glyphs: a UEFI aperture on x86_64 and a `ramfb` the guest supplies on the two

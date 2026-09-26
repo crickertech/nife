@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-19
+promoted_from: more-repeats-where-the-job-mix-contends
+---
 # 419. `tasks=4` needs more repeats, not more power cycles, and `REPEATS` is one constant for the whole sweep
 
-**Status: BUILT** 2026-09-19, by milestone 168's own lane, in a different session and on the same
+Built 2026-09-19, by milestone 168's own lane, in a different session and on the same
 day this block was numbered and its decision written up. What landed is **options 1 and 3 together**
 from the list below: a uniform `REPEATS` of 21 for the whole sweep, and the median reported with the
 minimum and maximum beside it. **Option 2, a per-point table, was refused on measured board time**:
@@ -94,8 +100,6 @@ not, until a number exists, and `tasks=4` does not yet have one.
   `notes/job-mix.md`, which carries the old-and-new table.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 Milestone 168's sweep reports the best of three repeats per sweep point, and at `tasks=4` the
 underlying distribution is wide enough that the best of three is itself a coin flip: five boots of

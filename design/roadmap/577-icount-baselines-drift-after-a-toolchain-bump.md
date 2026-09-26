@@ -1,6 +1,16 @@
+---
+status: SUPERSEDED
+raised: 2026-09-15
+superseded_by: 300, 302, 415
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 577. The icount baselines predate the pinned nightly, so the tripwire's headroom is eroding unseen
 
-**Status: SUPERSEDED.** 2026-09-23, by milestone 300 (decompose the icount baseline drift, and
+Superseded 2026-09-23, by milestone 300 (decompose the icount baseline drift, and
 re-baseline only what is proven), milestone 302 (a baseline records what it was saved against, and a
 stale one fails loudly) and milestone 415 (sub-tripwire drift accumulates across baseline saves).
 Promoted and superseded in one act, the shape milestone 431 (the ACPI walk is reachable by the
@@ -9,7 +19,7 @@ place: it was filed 2026-09-15 by the lane of milestone 299 (the x86 port-range 
 PR #883, and both halves of it were answered while it sat. *(Number provisional until the merge
 queue lands it.)*
 
-**Gate: NONE.** Nothing gates a block whose work has homes. What is still owed is owed by 302 and by
+Nothing gates a block whose work has homes. What is still owed is owed by 302 and by
 415's item 2, and both of those carry their own gates; this one exists so the number is spent and
 the evidence below has somewhere to live.
 

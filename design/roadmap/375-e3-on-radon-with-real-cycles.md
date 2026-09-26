@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-04
+---
 # 375. Run the footprint-perturbation experiment on radon, where a cycle counter can see it
 
-**Status: BUILT 2026-09-04.** Filed as a proposal that morning by the milestone 188 lane (phases 1
+Filed as a proposal that morning by the milestone 188 lane (phases 1
 to 3), and answered the same evening by the `maintainer/e3-on-radon` session, before anybody read
 the file. Promoted by milestone 433 on 2026-09-19, when the record was checked: six boots on radon,
 interleaved unpadded and padded, one card written six times, every boot printing
@@ -101,8 +106,6 @@ owns E3; `design/roadmap/132-the-fastpath-footprint.md` owns the gate.
   notes/footprint-perturbation.md beside the procedure.
 
 ## Index row
-
-**Built:** 2026-09-04
 
 Filed and answered on the same day, before anyone read the file. Milestone 134's E3 pads the IPC
 fastpath to roughly 1.85x and asks what that costs, and until this session it had only ever run

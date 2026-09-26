@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: a-cadence-job-whose-healthy-state-is-red
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 422. A cadence job whose healthy state is red, and nothing that notices it repeating
 
-**Status: NOT-STARTED.** Promoted from the proposal `a-cadence-job-whose-healthy-state-is-red`,
+Promoted from the proposal `a-cadence-job-whose-healthy-state-is-red`,
 filed 2026-09-17 by milestone 311, which was minted to fix a path and found that the path was the
 smaller half. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It reads GitHub's run history, the same source `script/cadence-check` already reads.
+It reads GitHub's run history, the same source `script/cadence-check` already reads.
 
 **Premise re-checked 2026-09-19 and still true, and the overdue run is now five weeks long.**
 `helpers/trunk-health.sh` still reports nothing about a repeated failure, and `script/cadence-check`

@@ -1,10 +1,19 @@
+---
+status: PARTIAL
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 586. A prose ratchet in lint
 
-**Status: PARTIAL.** Built on 2026-09-24 except the churn measurement, which needs a week. Minted by the maintainer on 2026-09-24, at the merge of the two decisions it
+Built on 2026-09-24 except the churn measurement, which needs a week. Minted by the maintainer on 2026-09-24, at the merge of the two decisions it
 enforces: [§212 (a prose budget)](../decisions/212-a-prose-budget-for-every-document.md) and
 [§213 (writing standards)](../decisions/213-writing-standards.md). calef ratified both on 2026-09-23.
 
-**Gate: NONE.** Nothing blocks it. Both decisions are DECIDED and describe the check.
+Nothing blocks it. Both decisions are DECIDED and describe the check.
 
 ## Why one milestone serves both decisions
 

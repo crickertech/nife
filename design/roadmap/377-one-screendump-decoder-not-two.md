@@ -1,12 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 377. Two screendump decoders, in two crates, reading the same font
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 243 lane, out of its own
+Filed as a proposal on 2026-09-04 by the milestone 243 lane, out of its own
 duplication; promoted by milestone 433 on 2026-09-19. Counted against the tree that day and both
 copies are still there: `xtask/src/main.rs` still defines `parse_ppm`, `decode_cell` and
 `scanout_rows` (lines 1562, 1614 and 1644), and `crates/board_console/src/screen.rs` is still the
 second, more general decoder beside them. Nothing has merged them and nothing has drifted yet.
 
-**Gate: NONE.** It is a refactor with a test on each side; what it needs is a lane, not a decision.
+It is a refactor with a test on each side; what it needs is a lane, not a decision.
 
 **In brief.** There are now two pieces of code in this tree that read a QEMU screendump back into
 text by matching 7x8 cells against `bitmap_font`:

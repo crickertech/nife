@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 109. `xargs`: batching a grant too large to hand over
 
-**Status: BUILT** 2026-08-04 (PR #111). Built as a shell prefix word rather than a program, deliberately: a batching program would have to hold the union of every batch, which is the thing that cannot be handed over. **One limit, named here because a reader will meet it**: `xargs <program>` still stops after planning batch one, because the shell cannot yet ask init to mint a per-batch caretaker. `xargs echo` and `xargs caps rm` run end to end. The missing delegation chain is milestone 47's, not this one's. Raised 2026-08-04. Milestone 47 (navigation and naming) names this twice in
+Built 2026-08-04 (PR #111). Built as a shell prefix word rather than a program, deliberately: a batching program would have to hold the union of every batch, which is the thing that cannot be handed over. **One limit, named here because a reader will meet it**: `xargs <program>` still stops after planning batch one, because the shell cannot yet ask init to mint a per-batch caretaker. `xargs echo` and `xargs caps rm` run end to end. The missing delegation chain is milestone 47's, not this one's. Raised 2026-08-04. Milestone 47 (navigation and naming) names this twice in
 its own block and will close without it, and both glob notes end on the same sentence.
 
 **The finding, with the number.** A glob expansion grants at most **eight names**.
@@ -54,7 +59,6 @@ reads a set or is handed one.
 milestone 47 and both notes call it, and it is a standard term a reader already knows from outside,
 which is the strongest argument any name gets here.
 
-
 ## Follow-on
 
 - **Milestone 47.** `xargs <program>` still stops after planning batch one, because the shell cannot
@@ -81,8 +85,6 @@ which is the strongest argument any name gets here.
   name gets here.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 Built as a shell prefix word, not a program, because a batching program would have to hold the
 union it cannot be handed. Each batch prints its own set before it runs, a failing batch stops the

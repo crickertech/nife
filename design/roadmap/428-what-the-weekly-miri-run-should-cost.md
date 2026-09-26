@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-17
+promoted_from: what-the-weekly-miri-run-should-cost
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 428. What the weekly Miri run should cost
 
-**Status: NOT-STARTED.** Promoted from the proposal `what-the-weekly-miri-run-should-cost`, filed
+Promoted from the proposal `what-the-weekly-miri-run-should-cost`, filed
 2026-09-17 by the milestone 310 lane on the first measurement of a run that actually finished. The
 cadence itself is calef's call; the measurement and the cut are not. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: NONE.** A lane can start today and get most of the value: collecting per-crate wall clocks
+A lane can start today and get most of the value: collecting per-crate wall clocks
 and sampling the crates that dominate are `cfg(miri)` gates at the test site, the convention five
 crates in this tree already follow, and neither needs a ruling. Only the last step is calef's,
 changing the weekly cadence or tightening `timeout-minutes`, and it is the cheapest step of the

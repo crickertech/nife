@@ -1,6 +1,12 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-16
+promoted_from: the-prover-only-ever-sees-one-architecture
+---
 # 304. `cargo kani -p kernel` only ever compiled one architecture, and it was the runner's
 
-**Status: BUILT 2026-09-16.** Promoted from
+Promoted from
 `design/roadmap/proposals/the-prover-only-ever-sees-one-architecture.md`, written by milestone 255's
 lane on 2026-09-04 out of what it found while looking for the largest asm-free files in
 `kernel/src/arch/`. *(Number provisional until the merge queue lands it.)*
@@ -213,8 +219,6 @@ aarch64. It is now in `script/falsifications`' `BUGS`.
   not folded into this block because it is a design question rather than a mechanical one.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 the prover compiled one architecture's `arch/` and it was whichever the runner happened to be, so
 two thirds of the architecture layer was unreachable for a `cfg` rather than for an `asm!` block;

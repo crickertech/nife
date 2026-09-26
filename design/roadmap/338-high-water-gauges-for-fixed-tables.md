@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 338. Every fixed-size table but one is raised only after it has failed silently
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 231's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `kernel/src/cap.rs` still carries the only gauge of its kind
 (`CAPABILITY_TABLE_PEAK_MEASURED`, `PEAK_REPORTED`, `PEAK_STABLE_PASSES`),
@@ -9,7 +18,7 @@ different place, and `kernel/src/memory.rs`'s `MAX_REGIONS` and `crates/nifefs`'
 have no gauge at all. `cap.rs:199` names those two as the tree's own precedent for the failure being
 described.
 
-**Gate: NONE.** The pattern exists and works. Milestone 231 built the gauge for
+The pattern exists and works. Milestone 231 built the gauge for
 `CAPABILITY_TABLE_SLOTS`, `sched::MAX_THREADS` has an older separate one, and the remaining tables
 need either the same treatment or a decision that one mechanism serves all of them. Either route is
 startable today.

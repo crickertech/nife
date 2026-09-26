@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-13
+built: 2026-08-15
+---
 # 120. The rename: the OS becomes `nife`, and the project gets an organization
 
-**Status: BUILT.** Minted 2026-08-13 by calef, who chose the name and the shape in the same
+Minted 2026-08-13 by calef, who chose the name and the shape in the same
 conversation that established why the merge queue could not be switched on. Executed 2026-08-15, in
 the order the Ordering section demanded: queue drained to zero (#151 closed with its reasons; a
 dead lane's branch, `fix/max-cpus-fifth-hart`, parked pushed and unmerged for post-rename review),
@@ -214,8 +219,6 @@ Redox is the closest neighbour in this tree's own reference set and does the opp
   no audience on the day, and the cost only rises from here.
 
 ## Index row
-
-**Built:** 2026-08-15
 
 Suess's name for the Earth's nickel-iron core, which is the layer everything rests on and nothing
 is beneath. It also unblocks 119: GitHub's merge queue exists only for organization-owned

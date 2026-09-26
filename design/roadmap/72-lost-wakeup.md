@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 72. A lost wakeup that a hundred leaked threads may be causing
 
-**Status: BUILT** (2026-08-03). The title is the hypothesis this milestone started with, and it was
+Built (2026-08-03). The title is the hypothesis this milestone started with, and it was
 wrong, which is why it is kept. The hang was **one line of test code**. It was not the leaked
 threads, and it was not RISC-V. Full account, evidence and method in notes/scheduler.md under
 "CLOSED: the lost wakeup"; this entry is what changed and what is left.
@@ -62,8 +67,6 @@ entry, with the evidence recorded in notes/scheduler.md.
   carries a `BUGS` section saying so where a caller meets it.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 Not the leak, and not RISC-V. One line of test code probed `reclaim_region(...).is_err()` on its
 own child's TCB region, which under §16 as amended **arms the kill**; the child was reaped before

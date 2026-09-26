@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 330. Nothing stops the lost prompt returning, because the fault path has no regression gate
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 235's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds, with one correction to where the sibling assertion lives.** No program in
 `components/src/` or `fixtures/src/` faults on purpose, and `script/swish-check` spawns none. The
@@ -11,7 +20,7 @@ killed user thread is not itself a failure here" and calls that assertion "the o
 ratchet", which stopped being true when milestone 233 landed it; that stale sentence is one of the
 class milestone 333 collects.
 
-**Gate: NONE.** A lane could start this today. The reasoning that produced `DECISION` is sound as
+A lane could start this today. The reasoning that produced `DECISION` is sound as
 far as it goes (a new program is a new name, and names are calef's) and it does not reach a gate,
 because a name has never been a blocker in this tree. `design/naming.md`, which DECISIONS §155
 made the rule, says it in one sentence: a new crate, program or module *"ships a **provisional**

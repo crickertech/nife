@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-04
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 373. The board-only kernel features nothing compiles, until somebody is standing at the board
 
-**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane;
+Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane;
 promoted by milestone 433 on 2026-09-19. **The premise was checked that day and half of it has
 stopped being true, which narrows the work rather than closing it.** `script/lint`'s per-feature
 clippy loop now builds `board`, `fastpath_pad` and `soak_test` on both aarch64 and riscv64, and a
@@ -12,7 +21,7 @@ six feature sets below is a combination, clippy builds each feature alone, and a
 card is a configuration nothing in CI has ever seen. Two feature names in the body are pre-297
 spellings: `soak` is `soak_test` and `reboot_soak` is `reboot_soak_test`.
 
-**Gate: NONE.** It is a build matrix, and the expensive question (which of these should also *run*
+It is a build matrix, and the expensive question (which of these should also *run*
 somewhere) is deliberately left out of it.
 
 ## In brief

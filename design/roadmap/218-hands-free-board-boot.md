@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-16
+---
 # 218. Every boot of the VisionFive 2 needs a human typing four commands into U-Boot
 
-**Status: BUILT 2026-09-16.** Minted 2026-09-01 by the maintainer, after driving the board from a
+Minted 2026-09-01 by the maintainer, after driving the board from a
 script made the cost of the manual path concrete. The artifact shipped 2026-09-02 and **sat
 unconfirmed for fourteen days for want of a powered board**; the boot that confirmed it happened on
 2026-09-16. *(Number provisional until the merge queue lands it.)*
@@ -268,8 +273,6 @@ Everything above is reasoning. This is what settles it. Steps 1 and 2 need no bo
   still ends a run. That limitation lives beside the decision, in milestone 224's block.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 the board cannot boot unattended and fatal risk 5 wants sustained runs. **A route was taken
 2026-09-02 and radon was unreachable to try it on**, so the token still says what the outcome is

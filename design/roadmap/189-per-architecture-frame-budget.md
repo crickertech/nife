@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-08-28
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 189. A page-frame budget per architecture, so the ledger constrains all three
 
-**Status: NOT-STARTED.** Minted 2026-08-28, calef, out of his own question about why x86_64 has no
+Minted 2026-08-28, calef, out of his own question about why x86_64 has no
 page-frame budget. It has one; it has the same one, which is the problem.
 
-**Gate: NONE.** The ledger already prints, on every leg, the figure this needs. Splitting one
+The ledger already prints, on every leg, the figure this needs. Splitting one
 constant into three is not a design fork, and the shape it splits into is the one
 `bench/baseline-aarch64.txt`, `bench/baseline-riscv64.txt` and `bench/baseline-x86_64.txt` already
 use for the icount tripwire.

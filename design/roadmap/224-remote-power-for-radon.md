@@ -1,13 +1,22 @@
+---
+status: RECORDED
+raised: 2026-09-02
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: radon (the work is radon's own outlet and its network path)
+needs_person: yes
+---
 # 224. Nothing can power-cycle radon, so a hung soak needs a person
 
-**Status: RECORDED, and what is recorded is a decision to stay manual.** calef, 2026-09-04, on the four options
+Recorded, and what is recorded is a decision to stay manual. calef, 2026-09-04, on the four options
 below after the diagnosis was re-measured: **accept manual power for now.** The gate is answered
 rather than removed, so this block stays open as the place the question lives when it is revisited.
 Originally NOT-STARTED. Minted 2026-09-02 by the maintainer, from milestone 221's (the soak never
 crosses cores, so build the hook that makes it) lane, which named it as the soak's remaining gap.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names, which is the one that
+In the second sense `notes/roadmap.md` names, which is the one that
 never discharges by waiting: the plug is here, the board is here, and every option left below needs
 a person at the router or at the outlet. Reading the access point's configuration, moving the
 board's outlet, putting patagonia's radio on the plug's network and writing one firewall rule are

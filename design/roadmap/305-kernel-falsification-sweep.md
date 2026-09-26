@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-16
+---
 # 305. The six kernel confinement rows get a falsification a machine can replay
 
-**Status: BUILT.** 2026-09-16. Minted 2026-09-16 by the maintainer. *(Number provisional until the
+Built 2026-09-16. Minted 2026-09-16 by the maintainer. *(Number provisional until the
 merge queue lands it.)*
 
 ## The finding this started from is that the blocker had already been removed
@@ -252,7 +257,5 @@ keeps comparing two derivations of one fact; that check fired on the first run h
   this one), so the edit is the integrator's and is named in the pull request too.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 Milestone 210 built `cargo xtask test --test <substring>` on 2026-08-31 and nothing connected it to the six kernel confinement rows in `notes/confinement-claims.md` that it unblocked, whose `BUGS` went on saying the mechanism "does not exist" for a fortnight while `script/lint` reported the consequence on every run. `script/falsifications` now reads a `Falsification:` block above a `#[test_case]` and replays it by booting one architecture, so rows 21 to 26 carry eight replayable patches instead of six "no"s. **The finding worth the milestone is a survivor**: row 21's RISC-V twin stayed green under a patch that removed the `U`-bit check entirely, because `user_can_read` walked through a `Half::Low` mapper and answered "U-mode cannot read the kernel" by refusing to look at a high-half address. That assertion had been unable to fail since milestone 41, every gate was green throughout, and only a falsification could have found it; the walk is fixed here and the test now goes red on its own sentence.

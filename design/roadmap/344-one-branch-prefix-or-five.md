@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-18
+built: 2026-08-18
+---
 # 344. The branch-prefix taxonomy is a gate enforcing a convention with one consumer
 
-**Status: BUILT.** 2026-08-18, sixteen days **before** the proposal that asks for it was filed on
+Built 2026-08-18, sixteen days **before** the proposal that asks for it was filed on
 2026-09-03 by the milestone 247 sweep, from milestone 130's block; numbered 2026-09-19 by milestone
 433, which checked the premise and found it already answered. calef asked what the taxonomy was for,
 got the same answer this proposal reaches (nothing consumes it except the check), and retired it.
@@ -77,8 +82,6 @@ short piece of writing rather than an investigation.
   records it where the promotion found it rather than editing that file.
 
 ## Index row
-
-**Built:** 2026-08-18
 
 A gate enforcing a convention nothing consumes teaches contributors that the gates are arbitrary,
 and this one had a scar: AGENTS.md cites the branch-prefix check as its worked example of a rung-two

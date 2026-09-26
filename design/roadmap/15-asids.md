@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-23
+---
 # 15. Tagged address spaces (ASIDs)
-
-**Status: BUILT.**
 
 **In brief.** 16-bit ASIDs, generation/rollover; stop flushing the whole EL1 TLB per switch
 
@@ -42,7 +45,5 @@ the deferral.
   measured.
 
 ## Index row
-
-**Built:** 2026-07-23
 
 a context switch stops flushing every translation

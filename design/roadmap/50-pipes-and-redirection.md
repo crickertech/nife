@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-07-31
+---
 # 50. Pipes and redirection: one sink protocol, and `|` turns out to be an endpoint
 
-**Status: BUILT.** Closed 2026-08-14 by the integrator on the overnight verification lane's
+Closed 2026-08-14 by the integrator on the overnight verification lane's
 evidence: every residual the paragraph below listed as open had closed on 2026-08-03 and the record
 had not caught up. Buffering was measured and the verdict is build nothing (commit 8c27953;
 notes/pipes.md carries the numbers and the honest caveats); the terminal sink adapter is
@@ -200,8 +205,6 @@ likely to surprise.
   recorded with it.
 
 ## Index row
-
-**Built:** 2026-07-31
 
 the sink contract is **built** (`crates/sink_proto`, notes/sink-protocol.md) and a program is
 proven indifferent to what its output slot holds; all four operators run at a real prompt on both

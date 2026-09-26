@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 222, 448
+---
 # 475. Extending the accelerator probe to KVM and WHPX
 
-**Status: REFUSED.** Refused by milestone 222 (design/roadmap/222-hvf-leg-fails-silently.md), and
+Refused by milestone 222 (design/roadmap/222-hvf-leg-fails-silently.md), and
 recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

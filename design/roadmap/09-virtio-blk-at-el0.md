@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-14
+---
 # 9. A virtio-blk driver at EL0, and an interrupt becomes a message
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Two commits on 2026-07-14:
 
@@ -26,7 +29,5 @@ is milestone 32's work, eighteen days and a real filesystem later.
   server is milestone 32, eighteen days and a real filesystem later, and this block already says so.
 
 ## Index row
-
-**Built:** 2026-07-14
 
 userspace drivers: MMIO by capability, IRQ as message, the kernel touches no DMA

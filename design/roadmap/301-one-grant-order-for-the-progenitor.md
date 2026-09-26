@@ -1,10 +1,20 @@
+---
+status: SUPERSEDED
+raised: 2026-09-08
+superseded_by: 166
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 301. One grant order for the progenitor, on every board
 
-**Status: SUPERSEDED.** 2026-09-15, by milestone 166. *(Number provisional until the merge queue
+Superseded 2026-09-15, by milestone 166. *(Number provisional until the merge queue
 lands it.)* Written 2026-09-08 as an unnumbered proposal, raised by milestone 266, which unified the
 first process into one program and could not unify the one thing left under a `cfg` inside it.
 
-**Gate: NONE.** Nothing outside this repository ever acted on the slot numbers, which is what made
+Nothing outside this repository ever acted on the slot numbers, which is what made
 this cheap to settle.
 
 **Promoted and disposed of in one act, on calef's ruling**, because promotion is how a proposal

@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 91. A glossary, and every acronym linked to it
 
-**Status: NOT-STARTED.** Raised 2026-08-03 by calef, from the reader's chair: navigating the
+Raised 2026-08-03 by calef, from the reader's chair: navigating the
 acronyms is the hardest part of understanding these docs. That is the naming tenet's own concern
 one level down; CLAUDE.md says names are what make this OS legible to humans and to LLMs, and an
 acronym is a name whose claim is hidden until the reader already knows it.
 
-**Gate: NONE.** Answered by calef 2026-09-05, and the answer changed the shape of the milestone
+Answered by calef 2026-09-05, and the answer changed the shape of the milestone
 rather than picking a filename. The scheduling constraint stands on its own: this touches nearly
 every documentation file, so it should start only when no lane holds unmerged `notes/` edits.
 

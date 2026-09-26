@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-02
+---
 # 213. A harness that re-implements the code instead of calling it proves nothing about the code
 
-**Status: BUILT.** Minted 2026-09-01 by milestone 211's sweep, which was looking for a
+Minted 2026-09-01 by milestone 211's sweep, which was looking for a
 different defect and found this one beside it. Swept 2026-09-02: **148 harnesses read, one
 measured blind, rewritten, and carrying a machine-replayable record of the defect its old
 phrasing could not see.** Two more have the shape and are recorded as *not* findings, one of
@@ -120,8 +125,6 @@ whole family. Every harness was read.
   other side of the comparison, and that one sentence is the whole discriminator.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 Found beside milestone 211's sweep, which was looking for a different defect. `nifefs::the_validation_implies_reads_slice_is_in_bounds` calls neither `parse` nor `read`: it
 recomputes both functions' arithmetic inline and proves a property of the copy, so a rewrite of `read` leaves it green. Its own comments say "exactly parse's acceptance condition", which is a

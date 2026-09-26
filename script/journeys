@@ -42,6 +42,11 @@ import re
 import sys
 
 root, mode = sys.argv[1], sys.argv[2]
+# Milestone 596 (the roadmap blocks get frontmatter too): a block's status is read through helpers/roadmap_block.py, which knows the
+# frontmatter form and the prose form older revisions carry.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(root, "helpers"))
+import roadmap_block                                                        # noqa: E402
 jd = os.path.join(root, "design", "journeys")
 rd = os.path.join(root, "design", "roadmap")
 dd = os.path.join(root, "design", "decisions")
@@ -67,12 +72,11 @@ def load_index(path, row_re):
 DECISION_ROW = re.compile(r"^\| (\d+) \| ([A-Z][A-Z0-9 ]*[A-Z0-9]) \| \[")
 
 # The milestone blocks, read the way script/roadmap reads them: the number is the filename's and
-# the status is the first non-blank line after the H1. A lettered addendum (20a) carries neither
-# and is skipped, exactly as it is one directory over. Only the number and the status are wanted
+# the status is its frontmatter or its prose status line (helpers/roadmap_block.py reads both). A
+# lettered addendum (20a) carries neither and is skipped, exactly as it is one directory over. Only the number and the status are wanted
 # here, so this deliberately does not re-implement the rest of that script's validation: a block
 # this cannot parse is script/roadmap --check's failure to report, not this one's.
 BLOCK = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
-STATUS = re.compile(r"\*\*Status: ([A-Z-]+)\b")
 
 
 def load_blocks(d):
@@ -87,10 +91,9 @@ def load_blocks(d):
         if not m:
             continue
         lines = open(os.path.join(d, fname)).read().split("\n")
-        first = next((l for l in lines[1:] if l.strip()), "")
-        sm = STATUS.match(first)
-        if sm:
-            out[int(m.group(1))] = sm.group(1)
+        status = roadmap_block.status_and_built("\n".join(lines))[0]
+        if status:
+            out[int(m.group(1))] = status
     return out
 
 

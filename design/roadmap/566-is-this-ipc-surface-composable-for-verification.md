@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: is-this-ipc-surface-composable-for-verification
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 566. Is this IPC surface composable for verification, or only verifiable piecewise
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `is-this-ipc-surface-composable-for-verification` on 2026-09-22, filed 2026-09-21. Raised by the `incremental-path` lane, from a sentence in the paper
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `is-this-ipc-surface-composable-for-verification` on 2026-09-22, filed 2026-09-21. Raised by the `incremental-path` lane, from a sentence in the paper
 it was reading that nobody here has answered.
 
-**Gate: NONE.** Everything it needs is in this tree and in two notes already written.
+Everything it needs is in this tree and in two notes already written.
 
 ## The sentence
 

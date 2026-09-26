@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-25
+built: 2026-09-01
+---
 # 164. x86_64 userspace can't build `aes` (and therefore `fs_server`): no SSE, no scalar fallback
 
-**Status: BUILT 2026-09-01.** Minted 2026-08-25 from milestone 161's x86_64 userspace lane (pull
+Minted 2026-08-25 from milestone 161's x86_64 userspace lane (pull
 request #476), which named the `aes` failure plainly as "the finding that is not our bug" and
 proposed it as its own milestone rather than routing around it. It was minted **Gate: NONE**, on
 the grounds that this was a toolchain and dependency problem rather than a hardware one, and that
@@ -153,8 +158,6 @@ architecture costs a restructure rather than a port") named this as a piece of.
   inert in all of them but `aes`.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 The blocker was one build flag, and both routes this block sized are superseded. `aes` 0.8.4 gates
 every architecture-specific backend `not(aes_force_soft)` and ships a portable software one; `--cfg aes_force_soft` on `[target.x86_64-unknown-none]` turns exit 101 into exit 0, so `patches/`

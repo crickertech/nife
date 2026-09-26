@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 113. The proofs' own unsafe code is ungated
 
-**Status: BUILT** 2026-08-04 (PR #109). Raised 2026-08-04 by milestone 82's lane, recorded in
+Built 2026-08-04 (PR #109). Raised 2026-08-04 by milestone 82's lane, recorded in
 `notes/unsafe-obligations.md`'s BUGS as the second of three things neither unsafe lint can reach.
 
 **The finding.** `cfg(kani)` is set by the model checker and by nothing else. `script/lint` never
@@ -72,8 +77,6 @@ That one is worth fixing and it is a different bug.
   rule would buy nothing and cost a configuration matrix nobody can read.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 `#[cfg(kani)]` is compiled by the model checker and by nothing else, so neither unsafe lint can
 fire there; 14 blocks live under it and eleven of `ipc`'s twelve are undocumented. Milestone 82's

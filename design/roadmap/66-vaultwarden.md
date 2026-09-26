@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-02
+milestone_dependencies: none
+decision_dependencies: 161
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 66. Vaultwarden: somebody else's real application, running here
 
-**Status: NOT-STARTED**, and this is the **largest single item on this roadmap**. It is recorded as a
+Not started, and this is the **largest single item on this roadmap**. It is recorded as a
 target rather than a plan, and its value today is that it converts "runs real workloads" from a claim
 into a checklist.
 
-**Gate: DECISION §161.** (The MILESTONE 107 half cleared 2026-08-04, found stale 2026-08-15; the MILESTONE 64 half cleared 2026-09-19, when 64 turned BUILT.) 64 was named as the prerequisite and this is its
+(The MILESTONE 107 half cleared 2026-08-04, found stale 2026-08-15; the MILESTONE 64 half cleared 2026-09-19, when 64 turned BUILT.) 64 was named as the prerequisite and this is its
 extreme case; 107 owns the listen and accept that head the gap table. The decision is the block's
 own and is now §161 (which subset counts
 as running Vaultwarden), written up 2026-09-19 by milestone 435's lane: which subset counts has to

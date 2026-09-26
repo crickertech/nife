@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Re-measure CI queue waits by runner label, a week after the arm64 split
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 587 (most CI jobs do not need an arm64 host),
+Raised by milestone 587 (most CI jobs do not need an arm64 host),
 which moved 15 of 18 jobs to `ubuntu-24.04` on one afternoon's evidence and named this check as
 what decides whether that evidence generalised. **Name provisional**, this file's alone.
 
-**Gate: NONE.** Due on or after 2026-10-01; before then there is not a week of data.
+Due on or after 2026-10-01; before then there is not a week of data.
 
 ## What to do
 

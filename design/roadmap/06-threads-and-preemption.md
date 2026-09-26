@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-13
+built: 2026-07-14
+---
 # 6. Threads, the context switch, and preemption
-
-**Status: BUILT.**
 
 Backfilled 2026-08-03 from history (milestone 76). Built in `782d4bb` (2026-07-14): two threads
 that never yield, 48 preemptions in half a second, "neither asked to be interrupted; both were."
@@ -28,7 +31,5 @@ What the commit records that still shapes the kernel:
   became a stack-VA free list with a test asserting a second batch of eight threads costs no frames.
 
 ## Index row
-
-**Built:** 2026-07-14
 
 a hostile loop that never yields is preempted anyway, DECISIONS §5 made executable

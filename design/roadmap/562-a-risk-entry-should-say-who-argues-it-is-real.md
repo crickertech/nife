@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-risk-entry-should-say-who-argues-it-is-real
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 562. A risk entry should say who published the argument that it is real
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-risk-entry-should-say-who-argues-it-is-real` on 2026-09-22, filed 2026-09-21. Raised by the `incremental-path` lane, which noticed the convention
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-risk-entry-should-say-who-argues-it-is-real` on 2026-09-22, filed 2026-09-21. Raised by the `incremental-path` lane, which noticed the convention
 forming and had nowhere to state it.
 
-**Gate: NONE.** One line in a file that already exists, and both instances of the pattern it
+One line in a file that already exists, and both instances of the pattern it
 describes are already written.
 
 ## What happened twice

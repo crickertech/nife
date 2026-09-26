@@ -1,12 +1,21 @@
+---
+status: PARTIAL
+raised: 2026-09-05
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: xenon (its firmware settings and the house network it boots from are the work)
+needs_person: yes
+---
 # 260. Boot xenon over the network, because the stick is the tax and the router is ours
 
-**Status: PARTIAL.** Minted 2026-09-05 by calef, in one sentence: *"xenon already hurts. We can
+Minted 2026-09-05 by calef, in one sentence: *"xenon already hurts. We can
 control our router since it runs OpenWRT."* *(Number provisional until the merge queue lands it.)*
 Built 2026-09-05: everything that does not need xenon or the house router, which is more of it than
 this block predicted. **What remains is one bench session and one router edit**, both calef's, and
 both now written down as procedures rather than as intentions.
 
-**Gate: HARDWARE.** In the second sense `notes/roadmap.md` names: xenon is here, the
+In the second sense `notes/roadmap.md` names: xenon is here, the
 router is here, and what remains is a person standing at both. Two firmware settings (tick `Enable
 UEFI Network Stack`, move Integrated NIC to `Enabled w/PXE`), one router edit, one power cycle and
 one photograph. They are calef's because they are his machine and his house network, not because

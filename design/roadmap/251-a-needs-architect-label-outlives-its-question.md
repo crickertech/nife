@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 251. A `needs-architect` label outlives the question that earned it, so the queue lies
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, immediately after a label stayed on a pull
+Minted 2026-09-03 by calef, immediately after a label stayed on a pull
 request he had already answered. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It needs `gh` and a delivery point that already runs.
+It needs `gh` and a delivery point that already runs.
 
 **In brief.** AGENTS.md puts the `needs-architect` label at rung two on purpose, so that what is
 waiting on the architect is `gh pr list --label needs-architect` rather than a paragraph somebody has

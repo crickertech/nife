@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-18
+built: 2026-09-19
+---
 # 324. The bench console cannot speak to any of the three boards
 
-**Status: BUILT 2026-09-19.** Minted 2026-09-18 by calef, promoting a cluster rather than its
+Minted 2026-09-18 by calef, promoting a cluster rather than its
 members: four proposals from three lanes, all about the same tool. *(Number provisional until the
 merge queue lands it.)* **Parts 1 and 4 landed first** (`milestone/324-board-console-write-mode`),
 **parts 2 and 3 the same day** (`milestone/324-sweep-recogniser-and-board-profile`). All four are
@@ -363,8 +368,6 @@ here; it wants a decision about what shape that sharing takes, which is below.
   binaries must agree on. The markers above are the thing that does qualify.
 
 ## Index row
-
-**Built:** 2026-09-19
 
 `script/board-console` watches a board's serial port and could not type at it, hard-codes radon's
 firmware chain, and cannot tell a finished job-mix sweep from a wedged one. Four lanes filed those

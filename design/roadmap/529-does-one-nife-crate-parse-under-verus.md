@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-20
+promoted_from: does-one-nife-crate-parse-under-verus
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 529. Does one nife crate parse under Verus at all, and can a verified crate build for a bare-metal target?
 
-**Status: NOT-STARTED.** *(Number provisional until the merge queue lands it.)* Promoted from the proposal `does-one-nife-crate-parse-under-verus`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane while writing
+*(Number provisional until the merge queue lands it.)* Promoted from the proposal `does-one-nife-crate-parse-under-verus`, filed 2026-09-20, on calef's instruction of 2026-09-20 to give every proposal on `main` a number. The text below is the proposal's own, unedited except for this paragraph: the argument is its author's and promotion is not the moment to improve it. Raised by the `maintainer/verus-versus-kani` lane while writing
 `notes/verus.md`, which priced Verus against Kani for `design/fatal-risks.md` risk 2 (the proofs
 prove trivia, and the real bugs live where Kani cannot reach) and could not answer this.
 
-**Gate: NONE.** It needs no decision, because it decides nothing: it is a measurement, and its whole
+It needs no decision, because it decides nothing: it is a measurement, and its whole
 point is to be cheap enough that nobody has to approve it. Adopting Verus *would* be a DECISION
 (AGENTS.md puts a dependency and a methodology in calef's hands), and this proposal is deliberately
 not that.

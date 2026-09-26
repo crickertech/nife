@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-01
+built: 2026-09-01
+---
 # 214. A test that prints "skipping" and returns is counted as passed
 
-**Status: BUILT 2026-09-01.** Minted 2026-09-01 by milestone 164's lane
+Minted 2026-09-01 by milestone 164's lane
 (`design/roadmap/164-x86-64-fs-server-aes.md`, on x86_64 userspace and the `aes` crate), which
 moved eleven tests from the skip column to the pass column without running anything.
 
@@ -190,8 +195,6 @@ by hand and why nothing here claims to have found the last one.
   introduced.
 
 ## Index row
-
-**Built:** 2026-09-01
 
 Minted by milestone 164's lane, which moved eleven tests from the skip column to the pass column
 without running a line of them. `kernel/src/testing.rs` has a `skip!` macro that sets a reason and

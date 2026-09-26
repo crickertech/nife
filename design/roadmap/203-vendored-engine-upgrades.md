@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-31
+built: 2026-08-31
+---
 # 203. Nothing will ever tell us RedoxFS moved
 
-**Status: BUILT.** The detection half shipped 2026-08-31: `script/vendor-watch` and the monthly
+The detection half shipped 2026-08-31: `script/vendor-watch` and the monthly
 `.github/workflows/vendor-watch.yml`, with the report landing in `vendor/upstream-status.md` and the
 update procedure in `vendor/README.md`'s "Bumping a pin" section. The fork below was settled the way
 this block recommended, cheap first: the workflow raises the pin and lets `script/vendor-verify` go
@@ -154,8 +159,6 @@ mechanism works before it ever has to be right about something.
   this is the engine holding backups.
 
 ## Index row
-
-**Built:** 2026-08-31
 
 calef, 2026-08-31: a regular process to check whether RedoxFS changed, and to initiate the update
 of our version and our divergences when it does. `script/vendor-verify` proves the pin is what we

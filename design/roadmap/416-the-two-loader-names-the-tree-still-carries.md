@@ -1,11 +1,21 @@
+---
+status: NOT-STARTED
+raised: 2026-09-15
+promoted_from: the-two-loader-names-the-tree-still-carries
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 416. Two loader names the tree still carries, and neither one exists
 
-**Status: NOT-STARTED.** Promoted from the proposal `the-two-loader-names-the-tree-still-carries`,
+Promoted from the proposal `the-two-loader-names-the-tree-still-carries`,
 filed 2026-09-15 by the lane that performed milestone 166's ratified
 `spawn_progenitor` -> `spawn_hello` rename (PR #884), which found these while enumerating and
 deliberately did not sweep them. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** `boot_progenitor` is already ratified (calef, 2026-09-15), so nothing here waits on a
+`boot_progenitor` is already ratified (calef, 2026-09-15), so nothing here waits on a
 naming decision. It is bounded cleanup with a discipline attached, not a fork.
 
 **Premise re-checked 2026-09-19 and the count has grown, which is why this file said to re-enumerate

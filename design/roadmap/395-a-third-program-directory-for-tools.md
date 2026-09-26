@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-13
+milestone_dependencies: none
+decision_dependencies: 180
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 395. A third program directory, for the tools a person invokes
 
-**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 175's
+Filed 2026-09-13 as an unnumbered proposal by milestone 175's
 classification pass, which its own block asked for in as many words; numbered 2026-09-19 by
 milestone 433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19. The
 argument is unchanged and two of its numbers are not**, both moved by work that landed the same day
@@ -13,7 +22,7 @@ and `fixtures/Cargo.toml` 40. Two entries in the table below are stale as writte
 written, because a reader needs to see what was counted; this paragraph is the correction.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION §180.** The decision is
+The decision is
 §180 (whether `components/` splits again), written up 2026-09-19
 by milestone 435's slice-c lane because this gate named no section.
 A top-level directory holding a Cargo package is named exactly as the package,

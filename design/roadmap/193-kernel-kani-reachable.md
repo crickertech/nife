@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-30
+built: 2026-08-30
+---
 # 193. Put `kernel/src` within reach of the prover, because today the proofs cannot see it
 
-**Status: BUILT 2026-08-30.** Minted the same day by calef, from milestone 191's (did the proofs
+Minted the same day by calef, from milestone 191's (did the proofs
 catch the bugs?) finding, and built in PR #591; notes/kernel-proofs.md is the record. *(Number
 provisional until the merge queue lands it.)*
 
@@ -163,8 +168,6 @@ is missing.
   the row, and the fix if it ever happens is putting the dependency behind a target `cfg`.
 
 ## Index row
-
-**Built:** 2026-08-30
 
 Minted by calef on 2026-08-30 from milestone 191's finding: no Kani harness has ever caught a
 defect after the day it was written, because `script/verify`'s own header says `cargo kani` never

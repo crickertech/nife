@@ -1,9 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-09-21
+promoted_from: a-per-cpu-allocator-is-what-the-current-cpu-page-was-for
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 561. A per-CPU allocator is what the current-CPU page was for
 
-**Status: NOT-STARTED.** The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-per-cpu-allocator-is-what-the-current-cpu-page-was-for` on 2026-09-22, filed 2026-09-21. Raised by the lane that built the current-CPU page, as the work its
+The number is **provisional**: the integrator mints it at merge. Promoted from the proposal `a-per-cpu-allocator-is-what-the-current-cpu-page-was-for` on 2026-09-22, filed 2026-09-21. Raised by the lane that built the current-CPU page, as the work its
 own change exists to serve and which nobody is doing.
 
-**Gate: NONE.** The page ships; a reader can call `user_mode_runtime::current_cpu` today.
+The page ships; a reader can call `user_mode_runtime::current_cpu` today.
 
 ## Why this belongs on the list rather than in a report
 

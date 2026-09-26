@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-08-05
+---
 # 58. RISC-V TLB shootdown, and the flush that makes ASIDs pointless
 
-**Status: BUILT** 2026-08-05 (pull request #124, merge `8fdf2677`). The status read
+Built 2026-08-05 (pull request #124, merge `8fdf2677`). The status read
 `IN-PROGRESS since 2026-08-04, a developer holds it on milestone/58-riscv-tlb-shootdown` for twelve
 days after that merge, and the branch it named had been deleted by the merge that finished it; found
 2026-08-17 by the status-accuracy sweep, which found all six `IN-PROGRESS` rows naming branches that
@@ -94,8 +99,6 @@ cost.
   wrong (that is an aarch64 board). Somebody still has to say which board leg owns the measurement.
 
 ## Index row
-
-**Built:** 2026-08-05
 
 every riscv context switch discards the whole TLB; the fix needs a **software** shootdown
 protocol, because `sfence.vma` does not broadcast

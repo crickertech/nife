@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+---
 # 294. `design/roadmap/README.md`'s index is generated, not hand-maintained
 
-**Status: BUILT** 2026-09-14. Minted by the maintainer on 2026-09-14, out of a session that
+Built 2026-09-14. Minted by the maintainer on 2026-09-14, out of a session that
 resolved eight merge conflicts and found every one of them in the same table.
 
 **The table this built was retired on 2026-09-21**, by calef: *"I don't think the milestone index
@@ -158,8 +163,6 @@ back. The cost of not failing is in BUGS below, named rather than hidden.
   permission to move text and nothing else.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 Minted 2026-09-14 after a session resolved eight merge conflicts and found every one of them in
 `design/roadmap/README.md`'s index table and nowhere else. Structural rather than unlucky: check 4b

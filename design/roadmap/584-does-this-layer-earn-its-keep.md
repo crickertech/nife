@@ -1,6 +1,16 @@
+---
+status: NOT-STARTED
+raised: 2026-09-23
+promoted_from: does-this-layer-earn-its-keep
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 584. A mechanism owes evidence that it caught something a person would have missed
 
-**Status: NOT-STARTED.** *(Number minted at promotion.)* Promoted from the proposal
+*(Number minted at promotion.)* Promoted from the proposal
 `does-this-layer-earn-its-keep`, filed 2026-09-23, on calef's instruction of 2026-09-24 to promote the proposals.
 The text below is the proposal's own, unedited except for this paragraph, the
 `## Index row` section, and the nine layer headings, which read `### 1. The watchers` and so
@@ -11,7 +21,7 @@ actions so that we can assess the effectiveness of our various layers. They need
 their value."* Written by a lane after four mechanisms were found on one day reporting success while
 checking nothing.
 
-**Gate: NONE.** No hardware, no other milestone. One decision was put to calef and he **deferred
+No hardware, no other milestone. One decision was put to calef and he **deferred
 it on 2026-09-24**; the deferral, its reason and its trigger are the last section of this file, and
 nothing in the first increment waits on it.
 

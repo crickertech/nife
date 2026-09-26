@@ -1,12 +1,21 @@
+---
+status: PARTIAL
+raised: 2026-09-21
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: an x86_64 CPU reporting invariant TSC
+specific_machine: none
+needs_person: yes
+---
 # 524. The three x86_64 boot gates: NX, SYSCALL, and the invariant TSC
 
-**Status: PARTIAL** 2026-09-21. Two of the three gates refuse, are tested on the host, and have
+Partial as of 2026-09-21. Two of the three gates refuse, are tested on the host, and have
 been watched refusing a real boot. The third cannot refuse on any machine this project can run on,
 for a reason that was measured rather than assumed, and it warns instead; the trigger that promotes
 it is written down below and in the code.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** What is left is one token in one table row, and what gates it is a boot on a
+What is left is one token in one table row, and what gates it is a boot on a
 part that reports `CPUID.80000007H:EDX[8]`. QEMU's TCG will not, on any invocation, so no amount of
 work here can clear it: milestone 87 (the x86_64 bare-metal machine) is the machine, and the trigger is
 a boot there reporting the bit.

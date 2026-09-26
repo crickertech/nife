@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: six-copies-of-the-shared-frame-accessors
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 410. Six copies of the shared-frame accessors
 
-**Status: NOT-STARTED.** Promoted from the proposal `six-copies-of-the-shared-frame-accessors`,
+Promoted from the proposal `six-copies-of-the-shared-frame-accessors`,
 filed 2026-09-14 by milestone 290, which added the sixth copy and said so rather than hiding it.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** A lane can close this. It is a refactor inside userspace with no wire format, no
+A lane can close this. It is a refactor inside userspace with no wire format, no
 syscall surface and no name calef has not already ruled on, unless a new crate is wanted, in which
 case the name is his.
 

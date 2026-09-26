@@ -1,10 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-09-14
+promoted_from: the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 412. `script/test`'s UEFI leg asserts two cores online, and the second one does not always start
 
-**Status: NOT-STARTED.** Promoted from the proposal
+Promoted from the proposal
 `the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start`, filed 2026-09-14 by milestone 294's
 lane. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Nothing is owed and nothing is missing. It is a measurement and a decision about a
+Nothing is owed and nothing is missing. It is a measurement and a decision about a
 gate's assertion, both of which a lane can do today.
 
 **Premise re-checked 2026-09-19 and still true, with evidence that arrived after it was filed.**

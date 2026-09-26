@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-25
+built: 2026-08-27
+---
 # 169. `kilo`: the smallest real text editor, as the forcing function for raw terminal input
 
-**Status: BUILT**, 2026-08-27, as `rmle` rather than a literal `kilo.c` port. The raw-keystroke
+Built, 2026-08-27, as `rmle` rather than a literal `kilo.c` port. The raw-keystroke
 primitive (`OP_RAWMODE`/`OP_READRAW`, `crates/line_editor`) is built and proven; the editor itself
 is a Rust reimplementation of `kilo`'s spirit and scope (`components/src/rmle.rs`), not a port, because
 DECISIONS §31's foreign-language seam as actually built is a one-shot call and cannot support
@@ -93,8 +98,6 @@ for whoever picks this up, informed by how the raw-input primitive actually gets
   not noticed until something else forces a redraw.
 
 ## Index row
-
-**Built:** 2026-08-27
 
 A dependency review of Emacs, nano and vim for a possible nife port found the same wall under all
 three (DECISIONS §31's C-syscall seam), and one real, reusable gap behind it: nife's terminal

@@ -1,11 +1,20 @@
+---
+status: NOT-STARTED
+raised: 2026-08-22
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 151. Notification objects: async multiplexing without wait-any
 
-**Status: NOT-STARTED.** Minted 2026-08-22, from DECISIONS §101's own sequencing (step 2), which
+Minted 2026-08-22, from DECISIONS §101's own sequencing (step 2), which
 specified this milestone's shape and scope without a number: *"a kernel milestone, one lane,
 estimated from the existing `Endpoint` and `signal()` work at the same scale as milestone 19a."*
 This is that number.
 
-**Gate: NONE.** §101 already decided the design (2026-08-20, `design/decisions/101-notification-objects.md`).
+§101 already decided the design (2026-08-20, `design/decisions/101-notification-objects.md`).
 Nothing here is a fork; it is the kernel-side build the decision already specified.
 
 ## Why this exists

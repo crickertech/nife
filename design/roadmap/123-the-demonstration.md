@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-13
+milestone_dependencies: 121
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 123. The demonstration: somebody else's software, running narrow, and a gate that keeps it there
 
-**Status: NOT-STARTED.** Minted 2026-08-13 by calef, on the observation that this is the only claim
+Minted 2026-08-13 by calef, on the observation that this is the only claim
 in `design/why-now.md` with nothing scheduled against it. §82 states four falsification conditions
 and this milestone is what closes the first of them.
 
-**Gate: MILESTONE 121.** The corpus needs at least one program this project did not write, and 121
+The corpus needs at least one program this project did not write, and 121
 is the first. The tripwire in element four does not depend on it and could start earlier; the
 manifest and the negative control do.
 

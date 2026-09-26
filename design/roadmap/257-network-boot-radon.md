@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-04
+built: 2026-09-05
+---
 # 257. Boot radon over the network, so the microSD card stops being the tax on every experiment
 
-**Status: BUILT.** Minted 2026-09-04 by calef, the same evening the path was proved by hand at
+Minted 2026-09-04 by calef, the same evening the path was proved by hand at
 radon's U-Boot prompt; built 2026-09-05. *(Number provisional until the merge queue lands it.)*
 
 ## The card is the bottleneck, and the tree predicted the day this would matter
@@ -300,8 +305,6 @@ Transcripts: `bench/radon-2026-09-05/`.
   nothing here changes that argument.
 
 ## Index row
-
-**Built:** 2026-09-05
 
 `script/board-image --tftp` writes a boot script that fetches over the network and falls back to
 the card, `script/board-netboot` serves it, and no server address is written down anywhere: it is

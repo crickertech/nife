@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-03
+milestone_dependencies: 75
+decision_dependencies: none
+machine_requirements: aarch64 and riscv64 silicon; PMU cycle counter
+specific_machine: none
+needs_person: yes
+---
 # 74. Cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64
 
-**Status: PARTIAL.** Raised 2026-08-03, from an audit of what milestone 16a actually needs. Its
+Raised 2026-08-03, from an audit of what milestone 16a actually needs. Its
 deliverable includes "the benches on real cycles via the SBI PMU extension", and until 2026-09-03
 **nothing in the tree implemented it**: `PMU` appeared only in device-tree test fixtures and in this
 file. **Both ISA halves are now built** (riscv64 2026-09-03, aarch64 2026-09-19), and it stays
@@ -8,7 +17,7 @@ file. **Both ISA halves are now built** (riscv64 2026-09-03, aarch64 2026-09-19)
 counter counts (`PMCCFILTR_EL0`) and what the user-mode read is called are calef's
 (`design/roadmap/353-the-aarch64-half-of-74.md`).
 
-**Gate: MILESTONE 75, HARDWARE.** **Both halves of this line are under correction, and neither says
+**Both halves of this line are under correction, and neither says
 what it used to.**
 
 Milestone 75's index row reads `NOT-STARTED` and that is false: its mechanism is built.
@@ -34,7 +43,6 @@ row of `SBI_TABLE`, `kernel/src/arch/riscv64/pmu.rs` asks firmware to find and s
 why when there is none, the boot prints all of it, and `cargo xtask bench --riscv` prints one
 `cycles_per_tick` probe. **The aarch64 half is built too** (2026-09-19), in the same shape; what it
 leaves open is two decisions, `design/roadmap/353-the-aarch64-half-of-74.md`.
-
 
 ## What we read today, and why it is not cycles
 

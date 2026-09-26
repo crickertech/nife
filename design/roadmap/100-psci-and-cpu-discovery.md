@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 100. Read the machine's PSCI and its CPU list, not QEMU `virt`'s
 
-**Status: BUILT** 2026-08-04 (PR #107). Raised 2026-08-04 from two limitations recorded in the code the same day,
+Built 2026-08-04 (PR #107). Raised 2026-08-04 from two limitations recorded in the code the same day,
 in `kernel/src/arch/aarch64/mod.rs:88` and `kernel/src/smp.rs:170`. Both were written by a lane that
 found them while working on something else, and both name the other.
 
@@ -72,8 +77,6 @@ reports more; changing the ceiling is a separate decision with a memory cost att
   read, was closed.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 The conduit (`hvc`), the function id, and the core list (`0..MAX_CPUS`, and `MAX_CPUS` is 4) are
 compiled in, where `/psci` and `/cpus` state all three and `crates/device_tree_blob` can already read them. The

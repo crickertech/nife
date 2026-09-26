@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 345. Five crates whose doctests the host gate never runs
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 68's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** `xtask/src/main.rs`'s host test invocation still excludes `user_mode_runtime`,
 `swap_protocol`, `virtio`, `supervision_protocol` and `system_initializer` by name (alongside
@@ -8,7 +17,7 @@ it holds.** `xtask/src/main.rs`'s host test invocation still excludes `user_mode
 exclusions are `user_mode_runtime` and everything that depends on it, because `--exclude` removes a
 package from the test selection and not from the dependency graph. No crate has been split.
 
-**Gate: NONE.** No decision is owed and nothing is missing. The split is ordinary refactoring inside
+No decision is owed and nothing is missing. The split is ordinary refactoring inside
 crates this tree owns, and the gate that would prove it is the one already running.
 
 **In brief.** `swap_protocol`, `virtio`, `supervision_protocol` and `system_initializer` each take an

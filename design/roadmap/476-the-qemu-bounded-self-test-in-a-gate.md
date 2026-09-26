@@ -1,6 +1,11 @@
+---
+status: REFUSED
+raised: 2026-09-20
+refused_by: 226, 448
+---
 # 476. The `qemu-bounded.sh` self-test, in a gate
 
-**Status: REFUSED.** Refused by milestone 226 (design/roadmap/226-qemu-bounded-orphans.md), and
+Refused by milestone 226 (design/roadmap/226-qemu-bounded-orphans.md), and
 recorded there on 2026-09-03. Backfilled here on 2026-09-20 by
 milestone 448 (design/roadmap/448-a-refusal-gets-a-number.md), which gave a refusal that names work a number, a
 status and a condition that would change it. *(Number provisional until the merge queue lands it.)*

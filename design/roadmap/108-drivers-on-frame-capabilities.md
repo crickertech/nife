@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-14
+---
 # 108. The drivers move onto frame capabilities
 
-**Status: BUILT** 2026-08-14 (PR #141). Raised 2026-08-04 from `notes/frames.md:96`, which closes with the
+Built 2026-08-14 (PR #141). Raised 2026-08-04 from `notes/frames.md:96`, which closes with the
 migration it deliberately did not do: "This note builds the object and proves it; migrating the
 existing users to it is separate work."
 
@@ -70,8 +75,6 @@ in either order and not to merge them.
   milestone 107 already found at the edge.
 
 ## Index row
-
-**Built:** 2026-08-14
 
 The `Frame` object is built and proved, including a confinement check proved able to fail; the
 console, disk and display services still take a page wired into both address spaces at spawn. Two

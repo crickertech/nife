@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 237. The cycle-counter grant costs 136 bytes of IPC fastpath for an instrument nothing can request
 
-**Status: BUILT 2026-09-03.** Minted the same day by calef, from reading why
+Minted the same day by calef, from reading why
 `script/fastpath-footprint`'s aarch64 headroom had shrunk. *(Number provisional until the merge
 queue lands it.)*
 
@@ -217,8 +222,6 @@ that a footprint change is intended and understood; do it in the commit that cau
   firing. This milestone fixed the instance, not the mechanism.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 `--features cycle_counter_grant`, gated as `any(test, feature = ...)` so `script/test` keeps
 compiling and running 229's proofs; production aarch64 `ipc_fastpath` back to 5852, measured, and

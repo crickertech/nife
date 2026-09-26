@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-09-05
+---
 # 111. A shell that can endow a child with entropy
 
-**Status: BUILT** 2026-09-05. Raised 2026-08-04 from `notes/entropy.md`, which called it "future
+Built 2026-09-05. Raised 2026-08-04 from `notes/entropy.md`, which called it "future
 work with no design problem in it". That was right: no new mechanism, no new right, nothing on the
 wire. The smallest entry in that sweep, and the block said so rather than dressing it up.
 
@@ -198,8 +203,6 @@ random source" is still a claim about QEMU until the JH7110's TRNG is verified o
 and endowing a shell with a grant does not change what is behind it.
 
 ## Index row
-
-**Built:** 2026-09-05
 
 `Manifest::entropy` joins `clock`, `domain` and `config`: init places a `WRITE` view of the
 entropy service at `ENTROPY_SLOT` for a child that declares it, a child that does not holds an

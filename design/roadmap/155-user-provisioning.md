@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-23
+built: 2026-08-23
+---
 # 155. A provisioning tool: create an identity and its home subtree together
 
-**Status: BUILT.** `milestone/155-identity-provisioner`, 2026-08-23 (an agent lane; see that pull
+`milestone/155-identity-provisioner`, 2026-08-23 (an agent lane; see that pull
 request's `**Lane:**` line for the record CLAUDE.md asks for). `components/src/identity_provisioner.rs`
 (provisional name, calef's to ratify) `PUT`s an identity and secret into the credential store and
 `MKDIR`s its home subtree, as one tool invocation, tested end to end against a real credential
@@ -136,8 +141,6 @@ coverage behind it, not an untested change riding along.
   would read it.
 
 ## Index row
-
-**Built:** 2026-08-23
 
 Surfaced by DECISIONS §117 (a principal's subtree is named by its identity string, created at
 provisioning time), which means a tool has to exist to do that creating. Nothing outside test

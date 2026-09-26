@@ -1,6 +1,15 @@
+---
+status: PARTIAL
+raised: 2026-08-15
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 128. The automation gets its own identity, and the agents get their own voice
 
-**Status: PARTIAL.** 2026-09-23: steps 3 and 5 are built and step 4 is deliberately not done.
+Partial as of 2026-09-23: steps 3 and 5 are built and step 4 is deliberately not done.
 `toolchain-bump.yml` now tries an App installation token first, falls through to the PAT, then to
 `github.token`, and prints which rung it took; `notes/automation-identity.md` is the procedure for
 steps 1 and 2, which need owner rights on `crickertech` and are calef's to run. Nothing changes
@@ -8,7 +17,7 @@ about how the job behaves until the two secrets exist. Minted 2026-08-15 at cale
 `TOOLCHAIN_BUMP_PAT` on the transferred repository and asked what other developers would need
 (answer: nothing, and that answer is what surfaced this).
 
-**Gate: NONE.** Nothing blocks a start; the app creation is calef's to perform, like milestone
+Nothing blocks a start; the app creation is calef's to perform, like milestone
 120's organization was, because it needs owner rights on `crickertech`. What makes this a later
 milestone rather than this week's is honest priority, recorded below.
 

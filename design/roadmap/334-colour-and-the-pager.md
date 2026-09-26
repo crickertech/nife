@@ -1,13 +1,22 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: unwritten
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 334. Colour and the pager: the spawn protocol's other two thirds
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 40's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** DECISIONS §106 is still the only narrowing that shipped, `components/src/mdr.rs` still
 carries "No pager, and the reason is authority rather than effort" in its own module doc, and nothing
 in the spawn wiring tells a stage it ends at a real screen. No program in this tree colours its
 output.
 
-**Gate: DECISION.** Both halves widen a protocol two programs agree on, which is the same shape as
+Both halves widen a protocol two programs agree on, which is the same shape as
 DECISIONS §106 itself and the same reason §106 was calef's. A spawn-protocol bit is on a wire, so it
 cannot be un-shipped once a program is written against it.
 

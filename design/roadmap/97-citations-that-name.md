@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-04
+built: 2026-08-04
+---
 # 97. Citations that name what they cite
 
-**Status: BUILT.** Raised 2026-08-04, from a miscitation found while ratifying a program name, and
+Raised 2026-08-04, from a miscitation found while ratifying a program name, and
 then measured. Built the same day as `script/citations`, gated in `script/lint`, documented in
 notes/citations.md.
 
@@ -56,8 +61,6 @@ its author meant.
   markdown are skipped entirely.
 
 ## Index row
-
-**Built:** 2026-08-04
 
 28 sites cited "milestone 24" meaning DECISIONS §24, wrong at birth (the roadmap said
 Virtualization.framework on the day the first was written) and spread by copy-paste. Neither gate

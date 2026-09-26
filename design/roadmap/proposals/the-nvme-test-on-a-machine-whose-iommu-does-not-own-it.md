@@ -1,9 +1,18 @@
+---
+status: PROPOSED
+raised: 2026-09-24
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # The NVMe boot test on a machine whose IOMMU does not own the controller
 
-**Status: PROPOSED 2026-09-24.** Raised by milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal
+Raised by milestone 261 (the NVMe driver leaves the kernel)'s bench rehearsal
 (`notes/risk-6-bench-evening.md`). Name provisional.
 
-**Gate: NONE.** Everything it needs exists under QEMU.
+Everything it needs exists under QEMU.
 
 ## What it is
 

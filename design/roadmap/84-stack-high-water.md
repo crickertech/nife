@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-08-03
+built: 2026-08-03
+---
 # 84. Stack high-water: measure kernel stack depth
 
-**Status: BUILT.** Raised 2026-08-03, same survey as 79.
+Raised 2026-08-03, same survey as 79.
 
 A kernel stack overflow does not fault helpfully; it scribbles. This tree has had one (the FS-server
 stack bug, notes/nifefs.md), it was found the expensive way, and nothing since measures depth on
@@ -35,8 +40,6 @@ suite, not of the host, so this one should be immune to runner noise by construc
   the rule that the two thresholds must be raised together or they stop describing the same stack.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 The FS-server stack overflow already happened once, and nothing since bounds depth on any kernel
 stack. Paint at boot, read the mark at suite end, assert headroom. Works identically on every ISA

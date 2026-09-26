@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 231. Nothing counts how many capability slots a boot actually uses, so the wall is always a surprise
 
-**Status: BUILT 2026-09-02.** Minted the same day by calef, from milestone 230's
+Minted the same day by calef, from milestone 230's
 (`script/shell-check` is red on `main`, on both architectures, and nothing says so) own `BUGS`.
 *(Number provisional until the merge queue lands it.)*
 
@@ -144,7 +149,5 @@ milestone is what would replace it.
   ungauged constant is still raised only after it has failed silently.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 the table counts its own peak, the boot prints `capability slots: 21 of 24 at peak`, and `script/swish-check` fails when the recorded measurement goes stale

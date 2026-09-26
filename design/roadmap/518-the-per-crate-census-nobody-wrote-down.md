@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-20
+built: 2026-09-20
+---
 # 518. A census that cannot be attributed is a number nobody can act on
 
-**Status: BUILT 2026-09-20.** *(Number provisional until the merge queue lands it.)* The record
+*(Number provisional until the merge queue lands it.)* The record
 exists, it is backfilled to the first census this project ever completed, and the first question it
 was asked returned a finding: **the fall that `design/fatal-risks.md`'s risk 3 stands on did not
 happen.** It is an artifact of two rows computed two different ways.
@@ -152,8 +157,6 @@ record here makes that rewrite safer by giving it something to be checked agains
 
 ## Index row
 
-**Built:** 2026-09-20
-
 The tree kept one per-crate mutation record in its life, so risk 3 could report that its score fell
 and not say which crates caused it. `script/mutation-census` is that record: one row per crate per
 census in `notes/project-metrics/mutation-census.csv`, backfilled to all four censuses that have
@@ -161,4 +164,3 @@ ever completed, with a `--compare` that attributes the corpus-level move to crat
 first question it was asked found that **the fall never happened**: risk 3's two rows count a
 timeout two different ways and the second drops `credentialer` to a rename, and read consistently
 the like-for-like rate went 93.6% to 94.7% while survivors fell 771 to 563.
-

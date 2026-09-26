@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-16
+built: 2026-09-16
+---
 # 308. A GSI reaches its vector by redirection index, not by its own number
 
-**Status: BUILT.** 2026-09-16. Minted 2026-09-16 by the maintainer, promoting
+Built 2026-09-16. Minted 2026-09-16 by the maintainer, promoting
 `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`, written the same day by
 milestone 304's lane. *(Number provisional until the merge queue lands it.)*
 
@@ -181,8 +186,6 @@ not wrong, and calef names public items. Proposed, not performed, and said out l
   it.
 
 ## Index row
-
-**Built:** 2026-09-16
 
 `gsi_vector` added the GSI to `GSI_VECTOR_BASE`, and `MAX_REDIRECTION_ENTRIES`' own doc named that
 cap as the reason it could not wrap onto an exception vector. The cap bounds the entry count, not the

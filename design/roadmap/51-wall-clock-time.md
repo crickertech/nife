@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-31
+built: 2026-08-03
+---
 # 51. Wall-clock time, the `date` command, and an NTP service
-
-**Status: BUILT.**
 
 **Lane A built 2026-07-30** (the two RTC drivers and the clock service; DECISIONS §43,
 notes/clock.md). The machine knows what time it is, on both ISAs, and `SystemTime` is real. What the
@@ -224,8 +227,6 @@ NTP), noting estimates for unbuilt work are guesses on a history-calibrated scal
   it with the condition that would change it.
 
 ## Index row
-
-**Built:** 2026-08-03
 
 the machine knows what time it is: two RTC drivers, the clock service (§43), `crates/calendar`, `crates/ntp_proto`, `date`, and an NTP client holding **propose and not set**. `date` prints the
 time at the interactive prompt on both ISAs, the clock delegated read-only by both boot paths.

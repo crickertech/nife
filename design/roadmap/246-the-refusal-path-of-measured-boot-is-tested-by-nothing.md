@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-03
+built: 2026-09-03
+---
 # 246. Measured boot's refusal path is tested by nothing, and one mutant turns it off
 
-**Status: BUILT.** Minted 2026-09-03 by calef, from milestone 244's (the largest crate in the tree is
+Minted 2026-09-03 by calef, from milestone 244's (the largest crate in the tree is
 proved by nothing a mutation can reach) recorded limitation. Built 2026-09-03 by the lane on
 `milestone/246-measured-refusal`.
 
@@ -116,8 +121,6 @@ Not a test that only takes the accept path, which `script/swish-check` already d
   nothing here changed it. See the handoff in this lane's report.
 
 ## Index row
-
-**Built:** 2026-09-03
 
 The decision is `measured_boot::verdict` now, with three host tests. Falsified by hand
 (`unvouched: false` turns one red) and then made a standing mutant rather than a one-off check

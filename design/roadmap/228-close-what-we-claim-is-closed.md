@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-02
+built: 2026-09-02
+---
 # 228. The cycle counters are closed by assumption, and on two architectures the assumption is a comment
 
-**Status: BUILT 2026-09-02.** Minted 2026-09-02 by the maintainer, from the research lane that
+Minted 2026-09-02 by the maintainer, from the research lane that
 produced DECISIONS 139 (who may read the cycle counter, and by what authority), which found this
 while checking that decision's premise. *(Number provisional until the merge queue lands it.)*
 
@@ -166,8 +171,6 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   shipping a check that answers the wrong question.
 
 ## Index row
-
-**Built:** 2026-09-02
 
 aarch64 now writes `PMUSERENR_EL0 = 0` in its per-core timer init, gated on `ID_AA64DFR0_EL1.PMUVer` because the register is UNDEFINED without FEAT_PMUv3; riscv64's `csrs
 scounteren, TM` became a `csrw`, so the comment claiming CY and IR "stay closed" is now made true

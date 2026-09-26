@@ -1,9 +1,18 @@
+---
+status: NOT-STARTED
+raised: 2026-09-10
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 270. Wire `virtio-gpu-pci` and `virtio-input` into the x86_64 test runner
 
-**Status: NOT-STARTED.** Minted 2026-09-10 by calef, from the live skip inventory taken while
+Minted 2026-09-10 by calef, from the live skip inventory taken while
 reviewing milestone 268's parity plan. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Not a design fork. `helpers/qemu-runner-aarch64.sh` and
+Not a design fork. `helpers/qemu-runner-aarch64.sh` and
 `helpers/qemu-runner-riscv64.sh` already wire these devices; this is bringing the third runner
 script into line with the other two, the way `notes/architecture-list-sweep.md`'s eleven gaps
 already are.

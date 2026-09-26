@@ -1,6 +1,16 @@
+---
+status: PARTIAL
+raised: 2026-09-24
+promoted_from: kani-can-target-riscv64-from-the-hosts-we-have
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 589. Kani can prove riscv64 from the hosts we already have, with a 46-line patch and no riscv64 machine
 
-**Status: PARTIAL.** *(Number minted at promotion, provisional until the merge queue lands it.)*
+*(Number minted at promotion, provisional until the merge queue lands it.)*
 Promoted from the proposal `kani-can-target-riscv64-from-the-hosts-we-have`, filed 2026-09-24, after
 calef ruled on it 2026-09-25 (UTC): option 1 adopted, recorded as
 [§218 (carry a Kani patch so riscv64 is proved)](../decisions/218-carry-a-kani-patch-so-riscv64-is-proved.md).
@@ -15,7 +25,7 @@ once bench runs are done. The maintainer added a second question mid-lane: what 
 every `asm!` in thin wrapper functions buy? This file is a sibling of pull request #1276's proposal,
 which found the `Unsupported architecture` panic.
 
-**Gate: NONE.** §218 ruled the fork this proposal was gated on. As filed: every option that reaches
+§218 ruled the fork this proposal was gated on. As filed: every option that reaches
 riscv64 changes the prover, either as a patch this tree carries or as a contribution upstream.
 DECISIONS §46 (thin primitives or whole subsystems) makes that a dependency decision.
 

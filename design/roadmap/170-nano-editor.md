@@ -1,10 +1,19 @@
+---
+status: NOT-STARTED
+raised: 2026-08-25
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 170. `nano`: a real, full-featured screen editor on the primitive milestone 169 builds
 
-**Status: NOT-STARTED.** Minted 2026-08-25, alongside [milestone 169](169-kilo-editor.md), from the
+Minted 2026-08-25, alongside [milestone 169](169-kilo-editor.md), from the
 same dependency review. Sequenced explicitly as `kilo`'s follow-on rather than started in parallel:
 calef's own framing was "mint kilo instead, nano as a follow-on."
 
-**Gate: NONE.** Sequenced behind milestone 169 in practice, not by a hard gate: nano needs the
+Sequenced behind milestone 169 in practice, not by a hard gate: nano needs the
 identical raw-keystroke input primitive 169 exists to build, and starting nano before that primitive
 is designed would mean designing it twice, once against a 1,000-line program and once against a
 25,000-line one, with no guarantee the two designs agree.

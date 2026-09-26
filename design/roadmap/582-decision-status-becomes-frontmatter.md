@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-23
+built: 2026-09-23
+---
 # 582. A decision's status becomes a field, and the index becomes generated
 
-**Status: BUILT.** Raised by calef on 2026-09-23: *"I wonder if the key values should be front
+Raised by calef on 2026-09-23: *"I wonder if the key values should be front
 matter instead."* He ratified the schema the same day. *(Number provisional until the merge queue
 lands it. The brief said 580, which was taken on `main` at this lane's base commit `bfc91c8d2` by
 `580-nobody-reads-branches.md`. This lane then took 581 and collided with another lane that could
@@ -148,17 +153,15 @@ required-when rules are hard failures. That is rung one where the ledger was run
 
 ## Index row
 
-**Built:** 2026-09-23
-
 A decision's status stops being a sentence a regex has to guess at and becomes a field, and
 `design/decisions/README.md` stops being hand-maintained, which deletes the additive-index conflict
 every lane minting a section used to pay.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-roadmap-blocks-get-frontmatter-too.md`, the same
-  migration for `design/roadmap/`. It is 578 files against this one's 211, its status vocabulary is
-  eight tokens rather than four, and `script/roadmap` reads far more out of prose than
-  `script/decisions` did. It should wait until this pilot has held.
+- **Milestone 596.** Milestone 596 (the roadmap blocks get frontmatter too) is the same
+  migration for `design/roadmap/`, promoted from its proposal on calef's ruling of 2026-09-26 that this pilot
+  has held. Its status vocabulary is nine tokens rather than four, and `script/roadmap` reads far
+  more out of prose than `script/decisions` did.
 - **Recorded.** The gate cannot refuse an attributed sentence that repeats a date the frontmatter
   holds, and the reason is in `script/decisions`' `BUGS` section.

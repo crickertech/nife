@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-13
+built: 2026-09-21
+---
 # 282. A thread's CPU time, and the `top` it makes possible
 
-**Status: BUILT 2026-09-21.** Minted 2026-09-13, when calef ruled milestone 126 (who else is running, and who is allowed to ask)'s eighteen-day-old fork.
+Minted 2026-09-13, when calef ruled milestone 126 (who else is running, and who is allowed to ask)'s eighteen-day-old fork.
 The decision is `design/decisions/150-per-thread-cpu-accounting.md`, amended the day this was built
 by DECISIONS §204 (how userspace asks where a thread runs). *(Number provisional until the merge queue lands it.)*
 
@@ -107,8 +112,6 @@ endowment, and the argument is written out both ways in `crates/top`'s module do
   own; they are recorded in `crates/top`'s `BUGS` where a reader meets the program.
 
 ## Index row
-
-**Built:** 2026-09-21
 
 Minted 2026-09-13 when calef ruled milestone 126 (who else is running, and who is allowed to ask)'s eighteen-day-old fork; the decision is
 §150, amended by §204 the day this was built. There was no per-thread CPU accounting anywhere in

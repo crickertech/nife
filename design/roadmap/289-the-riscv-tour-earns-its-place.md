@@ -1,6 +1,11 @@
+---
+status: BUILT
+raised: 2026-09-14
+built: 2026-09-14
+---
 # 289. Does milestone 20's RISC-V tour still earn its place?
 
-**Status: BUILT** 2026-09-14. Minted by the maintainer after calef asked what
+Built 2026-09-14. Minted by the maintainer after calef asked what
 `components/src/builder.rs` does and why it is still needed "in a world where we boot to swish".
 *(Number provisional until the merge queue lands it.)*
 
@@ -175,8 +180,6 @@ from the tree; these two bullets are the first thing it found.)*
   lane's bench.
 
 ## Index row
-
-**Built:** 2026-09-14
 
 Minted 2026-09-14 after calef asked what `components/src/builder.rs` is for in a world that boots
 to swish. The answer is keep, and the premise was false: booting to swish describes aarch64 and

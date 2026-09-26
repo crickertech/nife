@@ -1,11 +1,20 @@
+---
+status: PROPOSED
+raised: 2026-09-26
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # A signed build installs up to its key's ceiling, and removing the key drops what it vouched
 
-**Status: PROPOSED 2026-09-26.** Filed by `maintainer/220-ruling` while recording calef's rulings on
+Filed by `maintainer/220-ruling` while recording calef's rulings on
 §220 (signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped), in
 [`design/decisions/220-signed-builds-and-scoped-key-trust.md`](../../decisions/220-signed-builds-and-scoped-key-trust.md). This is the build those rulings describe. Every
 name below is provisional.
 
-**Gate: NONE.** §220 is decided. The dependency addition still reaches an architect at merge, as
+§220 is decided. The dependency addition still reaches an architect at merge, as
 every dependency does (see below).
 
 It is not on fatal risk 8's path (nobody needs it). §220 records that a first customer installs by

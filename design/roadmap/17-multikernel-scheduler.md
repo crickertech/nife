@@ -1,8 +1,15 @@
+---
+status: OPTIONAL
+raised: 2026-07-23
+milestone_dependencies: 88
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 17. Multikernel-leaning scheduler (research, optional)
 
-**Status: OPTIONAL.**
-
-**Gate: MILESTONE 88.** Stated in the block's own sequencing: 88 provides the first machine with
+Stated in the block's own sequencing: 88 provides the first machine with
 enough harts for the `smp_throughput` curve to bend. The other half of this gate was `MILESTONE 80`,
 for the method, because a design that replaces the lock with messages wants its protocol born
 loom-checked; 80 landed 2026-08-13 and `script/interleaving-check` is the method it left behind, so

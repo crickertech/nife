@@ -1,10 +1,19 @@
+---
+status: PROPOSED
+raised: 2026-09-26
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # Bound the host pass, so a test that spins fails instead of running for days
 
-**Status: PROPOSED 2026-09-26.** Raised by #1323 (a doctest that spun forever under a mutant). The
+Raised by #1323 (a doctest that spun forever under a mutant). The
 maintainer's delegate filed it, since the lane that found it could only name it in a pull request
 body. The title is provisional.
 
-**Gate: NONE.** The change is inside `xtask`, touches no syscall surface and needs no dependency.
+The change is inside `xtask`, touches no syscall surface and needs no dependency.
 
 ## What happened
 

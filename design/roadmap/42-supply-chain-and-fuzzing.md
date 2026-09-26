@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-30
+built: 2026-08-02
+---
 # 42. Supply chain and fuzzing in CI (extends the 2026-07-30 CI audit)
-
-**Status: BUILT.**
 
 **Two of three legs built 2026-07-30; the decisions are DECISIONS §36.** Advisories and licences:
 `deny.toml` (written rather than defaulted, a reason next to every knob) run over each workspace by
@@ -57,8 +60,6 @@ between them is not always the bound. Sometimes it is that nobody wrote the prop
   beside it: it is host-side only and it goes away when the redoxfs pin advances.
 
 ## Index row
-
-**Built:** 2026-08-02
 
 we confine code we did not write, and the parsers that read what firmware and disks hand us are
 where a bound is a lie

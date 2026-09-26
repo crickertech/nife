@@ -1,6 +1,15 @@
+---
+status: NOT-STARTED
+raised: 2026-09-03
+milestone_dependencies: none
+decision_dependencies: none
+machine_requirements: none
+specific_machine: none
+needs_person: no
+---
 # 332. A card written by any means but ours cannot be checked without booting it
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 217's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds, with one correction.** No tool in `script/`, `helpers/` or `xtask` reads a mounted card and
 compares the two artifacts; the only way to find a mismatch is still to power the board and read
@@ -8,7 +17,7 @@ compares the two artifacts; the only way to find a mismatch is still to power th
 rather than in `xtask` as the proposal implies, and it still copies the set as a set rather than
 verifying one somebody else wrote.
 
-**Gate: NONE.** A lane can start today. Both artifacts are files on disk, the expected digest is the
+A lane can start today. Both artifacts are files on disk, the expected digest is the
 one the kernel image was built against, and the check runs on a mounted directory without any
 board.
 

@@ -1,6 +1,9 @@
+---
+status: BUILT
+raised: 2026-07-23
+built: 2026-07-23
+---
 # 21. Performance measurement: benchmarks with teeth
-
-**Status: BUILT.**
 
 **In brief.** icount microbenchmarks + committed baseline that fails on regression; HVF-native runs for real magnitudes
 
@@ -52,7 +55,5 @@ instead.
   transcript instead.
 
 ## Index row
-
-**Built:** 2026-07-23
 
 perf claims become measurements, and regressions surface next to their cause
