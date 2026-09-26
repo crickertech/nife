@@ -57,11 +57,10 @@ CI runs both in the `watchdog` job, only when a path they depend on changes, and
 
 ## What needs calef
 
-- Whether a soak should reset itself over its own wedge at all. The mechanism exists and is off
-  unless a build names `--features watchdog_soak_test`. That is a build feature, not a boot flag: it
-  matches `reboot_soak_test`, and the x86 kernel's command line is empty on the paths that boot a
-  soak. Recommendation: allow it, as built, because the reset follows the dump and the console log
-  the watcher holds survives the reset.
+- Decided by calef, 2026-09-26 (UTC): *"A soak should reset itself when it freezes."* This
+  answered whether a soak should reset itself over its own wedge at all, and went further than the
+  recommendation it answered ("allow it, as built"): resetting is wanted, not merely allowed. The
+  follow-on it sets is recorded under Follow-on below.
 - xenon's POST settings. `notes/xenon-firmware.md` records `Prompt on Warnings and Errors` and
   keyboard error detection on. A watchdog reset that stops at a POST prompt has recovered nothing.
   Changing them is a firmware change and stays off until calef says otherwise.
@@ -99,6 +98,11 @@ SRST does not. That is untested, and the first watchdog boot on radon is the tes
 
 ## Follow-on
 
+- **Outstanding.** x86_64 soak builds include the watchdog by default, per calef's 2026-09-26
+  ruling. An explicit opt-out stays for the no-reset (wedge) check in `script/soak-test`. Checked on
+  this branch: `script/soak-test` and `xtask/src/soak.rs` still arm it only for `--watchdog` and
+  `--wedge`. It is not built here because it changes how every soak build picks its features, and
+  `watchdog_soak_test` is a `compile_error!` off x86_64.
 - **Proposed.** A soak kernel cannot reach xenon's stick:
   `design/roadmap/proposals/a-soak-kernel-cannot-reach-xenons-stick.md`.
 
