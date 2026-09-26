@@ -128,7 +128,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [The command line as a grant expression](grant-expression.md): naming a resource at the prompt grants it.
 - [The glob matcher](glob.md): a pure byte glob matcher with a bounded cost.
 - [Globbing, and the expansion you see is the grant](glob-grant.md).
-- [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as capability builtins.
+- [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as builtins, and [two trees](two-trees.md).
 - [The inert-configuration page](env-config.md): validated read-only `TZ`, `LANG` and `TERM` for programs.
 - [The documentation crate](documentation.md): streaming markdown renderer, manual viewer and search index.
 - [The component manifest](component-manifest.md): what a supervisor must route before a component serves.
