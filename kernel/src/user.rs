@@ -3644,7 +3644,7 @@ mod job_undertaker_tests;
 #[cfg(all(test, initrd))]
 mod c_seam_tests;
 
-/// **A running component replaced under a talking client** (milestone 23 (a capability-routed component OS with live replacement), DECISIONS §41).
+/// **A running component replaced under a talking client** (milestone 23, DECISIONS §41).
 ///
 /// The flagship the roadmap points at, and the thing to notice about it is what the kernel does not
 /// contain. There is no component object, no swap syscall, no naming service, and no
@@ -4009,8 +4009,8 @@ pub mod raw_mode_service;
 /// echo-suppression check is proven both ways rather than only the direction that matters.
 #[cfg(all(test, initrd))]
 mod raw_mode_tests;
-/// `OP_QUIESCE` and `FLAG_RETRY` (milestone 23, a capability-routed component OS with live
-/// replacement): a terminal quiesced for replacement hands its parked reader back rather than
+/// `OP_QUIESCE` and `FLAG_RETRY` (milestone 23 (a capability-routed component OS with live
+/// replacement)): a terminal quiesced for replacement hands its parked reader back rather than
 /// stranding it, and resumes a half-typed line without repainting it.
 #[cfg(all(test, initrd))]
 mod terminal_quiesce_tests;
