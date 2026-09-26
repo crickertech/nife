@@ -131,10 +131,11 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as capability builtins.
 - [The inert-configuration page](env-config.md): validated read-only `TZ`, `LANG` and `TERM` for programs.
 - [The documentation crate](documentation.md): streaming markdown renderer, manual viewer and search index.
-- [The component manifest](component-manifest.md): what a supervisor must route before a component serves.
-- [Live component replacement](live-replacement.md): swapping a running component under a live client.
+- [The component manifest](component-manifest.md): what a supervisor routes to a component.
+- [Live component replacement](live-replacement.md): swapping a component under a live client.
 - [The hung component](hung-component.md): a component that stops answering without dying.
-- [Dependency-aware orchestration](dependency-orchestration.md): which components to warn before swapping a dependency.
+- [Dependency-aware orchestration](dependency-orchestration.md): whom to warn before a swap.
+- [State handoff](state-handoff.md); proposals: [unanswered warnings](non-cooperative-fallback.md), [interactive swaps](interactive-stack-swap.md).
 - [The process view](process-view.md): `ps` and `pgrep` over a supervision subtree.
 - [Scheduled execution](scheduled-execution.md): a cron whose every entry is a grant.
 - [Wall-clock time](clock.md): wall clock as counter plus offset, three authorities.

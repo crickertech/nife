@@ -21,8 +21,8 @@ shares `supervision_protocol`:
 |---|---|---|
 | `swapper` | the operator: builder, supervisor and verifier | a budget, one device capability, four endpoints |
 | `rust_swappable` | the component, version 1 (Rust) | the service endpoint (READ), a report endpoint, a coordination channel, the device, a shared page |
-| `c_swappable` | the component, version 2, whose answers are computed in **C** | identical |
-| `chatty` | the client, the producer, and the attacker (three roles, one binary) | the service endpoint (**WRITE**, not READ) |
+| `c_swappable` | the component, version 2, whose answers are computed in C | identical |
+| `chatty` | the client, the producer, and the attacker (three roles, one binary) | the service endpoint (WRITE, not READ) |
 | `broker` | the queue broker, the ladder's opt-in rung | a front endpoint (READ), a back endpoint (WRITE) |
 
 ## Why there is no broker in the fast path
@@ -33,7 +33,7 @@ This is the thing to understand about the milestone, and it is a property the ke
 anonymous in both directions: a server that `RECV`s does not learn who sent, and a client that
 `CALL`s does not learn who answered. So a component's identity is not merely hidden from its
 clients, it is *not represented anywhere a client can reach*. Any program that speaks the protocol
-and holds the right capabilities **is** the component.
+and holds the right capabilities is the component.
 
 That makes the stable name the endpoint object itself, and a swap a change in who is parked in
 `RECV_CAP` on it. Two consequences, both of which a forwarding broker would have had to reimplement
@@ -52,7 +52,7 @@ at a cost:
 The cost of all this is zero: the steady state is `call_reply`, the same path a client and server
 already use (notes/benchmarks.md).
 
-What endpoint-only naming does **not** mean is "whoever holds the endpoint is the server". `SEND` and
+What endpoint-only naming does not mean is "whoever holds the endpoint is the server". `SEND` and
 `RECV` are gated by *different rights* on the same object, so the same endpoint handed out two ways
 is a one-way pipe in whichever direction each holder was trusted with. `chatty`'s usurper role holds
 the honest client's exact capabilities and tries to receive on the service endpoint; it gets
@@ -77,16 +77,16 @@ the honest client's exact capabilities and tries to receive on the service endpo
 right for reasons it did not give.** Revocation is by *physical page* (DECISIONS §13), so a revoke
 that ran after the replacement had been endowed with the device would take the replacement's copy
 too, and since the kernel mints a `DeviceFrame` once at boot, nothing could hand one back. What moves
-to the far side of the revoke is the **endowment**, not the build. And the build has to stay first
+to the far side of the revoke is the endowment, not the build. And the build has to stay first
 for a second reason found by running it: process construction is a few hundred syscalls, and when the
 build was moved after the swap trigger the client finished its entire conversation on RISC-V before
 the operator was ready.
 
 ## Taking a device back
 
-`Frame::REVOKE` on a `Frame` un-shares a page from everyone **including the caller**, because §13
+`Frame::REVOKE` on a `Frame` un-shares a page from everyone including the caller, because §13 (capability revocation and untyped reclamation)
 exists to make *reclamation* safe and a page about to be returned to the allocator must not stay
-reachable. On a `DeviceFrame` the same method means **take-back**: every other holder loses the
+reachable. On a `DeviceFrame` the same method means take-back: every other holder loses the
 capability and the mapping, the invoker keeps its own.
 
 The asymmetry is forced, not convenient. A device page is never reclaimed, and the kernel mints its
@@ -103,11 +103,11 @@ still wants the real tree, and still is not built.
 The shape milestones 29, 33 and 36 used: two witnesses in two address spaces, an attacker with real
 authority, and a control that must fail.
 
-**Witness one, the client, in its own address space.** `chatty` calls sixty-four times in a plain
+Witness one, the client, in its own address space. `chatty` calls sixty-four times in a plain
 loop, holding one capability for its whole life. It never reconnects, never retries, and has no code
 path for "the server went away" because there is no such event to have one for. It checks, from what
 it saw: every call returned; every reply echoed the sequence number that asked for it (so the
-kernel's one-shot `Reply` never misrouted); every digest matched **its own independent computation**
+kernel's one-shot `Reply` never misrouted); every digest matched its own independent computation
 of the same definition; and the version word went up exactly once, somewhere strictly inside the
 conversation.
 
@@ -115,7 +115,7 @@ That last one is worth stating precisely. The client *can* tell a swap happened,
 carries a version word put there for exactly that purpose. The claim is that its **stream was
 unbroken**, not that a swap is undetectable by a client that goes looking.
 
-**Witness two, the operator, in a different address space.** A page `swapper` owns and maps read/write
+Witness two, the operator, in a different address space. A page `swapper` owns and maps read/write
 into each instance; each stamps its own version at the index of every request it serves. Read after
 every writer is dead, it says two things the client cannot: that no sequence number went unserved
 (nothing was lost in the down window) and that the version **never goes backwards**, which is the
@@ -123,17 +123,17 @@ every writer is dead, it says two things the client cannot: that no sequence num
 The two witnesses are cross-checked against each other on *where* the swap happened; neither is taken
 on the other's word.
 
-**The control that must fail.** After the revoke, the outgoing instance is told to read one UART
+The control that must fail. After the revoke, the outgoing instance is told to read one UART
 register. It faults, and the kernel's fault message carries the device's own page. Before the revoke
 the identical read succeeded (each instance probes at startup and reports), which is what makes this
 a receipt rather than a coincidence. A run in which that read *succeeds* is failed loudly rather than
 silently: the instance reports `RPT_PROBE_SURVIVED` and the test refuses the run.
 
-**The attacker.** Endowed with exactly the honest client's capabilities, including a real working
+The attacker. Endowed with exactly the honest client's capabilities, including a real working
 capability to the stable endpoint, it tries to park itself in `RECV_CAP` and take the client's
 requests. `NotPermitted`.
 
-**And the replacement is written in C** (`fixtures/c/c_swappable.c`, over the seam DECISIONS §31 built).
+And the replacement is written in C (`fixtures/c/c_swappable.c`, over the seam DECISIONS §31 built).
 That is the strongest form of the claim available: what held across the swap is the *contract*, not
 a recompile of the same source. The C holds no capability and makes no syscall, because the Rust
 shell around it holds every capability and makes every syscall; its entire interface to the system
@@ -148,7 +148,7 @@ number.
 |---|---|---|---|
 | 0 (default) | the shared endpoint; no process in the path | **zero** (`call_reply`) | lifecycle, at the price of blocking the caller during the window |
 | 1 (opt-in) | `broker`, a queue-server process | **1.99x** a direct call, ~1.2 us under HVF | lifecycle, with the producer never blocking |
-| 2 | a durable broker that writes the backlog to storage |: | its own crash. **Not built.** |
+| 2 | a durable broker that writes the backlog to storage |: | its own crash. Not built. |
 
 `broker` is pass-through when both ends are up: it forwards the two words and hands the backend's
 answer straight back, holding the client's `Reply` capability across the hop. When the operator tells
@@ -158,7 +158,7 @@ footprint is unchanged; a runaway producer gets `QUEUE_FULL`, which is backpress
 than a policy hidden inside a server). On the way back up it drains in arrival order before it
 answers, so "the broker is up" and "the backlog is delivered" are one event to anyone watching.
 
-Its control messages travel **in band on its own front endpoint**, for the same reason `OP_QUIESCE`
+Its control messages travel in band on its own front endpoint, for the same reason `OP_QUIESCE`
 does: synchronous rendezvous means a server blocks on one endpoint, and a second one would need the
 wait-any primitive DECISIONS §26.5 deliberately does not have.
 
@@ -170,14 +170,14 @@ reclaiming the budget at the end can only *succeed* if all five splits are gone:
 whose children are still carved out of it.
 
 That is an assertion rather than housekeeping, for a reason with nothing to do with tidiness.
-`untyped::create` takes a **contiguous** run of frames; the first version of these tests leaked all
+`untyped::create` takes a contiguous run of frames; the first version of these tests leaked all
 three systems, which fragmented the frame allocator badly enough that a *later, unrelated* test could
 not get the progenitor's own eight-megabyte region. The failure surfaced nowhere near its cause, which is the
 usual signature of a leak.
 
 ### BUGS: the frame-hygiene `debug_assert!` was a race, and it fired on CI
 
-**Removed 2026-08-03**, in the change this section said it deserved. By that day it had failed the
+Removed 2026-08-03, in the change this section said it deserved. By that day it had failed the
 cpu matrix on `main` twice (once on `rv64`, the control model) and once on a Dependabot PR whose
 diff touched only workflow files, so the analysis below had been confirmed at the rate it predicted
 and the assertion was costing red CI runs on innocent changes. The rest of this section is the
@@ -185,24 +185,24 @@ analysis as recorded at the time, kept because the failure shape (a wait or an a
 against something wider than the property) recurs in this tree.
 
 `run_swap` ended with `debug_assert!(before >= memory::free_frames())`, where `before` was the free
-count sampled at the top of the run. **It intermittently failed on the `sifive-u54` cpu-matrix leg**,
+count sampled at the top of the run. It intermittently failed on the `sifive-u54` cpu-matrix leg,
 with the outgoing instance's expected device fault printed just above it. Found 2026-08-03 during
 milestone 72; not fixed on that branch, because the analysis says the assertion is the defect and
 that deserves its own change rather than riding on an unrelated one.
 
-**Intermittent, and the rate is worth writing down** so the next sighting is not read as a
-regression: on the one branch where it has been watched closely it went success, success, **failure**,
+Intermittent, and the rate is worth writing down so the next sighting is not read as a
+regression: on the one branch where it has been watched closely it went success, success, failure,
 success across four completed `cpu matrix` jobs, on a diff that changes no executable line in this
 file's neighbourhood. One failure in four is what this looks like.
 
-**It contradicts the comment directly above it**, which says the property is "hygiene, deliberately
+It contradicts the comment directly above it, which says the property is "hygiene, deliberately
 not asserted on". Both were written in the same commit, so one has been wrong since milestone 23.
 
-**The comment is the one that is right, though not for the reason it gives.** The scenario the
+The comment is the one that is right, though not for the reason it gives. The scenario the
 comment describes, the operator's own address space and TCB coming home late through the ordinary
 reaper, satisfies the assertion either way: those frames were allocated *after* `before` was taken,
 so returning them can only bring the count back up *toward* the baseline, never past it. The
-assertion can only fire on frames arriving from **outside the run**, which is an earlier test's
+assertion can only fire on frames arriving from outside the run, which is an earlier test's
 teardown landing mid-run. That is the "a wait written against something wider than the property"
 shape notes/riscv-parity-scope.md records twice already, in its `thread_count()` form.
 
@@ -218,34 +218,36 @@ Two frames of headroom, and the baseline does not drift on a quiet machine. So a
 arriving from an earlier test's in-flight teardown trip it, and a loaded CI runner is exactly where
 that happens.
 
-**What is not demonstrated**: which teardown supplied them. Eight `script/cpu-matrix sifive-u54` runs
+What is not demonstrated: which teardown supplied them. Eight `script/cpu-matrix sifive-u54` runs
 under four host burners did not reproduce it, and neither did forcing a two-second settle at either
 end of the run. The direction is established (frames arrive from outside the run) and the source is
 not.
 
-**Do not read the fault beside it as an anomaly.** The CI log shows
+Do not read the fault beside it as an anomaly. The CI log shows
 `user thread N killed: scause 0xd ... stval 0x0000000003100005` immediately before the panic, and
 `0x3100005` is `DEV_VA + 5`. That is the outgoing instance dying on the device it no longer has,
 which is the control this whole milestone rests on and which the test asserts on directly.
 
 ## What this does not yet demonstrate
 
-- **State handoff**, which is where the real engineering is. The component here is near-stateless by
-  construction, and that is what makes kill-and-replace sufficient. A filesystem server's open
-  handles or a network stack's live connections need a serialise-old / absorb-new protocol.
-- ~~**A component manifest.**~~ **Built 2026-08-17**: the operator's endowments are no longer
+- ~~State handoff.~~ Built 2026-09-26 to §209 (state handoff is an opaque blob over a
+  granted frame, and it is optional): `swapper`'s `ROLE_HANDOFF` carries a component's tally across
+  the swap on a handoff page, and a replacement that cannot absorb it does not commit. It runs on all
+  three architectures. See notes/state-handoff.md, including the one-page limit that
+  `redoxfs_server` will hit.
+- ~~A component manifest.~~ Built 2026-08-17: the operator's endowments are no longer
   literals in its own source. `swap_protocol` carries the capability half of its own contract, `swapper`
   wires every component from a declaration, and the slot agreement that used to be a comment in two
   files is now a compile-time derivation. See notes/component-manifest.md, including the honest limit:
   a manifest is compiled in rather than shipped beside a binary, which is a wire format and so a
   decision left to the architect.
-- ~~**Dependency-aware orchestration.**~~ **Built 2026-08-23**: `component_plan::depends_on` names
+- ~~Dependency-aware orchestration.~~ Built 2026-08-23: `component_plan::depends_on` names
   which contracts a component cannot silently tolerate the absence of, and `dependents` answers who
   must be warned before a given contract is swapped. `queued()`'s `BOP_DOWN`/`BOP_UP` are driven by
   that answer now rather than sent unconditionally. Direct dependents only; see
   notes/dependency-orchestration.md, including the non-cooperative fallback it still owes
   notes/hung-component.md.
-- ~~**A hung component.**~~ **Demonstrated 2026-08-17, and it half-corrects the sentence that used to
+- ~~A hung component.~~ **Demonstrated 2026-08-17, and it half-corrects the sentence that used to
   stand here.** The old text said a livelocked instance "needs the stronger right, which is §32's
   recorded watchdog case". That is right about reclaiming its memory and **wrong about restarting its
   service**: `swapper`'s `ROLE_HUNG` runs the swap against an incumbent that stops answering and gets
@@ -256,14 +258,20 @@ which is the control this whole milestone rests on and which the test asserts on
   notes/hung-component.md, including the two decisions this cannot pass without (how a supervisor
   *notices*, which needs milestone 106's timed wait, and what it may do to a component that never
   cooperates) and the finding that `abi::Error::Gone` does not reach a caller stranded mid-`CALL`.
-- **The console proper.** The component swapped here owns the real UART and is shaped like a console
-  server, but `line_editor`/`display_terminal`/`compositor` are not themselves swapped: the interactive stack is not
-  running under the test harness, and building it there would have measured the harness.
+- The console proper. The component swapped here owns the real UART and is shaped like a console
+  server, but `line_editor`/`display_terminal`/`compositor` are not themselves swapped. The reason
+  given here until 2026-09-26 (not running under the test harness) stopped being true; the real
+  reasons differ per component and two of them are contract decisions. See
+  notes/interactive-stack-swap.md (PROPOSED).
+- A dependent that will not answer its warning. Measured rather than open since 2026-09-26:
+  skipping the warning costs latency and loses nothing (`ROLE_UNWARNED`). What to do instead of a
+  blocking warn is notes/non-cooperative-fallback.md (PROPOSED).
 
 ## See also
 
 - DECISIONS §41 (the endpoint is the broker), §12 (a one-shot reply capability), §13 and §16 (revocation),
   §26 (the fault endpoint), §31 (the C seam), §32 (a supervisor may collect a corpse)
-- notes/component-manifest.md and notes/hung-component.md for the two residuals that have landed
+- notes/component-manifest.md, notes/hung-component.md, notes/dependency-orchestration.md and
+  notes/state-handoff.md for the residuals that have landed
 - notes/ipc-naming.md, notes/supervision.md, notes/object-revocation.md, notes/c-seam.md
 - notes/benchmarks.md for `broker_rtt` and what the default rung costs
