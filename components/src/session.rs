@@ -18,9 +18,9 @@
 //!    ([`PAGE`]) is mapped into it at [`TIMETABLE_PAGE_VA`], so the timetable starts empty and
 //!    silent and waits for a `REPLACE` (`timetable::contract`).
 //! 2. Says it is ready on [`READY`], once. `login` is blocked waiting for exactly that word.
-//! 3. Blocks on [`E`], its one endpoint, for the rest of its life. The timetable's death arrives
-//!    there, because [`E`] is its supervision endpoint, and so does every scheduled job's report,
-//!    because [`E`] is also the endpoint the timetable hands each job as its report slot. A process
+//! 3. Blocks on `e`, its one endpoint, for the rest of its life. The timetable's death arrives
+//!    there, because `e` is its supervision endpoint, and so does every scheduled job's report,
+//!    because `e` is also the endpoint the timetable hands each job as its report slot. A process
 //!    has one wait point, and this is how one reader serves both.
 //! 4. When the timetable is gone, gives [`BUDGET`]'s contents back and exits. The page stays, in
 //!    `login`'s region, so `login` can read why the timetable stopped before it reclaims this
@@ -28,7 +28,7 @@
 //!
 //! **Telling a death from a report.** A death is five words from the kernel with an event of
 //! `abi::fault::EVENT_EXIT` or `EVENT_FAULT`. A job can send those same numbers, so the event alone
-//! decides nothing: the reap decides. Only the timetable is supervised by [`E`], so `REAP` on the
+//! decides nothing: the reap decides. Only the timetable is supervised by `e`, so `REAP` on the
 //! tid a job claims answers `NotSupervised` or `StillAlive`, and the message is treated as a report.
 //!
 //! # Capability contract (`login_protocol::session`)
@@ -58,8 +58,8 @@
 //!   frame this process holds a capability to, and `login` hands it bytes rather than frames.
 
 #![no_std]
-// Program entry points, not the crates/ library surface milestone 68's ratchet tracks
-// (DECISIONS §107): each `[[bin]]` is its own crate root with one `_start`.
+// Program entry points, not the crates/ library surface milestone 68 (code-quality gates) tracks
+// (DECISIONS §107, `missing_docs` moves to `workspace.lints.rust`): each `[[bin]]` is its own crate root with one `_start`.
 #![allow(missing_docs)]
 #![no_main]
 

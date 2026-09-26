@@ -751,7 +751,7 @@ const CARETAKER_STACK_PAGES: u64 = 4;
 /// needs, which is not yet a question this program has enough callers to answer.
 const CLIENT_BUDGET_PAGES: u64 = 64;
 
-/// **The budget durable sessions are split from** (milestone 152), split once at start-up and only
+/// **The budget durable sessions are split from** (milestone 152 (durable delegation)), split once at start-up and only
 /// when a schedule can be opened at all. Its own parent for the reason [`CHANNEL_UT_PAGES`] is:
 /// a durable session outlives the logins around it, so carving it from [`CONSTRUCTION_UT`] would
 /// leave a hole there each time one is reclaimed out of order. Room for exactly one, which is how
@@ -1133,7 +1133,7 @@ fn serve_login(
     }
     send(channel.result, login_protocol::OK, flags, 0);
     delegate(channel.result, dir_ep, abi::rights::WRITE);
-    // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring update): the
+    // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49 (users, login, and attribution)'s boot-wiring update): the
     // kernel's own `page_frame_map` checks only `Rights::WRITE` for a writable mapping and grants a
     // fully read+write page table entry either way; `crates/system_initializer::boot` itself holds
     // only `WRITE | GRANT` on the real file service's shared page, so a real boot could never have
@@ -1192,7 +1192,7 @@ struct Durable {
     identity: [u8; filesystem_protocol::grant::MAX_NAME],
     len: usize,
     /// The user's budget. The session process and its timetable are built from regions split off
-    /// it, so it refuses `DESTROY` for as long as either lives (DECISIONS §16).
+    /// it, so it refuses `DESTROY` for as long as either lives (DECISIONS §16 (object revocation)).
     budget: u64,
     /// The region the session process was built from; the registration page was retyped from it.
     session: u64,

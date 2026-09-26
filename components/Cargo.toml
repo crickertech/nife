@@ -400,7 +400,7 @@ path = "src/session_reviver.rs"
 test = false
 bench = false
 
-# The session process (milestone 152, S1 of 2026-09-26, provisional name): built by `login` from a
+# The session process (milestone 152 (durable delegation), S1 of 2026-09-26, provisional name): built by `login` from a
 # user's session budget when they open their schedule; it builds their timetable, supervises it, and
 # is what keeps the session alive after they disconnect. `initrd_aarch64` packs it as "session".
 [[bin]]
