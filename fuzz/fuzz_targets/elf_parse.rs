@@ -36,6 +36,10 @@ fuzz_target!(|data: &[u8]| {
     // already ran inside `parse`; this is the walk that happens afterwards, when the loader is
     // mapping and is past the point where refusing is easy.
     let _ = elf.entry();
+
+    // The note lookup a manifest reader would make (research prototype, lane/elf-note-price):
+    // every `PT_NOTE` walked in full, on the same hostile bytes the loader accepted.
+    let _ = elf.note(b"nife", 1);
     for seg in elf.segments() {
         let _ = seg.is_readable();
         let _ = seg.is_writable();
