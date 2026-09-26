@@ -306,7 +306,7 @@ pub struct Armed {
 /// firmware left it off (`lpc_ich_enable_acpi_space`), and it unhides the PCH's P2SB bridge for
 /// the two reads that find `SBREG_BAR`, then hides it again (`p2sb_bar`).
 ///
-/// Name provisional: calef names public items.
+/// Name: provisional (milestone 593), 2026-09-25. calef names public items.
 pub fn find() -> Result<Tco, Absent> {
     let lpc = config_read(CHIPSET_DEVICE, LPC_FUNCTION, 0);
     if lpc == ICH9_LPC << 16 | INTEL {
