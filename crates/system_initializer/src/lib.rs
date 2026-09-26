@@ -162,9 +162,14 @@
 //! as it vouches for this program's own bytes, and [`boot`] looks every program up in it before
 //! loading it.
 //!
-//! **One rule: the progenitor runs nothing it cannot vouch for.** A digest that does not match is a refusal,
-//! and so is a name the table does not mention, for the reason the kernel's empty trust root is
-//! refused: a check that passes when there is nothing to check against is not a check.
+//! **One rule: the progenitor grants nothing of its own to what it cannot vouch for.** Restated
+//! 2026-09-26 by DECISIONS §219 (how the shell names an installed program to the spawner), from
+//! "runs nothing it cannot vouch for": unvouched bytes a caller sends may run with the caller's
+//! grants and the clock and configuration pages, but only for a session holding §219's D2
+//! capability. Option D is not built, so today every program reaches this crate from the archive,
+//! and here the rule still means refusal. A digest that does not match is a refusal, and so is a
+//! name the table does not mention, for the reason the kernel's empty trust root is refused: a
+//! check that passes when there is nothing to check against is not a check.
 //!
 //! What a refusal *costs* is not a second policy. It falls out of what the program was for, which is
 //! a question this crate already had to answer for an archive entry that is simply missing, so a
@@ -1357,7 +1362,8 @@ pub fn boot(
     // latest at which nothing unmeasured has been built. The console and the line discipline above
     // are running; nothing else is.
     //
-    // Halting is not a second policy. The policy is that progenitor runs nothing it cannot vouch for, and
+    // Halting is not a second policy. The policy is that the progenitor grants nothing of its own to
+    // what it cannot vouch for (§219), which for an archive program means it does not run it, and
     // for a component the whole system is made of, not running it and not having a system are the
     // same outcome. What it costs is decided by what the program was for, which is a question the progenitor
     // already had to answer for an archive entry that is simply missing.
