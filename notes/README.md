@@ -135,7 +135,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [Live component replacement](live-replacement.md): swapping a running component under a live client.
 - [The hung component](hung-component.md): a component that stops answering without dying.
 - [Dependency-aware orchestration](dependency-orchestration.md): which components to warn before swapping a dependency.
-- [The process view](process-view.md): `ps` and `pgrep` over a supervision subtree.
+- [The process view](process-view.md): `ps`, `pgrep` and `top` over a supervision subtree.
 - [Scheduled execution](scheduled-execution.md): a cron whose every entry is a grant.
 - [Wall-clock time](clock.md): wall clock as counter plus offset, three authorities.
 - [`date`](date.md): prints the wall clock and cannot set it.
