@@ -1354,7 +1354,7 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   `bind recent -> /logs/2026`. The block's own `bind` paragraph already says so; this sentence
   never got the correction.
 - **Outstanding.** Tab completion, now buildable: calef ruled
-  `design/decisions/227-a-resume-message-for-tab-completion.md` option D on 2026-09-26, so the
+  `design/decisions/227-the-shell-edits-its-own-line.md` option D on 2026-09-26, so the
   shell turns raw mode on and runs `LineDisc` itself. Not built: `crates/line_editor` still ignores
   Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The lane
   that builds it owes two measurements, the shell's binary size and the per-keystroke IPC cost.

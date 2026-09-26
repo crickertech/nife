@@ -9,6 +9,9 @@ ratified_by: calef
 
 (one sentence superseded by milestone 41 (triage the suppressions, and un-blindfold the gate)'s deletion, recorded in place.)
 
+Amended 2026-09-26 by §227 (how Tab reaches the shell). The shell edits its own line in raw mode.
+Every other client keeps the terminal's editor.
+
 **Decided and built 2026-07-28.** Milestone 28 put the tty line discipline in userspace as a
 swappable component (`line_editor`), sitting on plain endpoints between the input/console drivers and
 applications. Three things here are decisions, and the reason each gets recorded rather than left
