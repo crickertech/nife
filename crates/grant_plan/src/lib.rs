@@ -1043,6 +1043,25 @@ pub const ENTROPY_SLOT: u64 = 9;
 /// program that shows it at the prompt.
 pub const NETWORK_SLOT: u64 = 10;
 
+/// **Whose manifest an installed program is bound and endowed with**, until a manifest travels
+/// with a package (DECISIONS §219 (how the shell names an installed program to the spawner), milestone 198 rung 3a's first cut).
+///
+/// Where a program's manifest travels is still DECISIONS §197 (a package is one archive file)'s open question, and both sides of a
+/// §219 image request need one: the shell to bind the line, the progenitor to endow a vouched
+/// child. §219 recommends a first cut that refuses an installed program asking more than
+/// `Prog::Uptime`'s, rather than answering §197 by accident. This is that cut: every installed
+/// program is bound and endowed as `uptime` is, which is output bytes to the caller and nothing
+/// else (no clock, no domain, no config, no entropy, no network, no argument, no `--mem`). A program
+/// that needs more has no way to ask, so it finds the slot it wanted empty, which is the refusal
+/// in the only form available until §197 is answered. `spawnproto`'s BUGS carries it.
+///
+/// A `Prog` rather than a bare [`Manifest`] because the shell's run path reads its output shape
+/// off an [`Endowment`]'s program. The shell and the progenitor both read this one constant, so
+/// they cannot disagree about the ceiling.
+///
+/// Name: provisional (2026-09-26); `design/naming.md` is the rule and calef's the call.
+pub const INSTALLED_MANIFEST_OF: Prog = Prog::Uptime;
+
 /// A program's expectation about the integer argument (`least_authority_demo 9`'s `9`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ArgSpec {

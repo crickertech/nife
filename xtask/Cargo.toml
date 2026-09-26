@@ -77,3 +77,7 @@ grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # reads one with, and reads its own output back before writing it to disk, so a producer that
 # emitted a file its consumer refuses could not get past the gate.
 package_archive = { version = "0.1.0", path = "../crates/package_archive" }
+# The activation set's shape and location (DECISIONS §208 (installing a package is granting it), §219 (how the shell names an installed program to the spawner)). `script/swish-check` seeds a
+# generation into the RedoxFS image the way the target's installer will, and the progenitor reads
+# it back with the same crate, so the two cannot disagree about a line or a path.
+activation_set = { version = "0.1.0", path = "../crates/activation_set" }

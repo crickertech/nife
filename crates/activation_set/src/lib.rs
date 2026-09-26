@@ -4,7 +4,17 @@
 //! that installing *records that a package exists*, and that **the table of entries is versioned**
 //! so a set can be selected and rolled back as a whole. This crate is that table's logic, pure and
 //! host-tested, for whichever process DECISIONS §219 (how the shell names an installed program to
-//! the spawner) ends up giving it to. Nothing on a target reads it yet.
+//! the spawner) ends up giving it to. §219 gave it to the progenitor: since milestone 198 rung 3a's
+//! image lane (2026-09-26) the progenitor reads the live generation on every image spawn and looks
+//! the executable's digest up in it ([`lookup_digest`]).
+//!
+//! # Where it lives
+//!
+//! A directory [`DIRECTORY`] at the root of the file service, holding [`CURRENT`] and one file per
+//! generation named by its decimal number ([`generation_name`]). Both the progenitor, which reads it,
+//! and the host tool that seeds it for `script/swish-check` read the names from here, which is rule
+//! 7: what two programs agree on is a crate. Provisional, like the crate's name: nothing on a target
+//! writes a generation yet, and the installer that will is what decides who may.
 //!
 //! # The shape, and why it is this one
 //!
@@ -74,7 +84,12 @@ pub struct Entry<'a> {
     pub program: &'a str,
     /// The package it came from, as its `name-version-architecture` stem.
     pub package: &'a str,
-    /// The package file's SHA-256, as verified when it was installed.
+    /// **The program's own SHA-256**: the digest of the executable member, as the package's table
+    /// of contents carries it (`package_archive::Package::member_digest`) and as installing
+    /// verified it. Not the package file's digest, which §195 (a reviewed recipe vouches for a package)'s recipe vouches for and which
+    /// installing checks first: the spawner is handed the executable's bytes, never the package's
+    /// (DECISIONS §219 option D), so the digest it can compute is the member's. Changed
+    /// 2026-09-26 by milestone 198 rung 3a's image lane, before anything wrote a table.
     pub digest: Digest,
 }
 
@@ -124,6 +139,25 @@ pub fn lookup<'a>(table: &'a str, program: &str) -> Result<Option<Entry<'a>>, Er
     for entry in entries(table) {
         let entry = entry?;
         if entry.program == program {
+            found = Some(entry);
+        }
+    }
+    Ok(found)
+}
+
+/// **The entry whose program has these bytes**, if the generation has one: what the progenitor asks
+/// when it is handed an executable rather than a name (DECISIONS §219 option D). The whole table is
+/// checked first, as in [`lookup`], so a malformed line anywhere vouches for nothing.
+///
+/// Two entries with one digest (one program installed under two names) answer with the **first**,
+/// deterministically, since the manifest an installed program is endowed with does not depend on
+/// its name today (`grant_plan::INSTALLED_MANIFEST_OF`). When a manifest travels with a package
+/// that stops being harmless, and this is where it will show.
+pub fn lookup_digest<'a>(table: &'a str, digest: &Digest) -> Result<Option<Entry<'a>>, Error> {
+    let mut found = None;
+    for entry in entries(table) {
+        let entry = entry?;
+        if found.is_none() && entry.digest == *digest {
             found = Some(entry);
         }
     }
@@ -181,6 +215,28 @@ pub fn parse_current(text: &str) -> Option<u32> {
         return None;
     }
     digits.parse().ok()
+}
+
+/// The directory the activation set lives in, at the root of the file service. Provisional.
+pub const DIRECTORY: &str = "activation";
+
+/// The one-line file in [`DIRECTORY`] naming the live generation ([`parse_current`]).
+pub const CURRENT: &str = "current";
+
+/// The file name of generation `number` in [`DIRECTORY`]: its decimal digits, no padding.
+pub fn generation_name(number: u32, out: &mut [u8; 10]) -> &str {
+    let mut n = number;
+    let mut at = out.len();
+    loop {
+        at -= 1;
+        out[at] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    // Only ASCII digits were written, so this cannot fail; `unwrap_or` keeps the path panic-free.
+    core::str::from_utf8(&out[at..]).unwrap_or("0")
 }
 
 /// Write the `current` file naming generation `number`. Returns the length written.
@@ -401,6 +457,35 @@ mod tests {
         let e = entry("uptime", "uptime-0.1.0-aarch64", 1);
         assert_eq!(with_entry("", &e, &mut out), Err(Error::TooSmall));
         assert_eq!(format_current(1234, &mut [0u8; 4]), Err(Error::TooSmall));
+    }
+
+    /// **A digest finds its program, and a malformed line elsewhere still vouches for nothing**
+    /// (§219 D). The miss is a real `None` rather than an error, because "not installed" is the
+    /// ordinary answer for a binary somebody just built.
+    #[test]
+    fn a_digest_finds_its_entry_and_a_miss_is_none() {
+        let mut out = [0u8; 512];
+        let n = with_entry("", &entry("uptime", "uptime-0.1.0-aarch64", 3), &mut out).unwrap();
+        let mut two = [0u8; 512];
+        let text = core::str::from_utf8(&out[..n]).unwrap();
+        let n = with_entry(text, &entry("date", "date-0.1.0-aarch64", 4), &mut two).unwrap();
+        let table = core::str::from_utf8(&two[..n]).unwrap();
+
+        let hit = lookup_digest(table, &[4u8; 32]).unwrap().unwrap();
+        assert_eq!(hit.program, "date");
+        assert!(lookup_digest(table, &[9u8; 32]).unwrap().is_none());
+
+        let mut broken = String::from(table);
+        broken.push_str("not a line\n");
+        assert_eq!(lookup_digest(&broken, &[4u8; 32]), Err(Error::Malformed));
+    }
+
+    #[test]
+    fn a_generation_is_named_by_its_number() {
+        let mut buf = [0u8; 10];
+        assert_eq!(generation_name(0, &mut buf), "0");
+        assert_eq!(generation_name(17, &mut buf), "17");
+        assert_eq!(generation_name(u32::MAX, &mut buf), "4294967295");
     }
 
     #[test]

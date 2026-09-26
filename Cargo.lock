@@ -945,6 +945,7 @@ name = "system_initializer"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "activation_set",
  "byte_sink_protocol",
  "credential_protocol",
  "elf",
@@ -1170,6 +1171,7 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "activation_set",
  "bitmap_font",
  "board_console",
  "boot_ladder",

@@ -1642,6 +1642,12 @@ fn help() {
 /// Resolve an invocation, then either refuse it at the prompt (a mismatch the manifest caught) or
 /// spawn it, granting exactly what the command named and nothing else.
 fn run(nav: &mut Nav, cmd: &[u8], spec: RunSpec) {
+    // **A path runs bytes, not a name** (DECISIONS §219 (how the shell names an installed program to the spawner) option D, milestone 198 (a package manager) rung 3a). A program
+    // the image names is a word with no `/` in it; anything with one is a file this shell reads and
+    // hands the progenitor as frames. `installed/uptime` and `./a.out` both land here.
+    if spec.prog.contains(&b'/') {
+        return run_image(nav, spec);
+    }
     // **Expand first.** A pattern designates the names it matched, so the planner has to see the
     // set; and a pattern that matched nothing, or too much, is refused here with nothing spawned.
     let expanded = match expansion(nav, &spec) {
@@ -1676,6 +1682,178 @@ fn run(nav: &mut Nav, cmd: &[u8], spec: RunSpec) {
             _ => spawn(endow),
         },
     }
+}
+
+/// **The window this shell writes an image's frames through** (DECISIONS §219 option D), one page
+/// above [`IMAGE_PRIMER_VA`] and inside the same 2 MiB, so every frame's mapping lands in a page
+/// table the primer already paid for. At most [`spawnproto::IMAGE_MAX_PAGES`] pages.
+const IMAGE_VA: u64 = 0x0000_0000_0400_1000;
+
+/// **The one page that buys the image window its page tables**, mapped once per shell and never
+/// given back. It exists because of how a region returns memory: a staging region's pages go back
+/// to [`BUDGET`] on `DESTROY` only if it is the budget's most recent carve, and a page table
+/// allocated from the budget *while* staging would sit above it and strand every staging page for
+/// the life of the shell. Mapping one page here first makes the tables exist before any staging
+/// region does. One page and its tables, once, is the price of having no unmap (DECISIONS §162 (whether a holder can give up a mapping)).
+const IMAGE_PRIMER_VA: u64 = 0x0000_0000_0400_0000;
+
+/// Whether [`IMAGE_PRIMER_VA`] is mapped yet.
+static IMAGE_PRIMED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+/// **Run a file by its bytes** (DECISIONS §219 option D, ruled 2026-09-26; milestone 198 rung 3a).
+///
+/// The shell reads the file through the file service it already holds, into frames split from its
+/// own budget, and sends them on the spawn endpoint under `IMAGE_BIT`. The progenitor hashes its own
+/// copy and looks the digest up in the activation set: a hit runs, a miss is refused with its own
+/// word ([`swish::UNVOUCHED_SENTENCE`]), because running unvouched bytes needs §219's gate D2, which
+/// no session holds yet.
+///
+/// **The line is bound against [`grant_plan::INSTALLED_MANIFEST_OF`]**, `uptime`'s manifest, since
+/// no manifest travels with a package yet (§197 (a package is one archive file)). So an argument, a `--mem` or a file operand is
+/// refused here with nothing sent, exactly as `uptime 3` is.
+///
+/// One frame is held at a time: retyped, filled, delegated narrowed to `READ`, deleted. The staging
+/// region is destroyed once the answer is in, which revokes the frames from both address spaces.
+/// See `spawnproto`'s BUGS for what this first cut does not do.
+fn run_image(nav: &mut Nav, spec: RunSpec) {
+    let expanded = match expansion(nav, &spec) {
+        Ok(e) => e,
+        Err(Say::Cannot(r)) => return refuse(spec, r),
+        Err(said) => return say(said),
+    };
+    let stand_in = grant_plan::INSTALLED_MANIFEST_OF;
+    let e = match grant_plan::plan_against(
+        &spec,
+        stand_in,
+        stand_in.manifest(),
+        holdings(nav),
+        expanded,
+    ) {
+        Ok(e) => e,
+        Err(r) => return refuse(spec, r),
+    };
+    let Some(dir) = nav.dir else {
+        return say(Say::NoDirectory);
+    };
+
+    // Open the file the path names, the way `<` would: walk the lead, open the last component.
+    let (p, _) = match nav.plan_path(spec.prog) {
+        Ok(planned) => planned,
+        Err(said) => return say(said),
+    };
+    let Some((lead, name)) = p.split_last_component() else {
+        refused();
+        print(b"  that path ends in a directory, not a file\n");
+        return;
+    };
+    let w = match nav.walk_steps(p.is_from_root(), lead) {
+        Ok(w) => w,
+        Err(said) => return say(said),
+    };
+    let opened = nav.name_call(fs::OPEN, w.handle, name, 0);
+    nav.unwind(&w);
+    if opened < 0 {
+        return say(Say::Failed(-opened as i32));
+    }
+    let handle = opened as u64;
+    let size = call(dir, fs::req(fs::FSTAT, handle, 0), 0).0 as i64;
+    let pages = spawnproto::image_pages(size.max(0) as u64);
+    if size <= 0 || pages > spawnproto::IMAGE_MAX_PAGES {
+        nav.close(handle);
+        refused();
+        print(b"  that file is empty, or larger than an image may be (256 KiB)\n");
+        return;
+    }
+
+    // The primer first (once), then any `--mem` region, then the staging region, so staging is
+    // the top of the budget when it is destroyed. See [`IMAGE_PRIMER_VA`].
+    if !IMAGE_PRIMED.load(core::sync::atomic::Ordering::Relaxed) {
+        if user_mode_runtime::map_region_page(BUDGET, IMAGE_PRIMER_VA) < 0 {
+            nav.close(handle);
+            failed();
+            print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
+            return;
+        }
+        IMAGE_PRIMED.store(true, core::sync::atomic::Ordering::Relaxed);
+    }
+    let mem_slot = if e.mem_pages > 0 {
+        memory_region_split(e.mem_pages)
+    } else {
+        None
+    };
+    let Some(staging) = memory_region_split(pages) else {
+        nav.close(handle);
+        if let Some(m) = mem_slot {
+            cap_delete(m);
+        }
+        failed();
+        print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
+        return;
+    };
+
+    let (w0, w1, w2) = spawnproto::request(
+        size as u64,
+        e.arg,
+        if mem_slot.is_some() { e.mem_pages } else { 0 },
+        spawnproto::Wiring {
+            image: true,
+            ..spawnproto::Wiring::default()
+        },
+    );
+    send(SPAWN, w0, w1, w2);
+
+    // **Every announced frame is sent, whatever goes wrong filling it**, because the progenitor
+    // is now waiting for exactly `pages` of them and the grants behind them. A frame that could
+    // not be filled goes out as it is, its digest misses, and the refusal says so; `read_ok`
+    // keeps the reason honest when it was this shell's read that failed rather than the table.
+    let mut read_ok = true;
+    for i in 0..pages {
+        let va = IMAGE_VA + i * PAGE;
+        let Ok(frame) = u64::try_from(user_mode_runtime::retype_page_frame(staging)) else {
+            // A staging region sized to `pages` cannot run out before the last page, and this
+            // loop holds one frame at a time, so this is a full capability table or a kernel
+            // contradicting the budget. There is then no frame to send, and the progenitor will
+            // wait for it: the prompt hangs. Recorded rather than papered over; see
+            // `spawnproto`'s BUGS.
+            read_ok = false;
+            break;
+        };
+        if map_page_frame(frame, va) {
+            // SAFETY: `va` was just mapped read/write, one page.
+            let window = unsafe { MappedWindow::new(va, PAGE) };
+            let n = call(dir, fs::req(fs::READ, handle, PAGE), i * PAGE).0 as i64;
+            if n < 0 {
+                read_ok = false;
+            } else {
+                for at in 0..n as u64 {
+                    window.w8(at, FS_WINDOW.r8(at));
+                }
+            }
+        } else {
+            read_ok = false;
+        }
+        user_mode_runtime::send_cap(SPAWN, frame, abi::rights::READ, i);
+        cap_delete(frame);
+    }
+    nav.close(handle);
+    if let Some(slot) = mem_slot {
+        delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
+        cap_delete(slot);
+    }
+
+    if e.prog.manifest().output.is_byte_stream() {
+        drain_text();
+    } else {
+        let answer = recv(RESULT).0;
+        outcome(e, answer);
+    }
+    if !read_ok {
+        print(b"  (this shell could not read the whole file, so those were not its bytes)\n");
+    }
+    // The frames are spent: the child was built from the progenitor's copy. Destroying the region
+    // revokes every mapping of them, ours and the progenitor's, and returns the pages.
+    user_mode_runtime::destroy_region(staging);
+    cap_delete(staging);
 }
 
 /// Print a refusal in the capability model's voice, which is [`swish::write_refusal`]'s job: the
@@ -1860,6 +2038,7 @@ fn spawn(e: Endowment) {
             // sends it down [`run`]'s other arm (`Source::File`) instead. So this bit would never
             // have anything to narrow.
             screen: false,
+            image: false,
         },
     );
     send(SPAWN, w0, w1, w2);
@@ -1909,6 +2088,13 @@ fn drain_text() {
         // the one thing it is.
         if w0 == spawnproto::SPAWN_FAILED {
             print(b"could not spawn (the progenitor is out of memory)\n");
+            return;
+        }
+        // **Refused as unvouched** (DECISIONS §219), which nothing but an image request earns.
+        // Printed the way the faulted sentence below is, indent and all.
+        if w0 == spawnproto::SPAWN_UNVOUCHED {
+            refused();
+            print(swish::UNVOUCHED_SENTENCE);
             return;
         }
         // **The stream stops here because its writer is dead** (milestone 235), and this is the
@@ -2078,6 +2264,11 @@ fn outcome(e: Endowment, answer: u64) {
     // willing and something did run, which is exactly the line [`failed`] draws.
     if answer == spawnproto::JOB_FAULTED {
         failed();
+    }
+    // **Bytes nobody vouched for** (DECISIONS §219). `Refused`, not `Failed`: nothing was
+    // attempted and nothing broke; the progenitor declined, the way this shell declines a grant.
+    if answer == spawnproto::SPAWN_UNVOUCHED {
+        refused();
     }
     swish::write_outcome(&e, answer, &mut print);
 }
@@ -2888,6 +3079,9 @@ fn spawn_stage(
         dir: false,
         dir2: false,
         screen: screen.is_some(),
+        // A pipeline stage is always a program the image names (§219 D's first cut runs an image
+        // only on a plain line; see `run_image`).
+        image: false,
     };
     let (w0, w1, w2) = spawnproto::request(e.prog.id(), e.arg, e.mem_pages, wiring);
     send(SPAWN, w0, w1, w2);
@@ -3046,6 +3240,7 @@ fn spawn_interruptible(e: Endowment) {
             // A supervised job's completion signal is already the shared job frame's `DONE` flag,
             // not `result_ep`, so there is nothing here for DECISIONS §106's narrowing to replace.
             screen: false,
+            image: false,
         },
     );
     send(SPAWN, w0, w1, w2);

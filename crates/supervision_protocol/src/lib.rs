@@ -173,6 +173,18 @@ pub const CHILD_STACK_PAGES: u64 = 4;
 static SCRATCH_NEXT: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0x1000_0000);
 
+/// **Take `pages` of the never-reused scratch window for a caller's own mapping**, returning the
+/// first address. The progenitor maps each frame of a DECISIONS §219 (how the shell names an installed program to the spawner) image request here: a frame
+/// the *caller* owns, whose mapping in the progenitor is revoked only when the caller reclaims it,
+/// so a fixed window could collide with one the caller never gave back. Sharing this window with
+/// [`build_child`] keeps one rule for every page the builder maps and cannot unmap (DECISIONS §162 (whether a holder can give up a mapping)
+/// is where an unmap would come from).
+///
+/// Name: provisional (milestone 198 (a package manager) rung 3a, 2026-09-26).
+pub fn scratch_pages(pages: u64) -> u64 {
+    SCRATCH_NEXT.fetch_add(pages * PAGE, core::sync::atomic::Ordering::Relaxed)
+}
+
 /// **Everything a child is born holding.** The same idea as the kernel's `Spawn`: read one of these
 /// and you know the complete authority of the thing about to run.
 pub struct ChildEndowment<'a> {

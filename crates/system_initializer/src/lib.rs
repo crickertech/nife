@@ -2309,19 +2309,50 @@ fn spawn_service(
         entropy,
         network,
     } = c;
+    // Whether the file page is mapped here yet, for the activation set (first image request).
+    let mut fs_mapped = false;
     loop {
         let (w0, w1, w2) = recv(spawn_ep);
-        let prog = Prog::from_id(spawnproto::prog_id(w0));
         let arg = spawnproto::arg(w1);
         let mem_pages = spawnproto::mem_pages(w2);
         let wiring = spawnproto::wiring(w2);
         let interruptible = wiring.interruptible;
+        // **Under `IMAGE_BIT` word 0 is a length, not a program** (DECISIONS §219 option D), so no
+        // row of `progs` is consulted: the program is whatever the bytes are.
+        let mut prog = if wiring.image {
+            None
+        } else {
+            Prog::from_id(spawnproto::prog_id(w0))
+        };
 
         // **The directory grant's two data messages, before any capability** (milestone 31 phase 3).
         // They are read here rather than inside the branch that uses them because the shell has
         // already sent them: a request that announced them and a progenitor that did not drain them would
         // leave the endpoint holding words the *next* command would read as its own.
         let grant = wiring.dir.then(|| (recv(spawn_ep), recv(spawn_ep)));
+
+        // **The image's frames, after the data and before every other capability** (§219 D). The
+        // child's region is split *first*, then the staging region, so the staging region is the
+        // top of the job pool when it is destroyed below and its pages go back (a region returns
+        // its pages to its parent only when it is the most recent carve, `memory_regions`'
+        // `return_to_parent`). A plain line is the only shape the shell sends; anything else is
+        // drained and refused.
+        let image_region = if wiring.image && !interruptible && !wiring.dir {
+            memory_region_split(jobs_ut, JOB_REGION_PAGES).ok()
+        } else {
+            None
+        };
+        let staging = if wiring.image {
+            receive_image(
+                spawn_ep,
+                spawnproto::image_len(w0),
+                own_ut,
+                jobs_ut,
+                image_region.is_some(),
+            )
+        } else {
+            None
+        };
 
         // Receive the delegated caps in protocol order: the interrupt pair first (job untyped, job
         // frame), then the sink, then the source, then the diagnostics, then the screen-narrowed
@@ -2362,7 +2393,34 @@ fn spawn_service(
             None
         };
 
-        let elf = prog.and_then(|p| progs[p.id() as usize].as_ref());
+        // **Vouched or not** (§219 D). A hit is endowed with the installed-program manifest, which
+        // is `uptime`'s until a manifest travels with a package (`grant_plan::INSTALLED_MANIFEST_OF`);
+        // a miss is refused with its own word, because running unvouched bytes needs §219's gate
+        // D2, a capability no session holds yet. `prog` stays `None` for a miss, so nothing below
+        // reads a manifest for it and nothing of this process's is endowed.
+        let mut unvouched = false;
+        let image_elf = staging.and_then(|_| {
+            let bytes = staged_image(spawnproto::image_len(w0));
+            if vouched(bytes, fs, own_ut, &mut fs_mapped) {
+                elf::Elf::parse(bytes).ok()
+            } else {
+                unvouched = true;
+                None
+            }
+        });
+        if image_elf.is_some() {
+            prog = Some(grant_plan::INSTALLED_MANIFEST_OF);
+        }
+        let failure = if unvouched {
+            spawnproto::SPAWN_UNVOUCHED
+        } else {
+            spawnproto::SPAWN_FAILED
+        };
+        let elf = if wiring.image {
+            image_elf.as_ref()
+        } else {
+            prog.and_then(|p| progs[p.id() as usize].as_ref())
+        };
         // Read from the program's own declaration, not from the request: a clock is not something
         // the command line can designate, so there is no bit on the wire for it (`Manifest::clock`).
         let wants_clock = prog.is_some_and(|p| p.manifest().clock);
@@ -2427,15 +2485,20 @@ fn spawn_service(
             // built out of the **same** region as the program it serves. That is DECISIONS §92's
             // decision and §40's mechanism: a child's resources come from its supervisor's region,
             // so one reclaim ends both and the caretaker cannot outlive the grant it carries.
-            let region = memory_region_split(
-                jobs_ut,
-                if wiring.dir {
-                    DIR_JOB_REGION_PAGES
-                } else {
-                    JOB_REGION_PAGES
-                },
-            )
-            .ok();
+            let region = if wiring.image {
+                // Split before the frames were taken; see `image_region` above.
+                image_region
+            } else {
+                memory_region_split(
+                    jobs_ut,
+                    if wiring.dir {
+                        DIR_JOB_REGION_PAGES
+                    } else {
+                        JOB_REGION_PAGES
+                    },
+                )
+                .ok()
+            };
 
             // **The caretaker, built before the program it serves**, because the program's slot 0 is
             // the endpoint this returns. `None` means either that this is not a directory grant or
@@ -2659,6 +2722,13 @@ fn spawn_service(
                 }
                 _ => None,
             };
+            // **The staged copy is spent once the child is built**: `build_child` copied every
+            // segment into the child's own region. Destroying the staging region revokes its
+            // mapping here and returns its pages to the job pool (it is the pool's top carve).
+            if let Some(st) = staging {
+                supervision_protocol::memory_region_destroy(st);
+                cap_delete(st);
+            }
             let ok = match built {
                 Some(child) => {
                     // **A program behind a directory grant is started with the grant's own three
@@ -2702,16 +2772,12 @@ fn spawn_service(
             if wiring.sink || wiring.screen {
                 send(
                     result_ep,
-                    if ok {
-                        spawnproto::SPAWN_OK
-                    } else {
-                        spawnproto::SPAWN_FAILED
-                    },
+                    if ok { spawnproto::SPAWN_OK } else { failure },
                     0,
                     0,
                 );
             } else if !ok {
-                send(result_ep, spawnproto::SPAWN_FAILED, 0, 0);
+                send(result_ep, failure, 0, 0);
             }
             // **A child that was never built cannot end its own second stream**, and the shell
             // drains that stream to `OP_EOF` before it reads anything else, so nothing would ever
@@ -2959,6 +3025,187 @@ fn render_ipv4(addr: u32, out: &mut [u8]) -> usize {
         }
     }
     n
+}
+
+// -------------------------------------------------------------------------------------------
+// An image request: the executable's bytes as frames the caller owns (DECISIONS §219 option D,
+// ruled 2026-09-26; milestone 198 (a package manager) rung 3a).
+// -------------------------------------------------------------------------------------------
+
+/// Where the progenitor maps the file service's shared page to read the activation set. Mapped
+/// once, on the first image request, with page tables from its own budget. Clear of every other
+/// window this process maps (`INIT_OUT_VA` and the three peek pages below it, and the loader's
+/// scratch window, which starts at `0x1000_0000` and only grows).
+const ACTIVATION_FS_VA: u64 = 0x0f40_0000;
+
+/// **Where the progenitor keeps its own copy of an image**, [`spawnproto::IMAGE_MAX_PAGES`] pages
+/// at most. A fixed window rather than more of the never-reused scratch, because every page mapped
+/// here comes from a staging region *this process* destroys once the child is built, and a destroy
+/// revokes the mapping (DECISIONS §13 (frame revocation)), so the next request finds the window empty again. The page
+/// tables behind it come from `own_ut` and are reused.
+const IMAGE_STAGING_VA: u64 = 0x0f80_0000;
+
+/// **Take an image request's frames off the spawn endpoint and copy them into pages of our own.**
+/// Returns the staging region holding the copy, or `None` if it could not be staged.
+///
+/// Every one of `pages` frames is received whatever happens, because the caller has already
+/// committed to sending them and the grants it sends next must land in the `RECV_CAP`s that expect
+/// them. A frame that arrives after staging failed is deleted unread.
+///
+/// # Why a copy, and why one slot
+///
+/// The caller keeps its own mapping of these frames, so hashing them in place would let it change
+/// the bytes between the hash and the build (§219: "the progenitor hashes its own copy"). So each
+/// frame is mapped read-only through the loader's never-reused scratch window, its capability is
+/// deleted **before** the next thing is taken, and a page retyped from the staging region receives
+/// the copy. At most one capability of the caller's is in this table at any moment, and the
+/// staging page's own capability is deleted as soon as it is mapped: an image of any size costs one
+/// transient slot plus the staging region's.
+///
+/// `stage` is false when the request cannot be built anyway (no region for the child, an
+/// interruptible or directory-granted image), and then this only drains.
+fn receive_image(spawn_ep: u64, len: u64, own_ut: u64, jobs_ut: u64, stage: bool) -> Option<u64> {
+    let pages = spawnproto::image_pages(len);
+    let staging = if stage && pages > 0 && pages <= spawnproto::IMAGE_MAX_PAGES {
+        memory_region_split(jobs_ut, pages).ok()
+    } else {
+        None
+    };
+    let mut ok = staging.is_some();
+    // The caller's frames each get a fresh scratch page, never reused: their mappings here are
+    // revoked only when the *caller* reclaims them, which this process does not control.
+    let peek = if ok {
+        supervision_protocol::scratch_pages(pages)
+    } else {
+        0
+    };
+    for i in 0..pages {
+        let Some(frame) = opt_cap(recv_cap(spawn_ep).1) else {
+            ok = false;
+            continue;
+        };
+        let (Some(st), true) = (staging, ok) else {
+            cap_delete(frame);
+            continue;
+        };
+        let theirs = peek + i * spawnproto::IMAGE_PAGE;
+        // SAFETY: `invoke` is the syscall; the kernel checks `READ` on the frame and the region.
+        ok = unsafe { invoke(frame, abi::page_frame::MAP, theirs, 0, own_ut) } == 0;
+        // The mapping outlives the capability, and the slot is what is scarce.
+        cap_delete(frame);
+        if !ok {
+            continue;
+        }
+        let ours = IMAGE_STAGING_VA + i * spawnproto::IMAGE_PAGE;
+        ok = match retype_page_frame(st) {
+            Ok(page) => {
+                // SAFETY: as above; the page is ours, fresh, and mapped read/write.
+                let mapped = unsafe { invoke(page, abi::page_frame::MAP, ours, 1, own_ut) } == 0;
+                cap_delete(page);
+                mapped
+            }
+            Err(()) => false,
+        };
+        if ok {
+            let n = (len - i * spawnproto::IMAGE_PAGE).min(spawnproto::IMAGE_PAGE) as usize;
+            // SAFETY: both pages were mapped just above, `theirs` read-only and `ours` read/write,
+            // one page each, and `n` is at most a page. They cannot overlap: different windows.
+            unsafe {
+                core::ptr::copy_nonoverlapping(theirs as *const u8, ours as *mut u8, n);
+            }
+        }
+    }
+    match (staging, ok) {
+        (Some(st), true) => Some(st),
+        (Some(st), false) => {
+            supervision_protocol::memory_region_destroy(st);
+            cap_delete(st);
+            None
+        }
+        _ => None,
+    }
+}
+
+/// The staged copy [`receive_image`] made, as bytes.
+fn staged_image(len: u64) -> &'static [u8] {
+    // SAFETY: `receive_image` mapped and filled `image_pages(len)` pages from `IMAGE_STAGING_VA`,
+    // and the caller destroys the staging region (revoking the mapping) only after its last use of
+    // this slice, within the same iteration of the spawn loop.
+    unsafe { core::slice::from_raw_parts(IMAGE_STAGING_VA as *const u8, len as usize) }
+}
+
+/// **Is this image vouched for?** Its SHA-256, looked up in the live generation of the activation
+/// set on the file service (`activation_set`). `false` on a miss, and on every way of failing to
+/// read the table: no disk, no `activation` directory, a `current` that does not parse, a
+/// generation that is malformed or larger than a page. A table that cannot be read vouches for
+/// nothing, which is `measured_boot`'s rule one table over.
+///
+/// The file page is the one the shell and every caretaker share with the server. That is sound for
+/// the reason `build_caretaker` gives: the shell is parked in its `RECV` on the result endpoint for
+/// the whole of a spawn, so nothing else is mid-request on it.
+fn vouched(bytes: &[u8], fs: Option<Fs>, own_ut: u64, fs_mapped: &mut bool) -> bool {
+    use filesystem_protocol::{dir, fs as op};
+    let Some(fs) = fs else { return false };
+    if !*fs_mapped {
+        // SAFETY: the syscall; read/write because names are written into this page.
+        *fs_mapped =
+            unsafe { invoke(fs.page, abi::page_frame::MAP, ACTIVATION_FS_VA, 1, own_ut) } == 0;
+        if !*fs_mapped {
+            return false;
+        }
+    }
+    let page = ACTIVATION_FS_VA as *mut u8;
+    let named = |verb: u64, handle: u64, name: &str, w1: u64| -> i64 {
+        // SAFETY: the page is mapped read/write above and a name is far shorter than a page.
+        unsafe { core::ptr::copy_nonoverlapping(name.as_ptr(), page, name.len()) };
+        call(fs.ep, op::req(verb, handle, name.len() as u64), w1).0 as i64
+    };
+    let read = |handle: u64, len: u64| -> Option<&'static str> {
+        let n = call(fs.ep, op::req(op::READ, handle, len), 0).0 as i64;
+        if n < 0 {
+            return None;
+        }
+        // SAFETY: the server wrote `n` bytes (at most `len`, at most a page) at the page's start.
+        let got = unsafe { core::slice::from_raw_parts(page as *const u8, n as usize) };
+        core::str::from_utf8(got).ok()
+    };
+    let close = |handle: i64| {
+        call(fs.ep, op::req(op::CLOSE, handle as u64, 0), 0);
+    };
+
+    let digest = measured_boot::sha256(bytes);
+    let d = named(op::OPENDIR, op::ROOT, activation_set::DIRECTORY, dir::READ);
+    if d < 0 {
+        return false;
+    }
+    let c = named(op::OPEN, d as u64, activation_set::CURRENT, 0);
+    let generation = if c < 0 {
+        None
+    } else {
+        let g = read(c as u64, 16).and_then(activation_set::parse_current);
+        close(c);
+        g
+    };
+    let mut hit = false;
+    if let Some(number) = generation {
+        let mut name = [0u8; 10];
+        let t = named(
+            op::OPEN,
+            d as u64,
+            activation_set::generation_name(number, &mut name),
+            0,
+        );
+        if t >= 0 {
+            // A page and not a byte more: a generation longer than that ends mid-line, which reads
+            // as malformed, which vouches for nothing. `activation_set`'s BUGS: forty entries fit.
+            hit = read(t as u64, spawnproto::IMAGE_PAGE).is_some_and(|table| {
+                matches!(activation_set::lookup_digest(table, &digest), Ok(Some(_)))
+            });
+            close(t);
+        }
+    }
+    close(d);
+    hit
 }
 
 fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
