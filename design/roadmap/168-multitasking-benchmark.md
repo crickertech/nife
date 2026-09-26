@@ -292,9 +292,9 @@ nothing**. So each is `BUILT` below rather than absent, with what it bought and 
   lane assigned the change, both readers are in-tree, and it is recorded here so the decision is
   visible rather than implied. **That gate had a written-up section by the end of the same day**,
   [§191](../decisions/191-job-mix-repeats-and-what-the-line-reports.md), from milestone 435's sweep
-  of forty-five blocks whose `DECISION` gate named no decision. It stays `PROPOSED`: what shipped
-  here is now a ratification or an overrule for calef rather than an open fork, and a lane cannot
-  close that difference by building one of the options.
+  of forty-five blocks whose `DECISION` gate named no decision. calef ratified what shipped on
+  2026-09-26 (*"Yes, ratify §191 as shipped."*), so §191 (whether the job mix reports the spread
+  rather than the best) is `DECIDED`.
 
 ## BUGS
 

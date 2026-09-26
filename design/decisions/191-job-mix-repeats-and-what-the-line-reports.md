@@ -1,6 +1,8 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-19
+decided: 2026-09-26
+ratified_by: calef
 ---
 
 # 191. Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point
@@ -9,6 +11,18 @@ Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decisio
 `DECISION` gate naming no section. Filed 2026-09-16 by the maintainer from the five-boot job-mix
 session on radon, where the fourth and fifth boots each landed outside the range the first three had
 established. *(Section number provisional until the merge queue lands it.)*
+
+## The ruling
+
+calef, 2026-09-26 (about 01:30 UTC): *"Yes, ratify §191 as shipped."* What shipped is options 1
+and 3 together. `REPEATS` is 21, one count for every sweep point. Each point's `job-mix:` line
+reports `ticks_min`, `ticks_median`, `ticks_max` and `jpm_median`, and the median is the result.
+Option 2, a per-point table of repeat counts, is refused, on the measured board time milestone 168
+(a multi-tasking workload benchmark)'s lane gave: at 21 repeats the timed windows are about eleven seconds of a boot that takes minutes. The
+code is `crates/job_mix/src/lib.rs` (`REPEATS` at line 465, the point line's doc at 246), built in
+commit `ab6ff0fa0` on 2026-09-19. Recorded 2026-09-26 by the decisions-hygiene lane.
+
+The paragraph below, and the rest of this file, are the section as it stood before the ruling.
 
 **The tree now implements one of the options, and this section is still open.** On 2026-09-19,
 hours after this was written and in a different session, milestone 168's lane built **options 1 and
