@@ -412,6 +412,7 @@ dependencies = [
  "supervision_protocol",
  "swap_protocol",
  "system_initializer",
+ "timetable",
  "user_mode_runtime",
 ]
 

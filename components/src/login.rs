@@ -625,6 +625,7 @@ use supervision_protocol::{
     ChildEndowment, Retention, build_child, memory_region_destroy, memory_region_split,
     retype_obj_from as retype_obj, retype_page_frame_from, start_child,
 };
+use timetable::registration;
 use user_mode_runtime::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
 
 /// The front door: a bare [`login_protocol::CONNECT`], `RECV` (milestone 49).
@@ -750,8 +751,29 @@ const CARETAKER_STACK_PAGES: u64 = 4;
 /// needs, which is not yet a question this program has enough callers to answer.
 const CLIENT_BUDGET_PAGES: u64 = 64;
 
+/// **The budget durable sessions are split from** (milestone 152), split once at start-up and only
+/// when a schedule can be opened at all. Its own parent for the reason [`CHANNEL_UT_PAGES`] is:
+/// a durable session outlives the logins around it, so carving it from [`CONSTRUCTION_UT`] would
+/// leave a hole there each time one is reclaimed out of order. Room for exactly one, which is how
+/// many this process keeps (BUGS).
+const DURABLE_UT_PAGES: u64 = DURABLE_BUDGET_PAGES;
+/// A durable session's budget: the client's own spending, plus the session process and its
+/// timetable, both built from regions split off it.
+const DURABLE_BUDGET_PAGES: u64 = CLIENT_BUDGET_PAGES + SESSION_REGION_PAGES + SESSION_BUDGET_PAGES;
+/// The session process's construction: its segments, its stack, the schedule archive copied in,
+/// its tables, and the registration page. Provisional, sized against the aarch64 debug build.
+const SESSION_REGION_PAGES: u64 = 192;
+/// The session process's own budget: its timetable's region and the budget its jobs fire from
+/// (`components/src/session.rs`), and the two endpoints.
+const SESSION_BUDGET_PAGES: u64 = 384;
+/// Stack pages for the session process, beyond `build_child`'s default.
+const SESSION_STACK_PAGES: u64 = 8;
+/// Where this process maps a durable session's registration page, read-only, to read the
+/// timetable's exit word. Far above `CONNECT_VA_BASE`, which grows a page per connect for ever.
+const DURABLE_PAGE_VA: u64 = 0x0000_0000_0300_0000;
+
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
+pub extern "C" fn _start(caretaker_len: u64, table_len: u64, schedule_len: u64) -> ! {
     // First, before anything is allocated: see [`HOLDS_RUN_UNVOUCHED`].
     HOLDS_RUN_UNVOUCHED.store(
         user_mode_runtime::is_granted(RUN_UNVOUCHED),
@@ -816,9 +838,30 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
         measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", care_bytes).is_ok()
     });
 
+    // **The schedule archive** (milestone 152): `session`, `timetable`, and the programs a
+    // scheduled job may run, every one of them checked against the same table the caretaker is.
+    // One unvouched entry and no schedule opens on this boot, which is the caretaker's own fold:
+    // `SCHEDULE` is then answered as `LOGIN` is.
+    //
+    // SAFETY: the spawner maps `schedule_len` bytes read-only at `SCHEDULE_ARCHIVE_VA` for the
+    // life of this process before `_start` runs (`login_protocol::SCHEDULE_ARCHIVE_VA`'s contract).
+    let schedule_bytes = unsafe {
+        core::slice::from_raw_parts(
+            login_protocol::SCHEDULE_ARCHIVE_VA as *const u8,
+            schedule_len as usize,
+        )
+    };
+    let schedule = vouched_schedule(schedule_bytes, table);
+
     let Ok(own_ut) = memory_region_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
         fail(1)
     };
+    // Split once, and only when a schedule can be opened at all: see [`DURABLE_UT_PAGES`].
+    let durable_ut = match schedule {
+        Some(_) => memory_region_split(CONSTRUCTION_UT, DURABLE_UT_PAGES).ok(),
+        None => None,
+    };
+    let mut durable: Option<Durable> = None;
     // Split once, here, and never anywhere else: [`CHANNEL_UT_PAGES`]' own doc explains why a
     // channel's region must come from a budget nothing else spends.
     let Ok(channel_ut) = memory_region_split(CONSTRUCTION_UT, CHANNEL_UT_PAGES) else {
@@ -881,6 +924,11 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
             care_elf.as_ref(),
             &mut seq,
             &mut terminal_held,
+            &mut Schedules {
+                archive: schedule,
+                durable_ut,
+                durable: &mut durable,
+            },
         );
         // **Reclaim the whole channel by destroying the region it was built from, not by deleting
         // our own capabilities to its pieces.** An earlier version of this loop only called
@@ -941,9 +989,12 @@ fn serve_login(
     care: Option<&elf::Elf>,
     seq: &mut u64,
     terminal_held: &mut bool,
+    schedules: &mut Schedules,
 ) {
     let (w0, _w1, _w2) = recv(channel.request);
     cap_delete(channel.request);
+    // `LOGIN`, or `SCHEDULE`: log in and open this identity's schedule (milestone 152).
+    let wants_schedule = login_protocol::op(w0) == login_protocol::SCHEDULE;
     // SAFETY: `connect` mapped one page read/write at `channel.va` before delegating `channel.page`
     // to the same client this request now arrives from.
     let page =
@@ -1004,78 +1055,276 @@ fn serve_login(
         return;
     }
 
-    match mint(own_ut, care, &identity_buf[..identity_len]) {
-        Some((dir_ep, budget, region)) => {
-            let run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed);
-            send(
-                channel.result,
-                login_protocol::OK,
-                if run_unvouched {
-                    login_protocol::RUN_UNVOUCHED_FOLLOWS
-                } else {
-                    0
-                },
-                0,
-            );
-            delegate(channel.result, dir_ep, abi::rights::WRITE);
-            // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring
-            // update): the kernel's own `page_frame_map` checks only `Rights::WRITE` for a
-            // writable mapping (`PageFrame::MAP` with `writable=true`, what
-            // `user_mode_runtime::map_page_frame`'s callers on both ends of this frame always request) and
-            // grants a fully read+write page table entry either way -- `Rights::READ` on the
-            // *capability* only gates a *read-only* mapping, which this frame's protocol never
-            // asks for. This matters beyond tidiness: `crates/system_initializer::boot` itself
-            // holds only `WRITE | GRANT` on the real file service's shared page (the kernel's own
-            // grant to the progenitor, `kernel::user::boot_file_service` or equivalent), so a real boot
-            // could never have delegated `READ` here at all. Asking for it was over-specifying a
-            // right this protocol never needed, harmless under the kernel test harness (which
-            // mints capabilities directly, unconstrained by what a real boot could pass on) and
-            // silently unbuildable under a real one; found by `script/swish-check` refusing this
-            // exact `SEND_CAP` from a WRITE-only source.
-            delegate(channel.result, FS_PAGE_FRAME, abi::rights::WRITE);
-            delegate(
-                channel.result,
-                budget,
-                abi::rights::WRITE | abi::rights::GRANT,
-            );
-            // The logout ticket: `WRITE` is the one right `MemoryRegion::DESTROY` needs (this
-            // program's own module docs, "Reclaiming a session"). Not `GRANT`: a client that
-            // could delegate its own logout ticket onward could hand another principal the
-            // means to end this one's session, which is authority narrower to withhold than to
-            // grant back.
-            delegate(channel.result, region, abi::rights::WRITE);
-            // **The terminal, fifth and last** (milestone 49's terminal update). Reaching here
-            // already proved `!*terminal_held` (checked above, before authentication), so this is
-            // never refused by the kernel: `TERM_EP` is held `WRITE | GRANT` for this process's
-            // whole life (never `cap_delete`d, the "delegate, then keep going" pattern
-            // `FS_PAGE_FRAME` already uses), because a future session may need the identical
-            // capability delegated again. `WRITE` only, the same right the interactive boot's shell
-            // already holds on it: a login session gets to write the terminal, never to hand the
-            // capability to read keystrokes on to anything it spawns.
-            delegate(channel.result, TERM_EP, abi::rights::WRITE);
-            // **The run-unvouched capability, sixth, and only as announced** (DECISIONS §219 gate
-            // D2; `login_protocol`'s module docs). `WRITE` alone: the session may present it to
-            // the progenitor and may hand it to nothing, which is what makes "this user may run
-            // new native code" a fact about a session rather than about whoever it met. Every
-            // session gets it; which identities should is undecided (`login_protocol`'s BUGS).
-            if run_unvouched {
-                delegate(channel.result, RUN_UNVOUCHED, abi::rights::WRITE);
-            }
-            *terminal_held = true;
-            cap_delete(dir_ep);
-            cap_delete(budget);
-            cap_delete(region);
-            send(AUDIT, login_protocol::ATTRIBUTED, *seq, hint);
-            *seq += 1;
-        }
+    let identity = &identity_buf[..identity_len];
+
+    // **An identity whose session is already durable gets that session back** (milestone 152,
+    // reattachment). If its timetable has stopped, the session is retired first and this login is
+    // an ordinary one; see [`Durable::exited`].
+    if schedules
+        .durable
+        .as_ref()
+        .is_some_and(|d| d.is(identity) && d.exited())
+        && let Some(d) = schedules.durable.take()
+    {
+        d.retire();
+    }
+    let reattach = schedules
+        .durable
+        .as_ref()
+        .filter(|d| d.is(identity))
+        .map(|d| (d.budget, d.page));
+
+    let Some((dir_ep, region)) = mint(own_ut, care, identity) else {
         // Authenticated, and the service still could not serve it (the construction budget is
         // spent, or the caretaker's descent was refused). Answered identically to a wrong
         // secret; see login_protocol::DENIED's own doc on why that fold is deliberate rather than
         // a missed distinction.
+        send(channel.result, login_protocol::DENIED, 0, 0);
+        return;
+    };
+
+    // The budget: the durable session's own on a reattach, a fresh one otherwise. A session that
+    // asks for its schedule gets one from [`DURABLE_UT_PAGES`]'s budget, sized for the session
+    // process and its timetable as well as the client's own spending.
+    let opening = reattach.is_none()
+        && wants_schedule
+        && schedules.durable.is_none()
+        && schedules.archive.is_some();
+    let (budget, page, keep_budget) = match reattach {
+        Some((budget, page)) => (budget, Some(page), true),
         None => {
-            send(channel.result, login_protocol::DENIED, 0, 0);
+            let split = match (opening, schedules.durable_ut) {
+                (true, Some(ut)) => memory_region_split(ut, DURABLE_BUDGET_PAGES),
+                _ => memory_region_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES),
+            };
+            let Ok(budget) = split else {
+                // The caretaker is already running and parked on `dir_ep`, which was retyped
+                // from `region`, so destroying `region` drains that wait queue and the armed kill
+                // lands at the caretaker's next scheduling.
+                cap_delete(dir_ep);
+                discard(region);
+                send(channel.result, login_protocol::DENIED, 0, 0);
+                return;
+            };
+            let opened = if opening {
+                schedules
+                    .archive
+                    .and_then(|a| open_schedule(own_ut, budget, a))
+            } else {
+                None
+            };
+            match opened {
+                Some((session, page)) => {
+                    *schedules.durable = Some(Durable::new(identity, budget, session, page));
+                    (budget, Some(page), true)
+                }
+                None => (budget, None, false),
+            }
+        }
+    };
+
+    let run_unvouched = HOLDS_RUN_UNVOUCHED.load(core::sync::atomic::Ordering::Relaxed);
+    let mut flags = 0;
+    if run_unvouched {
+        flags |= login_protocol::RUN_UNVOUCHED_FOLLOWS;
+    }
+    if page.is_some() {
+        flags |= login_protocol::SCHEDULE_FOLLOWS;
+    }
+    send(channel.result, login_protocol::OK, flags, 0);
+    delegate(channel.result, dir_ep, abi::rights::WRITE);
+    // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring update): the
+    // kernel's own `page_frame_map` checks only `Rights::WRITE` for a writable mapping and grants a
+    // fully read+write page table entry either way; `crates/system_initializer::boot` itself holds
+    // only `WRITE | GRANT` on the real file service's shared page, so a real boot could never have
+    // delegated `READ` here at all (found by `script/swish-check` refusing this exact `SEND_CAP`).
+    delegate(channel.result, FS_PAGE_FRAME, abi::rights::WRITE);
+    delegate(
+        channel.result,
+        budget,
+        abi::rights::WRITE | abi::rights::GRANT,
+    );
+    // The logout ticket: `WRITE` is the one right `MemoryRegion::DESTROY` needs (this program's own
+    // module docs, "Reclaiming a session"). Not `GRANT`: a client that could delegate its own
+    // logout ticket onward could hand another principal the means to end this one's session.
+    delegate(channel.result, region, abi::rights::WRITE);
+    // **The terminal, fifth** (milestone 49's terminal update). Reaching here already proved
+    // `!*terminal_held`, so this is never refused. `WRITE` only: a login session gets to write the
+    // terminal, never to hand the capability to read keystrokes on to anything it spawns.
+    delegate(channel.result, TERM_EP, abi::rights::WRITE);
+    // **The run-unvouched capability, sixth, and only as announced** (DECISIONS §219 gate D2;
+    // `login_protocol`'s module docs). `WRITE` alone: the session may present it to the progenitor
+    // and may hand it to nothing.
+    if run_unvouched {
+        delegate(channel.result, RUN_UNVOUCHED, abi::rights::WRITE);
+    }
+    // **The registration page, last, and only as announced** (milestone 152). `WRITE` alone: the
+    // client writes a document into it and reads the plan back, and has no reason to lend it.
+    if let Some(page) = page {
+        delegate(channel.result, page, abi::rights::WRITE);
+    }
+    *terminal_held = true;
+    cap_delete(dir_ep);
+    cap_delete(region);
+    // A durable session's budget stays named here, which is the whole of reattachment.
+    if !keep_budget {
+        cap_delete(budget);
+    }
+    send(AUDIT, login_protocol::ATTRIBUTED, *seq, hint);
+    *seq += 1;
+}
+
+/// **The schedule side of this process's state** (milestone 152), passed to [`serve_login`] as one
+/// argument rather than three.
+struct Schedules<'a> {
+    /// The vouched schedule archive, or `None` when no schedule can be opened on this boot.
+    archive: Option<&'static [u8]>,
+    /// The budget durable sessions are split from: see [`DURABLE_UT_PAGES`].
+    durable_ut: Option<u64>,
+    /// The one durable session this process keeps, if any. See this program's BUGS on the one.
+    durable: &'a mut Option<Durable>,
+}
+
+/// **A durable session, as `login` keeps it** (milestone 152, S1 of 2026-09-26): the identity it
+/// belongs to, and the three capabilities that let this process hand it back and, later, take it
+/// down. Three slots of a 24-slot table, which is why there is one of these and not a table.
+struct Durable {
+    identity: [u8; filesystem_protocol::grant::MAX_NAME],
+    len: usize,
+    /// The user's budget. The session process and its timetable are built from regions split off
+    /// it, so it refuses `DESTROY` for as long as either lives (DECISIONS §16).
+    budget: u64,
+    /// The region the session process was built from; the registration page was retyped from it.
+    session: u64,
+    /// The registration page, mapped read-only at [`DURABLE_PAGE_VA`] so this process can read the
+    /// timetable's exit word.
+    page: u64,
+}
+
+impl Durable {
+    fn new(identity: &[u8], budget: u64, session: u64, page: u64) -> Self {
+        let mut id = [0u8; filesystem_protocol::grant::MAX_NAME];
+        id[..identity.len()].copy_from_slice(identity);
+        Durable {
+            identity: id,
+            len: identity.len(),
+            budget,
+            session,
+            page,
         }
     }
+
+    fn is(&self, identity: &[u8]) -> bool {
+        &self.identity[..self.len] == identity
+    }
+
+    /// **Whether the timetable has stopped**, read from the exit word it writes into the page just
+    /// before it exits (`timetable::registration::EXIT`). This is the liveness test reattachment
+    /// needs, and it is why the page lives in [`Durable::session`] rather than in the region the
+    /// session process gives back: a `DESTROY` probe cannot tell a stale budget from a busy one,
+    /// because the kernel answers both `NotPermitted` (`notes/durable-delegation.md`, question 1).
+    fn exited(&self) -> bool {
+        // SAFETY: `open_schedule` mapped this page read-only at `DURABLE_PAGE_VA`, and it stays
+        // mapped until `retire` reclaims the region it lives in. The timetable writes the word; a
+        // volatile read sees its latest store.
+        let word = unsafe {
+            core::ptr::read_volatile((DURABLE_PAGE_VA + registration::EXIT as u64) as *const u64)
+        };
+        word & registration::EXITED != 0
+    }
+
+    /// **Take a stopped session down.** The session process destroyed its own timetable budget
+    /// before exiting, so what is left is the region it was built from, then the user's budget,
+    /// which is childless once that region is gone. Both come home to [`DURABLE_UT_PAGES`]'s budget.
+    fn retire(self) {
+        discard(self.session);
+        cap_delete(self.page);
+        discard(self.budget);
+    }
+}
+
+/// **Check every entry of the schedule archive against the measurement table**, and answer it back
+/// only if all of them pass and it carries both `session` and `timetable`.
+fn vouched_schedule(bytes: &'static [u8], table: &str) -> Option<&'static [u8]> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let fs = nifefs::Fs::parse(bytes).ok()?;
+    for name in ["session", "timetable"] {
+        measured_boot::verify_in_manifest(table, name, fs.read(name)?).ok()?;
+    }
+    let jobs = nifefs::Fs::parse(fs.read(login_protocol::session::JOBS)?).ok()?;
+    for entry in jobs.entries() {
+        let name = entry.name_str()?;
+        measured_boot::verify_in_manifest(table, name, jobs.read(name)?).ok()?;
+    }
+    Some(bytes)
+}
+
+/// **Build a user's session process** out of `budget` (milestone 152, S1 and L2 of 2026-09-26):
+/// split its construction region and its own budget off the user's, retype the registration page
+/// from the first, start it, and wait for the one word it answers with. `Some((region, page))`
+/// once it says its timetable is running, with the page mapped at [`DURABLE_PAGE_VA`].
+///
+/// A failure leaves the user with an ordinary session, which is what `SCHEDULE` degrades to.
+fn open_schedule(own_ut: u64, budget: u64, archive: &'static [u8]) -> Option<(u64, u64)> {
+    let fs = nifefs::Fs::parse(archive).ok()?;
+    let elf = elf::Elf::parse(fs.read("session")?).ok()?;
+    let timetable = fs.read("timetable")?;
+    let jobs = fs.read(login_protocol::session::JOBS)?;
+    let session = memory_region_split(budget, SESSION_REGION_PAGES).ok()?;
+    let Ok(its_budget) = memory_region_split(budget, SESSION_BUDGET_PAGES) else {
+        discard(session);
+        return None;
+    };
+    let (Ok(page), Ok(ready)) = (
+        retype_page_frame_from(session),
+        retype_obj(session, abi::objtype::RENDEZVOUS),
+    ) else {
+        discard(its_budget);
+        discard(session);
+        return None;
+    };
+    let built = build_child(
+        own_ut,
+        session,
+        &elf,
+        &ChildEndowment {
+            caps: &[
+                (ready, abi::rights::WRITE),
+                // `GRANT` too: a region split off this one inherits its rights, and the session
+                // process hands its timetable a split of it, which `CAP_INSERT` refuses without
+                // `GRANT`.
+                (its_budget, abi::rights::WRITE | abi::rights::GRANT),
+                (page, abi::rights::WRITE),
+            ],
+            blobs: &[
+                (login_protocol::session::TIMETABLE_VA, timetable),
+                (login_protocol::session::JOBS_VA, jobs),
+            ],
+            stack_pages: SESSION_STACK_PAGES,
+            ..ChildEndowment::new(Retention::Nothing)
+        },
+    );
+    let started = match built {
+        Ok(child) => start_child(child, timetable.len() as u64, jobs.len() as u64, 0),
+        Err(()) => false,
+    };
+    let answer = if started { recv(ready).0 } else { 0 };
+
+    cap_delete(ready);
+    cap_delete(its_budget);
+    if answer != login_protocol::session::READY
+        || !map_page_frame(page, DURABLE_PAGE_VA, false, own_ut)
+    {
+        // The session process has stopped (it reports a failure and exits) or never ran. What it
+        // split off its budget before failing, if anything, stays until the user's budget is
+        // reclaimed: see this program's BUGS.
+        cap_delete(page);
+        discard(session);
+        return None;
+    }
+    Some((session, page))
 }
 
 /// One connecting client's own private channel: this process's own copies of the request/result
@@ -1190,7 +1439,7 @@ fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
 /// (this program's BUGS, "does not consult `measured_boot::PROGRAM_MEASUREMENTS`", resolved): this
 /// function has nothing to build from and returns `None` immediately, the same as every other
 /// reason it cannot serve a login.
-fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u64, u64)> {
+fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u64)> {
     let care = care?;
 
     // **The grant name travels in two `START` argument words, not a frame** (`filesystem_protocol::grant`'s own
@@ -1293,22 +1542,12 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         return None;
     }
 
-    // **`region` is not dropped here anymore.** It is returned to the caller, which delegates it to
-    // the authenticated client as the fourth capability (the caretaker's own logout ticket; see
-    // this program's module docs, "Reclaiming a session") and only then deletes its own copy, the
-    // same "delegate, then drop our own copy" pattern already used for the directory and the
-    // budget below. Dropping it here, the way an earlier version of this function did, was what
-    // made the caretaker's construction memory permanently unreclaimable: nobody downstream ever
-    // held a capability that could `DESTROY` it.
-    let Ok(budget) = memory_region_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES) else {
-        // The caretaker is already running and parked on `narrow_ep`, which was retyped from
-        // `region`, so this is the same case (b) the module docs describe: destroying `region`
-        // drains that wait queue and the armed kill lands at the caretaker's next scheduling.
-        cap_delete(narrow_ep);
-        discard(region);
-        return None;
-    };
-    Some((narrow_ep, budget, region))
+    // **`region` is not dropped here.** It is returned to the caller, which delegates it to the
+    // authenticated client as the fourth capability (the caretaker's own logout ticket; see this
+    // program's module docs, "Reclaiming a session") and only then deletes its own copy. The
+    // budget is the caller's too since milestone 152, because a reattaching login hands back an
+    // existing one rather than splitting a fresh one.
+    Some((narrow_ep, region))
 }
 
 /// **Reclaim a construction region, retrying while something in it can still run.**

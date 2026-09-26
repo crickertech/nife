@@ -186,6 +186,17 @@ pub const LOGIN: u64 = 1;
 /// carries no page: there is nothing here a caller did not already know. Build it with
 /// [`logout_word`]. See this contract's own BUGS for what `LOGOUT` does not authenticate.
 pub const LOGOUT: u64 = 3;
+/// **Authenticate, and open this identity's schedule** (milestone 152 (durable delegation),
+/// §222 (who holds a user's schedule), calef's L2 ruling of 2026-09-26). Sent on the private
+/// channel in place of [`LOGIN`], staged with [`place`] exactly as [`LOGIN`] is. On success `login`
+/// builds the session process that holds the identity's timetable, and [`OK`] carries
+/// [`SCHEDULE_FOLLOWS`]. A [`LOGIN`] for an identity whose session is already durable reattaches to
+/// it and carries [`SCHEDULE_FOLLOWS`] too.
+///
+/// The ruling said "a new request word after `OK`". It travels as the request itself instead,
+/// because `login` blocks on one endpoint at a time and could not wait for a word after `OK`
+/// without every existing client sending one. Name and value: provisional.
+pub const SCHEDULE: u64 = 7;
 
 /// `send(REQUEST, connect_word(), 0, 0)`. The bare word [`CONNECT`] travels as; a client never calls
 /// [`place`] for this step, because there is no identity or secret to stage.
@@ -215,6 +226,11 @@ pub const OK: u64 = 1;
 /// (every kernel test harness before this bit) sends five, and a client that always waited for six
 /// would block for ever. Name: provisional.
 pub const RUN_UNVOUCHED_FOLLOWS: u64 = 1;
+/// **A bit of [`OK`]'s second word: the registration page follows** (milestone 152). After the
+/// run-unvouched capability when that is announced too, one more `RECV_CAP` delivers a page frame
+/// (`WRITE`): the identity's timetable's registration page, `timetable::registration`'s whole
+/// protocol. Announced for the reason [`RUN_UNVOUCHED_FOLLOWS`] is. Name: provisional.
+pub const SCHEDULE_FOLLOWS: u64 = 2;
 
 /// **Refused.** The identity is unknown, the secret is wrong, the service could not mint a
 /// capability set for an otherwise-authenticated principal, or (on the front door) the service could
@@ -310,6 +326,38 @@ pub const CARETAKER_ELF_VA: u64 = 0x0000_0000_0100_0000;
 /// per-channel scratch VAs `login` bump-allocates, which is the only other thing in that address
 /// space that grows.
 pub const PROGRAM_MEASUREMENTS_VA: u64 = 0x0000_0000_0140_0000;
+
+/// **Where the schedule archive is mapped, read-only, before `login`'s `_start` runs**, with its
+/// length in the third argument register (milestone 152). A `nifefs` archive holding `session`,
+/// `timetable`, and `jobs`: a second `nifefs` archive of the programs a scheduled job may run. Every
+/// program in both is checked against the table at [`PROGRAM_MEASUREMENTS_VA`] before anything is
+/// built from it. The jobs travel as their own archive so the timetable is handed exactly them, and
+/// not a second copy of itself and of `session`. Zero length means no schedule can
+/// be opened on this boot: [`SCHEDULE`] is then answered as [`LOGIN`] is, without
+/// [`SCHEDULE_FOLLOWS`].
+pub const SCHEDULE_ARCHIVE_VA: u64 = 0x0000_0000_0180_0000;
+
+/// **How `login` starts a session process** (milestone 152, S1 of 2026-09-26), in this crate for
+/// the reason the two constants above are: `components/src/login.rs` and
+/// `components/src/session.rs` both read it. Every name here is provisional.
+pub mod session {
+    /// Slot 0: the endpoint the session process reports readiness on, once, `WRITE`.
+    pub const READY_SLOT: u64 = 0;
+    /// Slot 1: the region the timetable and every job it fires are built from, `WRITE | GRANT`.
+    pub const BUDGET_SLOT: u64 = 1;
+    /// Slot 2: the registration page, `WRITE`, which the session maps into its timetable.
+    pub const PAGE_SLOT: u64 = 2;
+    /// Where `timetable`'s image is copied into the session process; its length is `a0`.
+    pub const TIMETABLE_VA: u64 = 0x0000_0000_0200_0000;
+    /// Where the jobs archive is copied into the session process; its length is `a1`.
+    pub const JOBS_VA: u64 = 0x0000_0000_0280_0000;
+    /// The name the jobs archive travels under inside the schedule archive.
+    pub const JOBS: &str = "jobs";
+    /// The readiness word: the timetable is built, started, and watching the page.
+    pub const READY: u64 = 0x5e55_0000_0000_0001;
+    /// The failure word; the low byte says which step.
+    pub const FAILED: u64 = 0x5e55_0000_0000_0f00;
+}
 
 #[cfg(test)]
 mod tests {

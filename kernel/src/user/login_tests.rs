@@ -66,6 +66,41 @@ use crate::sched;
 /// charge.
 const CONSTRUCTION_PAGES: u64 = 2176;
 
+/// **What `login` splits off its construction budget at start-up for durable sessions** (milestone
+/// 152): `components/src/login.rs`'s `DURABLE_UT_PAGES`, which is its client budget, a session
+/// process's region and that process's own budget. Kept apart from [`CONSTRUCTION_PAGES`] so the
+/// account above stays the account it was. Must match that file.
+const DURABLE_UT_PAGES: u64 = 64 + 192 + 384;
+
+/// The schedule archive's buffers: the jobs archive, then the schedule archive that carries it.
+/// `.bss`, and `#[cfg(test)]` reaches this module, so a shipping kernel pays nothing for them.
+static mut JOBS_ARCHIVE: [u8; 256 << 10] = [0; 256 << 10];
+static mut SCHEDULE_ARCHIVE: [u8; 1 << 20] = [0; 1 << 20];
+
+/// **Build the schedule archive `login` is started with** (milestone 152): `session`, `timetable`,
+/// and `jobs`, an archive of the one program the durable test schedules, all out of the initrd's
+/// own copies, the way `timetable_tests` narrows its archive to a plan.
+fn schedule_archive() -> &'static [u8] {
+    let initrd = |name| program(name).expect("a schedule program is not in the initrd");
+    // SAFETY: called once, from `wired`'s one-time setup, before any other reference to either
+    // buffer exists; the slices returned are only ever read afterwards.
+    let (jobs_buf, buf) = unsafe {
+        (
+            &mut *core::ptr::addr_of_mut!(JOBS_ARCHIVE),
+            &mut *core::ptr::addr_of_mut!(SCHEDULE_ARCHIVE),
+        )
+    };
+    let jobs = [("least_authority_demo", initrd("least_authority_demo"))];
+    let jobs_len = nifefs::write_image(&jobs, jobs_buf).expect("the jobs archive does not fit");
+    let files: [(&str, &[u8]); 3] = [
+        ("session", initrd("session")),
+        ("timetable", initrd("timetable")),
+        (login_protocol::session::JOBS, &jobs_buf[..jobs_len]),
+    ];
+    let len = nifefs::write_image(&files, buf).expect("the schedule archive does not fit");
+    &buf[..len]
+}
+
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
 /// it under a name (that file's own comment), so every direct caller of `fs::MKDIR` names it again.
 const EEXIST: i32 = 17;
@@ -177,7 +212,8 @@ fn wired() -> Option<ls::Wiring> {
                 cred_wiring.verify_page_frame,
                 fs_ep,
                 fs_page_frame,
-                CONSTRUCTION_PAGES,
+                CONSTRUCTION_PAGES + DURABLE_UT_PAGES,
+                schedule_archive(),
             );
             Some(w)
         })();
@@ -1110,4 +1146,113 @@ fn a_login_session_with_pending_work_refuses_logout_until_the_work_is_gone() {
         "no attribution record followed the login",
     );
     free_terminal(&w);
+}
+
+/// **A user's schedule outlives their login, comes back when they return, and ends when they empty
+/// it** (milestone 152, durable delegation; S1 and L2 of 2026-09-26; §222 (who holds a user's
+/// schedule)).
+///
+/// Three logins as `chris`, each by a separate client process, so nothing but `login` and the
+/// durable session carries state from one to the next:
+///
+/// 1. [`ls::OPEN_SCHEDULE`] asks for its schedule. `login` builds the session process from a region
+///    of the user's own budget, the session process builds a timetable, and the client replaces its
+///    empty document with one entry the timetable plans to fire. It then detaches: its directory
+///    goes, and its budget refuses `DESTROY`, because the session process lives on it (§16).
+/// 2. [`ls::EMPTY_SCHEDULE`] logs in plainly and is handed the same session back: the page still
+///    carries the first client's reply. It replaces the document with an empty one, and the
+///    timetable answers `STATUS_EMPTIED` and writes its exit word.
+/// 3. [`ls::LOGOUT`] logs in plainly and gets an ordinary session, with no page announced, and
+///    tears it down completely. That is the proof nothing outlived its reason: `login` saw the exit
+///    word, reclaimed the session process and the old budget, and minted fresh.
+///
+/// **Costs nothing permanent against [`CONSTRUCTION_PAGES`]**: every session here comes home, the
+/// durable one through `login`'s own `DURABLE_UT_PAGES` budget.
+#[test_case]
+fn a_users_schedule_outlives_their_login_and_ends_when_they_empty_it() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    free_terminal(&w);
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+    let login = |behaviour: u64| {
+        let r = ls::client(cli, &w, behaviour, CHRIS, CHRIS);
+        let a = sched::ipc_recv(w.audit);
+        assert_eq!(
+            a[0],
+            login_protocol::ATTRIBUTED,
+            "no attribution record followed a login"
+        );
+        free_terminal(&w);
+        assert_eq!(r[0], ls::RPT_OK, "chris was not authenticated");
+        r[1]
+    };
+
+    let first = login(ls::OPEN_SCHEDULE);
+    for (bit, what) in [
+        (
+            ls::F_SCHEDULE_ANNOUNCED,
+            "SCHEDULE was answered without a registration page",
+        ),
+        (
+            ls::F_REPLACED,
+            "the new timetable did not put the first document in force",
+        ),
+        (
+            ls::F_LOGOUT_REFUSED_WHILE_PENDING,
+            "the budget came down while its session process lived on it",
+        ),
+        (
+            ls::F_TEARDOWN_OK,
+            "the first session's directory did not come down",
+        ),
+    ] {
+        assert_eq!(first & bit, bit, "{what}");
+    }
+
+    let second = login(ls::EMPTY_SCHEDULE);
+    for (bit, what) in [
+        (
+            ls::F_SCHEDULE_ANNOUNCED,
+            "a plain login for an identity with a durable session was not handed its page",
+        ),
+        (
+            ls::F_REATTACHED,
+            "the page handed back did not carry the first session's reply: a second session was \
+             minted instead of the first reattached",
+        ),
+        (
+            ls::F_REPLACED,
+            "an empty document was not answered STATUS_EMPTIED",
+        ),
+        (
+            ls::F_TIMETABLE_EXITED,
+            "the timetable did not write its exit word",
+        ),
+    ] {
+        assert_eq!(second & bit, bit, "{what}");
+    }
+
+    let third = login(ls::LOGOUT);
+    assert_eq!(
+        third & ls::F_SCHEDULE_ANNOUNCED,
+        0,
+        "a page was announced after the schedule was emptied; the session outlived its reason",
+    );
+    for (bit, what) in [
+        (
+            ls::F_BUDGET_TEARDOWN_OK,
+            "the fresh session's budget did not come down",
+        ),
+        (
+            ls::F_TEARDOWN_OK,
+            "the fresh session's directory did not come down",
+        ),
+    ] {
+        assert_eq!(third & bit, bit, "{what}");
+    }
 }
