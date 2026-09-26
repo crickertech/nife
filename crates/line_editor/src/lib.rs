@@ -1215,7 +1215,11 @@ mod tests {
         feed_all(&mut d, &mut s, b"ech");
         let mut quiet = Screen::new();
         d.resume_line(b"$ ");
-        assert_eq!(quiet.text(), "", "a resumed read must not repaint the prompt");
+        assert_eq!(
+            quiet.text(),
+            "",
+            "a resumed read must not repaint the prompt"
+        );
         feed_all(&mut d, &mut quiet, b"o\r");
         assert_eq!(d.line(), b"echo");
     }
@@ -1227,8 +1231,14 @@ mod tests {
         assert!(proto::is_retry(0, proto::FLAG_RETRY));
         assert!(!proto::is_retry(0, 0), "an empty line is not a retry");
         assert!(!proto::is_retry(0, proto::FLAG_INTERRUPTED));
-        assert!(!proto::is_retry(1, proto::FLAG_RETRY), "a one-byte raw read of 0x04 is data");
-        assert_eq!(proto::FLAG_RETRY & (proto::FLAG_EOF | proto::FLAG_INTERRUPTED), 0);
+        assert!(
+            !proto::is_retry(1, proto::FLAG_RETRY),
+            "a one-byte raw read of 0x04 is data"
+        );
+        assert_eq!(
+            proto::FLAG_RETRY & (proto::FLAG_EOF | proto::FLAG_INTERRUPTED),
+            0
+        );
         assert_eq!(proto::OP_QUIESCE, 8);
     }
 
