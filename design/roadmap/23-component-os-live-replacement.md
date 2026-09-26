@@ -113,8 +113,9 @@ warning is a `CALL`. notes/non-cooperative-fallback.md.
 
 ## Follow-on
 
-- **Recorded.** A handoff page is one page; `redoxfs_server`, §209's own motivating customer, will
-  not fit. `component_plan`'s `BUGS` and notes/state-handoff.md's.
+- **Done.** A handoff is a run of pages, 2026-09-26: `Handoff::pages`, minted with
+  `MemoryRegion::RETYPE`'s page count, which calef ruled the same day
+  (`design/roadmap/proposals/a-region-retypes-a-frame-run.md`, option A).
 - **Recorded.** A manifest is compiled in rather than shipped beside a binary. The ELF-note manifest
   work (`design/roadmap/proposals/a-program-carries-its-manifest-in-an-elf-note.md`, PR #1338) is
   where that moves; notes/component-manifest.md's `BUGS` carries the history.

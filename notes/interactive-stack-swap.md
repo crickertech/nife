@@ -57,10 +57,9 @@ quiesces. Three answers:
 Recommend `FLAG_RETRY`, because it is the only one that makes the swap invisible, which is the
 milestone's whole claim. The flag name is provisional.
 
-Then the state. With history, the blob is a little over one page, which is the one-page limit in
-`component_plan`'s `BUGS`. Carrying the edit line, the queue, the mode and the interrupt count fits;
-history does not. Either drop history across a swap (recorded as a limit) or give `Handoff` a page
-count first. Recommend the latter, because `redoxfs_server` needs it too.
+Then the state. With history, the blob is a little over one page. Built 2026-09-26: `Handoff` now
+carries a page count and a supervisor mints the run with `MemoryRegion::RETYPE`'s count, so history
+goes across a swap rather than being dropped.
 
 ## display_terminal: blocked on where it is built
 
