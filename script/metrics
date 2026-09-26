@@ -166,6 +166,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, 'helpers')
 import name_provenance                                                      # noqa: E402
 import prose_ratchet                                                        # noqa: E402
+import roadmap_block                                                        # noqa: E402
 import roadmap_proposals                                                    # noqa: E402
 import rust_source                                                          # noqa: E402
 from rust_source import non_blank, strip_non_code                           # noqa: E402
@@ -477,8 +478,6 @@ _INDEX_ROW = re.compile(r'^\|\s*(\d+)\s*\|\s*([A-Z][A-Z0-9 _-]*?)\s*\|')
 # and the block was right. And the preference had a live cost: when #1247 brought the README back
 # as a pointer, both readers took it for an empty index and zeroed the series.
 _BLOCK = re.compile(r'^design/roadmap/(\d+)-[a-z0-9][a-z0-9-]*\.md$')
-_BLOCK_STATUS = re.compile(r'\*\*Status: ([A-Z-]+)\b')
-_BLOCK_BUILT = re.compile(r'^\*\*Built:\*\*\s*(\d{4}-\d{2}-\d{2})\s*$', re.M)
 
 
 def _blocks(tree):
@@ -488,12 +487,12 @@ def _blocks(tree):
         m = _BLOCK.match(path)
         if not m:
             continue
-        first = next((l for l in text.split('\n')[1:] if l.strip()), '')
-        sm = _BLOCK_STATUS.match(first)
-        if not sm:
+        # Either form: this walks revisions on both sides of the switch in milestone 596 (the roadmap blocks
+        # get frontmatter too).
+        status, built = roadmap_block.status_and_built(text)
+        if not status:
             continue
-        bm = _BLOCK_BUILT.search(text)
-        out.append((m.group(1), sm.group(1), bm.group(1) if bm else ''))
+        out.append((m.group(1), status, built))
     return out
 
 
