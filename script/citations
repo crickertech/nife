@@ -705,6 +705,22 @@ if mode == "--ratchet":
                 count = 1 if m.group(2) is None else int(m.group(2))
                 added.setdefault(path, set()).update(range(start, start + count))
 
+    # **A line that only lost a roadmap field token is not added prose.** Milestone 596 (the roadmap
+    # blocks get frontmatter too) moves `**Status:**`, `**Gate:**` and `**Built:**` out of every
+    # block's prose, and a line that differs from the base only by that reads as added under any
+    # diff. The rewrite is `helpers/roadmap_block.py`'s, and the same one the prose ratchet
+    # measures through, so what counts as unchanged here is what counts as unchanged there.
+    for path in list(added):
+        if not path.startswith("design/roadmap/"):
+            continue
+        was = subprocess.run(["git", "-C", root, "show", f"{base}:{path}"], capture_output=True)
+        if was.returncode != 0:
+            continue
+        old = was.stdout.decode(errors="replace")
+        same = {l for l in roadmap_block.without_fields(old).split("\n") if l.strip()}
+        now = (head_blob(path) or "").split("\n")
+        added[path] = {n for n in added[path] if n > len(now) or now[n - 1] not in same}
+
     ungloss = []
     for path in sorted(added):
         raw = head_blob(path)
