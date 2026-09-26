@@ -156,9 +156,9 @@ every lane minting a section used to pay.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-roadmap-blocks-get-frontmatter-too.md`, the same
-  migration for `design/roadmap/`. It is 578 files against this one's 211, its status vocabulary is
-  eight tokens rather than four, and `script/roadmap` reads far more out of prose than
-  `script/decisions` did. It should wait until this pilot has held.
+- **Milestone 596.** Milestone 596 (the roadmap blocks get frontmatter too) is the same
+  migration for `design/roadmap/`, promoted from its proposal on calef's ruling of 2026-09-26 that this pilot
+  has held. Its status vocabulary is nine tokens rather than four, and `script/roadmap` reads far
+  more out of prose than `script/decisions` did.
 - **Recorded.** The gate cannot refuse an attributed sentence that repeats a date the frontmatter
   holds, and the reason is in `script/decisions`' `BUGS` section.
