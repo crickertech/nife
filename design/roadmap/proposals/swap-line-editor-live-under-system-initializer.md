@@ -17,7 +17,7 @@ again" (`FLAG_RETRY`, provisional); a reader handles it by re-issuing the same r
 
 Two things follow that the ruling did not say. The handoff grows a page count rather than dropping
 history: the coordinator's reversible default, not calef's ruling, and it needs
-`a-region-retypes-a-frame-run.md` first. And §227's option D (#1361) moves `swish` to raw mode,
+`a-region-retypes-a-frame-run.md` first. And calef's option D on #1361 (the shell edits its own line) moves `swish` to raw mode,
 parked in `OP_READRAW`, so `FLAG_RETRY` must answer a parked `OP_READRAW` too, and the swap test's
 witness is a line-mode client of `line_editor` as well as `swish`.
 
