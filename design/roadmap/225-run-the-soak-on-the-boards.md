@@ -23,15 +23,15 @@ is untested, not disproved, and this milestone is the experiment that would test
 
 Everything needed to run it now exists, and none of it existed on 2026-09-01:
 
-- **A workload that lasts** (milestone 219), with a heartbeat on the wall clock so a crawling machine
+- A workload that lasts (milestone 219), with a heartbeat on the wall clock so a crawling machine
   still reports on time.
-- **A hook that makes it cross cores** (milestone 221), on the real `irq_notify` to `wake_load_aware`
+- A hook that makes it cross cores (milestone 221), on the real `irq_notify` to `wake_load_aware`
   path. That path was once read as where a radon defect lived; the reading is retracted (the fifth
   bench stop in `notes/visionfive2.md`, 2026-08-15), so it is the path worth stressing, not the site
   of a known defect.
-- **A console that watches and judges** (milestone 216), with a sustained mode and a stage that
+- A console that watches and judges (milestone 216), with a sustained mode and a stage that
   re-arms the quiet check a completed boot tour suppresses.
-- **A boot that needs nobody typing** (milestone 218), unconfirmed on the board itself.
+- A boot that needs nobody typing (milestone 218), unconfirmed on the board itself.
 
 ## What it needs
 
@@ -50,8 +50,8 @@ this machine did N cross-core round trips without the wake gate refusing one, wi
 and without a worker stalling. It is not proof the concurrency is correct, and the risk's own text is
 honest that this class of question "produces a confidence rather than a verdict".
 
-**A failure is worth far more**, and is the outcome to hope for. It would be the second defect this
-risk has produced and the first found by an instrument rather than by somebody watching a bench.
+**A failure is worth far more**, and is the outcome to hope for. It would be the first confirmed defect
+this risk has produced, and the first found by an instrument rather than by somebody watching a bench.
 
 ## radon, 2026-09-25: clean, 8 h 09 m, 4.1 million crossings
 
@@ -63,14 +63,14 @@ none` to its deadline (exit 0). First beat checked before calef left: `wakerate=
 |---|---|---|---|---|
 | 10,193,815,048 | 350,753/s | 11,747,350 (404/s) | 4,108,581 | 0 / 0 / 0 |
 
-**radon did 4.1 million cross-core thread handoffs and 10.2 billion IPC round trips over 8.16 hours
-without the wake gate refusing a wake, without a wrong reply, and without a worker stalling.** That
+radon did 4.1 million cross-core thread handoffs and 10.2 billion IPC round trips over 8.16 hours
+without the wake gate refusing a wake, without a wrong reply, and without a worker stalling. That
 is the sentence and all of it. No red means the QEMU cross-check a red would have needed never
 arose. The account, the anomalies (none of them a failure) and what it does and does not rule out
 are `notes/visionfive2.md`'s "The eight-hour soak, 2026-09-25"; the log is
 `bench/radon-2026-09-25/soak-8h.log`; the exposure row is E4 in `notes/multicore-defect-curve.md`.
 
-**Why eight hours.** This block prescribes no duration, so the lane proposed one against crossings
+Why eight hours: This block prescribes no duration, so the lane proposed one against crossings
 rather than clock time, per `notes/soak.md`'s duration section. On a fast draw 8 hours is 1.4 to 5.4
 million crossings, against 5,507 in the only earlier multi-hour run. Past that, a second boot buys
 a new draw of the placement lottery, which is worth more than a ninth hour. The maintainer approved
@@ -81,7 +81,7 @@ it. What remains on radon is more boots, not longer ones.
 - **No duration is prescribed**, because nobody knows what would be persuasive, and milestone 219's
   block says the same thing for the same reason. The radon run chose 8 hours against a crossing
   count and says why above; that is a choice, not a standard.
-- **One radon boot is one draw.** It drew the fastest arrangement seen so far, and a slow draw
+- One radon boot is one draw. It drew the fastest arrangement seen so far, and a slow draw
   crosses about 275 times less often, so the clean result says little about slow arrangements.
 - **A hung board needs a person**, since nothing can power-cycle radon remotely (milestone 224) and
   `script/board-console` reads without writing.

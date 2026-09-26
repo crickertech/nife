@@ -94,8 +94,8 @@ confidence about one architecture and one workload, not a verdict about anything
 
 E4 is the first row with a log in the tree and a build recorded, and on the crossings axis it
 dwarfs the three before it: 4.1 million against about 8,500 recorded in total, from one boot of 8.16
-hours that drew the fast arrangement. **So radon's curve now stands at about 4.12 million crossings
-over four boots and 12 hours with zero defects.** It is one draw of the placement lottery, and on
+hours that drew the fast arrangement. So radon's curve now stands at about 4.12 million crossings
+over four boots and 12 hours with zero defects. It is one draw of the placement lottery, and on
 the boots axis it is still four points.
 
 ## Defect rows

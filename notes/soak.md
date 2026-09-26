@@ -544,20 +544,6 @@ more than can be said for the eightfold figure above. It is recorded because **a
 regime it was measured in**: whether a reader was draining the serial port is part of the
 measurement. It has been seen once and is not confirmed.
 
-### The eight-hour run, 2026-09-25 (milestone 225)
-
-One boot, the same procedure as above, netbooted, built at `9e879f1e7`. The full account, with every
-anomaly, is `notes/visionfive2.md`'s "The eight-hour soak, 2026-09-25"; the log is
-`bench/radon-2026-09-25/soak-8h.log`.
-
-| Run | Duration | rounds | rate | wakes | crossings | refused / mismatch / stalled |
-|---|---|---|---|---|---|---|
-| 2026-09-25 01:02 UTC | 8 h 09 m | 10,193,815,048 | **350,753/s** | 11,747,350 (404/s) | **4,108,581** (140/s) | 0 / 0 / 0 |
-
-The draw piled three grinders on core 1 and left two cores grinder-free, and ran at nearly twice
-the best 2026-09-03 rate. That is a second observation in favour of the grinder co-location
-reading above, still on the fast side of the lottery.
-
 ## Why this extends `board_console` and not the other two instruments
 
 `script/repeat-under-load` and `script/interleaving-check` are the tree's existing load and

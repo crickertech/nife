@@ -2,10 +2,10 @@ Run a bench session on a real board (radon, xenon or argon) from a lane, safely,
 the bench. You are a developer lane. The maintainer relays everything between you and calef. Do the
 work; stop only where this brief says stop.
 
-*(Name **provisional**, minted 2026-09-25 by milestone 225 (run the soak on radon, argon and xenon)'s radon lane, the first bench session
+*(Name provisional, minted 2026-09-25 by milestone 225 (run the soak on radon, argon and xenon)'s radon lane, the first bench session
 ever run from a lane rather than from a maintainer session. calef names things.)*
 
-**Why this brief exists.** Until 2026-09-25 every bench session was run by a maintainer, from
+Why this brief exists. Until 2026-09-25 every bench session was run by a maintainer, from
 memory, with calef beside the board, and the notes were written for that person. A lane cannot
 flip a switch or type at U-Boot, and it cannot see the desk. This brief is the list of things a lane
 did have to guess on its first session, with the guesses turned into answers.
@@ -26,22 +26,22 @@ Whoever finishes an entry moves it off this list in the same pull request.
 **The first step of each session is a watched reset, because a board that can reset itself turns
 every later boot from calef's hands into a command.**
 
-- **radon.** Today it cannot. On 2026-09-04 an SBI SRST cold reboot stopped at `cannot read pmic
+- radon. Today it cannot. On 2026-09-04 an SBI SRST cold reboot stopped at `cannot read pmic
   power register` and never came back (milestone 249 (the boot lottery is sampled by a person
   walking to the board), "The bench answered it, 2026-09-04"). Pull request #1279 re-read that log:
   no reset happened; OpenSBI's reboot is an I2C write to the PMIC, and it hangs because U-Boot gated
   that bus's clocks before the handoff. Nothing on patagonia can reach plug 2 (milestone 224
-  (nothing can power-cycle radon, so a hung soak needs a person)). **Once the lane re-enabling
-  those I2C clocks before the reset has landed**, the first step on radon is one reset, watched
+  (nothing can power-cycle radon, so a hung soak needs a person)). Once the lane re-enabling
+  those I2C clocks before the reset has landed, the first step on radon is one reset, watched
   through to a second `U-Boot SPL` banner, `payload came from net`, and `soak-test: started`. If it
   works, milestone 168's boots need no plug cycles, and the calef's-hands cell above shrinks to the
   first power-on. Until it lands, do not try it: the outcome is known, and it costs a power cycle.
-- **xenon.** The first step is one kernel-initiated reset, the `script/soak-test --reboot` path (pull request #1279, not yet on `main` when this was written),
+- xenon. The first step is one kernel-initiated reset, the `script/soak-test --reboot` path (pull request #1279, not yet on `main` when this was written),
   watched to a full boot. The firmware is set to halt at POST on warnings, so a reset that lands on
   a warning waits for a keypress: say so rather than calling it a hang. While calef is at the
-  machine, ask him to press **Ctrl-P at POST** and record whether Intel AMT/MEBx appears
+  machine, ask him to press Ctrl-P at POST and record whether Intel AMT/MEBx appears
   (`design/roadmap/proposals/xenon-may-carry-amt.md`); AMT would be remote power.
-- **argon.** First light comes first. The step after it is a PSCI system reset over `smc`, watched
+- argon. First light comes first. The step after it is a PSCI system reset over `smc`, watched
   the same way.
 
 The radon soak (milestone 225) is not on this list because it ran on 2026-09-25. Another radon soak
@@ -52,12 +52,12 @@ risk that has no data yet.
 
 Send the maintainer a one-line message naming the action, and wait for the go, before any of these:
 
-- **power**: any request to switch plug 2 (radon). **Plug 3 is garcia: never, under any
+- Power: any request to switch plug 2 (radon). **Plug 3 is garcia: never, under any
   circumstances.** `tokul` is a drive on the USB hub: never unplug the hub, never ask for it;
-- **media**: writing a card, a stick, or a disk, including `script/board-image --card`;
-- **the network boot server**: starting or stopping `script/board-netboot`, or changing what it
+- Media: writing a card, a stick, or a disk, including `script/board-image --card`;
+- The network boot server: starting or stopping `script/board-netboot`, or changing what it
   serves;
-- **the serial port**: opening it, after checking nobody holds it (`lsof /dev/cu.usbmodem*`). Two
+- The serial port: opening it, after checking nobody holds it (`lsof /dev/cu.usbmodem*`). Two
   readers split the byte stream silently.
 
 Reading an open log and building on the host need no go.
@@ -76,9 +76,9 @@ the main checkout's `target/` that day.
     script/board-image --soak --tftp        # or --job-mix, --bench: the milestone's own flag
 
 **`NOT SEALED` on a `--soak`, `--job-mix` or `--bench` build is a false alarm. Do not rebuild.**
-Those builds divert the boot before the only caller of the measured-boot check, so the linker drops
-the trust root and `sealed_pair` finds no digests (`crates/sealed_pair`'s `BUGS`; milestone 563 (a seal check that reads bytes cannot see a check that was dropped)).
-The pair boots. It cost an hour at the bench on 2026-09-21 and again on 2026-09-25, because the
+Those builds divert the boot before the only caller of the measured-boot check. So the linker drops
+the trust root, and `sealed_pair` finds no digests. See `crates/sealed_pair`'s `BUGS` and
+milestone 563 (a seal check that reads bytes cannot see a check that was dropped). The pair boots. It cost an hour at the bench on 2026-09-21 and half an hour on 2026-09-25, because the
 message names two builds and points nowhere near a cargo feature. `script/board-image` exits 1 when
 it happens, and the files in `target/board` are still the matched pair it packed.
 
@@ -104,7 +104,7 @@ Start both with `nohup ... &` so they outlive the lane itself, not only one tool
 2026-09-25 the lane was stopped twice by usage limits during an 8-hour soak, and the detached
 watcher logged straight through both. Write the log under your own worktree's `target/`: not the
 main checkout's (the maintainer may delete it), not a session scratch directory (it goes when the
-session does), and not `bench/` (the log needs cleaning first, step 6). **Start the console before power**, so the boot is captured. An empty log
+session does), and not `bench/` (the log needs cleaning first, step 6). Start the console before power, so the boot is captured. An empty log
 at this point means the board is off or halted, which is what you want before a power cycle.
 
 Then ask: "power-cycle radon on plug 2 now". calef does it from the Kasa app.
@@ -117,7 +117,7 @@ In order, and report each to the maintainer:
    The `tftp server is` line above it names the address the card expected. If that address moved,
    the fix is typed at the U-Boot prompt, which is calef's hands.
 2. The workload's start line (for the soak: `4 groups ... (24 user threads) on 4 online core(s)`).
-3. For a soak: **`wakerate` about `100 * harts`** (about 400 on radon), and **`crossings` rising**
+3. For a soak: **`wakerate` about `100 * harts`** (about 400 on radon), and `crossings` rising
    between beats. After the first census settles (one drift event in the first beat or two, then
    `drifted=0`), note crossings per second. A slow draw (about 0.5/s on radon, seen 2026-09-03)
    is a different experiment from a fast one (about 50 to 186/s). Report it and let the maintainer
@@ -162,11 +162,11 @@ same image under QEMU (step 2) before anyone writes "silicon-only".
 
 ## BUGS
 
-- **Every radon power cycle is a person.** Milestone 224 records calef's choice to stay manual, and
+- Every radon power cycle is a person. Milestone 224 records calef's choice to stay manual, and
   249 records that the self-reboot route hangs in firmware. A hung soak therefore holds the board
   until calef is next at the desk.
-- **The plug state is invisible to a lane.** Nothing reports whether plug 2 is on, so an empty log
+- The plug state is invisible to a lane. Nothing reports whether plug 2 is on, so an empty log
   cannot tell a board that is off from one that died before its UART came up.
-- **The TFTP address is read off patagonia at card-write time.** The card written on 2026-09-16
+- The TFTP address is read off patagonia at card-write time. The card written on 2026-09-16
   asks for `192.168.8.206`, patagonia's USB ethernet adapter. `en0` moved from `.216` to `.138`
   since then, and the boot survived only because the adapter's address did not move.
