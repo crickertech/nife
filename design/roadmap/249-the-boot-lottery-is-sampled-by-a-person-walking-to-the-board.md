@@ -6,9 +6,8 @@ provisional until the merge queue lands it.)*
 
 **Gate: HARDWARE.** It is the second kind the roadmap README distinguishes: the board is here and
 **this needs a person at it**. The mechanism, the escape and the reader are built and are green on
-what a host can gate; every claim about what radon does with them is unmade. See *What was built,
-with the board powered off* below, and notes/soak.md's procedure, whose first four steps are the
-ones a lane cannot take.
+what a host can gate; radon's first answer, from 2026-09-04, is recorded below. See *What was
+built, with the board powered off* below, and notes/soak.md's procedure, whose first four steps are the ones a lane cannot take.
 
 **`PARTIAL` rather than `IN-PROGRESS`, chosen deliberately and against the obvious answer.** This
 milestone has two phases and they are not the same kind of work: build the mechanism, and run the

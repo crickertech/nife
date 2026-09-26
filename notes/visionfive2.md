@@ -745,9 +745,7 @@ nife on RISC-V (rv64, S-mode, Sv39)
 ```
 
 (`kernel/src/main.rs`; the console comes up before the DTB is touched, so this line precedes any
-memory-map work). **Honest first-boot expectation: this line does not appear until the UART driver
-learns the DW-8250 differences above.** The realistic first target is `booti` relocating and
-jumping without complaint; the banner is the second target, after the driver work.
+memory-map work).
 
 ### The failure-triage ladder
 
@@ -850,6 +848,11 @@ stack only when it has an entropy client. No TRNG node, no entropy, no login sta
 peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real board's**, and the
 correction above does not change that until a boot proves the driver reaches bytes: a node found is
 not a device driven.
+
+## The eight-hour soak, 2026-09-25
+
+Clean over 8 h 09 m and 4.1 million cross-core handoffs, on one fast draw. The account and every
+anomaly are in [`visionfive2/soak-2026-09-25.md`](visionfive2/soak-2026-09-25.md).
 
 ## To measure at the bench
 
