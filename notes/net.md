@@ -20,7 +20,7 @@ note below).
 ### A socket is a socket id
 
 Open returns a small integer, carried in the request word of every
-later call; the per-connection **shared frame** is the real granted resource, delegated once at
+later call; the per-connection shared frame is the real granted resource, delegated once at
 open via `SEND_CAP` and mapped by net_stack at a per-socket VA. No ambient network: the client acts only
 through the `Stack` capability it was granted, and bytes cross in the shared frame, never in a
 message.
@@ -192,11 +192,11 @@ written, in [the-inbound-check.md](net/the-inbound-check.md).*
   both buses. This is the same reasoning that retired the PCIe DNS variant.
 - **Inbound UDP is now built, and it is a grant of its own** (milestone 55's mDNS stack half; this
   bullet used to say "not built"). `BIND_UDP` claims a fixed UDP port the way `LISTEN` claims a TCP
-  one, checked against a **UDP bind grant** the spawn site packs into the high half of the same
+  one, checked against a UDP bind grant the spawn site packs into the high half of the same
   spawn word the listen grant rides in (`socket_protocol::udp_bind_grant`; the halves are independent
   authorities, and the zero word still grants nothing anywhere). It answers with `LISTEN`'s own
   vocabulary because the three outcomes are properties of claiming a port, not of TCP. In the same
-  change, a UDP `RECV` reply now carries the datagram's **source endpoint** in the frame's dst
+  change, a UDP `RECV` reply now carries the datagram's source endpoint in the frame's dst
   fields (dead space on a reply), because a responder must see who asked and RFC 6762 §6.7 turns on
   the querier's source port; the TFTP gate consumes it by ACKing to the DATA packet's reported
   source, which is what TFTP's TID scheme wanted all along. The stack also joins 224.0.0.251 at

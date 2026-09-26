@@ -67,19 +67,23 @@ of median and a gate built on it would fail documents that pass:
   A link counts as its text.
 - Bold is `**...**` outside code and outside table rows (§213's table-cell precedent). It opens a
   line when nothing but indentation, a list marker or a blockquote marker precedes it. Bold inside
-  a quote still counts: bold is the writer's markup, not the speaker's.
+  a quote still counts: bold is the writer's markup, not the speaker's. Bold a script parses
+  (`**Status:`, `**Built:**`, a Follow-on tag) is syntax and is not counted; see `derived_markers`.
 - The median and the bold density are only asked of documents of at least 200 words, the floor
   §213's own per-document statistics used. A median of five sentences or a density over 90 words is
   a coin toss, and a new three-line README with one bold word would otherwise fail at 11 per 1,000.
   The longest-sentence limit applies to every document.
 
-**Bold is ratcheted as counts, not as density, and that is a deliberate departure from §213's
-wording ("bold density may not rise").** Density is bold over words, so a lane that condenses a
-document without touching its bold RAISES its density, and a density ratchet would fail exactly the
-work §212 asks for. That is not hypothetical: five condensation lanes were landing on the day this
-was built. So a document over the density limit may not add a line-opening bold or an inline bold
-(each count is held separately, since they have different fixes), and cutting words is always free.
-Recorded in milestone 586's block for calef, because it reinterprets his ratified words.
+**Bold is judged on density in any document a change touches** (calef, 2026-09-26 UTC: "4 bolds
+per 1000 is the right ratio for our written prose. That it was previously written without density
+is irrelevant. Bold should be rare."). A document whose content differs from the merge base must
+be at or under 4 bold per 1,000 words afterwards, and its baseline bold columns grant it nothing.
+This was built first as two counts, because density is bold over words and a lane that condenses a
+document raises it. The answer now is that whoever condenses a document removes its bold too.
+
+Untouched documents still pass on their baseline bold counts, so the tree did not go red on the
+day of the ruling. "Touched" is the diff against the merge base this module already takes for its
+tight half, read with renames: a pure rename (100% similar) is not a touch, and an edit is.
 """
 
 import os
@@ -270,6 +274,118 @@ def sentences(block):
     return lengths
 
 
+# --- bold a script parses is syntax, not emphasis --------------------------------------------
+#
+# The maintainer's ruling of 2026-09-26 (UTC), on #1311, after the lane for §219 (how the shell
+# names an installed program to the spawner) found it: `**Status: …`, `**Built:**`, `**Gate: …**`,
+# the Follow-on and Revisit tags and fatal-risks' experiment fields are read by scripts, and in a short block that bold alone is over 4 per 1,000 words, so the touch
+# rule would have made those documents uneditable. Parsed bold is not counted at all.
+#
+# The set is DERIVED from the parsers, not listed here: every `re.compile`/`re.match`/`re.search`/
+# `re.finditer`/`re.findall` whose pattern is a literal containing `\*\*`, and every
+# `.startswith("**X…")`, in the Python of `script/*` (the heredoc a shell wrapper runs) and
+# `helpers/*.py`. A parser that adds a marker is honoured the day it lands, with nothing to update.
+# A single shared module was considered and not built: the parsers disagree about their own
+# markers (five spellings of the Status line across six scripts), so sharing one definition means
+# either changing what eight gates accept, which is its own decision, or re-homing each variant
+# verbatim, which shares nothing. Deriving reads each variant where it lives.
+#
+# The failure mode of deriving is a generic pattern (one that matches any bold) exempting everything.
+# `selftest` guards it: no derived marker may match ordinary bold, and a pattern that does must be
+# named in NOT_MARKERS with its reason, or the lint fails.
+PARSER_ROOTS = ('script', 'helpers')
+NOT_MARKERS = {
+    # Reads a running-order TABLE cell's leading verdict; table rows are never counted here anyway,
+    # and on prose it would match any bold that opens with a capital word ("**A run ...").
+    ('script/fatal-risks', r'^\*\*([A-Z][A-Z-]*)\b'),
+}
+ORDINARY_BOLD = ('**Hello world.** Then prose.', '**A claim that opens.** More.', '**I think so.**',
+                 '- **Operations.** The rest.', 'Inline **names provisional** here.',
+                 '**It is fixed, 2026-09-23.** Then.', '**NOT** this.')
+_markers = None
+
+
+def _python_of(path, text):
+    if path.endswith('.py'):
+        return [text]
+    return [m.group(2) for m in re.finditer(r"<<-?\s*'(\w+)'\n(.*?)\n\1\n", text, re.S)]
+
+
+def _flags(node):
+    import ast
+    flags = 0
+    for n in ast.walk(node):
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == 're':
+            flags |= {'M': re.M, 'MULTILINE': re.M, 'I': re.I, 'IGNORECASE': re.I,
+                      'S': re.S, 'DOTALL': re.S}.get(n.attr, 0)
+    return flags
+
+
+def derived_markers(root=None):
+    """[(file, pattern, flags)] for every bold marker a script or helper parses. See above."""
+    import ast
+    root = root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = []
+    for d in PARSER_ROOTS:
+        base = os.path.join(root, d)
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            rel = f'{d}/{name}'
+            if rel == 'helpers/prose_ratchet.py':
+                continue  # the counter itself: its BOLD matches every span by design
+            path = os.path.join(base, name)
+            if not os.path.isfile(path):
+                continue
+            try:
+                text = open(path, encoding='utf-8').read()
+            except (UnicodeDecodeError, OSError):
+                continue
+            if '**' not in text:
+                continue
+            for src in _python_of(rel, text):
+                try:
+                    tree = ast.parse(src)
+                except SyntaxError:
+                    continue
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call) or not node.args:
+                        continue
+                    f, a0 = node.func, node.args[0]
+                    if not (isinstance(a0, ast.Constant) and isinstance(a0.value, str)):
+                        continue
+                    if (isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name)
+                            and f.value.id == 're'
+                            and f.attr in ('compile', 'match', 'search', 'finditer', 'findall')
+                            and '\\*\\*' in a0.value):
+                        flags = _flags(node.args[1]) if len(node.args) > 1 else 0
+                        for kw in node.keywords:
+                            if kw.arg == 'flags':
+                                flags |= _flags(kw.value)
+                        out.append((rel, a0.value, flags))
+                    elif (isinstance(f, ast.Attribute) and f.attr == 'startswith'
+                          and a0.value.startswith('**') and len(a0.value.strip('*')) > 0):
+                        out.append((rel, '^' + re.escape(a0.value), 0))
+    return out
+
+
+def markers():
+    """The derived markers, compiled for use on a paragraph (always multiline), NOT_MARKERS out."""
+    global _markers
+    if _markers is None:
+        _markers = []
+        seen = set()
+        for rel, pat, flags in derived_markers():
+            if (rel, pat) in NOT_MARKERS or (pat, flags) in seen:
+                continue
+            seen.add((pat, flags))
+            try:
+                _markers.append(re.compile(pat, flags | re.M))
+            except re.error:
+                continue
+    return _markers
+
+
 def bold_counts(lines):
     """(line-opening, inline) bold spans. A span may wrap onto the next line of its paragraph, which
     is how a bold lead-in sentence is usually written, so paragraphs are read whole: a line-by-line
@@ -288,7 +404,15 @@ def bold_counts(lines):
             m = re.match(r'^\s*(>\s*)*([-*+]\s+|\d+[.)]\s+)?', line)
             starts.append(pos + m.end())
             pos += len(line) + 1
+        parsed = set()
+        for marker in markers():
+            for m in marker.finditer(text):
+                j = text.find('**', m.start())
+                if 0 <= j < m.end():
+                    parsed.add(j)
         for span in BOLD.finditer(text):
+            if span.start() in parsed:
+                continue  # syntax a script reads, not emphasis
             if span.start() in starts:
                 lead += 1
             else:
@@ -350,6 +474,19 @@ def measure(text):
     lead, inline = bold_counts(lines)
     return {'words': words, 'median': median(lengths), 'longest': max(lengths, default=0),
             'bold_lead': lead, 'bold_inline': inline, 'sentences': len(lengths)}
+
+
+def bold_allowed(words):
+    """The most bold spans a document of `words` words may carry: 4 per 1,000, rounded down."""
+    return words * LIMITS['bold_per_1000'] // 1000
+
+
+def bold_excess(m):
+    """Bold spans over the density limit, 0 for a document under the 200-word floor. `script/metrics`
+    sums this for the bold backlog chart, so the chart and the gate count the same thing."""
+    if m['words'] < SMALL_DOCUMENT:
+        return 0
+    return max(0, m['bold_lead'] + m['bold_inline'] - bold_allowed(m['words']))
 
 
 def over(m):
@@ -528,8 +665,13 @@ def check():
                        f'document was renamed)')
 
     changed = set()
+    touched = set()  # content differs from the merge base; a 100%-similar rename is not a touch
     if base:
         changed = set((git('diff', '--name-only', base, '--', '*.md') or '').split())
+        for line in (git('diff', '--name-status', '-M', base, '--', '*.md') or '').splitlines():
+            cells = line.split('\t')
+            if cells[0] != 'R100' and cells[0] != 'D':
+                touched.add(cells[-1])
 
     excused = 0
     held = 0
@@ -556,6 +698,13 @@ def check():
             old_text = at(base, path)
             was = measure(old_text) if old_text is not None else None
         doc_held = False
+        if path in touched and 'bold_lead' in now_over and FAMILY['bold_lead'] not in exc:
+            spans = m['bold_lead'] + m['bold_inline']
+            bad.append(f'{path}: {spans} bold spans in {m["words"]:,} words, and this change touches '
+                       f'it. A touched document meets 4 bold per 1,000 words (calef, 2026-09-26), '
+                       f'which here is {bold_allowed(m["words"])}: remove {bold_excess(m)} (promote a '
+                       f'label to a heading, or drop the bold)')
+            now_over = {c: v for c, v in now_over.items() if c not in ('bold_lead', 'bold_inline')}
         for c, v in now_over.items():
             if FAMILY[c] in exc:
                 excused += 1
@@ -641,8 +790,32 @@ def selftest():
          lambda m: (m['bold_lead'], m['bold_inline']) == (1, 1)),
         ('tables hold no sentences or bold', f'| **{long}** | {long} |\n', lambda m: (
             m['longest'], m['bold_lead'] + m['bold_inline']) == (0, 0)),
+        # 250 words allow one span (4 per 1,000 rounds down), so three are two over.
+        ('bold excess rounds the allowance down',
+         ' '.join(['w'] * 247) + ' **a** **b** **c**', lambda m: bold_excess(m) == 2),
+        ('no bold excess under the 200-word floor', '**a** **b** **c** short', lambda m: bold_excess(m) == 0),
+        ('parsed bold is not counted',
+         '**Status: BUILT.** Done.\n\n**Built:** 2026-09-01\n\n- **Recorded.** x\n\n**Real.** y',
+         lambda m: (m['bold_lead'], m['bold_inline']) == (1, 0)),
     ]
     failed = [name for name, text, ok in cases if not ok(measure(text))]
+    # The derived-marker guard: a parser pattern that matches ordinary bold would exempt all of it.
+    found = derived_markers()
+    if not found:
+        failed.append('no parser markers derived at all, so the reader of script/ is broken')
+    for rel, pat, flags in found:
+        if (rel, pat) in NOT_MARKERS:
+            continue
+        try:
+            rx = re.compile(pat, flags | re.M)
+        except re.error:
+            continue
+        for sample in ORDINARY_BOLD:
+            if rx.search(sample):
+                failed.append(f'{rel}\'s pattern {pat!r} matches ordinary bold ({sample!r}), so the '
+                              f'ratchet would stop counting it. Tighten it, or name it in NOT_MARKERS '
+                              f'with the reason')
+                break
     grant = '<!-- prose-budget: exception. 1,234 words against a 3,000-word cap. 2026-09-24. Reason: x -->'
     if granted_words(grant) != 1234 or granted_words('`' + grant + '`') is not None:
         failed.append('the marker\'s granted word count')
@@ -653,7 +826,10 @@ def selftest():
     if exc_ok != {'prose-budget': None} or exc_bad.get('writing-standards') is None:
         failed.append('exception markers')
     for name in failed:
-        print(f'prose ratchet selftest: {name} is measured wrongly', file=sys.stderr)
+        if name.startswith(('script/', 'helpers/', 'no parser')):
+            print(f'prose ratchet selftest: {name}', file=sys.stderr)
+        else:
+            print(f'prose ratchet selftest: {name} is measured wrongly', file=sys.stderr)
     return 1 if failed else 0
 
 

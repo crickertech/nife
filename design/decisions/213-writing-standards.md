@@ -12,8 +12,9 @@ no sentence over 40 words, and 4 or fewer bold spans per 1,000 words. Rule 4 sta
 The ratchet is the enforcement, and two proposed rules stay dropped. Raised by calef the same day,
 reading a maintainer session's proposal to cap document length. A maintainer session then measured
 the tree and proposed four rules, he replied *"Set them."*, and he then changed the median from 25 to
-20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24. He added the
-ruling on line-opening labels on 2026-09-26, shortly after midnight UTC.
+20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24. He added two
+rulings on 2026-09-26, between about 00:15 and 00:45 UTC: line-opening labels, and bold density in
+any document a change touches.
 
 His words, which are the whole brief:
 
@@ -191,12 +192,20 @@ Rule 3 fails every document in the tree, so a cliff would be 994 instant failure
 project nobody wants. The gate sits at rung 2 of the `AGENTS.md` ladder, a check that fails loudly,
 and it is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), shared with §212's.
 #1230 built it on 2026-09-24 as `helpers/prose_ratchet.py`, run by `script/lint`. The milestone
-is PARTIAL: one week of baseline-churn measurement remains. It holds bold as two counts rather than
-as density, and [its block](../roadmap/586-a-prose-ratchet-in-lint.md) says why.
+is PARTIAL: one week of baseline-churn measurement remains.
 
-- A document's median sentence length, longest sentence and bold density may not rise. That is the
-  shape of the unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall
-  into a direction, and rule 3 needs that more than the other two do.
+- A document's median sentence length and longest sentence may not rise. That is the shape of the
+  unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall into a
+  direction.
+- A document a change touches meets the bold budget outright, and its baseline grants it no bold.
+  calef, 2026-09-26 (UTC): *"4 bolds per 1000 is the right ratio for our written prose. That it
+  was previously written without density is irrelevant. Bold should be rare."* The gate first held
+  bold as two counts, because condensing a document raises its density. The answer now is that
+  whoever condenses a document removes its bold too. Bold a script parses (`**Status:`, `**Built:**`,
+  a Follow-on tag) is syntax, not emphasis, and is not counted; the ratchet reads that set from the
+  parsers' own source (maintainer ruling on #1311, 2026-09-26). An untouched document keeps its baseline
+  counts, so the tree did not go red that day. He chose not to sweep the backlog. The weekly bold
+  chart in `notes/project-metrics.md` drives it down, and retires itself at zero.
 - The check reports line-opening and inline bold as two counts. They have different fixes, and a
   single density number hides which one a document has.
 - A new document meets the standard outright. So does a document being rewritten wholesale, which is

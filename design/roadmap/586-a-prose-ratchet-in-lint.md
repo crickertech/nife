@@ -102,6 +102,8 @@ the manual. The baseline is `design/prose-baseline.tsv`, one row per document ov
 Bold is held as counts, not density. Density is bold over words, so condensing a document raises it.
 A density ratchet would fail the work §212 asks for. Each count may not rise; cutting words is free.
 This departs from §213's words, "bold density may not rise", and calef may overrule it.
+calef overruled it on 2026-09-26 (UTC): a document a change touches is judged on density, and
+whoever condenses a document removes its bold too. §213 records the ruling in his words.
 
 Banking is lazy. A shrink does not force a baseline edit, because forced banking would put the
 baseline in most pull requests. The merge-base comparison closes the slack instead.
