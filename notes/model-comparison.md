@@ -12,6 +12,8 @@ chosen after the results are seen.
   and the analysis, fixed before the first run.
 - [Pilot results, 2026-09-24](model-comparison/2026-09-24-pilot.md): twelve runs, blind-graded, with
   what two runs per cell can and cannot carry.
+- [Protocol, `open-lane-qwen-next`, 2026-09-26](model-comparison/2026-09-26-qwen-next-protocol.md): a
+  rented model against Opus 5.5 and Sonnet 5, one task per role, fixed before the first run.
 
 ## BUGS
 

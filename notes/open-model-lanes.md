@@ -96,6 +96,17 @@ backstop is the **spend limit on the OpenRouter key itself**, which calef had al
 is the only control here that still works after a key has leaked. A gateway password would have
 narrowed the loopback case and nothing else; it was weighed and declined.
 
+## What the gateway has spent
+
+The gateway appends one JSON line per request to `~/.local/open-lane/spend.jsonl` on cordoba, with
+the model group, tokens in and out, and `cost_usd`. Spend per group, from any tailnet host:
+
+    ssh cordoba.local "jq -s 'group_by(.group)|map({group:.[0].group,usd:(map(.cost_usd//0)|add)})' ~/.local/open-lane/spend.jsonl"
+
+Its `t` field is cordoba's local time, not UTC, and a row carries no run or lane tag. To cost one run,
+note the file's line count before it and sum that group's rows after, with nothing else of that group
+in flight; `notes/model-comparison/2026-09-26-qwen-next-protocol.md` does exactly that.
+
 ## What makes a cheaper model safe here, and it is not the model
 
 **The gates are the oracle.** `helpers/open-lane.sh` never judges the work: it loops the model
